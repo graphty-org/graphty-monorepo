@@ -26,7 +26,7 @@ import { groupsOf, plan1d } from "../kernel/dispatch.js";
 import { kernelSpec, PR_PARAMS, PR_PARTIAL } from "../kernels.js";
 import { type CoreBinding } from "../memory/residency.js";
 import { assertWholeCore, coreOfView } from "../primitives/core-shape.js";
-import { prepareSpmvPull } from "../primitives/spmv.js";
+import { prepareSpmvPull, type SpmvPullPlanner } from "../primitives/spmv.js";
 import { assertDeviceComputes } from "../primitives/verify.js";
 import { type Binding } from "../types/memory.js";
 import { algorithmScope } from "./scope.js";
@@ -59,6 +59,13 @@ export interface PowerIterationConfig {
     readonly alpha: number;
     readonly beta: number;
     readonly uniformP: number;
+    /**
+     * True: `beta` multiplies the iterate itself, so each pull is `(A + beta I) x` (eigenvector's identity shift);
+     * false or undefined: `beta` multiplies `uniformP`.
+     */
+    readonly betaTimesIterate?: boolean | undefined;
+    /** x(0); undefined is 1 / n for every node. */
+    readonly seed?: F32 | undefined;
     readonly maxIterations: number;
     readonly tolerance: number;
     /** undefined takes the adjacency's weights, null runs UNWEIGHTED on a weighted snapshot (T4 Step 4). */
@@ -76,6 +83,22 @@ export interface PowerIterationRun {
     readonly iterations: number;
     readonly converged: boolean;
     readonly iterationsRun: number;
+}
+
+/**
+ * Refuses a convergence tolerance that is not a finite number >= 0: NaN or a negative value never converges, so
+ * the run would spend every iteration and report converged: false instead of rejecting the input.
+ * @param tolerance - the resolved option
+ * @param algorithm - the caller's name, for the message
+ */
+export function checkTolerance(tolerance: number, algorithm: string): void {
+    if (!Number.isFinite(tolerance) || tolerance < 0) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${algorithm}: tolerance must be a finite number >= 0`, {
+            argument: "tolerance",
+            value: tolerance,
+            expected: "a finite number >= 0",
+        });
+    }
 }
 
 /**
@@ -155,8 +178,54 @@ function whole(buffer: GPUBuffer, size: number): Binding {
     return { buffer, offset: 0, size, window: null };
 }
 
+/** What one recorded scale + finalize hands the apply and the pull of the same iteration. */
+interface MeasuredIteration {
+    readonly params: { binding: Binding; offset: number };
+    readonly scaleBindings: Readonly<Record<string, Binding>>;
+    readonly rankOut: Binding;
+    readonly core: CoreBinding;
+    readonly pull: SpmvPullPlanner;
+}
+
 /**
- * Runs the power iteration of `config` over `n` nodes from x(0) = 1 / n, in batches of eight iterations with ONE
+ * The run once a batch converged or ran the last iteration, else null.
+ * @param back - the batch's readback bytes
+ * @param offsets - where the header, the iterate and (alternating runs) the previous iterate sit in it
+ * @param offsets.header - the folded header
+ * @param offsets.scores - the iterate
+ * @param offsets.previous - the previous iterate, or null
+ * @param n - the node count
+ * @param iterationsRun - the iterations run
+ * @param config - maxIterations and onProgress
+ * @returns the run, or null to run another batch
+ */
+function runIfDone(
+    back: ArrayBuffer,
+    offsets: { readonly header: number; readonly scores: number; readonly previous: number | null },
+    n: number,
+    iterationsRun: number,
+    config: PowerIterationConfig,
+): PowerIterationRun | null {
+    const folded = PR_PARTIAL.read(new DataView(back), offsets.header);
+    const firstConverged = folded.firstConverged as number;
+    const converged = firstConverged !== U32_MAX;
+    if (!converged && iterationsRun < config.maxIterations) {
+        return null;
+    }
+    if (converged && iterationsRun < config.maxIterations) {
+        config.onProgress?.(config.maxIterations, config.maxIterations);
+    }
+    return {
+        scores: new Float32Array(back, offsets.scores, n).slice(),
+        previous: offsets.previous === null ? null : new Float32Array(back, offsets.previous, n).slice(),
+        iterations: converged ? firstConverged : iterationsRun,
+        converged,
+        iterationsRun,
+    };
+}
+
+/**
+ * Runs the power iteration of `config` over `n` nodes from x(0) = `config.seed` (1 / n by default), in batches of eight iterations with ONE
  * readback per batch (the header and the iterate together), stopping at the first batch whose header records a
  * converged iteration or at `maxIterations`. The returned iterate is RAW: the last `spmv-pull` output, which the
  * caller normalises once on the host. The iterate travels with the header in EVERY batch, not once after the loop:
@@ -189,7 +258,13 @@ export async function runPowerIteration(
         const partialsBuffer = scope.scratch(partialsBytes, "partials");
         const partials = whole(partialsBuffer, partialsBytes);
         await ctx.allocator.check();
-        const pullOptions = { personalization: false, dangling: false, weights: config.weights, tiers: null };
+        // the personalization slot binds xNorm itself when it is null (spmv.ts), which is the identity shift
+        const pullOptions = {
+            personalization: config.betaTimesIterate === true,
+            dangling: false,
+            weights: config.weights,
+            tiers: null,
+        };
         const pulls = [{ core: config.adjacency, pull: await prepareSpmvPull(scope, config.adjacency, pullOptions) }];
         if (config.alternate !== null) {
             pulls.push({ core: config.alternate, pull: await prepareSpmvPull(scope, config.alternate, pullOptions) });
@@ -200,7 +275,7 @@ export async function runPowerIteration(
         const finalize = await ctx.pipelines.kernel(kernelSpec("pr-finalize", { NORM_MODE: config.normMode }));
         const finalizePlan = plan1d(1, ctx.workgroupSize, ctx.caps);
         const { queue } = ctx.device;
-        queue.writeBuffer(ring[0].buffer, 0, new Float32Array(n).fill(1 / n));
+        queue.writeBuffer(ring[0].buffer, 0, config.seed ?? new Float32Array(n).fill(1 / n));
         for (const slot of ring.slice(1)) {
             queue.writeBuffer(slot.buffer, 0, new Float32Array(n));
         }
@@ -216,14 +291,16 @@ export async function runPowerIteration(
             // the scale + finalize of iteration i measures the error of iteration i - 1 (PD-9), so the last batch
             // runs them once more, with no apply and no pull, to measure the error of iteration maxIterations itself
             const last = iterationsRun + k === config.maxIterations;
-            for (let i = 0; i < k + (last ? 1 : 0); i++) {
+            const measure = (i: number): MeasuredIteration => {
                 const iteration = iterationsRun + i + 1;
                 const params = scope.params(PR_PARAMS, {
                     n,
                     groups,
                     iteration,
                     trackConvergence: 1,
-                    convergeThreshold: config.tolerance * n,
+                    // every mode holds the change to the tolerance relative to the iterate: pr-finalize scales this
+                    // by the folded L1 size, so the stop does not loosen with the node count (issue #1182)
+                    convergeThreshold: config.tolerance,
                 });
                 const rankIn = ring[(iteration - 1) % ring.length];
                 // the slot the pull overwrites still holds x(iteration - ring.length): that is rankPrev (PD-9)
@@ -240,13 +317,15 @@ export async function runPowerIteration(
                 };
                 scaleNorm.dispatch(pass, scaleNorm.bind(scaleBindings), scalePlan, [params.offset]);
                 finalize.dispatch(pass, finalize.bind({ partials, P: params.binding }), finalizePlan, [params.offset]);
-                if (i === k) {
-                    break;
-                }
-                if (scaleApply !== null) {
-                    scaleApply.dispatch(pass, scaleApply.bind(scaleBindings), scalePlan, [params.offset]);
-                }
+                return { params, scaleBindings, rankOut, core, pull };
+            };
+            for (let i = 0; i < k; i++) {
+                const { params, scaleBindings, rankOut, core, pull } = measure(i);
+                scaleApply?.dispatch(pass, scaleApply.bind(scaleBindings), scalePlan, [params.offset]);
                 pull.record(pass, core, { xNorm, rankOut, personalization: null, partials }, coefficients);
+            }
+            if (last) {
+                measure(k);
             }
             batch.endPass();
             const headerRequest = batch.readback(partialsBuffer, 0, PR_PARTIAL.byteLength);
@@ -265,21 +344,19 @@ export async function runPowerIteration(
                 throw aborted(config.label, submitted.id);
             }
             config.onProgress?.(iterationsRun, config.maxIterations);
-            const folded = PR_PARTIAL.read(new DataView(back), headerRequest.offset);
-            const firstConverged = folded.firstConverged as number;
-            const converged = firstConverged !== U32_MAX;
-            if (converged || iterationsRun >= config.maxIterations) {
-                if (converged && iterationsRun < config.maxIterations) {
-                    config.onProgress?.(config.maxIterations, config.maxIterations);
-                }
-                return {
-                    scores: new Float32Array(back, scoresRequest.offset, n).slice(),
-                    previous:
-                        previousRequest === null ? null : new Float32Array(back, previousRequest.offset, n).slice(),
-                    iterations: converged ? firstConverged : iterationsRun,
-                    converged,
-                    iterationsRun,
-                };
+            const done = runIfDone(
+                back,
+                {
+                    header: headerRequest.offset,
+                    scores: scoresRequest.offset,
+                    previous: previousRequest?.offset ?? null,
+                },
+                n,
+                iterationsRun,
+                config,
+            );
+            if (done !== null) {
+                return done;
             }
         }
     } finally {

@@ -100,6 +100,21 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_ATTRIBUTE"
     /**
+     * A command, API member, saved document or attribute asked for something whose experiment is
+     * off: `details` (a project open's problem: `params`) carry `feature`, the experiment's id, and
+     * `key`, what was asked for. The caller switches the experiment on (`features="..."`) or leaves
+     * that part out.
+     */
+    | "E_FEATURE_OFF"
+    /**
+     * A timeline call needs a time field and none is designated: `session.time.window`, `play`,
+     * `stepBy` or `seek` with no attribute given. The caller designates one with
+     * `session.time.setField` (or the `node-time-path` / `edge-time-path` attributes).
+     * @experimental timeline
+     * @beta
+     */
+    | "E_NO_TIME_FIELD"
+    /**
      * An algorithm key is not registered. `details.available` lists the registered keys. The
      * caller picks a key from the catalogue or registers a plugin that provides it.
      */
@@ -122,6 +137,25 @@ export type GraphtyErrorCode =
      * The caller picks a palette from the catalogue or registers its own first.
      */
     | "E_UNKNOWN_PALETTE"
+    /**
+     * A layer names a shader the catalog does not list, in a use on `node.shaders` or
+     * `edge.shaders` or a parameter's address. `details.candidates` lists the ids that list takes.
+     * @since 3.36.0
+     */
+    | "E_UNKNOWN_SHADER"
+    /**
+     * A layer names a shader where it cannot draw: an edge shader on `node.shaders`
+     * (`shader.target-mismatch`), or a use at a place the shader does not allow
+     * (`shader.place-unsupported`); the refused problem's `fact` carries the code.
+     * @since 3.36.0
+     */
+    | "E_SHADER_KIND"
+    /**
+     * A layer sets or binds a parameter the shader does not declare, or binds one per element
+     * that it does not declare `varies`. `details.candidates` lists the declared parameters.
+     * @since 3.36.0
+     */
+    | "E_UNKNOWN_SHADER_PARAM"
     /**
      * A camera view name is not one the element knows. `details.available` lists the registered
      * view ids. The caller picks one of those or registers its own view first.
@@ -167,6 +201,13 @@ export type GraphtyErrorCode =
      */
     | "E_UNKNOWN_ELEMENT"
     /**
+     * A graph was constructed with the id of a page element that the document does not hold, so
+     * there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
+     * or passes the element itself.
+     * @since 3.40.0
+     */
+    | "E_HOST_NOT_FOUND"
+    /**
      * A saved document's content is malformed: not the kind it claims, a required member missing
      * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
      * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
@@ -195,6 +236,15 @@ export type GraphtyErrorCode =
      * `details.id` names it. The caller lists the entries again.
      */
     | "E_AUTOSAVE_UNKNOWN_ENTRY"
+    /**
+     * Autosave's kept work could not be listed, or an entry could not be reopened: another tab
+     * holds the browser's database and did not let go within `details.afterMs` (a tab the browser
+     * suspended in the middle of a write), or the browser's storage stalled. `details.step` is
+     * `"list"` (listing), `"read"` (reading the entry) or `"restore"` (writing the restore). For a
+     * listing nothing is known about the kept work; the caller offers none and asks again later.
+     * A refused restore leaves the entry as it was; the caller may restore it again later.
+     */
+    | "E_AUTOSAVE_STALLED"
     /**
      * A document being serialised refers to a run whose id was derived rather than author
      * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -233,15 +283,19 @@ export type GraphtyErrorCode =
     | "E_LOCKED"
     /**
      * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
-     * unreadable file. `details` carry the url and the status where there was one, and `cause`
+     * unreadable file. `details` carry the url (or the file's name), the status where there was
+     * one and `timeoutMs` when the last request ran out of time, and `cause`
      * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
      * than 408 and 429), which fails after one request with `recoverable: false`.
      */
     | "E_FETCH_FAILED"
     /**
      * A source was fetched but could not be parsed as the format it claimed to be. `details`
-     * carry the format, the line and, where the parser reported one, the column. The caller
-     * corrects the file, or re-imports naming the true format.
+     * carry the format, the line and, where the parser reported one, the column; when graph-io
+     * read it, `details.issue` is graph-io's code for what stopped it (`"E_XML_SYNTAX"`,
+     * `"E_CSV_UNCLOSED_QUOTE"`...) and `details.element` where. A reader that threw without a
+     * code of its own is reported as this too, with its error as `cause`. The caller corrects
+     * the file, or re-imports naming the true format.
      */
     | "E_PARSE_FAILED"
     /**
@@ -457,10 +511,33 @@ export type GraphtyErrorCode =
      */
     | "E_DEVICE_LOST"
     /**
+     * The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
+     * device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
+     * The session and its data are untouched; the element asks for the device back, and
+     * `restartRenderer()` asks again. Thrown by `restartRenderer()` when the browser refuses.
+     */
+    | "E_RENDER_LOST"
+    /**
      * No WebGL context could be created, so nothing can be rendered. `details` carry what the
      * canvas reported. The session's data and results still work; only the view is unavailable.
      */
     | "E_NO_WEBGL"
+    /**
+     * A shader could not be built for WebGPU, usually because a name or a built-in in it is legal
+     * GLSL that WGSL or the compilers in between do not take. A refused shader never draws and can
+     * lose every frame it is part of, so `rendererStatus.drawing` turns false. `details.stage` names the step that gave up (`"compiler"`,
+     * `"translator"` or `"device"`) and `details.messages` carry what it said, which the translator
+     * leaves empty. Reported as `graph-error`.
+     */
+    | "E_SHADER_REFUSED"
+    /**
+     * The browser or the headset would not start an immersive (VR or AR) session: the reader
+     * refused permission, the device was busy, or the session could not be set up. `details.mode`
+     * is `"vr"` or `"ar"`, `details.reason` is `"active"` when another session was already running,
+     * and `cause` carries what the browser rejected with. Nothing was left half built: the graph
+     * stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
+     */
+    | "E_XR_SESSION_FAILED"
     /**
      * A feature the caller asked for needs an optional peer package that is not installed.
      * `details.package` names the package to install and `details.feature` the feature that
@@ -523,23 +600,23 @@ export type GraphtyErrorCode =
      */
     | "E_SOURCE_AUTH"
     /**
-     * A network source refused the request for this credential. `details.status`, `details.serverCode`. Experimental.
+     * A network source refused the request for this credential. `details.origin` is the host that answered, `details.status`, `details.serverCode`. Experimental.
      */
     | "E_SOURCE_FORBIDDEN"
     /**
-     * The item a network source was asked for does not exist. `details.what`, `details.value`. Experimental.
+     * The item a network source was asked for does not exist. `details.origin` is the host that answered, `details.what`, `details.value`. Experimental.
      */
     | "E_SOURCE_NOT_FOUND"
     /**
-     * A network source answered 429 after the retries. `details.retryAfterMs`. Recoverable later. Experimental.
+     * A network source answered 429 after the retries. `details.origin` is the host that answered, `details.retryAfterMs`. Recoverable later. Experimental.
      */
     | "E_SOURCE_QUOTA"
     /**
-     * A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.timeoutMs`, `details.serverSide`. Experimental.
+     * A load from a network source passed its `timeoutMs`, or the server's own timeout. `details.origin` is the host, `details.timeoutMs`, `details.serverSide`. Experimental.
      */
     | "E_SOURCE_TIMEOUT"
     /**
-     * A database rejected the query. `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
+     * A database rejected the query. `details.origin` is the host that answered, `details.serverCode`, `line`, `column`, `serverMessage`. Experimental.
      */
     | "E_SOURCE_QUERY"
     /**
@@ -547,7 +624,7 @@ export type GraphtyErrorCode =
      */
     | "E_SOURCE_NOT_A_GRAPH"
     /**
-     * A network source answered with a body of the wrong shape. `details.expected`, `details.contentType`. Experimental.
+     * A network source answered with a body of the wrong shape. `details.origin` is the host that answered, `details.expected`, `details.contentType`. Experimental.
      */
     | "E_SOURCE_RESPONSE"
     /**
@@ -571,6 +648,18 @@ export type GraphtyErrorCode =
      */
     | "E_SOURCE_UNKNOWN"
     /**
+     * A load an opened project holds has not been run since it opened, so nothing may fetch for it
+     * yet: no refresh, next page, check or expansion. `runPendingSourceLoad(details.id)` runs it,
+     * once the reader approved. Nothing was fetched. `details.id`. Experimental.
+     */
+    | "E_SOURCE_PENDING"
+    /**
+     * No load the graph holds has that key: `data.removeSource`, `data.refresh`,
+     * `data.checkSource` and `data.more` take a key `data.sources()` or `data.loads()` lists.
+     * `details.key`, `details.known`. Experimental.
+     */
+    | "E_LOAD_UNKNOWN"
+    /**
      * The source, or the element, lacks the feature asked for. `details.feature`, `details.needs`. Experimental.
      */
     | "E_SOURCE_UNSUPPORTED"
@@ -587,6 +676,112 @@ export type GraphtyErrorCode =
      * `details` and `cause` carry whatever is safe to report. The caller files an issue with the
      * message; nothing it can change will avoid it.
      */
+    /**
+     * A model URL answered with an error or not at all. `params.url` (no query), `params.status` (a number, or null when there was no answer: offline, CORS and DNS look alike), `params.offline`. Reported in an asset record's `problems`.
+     */
+    | "E_MODEL_FETCH"
+    /**
+     * A model URL may not be fetched: not http or https, carrying a user name or password, or named by a layer that did not come from the page's code. `params.hosts`; `params.denied` when the reader refused it; `params.part` (the part's name) for a part handed to `assets.supply` by URL. A private, loopback or link-local host is refused for a supplied part whoever asks.
+     */
+    | "E_MODEL_URL_BLOCKED"
+    /**
+     * A model is over a limit of `session.assets`. `params.what` (`bytes`, `unzipped`, `triangles`, `textureBytes`, `textureSize`, `decodedBytes`, `sessionBytes`, `documentBytes`, `count`), `params.found`, `params.limit`; `params.item` names what was counted.
+     */
+    | "E_MODEL_TOO_LARGE"
+    /**
+     * A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
+     */
+    | "E_MODEL_STRUCTURE"
+    /**
+     * A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
+     * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
+     */
+    | "E_MODEL_FORMAT_UNSUPPORTED"
+    /**
+     * No model format matches the bytes or the name. `params.fileName`.
+     */
+    | "E_MODEL_FORMAT_UNKNOWN"
+    /**
+     * Two different main files in one set, or two paths that differ only in case. `params.candidates`
+     * (at most 64, sorted) and `params.more` (how many were left out, when any); settle it with
+     * `add`'s `main` option.
+     */
+    | "E_MODEL_AMBIGUOUS"
+    /**
+     * A file a model references (a `.bin`, a texture, an `.mtl`) is not in the set. One per missing
+     * part, all at once, in the order the main file names them. `params.name`, `params.referencedBy`,
+     * `params.role` (`geometry`, `materials`, `texture`; OPEN UNION), `params.optional` (true for a
+     * part the model can be drawn without: a picture or an `.mtl`), and for a model fetched by URL
+     * `params.tried` (the addresses tried, without queries, at most 4).
+     */
+    | "E_MODEL_MISSING_FILE"
+    /**
+     * A reference matched more than one file of the set by case or base name, so none was used.
+     * `params.name`, `params.referencedBy`, `params.candidates`.
+     */
+    | "E_MODEL_PART_AMBIGUOUS"
+    /**
+     * An address answered with a web page (HTML), not a model or a picture. `params.url` (no query),
+     * `params.host`, `params.part` (the part's name, for a part), and `params.suggested` when the
+     * address of the file behind the page is known by its pattern (a GitHub or GitLab `blob` page).
+     */
+    | "E_MODEL_WEB_PAGE"
+    /**
+     * A part a model cannot be drawn without (geometry) was asked to be skipped. `params.name`, `params.role`.
+     */
+    | "E_MODEL_PART_REQUIRED"
+    /**
+     * A model references something outside its file set (a web address, `blob:`, `file:`, a path leaving the set). `params.url`.
+     */
+    | "E_MODEL_EXTERNAL_URL"
+    /**
+     * A model's compressed data could not be decoded. `params.reason`: `missing` when this build of graphty-element leaves the decoder out (the single-file `./bundle` carries no Draco or KTX2 decoder), `load` when the decoder's files could not be loaded, `decode` when the data is damaged. `params.extension` names the glTF extension when known. Every other build ships the Draco, meshopt and KTX2 decoders; nothing is fetched from a CDN.
+     */
+    | "E_MODEL_DECODER_UNAVAILABLE"
+    /**
+     * Babylon.js could not read a model that passed every check, or the model chunk could not load. `params.format`.
+     */
+    | "E_MODEL_PARSE"
+    /**
+     * A model's .zip cannot be read safely. `params.reason` (`corrupt`, `encrypted`, `empty`, `duplicate`, `ratio`, `entries`, `name`, `path`, `nested`).
+     */
+    | "E_MODEL_ZIP"
+    /**
+     * An asset name is held by different files, or is in the reserved `asset:sample/` space. `params.id`.
+     */
+    | "E_MODEL_NAME_TAKEN"
+    /**
+     * An asset id the session holds no accepted model for. `details.id`.
+     */
+    | "E_MODEL_UNKNOWN_ASSET"
+    /**
+     * A model a project file embeds does not match the digest the file records for it (or its id,
+     * for an unnamed asset), so it was not added. `params.id`.
+     */
+    | "E_MODEL_DIGEST_MISMATCH"
+    /**
+     * A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed". Also a skybox background image that could not be loaded, as the detail of the element's `graphty-skybox-failed` event, `params.url` its first 256 characters.
+     */
+    | "E_IMAGE_LOAD"
+    /**
+     * A picture the browser cannot decode, so it cannot be drawn (`prepareBackgroundImage`): HEIC in a browser without HEIC support, a damaged file, or a file that is not a picture. `params.format` (its media type, or "" when unknown), `params.fileName` when it is a file.
+     */
+    | "E_IMAGE_DECODE"
+    /**
+     * A screenshot, a video or a clipboard copy was started and could not be finished: the
+     * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
+     * no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
+     * `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
+     * @since 3.40.0
+     */
+    | "E_CAPTURE_FAILED"
+    /**
+     * A screenshot waited for the layout to stop moving and it was still moving when the wait ran
+     * out. `details.timeoutMs` is the wait. The caller captures again later, raises
+     * `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
+     * @since 3.40.0
+     */
+    | "E_NOT_SETTLED"
     | "E_INTERNAL";
 
 /**
@@ -598,12 +793,36 @@ export type GraphtyWarningCode =
     | "W_UNKNOWN_MEMBER"
     /** A note's `time` or `edited` is more than a day after the moment it was opened; kept as read. */
     | "W_FUTURE_TIME"
-    /** A member of a kind this reader does not know: skipped, the rest of the file still read. */
+    /**
+     * A member of a kind this reader does not know: skipped, the rest of the file still read
+     * (`params.index`, `params.kind`). Also a `graphty-sources` entry of a load kind it does not
+     * know: kept and never run (`params.kind`, `params.pointer`, `params.found`).
+     */
     | "W_UNKNOWN_KIND"
     /** A project's data is not the data its results were saved against: the results keyed by edge position were left out. */
     | "W_DATA_DIFFERS"
     /** A run was still computing when the project was saved, so the file does not hold it. */
     | "W_RUN_PENDING"
+    /**
+     * A saved filter condition this reader cannot read (an effect it does not know, or a malformed
+     * condition) was skipped; the rest were read, and what the file hides was read from its
+     * filter steps. `params.slice` is `"visibility"`, `params.id` the condition's id when it has one.
+     * @since 3.32.0
+     */
+    | "W_FILTER_CONDITION_SKIPPED"
+    /**
+     * A project's filter conditions are of a version this reader does not know, or are not a
+     * list: they were read from the file's filter steps instead. `params.slice` is `"visibility"`,
+     * `params.version` the version found.
+     * @since 3.32.0
+     */
+    | "W_FILTER_CONDITIONS_UNREADABLE"
+    /**
+     * A project's filter steps and the keep and exclude filter conditions it also holds disagree
+     * (a tool edited only one of them): the conditions were read. `params.slice` is `"visibility"`.
+     * @since 3.32.0
+     */
+    | "W_FILTER_STEPS_DIFFER"
     /**
      * A style layer's `{ match: "ids" }` selector names ids no element of the layer's target answers
      * to, by either spelling of an integer id, so they paint nothing. `params.target` is `"node"` or
@@ -616,6 +835,20 @@ export type GraphtyWarningCode =
      * `params.path` where in the layer the color sits. Today only `node.outline` cannot.
      */
     | "W_ALPHA_IGNORED"
+    /**
+     * The element's `limits` were set, or are held, while `render-path` is `"objects"`, where the
+     * shipped ceilings stand: they are honored only under `"batched"`. `params.renderPath`.
+     * @experimental cosmograph
+     */
+    | "W_LIMITS_IGNORED"
+    /**
+     * More rows ask to be drawn as objects of their own (a look no batch draws, such as a border)
+     * than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
+     * plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
+     * many asked, `params.cap` the budget.
+     * @experimental cosmograph
+     */
+    | "W_OBJECT_CAP"
     /**
      * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
      * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
@@ -639,7 +872,8 @@ export type GraphtyWarningCode =
     /**
      * A layout was given options it does not take, and ran without them. Emitted as a
      * `layout-warning` event by the layouts that do not refuse an unknown option with
-     * `E_UNKNOWN_OPTION`: `ngraph`, `forceatlas2`, `spring` and `spring-electrical`.
+     * `E_UNKNOWN_OPTION` (`ngraph`, `forceatlas2`, `spring` and `spring-electrical`), and by every
+     * other layout for a `seed` when it takes none: one that takes no seed draws the same every time.
      * `params.options` lists the names it ignored and `params.available` the names it takes.
      */
     | "W_UNKNOWN_OPTION"
@@ -649,7 +883,178 @@ export type GraphtyWarningCode =
      * event. `params.requested` holds the options as given and `params.used` the values used, by
      * name. In 3D mode the caller's dimension options are kept, so `dim: 2` lays a 3D view out flat.
      */
-    | "W_DIMENSION_OVERRIDDEN";
+    | "W_DIMENSION_OVERRIDDEN"
+    /**
+     * `antialias` was changed after the element built its engine, which reads it only then: the
+     * engine keeps the value it was built with. Raised as a `graphty-warning` event.
+     * `params.requested` is the value given, `params.active` the one in use.
+     */
+    | "W_ANTIALIAS_LATE"
+    /**
+     * A model's up axis is a guess (STL is taken as Z up, PLY as Y up). `params.format`, `params.up`;
+     * `node.modelSourceUp` turns it.
+     */
+    | "W_MODEL_UP_GUESSED"
+    /** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
+    | "W_MODEL_HAS_ANIMATIONS"
+    /**
+     * A glTF uses an extension that is drawn without: the transmission family
+     * (`KHR_materials_transmission`, `_volume`, `_dispersion`, `_diffuse_transmission`,
+     * `_volume_scatter`), whose parts are drawn opaque. `params.extension` names it; one fact per
+     * extension.
+     */
+    | "W_MODEL_EXTENSION_IGNORED"
+    /**
+     * `node.modelAnimation` names a clip the model does not have: its nodes hold the first frame
+     * of its first clip. `params.name` is the name asked for, `params.available` every clip's name.
+     */
+    | "W_MODEL_ANIMATION_UNKNOWN"
+    /**
+     * A model's clips were sampled at fewer frames a second than 30 to keep their texture within
+     * 16 MB: they play less smoothly. `params.fps`, `params.clips`.
+     */
+    | "W_MODEL_ANIMATION_REDUCED"
+    /**
+     * Part of a model's animation is not played: `params.reason` is `"morph"` for shape keys
+     * (morph targets), whose parts keep their rest shape while the rest moves.
+     */
+    | "W_MODEL_ANIMATION_PARTIAL"
+    /**
+     * A point cloud or Gaussian splat model is drawn as small solids, one per point: a splat's
+     * size, opacity falloff and rotation are not drawn, and more points than are drawn were thinned
+     * evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
+     */
+    | "W_MODEL_POINTS_APPROXIMATED"
+    /**
+     * A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
+     * `params.layerIds` names the layers that write `node.color`.
+     */
+    | "W_MODEL_COLOR_IGNORED"
+    /** A model is over the comfortable size (section 8.2 of the design). `params.triangles`, `params.materials`, `params.nodes`. */
+    | "W_MODEL_HEAVY"
+    /** The triangles drawn for models across the scene pass `sceneTriangleBudget`. `params.nodes`, `params.triangles`, `params.budget`. */
+    | "W_MODEL_BUDGET"
+    /** More than 100 nodes draw a model with see-through parts, which may sort wrongly where they overlap. `params.nodes`. */
+    | "W_MODEL_TRANSPARENT"
+    /** Textures larger than `maxTextureSize` pixels a side were drawn smaller. `params.from`, `params.to`. */
+    | "W_MODEL_TEXTURES_REDUCED"
+    /**
+     * A project was saved with a layer naming a model the session does not hold (a URL that never
+     * loaded, or an asset id it has no accepted model for), so the file does not carry it.
+     * `params.ref` is what the layers named and `params.layerIds` the layers.
+     */
+    | "W_MODEL_NOT_EMBEDDED"
+    /**
+     * A fetch the page's code did not ask for waits for the reader (`session.network`): a model URL
+     * from a project or style file, an AI command or the data, a reopened project's source load, or
+     * a part handed to `assets.supply` by its URL on another host (`by: "supplied"`).
+     * `params.id`, `params.url` (no query), `params.host`, `params.kind`, `params.by`,
+     * `params.layerIds`.
+     */
+    | "W_URL_NEEDS_APPROVAL"
+    /**
+     * A project file carries a network approval policy (`graphty-session` `network`), which an
+     * older release wrote. It is ignored: nothing saved in a file can make the element fetch
+     * without asking. `params.kind` is the member, `"graphty-session"`.
+     */
+    | "W_NETWORK_POLICY_IGNORED"
+    /**
+     * A model or picture a project keeps by URL loaded from that URL, and is not the file the
+     * project was saved with: the file at the URL changed. It is drawn. `params.url`,
+     * `params.expected` and `params.found` (SHA-256 digests).
+     */
+    | "W_MODEL_CHANGED"
+    /**
+     * A model reference was resolved by case or by base name to the one file of the set that
+     * matched. It is drawn. `params.name`, `params.used`, `params.referencedBy`.
+     */
+    | "W_MODEL_PART_SUBSTITUTED"
+    /**
+     * A model is drawn without a picture or `.mtl` the reader chose to skip. `params.name`, `params.role`.
+     */
+    | "W_MODEL_PART_SKIPPED"
+    /**
+     * A file supplied for a model matched none of its missing parts, and was not used. `params.fileName`.
+     */
+    | "W_MODEL_PART_UNUSED"
+    /**
+     * A project was asked to keep a model by its URL, but its parts came from several places
+     * (`assets.supply`), so no one URL brings it back: it was embedded instead. `params.url` (no
+     * query), `params.reason` (`parts`).
+     */
+    | "W_MODEL_NOT_KEPT_BY_URL"
+    /**
+     * A layout that has Graphviz route the edges between nodes it placed (the `fixed` layout with
+     * `edgeRoutes: "graphviz"`) could not: the nodes are placed all the same and the edges drawn the
+     * element's way. Emitted as a `layout-warning` event. `params.reason` is the Graphviz failure
+     * reason, such as `graphviz.unavailable` or `graphviz.timeout`.
+     */
+    | "W_ROUTES_NOT_LAID"
+    /**
+     * A layout that reads edge weights (`forceatlas2`, `kamada-kawai`) read a weight whose meaning
+     * nobody stated as a strength: a larger weight drawn closer. Set `data.knownFields.edgeWeightMeaning`
+     * to say what it means. Emitted as a `layout-warning` event. `params.attribute` is the weight's
+     * column and `params.meaning` the meaning assumed, `"strength"`.
+     */
+    | "W_WEIGHT_MEANING_ASSUMED"
+    /**
+     * A layout that reads edge weights left the weight unread, because its meaning is neither a
+     * strength nor a distance (a capacity): every edge counts the same. Emitted as a `layout-warning`
+     * event. `params.attribute` is the weight's column and `params.meaning` its meaning.
+     */
+    | "W_WEIGHT_MEANING_MISMATCH"
+    /**
+     * A project save left values whose names mark a credential (`api_key`, `token`, ...) out of
+     * the `graphty-sources` member: query parameters of a URL load's address, or of a network
+     * load's endpoint, cursor or REST mapping. `params.id` is the load's id and `params.names` the
+     * names left out. See the project file guide, "What a save leaves out".
+     */
+    | "W_SOURCE_URL_REDACTED"
+    /**
+     * A `graphty-sources` entry of an opened project names a network source this release has not
+     * registered: its elements are there and the entry is written back, but it is not offered to
+     * run. `params.id` is the entry's id and `params.source` the source id.
+     */
+    | "W_SOURCE_UNREGISTERED"
+    /**
+     * A `graphty-sources` member says `data: "steps"` but the file embeds the graph: the embedded
+     * data applied. `params.graph` names the graph, null for the file's one graph.
+     */
+    | "W_SOURCE_STEPS_IGNORED"
+    /**
+     * A member of an older version was read and upgraded to the version this release writes; a
+     * save writes the new version. `params.kind` is the member's kind, `params.found` the version
+     * read and `params.version` the version it was upgraded to.
+     */
+    | "W_VERSION_UPGRADED"
+    /**
+     * The `location-map` layout found no usable location for some nodes, and put them in its tray
+     * or left them where they were. `params.missing` counts nodes with no value, `params.unparsed`
+     * values no location format reads, `params.outOfRange` values out of range (see
+     * `W_LOCATION_OUT_OF_RANGE`), `params.unplaced` all of them together, `params.total` every
+     * node, `params.ids` the unplaced nodes' ids (so a count can select them), and
+     * `params.samples` up to eight `{ id, value, code }` (code `syntax` or `short-code`).
+     */
+    | "W_LOCATION_UNPARSED"
+    /**
+     * The `location-map` layout read locations it cannot place: latitude beyond +/-90 degrees or
+     * longitude beyond +/-180, or on a flat Web Mercator map a latitude past +/-85.05, which that
+     * projection cannot show. They go to the tray. `params.count`, `params.unplaced` (every
+     * unplaced node, these included), `params.total`, `params.ids` and up to eight
+     * `params.samples` `{ id, value, code }`.
+     */
+    | "W_LOCATION_OUT_OF_RANGE"
+    /**
+     * The `location-map` layout's `format: "auto"` found more than one format that reads the
+     * column about as well, and used the first: a decimal pair that reads as well longitude first
+     * (`lon-lat`) is the common case. `params.formats` (the one used first) and `params.column`.
+     */
+    | "W_LOCATION_AMBIGUOUS"
+    /**
+     * The `location-map` layout's `format: "auto"` read a column of decimal pairs longitude first,
+     * because latitude first would put latitudes beyond +/-90. `params.column`.
+     */
+    | "W_LOCATION_SWAPPED";
 
 /**
  * Every code, as a lookup table.
@@ -670,10 +1075,15 @@ const CODE_TABLE = {
     E_UNKNOWN_OPTION: "E_UNKNOWN_OPTION",
     E_OPTION_RANGE: "E_OPTION_RANGE",
     E_UNKNOWN_ATTRIBUTE: "E_UNKNOWN_ATTRIBUTE",
+    E_FEATURE_OFF: "E_FEATURE_OFF",
+    E_NO_TIME_FIELD: "E_NO_TIME_FIELD",
     E_UNKNOWN_ALGORITHM: "E_UNKNOWN_ALGORITHM",
     E_UNKNOWN_LAYOUT: "E_UNKNOWN_LAYOUT",
     E_UNKNOWN_FORMAT: "E_UNKNOWN_FORMAT",
     E_UNKNOWN_PALETTE: "E_UNKNOWN_PALETTE",
+    E_UNKNOWN_SHADER: "E_UNKNOWN_SHADER",
+    E_SHADER_KIND: "E_SHADER_KIND",
+    E_UNKNOWN_SHADER_PARAM: "E_UNKNOWN_SHADER_PARAM",
     E_UNKNOWN_CAMERA: "E_UNKNOWN_CAMERA",
     E_UNKNOWN_GENERATOR: "E_UNKNOWN_GENERATOR",
     E_UNKNOWN_DATASET: "E_UNKNOWN_DATASET",
@@ -681,11 +1091,13 @@ const CODE_TABLE = {
     E_UNKNOWN_RUN: "E_UNKNOWN_RUN",
     E_UNKNOWN_LAYER: "E_UNKNOWN_LAYER",
     E_UNKNOWN_ELEMENT: "E_UNKNOWN_ELEMENT",
+    E_HOST_NOT_FOUND: "E_HOST_NOT_FOUND",
     E_BAD_DOCUMENT: "E_BAD_DOCUMENT",
     E_UNSUPPORTED_VERSION: "E_UNSUPPORTED_VERSION",
     E_UNSAVED_CHANGES: "E_UNSAVED_CHANGES",
     E_AUTOSAVE_ENTRY_TAKEN: "E_AUTOSAVE_ENTRY_TAKEN",
     E_AUTOSAVE_UNKNOWN_ENTRY: "E_AUTOSAVE_UNKNOWN_ENTRY",
+    E_AUTOSAVE_STALLED: "E_AUTOSAVE_STALLED",
     E_UNSTABLE_RUN_ID: "E_UNSTABLE_RUN_ID",
     E_DUPLICATE_ID: "E_DUPLICATE_ID",
     E_DUPLICATE_EDGE: "E_DUPLICATE_EDGE",
@@ -723,7 +1135,10 @@ const CODE_TABLE = {
     E_SOFTWARE_ONLY: "E_SOFTWARE_ONLY",
     E_DEVICE_INCORRECT: "E_DEVICE_INCORRECT",
     E_DEVICE_LOST: "E_DEVICE_LOST",
+    E_RENDER_LOST: "E_RENDER_LOST",
     E_NO_WEBGL: "E_NO_WEBGL",
+    E_SHADER_REFUSED: "E_SHADER_REFUSED",
+    E_XR_SESSION_FAILED: "E_XR_SESSION_FAILED",
     E_MISSING_PACKAGE: "E_MISSING_PACKAGE",
     E_UNSUPPORTED: "E_UNSUPPORTED",
     E_READONLY: "E_READONLY",
@@ -745,9 +1160,33 @@ const CODE_TABLE = {
     E_SOURCE_PARAM: "E_SOURCE_PARAM",
     E_SOURCE_LIMIT: "E_SOURCE_LIMIT",
     E_SOURCE_UNKNOWN: "E_SOURCE_UNKNOWN",
+    E_SOURCE_PENDING: "E_SOURCE_PENDING",
+    E_LOAD_UNKNOWN: "E_LOAD_UNKNOWN",
     E_SOURCE_UNSUPPORTED: "E_SOURCE_UNSUPPORTED",
     E_SOURCE_INVALID: "E_SOURCE_INVALID",
     E_CREDENTIAL_NOT_STORABLE: "E_CREDENTIAL_NOT_STORABLE",
+    E_MODEL_FETCH: "E_MODEL_FETCH",
+    E_MODEL_URL_BLOCKED: "E_MODEL_URL_BLOCKED",
+    E_MODEL_TOO_LARGE: "E_MODEL_TOO_LARGE",
+    E_MODEL_STRUCTURE: "E_MODEL_STRUCTURE",
+    E_MODEL_FORMAT_UNSUPPORTED: "E_MODEL_FORMAT_UNSUPPORTED",
+    E_MODEL_FORMAT_UNKNOWN: "E_MODEL_FORMAT_UNKNOWN",
+    E_MODEL_AMBIGUOUS: "E_MODEL_AMBIGUOUS",
+    E_MODEL_MISSING_FILE: "E_MODEL_MISSING_FILE",
+    E_MODEL_PART_AMBIGUOUS: "E_MODEL_PART_AMBIGUOUS",
+    E_MODEL_WEB_PAGE: "E_MODEL_WEB_PAGE",
+    E_MODEL_PART_REQUIRED: "E_MODEL_PART_REQUIRED",
+    E_MODEL_EXTERNAL_URL: "E_MODEL_EXTERNAL_URL",
+    E_MODEL_DECODER_UNAVAILABLE: "E_MODEL_DECODER_UNAVAILABLE",
+    E_MODEL_PARSE: "E_MODEL_PARSE",
+    E_MODEL_ZIP: "E_MODEL_ZIP",
+    E_MODEL_NAME_TAKEN: "E_MODEL_NAME_TAKEN",
+    E_MODEL_UNKNOWN_ASSET: "E_MODEL_UNKNOWN_ASSET",
+    E_MODEL_DIGEST_MISMATCH: "E_MODEL_DIGEST_MISMATCH",
+    E_IMAGE_LOAD: "E_IMAGE_LOAD",
+    E_IMAGE_DECODE: "E_IMAGE_DECODE",
+    E_CAPTURE_FAILED: "E_CAPTURE_FAILED",
+    E_NOT_SETTLED: "E_NOT_SETTLED",
     E_INTERNAL: "E_INTERNAL",
 } as const satisfies Record<GraphtyErrorCode, GraphtyErrorCode>;
 

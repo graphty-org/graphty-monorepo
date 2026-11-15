@@ -5,8 +5,10 @@
  * container node with its members nested inside), then every logical edge in index order with its
  * explicit weight, `key` (the edge id role), ports and attributes.
  *
- * What the format keeps and what check() reports: any id and any text (DOT quotes everything
- * except a text ending in a backslash, which the lexer cannot read back); bool / i32 / f64 cells
+ * What the format keeps and what check() reports: any id and any text (written quoted, except an
+ * attribute value the importer listed as an HTML string in `meta.extra.dot.html`, written bare; a
+ * text with a backslash before a quote or a line break, or at its end, cannot be quoted and fails
+ * the save); bool / i32 / f64 cells
  * (f64 written with a decimal point so the dtype survives re-import; other numeric dtypes are
  * written and read back inferred); containment through the parent role (clusters); graph
  * attributes; node positions as `pos="x,y"`. Mixed direction is folded per onMixedDirection
@@ -18,7 +20,14 @@ import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/grap
 import { type ChildrenCsr, childrenCsr } from "../../children.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { isWritableDotText, quoteDotId } from "../../common/escape.js";
-import { capabilities, checkCapabilities, countMixedEdges, LOSS, sanitizeIds } from "../../common/export.js";
+import {
+    capabilities,
+    checkCapabilities,
+    countMixedEdges,
+    LOSS,
+    type SanitizedIds,
+    sanitizeIds,
+} from "../../common/export.js";
 import { formatDecimal, formatF32, formatF64, formatInteger, idText } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
@@ -36,10 +45,15 @@ import {
     LABEL_ATTRIBUTE,
     PARENT_COLUMN,
     POS_ATTRIBUTE,
+    RANK_COLUMN,
+    RANK_SET_COLUMN,
     SOURCE_PORT_COLUMN,
     TARGET_PORT_COLUMN,
 } from "./names.js";
-import { DOT_ATTRIBUTE_CLASH_CODE, DOT_STYLE_CAPABILITIES, dotStyledExport, isHtmlString } from "./styles.js";
+import { DOT_ATTRIBUTE_CLASH_CODE, DOT_STYLE_CAPABILITIES, dotHtmlTexts, dotStyledExport } from "./styles.js";
+
+/** The node columns written as rank subgraphs rather than as node attributes. */
+const RANK_COLUMNS: ReadonlySet<string> = new Set([RANK_COLUMN, RANK_SET_COLUMN]);
 
 /** What the writer takes: the format's options, the common ones and the styles. */
 type DotWriteOptions = DotExportOptions & CommonExportOptions & ExporterStyleOptions;
@@ -175,6 +189,16 @@ const CAPABILITIES: ExportCapabilities = capabilities({
 
 const DEFAULT_INDENT = "    ";
 const CLUSTER_PREFIX = "cluster";
+/**
+ * One step of the node section: a node statement, a subgraph block opened (`first` for the
+ * container's own opening, which writes its attributes and references its members written
+ * before it) or closed.
+ */
+type NodeStep =
+    | { readonly kind: "node"; readonly i: number }
+    | { readonly kind: "open"; readonly c: number; readonly first: boolean; readonly refs: readonly number[] }
+    | { readonly kind: "close"; readonly c: number; readonly first: boolean };
+
 const COMPASS_POINTS: ReadonlySet<string> = new Set(["n", "ne", "e", "se", "s", "sw", "w", "nw", "c", "_"]);
 
 /** Roles never written as attributes, per domain. */
@@ -292,6 +316,7 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
 function checkPlain(snapshot: GraphSnapshot, options?: DotExportOptions & CommonExportOptions): LossNote[] {
     const resolved = resolveExportOptions(options);
     const notes = checkCapabilities(snapshot, CAPABILITIES, resolved, {
+        idsAsText: true,
         positionDtype: "f64",
         roles: KEPT_ROLES,
         roleNames: ROLE_NAMES,
@@ -322,15 +347,6 @@ function* writeDot(snapshot: GraphSnapshot, options?: DotExportOptions & CommonE
  */
 function endsWithBackslash(text: string): boolean {
     return !isWritableDotText(text);
-}
-
-/**
- * Write a text as a DOT ID: an HTML string bare, everything else through quoteDotId.
- * @param text - the text
- * @returns the DOT ID
- */
-function writeId(text: string): string {
-    return isHtmlString(text) ? text : quoteDotId(text);
 }
 
 /**
@@ -461,6 +477,22 @@ function positionNotes(snapshot: GraphSnapshot, position: Column | null, note: D
     }
 }
 
+/**
+ * Visit every set cell of a string or dict column as a "value" text; other columns have none.
+ * @param column - the column
+ * @param visit - the visitor
+ */
+function visitTextCells(column: Column, visit: (text: string, kind: string) => void): void {
+    if (column.dtype !== "string" && column.dtype !== "dict") {
+        return;
+    }
+    for (let r = 0; r < column.length; r++) {
+        if (column.isSet(r)) {
+            visit(column.value(r) as string, "value");
+        }
+    }
+}
+
 class ExportPlan {
     private readonly snapshot: GraphSnapshot;
 
@@ -507,7 +539,12 @@ class ExportPlan {
 
     private readonly children: ChildrenCsr;
 
+    private readonly nodeSteps: readonly NodeStep[];
+
     private readonly extraNotes: LossNote[] = [];
+
+    /** The texts written as HTML strings (styles.ts dotHtmlTexts). */
+    private readonly html: ReadonlySet<string>;
 
     /**
      * Plan one export.
@@ -518,6 +555,7 @@ class ExportPlan {
     constructor(snapshot: GraphSnapshot, resolved: ResolvedExportOptions, options?: DotExportOptions) {
         this.snapshot = snapshot;
         this.resolved = resolved;
+        this.html = dotHtmlTexts(snapshot);
         const { indent, name, strict } = options ?? {};
         if (name !== undefined && name !== null && typeof name !== "string") {
             throw badOption("name", name, "a string or null");
@@ -555,6 +593,7 @@ class ExportPlan {
         this.children = childrenCsr(snapshot, {
             column: this.parent !== null && this.parent.dtype === "u32" ? this.parent : null,
         });
+        this.nodeSteps = this.layoutNodes();
         // in the order a reader first meets them, which is the order it gives the columns: the file read and written
         // again is the same, whichever node or edge first held a column
         this.nodeColumns = firstSeenOrder(this.nodeColumns, this.nodeTextOrder());
@@ -568,37 +607,82 @@ class ExportPlan {
     }
 
     /**
-     * The nodes in the order a reader of the document takes their attributes: a node's statement before the members
-     * of its cluster, and a cluster's own `graph [...]` attributes when its subgraph closes, after its members.
+     * Whether a node is a cluster's container node (the `graphty.cluster` column).
+     * @param i - the node index
+     * @returns true for a container
+     */
+    private isMarked(i: number): boolean {
+        return this.cluster !== null && this.cluster.isSet(i) && this.cluster.value(i) === true;
+    }
+
+    /**
+     * Lay out the node section so a reader meets the nodes in index order, and so creates them in
+     * the same order: each node in turn, inside its parent's subgraph when the parent came first
+     * (the subgraph reopened by name, as DOT allows), else at the top level with a reference to it
+     * in the parent's subgraph when that opens.
+     * @returns the steps
+     */
+    private layoutNodes(): NodeStep[] {
+        const n = this.snapshot.nodeCount;
+        const parent = new Int32Array(n).fill(-1);
+        for (let u = 0; u < n; u++) {
+            for (const k of this.children.childrenOf(u)) {
+                parent[k] = u;
+            }
+        }
+        const emitted = new Uint8Array(n);
+        const paths = new Map<number, number[]>();
+        const open: { c: number; first: boolean }[] = [];
+        const steps: NodeStep[] = [];
+        const moveTo = (target: readonly number[]): void => {
+            let k = 0;
+            while (k < open.length && k < target.length && open[k].c === target[k]) {
+                k++;
+            }
+            while (open.length > k) {
+                const top = open.pop() as { c: number; first: boolean };
+                steps.push({ kind: "close", c: top.c, first: top.first });
+            }
+            for (; k < target.length; k++) {
+                open.push({ c: target[k], first: false });
+                steps.push({ kind: "open", c: target[k], first: false, refs: [] });
+            }
+        };
+        for (let i = 0; i < n; i++) {
+            const p = parent[i];
+            const target = p >= 0 && emitted[p] === 1 ? [...(paths.get(p) ?? []), p] : [];
+            moveTo(target);
+            emitted[i] = 1;
+            const marked = this.isMarked(i);
+            if (!marked) {
+                steps.push({ kind: "node", i });
+            }
+            const kids = this.children.childrenOf(i);
+            if (kids.length > 0 || marked) {
+                paths.set(i, target);
+                const refs = Array.from(kids).filter((k) => emitted[k] === 1);
+                if (marked || refs.length > 0) {
+                    open.push({ c: i, first: true });
+                    steps.push({ kind: "open", c: i, first: true, refs });
+                }
+            }
+        }
+        moveTo([]);
+        return steps;
+    }
+
+    /**
+     * The nodes in the order a reader of the document takes their attributes: a node at its
+     * statement, and a cluster's own `graph [...]` attributes when its first subgraph block closes.
      * @returns the node indices
      */
     private nodeTextOrder(): number[] {
         const order: number[] = [];
-        const seen = new Uint8Array(this.snapshot.nodeCount);
-        // a negative entry -(i + 1) is cluster i's own attributes, taken once its members are
-        const stack: number[] = [];
-        for (let root = this.snapshot.nodeCount - 1; root >= 0; root--) {
-            stack.push(root);
-        }
-        while (stack.length > 0) {
-            const i = stack.pop() as number;
-            if (i < 0) {
-                order.push(-i - 1);
-                continue;
-            }
-            if (seen[i] === 1) {
-                continue;
-            }
-            seen[i] = 1;
-            const marked = this.cluster !== null && this.cluster.isSet(i) && this.cluster.value(i) === true;
-            if (marked) {
-                stack.push(-i - 1);
-            } else {
-                order.push(i);
-            }
-            const kids = this.children.childrenOf(i);
-            for (let k = kids.length - 1; k >= 0; k--) {
-                stack.push(kids[k]);
+        for (const step of this.nodeSteps) {
+            if (step.kind === "node") {
+                order.push(step.i);
+            } else if (step.kind === "close" && step.first && this.isMarked(step.c)) {
+                order.push(step.c);
             }
         }
         return order;
@@ -611,7 +695,7 @@ class ExportPlan {
      */
     private writesNodeColumn(column: Column): boolean {
         const { name, role } = column.meta;
-        if (!isTextualDtype(column) || name === CLUSTER_COLUMN) {
+        if (!isTextualDtype(column) || name === CLUSTER_COLUMN || RANK_COLUMNS.has(name)) {
             return false;
         }
         if (role !== null && SKIPPED_NODE_ROLES.has(role)) {
@@ -837,22 +921,12 @@ class ExportPlan {
         for (const columns of [this.nodeColumns, this.edgeColumns, this.graphColumns]) {
             for (const column of columns) {
                 visit(this.attributeName(column), "attribute name");
-                if (column.dtype === "string" || column.dtype === "dict") {
-                    for (let r = 0; r < column.length; r++) {
-                        if (column.isSet(r)) {
-                            visit(column.value(r) as string, "value");
-                        }
-                    }
-                }
+                visitTextCells(column, visit);
             }
         }
         for (const column of [this.edgeId, this.sourcePort, this.targetPort]) {
-            if (column !== null && (column.dtype === "string" || column.dtype === "dict")) {
-                for (let r = 0; r < column.length; r++) {
-                    if (column.isSet(r)) {
-                        visit(column.value(r) as string, "value");
-                    }
-                }
+            if (column !== null) {
+                visitTextCells(column, visit);
             }
         }
     }
@@ -863,7 +937,7 @@ class ExportPlan {
      * @returns nothing
      */
     *write(): Generator<string> {
-        const { snapshot, indent } = this;
+        const { indent } = this;
         const keyword = this.directed ? "digraph" : "graph";
         const name = this.name === null ? "" : ` ${quoteDotId(this.name)}`;
         yield `${this.strict ? "strict " : ""}${keyword}${name} {\n`;
@@ -871,58 +945,87 @@ class ExportPlan {
         if (graphAttributes.length > 0) {
             yield `${indent}graph [${graphAttributes.join(", ")}];\n`;
         }
-        const emitted = new Uint8Array(snapshot.nodeCount);
-        for (let i = 0; i < snapshot.nodeCount; i++) {
-            yield* this.writeNode(i, 1, emitted);
-        }
+        yield* this.writeNodes();
+        yield* this.writeRanks();
         yield* this.writeEdges();
         yield "}\n";
     }
 
     /**
-     * Write one node (and, for a container, its cluster block with the members nested).
-     * @param i - the node index
-     * @param depth - the nesting depth
-     * @param emitted - which nodes were written already
+     * Write each rank subgraph the `graphty.rank` and `graphty.rankSet` columns hold, after the nodes: a named one
+     * under its name, an anonymous one (`%<n>`) as an anonymous subgraph.
      * @yields the statements
      * @returns nothing
      */
-    private *writeNode(i: number, depth: number, emitted: Uint8Array): Generator<string> {
-        if (emitted[i] === 1) {
+    private *writeRanks(): Generator<string> {
+        const { nodes } = this.snapshot;
+        const rank = nodes.get(RANK_COLUMN);
+        const set = nodes.get(RANK_SET_COLUMN);
+        if (rank === null || set === null) {
             return;
         }
-        emitted[i] = 1;
-        const pad = this.indent.repeat(depth);
-        const idText = this.idText(i);
-        const kids = this.children.childrenOf(i);
-        const marked = this.cluster !== null && this.cluster.isSet(i) && this.cluster.value(i) === true;
-        if (kids.length === 0 && !marked) {
-            yield `${pad}${this.nodeStatement(i, idText)};\n`;
-            return;
+        const sets = new Map<string, { rank: string; members: string[] }>();
+        for (let i = 0; i < this.snapshot.nodeCount; i++) {
+            if (rank.isSet(i) && set.isSet(i)) {
+                const key = String(set.value(i));
+                const entry = sets.get(key) ?? { rank: String(rank.value(i)), members: [] };
+                entry.members.push(quoteDotId(this.idText(i)));
+                sets.set(key, entry);
+            }
         }
-        if (!marked) {
-            // a real node that is also a parent: its cells are node attributes, the cluster only groups
-            yield `${pad}${this.nodeStatement(i, idText)};\n`;
+        // anonymous ones in their number's order, so the file read back numbers them the same
+        const order = (key: string): number => (key.startsWith("%") ? Number(key.slice(1)) : -1);
+        for (const [key, entry] of [...sets].sort(([a], [b]) => order(a) - order(b))) {
+            const head = key.startsWith("%") ? "" : `subgraph ${quoteDotId(key)} `;
+            yield `${this.indent}${head}{ rank=${quoteDotId(entry.rank)}; ${entry.members.join("; ")}; }\n`;
         }
+    }
+
+    /**
+     * Write the node section: the node statements and cluster blocks of layoutNodes().
+     * @yields the statements
+     * @returns nothing
+     */
+    private *writeNodes(): Generator<string> {
+        let depth = 1;
+        for (const step of this.nodeSteps) {
+            const pad = this.indent.repeat(depth);
+            if (step.kind === "node") {
+                yield `${pad}${this.nodeStatement(step.i, this.idText(step.i))};\n`;
+            } else if (step.kind === "close") {
+                depth--;
+                yield `${this.indent.repeat(depth)}}\n`;
+            } else {
+                yield* this.openBlock(step, pad);
+                depth++;
+            }
+        }
+    }
+
+    /**
+     * Open a subgraph block: its header, `cluster=true` for a name without the `cluster` prefix,
+     * and on its first opening the container's attributes and references to members written before.
+     * @param step - the open step
+     * @param pad - the indentation of the header
+     * @yields the statements
+     * @returns nothing
+     */
+    private *openBlock(step: Extract<NodeStep, { kind: "open" }>, pad: string): Generator<string> {
+        const idText = this.idText(step.c);
         const inner = `${pad}${this.indent}`;
-        yield `${pad}subgraph ${writeId(idText)} {\n`;
+        yield `${pad}subgraph ${quoteDotId(idText)} {\n`;
         if (!idText.startsWith(CLUSTER_PREFIX)) {
             yield `${inner}cluster=true;\n`;
         }
-        if (marked) {
-            const attributes = this.nodeAttributes(i);
+        if (step.first && this.isMarked(step.c)) {
+            const attributes = this.nodeAttributes(step.c);
             if (attributes.length > 0) {
                 yield `${inner}graph [${attributes.join(", ")}];\n`;
             }
         }
-        for (const child of kids) {
-            if (emitted[child] === 1) {
-                yield `${inner}${writeId(this.idText(child))};\n`;
-            } else {
-                yield* this.writeNode(child, depth + 1, emitted);
-            }
+        for (const ref of step.refs) {
+            yield `${inner}${quoteDotId(this.idText(ref))};\n`;
         }
-        yield `${pad}}\n`;
     }
 
     /**
@@ -933,7 +1036,7 @@ class ExportPlan {
      */
     private nodeStatement(i: number, idText: string): string {
         const attributes = this.nodeAttributes(i);
-        return attributes.length === 0 ? writeId(idText) : `${writeId(idText)} [${attributes.join(", ")}]`;
+        return attributes.length === 0 ? quoteDotId(idText) : `${quoteDotId(idText)} [${attributes.join(", ")}]`;
     }
 
     /**
@@ -1004,7 +1107,7 @@ class ExportPlan {
                 text = "UTF-8";
             }
             if (text !== null) {
-                out.push(`${quoteDotId(this.attributeName(column))}=${writeId(text)}`);
+                out.push(`${quoteDotId(this.attributeName(column))}=${this.writeId(text)}`);
             }
         }
         return out;
@@ -1030,10 +1133,10 @@ class ExportPlan {
             }
             const key = this.keyText(e);
             if (key !== null) {
-                attributes.unshift(`${KEY_ATTRIBUTE}=${writeId(key)}`);
+                attributes.unshift(`${KEY_ATTRIBUTE}=${this.writeId(key)}`);
             }
-            const source = `${writeId(this.idText(list.src[e]))}${this.portText(this.sourcePort, e)}`;
-            const target = `${writeId(this.idText(list.dst[e]))}${this.portText(this.targetPort, e)}`;
+            const source = `${quoteDotId(this.idText(list.src[e]))}${this.portText(this.sourcePort, e)}`;
+            const target = `${quoteDotId(this.idText(list.dst[e]))}${this.portText(this.targetPort, e)}`;
             const tail = attributes.length === 0 ? "" : ` [${attributes.join(", ")}]`;
             yield `${indent}${source} ${op} ${target}${tail};\n`;
         }
@@ -1070,13 +1173,28 @@ class ExportPlan {
     }
 
     /**
-     * The id text of a node.
+     * Write a text as a DOT ID: an HTML string (styles.ts dotHtmlTexts) bare, everything else through quoteDotId (a
+     * quoted `"<init>"` decodes to the same text as the HTML `<init>`, so the DOT importer records which was which).
+     * A node id is always quoted: the importer names a node written as an HTML string by the text inside its brackets.
+     * @param text - the text
+     * @returns the DOT ID
+     */
+    private writeId(text: string): string {
+        return this.html.has(text) ? text : quoteDotId(text);
+    }
+
+    /**
+     * The id text of a node: String(id), with a suffix for an id whose text an earlier id has (sanitizeIds).
      * @param i - the node index
-     * @returns String(id)
+     * @returns the text
      */
     private idText(i: number): string {
-        return idText(this.snapshot.ids.idOf(i));
+        this.written ??= sanitizeIds(this.snapshot, CAPABILITIES.idCharset, this.resolved.sanitizeIds);
+        return idText(this.written.idAt(i));
     }
+
+    /** The node ids to write, made on first use. */
+    private written: SanitizedIds | null = null;
 }
 
 /**

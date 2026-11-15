@@ -346,8 +346,9 @@ export function ValuePicker({
     const inForce = inUse.find((path) => used.some((row) => row.value === path)) ?? (fixedInForce ? FIXED : undefined);
 
     return (
-        // Tab leaves the list: it closes, as a select's list does, and focus goes back to what
-        // opened it rather than on into the panel behind it.
+        // Tab leaves the list (taking the attribute typed toward, see tabTakes): it closes, as a
+        // select's list does, and focus goes back to what opened it rather than on into the panel
+        // behind it.
         <div // NOSONAR(S6848): catches Tab bubbling up from the list inside; the box is not drawn and takes no focus
             style={{ display: "contents" }}
             onKeyDown={(event) => {
@@ -368,6 +369,8 @@ export function ValuePicker({
                 highlight={inForce}
                 // Nothing is active until the reader types or arrows, so Enter on open picks nothing.
                 activeOnOpen="none"
+                // With letters typed, Tab takes the attribute they highlight before the list closes.
+                tabTakes
                 query={query}
                 onQueryChange={setQuery}
                 actions={prefixFirst(

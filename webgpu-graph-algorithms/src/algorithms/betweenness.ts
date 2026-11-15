@@ -34,7 +34,8 @@
  * E_TOO_LARGE. The forward form is chosen per batch: the first batch runs `bc-forward`; a later one runs the
  * edge-parallel form when the previous batch's level count -- the MAXIMUM depth over its sources, the only depth
  * figure the host has, which over-estimates the median of design 8.4's rule and so errs toward the frontier form --
- * is below `BC_EDGE_PARALLEL_GAMMA x log2(n)`.
+ * is below `BC_EDGE_PARALLEL_GAMMA x log2(n)`, on a snapshot of at least `BC_EDGE_PARALLEL_MIN_NODES` nodes whose
+ * degrees are not skewed (`edgeParallelEligible`, issue #776); anywhere else the frontier form was faster.
  *
  * The host applies the CPU package's convention after the readback (`@graphty/algorithms` betweenness.ts): the vertex
  * scores are halved on an undirected snapshot (the gather counts each unordered pair from both ends); the edge scores
@@ -58,6 +59,8 @@ import {
     BC_BATCH_BUDGET_FRACTION,
     BC_COUNT_MAX_GROUPS,
     BC_EDGE_PARALLEL_GAMMA,
+    BC_EDGE_PARALLEL_MAX_SKEW,
+    BC_EDGE_PARALLEL_MIN_NODES,
     BC_MAX_BATCH,
     MAX_LEVELS_PER_SUBMIT,
 } from "../constants.js";
@@ -387,6 +390,241 @@ async function submit(state: RunState, batch: CommandBatch, signal: AbortSignal 
 }
 
 /**
+ * Records the clears and the seed of a batch's first forward submit.
+ * @param state - the run
+ * @param mode - the kernels of the counting mode
+ * @param pass - the pass
+ * @param k - the batch's source count
+ */
+function recordForwardSetup(state: RunState, mode: ModeKernels, pass: GPUComputePassEncoder, k: number): void {
+    const { n, S, ends, levelMax, depthK, sigmaK, deltaK, counters } = state;
+    const words = n * k;
+    recordFill(state, pass, depthK, words, 0xffffffff);
+    recordFill(state, pass, sigmaK, words, 0);
+    recordFill(state, pass, deltaK, words, 0);
+    if (mode.count !== null) {
+        recordFill(state, pass, levelMax, n + 2, 0);
+    }
+    recordBc(state, pass, mode.finalize, { counters, ends, S, depthK, sigmaK, levelMax }, { n, k, role: 1 }, 1);
+}
+
+/**
+ * Records one forward level: finalize the last level, expand it (edge-parallel or frontier), and count when scaled.
+ * @param state - the run
+ * @param mode - the kernels of the counting mode
+ * @param pass - the pass
+ * @param form - the forward body
+ * @param k - the batch's source count
+ */
+function recordForwardLevel(
+    state: RunState,
+    mode: ModeKernels,
+    pass: GPUComputePassEncoder,
+    form: ForwardForm,
+    k: number,
+): void {
+    const { n, S, ends, levelMax, depthK, sigmaK, counters } = state;
+    const words = n * k;
+    const forwardFields = { n, k, count: form === "edge" ? state.edgeCount : 0 };
+    const forwardItems = form === "edge" ? state.edgeCount : words;
+    recordBc(state, pass, mode.finalize, { counters, ends, S, depthK, sigmaK, levelMax }, { n, k, role: 0 }, 1);
+    if (form === "edge" && mode.forwardEdge !== null && state.edgeSrc !== null && state.edgeDst !== null) {
+        recordBc(
+            state,
+            pass,
+            mode.forwardEdge,
+            { edgeSrc: state.edgeSrc, edgeDst: state.edgeDst, S, ends, counters, depthK, sigmaK },
+            forwardFields,
+            forwardItems,
+        );
+    } else {
+        recordBc(
+            state,
+            pass,
+            mode.forward,
+            { rowPtr: state.rowPtr, colIdx: state.colIdx, S, ends, counters, depthK, sigmaK },
+            forwardFields,
+            forwardItems,
+        );
+    }
+    if (mode.count !== null) {
+        const { kernel, rowPtr, colIdx } = mode.count;
+        recordBc(
+            state,
+            pass,
+            kernel,
+            { rowPtr, colIdx, S, ends, counters, depthK, sigmaK, levelMax },
+            { n, k },
+            words,
+            BC_COUNT_MAX_GROUPS,
+        );
+    }
+}
+
+/** The end of a batch's forward phase. */
+interface ForwardOutcome {
+    readonly levels: number;
+    readonly overflow: boolean;
+    /** The level boundaries, `levels + 1` words. */
+    readonly endsWords: U32;
+}
+
+/**
+ * The forward phase: the first submit also clears the batch's arrays and seeds it; levels until an empty one.
+ * @param state - the run
+ * @param mode - the kernels of the counting mode
+ * @param k - the batch's source count
+ * @param form - the forward body
+ * @param levelsPerSubmit - the forward cadence
+ * @param signal - the caller's signal
+ * @returns the levels, the overflow flag and the level boundaries
+ */
+async function forwardPhase(
+    state: RunState,
+    mode: ModeKernels,
+    k: number,
+    form: ForwardForm,
+    levelsPerSubmit: number,
+    signal: AbortSignal | undefined,
+): Promise<ForwardOutcome> {
+    const { ctx, n, ends, counters } = state;
+    let recorded = 0;
+    for (let first = true; ; first = false) {
+        const batch = new CommandBatch(ctx, `${ALGORITHM}/forward`);
+        const pass = batch.pass("forward");
+        if (first) {
+            recordForwardSetup(state, mode, pass, k);
+        }
+        for (let level = 0; level < levelsPerSubmit; level++) {
+            recordForwardLevel(state, mode, pass, form, k);
+        }
+        recorded += levelsPerSubmit;
+        batch.endPass();
+        const endsCount = Math.min(n + 2, recorded + 1);
+        const countersRequest = batch.readback(counters.buffer, counters.offset, FRONTIER_COUNTERS.byteLength);
+        const endsRequest = batch.readback(ends.buffer, ends.offset, 4 * endsCount);
+        const back = await submit(state, batch, signal);
+        const words32 = new Uint32Array(back, countersRequest.offset, FRONTIER_COUNTERS.byteLength / 4);
+        if (words32[W.done] !== 0) {
+            const levels = words32[W.level];
+            return {
+                levels,
+                overflow: words32[W.sigmaOverflow] !== 0,
+                endsWords: new Uint32Array(back, endsRequest.offset, endsCount).slice(0, levels + 1),
+            };
+        }
+        if (recorded > n + 2) {
+            // a batch claims at most n - 1 levels deep, then one level is empty
+            throw new WebGpuGraphError("E_VALIDATION", `${ALGORITHM}: the done flag never rose in ${recorded} levels`, {
+                label: ALGORITHM,
+                message: `the done flag never rose in ${recorded} levels`,
+            });
+        }
+    }
+}
+
+/**
+ * Records the gathers of a batch's last backward submit: the vertex scores, and the per-arc scores when asked.
+ * @param state - the run
+ * @param mode - the kernels of the counting mode
+ * @param pass - the pass
+ * @param k - the batch's source count
+ */
+function recordGathers(state: RunState, mode: ModeKernels, pass: GPUComputePassEncoder, k: number): void {
+    const { n, levelMax, depthK, sigmaK, deltaK } = state;
+    recordBc(state, pass, state.gather, { deltaK, bc: state.bc }, { n, k }, n);
+    if (mode.edgeGather !== null && state.arcScores !== null) {
+        recordBc(
+            state,
+            pass,
+            mode.edgeGather,
+            {
+                rowPtr: state.rowPtr,
+                colIdx: state.colIdx,
+                depthK,
+                sigmaK,
+                deltaK,
+                arcScores: state.arcScores,
+                levelMax,
+            },
+            { n, k, count: state.arcCount },
+            state.arcCount,
+        );
+    }
+}
+
+/** A batch's arrays, read back for tests. */
+interface BatchArrays {
+    readonly depthK: U32;
+    readonly sigmaK: U32;
+    readonly deltaK: F32;
+}
+
+/**
+ * The backward phase, planned from ends: depth levels - 1 down to 1, then the gathers.
+ * @param state - the run
+ * @param mode - the kernels of the counting mode
+ * @param k - the batch's source count
+ * @param forward - the forward phase's outcome
+ * @param readArrays - read the batch's arrays back after the last submit
+ * @param signal - the caller's signal
+ * @returns the arrays when asked, else null
+ */
+async function backwardPhase(
+    state: RunState,
+    mode: ModeKernels,
+    k: number,
+    forward: ForwardOutcome,
+    readArrays: boolean,
+    signal: AbortSignal | undefined,
+): Promise<BatchArrays | null> {
+    const { ctx, n, S, levelMax, depthK, sigmaK, deltaK } = state;
+    const { levels, endsWords } = forward;
+    const words = n * k;
+    const backwardLevels: number[] = [];
+    for (let level = levels - 1; level >= 1; level--) {
+        backwardLevels.push(level);
+    }
+    for (let i = 0; ; i += BC_BACKWARD_LEVELS_PER_SUBMIT) {
+        const chunk = backwardLevels.slice(i, i + BC_BACKWARD_LEVELS_PER_SUBMIT);
+        const last = i + BC_BACKWARD_LEVELS_PER_SUBMIT >= backwardLevels.length;
+        const batch = new CommandBatch(ctx, `${ALGORITHM}/backward`);
+        const pass = batch.pass("backward");
+        for (const level of chunk) {
+            const start = endsWords[level];
+            const count = endsWords[level + 1] - start;
+            recordBc(
+                state,
+                pass,
+                mode.backward,
+                { rowPtr: state.rowPtr, colIdx: state.colIdx, S, depthK, sigmaK, deltaK, levelMax },
+                { n, k, start, count },
+                count,
+            );
+        }
+        if (last) {
+            recordGathers(state, mode, pass, k);
+        }
+        batch.endPass();
+        const wantArrays = last && readArrays;
+        const requests = wantArrays
+            ? [depthK, sigmaK, deltaK].map((b) => batch.readback(b.buffer, b.offset, 4 * words))
+            : [];
+        const back = await submit(state, batch, signal);
+        if (wantArrays) {
+            return {
+                depthK: new Uint32Array(back, requests[0].offset, words).slice(),
+                sigmaK: new Uint32Array(back, requests[1].offset, words).slice(),
+                deltaK: new Float32Array(back, requests[2].offset, words).slice(),
+            };
+        }
+        if (last) {
+            return null;
+        }
+    }
+}
+
+/**
  * One source batch: seed, forward levels until an empty one, backward levels, the gathers. In the exact mode a batch
  * whose u32 counts wrapped stops after its forward phase (`wrapped`), before anything reaches the scores.
  * @param state - the run
@@ -407,149 +645,17 @@ async function runBatch(
     tuning: BetweennessTuning,
     signal: AbortSignal | undefined,
 ): Promise<{ levels: number; wrapped: boolean; overflow: boolean }> {
-    const { ctx, n, S, ends, levelMax, depthK, sigmaK, deltaK, counters } = state;
+    const { ctx, n, S } = state;
     const k = sources.length;
-    const words = n * k;
     const seeds = Uint32Array.from(sources, (v, s) => s * n + v);
     ctx.device.queue.writeBuffer(S.buffer, S.offset, seeds);
 
-    // the forward phase: the first submit also clears the batch's arrays and seeds it
-    const forwardFields = { n, k, count: form === "edge" ? state.edgeCount : 0 };
-    const forwardItems = form === "edge" ? state.edgeCount : words;
-    let recorded = 0;
-    let levels = 0;
-    let overflow = false;
-    let endsWords: U32 | null = null;
-    for (let first = true; endsWords === null; first = false) {
-        const batch = new CommandBatch(ctx, `${ALGORITHM}/forward`);
-        const pass = batch.pass("forward");
-        if (first) {
-            recordFill(state, pass, depthK, words, 0xffffffff);
-            recordFill(state, pass, sigmaK, words, 0);
-            recordFill(state, pass, deltaK, words, 0);
-            if (mode.count !== null) {
-                recordFill(state, pass, levelMax, n + 2, 0);
-            }
-            recordBc(state, pass, mode.finalize, { counters, ends, S, depthK, sigmaK, levelMax }, { n, k, role: 1 }, 1);
-        }
-        for (let level = 0; level < levelsPerSubmit; level++) {
-            recordBc(state, pass, mode.finalize, { counters, ends, S, depthK, sigmaK, levelMax }, { n, k, role: 0 }, 1);
-            if (form === "edge" && mode.forwardEdge !== null && state.edgeSrc !== null && state.edgeDst !== null) {
-                recordBc(
-                    state,
-                    pass,
-                    mode.forwardEdge,
-                    { edgeSrc: state.edgeSrc, edgeDst: state.edgeDst, S, ends, counters, depthK, sigmaK },
-                    forwardFields,
-                    forwardItems,
-                );
-            } else {
-                recordBc(
-                    state,
-                    pass,
-                    mode.forward,
-                    { rowPtr: state.rowPtr, colIdx: state.colIdx, S, ends, counters, depthK, sigmaK },
-                    forwardFields,
-                    forwardItems,
-                );
-            }
-            if (mode.count !== null) {
-                const { kernel, rowPtr, colIdx } = mode.count;
-                recordBc(
-                    state,
-                    pass,
-                    kernel,
-                    { rowPtr, colIdx, S, ends, counters, depthK, sigmaK, levelMax },
-                    { n, k },
-                    words,
-                    BC_COUNT_MAX_GROUPS,
-                );
-            }
-        }
-        recorded += levelsPerSubmit;
-        batch.endPass();
-        const endsCount = Math.min(n + 2, recorded + 1);
-        const countersRequest = batch.readback(counters.buffer, counters.offset, FRONTIER_COUNTERS.byteLength);
-        const endsRequest = batch.readback(ends.buffer, ends.offset, 4 * endsCount);
-        const back = await submit(state, batch, signal);
-        const words32 = new Uint32Array(back, countersRequest.offset, FRONTIER_COUNTERS.byteLength / 4);
-        if (words32[W.done] !== 0) {
-            levels = words32[W.level];
-            overflow = words32[W.sigmaOverflow] !== 0;
-            endsWords = new Uint32Array(back, endsRequest.offset, endsCount).slice(0, levels + 1);
-            if (overflow && mode.count === null) {
-                return { levels, wrapped: true, overflow: false };
-            }
-        } else if (recorded > n + 2) {
-            // a batch claims at most n - 1 levels deep, then one level is empty
-            throw new WebGpuGraphError("E_VALIDATION", `${ALGORITHM}: the done flag never rose in ${recorded} levels`, {
-                label: ALGORITHM,
-                message: `the done flag never rose in ${recorded} levels`,
-            });
-        }
+    const forward = await forwardPhase(state, mode, k, form, levelsPerSubmit, signal);
+    const { levels, overflow, endsWords } = forward;
+    if (overflow && mode.count === null) {
+        return { levels, wrapped: true, overflow: false };
     }
-
-    // the backward phase, planned from ends: depth levels - 1 down to 1, then the gathers
-    const backwardLevels: number[] = [];
-    for (let level = levels - 1; level >= 1; level--) {
-        backwardLevels.push(level);
-    }
-    let arrays: { depthK: U32; sigmaK: U32; deltaK: F32 } | null = null;
-    for (let i = 0; ; i += BC_BACKWARD_LEVELS_PER_SUBMIT) {
-        const chunk = backwardLevels.slice(i, i + BC_BACKWARD_LEVELS_PER_SUBMIT);
-        const last = i + BC_BACKWARD_LEVELS_PER_SUBMIT >= backwardLevels.length;
-        const batch = new CommandBatch(ctx, `${ALGORITHM}/backward`);
-        const pass = batch.pass("backward");
-        for (const level of chunk) {
-            const start = endsWords[level];
-            const count = endsWords[level + 1] - start;
-            recordBc(
-                state,
-                pass,
-                mode.backward,
-                { rowPtr: state.rowPtr, colIdx: state.colIdx, S, depthK, sigmaK, deltaK, levelMax },
-                { n, k, start, count },
-                count,
-            );
-        }
-        if (last) {
-            recordBc(state, pass, state.gather, { deltaK, bc: state.bc }, { n, k }, n);
-            if (mode.edgeGather !== null && state.arcScores !== null) {
-                recordBc(
-                    state,
-                    pass,
-                    mode.edgeGather,
-                    {
-                        rowPtr: state.rowPtr,
-                        colIdx: state.colIdx,
-                        depthK,
-                        sigmaK,
-                        deltaK,
-                        arcScores: state.arcScores,
-                        levelMax,
-                    },
-                    { n, k, count: state.arcCount },
-                    state.arcCount,
-                );
-            }
-        }
-        batch.endPass();
-        const wantArrays = last && tuning.readArrays === true;
-        const requests = wantArrays
-            ? [depthK, sigmaK, deltaK].map((b) => batch.readback(b.buffer, b.offset, 4 * words))
-            : [];
-        const back = await submit(state, batch, signal);
-        if (wantArrays) {
-            arrays = {
-                depthK: new Uint32Array(back, requests[0].offset, words).slice(),
-                sigmaK: new Uint32Array(back, requests[1].offset, words).slice(),
-                deltaK: new Float32Array(back, requests[2].offset, words).slice(),
-            };
-        }
-        if (last) {
-            break;
-        }
-    }
+    const arrays = await backwardPhase(state, mode, k, forward, tuning.readArrays === true, signal);
     tuning.onBatch?.({
         sources,
         forward: form,
@@ -562,6 +668,62 @@ async function runBatch(
         deltaK: arrays?.deltaK ?? null,
     });
     return { levels, wrapped: false, overflow };
+}
+
+/**
+ * Whether "auto" may ever run the edge-parallel forward form on a snapshot (issue #776): at least
+ * `BC_EDGE_PARALLEL_MIN_NODES` nodes and a largest out-degree within `BC_EDGE_PARALLEL_MAX_SKEW` times the mean. Below
+ * either the frontier form was faster on every graph measured, shallow or deep.
+ * @internal
+ * @param s - the snapshot
+ * @returns true when the per-batch depth test decides
+ */
+export function edgeParallelEligible(s: GraphSnapshot): boolean {
+    const n = s.nodeCount;
+    if (n < BC_EDGE_PARALLEL_MIN_NODES || s.arcCount === 0) {
+        return false;
+    }
+    let maxDegree = 0;
+    for (let v = 0; v < n; v++) {
+        maxDegree = Math.max(maxDegree, s.rowPtr[v + 1] - s.rowPtr[v]);
+    }
+    return maxDegree * n <= BC_EDGE_PARALLEL_MAX_SKEW * s.arcCount;
+}
+
+/**
+ * The forward body of the next batch: pinned, or under "auto" edge-parallel once the last batch was shallow on an
+ * eligible snapshot; always the frontier body when there are no edges to run edge-parallel over.
+ * @param pinned - the tuning's pin
+ * @param previousLevels - the last batch's levels, -1 before the first
+ * @param n - the node count
+ * @param exact - the exact kernels (forwardEdge null when there are no edges, or when "auto" never runs it)
+ * @returns the form
+ */
+function forwardForm(pinned: ForwardForm | "auto", previousLevels: number, n: number, exact: ModeKernels): ForwardForm {
+    if (exact.forwardEdge === null) {
+        return "frontier";
+    }
+    if (pinned === "auto" && previousLevels >= 0) {
+        return previousLevels < BC_EDGE_PARALLEL_GAMMA * Math.log2(n) ? "edge" : "frontier";
+    }
+    return pinned === "edge" ? "edge" : "frontier";
+}
+
+/**
+ * Starts the result accumulators at 0.
+ * @param state - the run
+ * @param arcWords - the words of the per-arc accumulator
+ * @param signal - the caller's signal
+ */
+async function clearAccumulators(state: RunState, arcWords: number, signal: AbortSignal | undefined): Promise<void> {
+    const setup = new CommandBatch(state.ctx, `${ALGORITHM}/setup`);
+    const setupPass = setup.pass("setup");
+    recordFill(state, setupPass, state.bc, state.n, 0);
+    if (state.arcScores !== null) {
+        recordFill(state, setupPass, state.arcScores, arcWords, 0);
+    }
+    setup.endPass();
+    await submit(state, setup, signal);
 }
 
 /**
@@ -594,7 +756,7 @@ async function runRaw(
     assertWholeCore(core, s.arcCount, ctx.caps.limits.maxStorageBufferBindingSize, ALGORITHM);
     const { edgeCount } = s;
     // the edge-parallel form runs only when pinned, or from the second batch on: a one-batch run never uploads the view
-    const mayRunEdge = pinned === "edge" || (pinned === "auto" && sources.length > kMax);
+    const mayRunEdge = pinned === "edge" || (pinned === "auto" && sources.length > kMax && edgeParallelEligible(s));
     const edgeView = mayRunEdge && edgeCount > 0 ? ctx.residency.view(s, "edgeList") : null;
     const scope = algorithmScope(ctx, ALGORITHM, RING_SLOTS);
     try {
@@ -633,27 +795,14 @@ async function runRaw(
         await ctx.allocator.check();
 
         // the result accumulators start at 0
-        const setup = new CommandBatch(ctx, `${ALGORITHM}/setup`);
-        const setupPass = setup.pass("setup");
-        recordFill(state, setupPass, state.bc, n, 0);
-        if (state.arcScores !== null) {
-            recordFill(state, setupPass, state.arcScores, arcBytes / 4, 0);
-        }
-        setup.endPass();
-        await submit(state, setup, options?.signal);
+        await clearAccumulators(state, arcBytes / 4, options?.signal);
 
         let overflow = false;
         let batches = 0;
         let previousLevels = -1;
         for (let start = 0; start < sources.length;) {
             const k = planBatchSize(n, sources.length - start, limits);
-            let form: ForwardForm = pinned === "edge" ? "edge" : "frontier";
-            if (pinned === "auto" && previousLevels >= 0) {
-                form = previousLevels < BC_EDGE_PARALLEL_GAMMA * Math.log2(n) ? "edge" : "frontier";
-            }
-            if (state.exact.forwardEdge === null) {
-                form = "frontier"; // no edges to run edge-parallel over
-            }
+            const form = forwardForm(pinned, previousLevels, n, state.exact);
             const batch = sources.slice(start, start + k);
             let outcome = await runBatch(
                 state,

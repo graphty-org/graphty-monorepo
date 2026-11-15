@@ -91,6 +91,11 @@ export const StelzlInteractome: Story = {
     name: "stelzl-interactome",
 };
 
+export const VeniceTransit: Story = {
+    ...tile("Datasets", "venice-transit"),
+    name: "venice-transit",
+};
+
 export const Openflights: Story = {
     ...tile("Datasets", "openflights"),
     name: "openflights",

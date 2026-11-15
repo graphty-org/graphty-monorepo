@@ -24,27 +24,22 @@
  * proves a value was stored. `instancedBuffers.color == [1,0,0,1]` proves a red node was drawn.
  */
 
-import {
-    type AbstractMesh,
-    DynamicTexture,
-    type InstancedMesh,
-    Matrix,
-    type StandardMaterial,
-    Vector3,
-} from "@babylonjs/core";
-import { expect } from "storybook/test";
+import { type AbstractMesh, DynamicTexture, Matrix, type StandardMaterial, Vector3 } from "@babylonjs/core";
+import { configure, expect, waitFor } from "storybook/test";
 
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
-import { isUnderRunner, isVisualCapture } from "./helpers";
+import { isVisualCapture, type RealInput, skyboxReady, untilFrames } from "./helpers";
 
-/** How long a story may wait for its graph to arrive and its style stack to come to rest. */
-const SETTLE_BUDGET_MS = 15000;
-
-/** How often to look again while waiting. */
-const POLL_MS = 50;
+// Outside Storybook (render-parity, and every test that runs a story's play) nothing has run
+// .storybook/preview.ts, so storybook/test's waitFor would keep Testing Library's 1000 ms default
+// and a busy machine would fail a story's wait (#6368). Give it the one hang guard here, where
+// every story's waits come from. Not in test/setup.ts: loading storybook/test there replaces
+// vitest's global expect for every test, and `expect.getState().currentTestName` goes empty.
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 
 /** How opaque a pixel of a label's own texture must be to count as ink. */
 const INK_ALPHA = 16;
@@ -264,53 +259,41 @@ function listed(offenders: readonly string[]): string {
 }
 
 /**
- * Wait for something to become true, and fail with a sentence when it never does.
+ * Wait until something the story caused has happened -- the camera moved, a step was recorded.
+ * No deadline of its own: the one hang guard (tools/test-wait-guard.mjs, Testing Library's
+ * `asyncUtilTimeout`) ends a wait that never comes true, with the complaint as its failure.
  * @param done - What is being waited for.
- * @param deadline - When to give up, as a timestamp; `Infinity` under a runner, which brings its own.
  * @param complaint - What to say when it never happened.
  */
-async function until(done: () => boolean, deadline: number, complaint: string): Promise<void> {
-    while (!done()) {
-        await holds(Date.now() <= deadline, complaint);
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-    }
-}
-
-/**
- * Give a promise a deadline, so a queue that never drains fails with a sentence.
- * @param work - The promise to wait on.
- * @param deadline - When to give up, as a timestamp; `Infinity` waits on the promise alone.
- * @param complaint - What to say when it never finished.
- */
-async function within(work: Promise<unknown>, deadline: number, complaint: string): Promise<void> {
-    if (!Number.isFinite(deadline)) {
-        await work;
-        return;
-    }
-
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const expired = new Promise<"expired">((resolve) => {
-        timer = setTimeout(
-            () => {
-                resolve("expired");
-            },
-            Math.max(0, deadline - Date.now()),
-        );
+export async function eventually(done: () => boolean, complaint: string): Promise<void> {
+    await waitFor(() => {
+        if (!done()) {
+            throw new Error(complaint);
+        }
     });
-
-    const outcome = await Promise.race([work.then(() => "done" as const), expired]);
-
-    if (timer !== undefined) {
-        clearTimeout(timer);
-    }
-
-    await holds(outcome === "done", complaint);
 }
 
 /**
  * The colour a node is actually drawn in, read from the buffer the GPU is handed.
  * @param mesh - The node's mesh.
  * @returns The colour as `#rrggbb`, or null when the mesh carries no instance colour.
+ */
+function hexOfRgba(color: { r: number; g: number; b: number } | null): string | null {
+    return color === null
+        ? null
+        : `#${[color.r, color.g, color.b]
+              .map((c) =>
+                  Math.round(Math.min(255, Math.max(0, c)))
+                      .toString(16)
+                      .padStart(2, "0"),
+              )
+              .join("")}`;
+}
+
+/**
+ * The colour an instance carries in its own buffer, as #rrggbb.
+ * @param mesh - The instance.
+ * @returns The colour, or null when it carries none.
  */
 function instanceHex(mesh: AbstractMesh): string | null {
     const colour = (mesh as unknown as { instancedBuffers?: { color?: { r: number; g: number; b: number } } })
@@ -522,10 +505,6 @@ function sagittaOf(points: readonly Vector3[]): number {
 export async function drawn(canvasElement: HTMLElement, story: string): Promise<Drawn> {
     const live = await renderedElement(canvasElement, `${story}: the story rendered no <graphty-element> at all`);
     const { graph, session } = live;
-    // Under a runner (the Storybook test project, a visual capture) its own timeout is the only
-    // backstop: a wall-clock deadline here fails a stalled machine whose work still finishes.
-    const deadline = isUnderRunner() ? Infinity : Date.now() + SETTLE_BUDGET_MS;
-
     // Pre-stepping is for the visual capture's repeatable snapshot only. Anywhere else a pre-stepped
     // layout is already settled on the first frame, and the reader never sees it animate.
     const preSteps = live.layoutBehavior?.layout?.preSteps ?? 0;
@@ -536,25 +515,21 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
             "so the reader never sees it animate",
     );
 
-    await until(
+    await eventually(
         () => session.status.counts.nodes > 0,
-        deadline,
         `${story}: no graph ever arrived, so the story's data never loaded`,
     );
 
-    await within(graph.waitForSettled(), deadline, `${story}: the element's operation queue never drained`);
-
-    await within(
-        session.styles.settled(),
-        deadline,
-        `${story}: the element still has painting of its own in flight after ${String(SETTLE_BUDGET_MS)}ms`,
-    );
+    // No deadlines of their own: the one hang guard (tools/test-wait-guard.mjs) ends a queue that
+    // never drains or painting that never finishes.
+    await graph.waitForSettled();
+    await session.styles.settled();
 
     // The renderer is a frame behind the style model by design: a pass marks an element dirty and
     // the render loop hands the new paint over on its next tick. So ask the element when the frame
     // on screen is the finished one, rather than guessing how long that takes. It throws, naming
-    // what was still moving, if the picture has not come to rest by the deadline.
-    await graph.waitForStableFrame(Number.isFinite(deadline) ? { timeoutMs: Math.max(1, deadline - Date.now()) } : {});
+    // what was still moving, if the picture has not come to rest by the hang guard.
+    await graph.waitForStableFrame();
 
     // One read per SOURCE mesh, not per node: a thousand nodes instanced from three shapes cost
     // three digests.
@@ -594,24 +569,29 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
     };
 
     const nodes: DrawnNode[] = graph.getNodes().map((node, index) => {
-        const source = (node.mesh as InstancedMesh).sourceMesh as InstancedMesh["sourceMesh"] | undefined;
-        const box = node.mesh.getBoundingInfo().boundingBox.extendSizeWorld;
+        // drawnPickMesh, not mesh: reading `mesh` would hold the node off the batch (see Node.mesh).
+        // A row a batch draws has no mesh: its shape is its source's, its place its anchor's.
+        const mesh = node.drawnPickMesh;
+        const anchor = node.drawnAnchor;
+        const source = node.drawnSourceMesh;
+        const box = node.drawnBoundingInfo.boundingBox.extendSizeWorld;
+        const color = node.drawnInstanceColor;
         const plane = node.label?.labelMesh ?? null;
         const label = labelInk(plane);
 
         return {
             id: String(node.id),
             index,
-            shape: source?.name ?? node.mesh.name,
-            geometryKey: `${source?.name ?? node.mesh.name}#${String(source?.uniqueId ?? node.mesh.uniqueId)}`,
-            vertexCount: source?.getTotalVertices() ?? node.mesh.getTotalVertices(),
-            geometryDigest: digestOf(source ?? node.mesh),
-            wireframe: source?.material?.wireframe ?? false,
-            enabled: node.mesh.isEnabled(),
-            opacity: node.mesh.visibility,
+            shape: source.name,
+            geometryKey: `${source.name}#${String(source.uniqueId)}`,
+            vertexCount: source.getTotalVertices(),
+            geometryDigest: digestOf(source),
+            wireframe: mesh === source ? false : (source.material?.wireframe ?? false),
+            enabled: anchor.isEnabled(),
+            opacity: node.drawnOpacity,
             radius: Number(box.x.toFixed(4)),
-            hex: instanceHex(node.mesh),
-            position: [node.mesh.absolutePosition.x, node.mesh.absolutePosition.y, node.mesh.absolutePosition.z],
+            hex: mesh === null ? hexOfRgba(color) : instanceHex(mesh),
+            position: [anchor.absolutePosition.x, anchor.absolutePosition.y, anchor.absolutePosition.z],
             hasLabelMesh: plane !== null && !plane.isDisposed() && plane.isEnabled(),
             labelInk: label.ink,
             labelColours: label.colours,
@@ -678,7 +658,16 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         maxSagitta: curves.reduce((most, points) => Math.max(most, sagittaOf(points)), 0),
         arrowMeshNames: [...new Set(drawnCaps.map((cap) => cap.name))].sort(),
         arrowCaps: drawnCaps,
-        linePatternNames: [...new Set(patternElements.map((element) => element.name))].sort(),
+        // a dash, dot, box, diamond or star line's elements are drawn by its line's shader (issue #7404)
+        linePatternNames: [
+            ...new Set([
+                ...patternElements.map((element) => element.name),
+                ...edges.flatMap((edge) => {
+                    const pattern = edge.drawnLine?.pattern ?? null;
+                    return pattern === null ? [] : [`pattern-${pattern}`];
+                }),
+            ]),
+        ].sort(),
         edgeLabelPlanes: Math.max(0, planes.length - nodePlanes),
         arrowCaptions: captions,
         edgeStyleNames: [...new Set(drawnEdgeLines)].sort(),
@@ -1268,7 +1257,11 @@ export async function assertDistinctPicture(scene: Drawn, family: string, extra 
 
     pictures.set(family, drawnHere);
 
-    const twin = [...drawnHere.entries()].find(([, existing]) => existing === digest)?.[0];
+    // A story drawn a second time (visual review renders a story again to confirm a changed
+    // picture, and once per mode) is not its own sibling: compare only with the other stories.
+    const twin = [...drawnHere.entries()].find(
+        ([story, existing]) => story !== scene.story && existing === digest,
+    )?.[0];
 
     await holds(
         twin === undefined,
@@ -1357,7 +1350,9 @@ export async function assertDistinctArrangement(scene: Drawn, family: string, mi
 
     arrangements.set(family, arrangedHere);
 
+    // A story arranged again (a confirming render, another mode) is not its own sibling.
     const offenders = [...arrangedHere.entries()]
+        .filter(([story]) => story !== scene.story)
         .map(([story, other]) => [story, arrangementDistance(cloud, other)] as const)
         .filter(([, distance]) => distance < minimum);
 
@@ -1584,6 +1579,24 @@ export async function assertArrowVariety(scene: Drawn, atLeast: number): Promise
  * @returns How many pixels are within tolerance of it.
  */
 export async function pixelsOfColour(scene: Drawn, hex: string, tolerance: number = COLOUR_TOLERANCE): Promise<number> {
+    const [found] = await pixelsOfColours(scene, [hex], tolerance);
+
+    return found;
+}
+
+/**
+ * How many pixels of each of several colours are on the canvas, from one render and one read.
+ * `pixelsOfColour` for a list: the canvas is warmed and copied once, not once per colour.
+ * @param scene - What the story drew.
+ * @param hexes - The colours to count, each as `#rrggbb`.
+ * @param tolerance - How far one channel may be from a colour and still count as it; see `pixelsOfColour`.
+ * @returns The count for each colour, in the order given.
+ */
+export async function pixelsOfColours(
+    scene: Drawn,
+    hexes: readonly string[],
+    tolerance: number = COLOUR_TOLERANCE,
+): Promise<number[]> {
     const { engine } = scene.graph;
 
     // Wait for every shader to have compiled, then draw ONE frame and read it in the same task, so
@@ -1596,25 +1609,27 @@ export async function pixelsOfColour(scene: Drawn, hex: string, tolerance: numbe
     const width = engine.getRenderWidth();
     const height = engine.getRenderHeight();
     const pixels = (await engine.readPixels(0, 0, width, height)) as unknown as Uint8Array;
-    const want = [
-        Number.parseInt(hex.slice(1, 3), 16),
-        Number.parseInt(hex.slice(3, 5), 16),
-        Number.parseInt(hex.slice(5, 7), 16),
-    ];
 
-    let found = 0;
+    return hexes.map((hex) => {
+        const want = [
+            Number.parseInt(hex.slice(1, 3), 16),
+            Number.parseInt(hex.slice(3, 5), 16),
+            Number.parseInt(hex.slice(5, 7), 16),
+        ];
+        let found = 0;
 
-    for (let offset = 0; offset < pixels.length; offset += 4) {
-        if (
-            Math.abs(pixels[offset] - want[0]) <= tolerance &&
-            Math.abs(pixels[offset + 1] - want[1]) <= tolerance &&
-            Math.abs(pixels[offset + 2] - want[2]) <= tolerance
-        ) {
-            found++;
+        for (let offset = 0; offset < pixels.length; offset += 4) {
+            if (
+                Math.abs(pixels[offset] - want[0]) <= tolerance &&
+                Math.abs(pixels[offset + 1] - want[1]) <= tolerance &&
+                Math.abs(pixels[offset + 2] - want[2]) <= tolerance
+            ) {
+                found++;
+            }
         }
-    }
 
-    return found;
+        return found;
+    });
 }
 
 /**
@@ -1631,6 +1646,26 @@ export function canvasArea(scene: Drawn): number {
     const { engine } = scene.graph;
 
     return engine.getRenderWidth() * engine.getRenderHeight();
+}
+
+/**
+ * Every node is drawn at least this far in from each edge of the canvas, so what a node draws
+ * around itself (a glow, an effect, a group's boundary) has room on the canvas.
+ * @param scene - What the story drew.
+ * @param marginPx - The room, in CSS pixels, from a node's center to each edge.
+ */
+export async function assertNodesInFromEdges(scene: Drawn, marginPx: number): Promise<void> {
+    const { clientWidth: width, clientHeight: height } = scene.graph.canvas;
+    const offenders = scene.nodes.filter((node) => {
+        const [x, y, z] = node.position;
+        const at = scene.element.worldToScreen({ x, y, z });
+        return Math.min(at.x, at.y, width - at.x, height - at.y) < marginPx;
+    });
+    await holds(
+        offenders.length === 0,
+        `${scene.story}: ${String(offenders.length)} node(s) drawn within ${String(marginPx)} px of the ` +
+            `canvas's edge: ${offenders.map((node) => node.id).join(", ")}`,
+    );
 }
 
 /**
@@ -1917,7 +1952,8 @@ export async function assertNodeBands(
 }
 
 /**
- * A skybox is actually in the scene.
+ * A skybox is actually in the scene, and its image has arrived: a dome with no image draws as an
+ * empty sphere, so the dome alone does not show the skybox loaded.
  * @param scene - What the story drew.
  */
 export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
@@ -1928,6 +1964,8 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
         `${scene.story}: asks for a photo-dome skybox and the scene holds no dome mesh at all -- it holds ` +
             `[${[...new Set(scene.graph.scene.meshes.map((mesh) => mesh.name))].join(", ")}]`,
     );
+    // The image arrives on the network's time; wait on it with no deadline (the hang guard ends a load that never comes).
+    await untilFrames("the skybox image has arrived", () => skyboxReady(scene.graph.scene.meshes));
 }
 
 /**
@@ -1936,15 +1974,22 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
  *
  * Pointer events on the canvas rather than `selectNode`, because these stories exist to show that
  * a CLICK selects: a story that selected through the API passed with the canvas's pointer
- * listeners gone. `button: -1` on the move, as a real move carries no button (a hand-built one
- * defaults to the left button, which Babylon reads as a press).
+ * listeners gone. Under the test runner, the browser's own pointer (`realInput`); in Storybook's
+ * own UI, pointer events dispatched on the canvas, with `button: -1` on the move, as a real move
+ * carries no button (a hand-built one defaults to the left button, which Babylon reads as a press).
  * @param scene - What the story drew.
  * @param id - The node to click.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
  */
-export async function clickNode(scene: Drawn, id: string): Promise<void> {
+export async function clickNode(scene: Drawn, id: string, input?: RealInput): Promise<void> {
     const at = scene.element.nodeScreenPosition(id);
 
     await holds(at?.visible === true, `${scene.story}: node "${id}" is not on screen to be clicked`);
+
+    if (input !== undefined && at !== undefined) {
+        await input.click(scene.element, { x: at.x, y: at.y });
+        return;
+    }
 
     const { canvas } = scene.graph;
     const box = canvas.getBoundingClientRect();
@@ -1957,6 +2002,42 @@ export async function clickNode(scene: Drawn, id: string): Promise<void> {
 }
 
 /**
+ * Double-click a node the way a mouse does, at the spot the element says the node is drawn: the
+ * browser's own pointer under the test runner (`realInput`); in Storybook's own UI, two presses and
+ * releases dispatched on the canvas, then the `dblclick` the browser would add.
+ * @param element - The element.
+ * @param id - The node to double-click.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
+ */
+export async function doubleClickNode(element: Graphty, id: string, input?: RealInput): Promise<void> {
+    const at = element.nodeScreenPosition(id);
+    await holds(at?.visible === true, `node "${id}" is not on screen to be double-clicked`);
+    if (input !== undefined && at !== undefined) {
+        await input.doubleClick(element, { x: at.x, y: at.y });
+        return;
+    }
+
+    const { canvas } = element.graph;
+    const box = canvas.getBoundingClientRect();
+    const pointer = {
+        clientX: box.left + (at?.x ?? 0),
+        clientY: box.top + (at?.y ?? 0),
+        bubbles: true,
+        pointerId: 1,
+        pointerType: "mouse",
+        isPrimary: true,
+    };
+    canvas.dispatchEvent(new PointerEvent("pointermove", { ...pointer, button: -1, buttons: 0 }));
+    for (let press = 1; press <= 2; press++) {
+        canvas.dispatchEvent(new PointerEvent("pointerdown", { ...pointer, button: 0, buttons: 1, detail: press }));
+        canvas.dispatchEvent(new PointerEvent("pointerup", { ...pointer, button: 0, buttons: 0, detail: press }));
+        canvas.dispatchEvent(new MouseEvent("click", { ...pointer, button: 0, detail: press }));
+    }
+    // The browser's own word that the two clicks were one double-click, which the element expands on.
+    canvas.dispatchEvent(new MouseEvent("dblclick", { ...pointer, button: 0, detail: 2 }));
+}
+
+/**
  * Clicking a node puts the element's own highlight on screen.
  *
  * THE SCENE'S ANSWER TO "IS IT SELECTED", rather than the session's. The element draws a halo
@@ -1964,13 +2045,14 @@ export async function clickNode(scene: Drawn, id: string): Promise<void> {
  * compared with each other -- which is the whole subject of the four selection stories.
  * @param scene - What the story drew.
  * @param id - The node the story clicks.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
  */
-export async function assertSelectionDrawn(scene: Drawn, id: string): Promise<void> {
-    await clickNode(scene, id);
+export async function assertSelectionDrawn(scene: Drawn, id: string, input?: RealInput): Promise<void> {
+    await clickNode(scene, id, input);
 
     // The halo is drawn by the render loop after the selection lands, so wait for the element to
     // say the frame on screen shows it.
-    await scene.graph.waitForStableFrame(isUnderRunner() ? {} : { timeoutMs: SETTLE_BUDGET_MS });
+    await scene.graph.waitForStableFrame();
 
     const selected = [...scene.session.selection.nodes].map(String);
 
@@ -2012,6 +2094,36 @@ export async function assertControlsPresent(
         missing.length === 0,
         `${story}: the story's own controls are part of what it demonstrates and ${String(missing.length)} of ` +
             `them are not on the page -- ${listed(missing)}`,
+    );
+}
+
+/**
+ * The communities a run found sit in lumps: a node's distance from its community's centre, against the arrangement's
+ * radius, is at most `atMost`.
+ * @param scene - What the story drew.
+ * @param run - The run's id.
+ * @param atMost - The largest ratio.
+ */
+export async function assertCommunitiesLumped(scene: Drawn, run: string, atMost: number): Promise<void> {
+    const result = scene.session.results.get(run);
+    const groups = new Map<unknown, (readonly number[])[]>();
+    for (const node of scene.nodes) {
+        const group = result?.node(node.id)?.group;
+        groups.set(group, [...(groups.get(group) ?? []), node.position]);
+    }
+
+    const spread = (points: readonly (readonly number[])[]): number => {
+        const centre = [0, 1, 2].map((axis) => points.reduce((sum, p) => sum + p[axis], 0) / points.length);
+        return points.reduce((sum, p) => sum + Math.hypot(...centre.map((v, axis) => v - p[axis])), 0);
+    };
+    const within = [...groups.values()].reduce((sum, points) => sum + spread(points), 0);
+    const ratio = within / spread(scene.nodes.map((node) => node.position));
+
+    await holds(
+        groups.size > 2 && ratio <= atMost,
+        `${scene.story}: the ${String(groups.size)} communities of "${run}" should sit in lumps, and a node averages ` +
+            `${ratio.toFixed(3)} of the arrangement's radius from its community's centre (at most ` +
+            `${String(atMost)} expected)`,
     );
 }
 

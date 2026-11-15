@@ -44,27 +44,8 @@ export function isBipartite(s: GraphSnapshot, options: BipartiteOptions = {}): B
     const side = new Uint8Array(nodeCount).fill(UNSEEN);
     const queue = new Uint32Array(nodeCount);
     for (let r = 0; r < nodeCount; r++) {
-        if (side[r] !== UNSEEN) {
-            continue;
-        }
-        side[r] = 0;
-        let head = 0;
-        let tail = 0;
-        queue[tail++] = r;
-        while (head < tail) {
-            const u = queue[head++];
-            for (const { rowPtr, colIdx } of views) {
-                const end = rowPtr[u + 1];
-                for (let a = rowPtr[u]; a < end; a++) {
-                    const v = colIdx[a];
-                    if (side[v] === UNSEEN) {
-                        side[v] = side[u] ^ 1;
-                        queue[tail++] = v;
-                    } else if (side[v] === side[u]) {
-                        return { bipartite: false, sides: null };
-                    }
-                }
-            }
+        if (side[r] === UNSEEN && !colourComponent(views, side, queue, r)) {
+            return { bipartite: false, sides: null };
         }
     }
     const sides = makeMask(nodeCount);
@@ -74,4 +55,35 @@ export function isBipartite(s: GraphSnapshot, options: BipartiteOptions = {}): B
         }
     }
     return { bipartite: true, sides };
+}
+
+/**
+ * Two-colour the component of root `r` by BFS, the root on the first side.
+ * @param views - The adjacencies to follow
+ * @param side - Each node's side, UNSEEN until coloured
+ * @param queue - Scratch queue, one slot per node
+ * @param r - The component's root, not yet coloured
+ * @returns False when an arc joins two nodes of one side
+ */
+function colourComponent(views: readonly AdjacencyView[], side: Uint8Array, queue: Uint32Array, r: number): boolean {
+    side[r] = 0;
+    let head = 0;
+    let tail = 0;
+    queue[tail++] = r;
+    while (head < tail) {
+        const u = queue[head++];
+        for (const { rowPtr, colIdx } of views) {
+            const end = rowPtr[u + 1];
+            for (let a = rowPtr[u]; a < end; a++) {
+                const v = colIdx[a];
+                if (side[v] === UNSEEN) {
+                    side[v] = side[u] ^ 1;
+                    queue[tail++] = v;
+                } else if (side[v] === side[u]) {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
 }

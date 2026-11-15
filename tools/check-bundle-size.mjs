@@ -14,6 +14,12 @@
  * are external to dist/ and are not counted; the Node-safe entry points are kept free of those by
  * graphty-element/test/packaging/node-safe-entries.test.ts.
  *
+ * A lazily imported chunk (budgets.lazyChunks) gets a budget of its own. It is measured by building its
+ * source file alone with Vite, minified, with everything it reaches bundled except the packages
+ * the main entry already carries in full (its `external` list), and with its own dynamic imports
+ * inlined, so the figure is what a page downloads the first time it uses the chunk. `./bundle`
+ * inlines every dynamic import, so its budget includes each lazy chunk as well.
+ *
  * It fails when an entry is over its budget, when an entry has no budget (a new entry point cannot
  * skip the gate), and when a budget names an entry that no longer exists.
  *
@@ -31,7 +37,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
-import { transformWithEsbuild } from "vite";
+import { build, transformWithEsbuild } from "vite";
 
 const pkgDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "graphty-element");
 const budgetFile = path.join(pkgDir, "size-budgets.json");
@@ -75,12 +81,54 @@ for (const [name, target] of Object.entries(exports)) {
     measured[name] = bytes;
 }
 
+/**
+ * The minified, gzipped size of a lazy chunk built on its own.
+ * @param {{ source: string, external: string[] }} chunk - Its source file and the packages left out.
+ * @returns {Promise<number>} Bytes.
+ */
+async function lazyChunkBytes({ source, external }) {
+    const outputs = await build({
+        configFile: false,
+        root: pkgDir,
+        logLevel: "silent",
+        build: {
+            write: false,
+            minify: true,
+            lib: { entry: path.join(pkgDir, source), formats: ["es"], fileName: () => "chunk.js" },
+            rollupOptions: {
+                external: external.map((name) => {
+                    const escaped = name.replaceAll(/[.*+?^${}()|[\]\\/]/g, String.raw`\$&`);
+                    return new RegExp(`^${escaped}(/.*)?$`);
+                }),
+                output: { inlineDynamicImports: true },
+            },
+        },
+    });
+    let bytes = 0;
+    for (const { output } of [outputs].flat()) {
+        for (const file of output) {
+            if (file.type === "chunk") {
+                bytes += gzipSync(file.code, { level: 9 }).length;
+            }
+        }
+    }
+    return bytes;
+}
+
+const lazyMeasured = {};
+for (const [name, chunk] of Object.entries(budgets.lazyChunks ?? {})) {
+    lazyMeasured[name] = await lazyChunkBytes(chunk);
+}
+
 const kb = (n) => `${(n / 1024).toFixed(1)} KiB`;
 
 if (process.argv.includes("--update")) {
     const factor = 1 + budgets.headroomPercent / 100;
     const budget = (v) => Math.ceil(Math.max(v * factor, v + budgets.minimumHeadroomBytes));
     budgets.entries = Object.fromEntries(Object.entries(measured).map(([k, v]) => [k, budget(v)]));
+    for (const [name, bytes] of Object.entries(lazyMeasured)) {
+        budgets.lazyChunks[name].budget = budget(bytes);
+    }
     fs.writeFileSync(budgetFile, `${JSON.stringify(budgets, null, 4)}\n`);
     console.log(`Rewrote ${path.relative(process.cwd(), budgetFile)} with ${budgets.headroomPercent}% headroom.`);
     process.exit(0);
@@ -97,6 +145,22 @@ for (const [name, bytes] of Object.entries(measured)) {
         console.error(`${name}: ${kb(bytes)} minified+gzip is ${kb(bytes - budget)} over its budget of ${kb(budget)}`);
     } else {
         console.log(`${name}: ${kb(bytes)} minified+gzip, budget ${kb(budget)} (${kb(budget - bytes)} left)`);
+    }
+}
+for (const [name, bytes] of Object.entries(lazyMeasured)) {
+    const { budget } = budgets.lazyChunks[name];
+    if (typeof budget !== "number") {
+        failed++;
+        console.error(`lazy chunk ${name}: ${kb(bytes)} minified+gzip, but size-budgets.json gives it no budget`);
+    } else if (bytes > budget) {
+        failed++;
+        console.error(
+            `lazy chunk ${name}: ${kb(bytes)} minified+gzip is ${kb(bytes - budget)} over its budget of ${kb(budget)}`,
+        );
+    } else {
+        console.log(
+            `lazy chunk ${name}: ${kb(bytes)} minified+gzip, budget ${kb(budget)} (${kb(budget - bytes)} left)`,
+        );
     }
 }
 for (const name of Object.keys(budgets.entries)) {

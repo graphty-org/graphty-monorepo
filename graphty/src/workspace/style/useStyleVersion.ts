@@ -3,7 +3,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
 /** The session's events that change what the Style tab reads: the layers, the runs, the data. */
-const EVENTS = ["style:changed", "run:changed", "project:changed", "history:changed"] as const;
+const EVENTS = ["style:changed", "run:changed", "project:derived", "history:changed"] as const;
 
 /**
  * Re-renders the caller whenever the element reports a change to its styles, runs or data, or to

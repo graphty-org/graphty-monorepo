@@ -28,7 +28,6 @@ import {
     updateDataStructure,
     updateStatus,
 } from "../utils/visualization.js";
-import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -347,7 +346,7 @@ type Story = StoryObj<BFSArgs>;
  */
 export const BFS: Story = {
     render: (args) => createBFSStory(args),
-    play: async ({ canvasElement, args }) => {
+    play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
         // Click play button to start animation
@@ -355,12 +354,9 @@ export const BFS: Story = {
         await userEvent.click(playButton);
 
         // Wait for animation to complete (status shows "complete")
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("complete");
-            },
-            storyWaitOptions((args.nodeCount * 3 + 5) * args.animationSpeed),
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("complete");
+        });
     },
 };

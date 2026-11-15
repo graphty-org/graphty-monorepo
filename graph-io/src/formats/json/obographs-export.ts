@@ -28,6 +28,7 @@ import {
 } from "../../common/codes.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { LOSS } from "../../common/export.js";
+import { setOwn } from "../../common/json-elements.js";
 import {
     compactOboIri,
     OBO_IN_OWL,
@@ -53,6 +54,7 @@ import {
 } from "../../common/ontology-export.js";
 import { type ResolvedExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
+import { jsonText } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { type LossNote } from "../../types.js";
 import { dialectCapabilities, exponentIfUnsafe, isJsonObject } from "./dialect.js";
@@ -176,7 +178,7 @@ function keptOf(snapshot: GraphSnapshot): Kept {
     if (isJsonObject(r.properties)) {
         for (const [iri, entry] of Object.entries(r.properties)) {
             if (isJsonObject(entry)) {
-                properties[iri] = entry;
+                setOwn(properties, iri, entry);
             }
         }
     }
@@ -259,7 +261,7 @@ function json(value: unknown, nonfinite: { count: number }): string {
             .map(([k, v]) => `${JSON.stringify(k)}:${json(v, nonfinite)}`)
             .join(",")}}`;
     }
-    return JSON.stringify(value) ?? "null";
+    return jsonText(value) ?? "null";
 }
 
 /**
@@ -299,7 +301,7 @@ function propertyTexts(column: Column, i: number): string[] {
         return (v as readonly unknown[]).map((item) => textOf(item, column.child.dtype));
     }
     const nested = column.dtype === "json" || column.meta.components > 1;
-    return [nested ? (JSON.stringify(v) ?? "null") : textOf(v, column.dtype)];
+    return [nested ? (jsonText(v) ?? "null") : textOf(v, column.dtype)];
 }
 
 /**
@@ -876,9 +878,9 @@ class ObographsExport {
         if (isJsonObject(extra)) {
             for (const [key, value] of Object.entries(extra)) {
                 if (key.startsWith("meta.")) {
-                    meta[key.slice(5)] = value;
+                    setOwn(meta, key.slice(5), value);
                 } else {
-                    node[key] = value;
+                    setOwn(node, key, value);
                 }
             }
         }
@@ -910,7 +912,7 @@ class ObographsExport {
         }
         const xrefs = this.at("xref", i);
         if (Array.isArray(xrefs)) {
-            meta.xrefs = xrefs.map((val) => ({ val }));
+            meta.xrefs = xrefs.map((val: unknown) => ({ val }));
         }
         const synonyms = this.at("synonym", i);
         if (Array.isArray(synonyms)) {
@@ -999,7 +1001,7 @@ class ObographsExport {
         for (const column of this.edgeColumns) {
             const v = cellOf(column, e);
             if (v !== undefined) {
-                meta[column.meta.name] = v;
+                setOwn(meta, column.meta.name, v);
             }
         }
         if (this.weights.weighted && this.weights.isExplicit(e)) {
@@ -1048,7 +1050,7 @@ class ObographsExport {
         const rest: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(this.kept.graph)) {
             if (key !== "id" && key !== "lbl" && key !== "meta" && key !== "nodes" && key !== "edges") {
-                rest[key] = value;
+                setOwn(rest, key, value);
             }
         }
         const text = json(rest, this.nonfinite);

@@ -7,6 +7,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { itemAt } from "../../common/text.js";
 import { num6 } from "../canon/number.js";
 import { type CanonSite, noteAt } from "../canon/site.js";
 import { STYLE_ISSUE } from "../codes.js";
@@ -25,6 +26,7 @@ import type {
 } from "../types.js";
 import { isStyleValue } from "../vocabulary.js";
 import { readCytoscapeCharts } from "./charts.js";
+import { readCytoscapeGradientsAndImages } from "./custom-graphics.js";
 import {
     arrowGap,
     arrowProportion,
@@ -85,12 +87,15 @@ export interface CytoscapeElements {
         readonly target: ArrayLike<number>;
         readonly nodeSize?: ArrayLike<number | null>;
         readonly nodeBox?: ArrayLike<readonly [width: number, height: number, border: number] | null>;
+        /** Each node's shape, by node index: where a fanned edge leaves its outline. */
+        readonly nodeShape?: ArrayLike<StyleValue | null>;
         /** Each node's center on screen, x right and y down, by node index: what an edge's label is placed by. */
         readonly nodeAt?: ArrayLike<readonly [x: number, y: number] | null>;
         /**
-         * The order Cytoscape desktop creates the file's nodes and edges in, when it is not the file's (its CX reader
-         * creates them in hash order): each element's rank, lower first, by index. With it, `nodeAt` and `nodeSize`,
-         * each fanned edge is given desktop's own anchor as its bend, so it bows to the side desktop draws it on.
+         * The order Cytoscape desktop creates the file's nodes and edges in: each element's rank, lower first, by index
+         * (its CX reader creates them in hash order, its CX2 and session readers in file order). With it, `nodeAt` and
+         * `nodeSize`, each fanned edge is given desktop's own anchor as its bend, so it bows to the side desktop draws it
+         * on.
          */
         readonly created?: { readonly node: ArrayLike<number>; readonly edge: ArrayLike<number> };
     };
@@ -166,7 +171,19 @@ export function edgeEnds(
         return v === null ? null : ([v[0], down ? v[1] : -v[1]] as const);
     });
     const { src, dst } = snapshot.edgeList();
-    return { source: src, target: dst, nodeSize, nodeBox, nodeAt };
+    const nodeShape = Array.from({ length: snapshot.nodeCount }, (_, i) => nodes.shape?.[i] ?? null);
+    return { source: src, target: dst, nodeSize, nodeBox, nodeShape, nodeAt };
+}
+
+/**
+ * The order Cytoscape desktop creates a graph's nodes and edges in when it creates them as the file lists them (its
+ * CX2 and session readers): each element's rank is its index.
+ * @param snapshot - the graph
+ * @returns each node's and edge's rank
+ */
+export function fileCreationOrder(snapshot: GraphSnapshot): NonNullable<CytoscapeElements["ends"]>["created"] {
+    const ranks = (n: number): number[] => Array.from({ length: n }, (_, i) => i);
+    return { node: ranks(snapshot.nodeCount), edge: ranks(snapshot.edgeCount) };
 }
 
 /** Locked node sizes with no `NODE_SIZE` anywhere draw at Cytoscape's lexicon default. */
@@ -524,13 +541,15 @@ export function resolveCytoscape(
             }
             return typeof v === "object" && v !== null ? JSON.stringify(v) : null;
         };
+        const graphicOf = (slot: string, i: number): unknown => {
+            const v = one(slot, raw, "pieColors", i);
+            return typeof v === "string" && v.startsWith("{") ? (JSON.parse(v) as unknown) : v;
+        };
+        readCytoscapeGradientsAndImages(out, n, graphicOf);
         readCytoscapeCharts(
             out,
             n,
-            (slot, i) => {
-                const v = one(slot, raw, "pieColors", i);
-                return typeof v === "string" && v.startsWith("{") ? (JSON.parse(v) as unknown) : v;
-            },
+            graphicOf,
             (column, i) => elements.value(column, i),
             s.dependencies.get("nodeCustomGraphicsSizeSync") !== false,
         );
@@ -624,7 +643,7 @@ function labelDress(
     ends: CytoscapeElements["ends"],
 ): void {
     const vp = (name: string): string => `${target === "node" ? "NODE" : "EDGE"}_LABEL_${name}`;
-    const columns: Record<string, (StyleValue | null)[]> = {};
+    const columns: Partial<Record<string, (StyleValue | null)[]>> = {};
     const put = (property: string, i: number, v: StyleValue | null): void => {
         let column = columns[property];
         if (column === undefined) {
@@ -650,7 +669,7 @@ function labelDress(
     const kept = (property: string, v: StyleValue | null): boolean =>
         v !== null && v !== 0 && (v !== "center" || (property === "labelPosition" && target === "edge"));
     for (const [property, values] of Object.entries(columns)) {
-        if (values.some((v) => kept(property, v))) {
+        if (values?.some((v) => kept(property, v)) === true) {
             out[property] = values;
         }
     }
@@ -875,10 +894,11 @@ function arrowProportions(
 /**
  * Marks straight every curved edge without bends, except where Cytoscape desktop fans it: `EDGE_CURVED` only
  * rounds the bends an edge has, and the bends Cytoscape adds itself. Among the edges joining the same two nodes
- * (either way round, not loops), it draws the last it created straight and bends each earlier one without bends
+ * (either way round, not loops), it draws the first it walks straight and bends each later one without bends
  * of its own round an anchor beside the line (`DEdgeDetails.getAnchors`, `EDGE_STACKING` `AUTO_BEND`, the default;
- * it walks the pair's edges newest first, measured on Cytoscape 3.10.5's SVG of edges joining two nodes both ways)
- * -- unless the last has bends, when every anchor falls on the line. Its anchors are the larger side of the two
+ * it walks them in the order it made their views: the edges out of the newer node newest first, then those out of
+ * the older one, measured on Cytoscape 3.10.5's SVG of edges joining two nodes both ways and of cx2-signor-aml)
+ * -- unless that first one has bends, when every anchor falls on the line. Its anchors are the larger side of the two
  * nodes times twice `EDGE_STACKING_DENSITY` apart, so the curves' middles half that: each fanned edge's
  * `fanSpacing`, when the node sizes are known. A fanned edge is drawn curved even under `EDGE_CURVED` false, and an
  * edge whose `EDGE_STACKING` is HAYSTACK is neither fanned nor counted: desktop draws it straight (both measured on
@@ -930,8 +950,10 @@ function straightenBendless(
 
 /**
  * The edges desktop fans, each with its place in its node pair's walk (1 for the first fanned). Desktop walks a node
- * pair's edges newest first (its adjacency lists take each new edge at the head); the first it meets is drawn
- * straight, and each later one fanned unless that first one has bends. Loops and haystack edges are left out.
+ * pair's edges in the order of their view SUIDs (`DEdgeDetails.getAnchors`), which is the order it made the views
+ * in: `SimpleNetwork.getEdgeList` lists each node's outgoing edges, nodes newest first and each node's edges newest
+ * first. So the edges out of the newer node of the pair come first, and the first it meets is drawn straight, and
+ * each later one fanned unless that first one has bends. Loops and haystack edges are left out.
  * @param ends - each edge's source and target node index, and the order they were created in
  * @param count - the edge count
  * @param bent - whether an edge has bends of its own
@@ -946,7 +968,7 @@ function fanPlaces(
 ): Map<number, number> {
     const place = new Map<number, number>();
     const first = new Map<string, { f: number; k: number }>();
-    for (const i of newestFirst(count, ends.created?.edge)) {
+    for (const i of viewOrder(count, ends)) {
         const [s, t] = [ends.source[i], ends.target[i]];
         if (s === t || haystack(i)) {
             continue;
@@ -964,14 +986,19 @@ function fanPlaces(
 }
 
 /**
- * The edges newest first: by the order they were created in when it is known, else last index first.
+ * The edges in the order desktop makes their views (`SimpleNetwork.getEdgeList`): by source node, newest first, and
+ * each node's outgoing edges newest first. Newest is by the order the nodes and edges were created in when it is
+ * known, else the last index.
  * @param count - the edge count
- * @param created - each edge's place in the creation order, when known
+ * @param ends - each edge's source node index, and the order the nodes and edges were created in, when known
  * @returns the edge indices in that order
  */
-function newestFirst(count: number, created: ArrayLike<number> | undefined): number[] {
+function viewOrder(count: number, ends: NonNullable<CytoscapeElements["ends"]>): number[] {
+    const { source, created } = ends;
+    const node = (i: number): number => created?.node[source[i]] ?? source[i];
+    const edge = (i: number): number => created?.edge[i] ?? i;
     const walk = Array.from({ length: count }, (_, i) => i);
-    walk.sort(created === undefined ? (a, b) => b - a : (a, b) => created[b] - created[a]);
+    walk.sort((a, b) => node(b) - node(a) || edge(b) - edge(a));
     return walk;
 }
 
@@ -980,8 +1007,11 @@ function newestFirst(count: number, created: ArrayLike<number> | undefined): num
  * the fan's side is then desktop's, not graphty's. Desktop measures each pair's fan from the node whose view it made
  * first, and it makes views newest node first (`DEdgeDetails.getAnchors`: the pair's lower view SUID is its source;
  * `SimpleNetwork.getNodeList` lists the newest node first); the `k`-th fanned edge bows `ceil(k / 2)` fan spacings
- * off the middle of the line, to the right of the fan's direction (y down) for odd `k`, to the left for even. The
- * bend is the control point of a quadratic Bezier whose middle lies there, twice as far off.
+ * off the middle of the line, to the right of the fan's direction (y down) for odd `k`, to the left for even.
+ * Desktop draws a quadratic Bezier through an anchor twice as far off, from where the lines to it leave the two nodes'
+ * outlines (an ellipse's; see `outlineToward()`); the bend is the control point of graphty's Bezier between the
+ * centers with the same middle (cx2-signor-aml 10->97 bows 0.283 of its length in desktop's drawing, 0.287 by this
+ * and 0.231 for an anchor between the centers).
  * @param out - the values per property, with `fanSpacing` set; changed in place
  * @param ends - the edges' ends, their nodes' centers and creation order
  * @param place - each fanned edge's place in its pair's walk, from 1
@@ -1001,7 +1031,7 @@ function fanAnchors(
     let changed = false;
     for (const [i, k] of place) {
         const [s, t] = [source[i], target[i]];
-        const [ps, pt, f] = [nodeAt[s], nodeAt[t], spacing[i]];
+        const [ps, pt, f] = [itemAt(nodeAt, s), itemAt(nodeAt, t), spacing[i]];
         if (ps === null || ps === undefined || pt === null || pt === undefined || typeof f !== "number") {
             continue;
         }
@@ -1013,10 +1043,22 @@ function fanAnchors(
         const sign = created.node[s] > created.node[t] ? 1 : -1;
         const [nx, ny] = [(sign * (pt[0] - ps[0])) / len, (sign * (pt[1] - ps[1])) / len];
         const offset = Math.ceil(k / 2) * (k % 2 === 0 ? 1 : -1) * 2 * f;
-        const [vx, vy] = [offset * ny, -offset * nx];
-        // to the left of source -> target, y up, as a fraction of the length
-        const across = (vx * (pt[1] - ps[1]) - vy * (pt[0] - ps[0])) / (len * len);
-        bends[i] = `0.5,${String(Math.round(across * 1e6) / 1e6 || 0)}`;
+        const anchor = [(ps[0] + pt[0]) / 2 + offset * ny, (ps[1] + pt[1]) / 2 - offset * nx] as const;
+        // desktop's curve runs from where the line from each node's center to the anchor leaves its outline, so its
+        // middle is (outS + 2 * anchor + outT) / 4; graphty's runs between the centers, so its control point is the
+        // one that puts its middle there
+        const end = (at: readonly [number, number], node: number): readonly [number, number] =>
+            outlineToward(at, ends.nodeBox?.[node], ends.nodeShape?.[node], anchor);
+        const [os, ot] = [end(ps, s), end(pt, t)];
+        const [wx, wy] = [
+            (os[0] + 2 * anchor[0] + ot[0] - ps[0] - pt[0]) / 2 - ps[0],
+            (os[1] + 2 * anchor[1] + ot[1] - ps[1] - pt[1]) / 2 - ps[1],
+        ];
+        const [dx, dy] = [pt[0] - ps[0], pt[1] - ps[1]];
+        // along source -> target, and to the left of it (y up), as fractions of the length; to 1e-4, as every other
+        // bend is read, so a format that writes bends that finely reads it back the same
+        const fraction = (v: number): string => String(Math.round(v * 1e4) / 1e4 || 0);
+        bends[i] = `${fraction((wx * dx + wy * dy) / (len * len))},${fraction((wx * dy - wy * dx) / (len * len))}`;
         bendCurve[i] = "bezier";
         spacing[i] = null;
         changed = true;
@@ -1026,6 +1068,32 @@ function fanAnchors(
         out.bendCurve = bendCurve;
         out.fanSpacing = spacing;
     }
+}
+
+/**
+ * Where the line from a node's center toward a point leaves the node's outline, when the node is an ellipse (the end
+ * desktop draws a fanned edge from); the point itself when it lies inside the node. The center for a node without a
+ * size or of another shape: desktop's drawings of fans off diamonds bow as a curve between the centers does
+ * (cx-lianhe-affiliation 311->264 0.225 of its length, 0.224 between the centers, 0.257 from the diamond's outline).
+ * ponytail: boxes and the other shapes are drawn from their centers until a drawing shows otherwise.
+ * @param at - the node's center, y down
+ * @param box - the node's width, height and border width, or null
+ * @param shape - the node's shape
+ * @param toward - the point, y down
+ * @returns the point on the outline
+ */
+function outlineToward(
+    at: readonly [number, number],
+    box: readonly [number, number, number] | null | undefined,
+    shape: unknown,
+    toward: readonly [number, number],
+): readonly [number, number] {
+    const [vx, vy] = [toward[0] - at[0], toward[1] - at[1]];
+    if (shape !== "ellipse" || box === null || box === undefined || box[0] <= 0 || box[1] <= 0) {
+        return at;
+    }
+    const t = Math.min(1, 1 / Math.hypot(vx / (box[0] / 2), vy / (box[1] / 2)));
+    return [at[0] + t * vx, at[1] + t * vy];
 }
 
 /**
@@ -1057,7 +1125,7 @@ function loopHandles(
     let changed = false;
     for (let i = ends.source.length - 1; i >= 0; i--) {
         const node = ends.source[i];
-        const b = box[node];
+        const b = itemAt(box, node);
         if (node !== ends.target[i] || bends[i] !== null) {
             continue;
         }

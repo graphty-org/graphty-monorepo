@@ -56,17 +56,17 @@ interface BFSOptions extends Record<string, unknown> {
  * and predecessor relationships for each reachable node.
  */
 export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
-    static namespace = "graphty";
-    static type = "bfs";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "bfs";
     /** Walks the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = bfsOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = bfsOptionsSchema;
 
     /**
      * Options schema for BFS algorithm
      */
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         source: {
             type: "nodeId",
             default: null,
@@ -144,7 +144,7 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
         const targetIndex = targetNode === undefined ? undefined : this.nodeIndex(snapshot, "targetNode", targetNode);
 
-        context.report({ phase: "Walking outwards", total: null });
+        context.report({ phase: "walking-outwards", total: null });
         const { value, precision } = await run((dispatch, s) =>
             dispatch.breadthFirstSearch(
                 s,
@@ -164,7 +164,7 @@ export class BFSAlgorithm extends DeclaredAlgorithm<BFSOptions> {
         expanded.forEach((index, position) => orderOf.set(index, position));
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Recording levels", nodeIds, (nodeId) => {
+        await forEachChunked(context, "recording-levels", nodeIds, (nodeId) => {
             const index = snapshot.ids.indexOf(nodeId);
             const order = index === INVALID_INDEX ? undefined : orderOf.get(index);
 

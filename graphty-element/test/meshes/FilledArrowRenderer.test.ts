@@ -1,8 +1,8 @@
-import { Mesh, NullEngine, Scene, ShaderMaterial, StandardMaterial, SubMesh } from "@babylonjs/core";
+import { Effect, Mesh, NullEngine, Scene, ShaderMaterial, StandardMaterial, SubMesh } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import { EDGE_CONSTANTS } from "../../src/constants/meshConstants";
-import { FilledArrowRenderer } from "../../src/meshes/FilledArrowRenderer";
+import { FilledArrowRenderer, HALF_BARB } from "../../src/meshes/FilledArrowRenderer";
 
 describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
     let scene: Scene;
@@ -134,6 +134,21 @@ describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
         });
     });
 
+    describe("Vee Arrow notch", () => {
+        test("createVee is notched half its length, as Graphviz, Cytoscape.js and vis-network draw their vee", () => {
+            // Graphviz arrows.c arrow_type_crow0 (vee: the inner corner m at 0.5 of the arrow), Cytoscape.js's vee
+            // (0, -0.15) of a 0.3 arrow, vis-network's Vee (-0.5, 0)
+            const mesh = FilledArrowRenderer.createVee(scene);
+            const positions = mesh.getVerticesData("position");
+            assert.exists(positions);
+            // the notch's corner on the line (z 0) behind the tip at x 0
+            const notch = [0, 3, 6, 9].find((i) => positions[i + 2] === 0 && positions[i] !== 0);
+            assert.isDefined(notch);
+            assert.closeTo(positions[notch], -0.5, 1e-9);
+            mesh.dispose();
+        });
+    });
+
     describe("Tee Arrow", () => {
         test("createTee creates horizontal bar with 4 vertices", () => {
             const mesh = FilledArrowRenderer.createTee(scene);
@@ -237,6 +252,68 @@ describe("FilledArrowRenderer - 3D Arrow Geometry", () => {
 
             mesh.dispose();
         });
+    });
+});
+
+describe("FilledArrowRenderer - open outlines drawn at an outline width (#5800)", () => {
+    let scene: Scene;
+
+    beforeEach(() => {
+        const engine = new NullEngine();
+        scene = new Scene(engine);
+    });
+
+    afterEach(() => {
+        scene.getEngine().dispose();
+    });
+
+    test.each(Object.keys(FilledArrowRenderer.OPEN_OUTLINES))(
+        "%s is a frame as thick as the stroke it is given, its middle left open",
+        (type) => {
+            for (const stroke of [0.05, 0.1]) {
+                const mesh = FilledArrowRenderer.createOpenOutline(type, scene, stroke);
+                const p = mesh.getVerticesData("position") ?? [];
+                assert.isTrue(
+                    p.every((v, i) => i % 3 !== 1 || v === 0),
+                    "in the XZ plane",
+                );
+                // the box's frame: its outer side at z = 0.5, its inner side the stroke in from it
+                const zs = [...new Set(p.filter((_, i) => i % 3 === 2).map((z) => Math.round(z * 1e6) / 1e6))];
+                if (type === "open-box") {
+                    assert.sameMembers(zs, [-0.5, 0.5, -(0.5 - stroke), 0.5 - stroke]);
+                }
+                assert.isAbove(mesh.getTotalIndices(), 0);
+                mesh.dispose();
+            }
+        },
+    );
+
+    test("a stroke as thick as the shape is held to half the way to its middle, so it stays open", () => {
+        const mesh = FilledArrowRenderer.createOpenOutline("open-box", scene, 2);
+        const zs = (mesh.getVerticesData("position") ?? []).filter((_, i) => i % 3 === 2);
+        assert.closeTo(Math.min(...zs.filter((z) => z > 0)), 0.25, 1e-9);
+        mesh.dispose();
+    });
+
+    test("its width is applied before it is framed, so the frame stays as thick", () => {
+        const mesh = FilledArrowRenderer.createOpenOutline("open-box", scene, 0.1, 2);
+        const zs = (mesh.getVerticesData("position") ?? []).filter((_, i) => i % 3 === 2);
+        assert.closeTo(Math.max(...zs), 1, 1e-9);
+        assert.closeTo(Math.min(...zs.filter((z) => z > 0)), 0.9, 1e-9);
+        mesh.dispose();
+    });
+});
+
+describe("FilledArrowRenderer - camera on the line (#123)", () => {
+    test("the vertex shader never normalizes a zero cross product when the camera looks straight down the line", () => {
+        FilledArrowRenderer.registerShaders();
+        const src = Effect.ShadersStore.filledArrowVertexShader.replace(/\s+/g, " ");
+        // cross(forward, toCamera) is zero there, and normalize() of zero is NaN on the GPU
+        assert.notInclude(src, "normalize(cross(forward, toCamera))");
+        assert.include(src, "vec3 right = cross(forward, toCamera);");
+        assert.include(src, "if (dot(right, right) < 1e-12) {");
+        assert.include(src, "abs(forward.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0)");
+        assert.include(src, "right = normalize(right);");
     });
 });
 
@@ -676,6 +753,38 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
         flipped.dispose();
     });
 
+    test("half-barb, half-barb-flipped and inverted-vee are wound as half-open is", () => {
+        const area = (mesh: Mesh): number => {
+            const p = mesh.getVerticesData("position") ?? [];
+            const [a, b, c] = Array.from((mesh.getIndices() ?? []).slice(0, 3), (k) => [p[3 * k], p[3 * k + 2]]);
+            return (b[0] - a[0]) * (c[1] - a[1]) - (c[0] - a[0]) * (b[1] - a[1]);
+        };
+        const half = FilledArrowRenderer.createHalfOpen(scene);
+        for (const type of ["half-barb", "half-barb-flipped", "inverted-vee", "kite", "deltoid", "cross", "open-vee"]) {
+            const mesh = FilledArrowRenderer.createPolygonArrow(type, scene);
+            assert.strictEqual(Math.sign(area(mesh)), Math.sign(area(half)), type);
+            mesh.dispose();
+        }
+        half.dispose();
+    });
+
+    test("the half barb is a strip a ninth of its length along the line, its arm on half-open's side", () => {
+        const [strip] = FilledArrowRenderer.POLYGON_ARROWS["half-barb"]();
+        assert.deepEqual(
+            strip.filter(([, z]) => z === 0).map(([x]) => x),
+            [0, -HALF_BARB],
+        );
+        assert.isTrue(strip.every(([, z]) => z <= 0));
+        const [flipped] = FilledArrowRenderer.POLYGON_ARROWS["half-barb-flipped"]();
+        assert.isTrue(flipped.every(([, z]) => z >= 0));
+    });
+
+    test("the inverted vee has its point back on the line, its notch a quarter back and no tine", () => {
+        const points = FilledArrowRenderer.POLYGON_ARROWS["inverted-vee"]().flat();
+        const onLine = points.filter(([, z]) => z === 0).map(([x]) => x);
+        assert.sameMembers([...new Set(onLine)], [-1, -0.25]);
+    });
+
     test("open-box is the box's square with its middle left open", () => {
         const e = extents("open-box");
         assert.closeTo(e.z0, -0.5, 1e-9);
@@ -715,6 +824,47 @@ describe("FilledArrowRenderer - the arrows drawn from convex pieces", () => {
             assert.isFalse(s.every((x) => x > 0) || s.every((x) => x < 0), "the middle is outside every triangle");
         }
         mesh.dispose();
+    });
+
+    test("the kite is yEd Live's: widest a fifth from its back, 0.6 wide, its back a point on the line", () => {
+        const points = FilledArrowRenderer.POLYGON_ARROWS.kite().flat();
+        assert.sameDeepMembers(points, [
+            [0, 0],
+            [-0.8, -0.3],
+            [-1, 0],
+            [-0.8, 0.3],
+        ]);
+    });
+
+    test("the deltoid is yEd Live's: wider than long, its sides bowed in and its back notched", () => {
+        const e = extents("deltoid");
+        assert.closeTo(e.z1 - e.z0, 6 / 5.2, 1e-9);
+        const points = FilledArrowRenderer.POLYGON_ARROWS.deltoid().flat();
+        // the side's middle lies inside the straight line from the tip to the back corner, half as wide there
+        const [, side] = points.find(([x]) => x < -0.4 && x > -0.6) ?? [0, 0];
+        assert.isBelow(Math.abs(side), 0.27);
+        const notch = points.filter(([, z]) => z === 0).map(([x]) => x);
+        assert.closeTo(Math.min(...notch), -0.95, 1e-9);
+    });
+
+    test("the cross is two strokes crossing on the line, as long as they are wide, with no fill between", () => {
+        const e = extents("cross");
+        assert.closeTo(e.z1 - e.z0, 1, 1e-9);
+        assert.lengthOf(FilledArrowRenderer.POLYGON_ARROWS.cross(), 2);
+        const mesh = FilledArrowRenderer.createPolygonArrow("cross", scene);
+        const p = mesh.getVerticesData("position") ?? [];
+        // the side middles of the X are empty: no vertex on the line at its tip or its back
+        for (let i = 0; i < p.length; i += 3) {
+            assert.isAbove(Math.abs(p[i + 2]), 0.4);
+        }
+        mesh.dispose();
+    });
+
+    test("the open vee is two barbs meeting at its tip, its notch empty", () => {
+        const pieces = FilledArrowRenderer.POLYGON_ARROWS["open-vee"]();
+        assert.lengthOf(pieces, 2);
+        assert.isTrue(pieces[0].every(([, z]) => z <= 0));
+        assert.isTrue(pieces[1].every(([, z]) => z >= 0));
     });
 
     test("2D builds each one by its type", () => {

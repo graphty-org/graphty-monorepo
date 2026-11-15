@@ -1,0 +1,156 @@
+{
+    "page": "flaky",
+    "range": "7d",
+    "generated": "2026-10-25T23:30:00Z",
+    "section": {
+        "kind": "tree",
+        "id": "hotspots",
+        "range": "7d",
+        "quiet": 13,
+        "nodes": [
+            {
+                "quarantined": 0,
+                "level": "family",
+                "name": "graphty screenshots",
+                "tags": [
+                    {
+                        "code": "tag.screenshots"
+                    }
+                ],
+                "distinct": 2,
+                "events": 9,
+                "per1000": 31,
+                "prsHeld": 3,
+                "children": [
+                    {
+                        "quarantined": 0,
+                        "level": "file",
+                        "name": "src/components/style/StylePanel.stories.tsx",
+                        "distinct": 1,
+                        "events": 6,
+                        "per1000": 48,
+                        "prsHeld": 2,
+                        "children": [
+                            {
+                                "quarantined": 0,
+                                "level": "test",
+                                "name": "Football conference: Which nodes picker",
+                                "tags": [
+                                    {
+                                        "code": "tag.unstable"
+                                    },
+                                    {
+                                        "code": "tag.issue",
+                                        "params": {
+                                            "issue": 3521
+                                        }
+                                    }
+                                ],
+                                "distinct": 1,
+                                "events": 6,
+                                "per1000": 48,
+                                "prsHeld": 2,
+                                "link": "/flaky/test?file=src%2Fcomponents%2Fstyle%2FStylePanel.stories.tsx&test=Football%20conference%3A%20Which%20nodes%20picker"
+                            }
+                        ]
+                    },
+                    {
+                        "quarantined": 0,
+                        "level": "file",
+                        "name": "src/components/find/FindBox.stories.tsx",
+                        "distinct": 1,
+                        "events": 3,
+                        "per1000": 22,
+                        "prsHeld": 1,
+                        "children": [
+                            {
+                                "quarantined": 0,
+                                "level": "test",
+                                "name": "Find: no-match line",
+                                "tags": [
+                                    {
+                                        "code": "tag.unstable"
+                                    },
+                                    {
+                                        "code": "tag.issue",
+                                        "params": {
+                                            "issue": 3553
+                                        }
+                                    }
+                                ],
+                                "distinct": 1,
+                                "events": 3,
+                                "per1000": 22,
+                                "prsHeld": 1,
+                                "link": "/flaky/test?file=src%2Fcomponents%2Ffind%2FFindBox.stories.tsx&test=Find%3A%20no-match%20line"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "quarantined": 0,
+                "level": "family",
+                "name": "graphty",
+                "distinct": 2,
+                "events": 7,
+                "per1000": 2.2,
+                "prsHeld": 0
+            },
+            {
+                "quarantined": 0,
+                "level": "family",
+                "name": "graphty-element-browser",
+                "distinct": 2,
+                "events": 4,
+                "per1000": 1.1,
+                "prsHeld": 0
+            },
+            {
+                "quarantined": 0,
+                "level": "family",
+                "name": "compact-mantine screenshots",
+                "tags": [
+                    {
+                        "code": "tag.screenshots"
+                    }
+                ],
+                "distinct": 1,
+                "events": 3,
+                "per1000": 12,
+                "prsHeld": 0
+            },
+            {
+                "quarantined": 0,
+                "level": "group",
+                "name": "small-browser",
+                "tags": [
+                    {
+                        "code": "tag.job_group",
+                        "params": {
+                            "shards": 6
+                        }
+                    }
+                ],
+                "distinct": 1,
+                "events": 2,
+                "per1000": 0.6,
+                "prsHeld": 0
+            },
+            {
+                "quarantined": 0,
+                "level": "family",
+                "name": "webgpu-graph-algorithms-node",
+                "tags": [
+                    {
+                        "code": "tag.gpu"
+                    }
+                ],
+                "distinct": 1,
+                "events": 1,
+                "per1000": 0.5,
+                "prsHeld": 0
+            }
+        ]
+    }
+}

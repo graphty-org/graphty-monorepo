@@ -92,7 +92,10 @@ describe("dot exporter: capabilities and shape", () => {
         for (const options of [{ indent: "x" }, { name: 7 }, { strict: "yes" }] as unknown as ExportOptions[]) {
             const option = Object.keys(options ?? {})[0];
             expect(() => dotExporter.check(snapshot, options)).toThrow(
-                expect.objectContaining({ code: "E_UNSUPPORTED", details: expect.objectContaining({ option }) }),
+                expect.objectContaining({
+                    code: "E_UNSUPPORTED",
+                    details: expect.objectContaining({ option }) as unknown,
+                }),
             );
             await expect(dotExporter.exportToString(snapshot, options)).rejects.toMatchObject({
                 code: "E_UNSUPPORTED",
@@ -112,9 +115,12 @@ describe("dot exporter: capabilities and shape", () => {
         builder.setNodeValue("odd", 0, "<a");
         builder.setNodeValue("t", 0, "true");
         builder.setNodeValue("v", 1, "");
+        builder.setNodeValue("quotedHtml", 0, "<init>");
+        // the importer's record of which texts the file wrote as HTML strings
+        builder.setMeta({ extra: { dot: { html: ["<<b>bold</b>>"] } } });
         const text = await dotExporter.exportToString(builder.freeze());
         expect(lines(text).slice(1, 13)).toEqual([
-            'plain [html=<<b>bold</b>>, notHtml="<a> <b>", odd="<a", t=true];',
+            'plain [html=<<b>bold</b>>, notHtml="<a> <b>", odd="<a", t=true, quotedHtml="<init>"];',
             '"with space" [v=""];',
             '"has \\"quote\\"";',
             '"node";',
@@ -127,6 +133,40 @@ describe("dot exporter: capabilities and shape", () => {
             "7;",
             "-2.5;",
         ]);
+    });
+
+    it("quotes a text shaped like HTML that the DOT file did not write as an HTML string (#6859)", async () => {
+        const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
+        builder.addNode("<init>");
+        builder.addNode("init");
+        builder.setNodeValue("label", 1, "<<b>x</b>>");
+        builder.setMeta({ extra: { dot: { html: [] } } });
+        const text = await dotExporter.exportToString(builder.freeze());
+        expect(lines(text).slice(1, 3)).toEqual(['"<init>";', 'init [label="<<b>x</b>>"];']);
+    });
+
+    it("quotes a text shaped like HTML when the graph has no DOT record of its HTML strings", async () => {
+        // a graph from another format, or rebuilt by an application, never has a text taken for HTML by its shape
+        const builder = new GraphBuilder({ directed: true, weightDtype: "f64" });
+        builder.addNode("a");
+        builder.setNodeValue("label", 0, "<<b>x</b>>");
+        builder.setNodeValue("tag", 0, "<b>");
+        const text = await dotExporter.exportToString(builder.freeze());
+        expect(lines(text)[1]).toBe('a [label="<<b>x</b>>", tag="<b>"];');
+    });
+
+    it("round trips a quoted label shaped like HTML as quoted, and an HTML label bare (#6859)", async () => {
+        const source =
+            'digraph { a [label="<init>"]; b [label=<<b>x</b>>]; c [label="<b>"]; "<none>" -> a [label="<none>"] }';
+        const once = await dotExporter.exportToString(await imported(source));
+        expect(once).toContain('a [label="<init>"]');
+        expect(once).toContain('c [label="<b>"]');
+        expect(once).toContain("b [label=<<b>x</b>>]");
+        expect(once).toContain('"<none>" -> a [label="<none>"]');
+        const again = await imported(once);
+        // only the HTML label comes back as an HTML string; "<b>", "<init>" and "<none>" stay plain text
+        expect(again.meta.extra).toEqual({ dot: { html: ["<<b>x</b>>"] } });
+        expect(await dotExporter.exportToString(again)).toBe(once);
     });
 
     it("quotes a value that starts with U+FEFF, which the reader skips between tokens", async () => {
@@ -246,6 +286,30 @@ describe("dot exporter: capabilities and shape", () => {
     });
 });
 
+describe("dot exporter: rank subgraphs", () => {
+    it("writes each rank subgraph after the nodes, named or anonymous, and reads the same graph back", async () => {
+        const snapshot = await imported(
+            "digraph { a; b; c; d; { rank=min; c } subgraph top { rank=same; a; b } { rank=sink; a; d } c -> a }",
+        );
+        const text = await dotExporter.exportToString(snapshot);
+        expect(lines(text)).toEqual([
+            "digraph {",
+            "a;",
+            "b;",
+            "c;",
+            "d;",
+            "subgraph top { rank=same; a; b; }",
+            "{ rank=min; c; }",
+            "{ rank=sink; d; }",
+            "c -> a;",
+            "}",
+        ]);
+        expect(text).not.toContain("graphty.rank");
+        const back = (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot;
+        expectSameSnapshot(snapshot, back);
+    });
+});
+
 describe("dot exporter: clusters", () => {
     it("notes a parent that is a plain node: it reads back marked as a cluster", async () => {
         const b = new GraphBuilder({ directed: true });
@@ -280,6 +344,15 @@ describe("dot exporter: clusters", () => {
             "}",
         ]);
         expectSameSnapshot(snapshot, (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot);
+    });
+
+    it("keeps the node order when a cluster's members come after other nodes (#7640)", async () => {
+        const snapshot = await imported(
+            "digraph { subgraph cluster_0 { subgraph cluster_1 { } a -> c } subgraph cluster_1 { y -> z } y -> b }",
+        );
+        const back = (await roundTrip(snapshot, dotExporter, dotImporter)).snapshot;
+        expect(back.ids.toArray()).toEqual(snapshot.ids.toArray());
+        expectSameSnapshot(snapshot, back);
     });
 
     it("writes cluster=true for a container whose id does not start with cluster", async () => {
@@ -685,7 +758,7 @@ describe("dot exporter: corpus round trips", () => {
         expect(result.notes).toEqual([]);
         expect(result.report.issues).toEqual([]);
         expectSameSnapshot(snapshot, result.snapshot, { allowExtraColumns: false, originType: true });
-        expect(result.snapshot.meta.extra).toEqual({ dot: { strict: true } });
+        expect(result.snapshot.meta.extra).toEqual({ dot: { strict: true, html: ["<<i>b</i>>"] } });
         expect(result.snapshot.meta.name).toBe("the graph");
     });
 });

@@ -1,7 +1,7 @@
 import { Box, Group, Stack, TextInput } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, within } from "@storybook/test";
 import type React from "react";
+import { expect, within } from "storybook/test";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
@@ -17,12 +17,12 @@ import { BOTH_SCHEMES } from "../../helpers/schemes";
  *
  * | State   | Drawn                                                              | Read out                       |
  * |---------|--------------------------------------------------------------------|--------------------------------|
- * | Not set | what is in force without it, gray italic, on the field's own surface | "Size, not set, 10"            |
+ * | Not set | what is in force without it, as Figma draws a value or placeholder | "Size, not set, 10"            |
  * | Set     | the value in the body ink                                           | "Node color, set here"         |
- * | Mixed   | the word "Mixed", gray italic, and no color swatch                  | "Size, Mixed"                  |
+ * | Mixed   | the word "Mixed" in the value's ink (Figma), and no color swatch    | "Size, Mixed"                  |
  *
- * Gray and slant together, never the color alone. A field that is empty has no value, so a number
- * field reads its words, not a 0 nobody set.
+ * The state is in the field's name, not in a gray or a slant Figma does not draw. A field that is
+ * empty has no value, so a number field reads its words, not a 0 nobody set.
  *
  * A text box takes the same not-set look with `data-is-default="true"` while it shows its
  * placeholder.
@@ -136,7 +136,7 @@ function Row({ state }: Readonly<{ state: FieldState }>): React.JSX.Element {
 
 /**
  * Not set, set and Mixed, one row of every field kind each, light and dark side by side. Every
- * not-set and Mixed field draws the same gray italic; no Mixed color draws a swatch.
+ * field draws Figma's ink, upright; no Mixed color draws a swatch.
  */
 export const States: Story = {
     parameters: BOTH_SCHEMES,

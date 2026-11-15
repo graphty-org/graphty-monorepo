@@ -4,7 +4,7 @@
  * planning; a value of the wrong kind is a note, never a style.
  */
 
-import type { StyleTarget } from "./types.js";
+import type { StyleProperty, StyleTarget } from "./types.js";
 
 /**
  * The kinds of style value: a canonical `#rrggbb` color, a number (lengths and factors at least 0), a signed number
@@ -28,7 +28,8 @@ export type StyleValueKind =
     | "weight"
     | "textAlign"
     | "position"
-    | "labelFit";
+    | "labelFit"
+    | "labelBox";
 
 /**
  * The value kind of every neutral property, per target.
@@ -58,12 +59,16 @@ export const STYLE_PROPERTIES: {
         ["fillGradientColors", "text"],
         ["fillGradientStops", "text"],
         ["fillGradientKind", "text"],
+        ["fillGradientCenterX", "signed"],
+        ["fillGradientCenterY", "signed"],
+        ["fillGradientRadius", "number"],
         ["labelSize", "number"],
         ["labelWrapWidth", "number"],
         ["labelWrapTrailingSpace", "boolean"],
         ["labelWrapEllipsis", "boolean"],
         ["labelWrapAnywhere", "boolean"],
         ["labelWrapSpaceCount", "number"],
+        ["labelKeepBlankLines", "boolean"],
         ["labelRunAlign", "text"],
         ["labelOffsetX", "signed"],
         ["labelOffsetY", "signed"],
@@ -75,12 +80,18 @@ export const STYLE_PROPERTIES: {
         ["labelPaddingX", "number"],
         ["labelPaddingY", "number"],
         ["labelFitSquare", "boolean"],
+        ["labelFitQuantum", "number"],
+        ["labelFitImage", "number"],
+        ["labelFitImagePadding", "number"],
         ["shape", "shape"],
         ["shapePoints", "text"],
         ["shapePointsStretch", "boolean"],
+        ["shapeRotation", "signed"],
         ["shapeParts", "text"],
         ["shapeLines", "text"],
         ["shapeLineWidth", "number"],
+        ["shapeLineHaloColor", "color"],
+        ["shapeLineHaloWidth", "number"],
         ["shapeTexts", "text"],
         ["borderStyle", "borderStyle"],
         ["borderPosition", "borderPosition"],
@@ -91,6 +102,15 @@ export const STYLE_PROPERTIES: {
         ["outerBorderOpacity", "opacity"],
         ["outerBorderStyle", "borderStyle"],
         ["outerBorderOffset", "number"],
+        ["outerBorderCount", "number"],
+        ["raisedBorderWidth", "number"],
+        ["raisedBorderLightColor", "color"],
+        ["raisedBorderDarkColor", "color"],
+        ["shadowColor", "color"],
+        ["shadowOpacity", "opacity"],
+        ["shadowBlur", "number"],
+        ["shadowOffsetX", "signed"],
+        ["shadowOffsetY", "signed"],
         ["underlayColor", "color"],
         ["underlayOpacity", "opacity"],
         ["underlayPadding", "number"],
@@ -103,12 +123,16 @@ export const STYLE_PROPERTIES: {
         ["overlayCornerRadius", "number"],
         ["label", "text"],
         ["tooltip", "text"],
+        ["xlabel", "text"],
+        ["xlabelOffsetX", "signed"],
+        ["xlabelOffsetY", "signed"],
         ["labelFont", "text"],
         ["labelWeight", "weight"],
         ["labelItalic", "boolean"],
         ["labelPosition", "position"],
         ["labelTextAlign", "textAlign"],
         ["labelRuns", "text"],
+        ["labelTable", "text"],
         ["labelMinScreenSize", "number"],
         ["labelAvoidOverlap", "boolean"],
         ["labelMinNodeScreenSize", "number"],
@@ -125,6 +149,7 @@ export const STYLE_PROPERTIES: {
         ["labelPadding", "number"],
         ["labelCornerRadius", "number"],
         ["labelLineHeight", "number"],
+        ["labelBox", "labelBox"],
         ["image", "text"],
         ["imageFit", "text"],
         ["imageFallback", "text"],
@@ -158,6 +183,7 @@ export const STYLE_PROPERTIES: {
         ["stripeOpacities", "text"],
         ["stripeDirection", "text"],
         ["stripeSize", "number"],
+        ["stripeFrame", "text"],
         ["chartKind", "text"],
         ["chartValues", "text"],
         ["chartColors", "text"],
@@ -165,17 +191,33 @@ export const STYLE_PROPERTIES: {
         ["chartMax", "signed"],
         ["chartHorizontal", "boolean"],
         ["chartSize", "number"],
+        ["chartWidth", "number"],
+        ["chartHeight", "number"],
+        ["chartOffsetX", "signed"],
+        ["chartOffsetY", "signed"],
         ["chartMargin", "signed"],
         ["chartGap", "number"],
         ["chartLineWidth", "number"],
         ["chartBorderColor", "color"],
         ["chartBorderWidth", "number"],
+        ["chartBackgroundColor", "color"],
+        ["chartBackgroundOpacity", "opacity"],
+        ["groupPadding", "number"],
+        ["groupPaddingRatio", "number"],
+        ["groupPaddingOf", "text"],
+        ["groupMinWidth", "number"],
+        ["groupMinHeight", "number"],
+        ["groupMinWidthBiasLeft", "number"],
+        ["groupMinHeightBiasTop", "number"],
+        ["groupIncludeLabels", "boolean"],
         ["visible", "boolean"],
     ]),
     edge: new Map<string, StyleValueKind>([
         ["color", "color"],
         ["sourceArrowColor", "color"],
         ["targetArrowColor", "color"],
+        ["sourceArrowFillColor", "color"],
+        ["targetArrowFillColor", "color"],
         ["labelColor", "color"],
         ["opacity", "opacity"],
         ["width", "number"],
@@ -204,10 +246,13 @@ export const STYLE_PROPERTIES: {
         ["targetArrowGap", "number"],
         ["sourceArrowSide", "arrowSide"],
         ["targetArrowSide", "arrowSide"],
+        ["sourceArrowParts", "text"],
+        ["targetArrowParts", "text"],
         ["arrowPosition", "number"],
         ["lineStyle", "lineStyle"],
         ["waveAmplitude", "number"],
         ["wavePeriod", "number"],
+        ["taper", "number"],
         ["sourceArrow", "arrow"],
         ["targetArrow", "arrow"],
         ["midTargetArrow", "arrow"],
@@ -229,11 +274,20 @@ export const STYLE_PROPERTIES: {
         ["fanned", "boolean"],
         ["bendCurve", "text"],
         ["arcRadius", "number"],
+        ["supportModel", "text"],
+        ["supportSpringLength", "number"],
+        ["supportSpringConstant", "number"],
+        ["supportRepulsion", "number"],
+        ["supportCentralGravity", "number"],
+        ["supportScale", "text"],
         ["nodeGap", "number"],
+        ["sourceNodeGap", "number"],
+        ["targetNodeGap", "number"],
         ["sourcePort", "text"],
         ["targetPort", "text"],
         ["label", "text"],
         ["tooltip", "text"],
+        ["xlabel", "text"],
         ["labelFont", "text"],
         ["labelWeight", "weight"],
         ["labelTextAlign", "textAlign"],
@@ -243,6 +297,7 @@ export const STYLE_PROPERTIES: {
         ["labelWrapEllipsis", "boolean"],
         ["labelWrapAnywhere", "boolean"],
         ["labelWrapSpaceCount", "number"],
+        ["labelKeepBlankLines", "boolean"],
         ["labelRunAlign", "text"],
         ["labelPosition", "position"],
         ["labelRotation", "number"],
@@ -260,6 +315,7 @@ export const STYLE_PROPERTIES: {
         ["labelOutlineOpacity", "opacity"],
         ["labelBorderOpacity", "opacity"],
         ["labelPadding", "number"],
+        ["labelTable", "text"],
         ["labelCornerRadius", "number"],
         ["labelLineHeight", "number"],
         ["sourceLabel", "text"],
@@ -272,11 +328,20 @@ export const STYLE_PROPERTIES: {
         ["targetLabelOffsetY", "signed"],
         ["sourceLabelRotation", "number"],
         ["targetLabelRotation", "number"],
+        ["sourceLabelSize", "number"],
+        ["targetLabelSize", "number"],
+        ["sourceLabelColor", "color"],
+        ["targetLabelColor", "color"],
+        ["sourceLabelFont", "text"],
+        ["targetLabelFont", "text"],
         ["labelMinScreenSize", "number"],
         ["labelOnTop", "boolean"],
         ["visible", "boolean"],
     ]),
-    graph: new Map<string, StyleValueKind>([["background", "color"]]),
+    graph: new Map<string, StyleValueKind>([
+        ["background", "color"],
+        ["rotation", "number"],
+    ]),
 });
 
 /**
@@ -329,6 +394,7 @@ export const STYLE_ENUMS: ReadonlyMap<StyleValueKind, readonly string[]> = new M
     ["weight", ["normal", "bold"]],
     ["textAlign", ["left", "center", "right"]],
     ["labelFit", ["inside", "bounds"]],
+    ["labelBox", ["words", "words-at-side", "target-width"]],
     [
         "position",
         [
@@ -392,4 +458,14 @@ export function isStyleValue(target: StyleTarget | "graph", property: string, va
                     (OPEN_ENUMS.has(kind) && value.startsWith("other:") && value.length > "other:".length))
             );
     }
+}
+
+/**
+ * Whether a name is one of a target's properties: a neutral one or a `graphty:<channel>`.
+ * @param target - nodes or edges
+ * @param property - the name
+ * @returns true for a property in `STYLE_PROPERTIES` or a `graphty:` one
+ */
+export function isStyleProperty(target: StyleTarget, property: string): property is StyleProperty {
+    return property.startsWith("graphty:") || STYLE_PROPERTIES[target].has(property);
 }

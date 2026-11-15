@@ -15,6 +15,7 @@ import "../../src/graphty-element";
 
 import { Matrix, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { LabelDeclutter, type NodeLabelCounts } from "../../src/managers/LabelDeclutter";
@@ -93,6 +94,10 @@ describe("node labels do not overlap", () => {
             g.scene.render();
             await nextFrame();
         }
+
+        // The label layer's repaint can take more passes than the frames above: on a slow frame, or
+        // under the minimum-work test mode, it is applied a few nodes at a time.
+        await g.waitForStableFrame();
 
         if (view) {
             await g.setCameraState(view);
@@ -586,8 +591,7 @@ describe("the labels guide's example (docs/guide/labels.md)", () => {
             await operationQueueOf(g).waitForCompletion();
             await waitFor(() => status.textContent === "1 labels drawn, 2 hidden to avoid overlap");
 
-            showAll.checked = true;
-            showAll.dispatchEvent(new Event("change"));
+            await userEvent.click(showAll);
             await waitFor(() => status.textContent === "3 labels drawn, 0 hidden to avoid overlap");
             assert.deepEqual(heardOnDocument.at(-1), { labeled: 3, nodeHidden: 0, hiddenByOverlap: 0 });
         } finally {
@@ -640,11 +644,11 @@ describe("waitForStableFrame waits for the label counts to be announced", () => 
  * @param done - The condition.
  */
 async function waitFor(done: () => boolean): Promise<void> {
-    for (let at = 0; at < 300 && !done(); at++) {
+    while (!done()) {
         await nextFrame();
     }
 
-    assert.isTrue(done(), "the condition held within 5 seconds");
+    assert.isTrue(done(), "the condition held");
 }
 
 describe("the label counts are published once the labels have settled, not after a fixed count of frames", () => {

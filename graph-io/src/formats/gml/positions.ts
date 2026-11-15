@@ -9,6 +9,7 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { toolOf } from "../../common/units.js";
 import { median } from "../../positions/convert.js";
 import type { ImporterPositions } from "../../positions/types.js";
+import { gmlGroupBounds } from "./groups.js";
 
 /** The json column the importer keeps the rest of each node's graphics record in. */
 const GRAPHICS_COLUMN = "graphics";
@@ -35,7 +36,21 @@ export function gmlPositions(snapshot: GraphSnapshot): ImporterPositions | null 
         yAxis: tool === "gephi" || tool === "tulip" || gv2gml ? "up" : "down",
         tool,
         medianNodeSize: graphicsMedian(snapshot, tool === "gephi"),
+        ...yedGroups(snapshot),
     };
+}
+
+/**
+ * The boxes yEd draws the file's open groups in, round their members (`gmlGroupBounds`), centered as the coordinates.
+ * @param snapshot - the graph
+ * @returns the hook's `groups`, or nothing without an open group
+ */
+function yedGroups(snapshot: GraphSnapshot): Pick<ImporterPositions, "groups"> {
+    const groups = [...gmlGroupBounds(snapshot)].map(([node, [x0, y0, x1, y1]]) => ({
+        node,
+        box: { x: (x0 + x1) / 2, y: (y0 + y1) / 2, width: x1 - x0, height: y1 - y0 },
+    }));
+    return groups.length === 0 ? {} : { groups };
 }
 
 /**

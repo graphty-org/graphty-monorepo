@@ -13,12 +13,14 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables with Louvain's groups as layers in a "Louvain" folder.
@@ -28,14 +30,11 @@ async function openScene(): Promise<{ session: GraphSession; groups: string[] }>
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -52,7 +51,7 @@ async function openScene(): Promise<{ session: GraphSession; groups: string[] }>
  * @param name - The row's name.
  */
 async function clickRow(name: string): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
@@ -109,7 +108,8 @@ describe("vary by data on several layers", () => {
         );
         assert.strictEqual(colors.size, groups.length);
         assert.lengthOf(
-            session.styles.legend().filter((block) => block.channel === "node.color"),
+            // The group layers' blocks: a Ghost row (the timeline experiment on) paints a color of its own.
+            session.styles.legend().filter((block) => block.channel === "node.color" && groups.includes(block.layerId)),
             1,
             "the key shows one block",
         );

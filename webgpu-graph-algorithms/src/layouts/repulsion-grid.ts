@@ -84,7 +84,7 @@ export interface RepulsionGridScope {
 const STORAGE_RW = BufferUsage.STORAGE | BufferUsage.COPY_SRC | BufferUsage.COPY_DST;
 
 /** The lease the scope's scratch() and params() draw on: taken at create(), null after dispose(). */
-interface LeaseBox {
+export interface LeaseBox {
     lease: Lease | null;
 }
 
@@ -93,7 +93,7 @@ interface LeaseBox {
  * @param box - the stage's lease box
  * @returns the lease
  */
-function leaseOf(box: LeaseBox): Lease {
+export function leaseOf(box: LeaseBox): Lease {
     if (box.lease === null) {
         throw new WebGpuGraphError("E_DISPOSED", "RepulsionGrid: the stage was disposed", { label: "RepulsionGrid" });
     }
@@ -108,7 +108,7 @@ function leaseOf(box: LeaseBox): Lease {
  * @param values - the values to write
  * @returns the whole-buffer binding and a zero dynamic offset
  */
-function writeParams(
+export function writeParams(
     device: GPUDevice,
     lease: Lease,
     block: UniformBlock,

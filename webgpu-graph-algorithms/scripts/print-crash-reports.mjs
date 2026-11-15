@@ -47,25 +47,11 @@ function formatFrame(frame, images) {
 }
 
 /**
- * Prints one report: the header line, the exception, the faulting thread's frames.
- * @param file - the .ips path
+ * Prints the process, the exception, the termination and the application-specific lines of a report.
+ * @param header - the first JSON line
+ * @param body - the rest of the report
  */
-function printReport(file) {
-    console.log(`==> ${file}`);
-    const text = readFileSync(file, "utf8");
-    const newline = text.indexOf("\n");
-    const headerText = newline < 0 ? text : text.slice(0, newline);
-    const bodyText = newline < 0 ? "" : text.slice(newline + 1);
-    let header = null;
-    let body = null;
-    try {
-        header = JSON.parse(headerText);
-        body = JSON.parse(bodyText);
-    } catch {
-        console.log("(not the two-JSON .ips layout; the first 4000 characters follow)");
-        console.log(text.slice(0, 4000));
-        return;
-    }
+function printCause(header, body) {
     console.log(
         `process ${body.procName ?? header.app_name} at ${header.timestamp} on ${body.osVersion?.train ?? header.os_version ?? "?"}`,
     );
@@ -90,6 +76,13 @@ function printReport(file) {
     for (const [library, lines] of Object.entries(body.asi ?? {})) {
         console.log(`${library}: ${Array.isArray(lines) ? lines.join(" | ") : String(lines)}`);
     }
+}
+
+/**
+ * Prints the faulting thread's frames and the last exception backtrace.
+ * @param body - the report body
+ */
+function printFaultingThread(body) {
     const images = Array.isArray(body.usedImages) ? body.usedImages : [];
     const threads = Array.isArray(body.threads) ? body.threads : [];
     const faulting = typeof body.faultingThread === "number" ? body.faultingThread : -1;
@@ -110,6 +103,30 @@ function printReport(file) {
             console.log(`  #${String(i).padStart(2)} ${formatFrame(frame, images)}`);
         }
     }
+}
+
+/**
+ * Prints one report: the header line, the exception, the faulting thread's frames.
+ * @param file - the .ips path
+ */
+function printReport(file) {
+    console.log(`==> ${file}`);
+    const text = readFileSync(file, "utf8");
+    const newline = text.indexOf("\n");
+    const headerText = newline < 0 ? text : text.slice(0, newline);
+    const bodyText = newline < 0 ? "" : text.slice(newline + 1);
+    let header = null;
+    let body = null;
+    try {
+        header = JSON.parse(headerText);
+        body = JSON.parse(bodyText);
+    } catch {
+        console.log("(not the two-JSON .ips layout; the first 4000 characters follow)");
+        console.log(text.slice(0, 4000));
+        return;
+    }
+    printCause(header, body);
+    printFaultingThread(body);
 }
 
 const files = reportFiles();

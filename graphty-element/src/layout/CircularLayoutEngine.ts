@@ -53,13 +53,13 @@ type CircularLayoutOpts = Partial<CircularLayoutConfigType>;
  * Circular layout engine that arranges nodes in a circle
  */
 export class CircularLayout extends SnapshotLayoutEngine {
-    static type = "circular";
-    static maxDimensions = 3;
+    static readonly type: string = "circular";
+    static readonly maxDimensions: number = 3;
 
     /**
      * NEW: Zod-based options schema for unified validation and UI metadata
      */
-    static zodOptionsSchema: OptionsSchema = circularLayoutOptionsSchema;
+    static readonly zodOptionsSchema: OptionsSchema = circularLayoutOptionsSchema;
 
     protected readonly dimensions: 2 | 3;
     config: CircularLayoutConfigType;

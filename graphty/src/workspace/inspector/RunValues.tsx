@@ -1,6 +1,7 @@
 import { ControlSection, DataRow, DataRowHeader, HistogramRow, PANEL_GRID } from "@graphty/compact-mantine";
 import {
     type GraphSession,
+    type GraphtyErrorCode,
     RESULT_SHAPE_CONTRACTS,
     type Run,
     type RunId,
@@ -11,9 +12,14 @@ import React, { useEffect } from "react";
 
 import { isPathFollow, ranOptionWords, weightRead, wordsFor } from "../analyze/words";
 import { focusInspectorTitle } from "../frame/focus";
+import { drawnYet } from "../options/notYetDrawn";
 import { OptionsForm } from "../options/OptionsForm";
+import { SettingsPopout } from "../options/SettingsPopout";
+import { splitOptions } from "../options/splitOptions";
 import { runName } from "../runWords";
+import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { unitOf } from "../time/timeActions";
 import { useAsyncValue } from "./hooks";
 import { groupInspected, groupKey, nodeKey } from "./inspected";
 import {
@@ -30,6 +36,7 @@ import {
     formatNumber,
     groupName,
     modularityBandName,
+    nodeName,
     queuedWords,
     rankedName,
     routeWords,
@@ -58,7 +65,7 @@ export function RunStateBar({
     draft: Draft;
     onDraft: (draft: Draft) => void;
 }>): React.JSX.Element | null {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     let words: string;
     let buttons: React.ReactNode;
     if (run.status === "queued" || run.status === "running") {
@@ -83,7 +90,9 @@ export function RunStateBar({
                 <Button
                     size="compact-xs"
                     onClick={() => {
-                        session?.runs.start(run.algorithm, settingsOf(run, draft), { as: run.id });
+                        startAgain(store, () =>
+                            session?.runs.start(run.algorithm, settingsOf(run, draft), { as: run.id }),
+                        );
                         onDraft({});
                         // The bar and its Rerun go once the run is current, so focus would fall
                         // to the page: it goes to the inspector's title, as after any run.
@@ -106,12 +115,14 @@ export function RunStateBar({
     } else if (run.status === "succeeded" && run.stale !== null) {
         // Nothing reruns by itself (tier2-design.md section 7): the reader starts it, here.
         const { scopeSpec } = run.stale;
-        words = staleWords(run.stale);
+        words = staleWords(run.stale, session === null ? "ms" : unitOf(session));
         buttons = (
             <Button
                 size="compact-xs"
                 onClick={() => {
-                    session?.runs.start(run.algorithm, run.params, { as: run.id, scope: scopeSpec });
+                    startAgain(store, () =>
+                        session?.runs.start(run.algorithm, run.params, { as: run.id, scope: scopeSpec }),
+                    );
                     focusInspectorTitle();
                 }}
             >
@@ -146,6 +157,24 @@ export function RunStateBar({
 }
 
 /**
+ * Starts a run again, and says in words why the element refused or the run failed, instead of
+ * leaving the rejection unhandled.
+ * @param store - the chrome store.
+ * @param start - starts the run.
+ */
+function startAgain(store: WorkspaceStore, start: () => PromiseLike<unknown> | undefined): void {
+    const report = (error: unknown): void => {
+        const { code } = error as { code?: GraphtyErrorCode };
+        store.set({ notice: { message: runFailureWords(code), error: true } });
+    };
+    try {
+        start()?.then(undefined, report);
+    } catch (error) {
+        report(error);
+    }
+}
+
+/**
  * Made with (tier1-design.md section 2.7, runs only): the algorithm and its settings, editable;
  * a change raises the state bar's Rerun and Revert.
  * @param props - Component props
@@ -167,15 +196,16 @@ function MadeWith({
     const descriptor = session?.catalog.algorithms().find((algorithm) => algorithm.key === run.algorithm);
     const settings = settingsOf(run, draft);
     const date = runTime(run.startedAt);
-    const weighted = (descriptor?.weightMeaning ?? null) !== null;
+    const weighted = (descriptor?.weightMeaning ?? null) !== null && drawnYet(run.algorithm, "weight");
     // The run's nodes (a path's From and To) are facts like Analysis and Ran: rows, in line with
     // them. The weight is one row too, saying what the run read, so it is stated once.
-    const options = descriptor?.options ?? [];
+    const options = (descriptor?.options ?? []).filter((o) => drawnYet(run.algorithm, o.name));
     const rows = options.filter((o) => o.type === "node-id" && o.advanced !== true && o.internal !== true);
     // A path's Follow is a row, like its ends, and only on a directed graph: undirected, it changes nothing.
     const follow = options.find((o) => isPathFollow(run.algorithm, o.name));
     const fields = options.filter((o) => !rows.includes(o) && o !== follow && !(weighted && o.name === "weight"));
-    const form = (shown: typeof options, advancedLabel?: string, fieldInset?: "md"): React.JSX.Element | null =>
+    const { key, advanced } = splitOptions(fields);
+    const form = (shown: typeof options, fieldInset?: "md"): React.JSX.Element | null =>
         session === null || descriptor === undefined ? null : (
             <OptionsForm
                 session={session}
@@ -185,7 +215,6 @@ function MadeWith({
                 weightReads={descriptor.weightMeaning ?? null}
                 algorithm={run.algorithm}
                 canUseSelectedNode
-                advancedLabel={advancedLabel}
                 fieldInset={fieldInset}
                 onChange={(name, value) => {
                     onDraft({ ...draft, [name]: value });
@@ -199,6 +228,17 @@ function MadeWith({
                 stat
                 name="Analysis"
                 value={descriptor === undefined ? run.algorithm : wordsFor(descriptor).name}
+                trailing={
+                    advanced.length > 0 && (
+                        // Named for the panel, so it is never taken for a popover's own settings.
+                        <SettingsPopout
+                            label="Advanced run settings"
+                            changed={advanced.some((o) => settings[o.name] !== undefined)}
+                        >
+                            <Stack gap={8}>{form(advanced)}</Stack>
+                        </SettingsPopout>
+                    )
+                }
             />
             {date !== null && <DataRow stat name="Ran" value={date} />}
             {form(rows)}
@@ -212,14 +252,7 @@ function MadeWith({
                 />
             )}
             {run.status === "succeeded" && weighted && <WeightRow run={run} />}
-            {fields.length > 0 && (
-                <Stack gap={8}>
-                    {/* Named for the panel, so it is never taken for a popover's own Advanced. The
-                        fields are inset; the fold's toggle is not, so its chevron sits in the
-                        section's gutter with the section chevrons. */}
-                    {form(fields, "Advanced run settings", "md")}
-                </Stack>
-            )}
+            {key.length > 0 && form(key, "md")}
         </ControlSection>
     );
 }
@@ -321,8 +354,8 @@ function MeasureValues({
  */
 function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    const groups = run.result?.summary().groups;
-    if (session === null || run.result === undefined || groups === undefined) {
+    const { groups, groupCount } = run.result?.summary() ?? {};
+    if (session === null || run.result === undefined || groups === undefined || groupCount === undefined) {
         return null;
     }
     const { modularity } = run.result.graph;
@@ -331,7 +364,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
     return (
         <>
             <ControlSection label="Summary" collapsible={false} headingLevel={3}>
-                <DataRow stat name="Groups" value={groups.length} />
+                <DataRow stat name="Groups" value={groupCount} />
                 {typeof modularity === "number" && (
                     <DataRow
                         stat
@@ -354,7 +387,7 @@ function GroupsValues({ run }: Readonly<{ run: Run }>): React.JSX.Element | null
                     minLabel={rankedName(groups.at(0))}
                     maxLabel={rankedName(groups.at(-1))}
                 />
-                {groups.length > TOP && <DataRowHeader label={`Largest ${String(TOP)}`} />}
+                {groups.length < groupCount && <DataRowHeader label={`Largest ${String(TOP)}`} />}
                 {groups.slice(0, TOP).map((group) => (
                     <DataRow
                         key={String(group.group)}
@@ -419,7 +452,7 @@ export function PathValues({
                 {nodes.map((entry) => (
                     <DataRow
                         key={nodeKey(entry.id)}
-                        name={String(entry.id)}
+                        name={nodeName(session, entry.id)}
                         value={formatNumber(entry.value + 1)}
                         onClick={() => {
                             selectNode(session, entry.id);
@@ -525,8 +558,7 @@ function groupScope(run: RunId, field: string, group: string | number): ScopeInp
 
 /**
  * A group row's Values tab (tier1-design.md section 2.7): Summary (its size, a link that selects
- * its members) and its first members, each a link that selects that node. Members are named by
- * id until graphty-element publishes a node's name (#895).
+ * its members) and its first members, each a link that selects that node, called by its name.
  * @param props - Component props
  * @param props.run - The grouping run
  * @param props.group - The group
@@ -562,7 +594,7 @@ export function GroupValues({
                         name="Size"
                         value={size}
                         onClick={() => {
-                            void session.selection.apply({ scope });
+                            void session.selection.apply({ scope }, "replace", { cause: "user" });
                         }}
                     />
                 )}
@@ -574,7 +606,7 @@ export function GroupValues({
                     {[...members.nodes].slice(0, TOP).map((id) => (
                         <DataRow
                             key={nodeKey(id)}
-                            name={String(id)}
+                            name={nodeName(session, id)}
                             onClick={() => {
                                 selectNode(session, id);
                             }}

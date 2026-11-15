@@ -124,7 +124,13 @@ describe("vis-network edge routes", () => {
         });
         // vis-network-specimen-edges-lines `self-reference-front`: an arc of the circle of 20 centered 8 out at pi / 4,
         // part of the way round, every point outside the node
-        const points = (values(r, "edge", "bends")[0] as string).split(" ").map((p) => p.split(",").map(Number));
+        // its two ends are ports, where the line starts and stops: vis-network draws no line from the node out to the
+        // arc, whose ends its search leaves off the node
+        const ends = [values(r, "edge", "sourcePort")[0], values(r, "edge", "targetPort")[0]] as string[];
+        const points = [ends[0], values(r, "edge", "bends")[0] as string, ends[1]]
+            .join(" ")
+            .split(" ")
+            .map((p) => p.split(",").map(Number));
         const c = Math.cos(Math.PI / 4);
         for (const [x, y] of points) {
             expect(Math.hypot(x * 8 - c * 8, y * 8 - c * 8)).toBeCloseTo(20, 2);
@@ -205,9 +211,11 @@ describe("vis-network nodes", () => {
         expect(values(r, "node", "width")[0]).toBe(36);
         expect(values(r, "node", "height")[0]).toBeCloseTo(Math.sqrt(3) * 18, 9);
         expect(values(r, "node", "labelOffsetY")[0]).toBeCloseTo(((2 - Math.sqrt(3)) * 18) / 2 + 2 + 14 / 6, 9);
-        // Database.draw: the label at its top, the top margin (5 by default) down
+        // Database.draw: the label at its top, the top margin (5 by default) down: the label's padding is the mean of
+        // the margins (5, and 7 of 9 and 5), and its offset only what the top margin adds to that
         expect(values(r, "node", "labelPosition").slice(1, 3)).toEqual(["inside-top", "inside-top"]);
-        expect(values(r, "node", "labelOffsetY").slice(1, 3)).toEqual([5, 9]);
+        expect(values(r, "node", "labelPaddingY").slice(1, 3)).toEqual([5, 7]);
+        expect(values(r, "node", "labelOffsetY").slice(1, 3)).toEqual([null, 2]);
         // drawRoundRect caps the radius at half the shorter side itself
         expect(values(r, "node", "cornerRadius").slice(3)).toEqual([12, null]);
     });

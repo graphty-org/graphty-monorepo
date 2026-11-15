@@ -26,6 +26,7 @@
 
 import type { RuleTree, SelectionDirection } from "./src/catalog/types";
 
+export type { ShaderParams, ShaderParamValue, ShaderText, ShaderUse } from "./src/catalog/shaders";
 export type {
     Binding,
     BindingNumberFormat,
@@ -69,6 +70,7 @@ export type {
     SetDefinitionInput,
     SetId,
     SetOperand,
+    ShaderParamAddress,
     StaticStyle,
     StyleDocument,
     ThemeDescriptor,
@@ -93,17 +95,25 @@ export type {
 
 export type {
     AdHocData,
+    BasemapConfig,
+    BasemapSourceId,
+    BasemapStatus,
     EdgeStyleConfig,
+    GlobeLook,
     GraphBackgroundConfig,
     GraphSelectionStyleConfig,
     GraphSelectionStyleInput,
     ImageData,
+    LayoutTransitionConfig,
     Lighting,
+    LocationSourceFact,
+    MapFrameFact,
     NodeStyleConfig,
     RichTextStyleType,
     ViewMode,
 } from "./src/config/index";
 export {
+    Basemap,
     colorToHex,
     DEFAULT_BACKGROUND_COLOR,
     DEFAULT_LIGHTING,
@@ -128,6 +138,10 @@ export {
     RichTextStyle,
     VIEW_MODE_VALUES,
 } from "./src/config/index";
+
+// The numbers behind the default look: the default edge width (`EDGE_CONSTANTS.DEFAULT_LINE_WIDTH`),
+// arrow sizes, line pattern spacing and node shape proportions. Also exported from the root entry.
+export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants/meshConstants";
 
 // ---------------------------------------------------------------------------------------------
 // The palettes themselves, and the colour maths that reads them

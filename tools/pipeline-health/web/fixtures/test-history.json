@@ -1,0 +1,58 @@
+{
+    "generated": "2026-10-25T23:30:00Z",
+    "range": "7d",
+    "file": "src/components/style/StylePanel.stories.tsx",
+    "test": "Football conference: Which nodes picker",
+    "family": "graphty screenshots",
+    "issue": 3521,
+    "events": [
+        {
+            "at": "2026-10-25T23:02:00Z",
+            "kind": "pr",
+            "pr": 3567,
+            "run": 40241100231,
+            "attempt": 1,
+            "sha": "4be1c09a2",
+            "outcome": "flaky",
+            "signature": "capture differs from baseline: 1.9% of pixels"
+        },
+        {
+            "at": "2026-10-25T21:40:00Z",
+            "kind": "pr",
+            "pr": 3500,
+            "run": 40236620114,
+            "attempt": 1,
+            "sha": "c81a7d2f0",
+            "outcome": "flaky",
+            "signature": "capture differs from baseline: 2.2% of pixels"
+        },
+        {
+            "at": "2026-10-25T20:15:00Z",
+            "kind": "pr",
+            "pr": 3498,
+            "run": 40231955310,
+            "attempt": 2,
+            "sha": "9e0f21b44",
+            "outcome": "failed-rerun",
+            "signature": "capture differs from baseline: 2.0% of pixels"
+        },
+        {
+            "at": "2026-10-25T19:01:00Z",
+            "kind": "pr",
+            "pr": 3498,
+            "run": 40227001876,
+            "attempt": 1,
+            "sha": "9e0f21b44",
+            "outcome": "flaky",
+            "signature": "capture differs from baseline: 1.7% of pixels"
+        },
+        {
+            "at": "2026-10-24T18:15:00Z",
+            "kind": "full",
+            "run": 40119894804,
+            "attempt": 1,
+            "sha": "a870943ef",
+            "outcome": "passed"
+        }
+    ]
+}

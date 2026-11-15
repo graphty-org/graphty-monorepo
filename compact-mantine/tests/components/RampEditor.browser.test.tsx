@@ -212,13 +212,24 @@ describe("RampEditor", () => {
 describe("RampEditor in the dark scheme", () => {
     afterEach(resetHarness);
 
-    it("rings the darkest painted bar at 3:1 or more against the panel", async () => {
+    it("draws no ring round a painted bar by default (Figma)", async () => {
+        await renderThemed(
+            <div style={{ width: 240 }}>
+                <RampEditor label="Node color by degree" bins={BINS} domain={[20, 80]} describe={describeHandle} />
+            </div>,
+            { scheme: "dark" },
+        );
+        const ring = /rgba?\([^)]*\)/.exec(getComputedStyle(screen.getAllByTestId("histogram-bar")[0]).boxShadow)?.[0];
+        expect(ring === undefined || rgba(ring)[3] === 0).toBe(true);
+    });
+
+    it("AA option: rings the darkest painted bar at 3:1 or more against the panel", async () => {
         const dark = BINS.map((bin, i) => ({ ...bin, paint: i === 0 ? "#000000" : bin.paint }));
         await renderThemed(
             <div style={{ width: 240, background: "var(--cm-bg)" }} data-testid="panel">
                 <RampEditor label="Node color by degree" bins={dark} domain={[20, 80]} describe={describeHandle} />
             </div>,
-            { scheme: "dark" },
+            { scheme: "dark", highContrast: true },
         );
         const bar = screen.getAllByTestId("histogram-bar")[0];
         const ring = /rgba?\([^)]*\)/.exec(getComputedStyle(bar).boxShadow)?.[0];
@@ -283,3 +294,51 @@ function contrast(x: [number, number, number, number], y: [number, number, numbe
     const [hi, lo] = [lum(x), lum(y)].sort((p, q) => q - p);
     return (hi + 0.05) / (lo + 0.05);
 }
+
+describe("RampEditor for a screen reader", () => {
+    it("reads no row of the bins' table before its first control, and the table after them", async () => {
+        // Twenty bins, as a size ramp over degree has: their table once stood before every handle.
+        const bins = Array.from({ length: 20 }, (_, i) => ({
+            from: i,
+            to: i + 1,
+            count: i + 1,
+            label: `${String(i)} to ${String(i + 1)}`,
+        }));
+        render(
+            <MantineProvider theme={compactTheme}>
+                <div style={{ width: 240 }}>
+                    <RampEditor
+                        label="Node size by degree"
+                        bins={bins}
+                        domain={[2, 18]}
+                        onDomainChange={vi.fn()}
+                        describe={describeHandle}
+                    />
+                </div>
+            </MantineProvider>,
+        );
+        // A screen reader reads in document order: the table comes after every control.
+        const controls = [...document.querySelectorAll('[role="slider"], input')];
+        const table = screen.getByTestId("histogram-values");
+        expect(controls.length).toBeGreaterThan(0);
+        expect(table.querySelectorAll("tr")).toHaveLength(20);
+        for (const control of controls) {
+            expect(control.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        }
+        // The drawing is still one named picture, before the first control.
+        const picture = screen.getByRole("img", { name: "Node size by degree" });
+        expect(picture.compareDocumentPosition(controls[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("says what Escape discarded in a typed end, and keeps focus there", async () => {
+        render(<Harness onDomainChange={vi.fn()} />);
+        const field = screen.getByRole("textbox", { name: "Starts at" });
+        await userEvent.click(field);
+        await userEvent.keyboard("{Control>}a{/Control}55{Escape}");
+
+        expect((field as HTMLInputElement).value).toBe("20");
+        expect(document.activeElement).toBe(field);
+        const notes = screen.getAllByRole("status").map((note) => note.textContent);
+        expect(notes).toContain("Edit discarded; this stays 20.");
+    });
+});

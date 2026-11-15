@@ -78,21 +78,21 @@ interface DijkstraOptions extends Record<string, unknown> {
  * non-negative edge weights.
  */
 export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
-    static namespace = "graphty";
-    static type = "dijkstra";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "dijkstra";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "distance" as const;
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
     /** A route takes the cheapest of a group of parallel edges, not their sum. */
-    static parallelEdges: SimplifyPolicy = "min";
+    static readonly parallelEdges: SimplifyPolicy = "min";
 
-    static zodOptionsSchema: ZodOptionsSchema = dijkstraOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = dijkstraOptionsSchema;
 
     /**
      * Options schema for Dijkstra algorithm
      */
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         source: {
             type: "nodeId",
             default: null,
@@ -194,7 +194,7 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
         const targetIndex = this.nodeIndex(snapshot, "target", target);
 
-        context.report({ phase: "Searching for the route", total: null });
+        context.report({ phase: "searching-for-the-route", total: null });
         const { value, precision } = await searchFollowing(
             this.graph,
             directed && direction === "in",
@@ -212,7 +212,7 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
         path.forEach((index, position) => orderOf.set(index, position));
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Marking the route", nodeIds, (nodeId) => {
+        await forEachChunked(context, "marking-the-route", nodeIds, (nodeId) => {
             const index = ids.indexOf(nodeId);
             const order = index === INVALID_INDEX ? undefined : orderOf.get(index);
 
@@ -230,7 +230,7 @@ export class DijkstraAlgorithm extends DeclaredAlgorithm<DijkstraOptions> {
         const scoped = scopeEdges(input);
         const onRoute = routeEdgeRows(input, scoped, edgeRemap, routeEdges);
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Marking the route", scoped, (edge) => {
+        await forEachChunked(context, "marking-the-route", scoped, (edge) => {
             // The id PUBLISHED is the element's own, which a style layer can name.
             edges.push({ id: edge.id, values: { onPath: onRoute.has(edge.row) } });
         });

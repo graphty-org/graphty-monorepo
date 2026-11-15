@@ -4,6 +4,11 @@ Status: Accepted, 2026-10-21, with the owner's decisions in section 9 (decision 
 `design/decisions/2026-10-21-fast-pipeline-adopted.md`). Issue #3262. It is built in the order of
 section 10; until each piece lands, the tools follow `design/ci/golden-local.md`.
 
+Partly superseded on 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the gate becomes a
+light gate with no tests, and verification runs the full suite in GitHub CI instead of on this machine.
+Sections 3, 4.3 (testing), 4.5, 7 (the first row), 8 (the last row), 9 (decision 8) and 10 (step 3) are
+marked below; the rest stands.
+
 This document describes how a change in graphty-monorepo should travel from a development branch
 to the graphty.app web site and to npm. It keeps what works in the current landing design and the
 release train, and changes what makes large work take days to land.
@@ -87,6 +92,8 @@ we keep git and one machine, so the lock gets short rather than going away.
 
 ## 3. The design in one paragraph
 
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the verification run is a full `ci.yml` run in GitHub CI on golden's newest commit, not the full local gate; the local gate runs no tests. The GPU tests and SonarQube stay in the local gate.
+
 A development branch is small, tested by a fast check that runs only the tests its change can
 affect, reviewed by a fresh-context agent, and has its screenshots captured and signed by the owner
 on the branch. Landing takes the lock only to confirm golden has not moved and to push, reusing the
@@ -147,6 +154,8 @@ commits, never copying commits, merged branches kept and the owner's go for brea
 stay.
 
 ### 4.3 Golden after landing: verification
+
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the "Testing" and "How long" paragraphs. `verify.mjs` keeps this state machine, but its gate pushes the commit to `golden-candidate` and reads the result of a full CI run (about 31 minutes), instead of running `tools/prepush.sh` with `PREPUSH_ALL=1` here. Confirm and bisect still run the failing files here first; a failure this machine cannot reproduce is confirmed and bisected in CI.
 
 **What happens.** After a landing, `land.mjs` starts a verification run in the background, as it
 starts the screenshot preview today. No standing process, no timer. A run takes golden's newest
@@ -257,6 +266,8 @@ studio finds becomes a route. The script lives under `graphty/`; a feature added
 route.
 
 ### 4.5 The cut and GitHub CI
+
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the cut and cut-fix gates are light (no tests); a cut-fix is verified by a CI run. Ship's CI run is unchanged.
 
 **What happens.** `land.mjs cut` points `golden-cut` at the newest verified commit whose preview has
 no unstable or failed images, without re-running the gate. `land.mjs cut <commit>` still cuts a named
@@ -439,6 +450,8 @@ gate step or the visual job.
 
 ## 7. Requirements carried over
 
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the first row now reads "a full CI run on golden, then CI on the cut"; "local testing as close to CI as possible" gives way to one test environment, CI.
+
 - Nothing reaches master with known errors: a full local run, then CI (`golden-local.md` 3.1).
   This rule governs master; golden is protected by verification, bisect and revert instead.
 - Only the owner approves screenshots, with the passkey; every story needs an approved baseline
@@ -466,6 +479,8 @@ gate step or the visual job.
   `tools/prepush-tests.mjs`); UI tests drive real input; the GitHub API budget; spending caps.
 
 ## 8. Requirements this design drops or changes
+
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): the last row ("Reduce CI and catch errors at release") is answered the other way: CI runs more, the full suite on golden, and this machine runs no tests.
 
 - **Full gate on every landing under the lock** (`golden-local.md` 3.1, 4.2, 4.8). Changed: fast
   check and a short lock; the full gate after landing. Reason: the measured serial gate. Golden may
@@ -511,6 +526,8 @@ Decided by the owner on 2026-10-21:
 
 Decided by the owner on 2026-10-23 ("I'm fine with deferring downstream tests"):
 
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): decision 8 no longer applies to pushes, because the light gate runs no test shards; it stays for hand runs with `PREPUSH_LIGHT=0`.
+
 8. **A landing check defers downstream packages' tests to verification.** It runs the tests of the
    packages the change touches (file-level where the selector allows) and every fixed check (build of
    the affected packages, lint, API report, bundle size, docs site, SonarQube), but not the shards of
@@ -524,6 +541,8 @@ Decided by the owner on 2026-10-23 ("I'm fine with deferring downstream tests"):
    confirming run goes to the quarantine, never to a revert.
 
 ## 10. Build order
+
+> Superseded 2026-10-23 by `design/ci/ci-full-testing.md` (issue #3316): step 3's verification moves to CI; the build order for that is in that document's section 9.
 
 Each step is useful alone and lands separately.
 

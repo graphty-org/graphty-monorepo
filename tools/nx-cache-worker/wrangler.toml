@@ -1,0 +1,9 @@
+# The nx remote cache Worker. See README.md. Secrets READ_TOKEN_HASHES and WRITE_TOKEN_HASHES are set with
+# `npx wrangler@4.149.0 secret put`, never written here.
+name = "graphty-nx-cache"
+main = "src/worker.js"
+compatibility_date = "2026-10-01"
+
+[[r2_buckets]]
+binding = "CACHE"
+bucket_name = "graphty-nx-cache"

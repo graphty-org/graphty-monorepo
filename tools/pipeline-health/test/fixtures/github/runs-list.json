@@ -1,0 +1,113 @@
+{
+    "total_count": 29193,
+    "workflow_runs": [
+        {
+            "id": 40249709136,
+            "name": "PR Integrity",
+            "path": ".github/workflows/pr-integrity.yml",
+            "head_branch": "ci/1020-nightly-site",
+            "head_sha": "b9cbba2173e2103dfa66b9c9cd6d34ed41c13463",
+            "event": "pull_request",
+            "status": "queued",
+            "conclusion": null,
+            "run_attempt": 1,
+            "created_at": "2026-10-26T00:30:35Z",
+            "run_started_at": "2026-10-26T00:30:35Z",
+            "updated_at": "2026-10-26T00:30:35Z",
+            "display_title": "ci(release): publish npm next and deploy nightly.graphty.app from the 6-hour run",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZiCFag",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [
+                {
+                    "number": 3605
+                }
+            ],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40249709106,
+            "name": "PR Title",
+            "path": ".github/workflows/pr-title.yml",
+            "head_branch": "ci/1020-nightly-site",
+            "head_sha": "b9cbba2173e2103dfa66b9c9cd6d34ed41c13463",
+            "event": "pull_request",
+            "status": "queued",
+            "conclusion": null,
+            "run_attempt": 1,
+            "created_at": "2026-10-26T00:30:35Z",
+            "run_started_at": "2026-10-26T00:30:35Z",
+            "updated_at": "2026-10-26T00:30:35Z",
+            "display_title": "ci(release): publish npm next and deploy nightly.graphty.app from the 6-hour run",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZiCFDw",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [
+                {
+                    "number": 3605
+                }
+            ],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40249709100,
+            "name": "PR Issue Link",
+            "path": ".github/workflows/pr-issue-link.yml",
+            "head_branch": "ci/1020-nightly-site",
+            "head_sha": "b9cbba2173e2103dfa66b9c9cd6d34ed41c13463",
+            "event": "pull_request",
+            "status": "queued",
+            "conclusion": null,
+            "run_attempt": 1,
+            "created_at": "2026-10-26T00:30:35Z",
+            "run_started_at": "2026-10-26T00:30:35Z",
+            "updated_at": "2026-10-26T00:30:35Z",
+            "display_title": "ci(release): publish npm next and deploy nightly.graphty.app from the 6-hour run",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZiCFCw",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [
+                {
+                    "number": 3605
+                }
+            ],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        },
+        {
+            "id": 40249709094,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "ci/1020-nightly-site",
+            "head_sha": "b9cbba2173e2103dfa66b9c9cd6d34ed41c13463",
+            "event": "pull_request",
+            "status": "pending",
+            "conclusion": null,
+            "run_attempt": 1,
+            "created_at": "2026-10-26T00:30:35Z",
+            "run_started_at": "2026-10-26T00:30:35Z",
+            "updated_at": "2026-10-26T00:30:36Z",
+            "display_title": "ci(release): publish npm next and deploy nightly.graphty.app from the 6-hour run",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZiCE-A",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            },
+            "pull_requests": [
+                {
+                    "number": 3605
+                }
+            ],
+            "repository": {
+                "full_name": "graphty-org/graphty-monorepo"
+            }
+        }
+    ]
+}

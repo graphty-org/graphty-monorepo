@@ -2,9 +2,10 @@ import "../src/data/index.ts"; // Ensure all data sources are registered
 // Registers the <graphty-element> custom element; nothing is referenced by name.
 import "../src/graphty-element";
 
-import { Matrix, Vector3 } from "@babylonjs/core";
+import { Matrix, type Mesh, Vector3 } from "@babylonjs/core";
 import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
+import { GLYPH_DRAW_NAME } from "../src/meshes/GlyphLabels";
 import { ON_TOP_RENDERING_GROUP } from "../src/meshes/RichTextLabel";
 import {
     assertDistinctPicture,
@@ -20,6 +21,7 @@ import { catSocialNetwork2FixedUrl, catSocialNetwork2Url } from "./datasets";
 import {
     eventWaitingDecorator,
     isVisualCapture,
+    labelStyleValues,
     renderFn,
     type StoryArgs,
     storySetup,
@@ -96,7 +98,7 @@ const meta: Meta = {
         },
         labelTextAlign: {
             control: "select",
-            options: ["left", "center", "right"],
+            options: labelStyleValues("textAlign"),
             table: { category: "Font" },
             name: "node.labelStyle.textAlign",
         },
@@ -131,30 +133,19 @@ const meta: Meta = {
         labelGradient: { control: "boolean", table: { category: "Panel" }, name: "node.labelStyle.gradient" },
         labelGradientType: {
             control: "select",
-            options: ["linear", "radial"],
+            options: labelStyleValues("gradientType"),
             table: { category: "Panel" },
             name: "node.labelStyle.gradientType",
         },
         labelGradientDirection: {
             control: "select",
-            options: ["vertical", "horizontal", "diagonal"],
+            options: labelStyleValues("gradientDirection"),
             table: { category: "Panel" },
             name: "node.labelStyle.gradientDirection",
         },
         labelLocation: {
             control: "select",
-            options: [
-                "top",
-                "top-right",
-                "top-left",
-                "left",
-                "center",
-                "right",
-                "bottom",
-                "bottom-left",
-                "bottom-right",
-                "automatic",
-            ],
+            options: labelStyleValues("location"),
             table: { category: "Placement" },
             name: "node.labelStyle.location",
         },
@@ -186,7 +177,7 @@ const meta: Meta = {
         labelPointer: { control: "boolean", table: { category: "Pointer" }, name: "node.labelStyle.pointer" },
         labelPointerDirection: {
             control: "select",
-            options: ["top", "bottom", "left", "right", "auto"],
+            options: labelStyleValues("pointerDirection"),
             table: { category: "Pointer" },
             name: "node.labelStyle.pointerDirection",
         },
@@ -219,7 +210,7 @@ const meta: Meta = {
         },
         labelAnimation: {
             control: "select",
-            options: ["none", "pulse", "bounce", "shake", "glow", "fill"],
+            options: labelStyleValues("animation"),
             table: { category: "Effects" },
             name: "node.labelStyle.animation",
         },
@@ -241,17 +232,7 @@ const meta: Meta = {
         },
         labelBadge: {
             control: "select",
-            options: [
-                "notification",
-                "label",
-                "label-success",
-                "label-warning",
-                "label-danger",
-                "count",
-                "icon",
-                "progress",
-                "dot",
-            ],
+            options: labelStyleValues("badge"),
             table: { category: "Badge" },
             name: "node.labelStyle.badge",
         },
@@ -1332,7 +1313,7 @@ export const Badge: Story = {
  * Shortening a number too big to show.
  *
  * Every cat is given a count of 1500 in an ordinary label, drawn with the element's default label
- * style, and smart overflow draws each one as `1k`.
+ * style, and smart overflow draws each one as the default cap, `999+`.
  */
 export const SmartOverflow: Story = {
     args: {
@@ -1348,16 +1329,16 @@ export const SmartOverflow: Story = {
     },
     play: async ({ canvasElement }) => {
         const scene = await labelled(canvasElement, "SmartOverflow");
-        // READ AS INK, IN THE FONT THIS BROWSER DREW. Each label's ink is matched against `1k` and
-        // `1500` measured with this browser's own fallback for the element's default font, so the
+        // READ AS INK, IN THE FONT THIS BROWSER DREW. Each label's ink is matched against `999+`,
+        // `1500` and the old `1k` measured with this browser's own fallback for the element's default font, so the
         // check does not depend on which font a machine happens to have (see drawnText).
         const wrong = labelGeometry(scene)
-            .map((label) => ({ label, read: drawnText(label, ["1k", "1500"], DEFAULT_LABEL_FONT, 10) }))
-            .filter(({ read }) => read.best !== "1k");
+            .map((label) => ({ label, read: drawnText(label, ["999+", "1500", "1k"], DEFAULT_LABEL_FONT, 10) }))
+            .filter(({ read }) => read.best !== "999+");
 
         await holds(
             wrong.length === 0,
-            `Styles/Label SmartOverflow: every label asks for 1500 with smart overflow on and should read 1k; ` +
+            `Styles/Label SmartOverflow: every label asks for 1500 with smart overflow on and should read 999+; ` +
                 `${String(wrong.length)} read otherwise -- ${wrong
                     .map(
                         ({ label, read }) =>
@@ -1412,6 +1393,58 @@ export const MaxNumber: Story = {
             [...whole][0] !== [...capped][0],
             `Styles/Label MaxNumber: a cap of 99 shortens 150 and a cap of 999 does not, and both halves drew ` +
                 `${String([...whole][0])} pixels of ink`,
+        );
+
+        await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
+    },
+};
+
+/**
+ * A long label wrapped to a width and cut to a number of lines.
+ *
+ * Every cat is named "Department of Health and Human Services", wrapped to a width of about three
+ * words. The indoor cats keep one line and the rest keep two, each ending in an ellipsis where the
+ * rest of the name was cut.
+ */
+export const WrappedLabels: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            node: {
+                "node.label": "Department of Health and Human Services",
+                "node.labelStyle": { wrapWidth: 4, maxLines: 2 },
+            },
+            layers: [
+                {
+                    name: "Indoor cats keep one line",
+                    target: "node",
+                    selector: { match: "expression", where: "data.indoor_outdoor == 'indoor'" },
+                    set: { "node.labelStyle": { wrapWidth: 4, maxLines: 1 } },
+                },
+            ],
+        }),
+    },
+    parameters: {
+        controls: {
+            include: ["node.labelStyle.wrapWidth", "node.labelStyle.maxLines", "node.label"],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await labelled(canvasElement, "WrappedLabels");
+        const labels = labelGeometry(scene);
+        const one = new Set(labels.filter((label) => INDOOR.includes(label.id)).map((label) => label.texture.height));
+        const two = new Set(labels.filter((label) => !INDOOR.includes(label.id)).map((label) => label.texture.height));
+
+        await holds(
+            one.size === 1 && two.size === 1,
+            `Styles/Label WrappedLabels: each half of the graph draws one string, so each should be one height; ` +
+                `the seven drew ${String(one.size)} heights and the thirteen drew ${String(two.size)}`,
+        );
+
+        await holds(
+            [...one][0] < [...two][0],
+            `Styles/Label WrappedLabels: one line should be shorter than two, and the indoor cats drew ` +
+                `${String([...one][0])} pixels tall against ${String([...two][0])}`,
         );
 
         await assertDistinctPicture(scene, "Styles/Label", labelDigest(scene));
@@ -1760,6 +1793,38 @@ export const EmojiLabels: Story = {
         );
 
         await assertDistinctPicture(scene, "Styles/Label");
+    },
+};
+
+/**
+ * Every cat's name drawn from one shared atlas of glyphs, in one draw, with
+ * `layoutBehavior.labels.labelText: "glyphs"`. The words sit where the canvas labels of Default put
+ * them; their edges come from a distance field, so they differ slightly from the canvas's.
+ */
+export const AtlasText: Story = {
+    args: {
+        ...CAT_NETWORK,
+        setup: storySetup({
+            nodeEncode: { "node.label": { by: "data.id", scale: "passthrough" } },
+            labelText: "glyphs",
+        }),
+    },
+    play: async ({ canvasElement }) => {
+        const { graph } = await loaded(canvasElement, "AtlasText");
+        const glyphs = graph.scene.meshes.filter((mesh) => mesh.name === GLYPH_DRAW_NAME);
+        const canvasDrawn = [...graph.getDataManager().nodes.values()].filter(
+            (node) => node.label !== undefined && node.label.drawnBy !== "glyphs",
+        );
+
+        await holds(glyphs.length === 1, `Styles/Label AtlasText: ${String(glyphs.length)} glyph draws, not one`);
+        await holds(
+            ((glyphs[0] as Mesh | undefined)?.thinInstanceCount ?? 0) > 0,
+            "Styles/Label AtlasText: the glyph draw holds no glyphs",
+        );
+        await holds(
+            canvasDrawn.length === 0,
+            `Styles/Label AtlasText: ${String(canvasDrawn.length)} plain labels were drawn on their own canvas`,
+        );
     },
 };
 

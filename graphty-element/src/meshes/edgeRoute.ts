@@ -6,6 +6,8 @@
  * Plain numbers, nothing from Babylon.js, so it runs in Node.
  */
 
+import { type Point2, rayReach } from "./shapeOutlines";
+
 /** A point or a direction. */
 export interface Xyz {
     readonly x: number;
@@ -96,6 +98,8 @@ export function parsePort(text: string | undefined): [number, number] | null {
  * @param route.srcPort - The source port, or null.
  * @param route.dstPort - The target port, or null.
  * @param route.loop - Whether the edge is a self-loop, whose bends are placed around its node.
+ * @param route.ends - Whether the first and last bends are where the line starts and ends (the layout's own line
+ *     ends): then no node center is added.
  * @param srcHalf - The source node's half extents.
  * @param dstHalf - The target node's half extents.
  * @returns The points, flat x, y, z, both ends included.
@@ -108,6 +112,7 @@ export function fileRoute(
         readonly srcPort: readonly number[] | null;
         readonly dstPort: readonly number[] | null;
         readonly loop: boolean;
+        readonly ends?: boolean;
     },
     srcHalf: Xyz,
     dstHalf: Xyz,
@@ -125,11 +130,51 @@ export function fileRoute(
         mid = route.loop ? around(src, srcHalf, route.bends) : bendPoints(src, dst, route.bends);
     }
 
+    if (route.ends === true) {
+        return mid;
+    }
+
     return [
         ...(route.srcPort ? around(src, srcHalf, route.srcPort) : [src.x, src.y, src.z]),
         ...mid,
         ...(route.dstPort ? around(dst, dstHalf, route.dstPort) : [dst.x, dst.y, dst.z]),
     ];
+}
+
+/**
+ * A route's inner points without those an end cap covers: each point nearer an end than that end's
+ * reach is dropped, so the cap points along the stretch of route it lies over, not along a stub. A
+ * route laid round a node of another shape than the one drawn (Graphviz's spline, which ends on the
+ * outline Graphviz was handed) can leave its last point a hair outside the drawn node, and the stub
+ * from there to the outline points the cap anywhere.
+ * @param mid - The inner points, flat x, y, z, from the start.
+ * @param start - Where the line starts.
+ * @param end - Where the line ends.
+ * @param reach - How near each end a point may not lie: 0 for an end without a cap.
+ * @param reach.start - At the start.
+ * @param reach.end - At the end.
+ * @returns The points kept, flat.
+ */
+export function clearOfCaps(
+    mid: readonly number[],
+    start: Xyz,
+    end: Xyz,
+    reach: { readonly start: number; readonly end: number },
+): number[] {
+    const n = mid.length / 3;
+    const near = (i: number, to: Xyz, limit: number): boolean =>
+        Math.hypot(mid[3 * i] - to.x, mid[3 * i + 1] - to.y, mid[3 * i + 2] - to.z) < limit;
+    let first = 0;
+    while (first < n && near(first, start, reach.start)) {
+        first++;
+    }
+
+    let last = n - 1;
+    while (last >= first && near(last, end, reach.end)) {
+        last--;
+    }
+
+    return mid.slice(3 * first, 3 * (last + 1));
 }
 
 /**
@@ -254,7 +299,7 @@ export function curveThroughMidpoints(flat: readonly number[]): number[] {
 }
 
 /** How many pieces a curve through its control points (`line.bendCurve` "bezier") is drawn with. */
-const BEZIER_STEPS = 24;
+export const BEZIER_STEPS = 24;
 
 /**
  * A polyline drawn as one Bezier curve whose control points are its interior points (`line.bendCurve` "bezier"):
@@ -293,21 +338,32 @@ export function bezierThroughControls(flat: readonly number[]): number[] {
 /**
  * How far from a node's center a segment leaving it in a direction crosses its surface: its
  * radius when it is round, where the ray leaves the ellipse filling its box across the view when
- * it is a flat ellipse, else where the ray leaves its box.
+ * it is a flat ellipse, where it last crosses the outline when it is another flat shape (a star, a diamond, Pajek's
+ * man), else where the ray leaves its box.
  * @param dir - The unit direction.
  * @param half - The node's half extents.
  * @param radius - The node's radius when it is round, else null.
- * @param elliptic - Whether the node is drawn as a flat ellipse (`ellipse`), whose box corners are empty.
+ * @param flat - True for a node drawn as a flat ellipse (`ellipse`), whose box corners are empty; or a flat shape's
+ *   outline in units of its box's half size ({@link inUnitBox}); else false.
  * @returns The distance.
  */
-export function surfaceReach(dir: Xyz, half: Xyz, radius: number | null, elliptic = false): number {
+export function surfaceReach(
+    dir: Xyz,
+    half: Xyz,
+    radius: number | null,
+    flat: boolean | readonly Point2[] = false,
+): number {
     if (radius !== null) {
         return radius;
     }
 
-    if (elliptic && half.x > 0 && half.y > 0 && (dir.x !== 0 || dir.y !== 0)) {
-        // ponytail: across the view only; a flat ellipse has no depth for a segment to leave through
-        return 1 / Math.hypot(dir.x / half.x, dir.y / half.y);
+    if (flat !== false && half.x > 0 && half.y > 0 && (dir.x !== 0 || dir.y !== 0)) {
+        // ponytail: across the view only; a flat shape has no depth for a segment to leave through
+        const [ux, uy] = [dir.x / half.x, dir.y / half.y];
+        const reach = flat === true ? 1 / Math.hypot(ux, uy) : rayReach(flat, ux, uy);
+        if (reach > 0) {
+            return reach;
+        }
     }
 
     const reach = Math.min(
@@ -317,6 +373,85 @@ export function surfaceReach(dir: Xyz, half: Xyz, radius: number | null, ellipti
     );
 
     return Number.isFinite(reach) ? reach : 0;
+}
+
+/** The fewest pieces a lifted route is drawn with, so its arc reads as a curve. */
+const LIFT_PIECES = 16;
+
+/**
+ * A route lifted out of its layout plane (`edge.lift`): resampled into at least
+ * {@link LIFT_PIECES} pieces, spread over its segments by length, each point raised along +z by
+ * `lift * sin(pi * s)`, where `s` is how far along the route it is by length. The ends stay where
+ * they are, so the route still leaves and meets its nodes, and the highest point is `lift` above
+ * the middle of the route.
+ * @param flat - The route, flat x, y, z, ends included.
+ * @param lift - How far the middle rises, in world units; 0 returns the route as it is.
+ * @returns The lifted route.
+ */
+export function liftRoute(flat: readonly number[], lift: number): number[] {
+    const n = flat.length / 3;
+    if (lift === 0 || n < 2 || !Number.isFinite(lift)) {
+        return [...flat];
+    }
+
+    const lengths: number[] = [];
+    let total = 0;
+    for (let i = 0; i + 1 < n; i++) {
+        const p = i * 3;
+        const length = Math.hypot(flat[p + 3] - flat[p], flat[p + 4] - flat[p + 1], flat[p + 5] - flat[p + 2]);
+        lengths.push(length);
+        total += length;
+    }
+
+    if (total === 0) {
+        return [...flat];
+    }
+
+    const out = [flat[0], flat[1], flat[2]];
+    let walked = 0;
+    for (let i = 0; i + 1 < n; i++) {
+        const p = i * 3;
+        const steps = Math.max(1, Math.round((LIFT_PIECES * lengths[i]) / total));
+        for (let s = 1; s <= steps; s++) {
+            const f = s / steps;
+            const along = (walked + f * lengths[i]) / total;
+            out.push(
+                flat[p] + (flat[p + 3] - flat[p]) * f,
+                flat[p + 1] + (flat[p + 4] - flat[p + 1]) * f,
+                flat[p + 2] + (flat[p + 5] - flat[p + 2]) * f + lift * Math.sin(Math.PI * along),
+            );
+        }
+
+        walked += lengths[i];
+    }
+
+    // The last point is the route's own end, raised by sin(pi) = 0 up to rounding: put it back exactly.
+    out.splice(-3, 3, ...flat.slice(-3));
+    return out;
+}
+
+/**
+ * The points of a route strictly between its ends that lie outside both end nodes' reach, so a
+ * route trimmed at the node surfaces never doubles back inside a node.
+ * @param flat - The route, flat x, y, z, ends (the node centers) included.
+ * @param srcReach - How far from the source center its surface lies.
+ * @param dstReach - The same for the target.
+ * @returns The interior points kept, flat.
+ */
+export function interiorOutside(flat: readonly number[], srcReach: number, dstReach: number): number[] {
+    const n = flat.length / 3;
+    const out: number[] = [];
+    const last = (n - 1) * 3;
+    for (let i = 1; i < n - 1; i++) {
+        const p = i * 3;
+        const fromSrc = Math.hypot(flat[p] - flat[0], flat[p + 1] - flat[1], flat[p + 2] - flat[2]);
+        const fromDst = Math.hypot(flat[p] - flat[last], flat[p + 1] - flat[last + 1], flat[p + 2] - flat[last + 2]);
+        if (fromSrc > srcReach && fromDst > dstReach) {
+            out.push(flat[p], flat[p + 1], flat[p + 2]);
+        }
+    }
+
+    return out;
 }
 
 /** How many pieces a self-loop's teardrop, and the most a fanned edge's arc, is drawn with. */
@@ -333,22 +468,23 @@ const BUNDLE_STEPS = 24;
 const ARC_TURN_PER_PIECE = Math.PI / 24;
 
 /**
- * A curved edge drawn as an arc of the circle through both node centers (`line.arcRadius`), bowing to the left of
- * the direction from the source to the target in the x-y plane, the shorter way round, as Gephi draws a curved
- * edge (`EdgeRenderer.CurvedEdgeRenderer`: radius the center distance over its arc curveness). z runs straight
- * from one end to the other.
+ * The circle a center arc (`line.arcRadius`) runs on, and how {@link centerArc} samples it: its center and radius,
+ * the angle from the center to the source, the signed turn to the target the shorter way round, and the pieces.
  * @param src - The source node's center.
  * @param dst - The target node's center.
- * @param radius - The circle's radius as a multiple of the distance between the centers in the x-y plane, at
- *     least 0.5 (a half circle).
- * @returns The arc, flat x, y, z, both ends included; the straight line when the centers meet in the x-y plane.
+ * @param radius - The radius as a multiple of the distance between the centers in the x-y plane.
+ * @returns The circle, or null when the centers meet in the x-y plane (the arc is then the straight line).
  */
-export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
+export function centerCircle(
+    src: Xyz,
+    dst: Xyz,
+    radius: number,
+): { cx: number; cy: number; r: number; from: number; turn: number; pieces: number } | null {
     const dx = dst.x - src.x;
     const dy = dst.y - src.y;
     const chord = Math.hypot(dx, dy);
     if (chord < 1e-9) {
-        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+        return null;
     }
 
     const r = Math.max(radius, 0.5) * chord;
@@ -360,6 +496,27 @@ export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
     let turn = Math.atan2(dst.y - cy, dst.x - cx) - from;
     turn -= 2 * Math.PI * Math.round(turn / (2 * Math.PI));
     const pieces = Math.min(BUNDLE_STEPS, Math.max(2, Math.ceil(Math.abs(turn) / ARC_TURN_PER_PIECE - 1e-9)));
+    return { cx, cy, r, from, turn, pieces };
+}
+
+/**
+ * A curved edge drawn as an arc of the circle through both node centers (`line.arcRadius`), bowing to the left of
+ * the direction from the source to the target in the x-y plane, the shorter way round, as Gephi draws a curved
+ * edge (`EdgeRenderer.CurvedEdgeRenderer`: radius the center distance over its arc curveness). z runs straight
+ * from one end to the other.
+ * @param src - The source node's center.
+ * @param dst - The target node's center.
+ * @param radius - The circle's radius as a multiple of the distance between the centers in the x-y plane, at
+ *     least 0.5 (a half circle).
+ * @returns The arc, flat x, y, z, both ends included; the straight line when the centers meet in the x-y plane.
+ */
+export function centerArc(src: Xyz, dst: Xyz, radius: number): number[] {
+    const circle = centerCircle(src, dst, radius);
+    if (circle === null) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+    }
+
+    const { cx, cy, r, from, turn, pieces } = circle;
     const out: number[] = [];
     for (let i = 0; i <= pieces; i++) {
         const t = i / pieces;
@@ -524,6 +681,35 @@ export function fanArc(src: Xyz, dst: Xyz, left: Xyz, right: Xyz, offset: number
     return out;
 }
 
+/** How many pieces a self-loop's teardrop is drawn with. */
+export const LOOP_STEPS = BUNDLE_STEPS;
+
+/**
+ * Where a self-loop's teardrop ({@link loopTeardrop}) puts its cubic's two control points, from its node's center,
+ * in the x-y plane: either side of the loop's direction by half its sweep.
+ * @param rank - The loop's place among the loops on its node, from zero.
+ * @param count - How many loops the node has.
+ * @param reachAt - How far the node's surface (and border) is from its center in a direction.
+ * @returns The two points, and the angle between their directions.
+ */
+export function loopControls(
+    rank: number,
+    count: number,
+    reachAt: (dir: Xyz) => number,
+): { c1: { x: number; y: number }; c2: { x: number; y: number }; sweep: number } {
+    const share = (2 * Math.PI) / Math.max(count, 4);
+    const angle = Math.PI / 4 - rank * share;
+    const sweep = Math.min(Math.PI / 2, 0.8 * share);
+    const toward = { x: Math.cos(angle), y: Math.sin(angle), z: 0 };
+    const reach = reachAt(toward);
+    // A cubic from the center back to it reaches 3/4 of its controls' mean: far enough that its
+    // tip clears the surface by the loop's extent.
+    const far = (reach * (1 + LOOP_EXTENT_RADII)) / (0.75 * Math.cos(sweep / 2));
+    const c1 = { x: Math.cos(angle + sweep / 2) * far, y: Math.sin(angle + sweep / 2) * far };
+    const c2 = { x: Math.cos(angle - sweep / 2) * far, y: Math.sin(angle - sweep / 2) * far };
+    return { c1, c2, sweep };
+}
+
 /**
  * A self-loop's teardrop, from its node's center back to it, outside the node: it leaves in one
  * direction and comes back in the next, the bundle's loops spread evenly round the node, the first
@@ -535,19 +721,10 @@ export function fanArc(src: Xyz, dst: Xyz, left: Xyz, right: Xyz, offset: number
  * @returns The points, flat x, y, z.
  */
 export function loopTeardrop(center: Xyz, rank: number, count: number, reachAt: (dir: Xyz) => number): number[] {
-    const share = (2 * Math.PI) / Math.max(count, 4);
-    const angle = Math.PI / 4 - rank * share;
-    const sweep = Math.min(Math.PI / 2, 0.8 * share);
-    const toward = { x: Math.cos(angle), y: Math.sin(angle), z: 0 };
-    const reach = reachAt(toward);
-    // A cubic from the center back to it reaches 3/4 of its controls' mean: far enough that its
-    // tip clears the surface by the loop's extent.
-    const far = (reach * (1 + LOOP_EXTENT_RADII)) / (0.75 * Math.cos(sweep / 2));
-    const c1 = { x: Math.cos(angle + sweep / 2) * far, y: Math.sin(angle + sweep / 2) * far };
-    const c2 = { x: Math.cos(angle - sweep / 2) * far, y: Math.sin(angle - sweep / 2) * far };
+    const { c1, c2 } = loopControls(rank, count, reachAt);
     const out: number[] = [];
-    for (let i = 0; i <= BUNDLE_STEPS; i++) {
-        const t = i / BUNDLE_STEPS;
+    for (let i = 0; i <= LOOP_STEPS; i++) {
+        const t = i / LOOP_STEPS;
         const b = 3 * (1 - t) * (1 - t) * t;
         const c = 3 * (1 - t) * t * t;
         out.push(center.x + b * c1.x + c * c2.x, center.y + b * c1.y + c * c2.y, center.z);
@@ -665,4 +842,102 @@ export function pointFromEnd(path: readonly Xyz[], fraction: number): { tip: Xyz
     }
 
     return null;
+}
+
+/** The most pieces a raised arc or a great-circle arc is drawn with. */
+const RAISED_STEPS = 48;
+
+/**
+ * A raised arc over a flat map (`line.route` "arc"): from one end to the other in the vertical plane
+ * through both, bowed toward the viewer (-z, the side the cameras look from) by a parabola whose peak,
+ * at the middle, is `height` times the distance between the ends across the map (the x-y plane).
+ * @param src - Where the edge starts.
+ * @param dst - Where it ends.
+ * @param height - The peak as a share of the map distance between the ends.
+ * @returns The points, flat x, y, z, both ends included.
+ */
+export function raisedArc(src: Xyz, dst: Xyz, height: number): number[] {
+    const chord = Math.hypot(dst.x - src.x, dst.y - src.y);
+    const peak = height * chord;
+    if (peak <= 0) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+    }
+
+    const pieces = fanArcPieces(chord, peak);
+    const out: number[] = [];
+    for (let i = 0; i <= pieces; i++) {
+        const t = i / pieces;
+        const lift = 4 * peak * t * (1 - t);
+        out.push(src.x + (dst.x - src.x) * t, src.y + (dst.y - src.y) * t, src.z + (dst.z - src.z) * t - lift);
+    }
+
+    return out;
+}
+
+/**
+ * The great circle {@link greatCircleArc} draws between two ends: their distances from the globe's center, the
+ * angle between their directions, its sine, the lift at the middle and the pieces.
+ * @param src - Where the edge starts.
+ * @param dst - Where it ends.
+ * @param height - The lift as a share of the straight-line distance between the ends.
+ * @returns The circle, or null when the arc is the straight line: an end at the center, or the ends in one
+ *     direction from it or in opposite ones.
+ */
+export function greatCircle(
+    src: Xyz,
+    dst: Xyz,
+    height: number,
+): { ra: number; rb: number; angle: number; sin: number; lift: number; pieces: number } | null {
+    const ra = Math.hypot(src.x, src.y, src.z);
+    const rb = Math.hypot(dst.x, dst.y, dst.z);
+    if (ra === 0 || rb === 0) {
+        return null;
+    }
+
+    const cos = Math.max(-1, Math.min(1, (src.x * dst.x + src.y * dst.y + src.z * dst.z) / (ra * rb)));
+    const angle = Math.acos(cos);
+    const sin = Math.sin(angle);
+    if (sin < 1e-6) {
+        return null;
+    }
+
+    const lift = height * Math.hypot(dst.x - src.x, dst.y - src.y, dst.z - src.z);
+    const pieces = Math.min(
+        RAISED_STEPS,
+        Math.max(Math.ceil(angle / ARC_TURN_PER_PIECE - 1e-9), fanArcPieces(angle * ((ra + rb) / 2), lift)),
+    );
+    return { ra, rb, angle, sin, lift, pieces };
+}
+
+/**
+ * A great-circle arc over a globe centered on the origin (`line.route` "great-circle"): along the
+ * great circle between the two ends' directions, its distance from the center running from one
+ * end's to the other's, lifted at the middle by `height` times the straight-line distance between
+ * the ends (sin(pi t)). The lift grows with the distance and stays modest: at most `2 height`
+ * radii, for ends on opposite sides of the globe.
+ * @param src - Where the edge starts.
+ * @param dst - Where it ends.
+ * @param height - The lift as a share of the straight-line distance between the ends.
+ * @returns The points, flat x, y, z, both ends included; the straight line when the ends are in
+ *     one direction from the center, or in opposite ones.
+ */
+export function greatCircleArc(src: Xyz, dst: Xyz, height: number): number[] {
+    const circle = greatCircle(src, dst, height);
+    if (circle === null) {
+        return [src.x, src.y, src.z, dst.x, dst.y, dst.z];
+    }
+
+    const { ra, rb, angle, sin, lift, pieces } = circle;
+    const out: number[] = [];
+    for (let i = 0; i <= pieces; i++) {
+        const t = i / pieces;
+        const a = Math.sin((1 - t) * angle) / sin / ra;
+        const b = Math.sin(t * angle) / sin / rb;
+        const r = ra + (rb - ra) * t + lift * Math.sin(Math.PI * t);
+        out.push((a * src.x + b * dst.x) * r, (a * src.y + b * dst.y) * r, (a * src.z + b * dst.z) * r);
+    }
+
+    out.splice(0, 3, src.x, src.y, src.z);
+    out.splice(-3, 3, dst.x, dst.y, dst.z);
+    return out;
 }

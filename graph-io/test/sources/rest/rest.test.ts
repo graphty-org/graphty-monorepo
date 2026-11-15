@@ -18,13 +18,16 @@ import {
 } from "../../../src/index.js";
 import { SOURCE_STUB_ATTR } from "../../../src/sources/ids.js";
 import {
+    CROSSREF_MAPPING,
     DEPS_DEV_MAPPING,
     openalexSource,
+    REACTOME_MAPPING,
     REST_DESCRIPTOR,
     type RestMapping,
     restMappingSource,
     restSource,
     STRING_MAPPING,
+    WIKIPEDIA_MAPPING,
 } from "../../../src/sources/rest/index.js";
 import { runSourceConformance } from "../harness.js";
 import { rejection } from "../helpers.js";
@@ -101,7 +104,7 @@ describe("OpenAlex", () => {
         const { snapshot, report } = await loadFromSource(openalexSource, { work: "W2112090702" }, { fetch });
         const { ids } = snapshot;
         const seed = ids.requireIndex("W2112090702");
-        expect(snapshot.nodes.value("title", seed)).toBe("Collective dynamics of ‘small-world’ networks");
+        expect(snapshot.nodes.value("title", seed)).toBe("Collective dynamics of \u2018small-world\u2019 networks");
         const stub = (i: number): unknown =>
             snapshot.nodes.has(SOURCE_STUB_ATTR) ? snapshot.nodes.value(SOURCE_STUB_ATTR, i) : null;
         let full = 0;
@@ -163,6 +166,13 @@ describe("OpenAlex", () => {
         expect(snapshot.ids.has("W9")).toBe(true);
         expect(report.source?.next).toBeNull();
         expect(fetch.calls).toEqual([expect.objectContaining({ credential: true })]);
+    });
+
+    it("says where its API key goes, so a form can ask for the key alone", () => {
+        expect(openalexSource.descriptor?.apiKey).toEqual({ query: "api_key" });
+        const keyed = restSource({ ...PEOPLE, auth: { kind: "api-key", header: "X-Key" } }, { id: "keyed" });
+        expect(keyed.descriptor?.apiKey).toEqual({ header: "X-Key" });
+        expect(people.descriptor?.apiKey).toBeUndefined();
     });
 
     it("hydrates stubs: an expansion of depth 0 fetches their records in one batch", async () => {
@@ -313,10 +323,10 @@ describe("OpenAlex", () => {
     });
 });
 
-describe("samples of the rest source", () => {
+describe("examples of the rest source", () => {
     it("STRING: TP53's functional partners are 21 proteins and 113 interactions", async () => {
-        const sample = REST_DESCRIPTOR.samples?.find((s) => s.id === "string-tp53");
-        const { snapshot } = await loadFromSource(restMappingSource, sample?.params as never, {
+        const example = REST_DESCRIPTOR.examples?.find((s) => s.id === "string-tp53");
+        const { snapshot } = await loadFromSource(restMappingSource, example?.params as never, {
             fetch: replayFetch(recorded("string-tp53")),
         });
         expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([21, 113]);
@@ -325,16 +335,51 @@ describe("samples of the rest source", () => {
     });
 
     it("deps.dev: webpack 5.90.0 resolves to 84 packages and 121 dependencies", async () => {
-        const sample = REST_DESCRIPTOR.samples?.find((s) => s.id === "deps-dev-webpack");
-        const { snapshot } = await loadFromSource(restMappingSource, sample?.params as never, {
+        const example = REST_DESCRIPTOR.examples?.find((s) => s.id === "deps-dev-webpack");
+        const { snapshot } = await loadFromSource(restMappingSource, example?.params as never, {
             fetch: replayFetch(recorded("deps-dev-webpack")),
         });
         expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([84, 121]);
         expect(snapshot.nodes.value("name", snapshot.ids.requireIndex("0"))).toBe("webpack");
     });
 
-    it("the sample mappings are the exported ones", () => {
-        expect(REST_DESCRIPTOR.samples?.map((s) => s.params.mapping)).toEqual([STRING_MAPPING, DEPS_DEV_MAPPING]);
+    it("Reactome: TP53's static interactors are 249 molecules, TP53 among them", async () => {
+        const example = REST_DESCRIPTOR.examples?.find((s) => s.id === "reactome-tp53");
+        const { snapshot } = await loadFromSource(restMappingSource, example?.params as never, {
+            fetch: replayFetch(recorded("reactome-tp53")),
+        });
+        expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([249, 249]);
+        expect(snapshot.nodes.value("name", snapshot.ids.requireIndex("Q00987"))).toBe("MDM2");
+        expect(snapshot.directed).toBe(false);
+    });
+
+    it("Crossref: the Watts-Strogatz paper cites 20 works with a DOI", async () => {
+        const example = REST_DESCRIPTOR.examples?.find((s) => s.id === "crossref-watts-strogatz");
+        const { snapshot } = await loadFromSource(restMappingSource, example?.params as never, {
+            fetch: replayFetch(recorded("crossref-watts-strogatz")),
+        });
+        expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([21, 20]);
+        expect(snapshot.nodes.value("year", snapshot.ids.requireIndex("10.1007/978-3-662-22492-2"))).toBe("1980");
+        expect(snapshot.directed).toBe(true);
+    });
+
+    it("Wikipedia: Eulerian path links to 100 articles", async () => {
+        const example = REST_DESCRIPTOR.examples?.find((s) => s.id === "wikipedia-eulerian-path");
+        const { snapshot } = await loadFromSource(restMappingSource, example?.params as never, {
+            fetch: replayFetch(recorded("wikipedia-eulerian-path")),
+        });
+        expect([snapshot.nodeCount, snapshot.edgeCount]).toEqual([101, 100]);
+        expect(snapshot.ids.has("Alexander Schrijver")).toBe(true);
+    });
+
+    it("the example mappings are the exported ones", () => {
+        expect(REST_DESCRIPTOR.examples?.map((s) => s.params.mapping)).toEqual([
+            STRING_MAPPING,
+            DEPS_DEV_MAPPING,
+            REACTOME_MAPPING,
+            CROSSREF_MAPPING,
+            WIKIPEDIA_MAPPING,
+        ]);
     });
 });
 
@@ -361,7 +406,7 @@ describe("the rest source", () => {
 
     it("restSource refuses a bad mapping when it is made", () => {
         expect(() => restSource({ ...PEOPLE, version: 2 as 1 }, { id: "bad" })).toThrow(
-            expect.objectContaining({ issue: expect.objectContaining({ code: "E_SOURCE_INVALID" }) }),
+            expect.objectContaining({ issue: expect.objectContaining({ code: "E_SOURCE_INVALID" }) as unknown }),
         );
     });
 
@@ -379,6 +424,36 @@ describe("the rest source", () => {
         expect(snapshot.ids.has("ana")).toBe(true);
         expect(report.issues.map((i) => i.code)).toContain("W_SOURCE_AUTH");
         expect(report.source?.next).toMatchObject({ r: "people", at: 2 });
+    });
+
+    it("keeps no API key in a next-page link the service echoes it in", async () => {
+        const linked: RestMapping = {
+            ...PEOPLE,
+            requests: { ...PEOPLE.requests, people: { ...PEOPLE.requests.people, paging: { style: "link-header" } } },
+        };
+        const { report } = await loadFromSource(
+            restSource(linked, { id: "linked-key" }),
+            { team: "core" },
+            {
+                credential: credentials.apiKey({ query: "api_key" }, "K-SECRET-1"),
+                endpoint: API,
+                limits: { maxNodes: 1, onLimit: "stop" },
+                fetch: replayFetch(
+                    [
+                        {
+                            url: `${API}/teams/core/people?api_key=x`,
+                            headers: { link: `<${API}/teams/core/people?p=2&api_key=K-SECRET-1>; rel="next"` },
+                            body: { items: [{ id: "a" }] },
+                        },
+                    ],
+                    { secretQuery: ["api_key"] },
+                ),
+            },
+        );
+        const saved = JSON.stringify(report.source?.next);
+        expect(saved).toContain("p=2");
+        expect(saved).not.toContain("K-SECRET-1");
+        expect(saved).not.toContain("api_key");
     });
 
     it("pages by link header and by a next URL in the body", async () => {
@@ -440,7 +515,7 @@ describe("the rest source", () => {
                 },
             ),
         );
-        expect(err.issue?.params).toEqual({ expected: "json", contentType: "text/html" });
+        expect(err.issue?.params).toEqual({ origin: API, expected: "json", contentType: "text/html" });
     });
 
     it("expands breadth-first with batched {ids}", async () => {
@@ -491,6 +566,20 @@ describe("the rest source", () => {
             { fetch: replayFetch(recordings), cursor: next ?? undefined },
         );
         expect([...rest.snapshot.ids].sort()).toEqual(["f"]);
+    });
+
+    it("stops a page's stubs at the expansion's limit", async () => {
+        const { snapshot } = await expandFromSource(
+            people,
+            { params: {}, ids: ["a"], limit: 3 },
+            {
+                fetch: replayFetch([
+                    { url: `${API}/people?knownBy=a`, body: { items: [{ id: "c", knows: ["x", "y", "z", "w"] }] } },
+                ]),
+            },
+        );
+        // c, then two of its four references fill the limit of three new nodes.
+        expect(snapshot.nodeCount).toBe(3);
     });
 
     it("keeps what an expansion fetched when a later page answers 403", async () => {
@@ -618,6 +707,24 @@ runSourceConformance(restMappingSource, [
         params: { mapping: STRING_MAPPING, identifiers: "TP53", species: "9606", add_nodes: "20" },
         endpoint: STRING_MAPPING.endpoint,
         recordings: recorded("string-tp53"),
+    },
+    {
+        name: "Reactome",
+        params: { mapping: REACTOME_MAPPING, accession: "P04637" },
+        endpoint: REACTOME_MAPPING.endpoint,
+        recordings: recorded("reactome-tp53"),
+    },
+    {
+        name: "Crossref",
+        params: { mapping: CROSSREF_MAPPING, doi: "10.1038/30918" },
+        endpoint: CROSSREF_MAPPING.endpoint,
+        recordings: recorded("crossref-watts-strogatz"),
+    },
+    {
+        name: "Wikipedia",
+        params: { mapping: WIKIPEDIA_MAPPING, title: "Eulerian path" },
+        endpoint: WIKIPEDIA_MAPPING.endpoint,
+        recordings: recorded("wikipedia-eulerian-path"),
     },
     {
         name: "a paged API",

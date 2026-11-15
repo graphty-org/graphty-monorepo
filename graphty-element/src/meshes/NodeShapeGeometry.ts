@@ -1,6 +1,54 @@
-import { Matrix, Mesh, type Scene, VertexBuffer, VertexData } from "@babylonjs/core";
+import { VertexBuffer } from "@babylonjs/core/Buffers/buffer.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { earClip, fansFromOrigin, type Point2, type RingPiece } from "./shapeOutlines";
+
+/**
+ * The box a label is placed against, for a node mesh whose turned outline (`shape.rotation`) reaches past it: the
+ * node's own width and height, unturned, in the mesh's local units. A label stays where it is beside its node
+ * however the node's shape is turned, as Pajek places it. A mesh not listed is placed against its bounding box.
+ */
+const LABEL_BOXES = new WeakMap<Mesh, { readonly min: Vector3; readonly max: Vector3 }>();
+
+/**
+ * Record the box a turned node mesh's label is placed against.
+ * @param mesh - The node's source mesh.
+ * @param outline - Its outline before it was turned.
+ */
+export function setLabelBox(mesh: Mesh, outline: readonly Point2[]): void {
+    const xs = outline.map(([x]) => x);
+    const ys = outline.map(([, y]) => y);
+    const { minimum, maximum } = mesh.getBoundingInfo().boundingBox;
+    LABEL_BOXES.set(mesh, {
+        min: new Vector3(Math.min(...xs), Math.min(...ys), minimum.z),
+        max: new Vector3(Math.max(...xs), Math.max(...ys), maximum.z),
+    });
+}
+
+/**
+ * Give a mesh the label box another mesh has, if it has one: a batched row's anchor stands in for
+ * its source mesh.
+ * @param from - The mesh whose box is shared.
+ * @param to - The mesh that takes it.
+ */
+export function shareLabelBox(from: Mesh, to: Mesh): void {
+    const box = LABEL_BOXES.get(from);
+    if (box !== undefined) {
+        LABEL_BOXES.set(to, box);
+    }
+}
+
+/**
+ * The box a label is placed against on a node mesh, where it is not the mesh's bounding box.
+ * @param mesh - The mesh, or the source of an instance.
+ * @returns The box in the mesh's local units, or undefined.
+ */
+export function labelBoxOf(mesh: Mesh): { readonly min: Vector3; readonly max: Vector3 } | undefined {
+    return LABEL_BOXES.get(mesh);
+}
 
 /**
  * Collects the triangles of a slab: a 2D shape given a depth along z, front face towards -z (where
@@ -178,9 +226,12 @@ function addRingPiece(slab: SlabBuilder, piece: RingPiece): void {
     for (let i = 0; i < steps; i++) {
         const j = (i + 1) % inner.length;
         slab.face(inner[i], outer[i], outer[j]);
-        slab.face(inner[i], outer[j], inner[j]);
         slab.wall(outer[i], outer[j]);
-        slab.wall(inner[j], inner[i]);
+        // a corner cut square (`mitredEdges`) is the outline's one point twice: no second triangle, no inner wall
+        if (inner[i][0] !== inner[j][0] || inner[i][1] !== inner[j][1]) {
+            slab.face(inner[i], outer[j], inner[j]);
+            slab.wall(inner[j], inner[i]);
+        }
     }
 
     if (!closed) {

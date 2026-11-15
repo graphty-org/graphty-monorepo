@@ -1,6 +1,6 @@
 /**
  * The run inspector on the REAL graphty-element: the "Advanced run settings" button sits in the
- * Made with section, and the line under the measure's histogram starts where the histogram's min
+ * Analysis row of the Made with section, and the line under the measure's histogram starts where the histogram's min
  * label does.
  */
 
@@ -9,8 +9,9 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
-import { act, render, waitFor, within } from "../../../test/test-utils";
+import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -69,11 +70,23 @@ function left(element: Element): number {
 }
 
 describe("the run inspector's left edges", () => {
-    it("puts the Advanced run settings behind a button in the Made with section", async () => {
-        const inspector = await inspectRun("shortest-path", { source: "b", target: "d" });
+    it("puts the Advanced run settings in the Analysis row's trailing slot, opening one popover", async () => {
+        const inspector = await inspectRun("pagerank", {});
         const advanced = await inspector.findByRole("button", { name: /Advanced run settings/ });
         const made = inspector.getByRole("group", { name: /Made with/ });
         assert.isTrue(made.contains(advanced));
+        const row = inspector.getByText("Analysis").closest("[data-testid='data-row']");
+        assert.isNotNull(row);
+        assert.isTrue(row?.contains(advanced), "in the Analysis row");
+        // Key options stay in the panel; only the advanced ones are in the popover.
+        assert.isNotNull(inspector.getByRole("spinbutton", { name: /^Damping factor/ }));
+        assert.isNull(inspector.queryByRole("spinbutton", { name: /^Max iterations/ }));
+        await userEvent.click(advanced);
+        const panel = await screen.findByRole("dialog", { name: "Advanced run settings" });
+        assert.isNotNull(within(panel).getByRole("spinbutton", { name: /^Max iterations/ }));
+        assert.isNull(within(panel).queryByRole("spinbutton", { name: /^Damping factor/ }));
+        assert.strictEqual(advanced.getAttribute("aria-expanded"), "true");
+        assert.lengthOf(screen.getAllByRole("dialog"), 1);
     });
 
     it("starts the histogram's summary line at the min label", async () => {

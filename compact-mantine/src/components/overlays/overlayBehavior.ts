@@ -7,6 +7,8 @@
  *   the pointer leaves the window. The open tooltip element is marked `data-cm-dismissed` (CSS
  *   hides it); the mark lives exactly as long as that tooltip does, so it stays hidden while the
  *   pointer rests on its trigger and the next tooltip shows normally.
+ * - An Escape pressed while no tooltip shows reaches the page, even when a hidden one is open:
+ *   only a visible tooltip takes the Escape that closes it.
  * - A dismissed tooltip whose trigger then turns off (Undo pressed until nothing is left) shows
  *   again, now with its reason ("Nothing to undo"): Mantine keeps the same tooltip element and only
  *   changes its words, so the dismissal would otherwise hide the reason too.
@@ -29,11 +31,14 @@
  * - A tooltip does not open while its trigger's own pop-up is open (`aria-expanded` on a control
  *   with `aria-haspopup`): an info circle's explanation, a menu or a list already covers that
  *   place and says more.
+ * - A submenu stays open when the pointer leaves its row for anything but another row of the
+ *   parent menu (the gap between the menus, the page), and closes at once on another row.
  * - Menus get type-ahead: a printable key moves focus to the next enabled row whose label starts
  *   with it ("v" -> View).
  * - A menu clamped to the viewport shows Figma's 24px chevron rows at the ends it can still
  *   scroll towards (`data-cm-scroll-up` / `data-cm-scroll-down`, drawn by the CSS); hovering
- *   one scrolls the menu.
+ *   one scrolls the menu. A `cm-menu` is whatever element scrolls: a Menu's dropdown, or the
+ *   `role="listbox"` inside a field's dropdown.
  *
  * Tooltip and menu mounts are seen through the `cm-tooltip-mount` and `cm-overlay-mount`
  * animations the CSS gives them, whose `animationstart` bubbles to the document: no
@@ -79,6 +84,8 @@ let pressed: Element | null = null;
  * inside the control `pressed` names (a caret inside a tree row), so the trigger is looked up here.
  */
 let pressedPath: EventTarget[] = [];
+/** The keyboard opened the menu that is opening (the last key came after the last pointer-down). */
+let keyLast = false;
 
 /**
  * Whether a tooltip other than `except` is showing (not held, not dismissed).
@@ -174,6 +181,38 @@ function dismissTooltips(pressedOn: EventTarget | null = null): void {
             }
         }
     }
+}
+
+/**
+ * Let an Escape through when no tooltip is showing. A tooltip this file hides (dismissed, still,
+ * held, not yet seen) is still open to floating-ui, whose dismiss stops every Escape at its
+ * trigger and at the document while its tooltip is open, so a page shortcut on the window
+ * ("Escape clears the selection") never ran: a tooltip the reader could not see took the key
+ * (#3380). floating-ui leaves an Escape alone while an input method is composing, and it learns
+ * that from `compositionstart` and `compositionend` on the document, so this Escape is framed by
+ * the two: the hidden tooltips stay as they are (hidden), and the key goes on. A visible tooltip
+ * still takes the Escape that closes it, as a menu does. Read before `dismissTooltips` marks the
+ * visible one dismissed. That composition handling is floating-ui's own, not an API it promises:
+ * checked against @floating-ui/react 0.27.20 (Mantine 8.3.18), and the test "a tooltip kept hidden
+ * under a resting pointer does not take the page's Escape" fails if an upgrade changes it.
+ * ponytail: a visible HoverCard (floating-ui too) beside a hidden tooltip would let this Escape
+ * through as well; no HoverCard is used today.
+ * @param event - a keydown anywhere in the document, in the capture phase
+ */
+function passEscapeOfHiddenTooltips(event: KeyboardEvent): void {
+    if (
+        event.key !== "Escape" ||
+        event.isComposing ||
+        anotherTooltipVisible() ||
+        document.querySelector(".cm-tooltip") === null
+    ) {
+        return;
+    }
+    document.dispatchEvent(new CompositionEvent("compositionstart"));
+    // After this key's dispatch: a microtask would run between its listeners.
+    globalThis.setTimeout(() => {
+        document.dispatchEvent(new CompositionEvent("compositionend"));
+    }, 0);
 }
 
 /**
@@ -301,6 +340,57 @@ function holdIfFocusOpened(tooltip: HTMLElement): void {
     tooltip.dataset.cmSeen = "";
 }
 
+/** A submenu row whose submenu is open. */
+const OPEN_SUBMENU_ROW = '[data-sub-menu-item][aria-expanded="true"]';
+
+/**
+ * Whether an element is in an open submenu or on the row that opened it. A submenu's dropdown
+ * renders inside its parent dropdown (Menu.Sub does not portal), so it is a dropdown inside another.
+ * @param element - where the pointer was
+ * @returns true for an open submenu row or anything in a submenu
+ */
+function inSubmenu(element: Element): boolean {
+    const outer = element.closest("[data-menu-dropdown]")?.parentElement?.closest("[data-menu-dropdown]");
+    return element.closest(OPEN_SUBMENU_ROW) !== null || (outer !== undefined && outer !== null);
+}
+
+/**
+ * A submenu stays open until the pointer moves onto another row of its parent menu (Figma, and a
+ * macOS menu): Mantine closes it when the pointer leaves its row, so the 4px gap between the two
+ * menus closed it before the pointer could reach it (issue 4631). A move from a submenu or its row
+ * to anything that is not a menu row is kept from React, so Mantine never sees that leave.
+ * @param event - a mouseout anywhere in the document, in the capture phase
+ */
+function keepSubmenuOpen(event: MouseEvent): void {
+    const { target, relatedTarget } = event;
+    if (
+        target instanceof Element &&
+        relatedTarget instanceof Element &&
+        relatedTarget.closest("[data-menu-item]") === null &&
+        inSubmenu(target)
+    ) {
+        event.stopPropagation();
+    }
+}
+
+/**
+ * The other half of keepSubmenuOpen: the pointer reaching another row of a parent menu closes
+ * that menu's open submenu, at once. The close is Mantine's own, run by the leave it was kept from.
+ * @param event - a mouseover anywhere in the document, in the capture phase
+ */
+function closeSubmenusLeft(event: MouseEvent): void {
+    const row = event.target instanceof Element ? event.target.closest("[data-menu-item]") : null;
+    if (row === null) {
+        return;
+    }
+    for (const item of document.querySelectorAll(OPEN_SUBMENU_ROW)) {
+        const submenu = document.getElementById(item.getAttribute("aria-controls") ?? "");
+        if (item !== row && !submenu?.contains(row) && item.closest("[data-menu-dropdown]")?.contains(row)) {
+            item.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: row }));
+        }
+    }
+}
+
 function menuRows(menu: Element): HTMLElement[] {
     return Array.from(menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')).filter(
         (row) =>
@@ -355,10 +445,12 @@ function consumeMenuEscape(event: KeyboardEvent): void {
 
 /**
  * A menu's first focus: Mantine's focus trap focuses the first focusable row as the menu opens,
- * and a disabled row that stays focusable to show its reason would be the row Enter cannot run
- * (its ArrowDown from the dropdown does the same). However the menu was opened, by a key or the
- * pointer, focus moves on to the first enabled row, or the menu itself when none is, so Enter
- * picks the first thing it can do. Focus coming from another row (an arrow, a click on the row to
+ * which highlights it as if already chosen, and a disabled row that stays focusable to show its
+ * reason would be the row Enter cannot run (its ArrowDown from the dropdown does the same).
+ * Opened by a key, focus moves on to the first enabled row, or the menu itself when none is.
+ * Opened by the pointer, it goes to the menu itself, whatever the first row is, so no row is
+ * highlighted until an arrow key, as in Figma (ArrowDown then lands here again, from a key, and
+ * reaches the first enabled row). Focus coming from another row (an arrow, a click on the row to
  * read its reason) stays.
  * @param event - a focusin anywhere in the document
  */
@@ -380,7 +472,7 @@ function skipDisabledFirstRow(event: FocusEvent): void {
     if (from instanceof Node && from !== menu && menu.contains(from)) {
         return;
     }
-    const first = menuRows(menu).at(0);
+    const first = keyLast ? menuRows(menu).at(0) : undefined;
     if (row === first) {
         return;
     }
@@ -468,6 +560,7 @@ export function installOverlayBehavior(): void {
     document.addEventListener(
         "pointerdown",
         (event) => {
+            keyLast = false;
             const target = event.target instanceof Element ? event.target : null;
             // The control, not the label span inside it: moving onto its padding is not leaving.
             pressed = target?.closest("button, a, input, select, textarea, [role], [tabindex]") ?? target;
@@ -497,7 +590,9 @@ export function installOverlayBehavior(): void {
     document.addEventListener(
         "keydown",
         (event) => {
+            keyLast = true;
             if (!MODIFIER_KEYS.has(event.key)) {
+                passEscapeOfHiddenTooltips(event);
                 navigating = NAVIGATION_KEYS.has(event.key);
                 dismissTooltips(event.key === "Enter" || event.key === " " ? event.target : null);
             }
@@ -513,6 +608,8 @@ export function installOverlayBehavior(): void {
             stopAutoScroll();
         }
     });
+    document.addEventListener("mouseout", keepSubmenuOpen, true);
+    document.addEventListener("mouseover", closeSubmenusLeft, true);
     document.addEventListener("keydown", consumeMenuEscape, true);
     document.addEventListener("keydown", typeAhead);
     document.addEventListener("focusin", skipDisabledFirstRow);
@@ -532,7 +629,12 @@ export function installOverlayBehavior(): void {
             return;
         }
         if (event.target.classList.contains("cm-tooltip")) {
-            holdIfFocusOpened(event.target);
+            // Only a mount is decided. The animation also starts again on a tooltip that is
+            // already open when its style is recomputed, and holding it then hid it for another
+            // open delay while its trigger kept focus.
+            if (event.target.dataset.cmSeen === undefined) {
+                holdIfFocusOpened(event.target);
+            }
         } else if (event.target.classList.contains("cm-menu")) {
             updateScrollEnds(event.target);
             menuResize?.observe(event.target);

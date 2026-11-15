@@ -196,7 +196,7 @@ interface FaceElement {
 export function combineFace(
     n: number,
     words: ReadonlyMap<string, (string | null)[]>,
-    values: Record<string, (StyleValue | null)[]>,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
 ): void {
     const col = (property: string): (StyleValue | null)[] =>
         (values[property] ??= new Array<StyleValue | null>(n).fill(null));

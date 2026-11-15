@@ -1,6 +1,6 @@
 /**
  * @file The visibility ops: `visibility.set` (the filter), `visibility.steps` (the filter steps),
- * `visibility.window` (the time window) and `visibility.context` (whether hidden nodes are drawn
+ * `visibility.conditions` (the filter conditions), `visibility.window` (the time window) and `visibility.context` (whether hidden nodes are drawn
  * faintly). Each is one undoable step.
  *
  * All three run on the immediate lane: the value is written to the `visibility` slice when the
@@ -10,12 +10,17 @@
  * design/undo/undo-design.md sections 3.4, 9.2 and 11.3.
  */
 
-import type { FilterStep } from "../../catalog/types";
+import type { FilterCondition, FilterStep, NodeId } from "../../catalog/types";
+import { otherIdSpelling } from "../../data/nodeIdSpelling";
+import { GraphtyError } from "../../errors";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import type { CodedFact } from "../shared";
+import { isTimeZone } from "../time/zone";
 import type { HistoryCode } from "../types";
-import { assertVisibility, type RuleTree, type TimeWindow } from "../visibility/filter";
-import { assertSteps, stepsFact } from "../visibility/steps";
+import { assertConditions, conditionsOfSteps, listFact, stepsOf } from "../visibility/conditions";
+import { assertVisibility, type RuleTree, type TimePlayback, type TimeWindow } from "../visibility/filter";
+import { assertSteps } from "../visibility/steps";
+import type { LayoutService } from "./layout";
 
 /** `visibility.set`: apply a filter, or clear it with null. */
 interface VisibilitySetCommand {
@@ -27,6 +32,11 @@ interface VisibilitySetCommand {
 interface VisibilityWindowCommand {
     readonly op: "visibility.window";
     readonly window: TimeWindow | null;
+    /**
+     * Where a gesture ended (a dragged window let go): its own step, never merged into a window
+     * step recorded just before it.
+     */
+    readonly ownStep?: boolean;
 }
 
 /** `visibility.context`: draw hidden nodes faintly, or not at all. */
@@ -41,9 +51,37 @@ interface VisibilityStepsCommand {
     readonly steps: readonly FilterStep[];
 }
 
+/**
+ * `visibility.conditions`: replace the filter conditions (keep, exclude and select); an empty list
+ * clears them.
+ */
+interface VisibilityConditionsCommand {
+    readonly op: "visibility.conditions";
+    readonly conditions: readonly FilterCondition[];
+}
+
+/** `visibility.playback`: how `session.time` moves windows (results, mode, step, missing), or null for the defaults. */
+interface VisibilityPlaybackCommand {
+    readonly op: "visibility.playback";
+    readonly playback: TimePlayback | null;
+}
+
+/** `visibility.hide`: hide nodes from the drawing only, or show them again (`session.hidden`). */
+interface VisibilityHideCommand {
+    readonly op: "visibility.hide";
+    readonly ids: readonly NodeId[];
+    readonly hidden: boolean;
+}
+
 /** Every visibility op. */
 export type VisibilityCommand =
-    VisibilitySetCommand | VisibilityWindowCommand | VisibilityContextCommand | VisibilityStepsCommand;
+    | VisibilityHideCommand
+    | VisibilitySetCommand
+    | VisibilityWindowCommand
+    | VisibilityContextCommand
+    | VisibilityStepsCommand
+    | VisibilityConditionsCommand
+    | VisibilityPlaybackCommand;
 
 /** The session's visibility model, as the visibility ops reach it. */
 export interface VisibilityService {
@@ -53,6 +91,8 @@ export interface VisibilityService {
      * @param window - The window, or null.
      */
     check(filter: RuleTree | null, window: TimeWindow | null): void;
+    /** Whether the timeline experiment is on. */
+    timeline(): boolean;
 }
 
 /**
@@ -76,8 +116,20 @@ function filterKey(filter: VisibilitySetCommand["filter"]): string | null {
 /** Shared by the three ops. */
 const COMMON = { moves: false, draws: true, lane: { kind: "immediate" } } as const;
 
-const visibilitySet: UndoableDefinition<VisibilitySetCommand> = {
+/**
+ * Shared by the ops that change what the filters keep: while a layout follows them (the working
+ * graph, `layout.visibleOnly`) it lays the graph out again after one, so each then takes the
+ * arrangement it began from, and its undo puts every node back where it was. A session with no
+ * such layout takes none. The time window never moves a layout, so its op takes none.
+ */
+const FILTERS = {
     ...COMMON,
+    movesWhen: (_command: unknown, services: { readonly layout?: LayoutService }): boolean =>
+        services.layout?.followsFilters?.() === true,
+} as const;
+
+const visibilitySet: UndoableDefinition<VisibilitySetCommand> = {
+    ...FILTERS,
     op: "visibility.set",
     keys: () => ["visibility/filter"],
     undo: {
@@ -107,7 +159,7 @@ const visibilityWindow: UndoableDefinition<VisibilityWindowCommand> = {
             code: command.window === null ? "visibility.clear-window" : "visibility.window",
             params: {},
         }),
-        coalesce: () => "window",
+        coalesce: (command) => (command.ownStep === true ? null : "window"),
     },
     execute: (command, ctx) => {
         (ctx.services.visibility?.check ?? assertVisibility)(null, command.window);
@@ -129,31 +181,202 @@ const visibilityContext: UndoableDefinition<VisibilityContextCommand> = {
     },
 };
 
+/**
+ * Check each rule the way a single filter is checked.
+ * @param rules - The rules.
+ * @param ctx - The command's context.
+ * @param ctx.services - Its services.
+ * @param ctx.services.visibility - The session's visibility model, when there is one.
+ */
+function checkRules(
+    rules: readonly RuleTree[],
+    ctx: { readonly services: { readonly visibility?: VisibilityService } },
+): void {
+    const service = ctx.services.visibility;
+    for (const rule of rules) {
+        if (service === undefined) {
+            assertVisibility(rule, null);
+        } else {
+            service.check(rule, null);
+        }
+    }
+}
+
 const visibilitySteps: UndoableDefinition<VisibilityStepsCommand> = {
-    ...COMMON,
+    ...FILTERS,
     op: "visibility.steps",
-    keys: () => ["visibility/steps"],
+    keys: () => ["visibility/conditions"],
     undo: {
         kind: "undoable",
         label: () => "Changed the filter steps",
-        fact: (command, state) => stepsFact(state.visibility.steps, command.steps),
+        fact: (command, state) => listFact(stepsOf(state.visibility.conditions), command.steps),
         // ponytail: no coalescing, so each add, edit, toggle or delete is its own step; a dragged
         // step's bounds would need a key naming the step if that drag ever records too many.
     },
     execute: (command, ctx) => {
         assertSteps(command.steps);
-        const service = ctx.services.visibility;
-        for (const step of command.steps) {
-            if (service === undefined) {
-                assertVisibility(step.rule, null);
-            } else {
-                service.check(step.rule, null);
+        checkRules(
+            command.steps.map((step) => step.rule),
+            ctx,
+        );
+        // The steps replace the keep and exclude conditions; the select conditions stay.
+        ctx.draft.visibility.set("conditions", conditionsOfSteps(command.steps, ctx.state.visibility.conditions));
+    },
+};
+
+const visibilityConditions: UndoableDefinition<VisibilityConditionsCommand> = {
+    ...FILTERS,
+    op: "visibility.conditions",
+    keys: () => ["visibility/conditions"],
+    undo: {
+        kind: "undoable",
+        label: () => "Changed the filter conditions",
+        fact: (command, state) => listFact(state.visibility.conditions, command.conditions, "condition"),
+    },
+    execute: (command, ctx) => {
+        assertConditions(command.conditions);
+        checkRules(
+            command.conditions.map((condition) => condition.rule),
+            ctx,
+        );
+        ctx.draft.visibility.set(
+            "conditions",
+            Object.freeze(command.conditions.map((condition) => Object.freeze({ ...condition }))),
+        );
+    },
+};
+
+/** The values each playback setting takes. */
+const PLAYBACK_VALUES = {
+    results: ["keep", "stale", "rerun"],
+    mode: ["sliding", "cumulative"],
+    missing: ["inside", "outside"],
+    outside: ["hide", "ghost"],
+} as const;
+
+/** The named steps a playback setting takes besides a positive number. */
+const PLAYBACK_STEPS = new Set(["auto", "hour", "day", "week", "month", "quarter", "year"]);
+
+/**
+ * Refuse a malformed playback setting.
+ * @param playback - The settings, or null.
+ * @param timeline - Whether the timeline is on: off, a zone or a fade does nothing and stays saved as it came.
+ * @throws `E_BAD_COMMAND` naming the setting.
+ */
+function assertPlayback(playback: TimePlayback | null, timeline: boolean): void {
+    if (playback === null) {
+        return;
+    }
+
+    const bad = (field: string, value: unknown, reason = "playback"): GraphtyError =>
+        new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `A playback setting's ${field} is not one it takes.`,
+            source: "data",
+            details: { field, value, reason },
+        });
+    for (const [field, allowed] of Object.entries(PLAYBACK_VALUES)) {
+        const value = (playback as Readonly<Record<string, unknown>>)[field];
+        if (value !== undefined && !(allowed as readonly unknown[]).includes(value)) {
+            throw bad(field, value);
+        }
+    }
+
+    const { step } = playback;
+    if (
+        step !== undefined &&
+        !(typeof step === "number" && Number.isFinite(step) && step > 0) &&
+        !(typeof step === "string" && PLAYBACK_STEPS.has(step))
+    ) {
+        throw bad("step", step);
+    }
+
+    const { ageFade } = playback;
+    if (timeline && ageFade !== undefined && !(typeof ageFade === "number" && ageFade >= 0 && ageFade <= 1)) {
+        throw bad("ageFade", ageFade);
+    }
+
+    if (timeline && playback.timeZone !== undefined && !isTimeZone(playback.timeZone)) {
+        throw bad("timeZone", playback.timeZone, "time-zone");
+    }
+}
+
+const visibilityPlayback: UndoableDefinition<VisibilityPlaybackCommand> = {
+    moves: false,
+    draws: false,
+    lane: { kind: "immediate" },
+    op: "visibility.playback",
+    keys: () => ["visibility/playback"],
+    undo: {
+        kind: "undoable",
+        label: () => "Changed how time plays",
+        fact: () => ({ code: "visibility.playback", params: {} }),
+        coalesce: () => "playback",
+    },
+    execute: (command, ctx) => {
+        assertPlayback(command.playback, ctx.services.visibility?.timeline() !== false);
+        ctx.draft.visibility.set("playback", command.playback === null ? null : Object.freeze({ ...command.playback }));
+    },
+};
+
+/**
+ * The hidden list after hiding or showing some nodes. An integer id matches either spelling.
+ * @param before - The list now.
+ * @param ids - The nodes.
+ * @param hidden - Hide, or show again.
+ * @returns The list after, sorted.
+ */
+function hiddenAfter(before: readonly NodeId[], ids: readonly NodeId[], hidden: boolean): readonly NodeId[] {
+    const list = new Set(before);
+    for (const id of ids) {
+        const other = otherIdSpelling(id);
+        if (!hidden) {
+            list.delete(id);
+            if (other !== undefined) {
+                list.delete(other);
             }
+        } else if (!list.has(id) && (other === undefined || !list.has(other))) {
+            list.add(id);
+        }
+    }
+
+    return Object.freeze([...list].sort((a, b) => String(a).localeCompare(String(b))));
+}
+
+const visibilityHide: UndoableDefinition<VisibilityHideCommand> = {
+    ...COMMON,
+    op: "visibility.hide",
+    keys: () => ["visibility/hidden"],
+    undo: {
+        kind: "undoable",
+        label: (command) =>
+            `${command.hidden ? "Hid" : "Showed"} ${String(command.ids.length)} node${command.ids.length === 1 ? "" : "s"}`,
+        fact: (command) => ({
+            code: command.hidden ? "visibility.hide-nodes" : "visibility.show-nodes",
+            params: { count: command.ids.length },
+        }),
+    },
+    execute: (command, ctx) => {
+        if (!Array.isArray(command.ids)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "visibility.hide takes a list of node ids.",
+                source: "data",
+                details: { field: "ids" },
+            });
         }
 
-        ctx.draft.visibility.set("steps", Object.freeze([...command.steps]));
+        ctx.draft.visibility.set("hidden", hiddenAfter(ctx.state.visibility.hidden ?? [], command.ids, command.hidden));
     },
 };
 
 /** The visibility ops' definitions. */
-export const VISIBILITY_DEFINITIONS = [visibilitySet, visibilityWindow, visibilityContext, visibilitySteps] as const;
+export const VISIBILITY_DEFINITIONS = [
+    visibilityHide,
+    visibilitySet,
+    visibilityWindow,
+    visibilityContext,
+    visibilitySteps,
+    visibilityConditions,
+    visibilityPlayback,
+] as const;

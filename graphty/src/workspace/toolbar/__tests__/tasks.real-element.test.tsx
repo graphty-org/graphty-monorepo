@@ -1,7 +1,7 @@
 /**
  * The tier 1 tasks this package delivers, each walked from the empty app on the REAL
- * graphty-element: T7 (rank nodes), T8 (find groups) and T11 (a readable layout), plus the View
- * flyout, the Legend and Table tools, and a node's neighborhood. Every assertion reads what the element reports, never pixels.
+ * graphty-element: T7 (rank nodes), T8 (find groups) and T11 (a readable layout), plus the Mode and Camera
+ * menus, the Legend and Table tools, and a node's neighborhood. Every assertion reads what the element reports, never pixels.
  *
  * Opening the sample goes through the element's own import by URL, as the Start screen package
  * will; until that package lands its sample cards are not drawn, so the walk calls the same door.
@@ -15,19 +15,10 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { readableName } from "../../style/words";
 import { Workspace } from "../../Workspace";
-
-/** A segmented control's visible label, which a reader presses: the radio itself is drawn invisible. */
-function segment(radio: HTMLInputElement): HTMLElement {
-    const label = radio.labels?.[0];
-    assert.isDefined(label);
-    return label;
-}
-
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
 
 /**
  * A new, empty project, then Zachary's karate club opened through the element's
@@ -38,20 +29,17 @@ const TIMEOUT_MS = 90_000;
 async function openKarate(place?: "data"): Promise<GraphSession> {
     render(<Workspace initialState={{ project: { name: "Untitled", id: 1 }, place }} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
     await session.data.import({ config: { url: "/samples/karate.gml" } }, { layout: "recommended" });
     const loaded = session;
+    assert.equal(loaded.data.statistics().nodeCount, 34);
     await waitFor(() => {
-        assert.equal(loaded.data.statistics().nodeCount, 34);
         assert.isFalse(analyzeTool().hasAttribute("aria-disabled"));
     });
     return loaded;
@@ -86,25 +74,44 @@ async function analyze(filter: string, entry: string): Promise<void> {
  */
 async function finished(session: GraphSession, algorithm: string): Promise<RunId> {
     let found: RunId | undefined;
-    await waitFor(
-        () => {
-            const run = session.runs.list().find((r) => r.algorithm === algorithm);
-            assert.equal(run?.status, "succeeded");
-            found = run?.id;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        const run = session.runs.list().find((r) => r.algorithm === algorithm);
+        assert.equal(run?.status, "succeeded");
+        found = run?.id;
+    });
     if (found === undefined) {
         throw new Error(`no ${algorithm} run`);
     }
     return found;
 }
 
+// Analyze's algorithm form, which the `selection-workspace` experiment replaces with its calm list
+// (covered by its own tests): the experiment stays off here.
+withFeatures([]);
+
 describe("tier 1 tasks from the toolbar, on the real element", () => {
     // The design's frame, 1366 x 768. At the runner's default 414 px the panels leave the canvas
     // no width, the toolbar is clipped, and Mantine hides a popover whose anchor is hidden.
     beforeAll(async () => {
         await page.viewport(1366, 768);
+    });
+
+    it("Table on the toolbar opens the table dock and closes it; no Timeline without a time column", async () => {
+        await openKarate();
+        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        const table = within(toolbar).getByRole("button", { name: "Table" });
+        assert.isNull(screen.queryByRole("region", { name: "Table" }));
+
+        await userEvent.click(table);
+        assert.isNotNull(await screen.findByRole("region", { name: "Table" }));
+        assert.equal(table.getAttribute("aria-pressed"), "true");
+        // Karate has no column with the time role, so the clock is not drawn.
+        assert.isNull(within(toolbar).queryByRole("button", { name: "Timeline" }));
+
+        await userEvent.click(table);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "Table" }));
+        });
     });
 
     it("T7: Analyze > PageRank runs, lands painted, and Analyze then offers to update its row", async () => {
@@ -118,14 +125,15 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await waitFor(() => {
             assert.isNull(screen.queryByRole("combobox", { name: "Filter analyses" }));
         });
-        assert.isNotNull(screen.getByText(/^PageRank (added, running|finished)$/));
+        assert.isNotNull(screen.getByText(/^PageRank (added, running|finished: .+ ranks first, .+)$/));
         // Focus goes back to Analyze, not to the page.
         await waitFor(() => {
             assert.equal(document.activeElement, analyzeTool());
         });
 
         const runId = await finished(session, "pagerank");
-        await screen.findByText("PageRank finished");
+        // It names the node that ranks first.
+        await screen.findByText(/^PageRank finished: .+ ranks first, .+$/);
         // The run's suggested style landed as a layer bound to the run: it paints.
         await waitFor(() => {
             assert.isAbove(session.runs.bindings(runId).length, 0);
@@ -198,7 +206,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         if (screen.queryByRole("tree", { name: "Style layers" }) === null) {
             await userEvent.click(screen.getByRole("button", { name: "Graph" }));
         }
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         // A grouping run's groups are layers in a folder named for it.
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Louvain, folder, / }));
         await userEvent.keyboard("{Delete}");
@@ -223,7 +231,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await session.styles.settled();
         assert.isAbove(session.runs.bindings(louvain).length, 0, "the run painted its layer again");
         assert.equal(session.runs.get(louvain)?.startedAt, computedAt, "restored from the stored result");
-        await within(tree).findByRole("treeitem", { name: /^Louvain, folder, / }, { timeout: TIMEOUT_MS });
+        await within(tree).findByRole("treeitem", { name: /^Louvain, folder, / });
     });
 
     it("a run's layer, its key entry and its values go by the algorithm's name: Closeness, not Reach", async () => {
@@ -236,14 +244,10 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         if (screen.queryByRole("tree", { name: "Style layers" }) === null) {
             await userEvent.click(screen.getByRole("button", { name: "Graph" }));
         }
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
-        await within(tree).findByRole(
-            "treeitem",
-            { name: /^Closeness, (node |edge |node and edge )?layer/ },
-            { timeout: TIMEOUT_MS },
-        );
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await within(tree).findByRole("treeitem", { name: /^Closeness, (node |edge |node and edge )?layer/ });
         assert.notMatch(tree.textContent ?? "", /Reach/);
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
         await within(legend).findByRole("group", { name: "Color: Closeness" });
         const names = session.data
             .readableValues()
@@ -267,7 +271,7 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
             .find((row) => row.getAttribute("aria-selected") === "true");
         assert.include(current?.textContent, "Recommended");
 
-        await userEvent.click(within(popover).getByRole("option", { name: /^Circle/ }));
+        await userEvent.click(within(popover).getByRole("option", { name: /^Circle(?!s)/ }));
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
         await waitFor(() => {
             assert.equal(session.layout.id, "circular");
@@ -280,6 +284,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.click(await screen.findByRole("option", { name: /Re-run layout/ }));
         await waitFor(() => {
             assert.notEqual(session.positions.generation, generation);
+            // Recorded as a re-run, not as a change of layout.
+            assert.equal(session.history.steps.at(-1)?.fact.code, "layout.rerun");
         });
         assert.equal(session.layout.id, "circular");
 
@@ -289,17 +295,19 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.equal(session.layout.id, before);
     });
 
-    it("names the view mode on the View tool and offers 2D, 3D and VR or AR from its menu", async () => {
+    it("names the view mode on the Mode tool, shows it as words, and offers 2D, 3D and VR or AR", async () => {
         const session = await openKarate();
         const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
-        // Named with the mode it shows (WCAG 2.5.3).
-        const view = within(toolbar).getByRole("button", { name: "View, 3D" });
+        // Named with the mode its face shows (WCAG 2.5.3).
+        const view = within(toolbar).getByRole("button", { name: "Mode, 3D" });
+        const face = (): string | null | undefined => view.querySelector("[data-mode]")?.getAttribute("data-mode");
+        assert.equal(face(), "3d");
         assert.equal(view.textContent, "3D");
         // No XR buttons on the canvas: the menu is the one way in.
         assert.isNull(document.querySelector("graphty-element .xr-button-container, .xr-button-container"));
 
         await userEvent.click(view);
-        const menu = await screen.findByRole("menu", { name: /^View/ });
+        const menu = await screen.findByRole("menu", { name: /^Mode/ });
         const twoD = within(menu).getByRole("menuitemradio", { name: /^2D/ });
         const threeD = within(menu).getByRole("menuitemradio", { name: /^3D/ });
         assert.equal(threeD.getAttribute("aria-checked"), "true");
@@ -317,7 +325,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
                 assert.notInclude(row.textContent, "Checking");
             }
         });
-        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Front/ }));
+        // The camera moves are the Camera tool's, not here.
+        assert.isNull(within(menu).queryByRole("menuitem", { name: /^Front/ }));
         // The workspace turns XR on (graphty-element leaves it off unless a page asks), so a
         // missing mode is the browser's answer, never "disabled".
         const { reasons } = session.capabilities.xr;
@@ -327,14 +336,75 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await userEvent.click(twoD);
         await waitFor(() => {
             assert.equal(session.layout.dimension, "2d");
-            assert.equal(view.textContent, "2D");
+            assert.equal(face(), "2d");
         });
+        assert.equal(view.textContent, "2D");
+        assert.equal(view.getAttribute("aria-label"), "Mode, 2D");
         await userEvent.click(view);
-        const flat = await screen.findByRole("menu", { name: /^View/ });
-        // One row says why the camera views are gone, instead of four disabled ones.
-        assert.isNull(within(flat).queryByRole("menuitem", { name: /^Front/ }));
-        assert.include(within(flat).getByRole("menuitem", { name: /^Camera views/ }).textContent, "Only in 3D");
+        const flat = await screen.findByRole("menu", { name: /^Mode/ });
         assert.include(within(flat).getByRole("menuitemradio", { name: /^3D/ }).textContent, "5");
+        // Key 5 switches back, and the face says so.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("5");
+        await waitFor(() => {
+            assert.equal(session.layout.dimension, "3d");
+            assert.equal(view.textContent, "3D");
+        });
+    });
+
+    it("moves the camera from the Camera tool, turns Auto-rotate on and off, and keeps 3D views for 3D", async () => {
+        const session = await openKarate();
+        const element = document.querySelector("graphty-element");
+        assert.isNotNull(element);
+        if (element === null) {
+            return;
+        }
+        const camera = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
+            name: "Camera",
+        });
+        const open = async (): Promise<HTMLElement> => {
+            await userEvent.click(camera);
+            return screen.findByRole("menu", { name: /^Camera/ });
+        };
+
+        let menu = await open();
+        for (const name of [/^Fit/, /^Frame selection/, /^Front/, /^Side/, /^Top/, /^Isometric/]) {
+            assert.isNotNull(within(menu).getByRole("menuitem", { name }));
+        }
+        // Each standard view shows its key on its row.
+        assert.include(within(menu).getByRole("menuitem", { name: /^Front/ }).textContent, "1");
+        assert.include(within(menu).getByRole("menuitem", { name: /^Top/ }).textContent, "7");
+        // Zoom is a 2D move.
+        assert.isNull(within(menu).queryByRole("menuitem", { name: /^Zoom in/ }));
+        const rotate = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
+        assert.equal(rotate.getAttribute("aria-checked"), "false");
+        assert.equal(element.autoRotate, 0);
+        await userEvent.click(rotate);
+        await waitFor(() => {
+            assert.isAbove(element.autoRotate, 0);
+        });
+
+        menu = await open();
+        const on = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
+        assert.equal(on.getAttribute("aria-checked"), "true");
+        await userEvent.click(on);
+        await waitFor(() => {
+            assert.equal(element.autoRotate, 0);
+        });
+
+        await session.layout.setDimension("2d");
+        menu = await open();
+        // In 2D the 3D views and Auto-rotate stay, disabled with their reason; zoom is offered.
+        for (const name of [/^Front/, /^Side/, /^Top/, /^Isometric/]) {
+            const row = within(menu).getByRole("menuitem", { name });
+            assert.equal(row.getAttribute("aria-disabled"), "true");
+            assert.include(row.textContent, "Only in 3D");
+        }
+        const flatRotate = within(menu).getByRole("menuitemcheckbox", { name: /^Auto-rotate/ });
+        assert.equal(flatRotate.getAttribute("aria-disabled"), "true");
+        assert.include(flatRotate.textContent, "Only in 3D");
+        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom in/ }));
+        assert.isNotNull(within(menu).getByRole("menuitem", { name: /^Zoom out/ }));
     });
 
     it("frames a selected edge's two ends with Frame selection, and disables it with nothing selected", async () => {
@@ -348,11 +418,11 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         // still moving them after the queue empties: wait for the drawing to stop.
         await element.waitForStableFrame();
         const view = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: /^View, /,
+            name: "Camera",
         });
         const frameRow = async (): Promise<HTMLElement> => {
             await userEvent.click(view);
-            const menu = await screen.findByRole("menu", { name: /^View/ });
+            const menu = await screen.findByRole("menu", { name: /^Camera/ });
             return within(menu).getByRole("menuitem", { name: /^Frame selection/ });
         };
 
@@ -372,25 +442,22 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const row = await frameRow();
         assert.notEqual(row.getAttribute("aria-disabled"), "true", "an edge is selected");
         await userEvent.click(row);
-        await waitFor(
-            () => {
-                // Measured when compared, so a canvas resized by the inspector opening counts. From
-                // the angle the camera looks from: framing keeps it.
-                const expected = element.resolveCameraPreset("fitToGraph", { ...ends, params: { keepAngle: true } });
-                const now = element.getCameraState();
-                const { position, target } = expected;
-                assert.isDefined(position);
-                assert.isDefined(target);
-                for (const axis of ["x", "y", "z"] as const) {
-                    assert.closeTo(now.target?.[axis] ?? Number.NaN, target?.[axis] ?? 0, 1e-3, `target.${axis}`);
-                }
-                // The reported position carries the shift that centers the view on the part the
-                // toolbar leaves free; the distance from what it looks at is the framing.
-                const span = (axis: "x" | "y" | "z"): number => (position?.[axis] ?? 0) - (target?.[axis] ?? 0);
-                assert.closeTo(now.cameraDistance ?? Number.NaN, Math.hypot(span("x"), span("y"), span("z")), 1e-3);
-            },
-            { timeout: 10_000 },
-        );
+        await waitFor(() => {
+            // Measured when compared, so a canvas resized by the inspector opening counts. From
+            // the angle the camera looks from: framing keeps it.
+            const expected = element.resolveCameraPreset("fitToGraph", { ...ends, params: { keepAngle: true } });
+            const now = element.getCameraState();
+            const { position, target } = expected;
+            assert.isDefined(position);
+            assert.isDefined(target);
+            for (const axis of ["x", "y", "z"] as const) {
+                assert.closeTo(now.target?.[axis] ?? Number.NaN, target?.[axis] ?? 0, 1e-3, `target.${axis}`);
+            }
+            // The reported position carries the shift that centers the view on the part the
+            // toolbar leaves free; the distance from what it looks at is the framing.
+            const span = (axis: "x" | "y" | "z"): number => (position?.[axis] ?? 0) - (target?.[axis] ?? 0);
+            assert.closeTo(now.cameraDistance ?? Number.NaN, Math.hypot(span("x"), span("y"), span("z")), 1e-3);
+        });
     });
 
     it("says what f framed, by the node's name", async () => {
@@ -400,15 +467,12 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         const name = session.data.name(node) ?? String(node);
         await userEvent.keyboard("f");
         // Said once the framing's camera animation (a second long) has finished.
-        await waitFor(
-            () => {
-                assert.include(
-                    screen.getAllByRole("status").map((status) => status.textContent),
-                    `Framed ${name}`,
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.include(
+                screen.getAllByRole("status").map((status) => status.textContent),
+                `Framed ${name}`,
+            );
+        });
     });
 
     it("switches to 2D with 5, and opens a node's neighborhood from its Degree row, reaches two hops and filters to it", async () => {
@@ -438,8 +502,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         // Hops 2 in the list's header reselects two hops out and relists; the list, the
         // selection and the status line agree on the count.
-        const hops = await screen.findByRole("radiogroup", { name: "Hops" });
-        await userEvent.click(segment(within(hops).getByRole<HTMLInputElement>("radio", { name: "2" })));
+        const hops = await screen.findByRole("spinbutton", { name: "Hops" });
+        await userEvent.clear(hops);
+        await userEvent.type(hops, "2{Enter}");
         await waitFor(() => {
             assert.isAbove(session.selection.nodes.length, neighborhood);
             assert.isNotNull(document.querySelector('[data-inspected="neighborhood"]'));
@@ -462,26 +527,26 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.isNull(screen.queryByRole("menuitem", { name: /Grow by one hop/ }));
         await userEvent.keyboard("{Escape}");
 
-        // Filter to neighbors adds one step keeping the same two hops.
+        // Filter to neighbors adds one card keeping the same two hops.
         await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.steps.map((step) => step.rule),
+                session.visibility.conditions.map((c) => c.rule),
                 [{ kind: "neighborhood", seeds: [node], depth: 2 }],
             );
             assert.equal(session.visibility.summary.visibleNodes, grown + 1);
         });
-        // A command, not a toggle: pressed again it leaves the one step, on.
+        // A command, not a toggle: pressed again it leaves the one card, on.
         await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }), { force: true });
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.steps.map((step) => [step.on, step.rule]),
+                session.visibility.conditions.map((c) => [c.on, c.rule]),
                 [[true, { kind: "neighborhood", seeds: [node], depth: 2 }]],
             );
         });
     });
 
-    it("Filter to neighbors pressed twice keeps one step on; its checkbox in Filters turns it off and keeps it listed", async () => {
+    it("Filter to neighbors pressed twice keeps one card on; its box in Filters turns it off and keeps it listed", async () => {
         const session = await openKarate("data");
         const node = session.data.nodes()[0].id;
         const name = session.data.name(node) ?? String(node);
@@ -493,8 +558,9 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
 
         // Open at one hop, reach two, filter to it, twice.
         await degree();
-        const hops = await screen.findByRole("radiogroup", { name: "Hops" });
-        await userEvent.click(segment(within(hops).getByRole<HTMLInputElement>("radio", { name: "2" })));
+        const hops = await screen.findByRole("spinbutton", { name: "Hops" });
+        await userEvent.clear(hops);
+        await userEvent.type(hops, "2{Enter}");
         await waitFor(() => {
             assert.isTrue(
                 screen.getAllByRole("status").some((status) => /within 2 hops$/.test(status.textContent ?? "")),
@@ -508,18 +574,18 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, grown + 1);
         });
-        // Its step is on at this reach, so a second press would change nothing: the command is
+        // Its card is on at this reach, so a second press would change nothing: the command is
         // drawn disabled, and its tooltip, still shown on hover, says why.
         await waitFor(() => {
             assert.equal(command.getAttribute("data-disabled"), "true");
             assert.equal(command.getAttribute("aria-disabled"), "true");
         });
         await userEvent.hover(command);
-        await screen.findByText("The drawing already shows only this neighborhood. Its step in Filters turns it off");
+        await screen.findByText("The drawing already shows only this neighborhood. Its card in Filters turns it off");
         await userEvent.click(command, { force: true });
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.steps.map((step) => [step.on, step.rule]),
+                session.visibility.conditions.map((c) => [c.on, c.rule]),
                 [[true, { kind: "neighborhood", seeds: [node], depth: 2 }]],
             );
             assert.equal(session.visibility.summary.visibleNodes, grown + 1);
@@ -531,8 +597,8 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         await degree();
         const words = `${name} and ${String(grown)} connections`;
         await screen.findByRole("group", { name: words });
-        const reopened = await screen.findByRole("radiogroup", { name: "Hops" });
-        assert.isTrue(within(reopened).getByRole<HTMLInputElement>("radio", { name: "2" }).checked);
+        const reopened = await screen.findByRole<HTMLInputElement>("spinbutton", { name: "Hops" });
+        assert.equal(reopened.value, "2");
         // Reopened under its own filter, the command is still disabled.
         assert.equal(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"), "true");
         assert.equal(session.selection.nodes.length, grown + 1);
@@ -544,57 +610,51 @@ describe("tier 1 tasks from the toolbar, on the real element", () => {
         assert.equal(heading?.scrollWidth, heading?.clientWidth);
         assert.isAtMost(heading?.scrollHeight ?? 0, heading?.clientHeight ?? 0);
 
-        // The step's checkbox in Filters turns it off: every node is drawn again, and the step
-        // stays listed.
-        const filters = within(screen.getByRole("region", { name: "Data place" })).getByRole("tree", {
+        // The card's box in Filters turns it off: every node is drawn again, and the card stays
+        // listed.
+        const filters = within(screen.getByRole("region", { name: "Data place" })).getByRole("list", {
             name: "Filters",
         });
-        const stepWords = `within 2 hops of ${name}`;
-        await userEvent.click(within(filters).getByRole("checkbox", { name: `Apply step: ${stepWords}` }));
+        const cardWords = `within 2 hops of ${name}`;
+        await userEvent.click(within(filters).getByRole("checkbox", { name: /^Use / }));
         await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, 34);
             assert.deepEqual(
-                session.visibility.steps.map((step) => step.on),
+                session.visibility.conditions.map((c) => c.on),
                 [false],
             );
         });
-        assert.isNotNull(within(filters).getByRole("treeitem", { name: stepWords }));
-        // With the step off, the command is enabled again.
+        assert.isNotNull(within(filters).getByRole("group", { name: new RegExp(`^${cardWords}`, "i") }));
+        // With the card off, the command is enabled again.
         await waitFor(() => {
             assert.isNull(screen.getByRole("button", { name: "Filter to neighbors" }).getAttribute("data-disabled"));
         });
 
-        // Pressed again, the command turns that same step back on.
+        // Pressed again, the command turns that same card back on.
         await userEvent.click(screen.getByRole("button", { name: "Filter to neighbors" }));
         await waitFor(() => {
             assert.deepEqual(
-                session.visibility.steps.map((step) => [step.on, step.rule]),
+                session.visibility.conditions.map((c) => [c.on, c.rule]),
                 [[true, { kind: "neighborhood", seeds: [node], depth: 2 }]],
             );
         });
     });
 
-    it("opens Filters from the Graph place with the toolbar's Filters, focus in a new step's Keep", async () => {
+    it("opens Filters from the Graph place through Quick actions, its + list open", async () => {
         await openKarate();
         assert.isNull(screen.queryByRole("region", { name: "Data place" }));
-        const filters = within(screen.getByRole("toolbar", { name: "Canvas tools" })).getByRole("button", {
-            name: "Filters",
-        });
-
-        await userEvent.click(filters);
+        await userEvent.keyboard("{Control>}k{/Control}");
+        await userEvent.keyboard("filter");
+        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
         await screen.findByRole("region", { name: "Data place" });
-        const keep = await screen.findByRole("combobox", { name: "Keep" });
-        await waitFor(() => {
-            assert.strictEqual(document.activeElement, keep);
-        });
-        assert.isNotNull(screen.getByRole("button", { name: "Add step" }));
+        await screen.findByRole("option", { name: "Largest component" });
     });
 });
 it("shows and hides the legend and the table from their own toolbar buttons, pressed while showing", async () => {
     const session = await openKarate();
     const run = session.runs.start("pagerank");
     await run;
-    await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+    await screen.findByRole("region", { name: "Legend" });
     const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
     const legend = within(toolbar).getByRole("button", { name: "Legend" });
     const table = within(toolbar).getByRole("button", { name: "Table" });

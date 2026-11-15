@@ -7,9 +7,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { type BrowserContext, chromium, firefox, webkit } from "playwright";
+import { type BrowserContext, chromium, firefox, type Page, webkit } from "playwright";
 import { assert } from "vitest";
 
+import { WAIT_GUARD_MS } from "../../../tools/test-wait-guard.mjs";
 import { chromeArgs, chromeEnv } from "./cdp-harness";
 import type { Fixture, PageCheck } from "./fixture";
 import { browserProcesses, type Proc, processes } from "./processes";
@@ -22,20 +23,39 @@ export const ENGINES: readonly Engine[] = ["chromium", "firefox", "webkit"];
 export { browserProcesses, profile } from "./processes";
 
 /**
- * Launch an engine on a persistent profile.
+ * Launch an engine on a persistent profile. Playwright's own 30 s limit on the launch and on every
+ * action and wait is replaced by the one hang guard (tools/test-wait-guard.mjs).
  * @param engine - The engine.
  * @param userDataDir - The profile; a relaunch on it keeps its storage.
  * @param firefoxUserPrefs - More Firefox preferences (the quota test's fixed limit).
  * @returns The context.
  */
-export function launch(
+export async function launch(
     engine: Engine,
     userDataDir: string,
     firefoxUserPrefs: Record<string, string | number | boolean> = {},
 ): Promise<BrowserContext> {
+    const context = await open(engine, userDataDir, firefoxUserPrefs);
+    context.setDefaultTimeout(WAIT_GUARD_MS);
+    return context;
+}
+
+/**
+ * Open an engine's persistent context.
+ * @param engine - The engine.
+ * @param userDataDir - The profile.
+ * @param firefoxUserPrefs - More Firefox preferences.
+ * @returns The context.
+ */
+function open(
+    engine: Engine,
+    userDataDir: string,
+    firefoxUserPrefs: Record<string, string | number | boolean>,
+): Promise<BrowserContext> {
     if (engine === "firefox") {
         return firefox.launchPersistentContext(userDataDir, {
             headless: true,
+            timeout: WAIT_GUARD_MS,
             firefoxUserPrefs: {
                 // Headless Firefox has no WebGL on a machine without a GPU it trusts; Mesa's software GL
                 // draws the canvas (the same settings as the autosave-engines project).
@@ -55,8 +75,31 @@ export function launch(
     }
 
     return engine === "chromium"
-        ? chromium.launchPersistentContext(userDataDir, { headless: true, args: chromeArgs(), env: chromeEnv() })
-        : webkit.launchPersistentContext(userDataDir, { headless: true });
+        ? chromium.launchPersistentContext(userDataDir, {
+              headless: true,
+              timeout: WAIT_GUARD_MS,
+              args: chromeArgs(),
+              env: chromeEnv(),
+          })
+        : webkit.launchPersistentContext(userDataDir, { headless: true, timeout: WAIT_GUARD_MS });
+}
+
+/**
+ * Duplicate a tab the way a reader's browser does for the tests: the opener calls `window.open`, which
+ * copies its session storage into the new tab. The call runs in a task of its own after the evaluate
+ * has returned. Called inside the evaluate, WebKit keeps the opener's evaluate open until Playwright
+ * has set up and resumed the paused popup (they share one web process), then returns the popup's whole
+ * window, which Playwright walks property by property because it comes from another realm; the
+ * opener's evaluate then depends on everything the popup's startup does (issue #6188).
+ * @param context - The context the tab opens in.
+ * @param opener - The tab to duplicate.
+ * @param url - The duplicate's address.
+ * @returns The duplicate.
+ */
+export async function duplicateTab(context: BrowserContext, opener: Page, url: string): Promise<Page> {
+    const opened = context.waitForEvent("page");
+    await opener.evaluate(`void setTimeout(() => { window.open(${JSON.stringify(url)}); }, 0)`);
+    return opened;
 }
 
 /**

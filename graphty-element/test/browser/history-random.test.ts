@@ -123,6 +123,10 @@ async function begin(engine: (typeof ENGINES)[number]): Promise<{ real: Real; mo
         container.remove();
     });
     await graph.init();
+    // The working graph off: with it on, a filter change lays out what is shown outside any history
+    // step, so an undo brings the filter back but not the places the layout gave the nodes it then
+    // hides (design/working-graph/design.md, section 7), and the digests could not match.
+    graph.getSession().workingGraph = false;
     graph.engine.stopRenderLoop();
     await graph.setLayout(engine);
     const session = graph.getSession();
@@ -177,7 +181,7 @@ describe.each(ENGINES)("random sequences on a real graph under %s", (engine) => 
                         }
                     },
                 ),
-                { seed, numRuns: NUM_RUNS, endOnFailure: true, timeout: 20_000 },
+                { seed, numRuns: NUM_RUNS, endOnFailure: true },
             );
         });
     }

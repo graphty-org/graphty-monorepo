@@ -1,4 +1,5 @@
 import { assert, describe, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { tabFor } from "../../state/store";
 import {
@@ -39,6 +40,11 @@ describe("workspace keys", () => {
         assert.isFalse(matchesKey(press("g", { ctrlKey: true }), "G"));
     });
 
+    it("matches the space bar as Space, its Shift exactly", () => {
+        assert.isTrue(matchesKey(press(" ", { ctrlKey: true, shiftKey: true }), "Shift+Mod+Space"));
+        assert.isFalse(matchesKey(press(" ", { ctrlKey: true }), "Shift+Mod+Space"));
+    });
+
     it("matches punctuation whatever Shift it took to type", () => {
         assert.isTrue(matchesKey(press("?", { shiftKey: true }), "?"));
         assert.isTrue(matchesKey(press("/"), "/"));
@@ -67,31 +73,35 @@ describe("workspace keys", () => {
         assert.isFalse(firesWhileTyping("Escape"));
     });
 
-    it("hands Undo and Redo to the app while the field holds no edit of its own", () => {
+    it("hands Undo and Redo to the app while the field holds no edit of its own", async () => {
         assert.isTrue(firesWhileTyping("Mod+Z", false));
         assert.isTrue(firesWhileTyping("Shift+Mod+Z", false));
         assert.isFalse(firesWhileTyping("Mod+A", false), "select all stays the field's");
         const stop = trackPendingEdits();
         const input = document.createElement("input");
-        document.body.append(input);
+        const elsewhere = document.createElement("button");
+        elsewhere.textContent = "Elsewhere";
+        document.body.append(input, elsewhere);
         try {
-            input.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+            await userEvent.click(input);
             assert.isFalse(hasPendingEdit(input), "focus alone is no edit");
-            input.dispatchEvent(new Event("input", { bubbles: true }));
+            await userEvent.keyboard("x");
             assert.isTrue(hasPendingEdit(input), "typing is");
-            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+            await userEvent.keyboard("{Enter}");
             assert.isTrue(hasPendingEdit(input), "after Enter the typing is still the field's to undo");
             input.dataset.committed = "";
             assert.isFalse(hasPendingEdit(input), "a field holding its committed value has no edit of its own");
             delete input.dataset.committed;
-            input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+            await userEvent.keyboard("{Escape}");
             assert.isFalse(hasPendingEdit(input), "Escape drops the typing");
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-            input.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+            await userEvent.keyboard("y");
+            await userEvent.click(elsewhere);
+            await userEvent.click(input);
             assert.isFalse(hasPendingEdit(input), "focusing it again starts over");
         } finally {
             stop();
             input.remove();
+            elsewhere.remove();
         }
     });
 
@@ -108,6 +118,7 @@ describe("workspace keys", () => {
     it("shows Mod as the platform's key", () => {
         assert.match(formatKey("Shift+Mod+Z"), /^Shift\+(Ctrl|Cmd)\+Z$/);
         assert.equal(formatKey("?"), "?");
+        assert.equal(formatKey("Delete"), "Del", "a menu's Delete item never reads Delete Delete");
     });
 });
 

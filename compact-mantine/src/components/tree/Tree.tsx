@@ -1,4 +1,4 @@
-import { Checkbox, Tooltip, VisuallyHidden } from "@mantine/core";
+import { Checkbox, VisuallyHidden } from "@mantine/core";
 import { useUncontrolled } from "@mantine/hooks";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import React, { forwardRef, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -7,6 +7,7 @@ import { PANEL_GRID } from "../../constants/panel";
 import { useLabels, useNumberFormatter } from "../../i18n";
 import { UiGlyph } from "../../icons";
 import { useCompactStyles } from "../../theme/useCompactStyles";
+import { TypeAheadRun } from "../../utils/type-ahead-run";
 import { shieldDragSelection } from "../chrome/dragSelectionShield";
 import { ContextMenu } from "../overlays/ContextMenu";
 import { joinPress } from "../pressGesture";
@@ -164,20 +165,17 @@ function rowDataAttributes(states: {
 }
 
 /**
- * The caret's pointer target: 24 x 24 around the 16px glyph (WCAG 2.5.8), saying what it does.
+ * The caret's pointer target: 24 x 24 around the 16px glyph (WCAG 2.5.8). It draws nothing beyond
+ * the glyph and has no tooltip, as in Figma; the row's aria-expanded says its state.
  * @param props - Component props
  * @param props.expanded - whether the row is open
- * @param props.name - the row's name
  * @returns the target
  */
-function CaretHit({ expanded, name }: Readonly<{ expanded: boolean; name: string }>): React.JSX.Element {
-    const labels = useLabels();
+function CaretHit({ expanded }: Readonly<{ expanded: boolean }>): React.JSX.Element {
     return (
-        <Tooltip label={expanded ? labels.collapseSection(name) : labels.expandSection(name)}>
-            <span className="cm-tree-caret-hit">
-                <UiGlyph name={expanded ? "caretDown" : "caretRight"} size={PANEL_GRID.CHEVRON} />
-            </span>
-        </Tooltip>
+        <span className="cm-tree-caret-hit">
+            <UiGlyph name={expanded ? "caretDown" : "caretRight"} size={PANEL_GRID.CHEVRON} />
+        </span>
     );
 }
 
@@ -364,7 +362,7 @@ export const TreeItem = forwardRef<HTMLDivElement, TreeItemProps>(function TreeI
         >
             <span className="cm-tree-indent" style={{ width: iconOffset(level) - 16 }} />
             <span className="cm-tree-caret" aria-hidden="true" data-testid="tree-caret">
-                {hasChildren && <CaretHit expanded={expanded} name={name} />}
+                {hasChildren && <CaretHit expanded={expanded} />}
             </span>
             {checkbox && (
                 <span className="cm-tree-check" aria-hidden="true" data-testid="tree-check">
@@ -688,7 +686,7 @@ export function Tree({
     const latest = useRef({ rows, canDrop, onMove, announce });
     latest.current = { rows, canDrop, onMove, announce };
     const pendingFocus = useRef(false);
-    const typeahead = useRef({ text: "", at: 0 });
+    const [typeahead] = useState(() => new TypeAheadRun(TYPEAHEAD_MS));
     const rootRef = useRef<HTMLDivElement>(null);
 
     const virtual = rows.length > VIRTUALIZE_AT;
@@ -952,12 +950,9 @@ export function Tree({
         TYPEAHEAD_KEY.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
 
     const typeAhead = (event: React.KeyboardEvent<HTMLDivElement>, i: number): void => {
-        const now = Date.now();
-        const t = typeahead.current;
-        t.text = now - t.at > TYPEAHEAD_MS ? event.key : t.text + event.key;
-        t.at = now;
-        const needle = t.text.toLocaleLowerCase();
-        const start = t.text.length === 1 ? i + 1 : i;
+        const text = typeahead.add(event);
+        const needle = text.toLocaleLowerCase();
+        const start = text.length === 1 ? i + 1 : i;
         const ordered = [...rows.slice(start), ...rows.slice(0, start)];
         moveFocus(ordered.find((r) => r.node.name.toLocaleLowerCase().startsWith(needle))?.node.id);
     };

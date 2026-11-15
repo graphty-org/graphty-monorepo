@@ -6,6 +6,10 @@
  * inspected without a canvas.
  */
 
+export type { FeatureDescriptor, FeatureId } from "../features/registry";
+export { FEATURES, GRADUATED_FEATURES } from "../features/registry";
+export type { EnabledFeatures } from "../features/resolve";
+export { featuresFromUrl, resolveFeatures } from "../features/resolve";
 export type { CanvasKeyAction, CanvasKeyDescriptor, CanvasKeyView } from "./canvasKeys";
 export { CANVAS_KEY_DESCRIPTORS } from "./canvasKeys";
 export type { LabelLookDescriptor, LabelLookId } from "./label-looks";
@@ -14,15 +18,17 @@ export type {
     LabelAnimation,
     LabelBadge,
     LabelDeclutterOrder,
+    LabelFieldValueKind,
     LabelGradientDirection,
     LabelGradientType,
     LabelIconPosition,
     LabelLocation,
     LabelPointerDirection,
     LabelSizeMode,
+    LabelStyleFieldDescriptor,
     LabelTextAlign,
 } from "./label-style";
-export { LABEL_STYLE_DEFAULTS, LABEL_STYLE_FIELDS } from "./label-style";
+export { LABEL_STYLE_DEFAULTS, LABEL_STYLE_DESCRIPTORS, LABEL_STYLE_FIELDS } from "./label-style";
 export type { OptionsFromZodOptions, OptionsSource, OptionUiMeta } from "./optionsFromZod";
 export { optionsFromZod } from "./optionsFromZod";
 export type { EdgeArrowKind, GlyphDescriptor, NodeShape } from "./shapes";
@@ -75,8 +81,11 @@ export type {
     NodeId,
     OptionBound,
     OptionChoice,
+    OptionChoiceRefusal,
     OptionDescriptor,
     OptionType,
+    OptionUnsupported,
+    OptionUnsupportedCode,
     PaletteDescriptor,
     PaletteId,
     Path,

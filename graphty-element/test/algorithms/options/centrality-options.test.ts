@@ -114,21 +114,36 @@ describe("Centrality Algorithm Options", () => {
 
         describe("custom options in run()", () => {
             it("uses custom maxIterations", async () => {
-                const graph = await createMockGraph({
+                const pathData = {
                     nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
                         { srcId: "B", dstId: "C" },
-                        { srcId: "C", dstId: "A" },
                     ],
-                });
-                // Run with reduced iterations
-                const algo = new EigenvectorCentralityAlgorithm(graph, { maxIterations: 5 });
-                await algo.run();
+                };
 
-                // Verify scores were calculated
-                const score = getNodeResult(algo, "A", "graphty", "eigenvector", "score");
-                assert.isDefined(score);
+                // One pass cannot reach the path's eigenvector from the flat start, and an
+                // unconverged run fails naming the cap it was given.
+                const capped = new EigenvectorCentralityAlgorithm(await createMockGraph(pathData), {
+                    maxIterations: 1,
+                });
+                let failure: { code?: unknown; details?: { maxIterations?: unknown } } | undefined;
+                try {
+                    await capped.run();
+                } catch (error) {
+                    failure = error as typeof failure;
+                }
+                assert.strictEqual(failure?.code, "E_NOT_CONVERGED");
+                assert.strictEqual(failure?.details?.maxIterations, 1);
+
+                // With room it converges to (1, sqrt 2, 1) / 2, which min-max scales to 0, 1, 0.
+                const algo = new EigenvectorCentralityAlgorithm(await createMockGraph(pathData), {
+                    maxIterations: 100,
+                });
+                await algo.run();
+                assert.closeTo(getNodeResult(algo, "A", "graphty", "eigenvector", "score") as number, 0, 1e-6);
+                assert.closeTo(getNodeResult(algo, "B", "graphty", "eigenvector", "score") as number, 1, 1e-6);
+                assert.closeTo(getNodeResult(algo, "C", "graphty", "eigenvector", "score") as number, 0, 1e-6);
             });
         });
 
@@ -275,12 +290,15 @@ describe("Centrality Algorithm Options", () => {
                         { srcId: "C", dstId: "A" },
                     ],
                 });
-                const algo = new KatzCentralityAlgorithm(graph, { alpha: 0.2, beta: 2.0 });
+                const algo = new KatzCentralityAlgorithm(graph, { alpha: 0.2, beta: 2.0, normalized: false });
                 await algo.run();
 
-                // Verify scores were calculated
-                const score = getNodeResult(algo, "A", "graphty", "katz", "score");
-                assert.isDefined(score);
+                // Every node of a triangle has two neighbours, so its Katz score is the series
+                // beta * sum((2 alpha)^k) = beta / (1 - 2 alpha) = 2 / 0.6. The defaults
+                // (alpha 0.1, beta 1) would give 1.25.
+                for (const id of ["A", "B", "C"]) {
+                    assert.closeTo(getNodeResult(algo, id, "graphty", "katz", "score") as number, 10 / 3, 1e-5);
+                }
             });
         });
 

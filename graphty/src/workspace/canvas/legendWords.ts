@@ -11,7 +11,7 @@
  */
 
 import type { ScreenshotLegendSection } from "@graphty/graphty-element";
-import type { Channel } from "@graphty/graphty-element/catalog";
+import type { Channel, ShaderUse } from "@graphty/graphty-element/catalog";
 import {
     type GraphSession,
     type LegendBlock,
@@ -19,13 +19,17 @@ import {
     type LegendFactCode,
     type LegendSwatch,
     RESULT_SHAPE_CONTRACTS,
+    selectorStates,
 } from "@graphty/graphty-element/session";
 
 import { highlightEntry } from "../analyze/words";
 import { count, formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
+import { formatCount } from "../settings/numberFormat";
 import { sourceName } from "../style/row";
 import { channelWord } from "../style/words";
+import { unitOf } from "../time/timeActions";
+import { rangeWords } from "../time/timeWords";
 
 /** The property word each channel a legend shows goes by ("Color: PageRank"). */
 const PROPERTY_WORDS: Partial<Record<Channel, string>> = {
@@ -54,6 +58,10 @@ const SIZE_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(["node.size", "edge
 const TEXT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
     "node.label",
     "node.labelStyle",
+    "node.xlabel",
+    "node.xlabelStyle",
+    "edge.xlabel",
+    "edge.xlabelStyle",
     "edge.labelStyle",
     "node.tooltip",
     "edge.label",
@@ -81,6 +89,26 @@ const NUMBER_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
 ]);
 
 /**
+ * The channels that shape an edge's line: its route, bends, curve, fan and where it meets its
+ * nodes. The line itself shows them; a key would list one row per edge route ("Edge bends: ...").
+ */
+const LINE_SHAPE_CHANNELS: ReadonlySet<Channel> = new Set<Channel>([
+    "edge.curvature",
+    "edge.bends",
+    "edge.bendCurve",
+    "edge.route",
+    "edge.arcRadius",
+    "edge.arcHeight",
+    "edge.fanSpacing",
+    "edge.fanned",
+    "edge.nodeGap",
+    "edge.sourceNodeGap",
+    "edge.targetNodeGap",
+    "edge.sourcePort",
+    "edge.targetPort",
+]);
+
+/**
  * The block with its rows in group order (Group 1, Group 2, ...) when they name a run's groups:
  * a group given its own color would otherwise come first. The Other row stays last.
  * @param block - the block.
@@ -103,11 +131,50 @@ function byRank(block: LegendBlock): LegendBlock {
  * @returns the blocks `styles.legend()` returned, less those of a state layer.
  */
 export function dataBlocks(session: GraphSession): LegendBlock[] {
-    // ponytail: only a top-level state selector counts; a rule tree that mixes a state in is still keyed.
+    const onData = (id: string): boolean => {
+        const layer = session.styles.get(id);
+        return layer === undefined || selectorStates(layer.selector).length === 0;
+    };
     return session.styles
         .legend()
-        .filter((block) => session.styles.get(block.layerId)?.selector.match !== "state")
-        .map((block) => heldRows(session, block));
+        .filter((block) => onData(block.layerId))
+        .flatMap((block) => (isEffectBlock(block) ? effectRows(session, block) : [heldRows(session, block)]));
+}
+
+/** The channels whose value is a list of shader uses, each drawn by a shader the catalog names. */
+const EFFECT_CHANNELS: ReadonlySet<Channel> = new Set<Channel>(["node.shaders", "edge.shaders"]);
+
+/**
+ * Whether a block keys effects: it is listed while the key shows, and never opens the key itself.
+ * @param block - the block.
+ * @returns true for an effects block.
+ */
+export function isEffectBlock(block: LegendBlock): boolean {
+    return EFFECT_CHANNELS.has(block.channel);
+}
+
+/**
+ * A shaders block's rows, each named by the shaders it draws ("Aura, Reticle"), as the catalog
+ * names them; a shader a layer turns off is not drawn and not named. A row that draws no
+ * effect is no row, and a block left with none is no block.
+ * @param session - the session, for the catalog.
+ * @param block - the block.
+ * @returns the block, or none.
+ */
+function effectRows(session: GraphSession, block: LegendBlock): LegendBlock[] {
+    const shaders = session.catalog.shaders();
+    const named = (list: unknown): string[] =>
+        Array.isArray(list)
+            ? (list as readonly ShaderUse[]).flatMap((use) => {
+                  const name = shaders.find((shader) => shader.id === use.shader)?.plainName;
+                  return use.off === true || name === undefined ? [] : [name];
+              })
+            : [];
+    const swatches = block.swatches.flatMap((swatch) => {
+        const names = named(swatch.paints ?? swatch.value);
+        return names.length === 0 ? [] : [{ ...swatch, name: names.join(", ") }];
+    });
+    return swatches.length === 0 ? [] : [{ ...block, swatches }];
 }
 
 /**
@@ -160,7 +227,7 @@ function paintedRows(block: LegendBlock): LegendBlock {
  * The blocks the legend shows: not a label's (it would list every name beside the name already
  * drawn), not a size that does not vary (a key for one size reads as "sizes done" while every
  * dot is the same, and a highlight's one width, "24", reads as a count), not a channel whose key
- * is a bare number (`NUMBER_CHANNELS`), not one whose row paints nothing right now (a Selected
+ * is a bare number (`NUMBER_CHANNELS`), not an edge's line shape (`LINE_SHAPE_CHANNELS`), not one whose row paints nothing right now (a Selected
  * row with nothing selected) or whose every element a filter step hides, and not one a layer
  * above paints over on every element (a key for
  * paint no reader can see is a false claim). A value the binding hides is no row, and a block left
@@ -174,6 +241,7 @@ export function keyBlocks(blocks: readonly LegendBlock[]): LegendBlock[] {
             (block) =>
                 !TEXT_CHANNELS.has(block.channel) &&
                 !NUMBER_CHANNELS.has(block.channel) &&
+                !LINE_SHAPE_CHANNELS.has(block.channel) &&
                 block.painted !== 0 &&
                 // A layer whose every element a filter step hides keys nothing drawn.
                 block.scope?.count !== 0 &&
@@ -313,6 +381,7 @@ const FACT_SENTENCES: Readonly<Record<LegendFactCode, (param: (name: string) => 
     "legend.lumped": (param) => `${param("count")} lumped into Other`,
     "legend.not-measured": (param) => `not measured (${param("count")})`,
     "legend.painted-over": (param) => `painted over by "${param("name")}"`,
+    "legend.no-spread": () => "no spread",
 };
 
 /**
@@ -392,7 +461,7 @@ export const NOTHING_KEYED = "Nothing is styled yet";
  * @param layer - The name of the layer that paints over it.
  * @returns The words.
  */
-export function coveredWords(layer: string): string {
+function coveredWords(layer: string): string {
     return `covered by ${layer}`;
 }
 
@@ -404,7 +473,7 @@ export function coveredWords(layer: string): string {
  * @param covers - The layers above that paint the property on the block's elements, and on how many.
  * @returns The line, or null when nothing covers it.
  */
-export function coveredLine(
+function coveredLine(
     block: LegendBlock,
     covers: readonly { readonly layer: string; readonly count: number }[],
 ): string | null {
@@ -417,19 +486,22 @@ export function coveredLine(
 
 /**
  * The line under a section whose layer selects some elements and not all (`block.scope`): which
- * layer and how many, "Picked: 3 of 24 nodes". The layer's name is left out where the title
- * already ends with it, and for a run's block, which the run's name in the title says.
+ * layer and how many, "Picked: 3 of 24 nodes", out of the elements drawn (`scope.visible`), the
+ * base Which nodes counts over, so a filter leaving 15 reads "3 of 15" and a layer holding all 15
+ * has no line. The layer's name is left out where the title already ends with it, and for a run's
+ * block, which the run's name in the title says.
  * @param block - The block.
  * @param title - Its section title.
  * @param layer - The name of its layer.
  * @returns The line, or null for a block of every element.
  */
 export function scopeLine(block: LegendBlock, title: string, layer: string): string | null {
-    if (block.scope === undefined) {
+    const of = block.scope?.visible ?? block.scope?.of;
+    if (block.scope === undefined || of === undefined || block.scope.count >= of) {
         return null;
     }
     const noun = block.channel.startsWith("edge.") ? "edge" : "node";
-    const reach = `${block.scope.count.toLocaleString()} of ${count(block.scope.of, noun)}`;
+    const reach = `${formatCount(block.scope.count)} of ${count(of, noun)}`;
     return block.runId !== undefined || title === layer || title.endsWith(`: ${layer}`) ? reach : `${layer}: ${reach}`;
 }
 
@@ -541,7 +613,7 @@ function oneRunBlock(blocks: readonly LegendBlock[], names: KeyNames): LegendBlo
     const together = blocks.every((block) => block.scope !== undefined)
         ? blocks.reduce((sum, block) => sum + (block.scope?.count ?? 0), 0)
         : of;
-    const base: LegendBlock = together < of ? { ...rest, scope: { count: together, of } } : rest;
+    const base: LegendBlock = together < of ? { ...rest, scope: { ...found.scope, count: together, of } } : rest;
     if (shared) {
         // Every group the same shape or pattern: one row naming it, as a layer's fixed value reads.
         return { ...base, kind: "literal", swatches: [{ ...rows[0], name: undefined, count: undefined }] };
@@ -662,10 +734,16 @@ function rowName(session: GraphSession, block: LegendBlock): string {
     }
     // The algorithm's name as the reader picked it, as the style tree names the run's row.
     const name = runName(session, run);
+    // A run computed in a time window names that window, current or kept: "Degree, Jun 3 - Jun 12".
+    const ran = run.caveats.window;
+    if (ran !== undefined) {
+        const named = `${name}, ${rangeWords(ran.from, ran.to, unitOf(session), undefined, session.time.timeZone)}`;
+        return run.status === "succeeded" && run.stale !== null ? `${named}, out of date` : named;
+    }
     if (run.status !== "succeeded" || run.stale === null) {
         return name;
     }
-    if (run.stale.reason === "data-changed") {
+    if (run.stale.reason === "data-changed" || run.stale.reason === "window-moved") {
         return `${name}, out of date`;
     }
     const { ranOn } = run.stale;
@@ -732,7 +810,7 @@ function addCovers(
     }
     for (const { layerId, count: n } of session.styles.counts(id).covers[channel]?.layers ?? []) {
         const above = session.styles.get(layerId);
-        if (above !== undefined && above.selector.match !== "state") {
+        if (above !== undefined && selectorStates(above.selector).length === 0) {
             // A run's layer goes by the run's name, as the Analyze list names it.
             const run = above.source.by === "run" ? session.runs.get(above.source.runId) : undefined;
             const name = run === undefined ? above.name : runName(session, run);

@@ -18,12 +18,14 @@ export { GraphSnapshot } from "./snapshot/graph-snapshot.js";
 
 // ============================================================ functions
 export { gpuEligibility } from "./columns/column.js";
+export { inferTextDtype } from "./columns/infer.js";
 export { gatherArray, gatherColumn, remapArray, remapColumn, scatterArray, withComponents } from "./columns/remap.js";
 export { fromCsr } from "./populate/from-csr.js";
 export { fromEdgeArrays } from "./populate/from-edge-arrays.js";
 export { fromElements } from "./populate/from-elements.js";
 export { fromRecords } from "./populate/from-records.js";
 export { renumberPartition } from "./snapshot/derived.js";
+export { type Directedness, directedness, edgeIsDirected } from "./snapshot/direction.js";
 export { equalsTopology, isGraphSnapshot } from "./snapshot/graph-snapshot.js";
 export { expandEdges, foldArcs } from "./snapshot/views.js";
 export { detAcos, detCos, detExp, detHypot, detLog, detPow, detSin } from "./util/det-math.js";

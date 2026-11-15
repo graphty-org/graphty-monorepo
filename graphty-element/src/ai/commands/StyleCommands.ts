@@ -17,10 +17,10 @@
 
 import { z } from "zod";
 
+import type { ShaderUse } from "../../catalog/shaders";
 import type { Channel, ChannelValue, LayerSource, LayerSpec, StaticStyle } from "../../catalog/types";
 import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
-import { NODE_OUTLINE_CAVEAT } from "../../session/styles/channels";
 import type { TransactionScope } from "../../session/types";
 import { CONNECTED_BY_SYNTAX, isMatchAllSelector, nodeScopeOf, normalizeSelector, SELECTOR_SYNTAX } from "./selectors";
 import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
@@ -62,12 +62,38 @@ const NodeStyleParamsSchema = z
         outlineWidth: z
             .number()
             .positive()
+            .max(10)
             .optional()
             .describe(
-                "Outline width. Not drawn: every outline in the scene is stroked at one width, " +
-                    "so asking for this is answered with the reason rather than applied",
+                "Outline width (default 1, a multiple of the ring's own band), per style. It widens an outline " +
+                    "color and draws nothing without one",
             ),
         enabled: z.boolean().optional().describe("Whether the node is visible"),
+        shader: z
+            .string()
+            .optional()
+            .describe("A node shader from the shader catalog to draw the nodes with, by its id, at its own place"),
+        shaderText: z
+            .string()
+            .optional()
+            .describe(
+                "Shader text the person pasted or asked for (GLSL with a graphty-shader 1 header). It is added to " +
+                    "the project and held until the person approves it in the app; the nodes draw as before until then",
+            ),
+        model: z
+            .string()
+            .optional()
+            .describe(
+                "Draw the nodes as a 3D model: a model id ('asset:...', such as 'asset:sample/server') or the URL " +
+                    "of a .glb, .gltf or .obj file. A URL is fetched only after the reader allows its site",
+            ),
+        texture: z
+            .string()
+            .optional()
+            .describe(
+                "A picture drawn on the nodes (a PNG, JPEG or WebP): a picture id ('asset:...') or a URL. " +
+                    "A URL is fetched only after the reader allows its site",
+            ),
     })
     .describe("Style properties for nodes");
 
@@ -93,13 +119,8 @@ const AI_LAYER_SOURCE: LayerSource = { by: "plugin", name: "graphty-ai" };
 /**
  * Turn the simplified node parameters into literal channel values.
  *
- * ONE OF THEM HAS NO CHANNEL, and this says WHY rather than dropping it or refusing it blankly.
- * An outline is drawn as a ring whose width is a fixed share of the node's size, so a width is
- * not a channel the element has. The node style declares no `effect.outline.width` either, so
- * that nothing accepts one and quietly ignores it. The sentence that explains all this is `NODE_OUTLINE_CAVEAT`, which is
- * `node.outline`'s published caveat, so a reader who asks the catalogue and a reader who asks in
- * words get the same answer. The glow's STRENGTH used to be refused beside it and is a channel
- * now, with a caveat of its own, which is what the difference looks like when it can be closed.
+ * Every one of them has a channel now: the glow's strength and the outline's width were both
+ * refused here once, and each is drawn per style.
  * @param params - What was asked for.
  * @returns The channel values to write, and the properties the channel set cannot express.
  */
@@ -108,7 +129,6 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
     unsupported: UnsupportedProperty[];
 } {
     const set: Partial<Record<Channel, ChannelValue>> = {};
-    const unsupported: UnsupportedProperty[] = [];
 
     if (params.color !== undefined) {
         set["node.color"] = params.color;
@@ -134,6 +154,20 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
         set["node.outline"] = params.outlineColor;
     }
 
+    if (params.shader !== undefined) {
+        set["node.shaders"] = [{ shader: params.shader }];
+    }
+
+    // A URL here is not fetched by the element on the model's say-so: the layer is the AI's, so
+    // the fetch waits in `session.network` for the reader unless the page allowed the host.
+    if (params.model !== undefined) {
+        set["node.model"] = params.model;
+    }
+
+    if (params.texture !== undefined) {
+        set["node.texture"] = params.texture;
+    }
+
     // "Not visible" is said as fully transparent, because hiding an element is the visibility
     // mask's job and a style layer has no spelling for it. The node keeps its place in the graph.
     if (params.enabled === false) {
@@ -141,10 +175,10 @@ function nodeChannels(params: z.infer<typeof NodeStyleParamsSchema>): {
     }
 
     if (params.outlineWidth !== undefined) {
-        unsupported.push({ property: "outlineWidth", reason: NODE_OUTLINE_CAVEAT });
+        set["node.outlineWidth"] = params.outlineWidth;
     }
 
-    return { set, unsupported };
+    return { set, unsupported: [] };
 }
 
 /**
@@ -303,7 +337,7 @@ async function addLayer(
 export const findAndStyleNodes: GraphCommand = {
     name: "findAndStyleNodes",
     description:
-        "Style the nodes matching a selector by adding a style layer. Takes the same selector and connectedBy as findNodes and zoomToNodes; connectedBy picks nodes by their edges' fields. Styles include color, size, shape, glow color and outline color.",
+        "Style the nodes matching a selector by adding a style layer. Takes the same selector and connectedBy as findNodes and zoomToNodes; connectedBy picks nodes by their edges' fields. Styles include color, size, shape, glow color, outline color, a 3D model and a picture (texture), each an id or a URL.",
     parameters: z.object({
         selector: z.string().describe(`Expression matching nodes. ${SELECTOR_SYNTAX}`),
         connectedBy: z.string().optional().describe(CONNECTED_BY_SYNTAX),
@@ -340,6 +374,14 @@ export const findAndStyleNodes: GraphCommand = {
             input: "Change nodes to boxes",
             params: { selector: "", style: { shape: "box" }, layerName: "box-shapes" },
         },
+        {
+            input: "Draw the servers as https://example.com/models/rack.glb",
+            params: {
+                selector: "data.type == 'server'",
+                style: { model: "https://example.com/models/rack.glb" },
+                layerName: "server-models",
+            },
+        },
     ],
 
     async execute(graph: Graph, params: Record<string, unknown>, context?: CommandContext): Promise<CommandResult> {
@@ -356,13 +398,34 @@ export const findAndStyleNodes: GraphCommand = {
         };
 
         const { set, unsupported } = nodeChannels(styleParams);
+        const writer = writerOf(graph, context);
+        if (styleParams.shader !== undefined) {
+            // A catalog pick names the project's copy of the catalog's shader, never a file's own
+            // text that happens to share its id. An id the catalog lacks is left for the layer's
+            // check to refuse.
+            const picked = await writer.shaders
+                .fromCatalog(styleParams.shader)
+                .catch(() => styleParams.shader as string);
+            set["node.shaders"] = [{ shader: picked }];
+        }
 
-        return addLayer(
-            writerOf(graph, context),
-            layerSpecOf(layerName, "node", selector, set, connectedBy),
-            unsupported,
-            "node",
-        );
+        if (styleParams.shaderText !== undefined) {
+            // Text from a model is content, never the reader's own: it is held until the reader
+            // approves it, so a prompt cannot make the element run a shader nobody looked at.
+            const added = await writer.shaders.add(styleParams.shaderText, { source: "content", onTaken: "rename" });
+            if (!added.ok) {
+                return {
+                    success: false,
+                    message: `That shader could not be added: ${added.problems.map((problem) => problem.code).join(", ")}`,
+                    data: { problems: added.problems },
+                };
+            }
+
+            const use: ShaderUse = { shader: added.descriptor.id };
+            set["node.shaders"] = [...((set["node.shaders"] as readonly ShaderUse[] | undefined) ?? []), use];
+        }
+
+        return addLayer(writer, layerSpecOf(layerName, "node", selector, set, connectedBy), unsupported, "node");
     },
 };
 

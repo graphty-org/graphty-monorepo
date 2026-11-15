@@ -1,7 +1,8 @@
 /**
  * Spectral Layout Algorithm Story
  *
- * Demonstrates spectral layout using eigenvectors of the graph Laplacian.
+ * Demonstrates spectral layout using eigenvectors of the graph Laplacian, on 100 nodes in 4 planted groups:
+ * nodes that share neighbors get nearby coordinates, so each group gathers in its own place.
  * Shows animation from random initial positions to final spectral positions.
  *
  * IMPORTANT: This story uses the actual spectral implementation
@@ -12,8 +13,9 @@ import { spectral, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
+import { generateRandomPositions, PLANTED_GROUPS, plantedGroups, toSnapshot } from "../utils/graph-generators.js";
 import {
+    colorGroups,
     createAnimationControls,
     createInfoPanel,
     createStatusPanel,
@@ -23,14 +25,11 @@ import {
     updatePositions,
     updateStatus,
 } from "../utils/visualization.js";
-import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
  */
 interface SpectralArgs {
-    nodeCount: number;
-    graphType: GraphType;
     scale: number;
     seed: number;
 }
@@ -39,10 +38,10 @@ interface SpectralArgs {
  * Create the Spectral layout visualization story.
  */
 function createSpectralStory(args: SpectralArgs): HTMLElement {
-    const { nodeCount, graphType, scale, seed } = args;
+    const { scale, seed } = args;
 
     // Generate graph
-    const generatedGraph = generateGraph(graphType, nodeCount, seed);
+    const { graph: generatedGraph, groups } = plantedGroups(seed);
     const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
@@ -55,12 +54,16 @@ function createSpectralStory(args: SpectralArgs): HTMLElement {
     const { container, svg } = createStoryContainer();
 
     // Render graph with random initial positions
-    renderGraph(svg, generatedGraph, randomPositions, 20, 1, 0, 0);
+    renderGraph(svg, generatedGraph, randomPositions, 6, 1, 0, 0);
+    colorGroups(svg, groups);
 
     // Create info panel
     const infoPanel = createInfoPanel("Spectral Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(infoPanel, `Uses eigenvectors of the graph Laplacian with scale ${scale}.`);
+    updateInfoPanel(
+        infoPanel,
+        `${PLANTED_GROUPS} Look for: each color gathers in its own place, placed by Laplacian eigenvectors with no forces at all.`,
+    );
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -92,7 +95,8 @@ function createSpectralStory(args: SpectralArgs): HTMLElement {
         isApplied = false;
 
         // Reset to random positions
-        renderGraph(svg, generatedGraph, randomPositions, 20, 1, 0, 0);
+        renderGraph(svg, generatedGraph, randomPositions, 6, 1, 0, 0);
+        colorGroups(svg, groups);
         updateStatus(statusPanel, "Reset to random positions. Click 'Apply Layout' to see spectral arrangement.");
     }
 
@@ -106,15 +110,6 @@ function createSpectralStory(args: SpectralArgs): HTMLElement {
 const meta: Meta<SpectralArgs> = {
     title: "Layout2D",
     argTypes: {
-        nodeCount: {
-            control: { type: "range", min: 4, max: 20, step: 1 },
-            description: "Number of nodes in the graph",
-        },
-        graphType: {
-            control: { type: "select" },
-            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
-            description: "Type of graph to generate",
-        },
         scale: {
             control: { type: "range", min: 0.5, max: 2, step: 0.1 },
             description: "Scale factor for the layout",
@@ -125,8 +120,6 @@ const meta: Meta<SpectralArgs> = {
         },
     },
     args: {
-        nodeCount: 10,
-        graphType: "random",
         scale: 1,
         seed: 42,
     },
@@ -155,6 +148,6 @@ export const Spectral: Story = {
         await waitFor(async () => {
             const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
             await expect(statusText).toContain("applied");
-        }, storyWaitOptions(5000));
+        });
     },
 };

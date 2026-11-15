@@ -51,15 +51,12 @@ async function mountWith(configure: (element: Graphty) => void): Promise<Graphty
     element.nodeData = NODES;
     element.edgeData = EDGES;
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(
-                element.session.runs.list().some((run) => run.algorithm === "pagerank" && run.status === "succeeded"),
-                "the PageRank run named in the load-time list succeeded",
-            );
-        },
-        { timeout: 10_000 },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(
+            element.session.runs.list().some((run) => run.algorithm === "pagerank" && run.status === "succeeded"),
+            "the PageRank run named in the load-time list succeeded",
+        );
+    });
 
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.styles.settled();
@@ -149,6 +146,26 @@ describe("run options in the load-time algorithm list", () => {
 
         assert.closeTo(Math.max(...radii), Math.min(...radii), 1e-6, "every node keeps the same size");
         assert.notStrictEqual(nodes.get("hub")?.colour, nodes.get("tail")?.colour, "the run colours nodes");
+    });
+
+    it("paints the run's colours while the layout is still moving, without waiting for it to settle", async () => {
+        // The layout is paused before any data arrives, so it never settles in this test: if the
+        // paint of a load-time run waited for the layout, no colour would ever land (issue #35).
+        let settledEvents = 0;
+        const element = await mountWith((el) => {
+            el.addEventListener("graph-settled", () => {
+                settledEvents++;
+            });
+            el.graph.setRunning(false);
+            el.runAlgorithmsOnLoad = true;
+            el.algorithmsOnLoad = ["graphty:pagerank"];
+        });
+
+        const nodes = drawn(element);
+
+        assert.isFalse(element.graph.isRunning(), "the layout stayed paused");
+        assert.strictEqual(settledEvents, 0, "the layout never settled");
+        assert.notStrictEqual(nodes.get("hub")?.colour, nodes.get("tail")?.colour, "the run colours nodes anyway");
     });
 
     it("refuses a malformed entry with E_BAD_COMMAND naming it, and keeps the list it had", () => {

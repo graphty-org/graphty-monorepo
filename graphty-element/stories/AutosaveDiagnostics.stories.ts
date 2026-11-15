@@ -251,5 +251,8 @@ export const Diagnostics: Story = {
         await holds(state !== "off", `Autosave/Diagnostics: autosave is ${state}, not on`);
         const nodes = graph.session.data.snapshot().nodeCount;
         await holds(nodes === 30, `Autosave/Diagnostics: the ring has ${String(nodes)} nodes, not 30`);
+        // A normal profile, whatever its disk's size: the quota never makes it look private.
+        const { ephemeral } = graph.autosaver.status;
+        await holds(ephemeral === "unknown", `Autosave/Diagnostics: ephemeral is ${ephemeral} in a normal profile`);
     },
 };

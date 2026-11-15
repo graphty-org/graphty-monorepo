@@ -1,8 +1,13 @@
-import type { Observable, Scene } from "@babylonjs/core";
+import type { Observable } from "@babylonjs/core/Misc/observable.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
+import type { NodeScreenPosition } from "../Graph";
+import type { EdgeRowLines } from "../meshes/EdgeRowLines";
 import type { MeshCache } from "../meshes/MeshCache";
+import type { NodeBatches } from "../meshes/NodeBatch";
+import type { DrawnTarget, RowTable } from "../render/RowTable";
 import type { GraphSession } from "../session/types";
 import type { Styles } from "../Styles";
 import type { XRSessionManager } from "../xr/XRSessionManager";
@@ -13,6 +18,7 @@ import type { LayoutManager } from "./LayoutManager";
 import type { SelectionManager } from "./SelectionManager";
 import type { StatsManager } from "./StatsManager";
 import type { StylePainter } from "./StylePainter";
+import type { UpdateManager } from "./UpdateManager";
 
 /**
  * GraphContext provides controlled access to graph services
@@ -66,6 +72,36 @@ export interface GraphContext {
      * Get the MeshCache for mesh creation and caching
      */
     getMeshCache(): MeshCache;
+
+    /**
+     * Get the row tables, when something has opened them. Optional because a context with no
+     * scene of its own has none.
+     * @returns The tables, or null.
+     * @internal
+     */
+    getRowTable?(): RowTable | null;
+
+    /**
+     * Whether a straight pulled line draws the lean program (`EDGE_PULLED_LEAN`): only with
+     * `antialias` false and the `"batched"` path's batches open. Optional, as `getRowTable` is.
+     * @returns True when it does.
+     * @internal
+     */
+    leansLines?(): boolean;
+
+    /**
+     * The node batches, on the `"batched"` render path.
+     * @returns The batches, or null.
+     * @internal
+     */
+    getNodeBatches?(): NodeBatches | null;
+
+    /**
+     * The edge rows drawn with no `Edge`, on the `"batched"` render path.
+     * @returns The row lines, or null.
+     * @internal
+     */
+    getEdgeRowLines?(): EdgeRowLines | null;
 
     /**
      * Get the Babylon.js Scene
@@ -124,6 +160,14 @@ export interface GraphContext {
     getSelectionManager?(): SelectionManager | undefined;
 
     /**
+     * Where a node is drawn on screen; absent on a context built without a graph.
+     * @param nodeId - The node's id.
+     * @returns The position, or undefined for an id the graph does not hold.
+     * @internal
+     */
+    nodeScreenPosition?(nodeId: string | number): NodeScreenPosition | undefined;
+
+    /**
      * Get EventManager for emitting events
      * Optional method for event emission
      * @since 1.5.0
@@ -135,6 +179,20 @@ export interface GraphContext {
      * @since 2.0.0
      */
     getAcceleration?(): AccelerationController;
+
+    /**
+     * The row table a layout on the drawing device fills on the card, under renderPath "batched"
+     * on a device shared with the accelerator; null otherwise.
+     * @internal
+     */
+    getDrawnTarget?(): DrawnTarget | null;
+
+    /**
+     * The frame loop's manager; absent on a context built without a graph. A node whose surface
+     * changes outside a style pass (a model landing) asks it to visit every edge on the next frame.
+     * @since 3.31.1
+     */
+    getUpdateManager?(): UpdateManager;
 }
 
 /**

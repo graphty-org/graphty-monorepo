@@ -31,9 +31,10 @@ import type { JournalId } from "../journal";
 import type { RunEntry } from "../project/state";
 import { bindResultPath, type ResultSummary, type RunResult } from "../results/types";
 import type { HeldCaptures } from "../sets/captures";
-import type { CodedFact } from "../shared";
+import type { CodedFact, CodedFactParam } from "../shared";
 import { type StyleSuggestion, suggestStyles } from "../styles/derive";
 import { type PartialCode, partialSentence } from "./caveatFacts";
+import { keepGroupNumbers } from "./groupNumbers";
 import {
     type Caveats,
     type EngineVersions,
@@ -48,6 +49,7 @@ import {
     type RunScopeRecord,
     type RunStatus,
     type RunStyle,
+    type RunWindow,
     type StaleNote,
 } from "./types";
 
@@ -120,13 +122,21 @@ export interface RunTicket {
 
 /** One progress update, as the thing doing the work reports it. */
 export interface RunProgressReport {
-    /** What it is doing now. Unchanged when absent. */
+    /** What it is doing now, as a kebab-case code (see {@link Progress.phase}). Unchanged when absent. */
     readonly phase?: string;
+    /**
+     * The figures the phase is about (see {@link Progress.params}). Unchanged when absent; cleared
+     * when the phase changes without them.
+     */
+    readonly params?: Readonly<Record<string, CodedFactParam>>;
     /** How many units are done. Unchanged when absent. */
     readonly completed?: number;
     /** How many units there are, or null when that is not knowable. Unchanged when absent. */
     readonly total?: number | null;
-    /** A sentence about the current step. Unchanged when absent. */
+    /**
+     * The algorithm's own text about the current step, passed through as written. Unchanged when
+     * absent. graphty-element's own algorithms report `phase` and `params` and leave it unset.
+     */
     readonly message?: string;
 }
 
@@ -273,6 +283,11 @@ export interface RunSurroundings {
      */
     queuePosition(): number | null;
     /**
+     * Whether the timeline experiment is on; absent reads on.
+     * @returns True when it is on.
+     */
+    timeline?(): boolean;
+    /**
      * Why this run's numbers no longer describe what is on screen.
      * @returns The note, or null when they still do.
      */
@@ -327,6 +342,13 @@ export interface RunSurroundings {
      * @returns The captures the run keeps from now on.
      */
     captureHeld?(prior: HeldCaptures): HeldCaptures;
+    /**
+     * The result of another run of this algorithm over the same scope (other settings, or a run
+     * removed and started again), whose group numbers a first execution keeps for the same groups.
+     * Optional: absent, a first execution numbers its groups as its algorithm did.
+     * @returns The result, or undefined when there is none.
+     */
+    numberedAfter?(): unknown;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -416,21 +438,23 @@ function isAbortLike(error: unknown): error is Error {
  * Abort one controller when a signal aborts, carrying the reason across.
  * @param source - The signal to watch.
  * @param target - The controller to abort.
+ * @returns A function that removes the listener, so a long-lived source does not keep the target.
  */
-function forwardAbort(source: AbortSignal, target: AbortController): void {
+function forwardAbort(source: AbortSignal, target: AbortController): () => void {
     if (source.aborted) {
         target.abort(source.reason);
 
-        return;
+        return () => undefined;
     }
 
-    source.addEventListener(
-        "abort",
-        () => {
-            target.abort(source.reason);
-        },
-        { once: true },
-    );
+    const onAbort = (): void => {
+        target.abort(source.reason);
+    };
+    source.addEventListener("abort", onAbort, { once: true });
+
+    return () => {
+        source.removeEventListener("abort", onAbort);
+    };
 }
 
 /**
@@ -472,9 +496,10 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     /**
      * Whether the element may apply the derived encoding layer when this run first completes.
      *
-     * Read by the auto-apply policy, which is not this module's to enforce.
+     * Read by the auto-apply policy, which is not this module's to enforce. Set again only when
+     * a removed run is started anew under its id ({@link ManagedRun.restyle}).
      */
-    readonly style: RunStyle;
+    style: RunStyle;
 
     /** The journal entry this run's latest command wrote; set by the session as the entry lands. */
     journalId: JournalId | null = null;
@@ -588,6 +613,15 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      */
     get dataDigest(): string | undefined {
         return (this.heldRecord()?.scope ?? this.scopeFactsValue)?.dataDigest;
+    }
+
+    /**
+     * The time window the run recorded when it resolved a scope over the visible graph: null for
+     * none, undefined for another scope.
+     * @returns The window.
+     */
+    get scopeWindow(): RunWindow | null | undefined {
+        return (this.heldRecord()?.scope ?? this.scopeFactsValue)?.window;
     }
 
     /**
@@ -745,7 +779,30 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The caveats.
      */
     get caveats(): Caveats {
+        return this.windowForReaders(this.savedCaveats);
+    }
+
+    /**
+     * The caveats as the `runs` slice saves them.
+     * @returns The caveats.
+     */
+    private get savedCaveats(): Caveats {
         return this.heldRecord()?.caveats ?? this.caveatsValue;
+    }
+
+    /**
+     * Caveats as a reader gets them: a saved run keeps its window with the timeline off, which
+     * then has no unit to read it in, so only the project file holds it.
+     * @param caveats - The caveats.
+     * @returns The caveats, without the window while the timeline is off.
+     */
+    private windowForReaders(caveats: Caveats): Caveats {
+        if (caveats.window === undefined || this.surroundings.timeline?.() !== false) {
+            return caveats;
+        }
+
+        const { window: _kept, ...rest } = caveats;
+        return rest;
     }
 
     /**
@@ -818,6 +875,16 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      * @returns The record.
      */
     get record(): RunRecord {
+        const record = this.savedRecord;
+        const caveats = this.windowForReaders(record.caveats);
+        return caveats === record.caveats ? record : Object.freeze({ ...record, caveats });
+    }
+
+    /**
+     * The record as the `runs` slice holds and saves it.
+     * @returns The record.
+     */
+    get savedRecord(): RunRecord {
         const held = this.heldRecord();
         const scope: RunScopeRecord =
             held?.scope ??
@@ -835,6 +902,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             label: this.label,
             distinguishedBy: this.distinguishedBy,
             siblingsDifferBy: this.siblingsDifferBy,
+            name: this.surroundings.entry?.()?.name ?? null,
             algorithm: this.algorithm,
             params: this.params,
             seed: this.seed,
@@ -847,7 +915,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             engine: this.engine,
             fields: this.fields,
             shape: this.shape,
-            caveats: this.caveats,
+            caveats: this.savedCaveats,
             ...(summary === undefined ? {} : { summary }),
         };
 
@@ -993,6 +1061,17 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     }
 
     /**
+     * Take the styling choice of a new start of this run after it was removed: a removed run has
+     * no first completion behind it, so what it paints when it next completes is what the new
+     * start asked for, never what the start before the removal did.
+     * @param style - The new start's `style`.
+     * @internal
+     */
+    restyle(style: RunStyle): void {
+        this.style = style;
+    }
+
+    /**
      * Run the same result again with other parameters or another seed, keeping its id, so every
      * style layer and reference bound to the result repaints from the new values. Work still
      * queued or running is cancelled first: only the latest parameters' answer matters.
@@ -1056,13 +1135,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
 
         const execution = new AbortController();
         this.executionController = execution;
-        forwardAbort(context.signal, execution);
-
+        const detachQueue = forwardAbort(context.signal, execution);
         const { signal } = this.definition;
-
-        if (signal !== undefined) {
-            forwardAbort(signal, execution);
-        }
+        const detachCaller = signal === undefined ? undefined : forwardAbort(signal, execution);
 
         const timeBox = this.startTimeBox();
         this.surroundings.notify?.("start");
@@ -1109,6 +1184,9 @@ export class ManagedRun<T = RunResult> implements Run<T> {
                 this.fail(error);
             }
         } finally {
+            detachQueue();
+            detachCaller?.();
+
             if (generation === this.generationValue) {
                 this.clearTimeBox();
             }
@@ -1181,11 +1259,27 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             outcome.caveats?.partialCause !== undefined;
         const partial = (outcome.partial ?? (timedOut || canceled)) || statesReason;
 
-        this.resultValue = outcome.result;
+        // What readers hold now, which a re-run's group numbers follow.
+        const before = this.result ?? this.surroundings.numberedAfter?.();
         this.resultExecutionValue = this.executionValue ?? undefined;
         this.summaryValue = outcome.summary;
-        this.fieldsValue = outcome.fields ? boundFields(outcome.fields, this.id) : this.fieldsValue;
-        this.caveatsValue = this.mergeCaveats(outcome, partial, timedOut);
+        // What the run published, with the facts the catalogue declares of each field (that a
+        // group's values are unstable names) kept.
+        const declared = new Map(this.fieldsValue.map((field) => [field.name, field]));
+        this.fieldsValue = outcome.fields
+            ? boundFields(
+                  outcome.fields.map((field) => ({ ...declared.get(field.name), ...field })),
+                  this.id,
+              )
+            : this.fieldsValue;
+        const unstable = new Set(
+            [...declared.values(), ...this.fieldsValue]
+                .filter((field) => field.kind === "node" && field.unstable === true)
+                .map((field) => field.name),
+        );
+        const kept = keepGroupNumbers(before, outcome.result, unstable, this.mergeCaveats(outcome, partial, timedOut));
+        this.resultValue = kept.result;
+        this.caveatsValue = kept.caveats;
         this.partialValue = partial;
         this.durationValue = Math.round(nowMs() - this.startedAtMs);
         this.statusValue = canceled ? "canceled" : "succeeded";
@@ -1249,7 +1343,14 @@ export class ManagedRun<T = RunResult> implements Run<T> {
      */
     private mergeCaveats(outcome: RunOutcome<T>, partial: boolean, timedOut: boolean): Caveats {
         const reported = outcome.caveats ?? {};
-        const merged: Caveats = { ...this.definition.caveats, ...reported };
+        // The window the scope resolved in travels with the numbers, so a reader can say which
+        // stretch of time a result describes.
+        const window = this.scopeFactsValue?.window;
+        const merged: Caveats = {
+            ...this.definition.caveats,
+            ...(window === undefined || window === null ? {} : { window }),
+            ...reported,
+        };
 
         if (!partial) {
             return Object.freeze(merged);
@@ -1264,11 +1365,12 @@ export class ManagedRun<T = RunResult> implements Run<T> {
         ].find(({ cause, reason }) => cause !== undefined || reason !== undefined);
         const cause = said === undefined ? this.defaultPartialCause(timedOut) : said.cause;
         const reason = said?.reason ?? (cause === undefined ? undefined : partialSentence(cause));
-        return Object.freeze({
+        const caveats: Caveats = {
             ...merged,
             ...(cause === undefined ? {} : { partialCause: cause }),
             ...(reason === undefined ? {} : { partialReason: reason }),
-        });
+        };
+        return Object.freeze(caveats);
     }
 
     /**
@@ -1297,6 +1399,8 @@ export class ManagedRun<T = RunResult> implements Run<T> {
     private report(update: RunProgressReport): void {
         const previous = this.progressValue;
         const phase = update.phase ?? previous.phase;
+        // A new phase starts with no figures unless it brings its own; the same phase keeps them.
+        const params = update.params ?? (phase === previous.phase ? previous.params : undefined);
         const completed = update.completed ?? previous.completed;
         const total = update.total === undefined ? previous.total : update.total;
         const determinate = total !== null;
@@ -1309,6 +1413,7 @@ export class ManagedRun<T = RunResult> implements Run<T> {
             total,
             fraction,
             etaMs: this.estimateEta(fraction),
+            ...(params === undefined ? {} : { params }),
             ...(message === undefined ? {} : { message }),
         });
 

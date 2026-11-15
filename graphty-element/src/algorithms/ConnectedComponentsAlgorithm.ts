@@ -15,10 +15,10 @@ import {
  * Connected components: the separate pieces of the graph, or of the run's scope.
  */
 export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
-    static namespace = "graphty";
-    static type = "connected-components";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "connected-components";
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Find the separate pieces of the graph.
@@ -42,11 +42,11 @@ export class ConnectedComponentsAlgorithm extends DeclaredAlgorithm {
         const { snapshot, run } = this.accelerated("connectedComponents", "undirected");
         const { ids } = snapshot;
 
-        context.report({ phase: "Finding pieces", total: null });
+        context.report({ phase: "finding-pieces", total: null });
         const { value, precision } = await run((dispatch, s) => dispatch.connectedComponents(s));
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             // `labels` is one dense label per node row, so the group a node is in is a lookup
             // rather than a search through a list of components.
             const index = ids.indexOf(nodeId);

@@ -1,6 +1,15 @@
 import type { RichTextStyle, TextSegment } from "./RichTextLabel.ts";
 
 /**
+ * Whether a parsed line holds words: a kept blank line holds one run with no letters.
+ * @param line - One parsed line.
+ * @returns True when a run in it has letters.
+ */
+export function hasWords(line: readonly TextSegment[]): boolean {
+    return line.some((run) => run.text !== "");
+}
+
+/**
  * Parses rich text markup into styled text segments
  */
 export class RichTextParser {
@@ -18,12 +27,26 @@ export class RichTextParser {
      * Parses rich text into an array of line segments
      * @param text - The text to parse (supports markup tags)
      * @param plainText - Draw every character as written, reading no markup.
+     * @param keepBlankLines - Give a blank line before or between lines of words one run with no letters, so it
+     * measures one line of the label's font tall (`keepBlankLines`); otherwise it holds no run and takes no height.
+     * A trailing blank line holds no run either way.
      * @returns Array of text segments grouped by line
      */
-    parse(text: string, plainText = false): TextSegment[][] {
+    parse(text: string, plainText = false, keepBlankLines = false): TextSegment[][] {
         const whole = (line: string): TextSegment[] =>
             line === "" ? [] : [{ text: line, style: { ...this.defaultStyle } }];
-        return text.split("\n").map((line) => (plainText ? whole(line) : this.parseLine(line)));
+        const parsed = text.split("\n").map((line) => (plainText ? whole(line) : this.parseLine(line)));
+        if (!keepBlankLines) {
+            return parsed;
+        }
+
+        let last = parsed.length - 1;
+        while (last >= 0 && parsed[last].length === 0) {
+            last--;
+        }
+        return parsed.map((segments, i) =>
+            segments.length === 0 && i < last ? [{ text: "", style: { ...this.defaultStyle } }] : segments,
+        );
     }
 
     private parseLine(line: string): TextSegment[] {
@@ -35,7 +58,7 @@ export class RichTextParser {
         const top = (): RichTextStyle => ({ ...(styleStack.at(-1) ?? this.defaultStyle) });
 
         // `<lt>` draws a literal `<` (see escapeLabelMarkup); every other tag opens or closes a style.
-        const tagRegex = /<(\/?)(bold|italic|color|size|font|bg|shift|lt)(?:='([^']*)')?>/g;
+        const tagRegex = /<(\/?)(bold|italic|color|size|font|bg|shift|nudge|lt)(?:='([^']*)')?>/g;
         let match;
 
         while ((match = tagRegex.exec(line)) !== null) {
@@ -105,11 +128,12 @@ export class RichTextParser {
             case "bg":
                 style.background = tagValue || null;
                 break;
-            case "shift": {
+            case "shift":
+            case "nudge": {
                 // how far down the run is drawn: in percent of the label's own size, or in its units
                 const v = Number.parseFloat(tagValue ?? "");
                 const by = tagValue?.endsWith("%") ? (this.defaultStyle.size * v) / 100 : v;
-                style.shift = (style.shift ?? 0) + (Number.isFinite(by) ? by : 0);
+                style[tagName] = (style[tagName] ?? 0) + (Number.isFinite(by) ? by : 0);
                 break;
             }
             default:
@@ -140,25 +164,39 @@ export class RichTextParser {
      * @param options.textOutline - Whether text outline is enabled
      * @param options.textOutlineWidth - Width of text outline
      * @param options.runAlign - Where runs of different sizes meet on a line
-     * @returns Maximum width and total height of the text
+     * @returns Maximum width and total height of the text, and how far the first line's font box sits below the
+     *     text's top and the last line's above its bottom
      */
     measureText(
         parsedContent: TextSegment[][],
         ctx: CanvasRenderingContext2D,
         options: LineOptions,
-    ): { maxWidth: number; totalHeight: number } {
+    ): {
+        maxWidth: number;
+        totalHeight: number;
+        leadTop: number;
+        leadBottom: number;
+        over: { top: number; bottom: number };
+    } {
         let maxWidth = 0;
         let totalHeight = 0;
+        const leads: number[] = [];
+        const overs: { top: number; bottom: number }[] = [];
 
         for (const lineSegments of parsedContent) {
             const line = measureLine(ctx, lineSegments, options);
+            overs.push(line.over);
             const lineWidth = line.width + (options.textOutline ? options.textOutlineWidth * 2 : 0);
 
             maxWidth = Math.max(maxWidth, lineWidth);
             totalHeight += line.lineBox;
+            // the room between the line's box and its font's box, above and below alike (see measureLine)
+            leads.push((line.lineBox - (line.ascent + line.descent)) / 2);
         }
 
-        return { maxWidth, totalHeight };
+        const over = { top: overs[0]?.top ?? 0, bottom: overs.at(-1)?.bottom ?? 0 };
+        totalHeight += over.top + over.bottom;
+        return { maxWidth, totalHeight, leadTop: leads[0] ?? 0, leadBottom: leads.at(-1) ?? 0, over };
     }
 }
 
@@ -177,13 +215,47 @@ export interface LineOptions {
     runAlign?: RunAlign;
 }
 
+const FONT_BOX_REFERENCE = 1000;
+const fontBoxes = new Map<string, readonly [number, number]>();
+
+/** Forget every font box read so far: a web font that has just loaded measured as its fallback until now. */
+export function forgetFontBoxes(): void {
+    fontBoxes.clear();
+}
+
+/**
+ * A font's ascent and descent at a size, the same with hinted and unhinted glyphs. Chromium reports the font box in whole pixels, rounded
+ * differently with hinted glyphs and with unhinted ones (`textRendering = "geometricPrecision"`), so a 10 px
+ * Verdana ascent read 10 or 9 and the label's baseline moved by up to a pixel. Read at 1000 px, scaled and rounded
+ * to the nearest pixel (as Chromium rounds it for hinted glyphs), the box is the same whichever glyphs are drawn,
+ * so a label keeps the whole-pixel height, and a node sized to its label the size, it had with hinted glyphs.
+ * @param ctx - Canvas rendering context for measurement (its font is changed)
+ * @param style - The run's style
+ * @returns ascent and descent above and below the alphabetic baseline, in whole pixels at the style's size
+ */
+function fontBox(ctx: CanvasRenderingContext2D, style: TextSegment["style"]): readonly [number, number] {
+    const key = `${style.style} ${style.weight} ${style.font}`;
+    let box = fontBoxes.get(key);
+    if (box === undefined) {
+        ctx.font = `${style.style} ${style.weight} ${FONT_BOX_REFERENCE}px ${style.font}`;
+        const m = ctx.measureText("");
+        box = [m.fontBoundingBoxAscent || 0, m.fontBoundingBoxDescent || 0];
+        fontBoxes.set(key, box);
+    }
+    return [
+        Math.round((box[0] * style.size) / FONT_BOX_REFERENCE),
+        Math.round((box[1] * style.size) / FONT_BOX_REFERENCE),
+    ];
+}
+
 /**
  * Measures one line of segments from the font's own metrics.
  *
  * Each run sits on the line where `runAlign` says: its alphabetic baseline on the line's (the default), its hanging
  * baseline on the line's hanging baseline (vis-network's labels below a node, drawn with `textBaseline` hanging), or
  * its middle on the line's middle (its labels drawn with `textBaseline` middle), the line's own being its tallest
- * run's; then each run is moved down by its own `shift`. The line's ink height is the tallest ascent plus the deepest
+ * run's; then each run is moved down by its own `shift`, and drawn lower still by its `nudge`, which the line's box
+ * ignores: how far a nudged run reaches past that box is `over`. The line's ink height is the tallest ascent plus the deepest
  * descent over its runs as they sit, each the larger of the font box (`fontBoundingBoxAscent` /
  * `fontBoundingBoxDescent`) and the actual glyph box, plus the outline on both sides. The line box is that height
  * times `lineHeight`, and the extra leading is split evenly above and below, as CSS does. The label's panel height
@@ -192,13 +264,22 @@ export interface LineOptions {
  * @param lineSegments - The segments of one line
  * @param options - Layout options
  * @returns The line's advance width, its line box height, the distance from the top of the line box to the
- * alphabetic baseline, and how far below that baseline each run's own baseline is drawn
+ * alphabetic baseline, how far below that baseline each run's own baseline is drawn, the line's ascent and
+ * descent (its ink above and below the baseline, without the outline), and how far nudged runs reach past them
  */
 export function measureLine(
     ctx: CanvasRenderingContext2D,
     lineSegments: TextSegment[],
     options: LineOptions,
-): { width: number; lineBox: number; baseline: number; offsets: number[] } {
+): {
+    width: number;
+    lineBox: number;
+    baseline: number;
+    offsets: number[];
+    ascent: number;
+    descent: number;
+    over: { top: number; bottom: number };
+} {
     let width = 0;
     let maxSize = 0;
     ctx.textBaseline = "alphabetic";
@@ -207,8 +288,8 @@ export function measureLine(
         const metrics = ctx.measureText(text);
         width += metrics.width;
         maxSize = Math.max(maxSize, style.size);
-        const fontAscent = metrics.fontBoundingBoxAscent || 0;
-        const fontDescent = metrics.fontBoundingBoxDescent || 0;
+        const [fontAscent, fontDescent] = fontBox(ctx, style);
+        ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
         return {
             // The font box keeps every label in one font the same height whatever its letters; the
             // glyph box covers a face (a script font, say) whose ink overflows its own font box.
@@ -219,6 +300,7 @@ export function measureLine(
             hanging: Math.abs(metrics.hangingBaseline || 0) || 0.8 * fontAscent,
             middle: ((metrics.emHeightAscent || fontAscent) - (metrics.emHeightDescent || fontDescent)) / 2,
             shift: style.shift ?? 0,
+            nudge: style.nudge ?? 0,
         };
     });
     // the line's own baseline is its tallest run's
@@ -239,6 +321,11 @@ export function measureLine(
         ascent = Math.max(ascent, r.ascent - offsets[i]);
         descent = Math.max(descent, r.descent + offsets[i]);
     });
+    const over = { top: 0, bottom: 0 };
+    runs.forEach((r, i) => {
+        over.top = Math.max(over.top, r.ascent - offsets[i] - r.nudge - ascent);
+        over.bottom = Math.max(over.bottom, r.descent + offsets[i] + r.nudge - descent);
+    });
 
     // A context that reports no vertical metrics at all: fall back to the em square.
     if (ascent + descent === 0) {
@@ -249,7 +336,15 @@ export function measureLine(
     const inkHeight = ascent + descent + outline * 2;
     const lineBox = inkHeight * options.lineHeight;
 
-    return { width, lineBox, baseline: (lineBox - inkHeight) / 2 + outline + ascent, offsets };
+    return {
+        width,
+        lineBox,
+        baseline: (lineBox - inkHeight) / 2 + outline + ascent,
+        offsets: offsets.map((o, i) => o + runs[i].nudge),
+        ascent,
+        descent,
+        over,
+    };
 }
 
 /** How a label's lines are fitted to its wrap width. */
@@ -262,6 +357,8 @@ export interface WrapOptions {
     anywhere?: boolean;
     /** How many blanks a blank counts as against the width (`wrapSpaceCount`); unset, one. */
     spaceCount?: number;
+    /** The most lines kept; the last one kept ends in an ellipsis when more were cut (`maxLines`). Unset, all. */
+    maxLines?: number;
 }
 
 /** How wide a piece of text is in a style, in a canvas's pixels. */
@@ -286,9 +383,17 @@ export function wrapLines(
         ctx.font = `${style.style} ${style.weight} ${style.size}px ${style.font}`;
         return ctx.measureText(text).width;
     };
-    return options.ellipsis === true
-        ? lines.map((line) => ellipsize(line, width, measure))
-        : lines.flatMap((line) => wrapLine(line, width, measure, options));
+    const wrapped =
+        options.ellipsis === true
+            ? lines.map((line) => ellipsize(line, width, measure))
+            : lines.flatMap((line) => wrapLine(line, width, measure, options));
+    const { maxLines } = options;
+    if (maxLines === undefined || maxLines < 1 || wrapped.length <= maxLines) {
+        return wrapped;
+    }
+    const kept = wrapped.slice(0, maxLines);
+    kept[maxLines - 1] = ellipsize(kept[maxLines - 1], width, measure, true);
+    return kept;
 }
 
 const ELLIPSIS = "\u2026";
@@ -299,10 +404,11 @@ const ELLIPSIS = "\u2026";
  * @param line - The line's styled segments.
  * @param width - The widest it may be, in the canvas's pixels.
  * @param measure - How wide a piece of text is in a style.
+ * @param always - End the line in an ellipsis even when it fits: the last line kept of a label cut to `maxLines`.
  * @returns The line, cut.
  */
-function ellipsize(line: TextSegment[], width: number, measure: Measure): TextSegment[] {
-    if (line.reduce((sum, seg) => sum + measure(seg.text, seg.style), 0) < width) {
+function ellipsize(line: TextSegment[], width: number, measure: Measure, always = false): TextSegment[] {
+    if (!always && line.reduce((sum, seg) => sum + measure(seg.text, seg.style), 0) < width) {
         return line;
     }
     const out: TextSegment[] = [];
@@ -320,7 +426,11 @@ function ellipsize(line: TextSegment[], width: number, measure: Measure): TextSe
         pushKept(out, kept, seg.style);
         used += measure(kept, seg.style);
     }
-    // every letter fit beside an ellipsis: Cytoscape.js then draws none
+    // every letter fit beside an ellipsis: Cytoscape.js then draws none, but a label cut to its line cap shows the cut
+    const last = line.at(-1);
+    if (always && last !== undefined) {
+        out.push({ text: ELLIPSIS, style: last.style });
+    }
     return out;
 }
 

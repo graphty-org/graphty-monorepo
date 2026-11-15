@@ -12,11 +12,13 @@ import {
 } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
-import { stepChange } from "../data-place/filterSteps";
+import { assistantShown } from "../assistant-door/commands";
+import { filterChange } from "../data-place/filterCards";
 import { findTreeRow } from "../graph-place/rows";
 import { count } from "../inspector/words";
 import { runName } from "../runWords";
-import { channelPhrase } from "../style/words";
+import type { WorkspaceStore } from "../state/store";
+import { channelPhrase, SHADER_STEP_WORDS } from "../style/words";
 
 /** A fact's params, read as the element documents them. */
 type Params = CodedFact<HistoryCode>["params"];
@@ -91,12 +93,48 @@ function channels(value: Params[string]): string {
     return [...new Set(list.map((each) => channelPhrase(each as Channel)))].join(" and ");
 }
 
+/**
+ * A shader by its id, as the catalog names it ("the shader Nebula"), never by its id.
+ * @param session - the session, for the catalog.
+ * @param id - the shader's id.
+ * @returns its words, or "a shader" once the catalog no longer holds it.
+ */
+function shaderName(session: GraphSession, id: Params[string]): string {
+    const name = session.catalog.shaders().find((shader) => shader.id === id)?.plainName;
+    return name === undefined ? SHADER_STEP_WORDS.unknown : `the shader ${name}`;
+}
+
+/**
+ * A settings change: "changing the background" when it changes only the background, else "changing settings".
+ * @param params - the params, whose `keys` are the settings' paths.
+ * @returns the words.
+ */
+function settingsWords(params: Params): string {
+    const keys = Array.isArray(params.keys) ? params.keys : [];
+    const background =
+        keys.length > 0 && keys.every((key) => key === "background" || String(key).startsWith("background."));
+    return background ? "changing the background" : "changing settings";
+}
+
+/**
+ * A filter condition by its effect: "a select condition", "a hide condition" or "a filter condition".
+ * @param params - the params, whose `effect` is the condition's effect.
+ * @returns its words.
+ */
+function conditionName(params: Params): string {
+    if (params.effect === "select") {
+        return "a select condition";
+    }
+    return params.effect === "exclude" ? "a hide condition" : "a filter condition";
+}
+
 /** Each code's words, read from its params. Every code the element documents has one. */
 const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession) => string>> = {
     "algo.run": (p, s) => `running ${algorithmName(s, p.algorithm)}`,
     "algo.legacy": (p, s) => `running ${algorithmName(s, p.algorithm)}`,
     "algo.remove": (p, s) => `removing ${runWords(s, p.run)}`,
     "algo.move": (p, s) => `moving ${runWords(s, p.run)}`,
+    "algo.rename": (p, s) => `renaming ${runWords(s, p.run)}`,
     "algo.batch": (p) => `running ${counted(p, "method")}`,
     "algo.template": () => "running the template's methods",
     batch: (p) => text(p, "label", counted(p, "change", "steps")),
@@ -111,6 +149,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.set": () => "replacing the data",
     "data.replace-nodes": () => "replacing the nodes",
     "data.replace-edges": () => "replacing the edges",
+    "data.merge-nodes": (p) => `merging ${counted(p, "node")}`,
     "data.import": (p) => `importing ${text(p, "name", "data")}`,
     "data.expand": (p) => `expanding ${text(p, "node", "a node")}`,
     "data.declare": (p) => `changing the column ${text(p, "column", "")}`.trimEnd(),
@@ -118,7 +157,25 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.import-source": (p) => `importing ${text(p, "name", "data from a network source")}`,
     "data.source-expand": (p) => `expanding ${counted(p, "node", "nodes")} from a network source`,
     "data.collapse": (p) => `collapsing ${text(p, "node", "a node")}`,
+    "groups.collapse": (p) => `collapsing group ${String(p.group)}`,
+    "groups.expand": (p) => `expanding group ${String(p.group)}`,
     "data.set-file-styles": () => "choosing which file styles to use",
+    "data.columns": () => "changing the columns",
+    "data.join": (p) => `joining ${text(p, "name", "a table")}`,
+    "data.edit-join": () => "editing a join",
+    "data.issues": () => "changing the data issues",
+    "data.fix-issue": () => "fixing a data issue",
+    "data.ignore-issue": () => "ignoring a data issue",
+    "data.ignore-issues": (p) =>
+        `${p.ignored === false ? "restoring" : "ignoring"} ${Array.isArray(p.issues) ? p.issues.length : 0} data issues`,
+    "data.remove-source": (p) => `removing ${text(p, "name", "a source")}`,
+    "data.replace-source": (p) => `replacing ${text(p, "name", "a source")}`,
+    "data.rename-column": () => "renaming a column",
+    "data.set-role": () => "changing a column's role",
+    "data.set-type": () => "changing a column's type",
+    "data.hide-columns": () => "hiding columns",
+    "data.show-columns": () => "showing columns",
+    "data.derive": (p) => (typeof p.column === "string" ? `computing ${p.column}` : "updating the computed columns"),
     "style.add-layer": (p, s) => `adding the layer ${layerWords(s, p)}`,
     "style.update-layer": (p, s) => {
         const what = channels(p.channels);
@@ -139,7 +196,10 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "style.lock-row": (p) => `${p.locked === true ? "locking" : "unlocking"} ${text(p, "row", "a layer")}`,
     "style.hide-row": (p) => `${p.hidden === true ? "hiding" : "showing"} ${text(p, "row", "a layer")}`,
     "style.delete-row": (p) => `deleting ${text(p, "row", "a layer")}`,
-    "style.restore-starting-rows": () => "restoring the starting rows",
+    "style.add-default-rows": () => "adding the default rows",
+    "shader.add": (p, s) => `adding ${shaderName(s, p.id)}`,
+    "shader.replace": (p, s) => `changing ${shaderName(s, p.id)}`,
+    "shader.remove": (p, s) => `removing ${shaderName(s, p.id)}`,
     "visibility.filter": () => "filtering",
     "visibility.clear-filter": () => "clearing the filter",
     "visibility.window": () => "setting the time window",
@@ -151,7 +211,17 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "visibility.step-on": () => "turning on a filter step",
     "visibility.step-off": () => "turning off a filter step",
     "visibility.step-remove": () => "deleting a filter step",
+    "visibility.condition-add": (p) => `adding ${conditionName(p)}`,
+    "visibility.condition-edit": (p) => `editing ${conditionName(p)}`,
+    "visibility.condition-on": (p) => `turning on ${conditionName(p)}`,
+    "visibility.condition-off": (p) => `turning off ${conditionName(p)}`,
+    "visibility.condition-remove": (p) => `deleting ${conditionName(p)}`,
     "visibility.steps": () => "changing the filter steps",
+    "visibility.playback": () => "changing how time plays",
+    "visibility.hide-nodes": (p) => `hiding ${counted(p, "node")}`,
+    "visibility.show-nodes": (p) => `showing ${counted(p, "node")}`,
+    "time.field": () => "setting the time field",
+    "time.clear-field": () => "clearing the time field",
     "set.create": (p) => `creating ${text(p, "name", "a set")}`,
     "set.rename": (p) => `renaming ${text(p, "set", "a set")}`,
     "set.redefine": (p) => `changing ${text(p, "set", "a set")}`,
@@ -166,12 +236,13 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "view.remove": () => "deleting a view",
     "view.dimension": (p) => `switching to ${p.dimension === "2d" ? "2D" : "3D"}`,
     "view.immersive": (p) => `entering ${p.mode === "ar" ? "AR" : "VR"}`,
-    "config.set": () => "changing settings",
+    "config.set": (p) => settingsWords(p),
     "positions.set": (p) => `moving ${counted(p, "node")}`,
     "positions.pin": (p) => `pinning ${counted(p, "node")}`,
     "positions.release": (p) => `releasing ${counted(p, "node")}`,
     "node.drag": (p) => `moving ${text(p, "node", "a node")}`,
     "layout.set": () => "changing the layout",
+    "layout.rerun": () => "re-running the layout",
     "layout.behavior": () => "changing how the layout runs",
     "layout.scope": () => "laying out part of the graph",
     "layout.whole-graph": () => "laying out the whole graph",
@@ -184,6 +255,8 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
 interface Step {
     readonly fact: CodedFact<HistoryCode>;
     readonly ops: readonly string[];
+    /** Where it came from: an Assistant message's steps carry `message`. */
+    readonly provenance?: Readonly<Record<string, string>>;
 }
 
 /** Codes whose words say something only their params decide (on or off, 2D or 3D). */
@@ -196,6 +269,9 @@ const PARAM_WORDS: ReadonlySet<string> = new Set([
     "style.hide-row",
     "view.dimension",
     "view.immersive",
+    "shader.add",
+    "shader.replace",
+    "shader.remove",
 ]);
 
 /**
@@ -238,7 +314,7 @@ function historyWords(session: GraphSession, step: Step): string {
     }
     // A code the element adds in a minor release has no words yet: name it generically.
     const words = WORDS[fact.code] as (typeof WORDS)[HistoryCode] | undefined;
-    return stepChange(session, fact) ?? words?.(fact.params, session) ?? "the last change";
+    return filterChange(session, fact) ?? words?.(fact.params, session) ?? "the last change";
 }
 
 /**
@@ -276,21 +352,28 @@ export function historyTip(session: GraphSession | null, undo: boolean): string 
 }
 
 /**
- * Runs Undo or Redo and gives the status line's words: "Undid Size by PageRank." Named before it
- * runs, since what the step names (a run, a filter step) may be gone after; a filter step that
- * only exists after (a Redo of its adding) is named after.
+ * Runs Undo or Redo and says what it took back on the status line: "Undid Size by PageRank" (a
+ * notice takes no final period). Named before it runs, since what the step names (a run, a filter
+ * step) may be gone after; a filter step that only exists after (a Redo of its adding) is named
+ * after. It is also a notice, except for an Assistant message's step with the Assistant panel open:
+ * that turn reads Undone (or no longer does) in the panel, and a turn's notice is for a closed panel.
  * @param session - the element's session.
  * @param undo - true for Undo, false for Redo.
+ * @param store - the workspace store the words are posted to.
  * @returns the words, or null when there was nothing to take back.
  */
-export async function undoOrRedo(session: GraphSession, undo: boolean): Promise<string | null> {
+export async function undoOrRedo(session: GraphSession, undo: boolean, store: WorkspaceStore): Promise<string | null> {
     const next = nextStep(session, undo);
     const before = next === null ? null : historyWords(session, next);
-    const filterStep = next === null ? null : stepChange(session, next.fact);
+    const filterStep = next === null ? null : filterChange(session, next.fact);
     await (undo ? session.undo() : session.redo());
     if (next === null) {
         return null;
     }
-    const words = filterStep ?? stepChange(session, next.fact) ?? before ?? "the last change";
-    return `${undo ? "Undid" : "Redid"} ${words}.`;
+    // Undo names the filter as it was before (what comes back); Redo as it is after the redo.
+    const words = (undo ? filterStep : filterChange(session, next.fact)) ?? filterStep ?? before ?? "the last change";
+    const message = `${undo ? "Undid" : "Redid"} ${words}`;
+    const inTurn = next.provenance?.message !== undefined && assistantShown(store);
+    store.set(inTurn ? { announcement: message } : { notice: { message } });
+    return message;
 }

@@ -1,0 +1,124 @@
+[
+    {
+        "flow": "open-file",
+        "title": "Open my own file and get a right drawing",
+        "screens": [
+            {
+                "file": "open-file-1-clean-mapping.html",
+                "caption": "A clean file states its mapping in one sentence with Change, shows its rows under the same column header the table uses, and puts focus on Load."
+            },
+            {
+                "file": "open-file-2-unclear-columns.html",
+                "caption": "An unclear file opens a question under only the name column and the weight column, each giving its type and how many values fit, and Load still works."
+            },
+            {
+                "file": "open-file-3-drawn-with-names.html",
+                "caption": "The drawing appears with nodes carrying their gene names, and the table opens below it with one sentence saying what loaded."
+            }
+        ]
+    },
+    {
+        "flow": "check-load",
+        "title": "Check that it loaded right",
+        "screens": [
+            {
+                "file": "check-load-1-report.html",
+                "caption": "Before loading, the report lists only the four kinds of problem this file has, each with a count, the row where it starts and a one-click fix."
+            },
+            {
+                "file": "check-load-2-after-loading.html",
+                "caption": "After loading, the table opens with one summary sentence and every column header gives its type in words, its role, how full it is and whether it came from the file or was counted."
+            }
+        ]
+    },
+    {
+        "flow": "find-filter",
+        "title": "Find, then show only what matters",
+        "screens": [
+            {
+                "file": "find-filter-1-find-offers-condition.html",
+                "caption": "Typing padj < 0.05 into find offers the matching condition with its count, 60 of 318, before anything changes."
+            },
+            {
+                "file": "find-filter-2-condition-card.html",
+                "caption": "The condition card sits above the table, counts 60 of 318 live, marks the matching nodes on the drawing and ends in Select or Hide the rest."
+            },
+            {
+                "file": "find-filter-3-drawing-filtered.html",
+                "caption": "After Hide the rest, the drawing and the table show 60 of 318 nodes, the header carries a filter chip, and the card stays above the table to edit or clear."
+            }
+        ]
+    },
+    {
+        "flow": "replace",
+        "title": "Bring in a newer copy, keep my work",
+        "screens": [
+            {
+                "file": "replace-1-drop-newer-copy.html",
+                "caption": "Dropping the October file preselects Replace because its headers match, carries September's mapping by name, and warns that Add would repeat every link."
+            },
+            {
+                "file": "replace-2-receipt.html",
+                "caption": "The receipt counts +12, -3 and 40 changed, says what was kept, names the one style that no longer applies with a one-click repair, and offers Undo."
+            }
+        ]
+    },
+    {
+        "flow": "second-file",
+        "title": "Add a second file to this graph",
+        "screens": [
+            {
+                "file": "second-file-1-match-preview.html",
+                "caption": "A second file appears as new columns in the table with Add columns to nodes chosen, the match line above them, and 4 more matches ignoring case one click away."
+            },
+            {
+                "file": "second-file-2-columns-added.html",
+                "caption": "The new columns sit on the nodes, the six nodes with no value are named with a way to select them, and expression.tsv is listed as a source."
+            }
+        ]
+    },
+    {
+        "flow": "export",
+        "title": "Take the numbers out",
+        "screens": [
+            {
+                "file": "export-1-from-the-table.html",
+                "caption": "Export is the table's own button: it starts on the node table as CSV, scoped to what the table shows (60 of 318), and names in one line what CSV loses."
+            }
+        ]
+    },
+    {
+        "flow": "fix-column",
+        "title": "Fix a column: its type, its role, its name",
+        "screens": [
+            {
+                "file": "fix-column-1-column-menu.html",
+                "caption": "A column's own menu shows its type with 1 blank among 500, how many values each other type would fail to convert, its role, rename and hide, the same before and after loading."
+            }
+        ]
+    },
+    {
+        "flow": "server",
+        "title": "Load from a server, expand, load more",
+        "screens": [
+            {
+                "file": "server-1-neo4j-form.html",
+                "caption": "Open network data sits beside Open a file; the Neo4j form is drawn from the source's own fields and Test answers before Load."
+            },
+            {
+                "file": "server-2-capped-and-expand.html",
+                "caption": "A capped load reads 5,000 of 40,000 with Load more in the sources list and the table, and acct-4471's menu offers Expand with a depth and a limit of 50."
+            }
+        ]
+    },
+    {
+        "flow": "cleanup",
+        "title": "Clean up what the load report found",
+        "screens": [
+            {
+                "file": "cleanup-1-offers-on-report.html",
+                "caption": "Cleanup offers sit on the report lines that found each problem, above the table: repeated links already combined with Undo, self-loops kept or dropped, missing amounts filled, each one undo step."
+            }
+        ]
+    }
+]

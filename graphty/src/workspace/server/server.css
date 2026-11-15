@@ -1,0 +1,14 @@
+/* Network data (data prototype spec section 3.9). */
+
+/* The point the network data form opens beside: the sidebar's width, no height. */
+.sv-anchor {
+    height: 0;
+}
+
+/* The point a canvas node menu opens at. */
+.sv-point {
+    position: fixed;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}

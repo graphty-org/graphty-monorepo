@@ -4,6 +4,7 @@ import { assert, describe, it } from "vitest";
 
 import { runName } from "../../runWords";
 import {
+    ALGORITHM_DESCRIPTIONS,
     costLine,
     groupAlgorithms,
     HEADINGS,
@@ -33,7 +34,9 @@ describe("the Analyze popover's words", () => {
             result: { graph: { length: 5, hops: 4, cost: 14 } },
         } as unknown as Run;
     }
-    const names = { data: { name: (id: string | number) => String(id) } } as unknown as GraphSession;
+    const names = {
+        data: { nodeName: (id: string | number) => ({ id, name: String(id), labeled: false }) },
+    } as unknown as GraphSession;
 
     it("words a weighted path by its total in the weight column, and an unweighted one by its hops", () => {
         const weighted = pathRun({ attribute: "minutes", meaning: "distance" });
@@ -150,7 +153,7 @@ describe("the Analyze popover's words", () => {
         if (method === undefined) {
             return;
         }
-        const ran = (used: string): string =>
+        const ran = (used: string): string | undefined =>
             ranOptionWords({ algorithm: "shortest-path", status: "succeeded", caveats: { method: used } }, method)
                 .empty;
         assert.equal(ran("dijkstra"), "Dijkstra, chosen automatically");
@@ -251,6 +254,18 @@ describe("the Analyze popover's words", () => {
         assert.equal(highlightEntry("path"), "On the path");
         for (const shape of RESULT_SHAPES) {
             assert.notMatch(highlightEntry(shape), /route|\(/i);
+        }
+    });
+});
+
+describe("the Find list's line under each algorithm", () => {
+    it("is the app's own, keyed by descriptionId, and reads as the element's catalog did", () => {
+        for (const descriptor of BUILT_IN_ALGORITHMS) {
+            assert.strictEqual(
+                ALGORITHM_DESCRIPTIONS[descriptor.descriptionId ?? ""],
+                descriptor.description,
+                descriptor.key,
+            );
         }
     });
 });

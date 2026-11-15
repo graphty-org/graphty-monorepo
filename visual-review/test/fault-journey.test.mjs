@@ -186,7 +186,7 @@ afterEach(async () => {
  * One journey: two pull requests (#123 is finished at the end, #124 is only reviewed).
  * @param {{ stopped: boolean }} run set `stopped` to end it before its next step
  * @param {number} seed picks the steps and the faults
- * @param {object} [faults] the injector's random faults: `rate`, `where`, `kinds`; `quiet` looks
+ * @param {object} [faults] the injector's faults: `rules`, and the random `rate`, `where`, `kinds`; `quiet` looks
  *     past failures that are shown but not logged, or swallowed, to the other invariants
  * @param {number} [length] how many random steps come before Finish
  * @returns {Promise<{ violation: string | null, steps: string[], faults: string[], log: string[] }>}
@@ -206,6 +206,7 @@ async function walk(run, seed, faults = {}, length = 9) {
     const quiet = faults.quiet === true;
     const inj = injector({
         seed,
+        rules: faults.rules ?? [],
         rate: faults.rate ?? 0,
         kinds: faults.kinds ?? null,
         where,
@@ -293,10 +294,15 @@ async function walk(run, seed, faults = {}, length = 9) {
                 return res.status;
             }
             // Shown: a project's problem, a target kept from before with why it was not refreshed,
-            // or the pull request list that could not be read.
+            // the passkeys that could not be read, or the pull request list that could not be read.
             const shown =
                 res.body.warning !== null ||
-                res.body.targets.some((t) => t.warnings.length > 0 || t.projects.some((p) => p.problem !== null));
+                res.body.targets.some(
+                    (t) =>
+                        t.warnings.length > 0 ||
+                        (t.passkey?.problem ?? null) !== null ||
+                        t.projects.some((p) => p.problem !== null),
+                );
             assertVisible("GET /api/prs", res, got.lines, got.faults, shown, quiet);
             assertOthersIntact(listed, res.body.targets, faultedIds(got.faults));
             listed = new Map(res.body.targets.map((t) => [t.id, t]));
@@ -472,7 +478,15 @@ describe("random journeys", () => {
     // makes, at a third of the git processes of a full one. Each run is a test of its own, so a
     // test holds one journey's work, not two.
     describe("replays a seed exactly", () => {
-        const all = { rate: 0.15, where: () => true };
+        // A random fault falls by a hash of the call's label, so renaming one call (a page added to
+        // the jobs query) moved seed 22's only gh faults elsewhere. The first jobs read fails by
+        // rule (#124's run, so two concurrent reads cannot swap which one comes first), and the
+        // replay meets a gh fault whatever the labels say.
+        const all = {
+            rules: [{ on: "gh", match: /actions\/runs\/1001\/attempts\/1\/jobs\?/, nth: 1, kind: "network" }],
+            rate: 0.15,
+            where: () => true,
+        };
         let first = null;
 
         it("runs seed 22 once, through Finish twice and gh, git and state-file faults", async () => {
@@ -505,6 +519,15 @@ describe("random journeys", () => {
         "keeps every decision and every commit whole under random gh, git and state-file failures (seed %i)",
         async (seed) => {
             expect(report(await journey(seed, { rate: 0.12, where: () => true, quiet: true }))).toBeNull();
+        },
+    );
+
+    // Seeds that once broke an invariant at a higher fault rate (#3548): a fault reading the passkey
+    // list or a failed fetch went unshown, and decisions were lost.
+    it.each(only ?? [24, 39, 41, 49, 63, 75])(
+        "keeps every invariant under more frequent gh, git and state-file failures (seed %i)",
+        async (seed) => {
+            expect(report(await journey(seed, { rate: 0.15, where: () => true }))).toBeNull();
         },
     );
 });

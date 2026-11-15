@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: Layer 1 11 of 24 nodes",
+   "rows": [
+    {
+     "text": "Color: Layer 1",
+     "color": "#ffa500"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#ffa500": 11,
+   "#6366f1": 13
+  },
+  "edges": {
+   "#a9a9a9": 63
+  }
+ }
+}

@@ -59,9 +59,6 @@ import type { Graphty } from "../../index.js";
  */
 const PRE_STEPS = 500;
 
-/** How long any wait below is allowed to take before it is called a failure. */
-const PATIENCE_MS = 5000;
-
 /** Four nodes, which is enough for "the graph has something to arrange". */
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
 
@@ -218,12 +215,9 @@ function mountEmpty(): Graphty {
  * @param element - the mounted element
  */
 async function settle(element: Graphty): Promise<void> {
-    await vi.waitFor(
-        () => {
-            assert.isTrue(element.graph.initialized, "the element finished initialising");
-        },
-        { timeout: PATIENCE_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(element.graph.initialized, "the element finished initialising");
+    });
     await element.waitForSettled();
 }
 
@@ -264,12 +258,9 @@ describe("the pre-steps a layout is configured with", () => {
         element.nodeData = NODES;
         element.edgeData = EDGES;
 
-        await vi.waitFor(
-            () => {
-                assert.isNotNull(stepsAtFirstFrameWithANode, "the graph never drew a frame with a node in it");
-            },
-            { timeout: PATIENCE_MS },
-        );
+        await vi.waitFor(() => {
+            assert.isNotNull(stepsAtFirstFrameWithANode, "the graph never drew a frame with a node in it");
+        });
         assert.isAtLeast(
             stepsAtFirstFrameWithANode ?? 0,
             PRE_STEPS,

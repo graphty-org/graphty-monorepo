@@ -86,6 +86,9 @@ export type {
     DataTableValue,
 } from "../components/DataTable";
 
+// The node and edge chip.
+export type { EntityChipProps, EntityKind } from "../components/EntityChip";
+
 // Panel rows, and the two atoms every row is built from.
 export type {
     ActionRowProps,
@@ -96,6 +99,8 @@ export type {
     DataRowProps,
     FieldRowProps,
     HistogramBin,
+    HistogramBrushProps,
+    HistogramOverlay,
     HistogramRowProps,
     MetricRowProps,
     PanelFieldProps,
@@ -119,7 +124,12 @@ export type {
     ComboInputOption,
     ComboInputProps,
     ComboInputSeparator,
+    FileDropState,
+    FileSourceProps,
+    FileSourceVariant,
+    PickFilesOptions,
     SearchInputProps,
+    UseFileDropOptions,
     VariablePillProps,
 } from "../components/inputs";
 
@@ -128,6 +138,7 @@ export type {
     ContextMenuProps,
     MenuCheckItemProps,
     ModalFooterProps,
+    TargetTooltipProps,
     ToastAction,
     ToastApi,
     ToastOptions,
@@ -177,6 +188,7 @@ export type {
     ShortcutGroup,
     ShortcutSheetProps,
     ShortcutSheetTab,
+    StatusBarProps,
     ToolbarProps,
     ToolButtonProps,
     ToolGroupProps,

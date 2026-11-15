@@ -29,6 +29,7 @@ const STATIC_LAYOUTS = [
     "graphviz-twopi",
     "grid",
     "kamada-kawai",
+    "location-map",
     "multipartite",
     "planar",
     "radial",

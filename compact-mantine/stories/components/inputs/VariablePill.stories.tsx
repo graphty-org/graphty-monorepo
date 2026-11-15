@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { VariablePill } from "../../../src";
 import { StateGrid } from "../../helpers/input-states";

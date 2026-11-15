@@ -41,38 +41,9 @@
 
 import { z } from "zod";
 
-import { AStarAlgorithm } from "../algorithms/AStarAlgorithm";
-import { BellmanFordAlgorithm } from "../algorithms/BellmanFordAlgorithm";
-import { BetweennessCentralityAlgorithm } from "../algorithms/BetweennessCentralityAlgorithm";
-import { BFSAlgorithm } from "../algorithms/BFSAlgorithm";
-import { BipartiteMatchingAlgorithm } from "../algorithms/BipartiteMatchingAlgorithm";
-import { ClosenessCentralityAlgorithm } from "../algorithms/ClosenessCentralityAlgorithm";
-import { ClusteringCoefficientAlgorithm } from "../algorithms/ClusteringCoefficientAlgorithm";
-import { ConnectedComponentsAlgorithm } from "../algorithms/ConnectedComponentsAlgorithm";
-import { DegreeAlgorithm } from "../algorithms/DegreeAlgorithm";
-import { DFSAlgorithm } from "../algorithms/DFSAlgorithm";
-import { DijkstraAlgorithm } from "../algorithms/DijkstraAlgorithm";
-import { EdgeBetweennessCentralityAlgorithm } from "../algorithms/EdgeBetweennessCentralityAlgorithm";
-import { EigenvectorCentralityAlgorithm } from "../algorithms/EigenvectorCentralityAlgorithm";
-import { FloydWarshallAlgorithm } from "../algorithms/FloydWarshallAlgorithm";
-import { GirvanNewmanAlgorithm } from "../algorithms/GirvanNewmanAlgorithm";
-import { HierarchicalClusteringAlgorithm } from "../algorithms/HierarchicalClusteringAlgorithm";
-import { HITSAlgorithm } from "../algorithms/HITSAlgorithm";
-import { KatzCentralityAlgorithm } from "../algorithms/KatzCentralityAlgorithm";
-import { KCoreAlgorithm } from "../algorithms/KCoreAlgorithm";
-import { KruskalAlgorithm } from "../algorithms/KruskalAlgorithm";
-import { LabelPropagationAlgorithm } from "../algorithms/LabelPropagationAlgorithm";
-import { LeidenAlgorithm } from "../algorithms/LeidenAlgorithm";
-import { LinkPredictionAlgorithm } from "../algorithms/LinkPredictionAlgorithm";
-import { LouvainAlgorithm } from "../algorithms/LouvainAlgorithm";
-import { MarkovClusteringAlgorithm } from "../algorithms/MarkovClusteringAlgorithm";
-import { MaxFlowAlgorithm } from "../algorithms/MaxFlowAlgorithm";
-import { MinCutAlgorithm } from "../algorithms/MinCutAlgorithm";
-import { PageRankAlgorithm } from "../algorithms/PageRankAlgorithm";
-import { PrimAlgorithm } from "../algorithms/PrimAlgorithm";
-import { SpectralClusteringAlgorithm } from "../algorithms/SpectralClusteringAlgorithm";
-import { StronglyConnectedComponentsAlgorithm } from "../algorithms/StronglyConnectedComponentsAlgorithm";
-import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config/OptionsSchema";
+import { defineOptions } from "../config/OptionsSchema";
+import { algorithmFacts, algorithmOptions } from "./engineFacts";
+import { withDescriptionIds } from "./options";
 import { optionsFromZod } from "./optionsFromZod";
 import type {
     AlgorithmDescriptor,
@@ -153,6 +124,10 @@ interface MetricValue {
      * naming a unit for one would be inventing a measurement.
      */
     unit?: string;
+    /** The fixed range the measure defines, such as 0 to 1 for a share. */
+    domain?: FieldDescriptor["domain"];
+    /** `"lower"` when a smaller value counts as more, as a distance does. */
+    polarity?: FieldDescriptor["polarity"];
 }
 
 /**
@@ -173,9 +148,18 @@ function metricFields(kind: "node" | "edge", value: MetricValue): readonly Field
             kind,
             type: value.type ?? "number",
             ...(value.unit === undefined ? {} : { unit: value.unit }),
+            ...(value.domain === undefined ? {} : { domain: value.domain }),
+            ...(value.polarity === undefined ? {} : { polarity: value.polarity }),
         }),
-        field({ name: "rank", plainName: "Rank", technicalName: "rank", kind, type: "integer" }),
-        field({ name: "percentile", plainName: "Percentile", technicalName: "percentile", kind, type: "number" }),
+        field({ name: "rank", plainName: "Rank", technicalName: "rank", kind, type: "integer", polarity: "lower" }),
+        field({
+            name: "percentile",
+            plainName: "Percentile",
+            technicalName: "percentile",
+            kind,
+            type: "number",
+            domain: { min: 0, max: 1 },
+        }),
         field({ name: "min", plainName: "Lowest", technicalName: "min", kind: "graph", type: "number" }),
         field({ name: "max", plainName: "Highest", technicalName: "max", kind: "graph", type: "number" }),
         field({ name: "median", plainName: "Middle", technicalName: "median", kind: "graph", type: "number" }),
@@ -245,6 +229,8 @@ function communityFields(plainName: string, withModularity: boolean): readonly F
             kind: "node",
             type: "integer",
             measurement: "categorical",
+            // A re-run may number the same groups differently.
+            unstable: true,
         }),
         field({
             name: "groupSize",
@@ -309,27 +295,18 @@ function setFields(
 // Options
 // ---------------------------------------------------------------------------------------------
 
-/** What this table needs from an algorithm class: the Zod option schema it declares. */
-interface AlgorithmOptionsSource {
-    getZodOptionsSchema(): ZodOptionsSchema;
-}
-
 /**
  * Read one algorithm class's own options as plain JSON.
  *
  * The class's Zod schema is the single source of truth for every option it already has; this
- * table adds names and costs, never option definitions.
- * @param algorithm - The registered algorithm class to read.
+ * table adds names and costs, never option definitions. It is read from the snapshot in
+ * `engine-facts.json`, so this table does not import the class (#890).
+ * @param type - The registered algorithm class's `static type`.
  * @param overrides - Descriptor fields a Zod schema cannot express, by option name: that a string
  * names an edge attribute, or that an option is accepted only for compatibility and is `internal`.
  * @returns The class's option descriptors, in declaration order.
  */
-function optionsOf(
-    algorithm: AlgorithmOptionsSource,
-    overrides: Readonly<Record<string, Partial<OptionDescriptor>>> = {},
-): readonly OptionDescriptor[] {
-    return optionsFromZod(algorithm.getZodOptionsSchema(), { overrides });
-}
+const optionsOf = algorithmOptions;
 
 /**
  * Join several option lists into one, keeping the first descriptor for a repeated name.
@@ -409,6 +386,15 @@ const WEIGHT_OPTION: OptionDescriptor = {
     type: "attribute",
     on: "edge",
     description: "The edge column read as the weight. Absent: the weight the graph was loaded with; null: none.",
+    descriptionId: "algorithm.weight",
+};
+
+/** The `weight` option of an algorithm whose weighted form is opt-in: absent, it reads none. */
+const OPT_IN_WEIGHT_OPTION: OptionDescriptor = {
+    ...WEIGHT_OPTION,
+    default: null,
+    description: "The edge column read as the weight. Absent or null: none, so every edge counts the same.",
+    descriptionId: "algorithm.weight.opt-in",
 };
 
 /** The built-in descriptors as written, before what is read from the classes is added. */
@@ -419,6 +405,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         technicalName: "Degree centrality",
         description: "Counts how many edges each node has, incoming, outgoing and in total.",
         category: "centrality",
+        keywords: ["connections", "links", "neighbors"],
         shape: "node-metric",
         fields: [
             ...metricFields("node", {
@@ -444,7 +431,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 directedOnly: true,
             }),
         ],
-        options: optionsOf(DegreeAlgorithm),
+        options: optionsOf("degree"),
         costClass: "instant",
         complexity: "O(n + m)",
         legacyKeys: [{ key: "degree" }],
@@ -456,9 +443,10 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Scores a node by how many of the shortest paths between other nodes run through it, which is what finds the bridges.",
         category: "centrality",
+        keywords: ["bridges", "brokers", "gatekeepers"],
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Bridging", technicalName: "betweenness" }),
-        options: optionsOf(BetweennessCentralityAlgorithm),
+        options: optionsOf("betweenness"),
         costClass: "heavy",
         complexity: "O(n * m)",
         legacyKeys: [{ key: "betweenness" }],
@@ -472,7 +460,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "centrality",
         shape: "edge-metric",
         fields: metricFields("edge", { plainName: "Bridging", technicalName: "edge betweenness" }),
-        options: optionsOf(EdgeBetweennessCentralityAlgorithm),
+        options: optionsOf("edge-betweenness"),
         costClass: "heavy",
         complexity: "O(n * m)",
         legacyKeys: [{ key: "edge-betweenness" }],
@@ -486,7 +474,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "centrality",
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Reach", technicalName: "closeness" }),
-        options: optionsOf(ClosenessCentralityAlgorithm),
+        options: optionsOf("closeness"),
         costClass: "heavy",
         complexity: "O(n * m)",
         legacyKeys: [{ key: "closeness" }],
@@ -497,9 +485,10 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         technicalName: "PageRank",
         description: "Ranks a node by the influence that flows into it from the nodes that point at it.",
         category: "centrality",
+        keywords: ["influence", "importance"],
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Influence", technicalName: "PageRank score" }),
-        options: optionsOf(PageRankAlgorithm, {
+        options: optionsOf("pagerank", {
             weight: { type: "attribute", on: "edge" },
             useDelta: { internal: true },
         }),
@@ -516,7 +505,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "centrality",
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Influence by association", technicalName: "eigenvector score" }),
-        options: optionsOf(EigenvectorCentralityAlgorithm),
+        options: optionsOf("eigenvector"),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "eigenvector" }],
@@ -529,7 +518,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "centrality",
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Influence at a distance", technicalName: "Katz score" }),
-        options: optionsOf(KatzCentralityAlgorithm),
+        options: optionsOf("katz"),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "katz" }],
@@ -553,7 +542,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 type: "number",
             }),
         ],
-        options: optionsOf(HITSAlgorithm),
+        options: optionsOf("hits"),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "hits" }],
@@ -565,9 +554,10 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Groups nodes into communities by repeatedly merging the groups whose merger tightens the partition the most.",
         category: "community",
+        keywords: ["communities", "clusters", "groups"],
         shape: "community",
         fields: communityFields("Community", true),
-        options: optionsOf(LouvainAlgorithm, { useOptimized: { internal: true } }),
+        options: optionsOf("louvain", { useOptimized: { internal: true } }),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "louvain" }],
@@ -581,7 +571,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "community",
         shape: "community",
         fields: communityFields("Community", true),
-        options: optionsOf(LeidenAlgorithm),
+        options: optionsOf("leiden"),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "leiden" }],
@@ -595,7 +585,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "community",
         shape: "community",
         fields: communityFields("Community", false),
-        options: optionsOf(LabelPropagationAlgorithm),
+        options: optionsOf("label-propagation"),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "label-propagation" }],
@@ -609,7 +599,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "community",
         shape: "community",
         fields: communityFields("Community", true),
-        options: optionsOf(GirvanNewmanAlgorithm),
+        options: optionsOf("girvan-newman"),
         costClass: "heavy",
         complexity: "O(n * m^2)",
         legacyKeys: [{ key: "girvan-newman" }],
@@ -623,7 +613,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "community",
         shape: "community",
         fields: communityFields("Cluster", false),
-        options: optionsOf(MarkovClusteringAlgorithm),
+        options: optionsOf("markov-clustering"),
         costClass: "heavy",
         complexity: "O(k * n^3) worst case, far less on a sparse graph",
         legacyKeys: [{ key: "markov-clustering" }],
@@ -637,7 +627,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "community",
         shape: "community",
         fields: communityFields("Cluster", false),
-        options: optionsOf(SpectralClusteringAlgorithm),
+        options: optionsOf("spectral-clustering"),
         costClass: "iterative",
         complexity: "O(k(n + m))",
         legacyKeys: [{ key: "spectral-clustering" }],
@@ -651,7 +641,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "community",
         shape: "community",
         fields: communityFields("Cluster", false),
-        options: optionsOf(HierarchicalClusteringAlgorithm),
+        options: optionsOf("hierarchical-clustering"),
         costClass: "cubic",
         complexity: "O(n^3)",
         legacyKeys: [{ key: "hierarchical-clustering" }],
@@ -666,8 +656,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         shape: "community",
         fields: communityFields("Piece", false),
         options: mergeOptions(
-            optionsOf(ConnectedComponentsAlgorithm),
-            optionsOf(StronglyConnectedComponentsAlgorithm),
+            optionsOf("connected-components"),
+            optionsOf("scc"),
             optionsFromZod(componentStrengthOptions),
         ),
         costClass: "instant",
@@ -681,6 +671,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Finds the cheapest route from one node to another, and how far every reachable node is from the source.",
         category: "path",
+        keywords: ["route", "distance", "path between"],
         shape: "path",
         fields: [
             field({
@@ -703,6 +694,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 technicalName: "distance",
                 kind: "node",
                 type: "number",
+                polarity: "lower",
+                missing: "unreached",
             }),
             field({
                 name: "onPath",
@@ -729,8 +722,8 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             HAS_NEGATIVE_CYCLE,
         ],
         options: mergeOptions(
-            optionsOf(DijkstraAlgorithm, { bidirectional: { internal: true } }),
-            optionsOf(BellmanFordAlgorithm),
+            optionsOf("dijkstra", { bidirectional: { internal: true } }),
+            optionsOf("bellman-ford"),
             optionsFromZod(shortestPathEngineOptions),
         ),
         costClass: "instant",
@@ -786,7 +779,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 type: "integer",
             }),
         ],
-        options: optionsOf(AStarAlgorithm),
+        options: optionsOf("astar"),
         costClass: "instant",
         complexity: "O((n + m) log n)",
         legacyKeys: [{ key: "astar" }],
@@ -808,7 +801,11 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "path",
         shape: "node-metric",
         fields: [
-            ...metricFields("node", { plainName: "Distance to the furthest node", technicalName: "eccentricity" }),
+            ...metricFields("node", {
+                plainName: "Distance to the furthest node",
+                technicalName: "eccentricity",
+                polarity: "lower",
+            }),
             field({
                 name: "diameter",
                 plainName: "Widest distance",
@@ -825,7 +822,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             }),
             HAS_NEGATIVE_CYCLE,
         ],
-        options: optionsOf(FloydWarshallAlgorithm),
+        options: optionsOf("floyd-warshall"),
         costClass: "cubic",
         complexity: "O(n^3)",
         legacyKeys: [{ key: "floyd-warshall" }],
@@ -836,6 +833,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         technicalName: "Breadth-first search",
         description: "Walks outwards from one node a level at a time, recording how many steps away each node is.",
         category: "path",
+        keywords: ["hops", "steps", "reachable"],
         shape: "layered-grouping",
         fields: [
             field({
@@ -845,6 +843,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 kind: "node",
                 type: "integer",
                 measurement: "categorical",
+                missing: "unreached",
             }),
             field({
                 name: "levelSize",
@@ -870,7 +869,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 type: "boolean",
             }),
         ],
-        options: optionsOf(BFSAlgorithm),
+        options: optionsOf("bfs"),
         costClass: "instant",
         complexity: "O(n + m)",
         legacyKeys: [{ key: "bfs" }],
@@ -891,7 +890,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             }),
             field({ name: "visited", plainName: "Reached", technicalName: "visited", kind: "node", type: "boolean" }),
         ],
-        options: optionsOf(DFSAlgorithm),
+        options: optionsOf("dfs"),
         costClass: "instant",
         complexity: "O(n + m)",
         legacyKeys: [{ key: "dfs" }],
@@ -910,7 +909,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             technicalName: "totalWeight",
             type: "number",
         }),
-        options: optionsOf(KruskalAlgorithm),
+        options: optionsOf("kruskal"),
         costClass: "instant",
         complexity: "O(m log m)",
         requires: { directed: false },
@@ -930,7 +929,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             technicalName: "totalWeight",
             type: "number",
         }),
-        options: optionsOf(PrimAlgorithm),
+        options: optionsOf("prim"),
         costClass: "instant",
         complexity: "O(m log n)",
         requires: { directed: false },
@@ -954,7 +953,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             field({ name: "side", plainName: "Side", technicalName: "side", kind: "node", type: "string" }),
             field({ name: "matched", plainName: "Paired", technicalName: "matched", kind: "node", type: "boolean" }),
         ],
-        options: optionsOf(BipartiteMatchingAlgorithm),
+        options: optionsOf("bipartite-matching"),
         costClass: "heavy",
         complexity: "O(n * m)",
         requires: { directed: false },
@@ -987,7 +986,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 type: "number",
             }),
         ],
-        options: optionsOf(MaxFlowAlgorithm),
+        options: optionsOf("max-flow"),
         costClass: "heavy",
         complexity: "O(n * m^2)",
         legacyKeys: [{ key: "max-flow" }],
@@ -1008,7 +1007,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
             }),
             field({ name: "side", plainName: "Side", technicalName: "side", kind: "node", type: "string" }),
         ],
-        options: optionsOf(MinCutAlgorithm),
+        options: optionsOf("min-cut"),
         costClass: "heavy",
         complexity: "O(n * m^2) between two nodes, O(n * m + n^2 log n) across the whole graph, O(k * n^2) with Karger",
         legacyKeys: [{ key: "min-cut" }],
@@ -1020,9 +1019,10 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         description:
             "Peels the graph layer by layer and gives each node the depth of the most tightly knit core it belongs to: a node of depth k has at least k neighbors inside that core.",
         category: "structure",
+        keywords: ["core", "dense center"],
         shape: "node-metric",
         fields: metricFields("node", { plainName: "Core depth", technicalName: "core number", type: "integer" }),
-        options: optionsOf(KCoreAlgorithm),
+        options: optionsOf("k-core"),
         costClass: "instant",
         complexity: "O(n + m)",
         legacyKeys: [{ key: "k-core" }],
@@ -1036,7 +1036,11 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
         category: "structure",
         shape: "node-metric",
         fields: [
-            ...metricFields("node", { plainName: "How tightly knit", technicalName: "local clustering coefficient" }),
+            ...metricFields("node", {
+                plainName: "How tightly knit",
+                technicalName: "local clustering coefficient",
+                domain: { min: 0, max: 1 },
+            }),
             field({
                 name: "triangles",
                 plainName: "Triangles",
@@ -1059,7 +1063,7 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 type: "integer",
             }),
         ],
-        options: optionsOf(ClusteringCoefficientAlgorithm),
+        options: optionsOf("clustering-coefficient"),
         costClass: "heavy",
         complexity: "O(m^1.5)",
         legacyKeys: [{ key: "clustering-coefficient" }],
@@ -1081,51 +1085,12 @@ const AUTHORED_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = [
                 type: "table",
             }),
         ],
-        options: optionsOf(LinkPredictionAlgorithm),
+        options: optionsOf("link-prediction"),
         costClass: "heavy",
         complexity: "O(n^2 * d)",
         legacyKeys: [{ key: "link-prediction" }],
     },
 ];
-
-/** Every built-in class, by the 1.10 key its `static type` carries, for what the table derives from them. */
-const CLASSES: ReadonlyMap<
-    string,
-    { readonly scopeInput?: string; readonly weightMeaning: AlgorithmDescriptor["weightMeaning"] }
-> = new Map(
-    [
-        AStarAlgorithm,
-        BellmanFordAlgorithm,
-        BetweennessCentralityAlgorithm,
-        BFSAlgorithm,
-        BipartiteMatchingAlgorithm,
-        ClosenessCentralityAlgorithm,
-        ConnectedComponentsAlgorithm,
-        DegreeAlgorithm,
-        DFSAlgorithm,
-        DijkstraAlgorithm,
-        EdgeBetweennessCentralityAlgorithm,
-        EigenvectorCentralityAlgorithm,
-        FloydWarshallAlgorithm,
-        GirvanNewmanAlgorithm,
-        HierarchicalClusteringAlgorithm,
-        HITSAlgorithm,
-        KatzCentralityAlgorithm,
-        KCoreAlgorithm,
-        KruskalAlgorithm,
-        LabelPropagationAlgorithm,
-        LeidenAlgorithm,
-        LinkPredictionAlgorithm,
-        LouvainAlgorithm,
-        MarkovClusteringAlgorithm,
-        MaxFlowAlgorithm,
-        MinCutAlgorithm,
-        PageRankAlgorithm,
-        PrimAlgorithm,
-        SpectralClusteringAlgorithm,
-        StronglyConnectedComponentsAlgorithm,
-    ].map((cls) => [cls.type, cls]),
-);
 
 /**
  * Every algorithm this package registers, as a plain-JSON descriptor.
@@ -1140,13 +1105,19 @@ const CLASSES: ReadonlyMap<
  */
 export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHORED_ALGORITHMS.map((descriptor) => {
     // Every class behind a folded key reads the same meaning (both shortest-path engines read a distance).
-    const weightMeaning = CLASSES.get(descriptor.legacyKeys[0].key)?.weightMeaning ?? null;
+    const facts = algorithmFacts(descriptor.legacyKeys[0].key);
+    const { weightMeaning } = facts;
+    const weightOption = facts.loadedWeightByDefault ? WEIGHT_OPTION : OPT_IN_WEIGHT_OPTION;
 
     return {
         ...descriptor,
-        options: weightMeaning === null ? descriptor.options : [...descriptor.options, WEIGHT_OPTION],
+        descriptionId: `algorithm.${descriptor.key}`,
+        options: withDescriptionIds(
+            `algorithm.${descriptor.key}`,
+            weightMeaning === null ? descriptor.options : [...descriptor.options, weightOption],
+        ),
         weightMeaning,
-        scopeInput: descriptor.legacyKeys.every((legacy) => CLASSES.get(legacy.key)?.scopeInput === "subgraph")
+        scopeInput: descriptor.legacyKeys.every((legacy) => algorithmFacts(legacy.key).scopeInput === "subgraph")
             ? "subgraph"
             : "none",
     };
@@ -1163,6 +1134,44 @@ export const BUILT_IN_ALGORITHMS: readonly BuiltInAlgorithmDescriptor[] = AUTHOR
  */
 export function algorithmByKey(key: string): BuiltInAlgorithmDescriptor | undefined {
     return BUILT_IN_ALGORITHMS.find((descriptor) => descriptor.key === key);
+}
+
+/**
+ * The catalog key a name means: its own key, any case, `_` for `-`, a `graphty:` prefix, or a
+ * legacy key (`dijkstra` is `shortest-path` with `method: "dijkstra"`).
+ * @param name - The name, as the model wrote it.
+ * @param algorithms - The algorithms to look in.
+ * @returns The key and the parameters the legacy key implies, or undefined.
+ */
+export function algorithmKeyOf(
+    name: string,
+    algorithms: readonly AlgorithmDescriptor[],
+): { key: string; params: Readonly<Record<string, unknown>> } | undefined {
+    const bare = name.trim().replace(/^graphty:/i, "");
+    const lower = bare.toLowerCase().replaceAll("_", "-");
+    const direct = algorithms.find((entry) => entry.key === bare || entry.key.toLowerCase() === lower);
+    if (direct !== undefined) {
+        return { key: direct.key, params: {} };
+    }
+
+    const legacy = algorithmByLegacyKey(lower) ?? algorithmByLegacyKey(lower.replaceAll("-", ""));
+    return legacy === undefined ? undefined : { key: legacy.descriptor.key, params: legacy.params };
+}
+
+/**
+ * The built-in algorithm an assistant's tool call runs, however the model spelled its name.
+ * @param tool - The call's tool.
+ * @param args - The call's arguments.
+ * @returns The descriptor, or undefined when the call runs none.
+ * @experimental assistant
+ */
+export function calledAlgorithm(
+    tool: string,
+    args: Readonly<Record<string, unknown>> | undefined,
+): BuiltInAlgorithmDescriptor | undefined {
+    const name = tool === "run_algorithm" ? args?.name : undefined;
+    const found = typeof name === "string" ? algorithmKeyOf(name, BUILT_IN_ALGORITHMS) : undefined;
+    return found === undefined ? undefined : algorithmByKey(found.key);
 }
 
 /** Where a 1.10 key ended up: the descriptor that replaced it, and the parameters it needs. */

@@ -1,0 +1,366 @@
+{
+    "generated": "2026-10-30T14:08:41.502Z",
+    "categories": [
+        {
+            "id": "master",
+            "state": "ok",
+            "others": []
+        },
+        {
+            "id": "pull-requests",
+            "state": "warn",
+            "setBy": {
+                "member": "pull-requests.oldest_open",
+                "state": "warn",
+                "value": {
+                    "n": 59.8,
+                    "unit": "h"
+                }
+            },
+            "others": []
+        },
+        {
+            "id": "ci",
+            "state": "bad",
+            "setBy": {
+                "member": "ci.chronic_jobs",
+                "state": "bad",
+                "value": {
+                    "n": 3
+                }
+            },
+            "others": [
+                {
+                    "member": "ci.bins_over",
+                    "state": "warn",
+                    "value": {
+                        "n": 14.75,
+                        "unit": "pct"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "flaky",
+            "state": "ok",
+            "others": []
+        },
+        {
+            "id": "releases",
+            "state": "ok",
+            "others": []
+        },
+        {
+            "id": "costs",
+            "state": "bad",
+            "setBy": {
+                "member": "costs.llm",
+                "state": "bad",
+                "value": {
+                    "n": 95,
+                    "unit": "usd"
+                }
+            },
+            "others": [
+                {
+                    "member": "costs.spend",
+                    "state": "warn",
+                    "value": {
+                        "n": 340,
+                        "unit": "usd"
+                    }
+                },
+                {
+                    "member": "costs.t4",
+                    "state": "bad",
+                    "value": {
+                        "n": 232,
+                        "unit": "usd"
+                    }
+                }
+            ]
+        },
+        {
+            "id": "data-sources",
+            "state": "warn",
+            "setBy": {
+                "member": "data-sources.stress_run",
+                "state": "warn",
+                "value": {
+                    "word": "filed",
+                    "n": 0
+                }
+            },
+            "others": []
+        }
+    ],
+    "episodes": [
+        {
+            "id": "ci.shards_over@2026-10-30T14:05:00.000Z",
+            "category": "ci",
+            "member": "ci.shards_over",
+            "worst": "warn",
+            "start": "2026-10-30T14:05:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "ci.shards_over",
+                    "peak": 2
+                }
+            },
+            "link": "/ci/shards"
+        },
+        {
+            "id": "ci.runner_minutes@2026-10-30T14:05:00.000Z",
+            "category": "ci",
+            "member": "ci.runner_minutes",
+            "worst": "warn",
+            "start": "2026-10-30T14:05:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "ci.runner_minutes",
+                    "peak": 458.61,
+                    "unit": "min"
+                }
+            },
+            "link": "/ci/runner-minutes"
+        },
+        {
+            "id": "flaky.net_new@2026-10-30T14:05:00.000Z",
+            "category": "flaky",
+            "member": "flaky.net_new",
+            "worst": "warn",
+            "start": "2026-10-30T14:05:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "flaky.net_new",
+                    "peak": 3
+                }
+            },
+            "link": "/flaky"
+        },
+        {
+            "id": "releases.train_first_pass@2026-10-30T14:05:00.000Z",
+            "category": "releases",
+            "member": "releases.train_first_pass",
+            "worst": "bad",
+            "start": "2026-10-30T14:05:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "releases.train_first_pass",
+                    "peak": 37.84,
+                    "unit": "pct"
+                }
+            },
+            "link": "/releases/trains"
+        },
+        {
+            "id": "releases.slots_unreviewed@2026-10-30T14:05:00.000Z",
+            "category": "releases",
+            "member": "releases.slots_unreviewed",
+            "worst": "bad",
+            "start": "2026-10-30T14:05:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "releases.slots_unreviewed",
+                    "peak": 100,
+                    "unit": "pct"
+                }
+            },
+            "link": "/releases/trains"
+        },
+        {
+            "id": "releases.green_clean@2026-10-30T14:05:00.000Z",
+            "category": "releases",
+            "member": "releases.green_clean",
+            "worst": "bad",
+            "start": "2026-10-30T14:05:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "releases.green_clean",
+                    "peak": 0,
+                    "unit": "pct"
+                }
+            },
+            "link": "/releases/trains"
+        },
+        {
+            "id": "releases.nightly_promotions@2026-10-30T14:05:00.000Z",
+            "category": "releases",
+            "member": "releases.nightly_promotions",
+            "worst": "bad",
+            "start": "2026-10-30T14:05:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "releases.nightly_promotions",
+                    "peak": 0
+                }
+            },
+            "link": "/releases"
+        },
+        {
+            "id": "ci.bins_over@2026-10-30T13:05:00.000Z",
+            "category": "ci",
+            "member": "ci.bins_over",
+            "worst": "warn",
+            "start": "2026-10-30T13:05:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "ci.bins_over",
+                    "peak": 25,
+                    "unit": "pct"
+                }
+            },
+            "link": "/ci/shards"
+        },
+        {
+            "id": "pull-requests.merge_ratio@2026-10-29T23:05:00.000Z",
+            "category": "pull-requests",
+            "member": "pull-requests.merge_ratio",
+            "worst": "bad",
+            "start": "2026-10-29T23:05:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "pull-requests.merge_ratio",
+                    "peak": 0.1,
+                    "unit": "ratio"
+                }
+            },
+            "link": "/pull-requests"
+        },
+        {
+            "id": "ci.pr_duration@2026-10-29T20:25:00.000Z",
+            "category": "ci",
+            "member": "ci.pr_duration",
+            "worst": "bad",
+            "start": "2026-10-29T20:25:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "ci.pr_duration",
+                    "peak": 9.3,
+                    "unit": "x"
+                }
+            },
+            "link": "/ci"
+        },
+        {
+            "id": "pull-requests.oldest_open@2026-10-29T14:10:00.000Z",
+            "category": "pull-requests",
+            "member": "pull-requests.oldest_open",
+            "worst": "warn",
+            "start": "2026-10-29T14:10:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "pull-requests.oldest_open",
+                    "peak": 59.8,
+                    "unit": "h"
+                }
+            },
+            "link": "/pull-requests"
+        },
+        {
+            "id": "ci.chronic_jobs@2026-10-29T14:10:00.000Z",
+            "category": "ci",
+            "member": "ci.chronic_jobs",
+            "worst": "bad",
+            "start": "2026-10-29T14:10:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "ci.chronic_jobs",
+                    "peak": 7
+                }
+            },
+            "link": "/ci/chronic"
+        },
+        {
+            "id": "costs.spend@2026-10-29T14:10:00.000Z",
+            "category": "costs",
+            "member": "costs.spend",
+            "worst": "warn",
+            "start": "2026-10-29T14:10:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "costs.spend",
+                    "peak": 340.48,
+                    "unit": "usd"
+                }
+            },
+            "link": "/costs"
+        },
+        {
+            "id": "costs.t4@2026-10-29T14:10:00.000Z",
+            "category": "costs",
+            "member": "costs.t4",
+            "worst": "bad",
+            "start": "2026-10-29T14:10:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "costs.t4",
+                    "peak": 232.48,
+                    "unit": "usd"
+                }
+            },
+            "link": "/costs"
+        },
+        {
+            "id": "costs.llm@2026-10-29T14:10:00.000Z",
+            "category": "costs",
+            "member": "costs.llm",
+            "worst": "bad",
+            "start": "2026-10-29T14:10:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "costs.llm",
+                    "peak": 95,
+                    "unit": "usd"
+                }
+            },
+            "link": "/costs"
+        },
+        {
+            "id": "data-sources.stress_run@2026-10-29T14:10:00.000Z",
+            "category": "data-sources",
+            "member": "data-sources.stress_run",
+            "worst": "warn",
+            "start": "2026-10-29T14:10:00.000Z",
+            "end": null,
+            "fact": {
+                "code": "ep.past_threshold",
+                "params": {
+                    "member": "data-sources.stress_run",
+                    "peak": 1
+                }
+            },
+            "link": "/data-sources/stress"
+        }
+    ]
+}

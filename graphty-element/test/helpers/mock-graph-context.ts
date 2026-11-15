@@ -17,6 +17,11 @@ import type { Graph } from "../../src/Graph";
 import type { DataManager } from "../../src/managers";
 import { StylePainter } from "../../src/managers/StylePainter";
 import type { GraphSession } from "../../src/session";
+import { SESSION_CATALOG_TABLES } from "../../src/session/catalog";
+import { SHADER_DEFINITIONS } from "../../src/session/commands/shaders";
+import { STYLE_DEFINITIONS } from "../../src/session/commands/style";
+import { Dispatcher } from "../../src/session/project/Dispatcher";
+import { createSessionShaders } from "../../src/session/shaders";
 import { createStylesApi } from "../../src/session/styles";
 import { columnsFor, compileExpressionPredicate, type SelectorSource } from "../../src/session/styles/predicate";
 import { createLayerRepaint } from "../../src/session/styles/repaint";
@@ -205,9 +210,22 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
         }
     }
 
+    const removers = new Map<symbol, () => void>();
     const mockEventManager = {
-        addListener(type: string, listener: (event: { type: string }) => void): void {
+        addListener(type: string, listener: (event: { type: string }) => void): symbol {
             listeners.set(type, [...(listeners.get(type) ?? []), listener]);
+            const id = Symbol(type);
+            removers.set(id, () => {
+                listeners.set(
+                    type,
+                    (listeners.get(type) ?? []).filter((l) => l !== listener),
+                );
+            });
+            return id;
+        },
+        removeListener(id: symbol): boolean {
+            removers.get(id)?.();
+            return removers.delete(id);
         },
         emit(type: string): void {
             announce(type);
@@ -309,7 +327,10 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // stack a test reads back holds exactly the layers the commands put in it. The path
     // directory is what lets a layer be told apart from a layer over a column nothing answers,
     // which is the difference between "this will paint" and "this will paint later, or never".
+    // The style ops and the shader op on one dispatcher, so the project's shaders are real too.
+    const dispatcher = new Dispatcher({ definitions: [...STYLE_DEFINITIONS, ...SHADER_DEFINITIONS] });
     const mockSessionStyles = createStylesApi({
+        dispatcher,
         elements: selectorSource,
         base: [],
         repaint: repaintEngine.repaint,
@@ -322,17 +343,40 @@ export function createMockGraphContext(options: MockGraphContextOptions = {}): G
     // session as `tx`, which is what a command is handed as `ctx.tx`.
     const mockSession = {
         styles: mockSessionStyles,
+        shaders: createSessionShaders({ dispatcher, styles: mockSessionStyles, publish: () => undefined }).api,
         // A `{ where }` scope or an inline rule set, read by the same expression compiler a style
         // layer uses, so a command that selects nodes reads the same selector language a layer does.
         scope: {
             resolve: (spec: Scope) => Promise.resolve().then(() => ({ nodes: nodesOfScope(spec) })),
         },
         layout: {
+            get id() {
+                return currentLayoutType;
+            },
+            get dimension() {
+                return currentTwoD ? "2d" : "3d";
+            },
             set: async (id: string, options?: { engine?: string }) => {
                 await mockGraph.setLayout(options?.engine ?? id);
             },
             setDimension: (dimension: "2d" | "3d") => mockGraph.setViewMode(dimension),
         },
+        // What the assistant's facts about the graph read: counts, attributes, runs, the selection.
+        status: {
+            counts: { nodes: nodeCount, edges: edgeCount, visibleNodes: nodeCount, visibleEdges: edgeCount },
+            directed: false,
+        },
+        // What the facts block reads: the node ids, in order, and how many there are. The history
+        // reads the counts, to tell whether a graph had arrived when it picked a conversation.
+        data: {
+            statistics: () => ({ nodeCount, edgeCount }),
+            attributes: () => [],
+            snapshot: () => ({ nodeCount, ids: { idOf: (index: number) => nodeId(index) } }),
+            fingerprint: () => `mock:${String(nodeCount)}:${String(edgeCount)}`,
+        },
+        runs: { list: () => [] },
+        catalog: SESSION_CATALOG_TABLES,
+        selection: { size: 0, nodes: [], edges: [], origin: null, apply: () => Promise.resolve() },
         transaction: <T>(_label: string, fn: (tx: GraphSession, signal: AbortSignal) => T | Promise<T>) =>
             Promise.resolve().then(() => fn(mockSession, new AbortController().signal)),
         // A history that records nothing, so an assistant message has no step to continue or undo.

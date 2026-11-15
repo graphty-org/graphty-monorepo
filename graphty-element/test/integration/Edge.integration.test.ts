@@ -10,7 +10,7 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
-import { edgeLineFor } from "../helpers/edgeLine";
+import { batchLineFor } from "../helpers/edgeLine";
 import { asData } from "../helpers/testSetup";
 
 /**
@@ -116,14 +116,19 @@ function createMinimalStyles(): Styles {
             camera: {
                 pivotOnSelection: false,
                 autoRotate: 0,
+                autoRotateResume: 0,
                 fitInsets: { top: 0, right: 0, bottom: 0, left: 0 },
                 fitBounds: "box",
+                refitOnResize: false,
             },
             expand: {
                 trigger: "none",
                 depth: 1,
                 direction: "both",
                 layout: "continue",
+            },
+            selection: {
+                region: "off",
             },
         },
         data: {
@@ -163,6 +168,9 @@ function createMockNode(scene: Scene, id: string, position: Vector3): Node {
         id,
         mesh,
         data: { id },
+        get drawnPosition() {
+            return mesh.position;
+        },
     } as unknown as Node;
 
     return mockNode;
@@ -336,8 +344,10 @@ describe("Edge Integration", () => {
                to bracket this repaint, and they are what said "drawn from THAT style" rather
                than "drawn from something". A style id is gone with the 1.x style table and the
                mesh key that replaced it is private, so the identity is read where it is public:
-               the line renderer names its source mesh `edge-style-<the paint's mesh key>`. */
-            assert.include(edge.mesh.name, initialPaint.meshKey);
+               the line as drawn, at the width the paint asks for. (Its batch is keyed by the
+               line's shape, not by the paint's key: edges that differ only in color share it.) */
+            const before = edge.mesh;
+            assert.strictEqual(edge.drawnLine?.width, initialPaint.style.line?.width);
 
             // Repaint from a style that carries an arrow cap. `applySessionPaint` is the door the
             // session's own pass uses; `updateStyle()` is the no-argument rebuild request beside
@@ -357,8 +367,8 @@ describe("Edge Integration", () => {
 
             // AND THE SECOND HALF OF THE BRACKET: the line the repaint rebuilt is drawn from the
             // new paint's mesh key, not the old one's.
-            assert.include(edge.mesh.name, updatedPaint.meshKey);
-            assert.notInclude(edge.mesh.name, initialPaint.meshKey);
+            assert.strictEqual(edge.drawnLine?.width, updatedPaint.style.line?.width);
+            assert.notStrictEqual(edge.mesh, before, "drawn from another batch");
         });
 
         test("draws an arrow at the size its own style asks for, not at one fixed size", () => {
@@ -539,9 +549,9 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "transform-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // Midpoint should be at (5, 0, 0)
             assert.closeTo(mesh.position.x, 5, 0.001);
@@ -555,9 +565,9 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "scale-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // Length = sqrt(3^2 + 4^2) = 5
             assert.closeTo(mesh.scaling.z, 5, 0.001);
@@ -569,9 +579,9 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "3d-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // Midpoint should be at (0.5, 1, 1)
             assert.closeTo(mesh.position.x, 0.5, 0.001);
@@ -588,9 +598,9 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "negative-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // Midpoint should be at origin
             assert.closeTo(mesh.position.x, 0, 0.001);
@@ -607,9 +617,9 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "orient-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // After lookAt(dstPoint), the mesh's Z scale is stretched along the edge direction
             // The scaling.z is set to the edge length, which is 5

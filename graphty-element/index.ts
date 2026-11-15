@@ -49,17 +49,23 @@ import "./src/acceleration/autoload";
 // =============================================================================
 // Core classes
 // =============================================================================
+export type { AccessibleAnnouncement, AccessibleGraphFacts, AccessibleSelection } from "./src/a11y/ScreenReader";
 export { Edge, type EdgeCapEnd } from "./src/Edge";
+// what `Edge.mesh` is for a line drawn as pattern elements, so a consumer can narrow it (issue #7127)
+export type { GraphOverview, OverviewOptions, OverviewRect } from "./src/camera/overview";
 export type { NodeScreenPosition } from "./src/Graph";
 export { Graph } from "./src/Graph";
 export type {
     GraphtyCapabilitiesChangeDetail,
     GraphtyElementEventMap,
     GraphtyHistoryChangeDetail,
+    GraphtyModelChangeDetail,
     GraphtyNoteChangeDetail,
     GraphtyRunChangeDetail,
+    GraphtySkyboxLoadedDetail,
 } from "./src/graphty-element";
 export { Graphty } from "./src/graphty-element";
+export type { PatternedLineMesh } from "./src/meshes/PatternedLineMesh";
 export type { NodeIdType } from "./src/Node";
 export { Node } from "./src/Node";
 // `Styles`, `StylesOpts`, `NodeStyleId` and `EdgeStyleId` are no longer published, and neither is
@@ -79,23 +85,35 @@ export { Node } from "./src/Node";
 // Style configuration types
 export type {
     AdHocData,
+    // The map under the location map layout, as `element.basemap` takes it, and what it is doing
+    BasemapConfig,
+    BasemapSourceId,
+    BasemapStatus,
     EdgeStyleConfig,
     // The room `element.fitInsets` keeps clear when the graph is framed
     FitInsets,
+    // How the location map's globe looks, as `element.globeLook` takes it
+    GlobeLook,
     // What the graph is drawn against, as `element.background` takes it
     GraphBackgroundConfig,
     ImageData,
+    // How nodes travel to a new layout, as `session.config.set({ layoutTransition })` takes it
+    LayoutTransitionConfig,
     // How the 3D nodes are lit, as `element.lighting` takes it
     Lighting,
+    LocationSourceFact,
+    MapFrameFact,
     NodeStyleConfig,
     RichTextStyleType,
     // View mode types
     ViewMode,
     // XR configuration types
+    XRAiConfig,
+    XRAiControlCode,
     XRConfig,
+    XRControllerButton,
     XRInputConfig,
     XRModeConfig,
-    XRTeleportationConfig,
     XRUIConfig,
 } from "./src/config/index";
 
@@ -107,6 +125,7 @@ export type { PartialXRConfig } from "./src/config/xr-config-schema";
 
 // Style configuration values and helpers
 export {
+    Basemap,
     colorToHex,
     DEFAULT_LIGHTING,
     DEFAULT_VIEW_MODE,
@@ -132,7 +151,11 @@ export type { EncodingSuggestion, HighlightSuggestion, MarkSuggestion, StyleSugg
 
 // The shapes every session verb names things with: a data column, a run's result column, a coded
 // fact (graphty-element reports facts, never sentences) and a progress report
+export type { RenderQuality, RenderQualityChange, RenderQualityCode, ShaderSettings } from "./src/session/shaders";
 export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } from "./src/session/shared";
+// Which experiments an element switched on (element.enabledFeatures)
+export type { FeatureId } from "./src/features/registry";
+export type { EnabledFeatures } from "./src/features/resolve";
 // How many node labels the element draws, and why the rest are not (element.nodeLabelCounts), and
 // one node's label as drawn (element.labelOf)
 export type { EdgeLabelCounts, NodeLabel, NodeLabelCounts } from "./src/managers/LabelDeclutter";
@@ -157,7 +180,7 @@ export type { Neighbor, NeighborOptions, NeighborPage, NeighborSort } from "./sr
 // The id `e.detail.nodeId` and `neighbors(id)` carry; the same type as `NodeIdType`
 export type { NodeId } from "./src/catalog/types";
 // What `element.elementAt({ x, y })` finds under a point
-export type { ElementAtResult } from "./src/catalog/types";
+export type { DrawnShaders, ElementAtResult, GroupOutlineAtResult } from "./src/catalog/types";
 // What a run's suggested style did when it first completed: `element.session.runs.painting(id)`
 export type { RunPainting, SuggestionOutcome } from "./src/session/runs";
 
@@ -184,7 +207,9 @@ export type {
 
 // The project file: the whole session as one graphty document, as `element.session.project`
 export type {
+    AssetStorage,
     ProjectApi,
+    ProjectAssetChoice,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
@@ -229,11 +254,14 @@ export type { BaseDataSourceConfig, DataSourceChunk } from "./src/data/DataSourc
 export { DataSource } from "./src/data/DataSource";
 export type {
     ExportGraphOptions,
+    ExportGroupTable,
     ExportLoss,
     ExportLossCode,
     ExportResult,
+    ExportScope,
     ExportStyleLossCode,
 } from "./src/data/export";
+export type { GroupSummary, GroupTableOptions } from "./src/session/types";
 
 // Error aggregation for data loading
 export type { DataLoadingError, ErrorSummary } from "./src/data/index";
@@ -267,12 +295,14 @@ export { defineAlgorithm } from "./src/simple/defineAlgorithm";
 export { defineLayout } from "./src/simple/defineLayout";
 export { defineLogDestination } from "./src/simple/defineLogDestination";
 export { definePalette } from "./src/simple/definePalette";
+export { defineShader } from "./src/simple/defineShader";
 
 // =============================================================================
 // Events
 // =============================================================================
 export type {
     AiEventType,
+    BasemapStatusEvent,
     CameraStateChangedEvent,
     DataLoadingCompleteEvent,
     DataLoadingErrorEvent,
@@ -316,6 +346,9 @@ export type {
     NodeGenericEvent,
     NodeHoverEvent,
     OperationCancelledEvent,
+    OverviewChangedEvent,
+    RenderLostEvent,
+    RenderRestoredEvent,
     StatsUpdateEvent,
     StyleChangedEvent,
     XRSessionEndedEvent,
@@ -357,29 +390,31 @@ export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants
 // =============================================================================
 // Screenshot exports
 // =============================================================================
-export type { ViewInsets } from "./src/camera/types";
-export { ScreenshotError, ScreenshotErrorCode } from "./src/screenshot/ScreenshotError";
+export type { CameraViewExtent, ViewInsets } from "./src/camera/types";
+export type { FigureOptions, FigureResult } from "./src/screenshot/figure";
 export type {
     CameraAnimationOptions,
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendOptions,
+    ScreenshotLegendPosition,
     ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,
 } from "./src/screenshot/types";
 
 // One node drawn alone, for a key or a picker (element.nodeThumbnail)
-export type { NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
+export type { ModelThumbnailOptions, NodeThumbnailOptions } from "./src/meshes/NodeThumbnail";
 
 // Capability check for screenshot support
-export type { CapabilityCheck } from "./src/screenshot/capability-check";
+export type { CapabilityCheck, ScreenshotWarningCode } from "./src/screenshot/capability-check";
 
 // =============================================================================
 // Video capture exports
 // =============================================================================
 export { AnimationCancelledError } from "./src/video/MediaRecorderCapture";
-export type { AnimationOptions, AnimationResult, CameraWaypoint } from "./src/video/VideoCapture";
+export type { AnimationOptions, AnimationResult, CameraWaypoint, ViewWaypoint } from "./src/video/VideoCapture";
 
 // Video capture estimation
 export type { CaptureEstimate } from "./src/video/estimation";
@@ -401,6 +436,9 @@ export { BUILTIN_PRESETS } from "./src/camera/presets";
 export type {
     AccelerationErrorCode,
     GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
     GraphtyErrorInit,
     GraphtyErrorJson,
     GraphtyErrorSource,
@@ -418,7 +456,14 @@ export {
 // =============================================================================
 // Renderer
 // =============================================================================
-export type { ActiveRenderer, PixelRatio, RendererRequest, RendererStatus } from "./src/managers/RenderManager";
+export type {
+    ActiveRenderer,
+    LayoutDevice,
+    PixelRatio,
+    RendererRequest,
+    RendererStatus,
+} from "./src/managers/RenderManager";
+export type { RenderPath, RowCounts } from "./src/meshes/NodeBatch";
 
 // =============================================================================
 // Acceleration

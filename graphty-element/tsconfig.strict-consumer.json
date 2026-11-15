@@ -24,7 +24,15 @@
             "@graphty/graphty-element/*": ["./dist/*.d.ts"]
         }
     },
-    // The styles-from-files guide's first example, compiled as a reader would compile it.
-    "include": ["test/types/consumer/**/*.ts", "test/types/consumer/**/*.tsx", "docs/examples/file-styles/**/*.ts"],
+    // The styles-from-files guide's first example, the shader guide's examples and the node model
+    // examples, compiled as a reader would compile them.
+    "include": [
+        "test/types/consumer/**/*.ts",
+        "test/types/consumer/**/*.tsx",
+        "docs/examples/file-styles/**/*.ts",
+        "docs/examples/shaders/**/*.ts",
+        "docs/examples/node-models/**/*.ts",
+        "docs/examples/figures/**/*.ts"
+    ],
     "exclude": ["node_modules", "coverage", "tmp"]
 }

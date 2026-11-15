@@ -1,4 +1,4 @@
-import { Loader, Progress, RingProgress } from "@mantine/core";
+import { Alert, Loader, Progress, RingProgress } from "@mantine/core";
 
 import {
     compactLoaderClassNames,
@@ -36,6 +36,18 @@ import { compactVarsForSize } from "../styles/size-scale";
  * Colors come from ../css/overlays.css.ts through the classNames; a `color` prop still wins.
  */
 export const feedbackComponentExtensions = {
+    // A yellow Alert's title (and icon) is drawn in Mantine's yellow-6, 1.75:1 on its own light
+    // tint. On every variant whose text sits on that tint, it takes the warning text token
+    // instead, which meets 4.5:1 in both schemes. Filled and white alerts keep Mantine's colors.
+    Alert: Alert.extend({
+        vars: (_theme, props) => ({
+            root:
+                props?.color === "yellow" && props.variant !== "filled" && props.variant !== "white"
+                    ? { "--alert-color": "var(--cm-text-warning)" }
+                    : {},
+        }),
+    }),
+
     Loader: Loader.extend({
         defaultProps: {
             size: "sm",

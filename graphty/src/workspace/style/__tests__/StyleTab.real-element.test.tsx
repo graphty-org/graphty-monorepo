@@ -12,13 +12,15 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { registration } from "../commands";
 
-/** A hang guard for the element coming up and painting, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 const NODES = [
     { id: "1", name: "Alpha", dept: "east", code: 1 },
@@ -50,13 +52,10 @@ async function openWithGraph(stacked = false): Promise<Opened> {
     const store = createWorkspaceStore({ project: { name: "Ring", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
     let element: HTMLElementTagNameMap["graphty-element"] | null = null;
-    await waitFor(
-        () => {
-            element = document.querySelector("graphty-element");
-            assert.isDefined(element?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        element = document.querySelector("graphty-element");
+        assert.isDefined(element?.session);
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -99,14 +98,14 @@ describe("labels from an attribute (task T10) on the real element", () => {
         await page.viewport(1366, 768);
     });
 
-    it("a Label entry picked from Text's + binds the label and states the counts", async () => {
-        // Three nodes on one spot, so the overlap rule (on in the workspace) hides two of their labels.
+    it("a Label entry picked from Text's + binds the label, and every label is drawn", async () => {
+        // Three nodes on one spot, so their labels overlap: the workspace hides none of them.
         // Labels stay in their own places: moved off the nodes, the stack's labels would all fit.
         const { session, element, store } = await openWithGraph(true);
         act(() => {
             store.set({ labelsAvoid: false });
         });
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByTestId("style-tab", {});
         // The Nodes group's list: the Edges group draws a Text list of its own.
         const nodes = tab.querySelector<HTMLElement>('[data-group="node"]');
         if (nodes === null) {
@@ -119,50 +118,26 @@ describe("labels from an attribute (task T10) on the real element", () => {
         await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
 
         await waitFor(() => {
-            const binding = readerLayers(session)[0]?.encode?.["node.label"];
+            const binding = readerLayers(session).find((l) => l.target === "node")?.encode?.["node.label"];
             assert.equal(binding !== undefined && "by" in binding ? binding.by : undefined, "data.name");
         });
-        // The statement is the element's counts, read live, the hidden part included.
-        await waitFor(
-            () => {
-                const { labeled, hiddenByOverlap } = element.nodeLabelCounts;
-                assert.equal(labeled, NODES.length);
-                assert.isAbove(hiddenByOverlap, 0, "stacked labels overlap");
-                assert.isNotNull(
-                    within(styleTab()).getByText(`${String(labeled)} labels, ${String(hiddenByOverlap)} hidden`),
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        // Show all labels turns the overlap rule off on the element: every label is drawn.
-        const showAll = within(styleTab()).getByRole("checkbox", { name: "Show all labels" });
-        assert.isFalse((showAll as HTMLInputElement).checked);
-        await userEvent.click(showAll);
-        await waitFor(
-            () => {
-                assert.isFalse(element.layoutBehavior?.labels?.declutter);
-                assert.equal(element.nodeLabelCounts.hiddenByOverlap, 0);
-                for (const node of NODES) {
-                    assert.isTrue(element.labelOf(node.id)?.drawn, node.name);
-                }
-                assert.isNotNull(within(styleTab()).getByText(`${String(NODES.length)} labels`));
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        // And back: the rule hides the stacked labels again.
-        await userEvent.click(within(styleTab()).getByRole("checkbox", { name: "Show all labels" }));
-        await waitFor(
-            () => {
-                assert.isTrue(element.layoutBehavior?.labels?.declutter);
-                assert.isAbove(element.nodeLabelCounts.hiddenByOverlap, 0);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isFalse(element.layoutBehavior?.labels?.declutter);
+            assert.equal(element.nodeLabelCounts.labeled, NODES.length);
+            assert.equal(element.nodeLabelCounts.hiddenByOverlap, 0);
+            for (const node of NODES) {
+                assert.isTrue(element.labelOf(node.id)?.drawn, node.name);
+            }
+        });
+        // The row states no count and offers no switch: every label a style asks for is drawn.
+        assert.isNull(within(styleTab()).queryByText(/^\d+ labels?(, \d+ hidden)?$/));
+        assert.isNull(within(styleTab()).queryByRole("checkbox", { name: "Show all labels" }));
     });
 
     it('Add label line labels Everything as Text "+" does, by the open attribute or one picked', async () => {
         const { session, element, store } = await openWithGraph();
-        const [command] = registration.commands;
+        const command = registration.commands.find((c) => c.id === "style.add-label-line");
+        assert.isDefined(command);
         const ctx = { session, element, workspace: store };
         const userLayers = (): unknown =>
             session.styles
@@ -174,12 +149,9 @@ describe("labels from an attribute (task T10) on the real element", () => {
         await command.run(ctx);
         const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: /^name(,|$)/ }));
-        await waitFor(
-            () => {
-                assert.equal(element.labelOf("1")?.text, "Alpha");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(element.labelOf("1")?.text, "Alpha");
+        });
         const byPlus = userLayers();
         await session.undo();
         await waitFor(() => {
@@ -203,11 +175,11 @@ describe("the Selection row's highlight on the real element", () => {
         act(() => {
             store.set({ inspected: { kind: "selection-row", id: "selection" } });
         });
-        const highlight = await screen.findByRole("group", { name: "Highlight" }, { timeout: TIMEOUT_MS });
+        const highlight = await screen.findByRole("group", { name: "Highlight" });
         const part = (name: string): HTMLElement => within(highlight).getByRole("group", { name });
         const hexOf = (name: string): HTMLInputElement =>
             within(part(name)).getByRole<HTMLInputElement>("textbox", { name: /^Color hex value(,|$)/ });
-        assert.equal(hexOf("Nodes").value, "FFD700");
+        assert.equal(hexOf("Nodes").value, "0077BB", "the halo the element draws selected nodes with");
         assert.equal(hexOf("Edges").value, "0077BB", "the band the element draws selected edges with");
 
         await userEvent.clear(hexOf("Edges"));
@@ -215,7 +187,7 @@ describe("the Selection row's highlight on the real element", () => {
         await waitFor(() => {
             assert.equal(session.config.selectionStyle.edgeColor.toUpperCase(), "#FF0000");
         });
-        assert.equal(session.config.selectionStyle.color.toUpperCase(), "#FFD700", "the halo is left alone");
+        assert.equal(session.config.selectionStyle.color.toUpperCase(), "#0077BB", "the halo is left alone");
 
         const size = within(part("Edges")).getByRole("spinbutton", { name: "Size" });
         await userEvent.clear(size);

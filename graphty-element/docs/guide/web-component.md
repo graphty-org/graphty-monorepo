@@ -25,40 +25,40 @@ The `<graphty-element>` Web Component provides a declarative way to add graph vi
 
 All configuration is done through HTML attributes or their corresponding JavaScript properties:
 
-| Property                 | Attribute                  | Type                                                                | Default     | Description                                                                                                                                                                                                                                                  |
-| ------------------------ | -------------------------- | ------------------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `nodeData`               | `node-data`                | `Array<object>`                                                     | `[]`        | Array of node objects; assigning replaces the nodes                                                                                                                                                                                                          |
-| `edgeData`               | `edge-data`                | `Array<object>`                                                     | `[]`        | Array of edge objects; assigning replaces the edges                                                                                                                                                                                                          |
-| `layout`                 | `layout`                   | `string`                                                            | `'ngraph'`  | Layout algorithm name                                                                                                                                                                                                                                        |
-| `layoutConfig`           | `layout-config`            | `object`                                                            | `{}`        | Layout algorithm options                                                                                                                                                                                                                                     |
-| `layoutScope`            | `layout-scope`             | scope (JSON)                                                        | unset       | Lay out only these nodes and hold the rest still, such as `{"set":"set_team"}`; unset means the whole graph (see [Layouts](./layouts#laying-out-part-of-the-graph))                                                                                          |
-| `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'`                                      | `'3d'`      | Rendering mode                                                                                                                                                                                                                                               |
-| `background`             | `background`               | `object`                                                            | whitesmoke  | A colour, or a skybox image                                                                                                                                                                                                                                  |
-| `startingCameraDistance` | `starting-camera-distance` | `number`                                                            | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off                                                                                                                                                                |
-| `autoFrame`              | `auto-frame`               | `boolean`                                                           | `true`      | Frame the graph after each load and layout change; `auto-frame="false"` leaves the camera alone. A view preference, not saved in a project                                                                                                                   |
-| `labelDeclutter`         | `label-declutter`          | `boolean`                                                           | `false`     | Hide a node label that would overlap another until the reader zooms in; a view preference, not saved in a project                                                                                                                                            |
-| `autoRotate`             | `auto-rotate`              | `number`                                                            | `0`         | Turn the 3D view on its own, in radians per second; a view preference, not saved in a project                                                                                                                                                                |
-| `fitInsets`              | property only              | `{ top, right, bottom, left }`                                      | all `0`     | Room in CSS pixels that framing the graph keeps clear at each edge; a view preference, not saved in a project                                                                                                                                                |
-| `pixelRatio`             | `pixel-ratio`              | `number \| "device"`                                                | `1`         | Pixels drawn per CSS pixel; `"device"` is sharp on a high-resolution screen and costs more per frame. Sizes stay in CSS pixels; a view preference                                                                                                            |
-| `renderOnDemand`         | `render-on-demand`         | `boolean`                                                           | `false`     | Draw a frame only when the picture can have changed, so a still graph costs nothing per frame; a view preference, not saved in a project                                                                                                                     |
-| `lighting`               | `lighting`                 | `"studio" \| "headlight" \| "matte" \| "flat"`                      | `"studio"`  | How 3D nodes are lit: key light, fill and a rim in the node's own color (`studio`); a light beside the camera (`headlight`); one soft light (`matte`); or unlit, exactly the style color with an outline (`flat`). A view preference, not saved in a project |
-| `dataSource`             | `data-source`              | `string`                                                            | `undefined` | Data source type                                                                                                                                                                                                                                             |
-| `dataSourceConfig`       | `data-source-config`       | `object`                                                            | `{}`        | Data source configuration                                                                                                                                                                                                                                    |
-| `nodeIdPath`             | `node-id-path`             | `string`                                                            | `'id'`      | Path to node ID in data                                                                                                                                                                                                                                      |
-| `edgeSrcIdPath`          | `edge-src-id-path`         | `string`                                                            | unset       | Path to source ID in edge data; unset means probe                                                                                                                                                                                                            |
-| `edgeDstIdPath`          | `edge-dst-id-path`         | `string`                                                            | unset       | Path to target ID in edge data; unset means probe                                                                                                                                                                                                            |
-| `edgeIdPath`             | `edge-id-path`             | `string`                                                            | unset       | Path to an edge's own identifier, for data that carries one                                                                                                                                                                                                  |
-| `repeatedEdges`          | `repeated-edges`           | `'keep' \| 'first' \| 'last' \| 'sum' \| 'min' \| 'max' \| 'error'` | `'keep'`    | What a second edge between one pair does                                                                                                                                                                                                                     |
-| `nodeLabelPath`          | `node-label-path`          | `string`                                                            | unset       | Path to what to CALL a node, as distinct from its id                                                                                                                                                                                                         |
-| `edgeWeightPath`         | `edge-weight-path`         | `string`                                                            | `'weight'`  | Path to an edge's weight, which every weighted algorithm reads                                                                                                                                                                                               |
-| `positionScale`          | `position-scale`           | `number`                                                            | `1`         | Multiplier from a record's own coordinates into scene units                                                                                                                                                                                                  |
-| `directed`               | `directed`                 | `boolean \| 'auto'`                                                 | `'auto'`    | Overrules a file header's direction; `'auto'` lets the file decide                                                                                                                                                                                           |
-| `selectionStyle`         | property only              | `{ color?, scale?, opacity? }`                                      | gold halo   | What a selected node looks like                                                                                                                                                                                                                              |
-| `layoutBehavior`         | property only              | `object`                                                            | `{}`        | How the element drives the layout, whether overlapping labels are thinned out, and the two on-demand expansion functions                                                                                                                                     |
-| `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`                                           | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads))                                                                                            |
-| `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                                                           | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence                                                                                                                                                                                         |
-| `debug`                  | `debug`                    | `boolean`                                                           | `false`     | Enable debug overlay                                                                                                                                                                                                                                         |
-| `historyKeys`            | `history-keys`             | `boolean`                                                           | `true`      | Whether Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y on the focused canvas undo and redo; `history-keys="false"` turns them off (see [Undo and History](./undo#keyboard-shortcuts))                                                                                       |
+| Property                 | Attribute                  | Type                                                                | Default     | Description                                                                                                                                                                                                                                                                         |
+| ------------------------ | -------------------------- | ------------------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `nodeData`               | `node-data`                | `Array<object>`                                                     | `[]`        | Array of node objects; assigning replaces the nodes                                                                                                                                                                                                                                 |
+| `edgeData`               | `edge-data`                | `Array<object>`                                                     | `[]`        | Array of edge objects; assigning replaces the edges                                                                                                                                                                                                                                 |
+| `layout`                 | `layout`                   | `string`                                                            | `'ngraph'`  | Layout algorithm name                                                                                                                                                                                                                                                               |
+| `layoutConfig`           | `layout-config`            | `object`                                                            | `{}`        | Layout algorithm options                                                                                                                                                                                                                                                            |
+| `layoutScope`            | `layout-scope`             | scope (JSON)                                                        | unset       | Lay out only these nodes and hold the rest still, such as `{"set":"set_team"}`; unset means the whole graph (see [Layouts](./layouts#laying-out-part-of-the-graph))                                                                                                                 |
+| `viewMode`               | `view-mode`                | `'2d' \| '3d' \| 'vr' \| 'ar'`                                      | `'3d'`      | Rendering mode                                                                                                                                                                                                                                                                      |
+| `background`             | `background`               | `object`                                                            | whitesmoke  | A colour, or a skybox image                                                                                                                                                                                                                                                         |
+| `startingCameraDistance` | `starting-camera-distance` | `number`                                                            | unset       | How far the camera starts out; unset frames the graph to fit, set turns automatic framing off                                                                                                                                                                                       |
+| `autoFrame`              | `auto-frame`               | `boolean`                                                           | `true`      | Frame the graph after each load and layout change; `auto-frame="false"` leaves the camera alone. A view preference, not saved in a project                                                                                                                                          |
+| `labelDeclutter`         | `label-declutter`          | `boolean`                                                           | `false`     | Hide a node label that would overlap another until the reader zooms in; a view preference, not saved in a project                                                                                                                                                                   |
+| `autoRotate`             | `auto-rotate`              | `number`                                                            | `0`         | Turn the 3D view on its own, in radians per second; a view preference, not saved in a project                                                                                                                                                                                       |
+| `fitInsets`              | property only              | `{ top, right, bottom, left }`                                      | all `0`     | Room in CSS pixels that framing the graph keeps clear at each edge; a view preference, not saved in a project                                                                                                                                                                       |
+| `pixelRatio`             | `pixel-ratio`              | `number \| "device"`                                                | `1`         | Pixels drawn per CSS pixel; `"device"` is sharp on a high-resolution screen and costs more per frame. Sizes stay in CSS pixels; a view preference                                                                                                                                   |
+| `renderOnDemand`         | `render-on-demand`         | `boolean`                                                           | `false`     | Draw a frame only when the picture can have changed, so a still graph costs nothing per frame; a view preference, not saved in a project                                                                                                                                            |
+| `lighting`               | `lighting`                 | `"studio" \| "headlight" \| "matte" \| "flat"`                      | `"studio"`  | How 3D nodes are lit: a light that follows the camera, a fill and a rim in the node's own color (`studio`); the same without the rim (`headlight`); one soft light (`matte`); or unlit, exactly the style color with an outline (`flat`). A view preference, not saved in a project |
+| `dataSource`             | `data-source`              | `string`                                                            | `undefined` | Data source type                                                                                                                                                                                                                                                                    |
+| `dataSourceConfig`       | `data-source-config`       | `object`                                                            | `{}`        | Data source configuration                                                                                                                                                                                                                                                           |
+| `nodeIdPath`             | `node-id-path`             | `string`                                                            | `'id'`      | Path to node ID in data                                                                                                                                                                                                                                                             |
+| `edgeSrcIdPath`          | `edge-src-id-path`         | `string`                                                            | unset       | Path to source ID in edge data; unset means probe                                                                                                                                                                                                                                   |
+| `edgeDstIdPath`          | `edge-dst-id-path`         | `string`                                                            | unset       | Path to target ID in edge data; unset means probe                                                                                                                                                                                                                                   |
+| `edgeIdPath`             | `edge-id-path`             | `string`                                                            | unset       | Path to an edge's own identifier, for data that carries one                                                                                                                                                                                                                         |
+| `repeatedEdges`          | `repeated-edges`           | `'keep' \| 'first' \| 'last' \| 'sum' \| 'min' \| 'max' \| 'error'` | `'keep'`    | What a second edge between one pair does                                                                                                                                                                                                                                            |
+| `nodeLabelPath`          | `node-label-path`          | `string`                                                            | unset       | Path to what to CALL a node, as distinct from its id                                                                                                                                                                                                                                |
+| `edgeWeightPath`         | `edge-weight-path`         | `string`                                                            | `'weight'`  | Path to an edge's weight, which every weighted algorithm reads                                                                                                                                                                                                                      |
+| `positionScale`          | `position-scale`           | `number`                                                            | `1`         | Multiplier from a record's own coordinates into scene units                                                                                                                                                                                                                         |
+| `directed`               | `directed`                 | `boolean \| 'auto'`                                                 | `'auto'`    | Overrules a file header's direction; `'auto'` lets the file decide                                                                                                                                                                                                                  |
+| `selectionStyle`         | property only              | `{ color?, scale?, opacity? }`                                      | blue halo   | What a selected node looks like                                                                                                                                                                                                                                                     |
+| `layoutBehavior`         | property only              | `object`                                                            | `{}`        | How the element drives the layout, whether overlapping labels are thinned out, and the two on-demand expansion functions                                                                                                                                                            |
+| `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`                                           | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads))                                                                                                                   |
+| `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                                                           | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence                                                                                                                                                                                                                |
+| `debug`                  | `debug`                    | `boolean`                                                           | `false`     | Enable debug overlay                                                                                                                                                                                                                                                                |
+| `historyKeys`            | `history-keys`             | `boolean`                                                           | `true`      | Whether Ctrl+Z, Ctrl+Shift+Z and Ctrl+Y on the focused canvas undo and redo; `history-keys="false"` turns them off (see [Undo and History](./undo#keyboard-shortcuts))                                                                                                              |
 
 ### How the element finds an edge's endpoints
 
@@ -87,7 +87,7 @@ The Web Component exposes many methods directly. See [Direct Methods](#direct-me
 
 ### What a selected node looks like
 
-The highlight is a gold halo around the selected node, and it is configuration rather than a style
+The highlight is a solid blue halo around the selected node (and a blue band along a selected edge), and it is configuration rather than a style
 layer -- a selection is what a reader is pointing at, not a property of the data, so a layer
 drawing it would be reorderable, persistable and lost at a dataset boundary along with every other
 layer.
@@ -101,8 +101,38 @@ element.selectionStyle = {
 ```
 
 Merged over what is already set, so naming one field leaves the others alone, and it takes effect
-on a selection that is already on screen. An `opacity` of `0` draws no halo at all, for a page that
-marks the selected node its own way, such as with a `node.outline` style layer.
+on a selection that is already on screen. An `opacity` of `0` draws no halo at all, and an
+`edgeOpacity` of `0` no band, for a page that marks the selection its own way, such as with a
+`node.outline` style layer. With `startingRows` on, the Selected row draws the mark instead: delete
+it to stop drawing the selection ([Everything, Selected and Hovered](./starting-rows.md)).
+
+### How 3D nodes are lit
+
+`lighting` picks one of four looks for every node in 3D view. It changes how a node's style color
+is shaded, never the color itself, and 2D view is always drawn flat.
+
+| Value              | What it is for                                                                               |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| `studio` (default) | The 3D look: no side of a node goes dark from any angle, and no color is washed out to white |
+| `headlight`        | A light beside the camera; a face is never brighter than its style color                     |
+| `matte`            | Even shading with no highlight                                                               |
+| `flat`             | Exactly the style color with a thin outline, for color-coded analysis against a legend       |
+
+```html
+<graphty-element lighting="flat"></graphty-element>
+```
+
+```javascript
+element.lighting = "matte";
+```
+
+See each one in Storybook, where every mode is also shown from the back, top, bottom and two
+oblique angles:
+[the lighting control](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--default),
+[Studio](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--studio-front),
+[Headlight](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--headlight-front),
+[Matte](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--matte-front),
+[Flat](https://graphty.app/storybook/graphty-element/?path=/story/styles-lighting--unshaded-front).
 
 ### Expanding a node's neighborhood on demand
 
@@ -162,6 +192,31 @@ is not saved in a project file. They are the same settings as `layoutBehavior.ca
 and `layoutBehavior.camera.fitInsets`.
 
 The canvas still draws everywhere, so a node turned into an inset is drawn and can be pointed at.
+
+By default the turning carries on as soon as the reader lets go. `layoutBehavior.camera.autoRotateResume`
+makes it wait: a number of milliseconds after the reader's last drag, pinch, wheel or camera key,
+or `"never"` to stop at their first move until `autoRotate` is changed. Turning never cancels the
+element's framing, so a graph loaded with `autoRotate` on is still zoomed to fit:
+
+```javascript
+element.layoutBehavior = { camera: { autoRotate: 0.15, autoRotateResume: 3000 } }; // back after 3 s
+```
+
+### Framing again when the canvas changes size
+
+A resize that lands while the element is still framing the graph is framed at the new size. One
+that lands after the picture is final leaves the camera where it is, by default. A page that
+opens its own panel beside the canvas and shrinks it -- an inspector, a side sheet -- can turn
+`layoutBehavior.camera.refitOnResize` on, so every resize frames the graph again for the new
+canvas, and the picture is the same whenever the panel opens:
+
+```javascript
+element.layoutBehavior = { camera: { refitOnResize: true } };
+```
+
+It only moves a camera the element framed itself or `zoomToFit()` framed. Once the reader zooms,
+turns or pans, or `setCameraState` places the camera, a resize leaves it alone until the next
+load or layout change. With `autoFrame` off it does nothing.
 
 ### A sharp picture on a high-resolution screen
 
@@ -415,7 +470,8 @@ For VR/AR modes, see the [VR/AR Guide](./vr-ar).
 
 The element is a block that fills its container's width. Its height is 2:1 -- half its width --
 unless you give it a height or place it in a parent that has one, in which case it fills that
-parent. Size it with ordinary CSS:
+parent. The 2:1 ratio is a preferred size, never a minimum: in a grid or flex layout the element
+shrinks to the space it is given rather than pushing the page wider. Size it with ordinary CSS:
 
 ```css
 graphty-element {
@@ -667,6 +723,9 @@ element.stopVoiceInput();
 element.disableAiControl();
 ```
 
+Remembered conversations, approvals before a change, and the rules each promise follows are in
+the [AI Assistant guide](./ai-assistant).
+
 ### Screenshot and Capture
 
 ```javascript
@@ -679,7 +738,7 @@ const result = await element.captureScreenshot({
 // Check capabilities before asking for a large one
 const capability = await element.canCaptureScreenshot({ multiplier: 4 });
 if (!capability.supported) {
-    console.warn(capability.reason);
+    console.warn(capability.reason?.code, capability.reason?.params);
 }
 ```
 

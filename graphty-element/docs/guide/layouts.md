@@ -47,8 +47,9 @@ package `@hpcc-js/wasm-graphviz`. See [Graphviz layouts](./graphviz-layouts).
 rather than computing one arrangement and stopping, so `element.setRunning(false)` pauses one and
 `element.setRunning(true)` sets it going again. The pause holds until you resume it: loading more
 nodes, setting another layout, an accelerator attaching or dragging a node places and moves nodes
-but never restarts the simulation. `getLayoutManager().isPaused` is true for a layout stopped
-before it came to rest, and `isSettled` is true only once it has. They are also the three that run on a hardware
+but never restarts the simulation. `session.layout.motion` reads `paused` for a layout stopped
+before it came to rest, and `settled` only once it has (see
+[Showing whether the layout is moving](#showing-whether-the-layout-is-moving)). They are also the three that run on a hardware
 accelerator when there is one -- and `spring-electrical` only runs on one. It has no CPU
 implementation at all, so `setLayout("spring-electrical")` without an accelerator that implements
 it throws `E_NO_ACCELERATOR` rather than quietly arranging the graph some other way. See the
@@ -115,12 +116,13 @@ graph.setLayout("ngraph", {
 
 ### Keeping nodes from being drawn inside each other
 
-The force layout treats every node as a point, so two nodes drawn large -- a size bound to a
+A force layout treats every node as a point, so two nodes drawn large -- a size bound to a
 ranking, say -- can land inside each other. Set `nodeGap` and the layout keeps every two nodes at
-least their drawn radii plus `nodeGap` apart, in the same units as `springLength`. It reads each
-node's size as it is drawn, so a style that makes nodes larger after the layout came to rest starts
-the layout again until no two of them overlap. `0` lets nodes touch; unset (`null`, the default)
-keeps the layout as it always was.
+least their drawn radii plus `nodeGap` apart, in scene units. It reads each node's size as it is
+drawn, so a style that makes nodes larger after the layout came to rest starts the layout again
+until no two of them overlap. `0` lets nodes touch; unset (`null`, the default) keeps the layout as
+it always was. A shape that is not round is kept apart by a circle around its corners, except under
+`ngraph`, which compares bounding boxes.
 
 ```typescript
 element.layoutConfig = { nodeGap: 2 };
@@ -134,8 +136,33 @@ the graph from the front, so no node is drawn over another until the camera is t
 element.layoutConfig = { nodeGap: 2, nodeGapFront: true };
 ```
 
-`nodeGap` is honored by the `ngraph` engine; from two thousand nodes, with a hardware accelerator
-attached, the element draws the default arrangement with `spring-electrical`, which does not read it.
+`nodeGap` works on `ngraph`, `d3`, `forceatlas2`, `spring` and `spring-electrical`, on the processor
+and on a hardware accelerator alike; `nodeGapFront` on all of them but `d3`. `forceatlas2` and `spring`
+fit a graph to `scalingFactor`, so a graph whose nodes do not fit in that radius is published wider
+rather than left overlapping. In a very crowded graph a run may end with a few pairs still overlapping
+by a small share of their size.
+
+### Pulling communities together
+
+Community detection only colors the nodes of a community; they stay where the forces put them. Set
+`clusterBy` and each community is also pulled toward its own centroid, so it reads as a lump. Name
+a node attribute, or a run's field the way a style layer does. Every force layout takes it (`ngraph`,
+`d3`, `forceatlas2`, `spring` and `spring-electrical`), and with a hardware accelerator attached the
+centroids are computed on the device.
+
+```typescript
+element.layoutConfig = { clusterBy: "results.louvain.group" };
+await element.session.runs.start("louvain", {}, { as: "louvain" });
+```
+
+The run does not have to exist yet: until it finishes the layout runs as it would without
+`clusterBy`, and when the results land, change or are removed the layout starts again from where it
+stands. A node with no value, such as one a run left out, is in no community and only feels the
+other forces. `clusterBy: "data.department"` does the same for an attribute of your own.
+
+`clusterStrength` says how hard the pull is: `1`, the default, is about one more edge tying each
+node to the centroid, and larger values make tighter lumps. Unset (`null`, the default), `clusterBy`
+leaves the layout as it always was.
 
 ### The same drawing every time
 
@@ -274,6 +301,117 @@ To draw a file (GEXF, yEd GraphML, GML, Pajek, DOT, a Cytoscape session) where i
 load it with `layout: "recommended"`: see
 [Drawing a file where it was saved](./data-sources.md#drawing-a-file-where-it-was-saved).
 
+### location-map
+
+Puts every node at the place its data names, on a map drawn under the graph. With no options it
+finds `latitude` and `longitude` attributes (also `lat`, `lon`, `lng`, `long`) by name, or one
+attribute whose values are locations:
+
+```html
+<graphty-element id="g"></graphty-element>
+<script type="module">
+    import "@graphty/graphty-element";
+
+    const g = document.getElementById("g");
+    g.nodeData = [
+        { id: "SFO", where: "37.619, -122.375" },
+        { id: "JFK", where: "40 38 23 N, 73 46 44 W" },
+        { id: "LHR", where: "POINT(-0.45 51.47)" },
+    ];
+    g.edgeData = [
+        { source: "SFO", target: "JFK" },
+        { source: "JFK", target: "LHR" },
+    ];
+    g.layout = "location-map";
+    g.layoutConfig = { location: "where" };
+</script>
+```
+
+A location is one attribute (`location`) or two (`latitude` and `longitude`). One attribute can be
+a decimal pair (latitude first, or longitude first when only that fits), GeoJSON, WKT, ISO 6709,
+degrees-minutes-seconds, a geohash, a plus code, MGRS or UTM; `format` names one when `auto`
+should not decide.
+
+To name the location once for the whole project instead of in the layout's options, designate it
+in the data settings; the layout reads it whenever its own `location`, `latitude` and `longitude`
+are unset, and `session.layout.locationColumns()` says which columns it will read:
+
+```ts
+await session.data.setRole({ kind: "node", name: "town" }, "city");
+await session.data.setRole({ kind: "node", name: "nation" }, "country");
+const { kinds, using, unused } = session.layout.locationColumns();
+// kinds: { city: "town", country: "nation" }, using: "city", unused: []
+```
+
+Each kind of location is a role of its own, one column each: `latitude`, `longitude`,
+`coordinates` (one column of whole locations), `country`, `region` and `city`. The layout reads a
+full latitude and longitude pair first, else the coordinates, else the finest place kind given,
+narrowed by the next coarser one (a city by its region, else its country). A kind given but not
+read is listed in `unused` as `{ code: "location.unused", params: { kind, using } }`. Taking the
+last kind away (`setRole(column, null)`) turns the search off. Before any kind is given,
+`kinds` lists what the layout found by itself. The single `nodeLocationPath` form below still works.
+
+- **Place names.** A column of country, region or city names works too. A `city` column (or `town`)
+  with a `country` column (or `iso2`, `iso3`, `state`, `province`, `region`) beside it is found and
+  placed with no settings; a column of names under any other heading is found by its values. The
+  names are looked up in a gazetteer (Natural Earth countries and regions, GeoNames cities of 15,000
+  people or more) fetched from graphty.app on first use, with accents and case ignored; when several
+  places share a name, the narrowing column decides, then the most populous wins. "Lyon, FR" in one
+  column is split at its last comma. `nodeLocationRole` (`auto`, `coords`, `country`, `region`,
+  `city`, `none`) says how the designated column is read, `nodeLocationWithinPath` names the narrowing
+  column and `nodeLocationWithin` a fixed country code; `none` turns the search off. The layout's
+  `gazetteer` option is the address the files are fetched from, or `false` to read no place names.
+  Names nothing matches are listed by `session.data.issues()` as `location-unmatched`, and names
+  several places match as `location-ambiguous`. The map credits GeoNames while city names are placed.
+
+    ```ts
+    await session.config.set({
+        data: { knownFields: { nodeLocationPath: "city", nodeLocationRole: "city", nodeLocationWithin: "US" } },
+    });
+    ```
+
+- **Map dimension.** The 2D view always draws a 2D (flat) map with straight edges. In the 3D view,
+  `mapDimension: "3d"` (the default) draws a 3D map, a globe, with great-circle arcs above it, and
+  `mapDimension: "2d"` draws the 2D map with each edge raised as an arc over it. A 3D map asked
+  for in the 2D view is kept and drawn again when the view goes back to 3D. The edge style `line.route` (`straight`, `arc`, `great-circle`) and
+  `line.arcHeight` override the arcs per edge.
+- **Extent.** `extent: "data"` (the default) fits the map to the located nodes; `"world"` shows
+  the whole world. `size` is the map's width in scene units; a globe's radius is `size`, or more
+  when the data spans a small part of it, so it is drawn `size` across. The camera opens framed on
+  the data, turned to face it; data that spans most of the earth opens on the whole globe, which
+  fills the view.
+- **Map scale.** `mapScale` (default 1) draws the map, flat or globe, that many times larger
+  than `size` makes it while nodes and edges keep their size in scene units, so a dense region (an airline network over the United States or
+  Europe) draws its nodes further apart instead of as one grey patch: `{ mapScale: 3 }` gives
+  three times the room between neighbors. The camera still opens framed on the whole map. With
+  `nodeScale: "screen"`, a flat map's nodes are drawn `mapScale` times smaller on screen, which
+  gives the same room; a globe's keep their size on screen.
+- **Node size.** `nodeScale: "scene"` (the default) draws a node of size 1 one scene unit wide,
+  so it grows as the camera zooms in; `"screen"` keeps it at `1 / size` of the view's height
+  (`flatNodeScale / (size * mapScale)` on a flat map, where `flatNodeScale` defaults to 1) whatever
+  the zoom, measured at the map's surface, with its arrowheads in proportion.
+- **The globe's look.** `element.globeLook = { atmosphere: true, background: "#05070d", sun: { lat, lon } }`
+  draws a glow of air around the globe's rim, clears the canvas to a colour while the globe is drawn,
+  and lights one side from where the sun is overhead. Each part is off unless set; a view
+  setting, not saved with the project.
+- **No location.** A node with no usable location goes to a row below the map (`unplaced: "tray"`)
+  or stays where it was (`"leave"`), never to latitude 0, longitude 0, and the element emits a
+  `layout-warning` with code `W_LOCATION_UNPARSED` and `params: { missing, unparsed, total, samples }`.
+- **The map.** The layout's `map` option picks the picture, on the 2D map and wrapped onto the
+  globe alike: unset (`null`), the bundled Natural Earth world image (no network);
+  `{ source: "openstreetmap" }` or another named keyless source (`BASEMAP_SOURCE_DESCRIPTORS` in
+  `@graphty/graphty-element/catalog` lists them); `{ tiles, attribution }` for any XYZ tile service;
+  `{ image, bounds }` for one picture; `{ source: "none" }` for none. Zooming in loads finer tiles.
+  Setting a new `map` on the applied layout swaps the picture without moving a node:
+
+    ```javascript
+    g.layoutConfig = { location: "where", mapDimension: "3d", map: { source: "nasa-gibs-blue-marble" } };
+    ```
+
+    The element draws no credit over the canvas; the map's credits are data on
+    `element.basemapStatus.attribution`, for the page to show where it chooses.
+    The map is saved with the layout in the project.
+
 ### forceatlas2 (Force-Directed, live)
 
 Gephi's ForceAtlas2, kept running rather than solved once. Good for pulling communities apart:
@@ -335,6 +473,44 @@ await graph.waitForSettled();
 
 graph.setLayout("circular");
 ```
+
+## Running the layout again
+
+`session.layout.rerun()` runs the current layout again, with the same engine, options and scope,
+as choosing it again would. It is one undoable step of its own: its history fact is
+`{ code: "layout.rerun", params: { layout } }`, not a change of layout, so an undo list can say
+"Undo re-running the layout", and undo puts the nodes back where they were.
+
+```typescript
+const session = element.session;
+await session.layout.rerun();
+await session.undo(); // the nodes go back
+```
+
+## Showing whether the layout is moving
+
+`session.layout.motion` is `"running"` while the layout steps, `"paused"` when
+`element.setRunning(false)` stopped it before it came to rest, and `"settled"` once it has come to
+rest. The session's `layout:motion-changed` event fires on every change: a pause, a resume, the
+layout coming to rest and a layout starting again.
+
+```typescript
+const session = element.session;
+const chip = document.querySelector("#motion")!;
+const button = document.querySelector<HTMLButtonElement>("#pause")!;
+
+function show(motion: "running" | "paused" | "settled"): void {
+    chip.textContent = motion;
+    button.textContent = motion === "running" ? "Pause" : "Resume";
+    button.disabled = motion === "settled";
+}
+
+show(session.layout.motion);
+session.on("layout:motion-changed", ({ motion }) => show(motion));
+button.addEventListener("click", () => element.setRunning(session.layout.motion !== "running"));
+```
+
+A session with no renderer (in Node) always reads `"settled"` and never fires the event.
 
 ## Waiting for Settled
 
@@ -432,8 +608,17 @@ nodes in -- `"2d"` or `"3d"` -- which `session.layout.dimension`, the view's dim
 ## Edge weights
 
 Two layouts read edge weights: `kamada-kawai` and `forceatlas2`. Both are on by default on a graph
-whose edges carry weights, and both read the number the same way: **a larger weight means a
-stronger connection**, drawn shorter.
+whose edges carry weights, and both read the number by what it means, as
+`data.knownFields.edgeWeightMeaning` says (the meaning chosen when the data was loaded):
+
+| Meaning             | How the layouts read it                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `"strength"`        | a larger weight is a stronger connection, drawn shorter                                      |
+| `"distance"`        | a larger weight is a longer edge (Kamada-Kawai's ideal length; a weaker pull in ForceAtlas2) |
+| not stated (`null`) | read as a strength, with a `layout-warning` `W_WEIGHT_MEANING_ASSUMED`                       |
+| `"capacity"`        | left unread, every edge the same, with a `layout-warning` `W_WEIGHT_MEANING_MISMATCH`        |
+
+Both warnings carry `params: { attribute, meaning }`. Algorithm runs read a weight by the same rule.
 
 ```typescript
 // Weights are read by default. This says so explicitly.
@@ -508,6 +693,31 @@ The same scope is the `layoutScope` property and the `layout-scope` attribute (J
 - **Removing the set releases the hold**: the layout runs over the whole graph, and nothing throws.
 - Held nodes still push and pull on the members, so a scoped layout costs the same per step as a
   whole-graph one, and a small scope is spread over the whole layout's extent.
+
+## Laying out only what the filter shows
+
+A layout runs over what is shown -- the nodes and edges the [filters](./filter-conditions) leave
+visible -- while the element's `workingGraph` option is on, the default,
+and over the whole graph while it is off. Set `layout.visibleOnly` in the layout behaviour to choose for layouts
+alone: `true` lays out only what is shown, `false` the whole graph, hidden nodes included, so the
+shown nodes keep the places the whole graph gave them.
+
+```typescript
+element.layoutBehavior = { layout: { visibleOnly: true } };
+
+// Show two communities: the layout runs again over just their nodes
+await element.session.visibility.set({ kind: "member", of: { nodes: ["a", "b", "c", "d"] } });
+```
+
+- **A hidden node takes no part.** It pushes and pulls nothing, its edges pull nothing, and a
+  circle, a grid or any other layout gives it no slot. Every layout honours it, your own included.
+- **The layout runs again when a filter changes what is shown**, and when `visibleOnly` is switched.
+- **A hidden node stays where it was**, so taking the filter away shows it where it last was
+  drawn; the layout then runs again over everything shown.
+- **The time window never moves it.** A [time window](./timeline) hides what it leaves out by
+  drawing, so a window step, a play and its pause lay nothing out: every node keeps its place.
+- **It combines with a scope.** A scoped layout still holds the nodes outside its scope, and
+  those still push and pull on its members unless the filter hides them.
 
 ## Performance Tips
 

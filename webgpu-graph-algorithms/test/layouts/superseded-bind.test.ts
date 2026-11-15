@@ -80,7 +80,10 @@ describe("a superseded model bind (issue #96)", () => {
                 }
                 expect(attractionGroups.length).toBeGreaterThan(0);
                 for (const group of attractionGroups) {
-                    expect(group.colIdx?.buffer, "a bind group over the superseded load's colIdx").not.toBe(colIdxA);
+                    expect(
+                        "colIdx" in group ? group.colIdx.buffer : undefined,
+                        "a bind group over the superseded load's colIdx",
+                    ).not.toBe(colIdxA);
                 }
                 // the model is bound to the second load and still runs
                 await sim.step(1);

@@ -22,7 +22,6 @@
 import { type GraphSnapshot } from "@graphty/graph-format";
 
 import {
-    MAX_ITERATIONS_PER_STEP,
     SE_DEFAULTS,
     SE_SCALE_REFERENCE_NODES,
     SETTLE_FLOOR_FRACTION,
@@ -30,7 +29,6 @@ import {
     TRACE_RECORD_BYTES,
 } from "../constants.js";
 import { type GpuContext } from "../context.js";
-import { WebGpuGraphError } from "../errors.js";
 import { type UniformValues } from "../kernel/struct-block.js";
 import { type WgslModuleSpec } from "../kernel/wgsl.js";
 import { FA2_STATE, FA2_TRACE, kernelSpec } from "../kernels.js";
@@ -62,14 +60,12 @@ import {
 } from "./force-simulation.js";
 import { resolveLayoutTuning, writeGridFrame } from "./forceatlas2.js";
 import {
+    assertMaxInFlightUnchanged,
     compileAttraction,
-    describeValue,
     isPositiveInteger,
     type Overrides,
-    pickCenter,
-    pickDim,
     pickNumber,
-    pickSeed,
+    pickSharedForceOptions,
     scalar,
     subset,
 } from "./model-common.js";
@@ -166,13 +162,7 @@ export function resolveSpringElectricalOptions(
 ): ResolvedSpringElectricalOptions {
     const o: SpringElectricalOptions = options ?? {};
     const base = previous ?? DEFAULT_RESOLVED;
-    if (previous !== undefined && o.maxInFlight !== undefined && o.maxInFlight !== previous.maxInFlight) {
-        throw new WebGpuGraphError(
-            "E_INVALID_ARGUMENT",
-            `maxInFlight cannot change after creation (the uniform ring is sized by it): got ${describeValue(o.maxInFlight)}, current ${previous.maxInFlight}`,
-            { argument: "maxInFlight", value: o.maxInFlight, expected: previous.maxInFlight },
-        );
-    }
+    assertMaxInFlightUnchanged(o, previous);
     const resolved: ResolvedSpringElectricalOptions = {
         maxIter: pickNullable("maxIter", o.maxIter, base.maxIter, isPositiveInteger, "an integer >= 1"),
         springLength: pickNumber("springLength", o.springLength, base.springLength, (v) => v > 0, "> 0"),
@@ -186,26 +176,7 @@ export function resolveSpringElectricalOptions(
         gravity: pickNullable("gravity", o.gravity, base.gravity, () => true, "a finite number (negative repels)"),
         dragCoefficient: pickNumber("dragCoefficient", o.dragCoefficient, base.dragCoefficient, (v) => v >= 0, ">= 0"),
         timeStep: pickNumber("timeStep", o.timeStep, base.timeStep, (v) => v > 0, "> 0"),
-        dim: pickDim(o.dim, base.dim),
-        scale: pickNumber("scale", o.scale, base.scale, (v) => v > 0, "> 0"),
-        center: pickCenter(o.center, base.center),
-        seed: pickSeed(o.seed, base.seed),
-        settleThreshold: pickNumber("settleThreshold", o.settleThreshold, base.settleThreshold, (v) => v >= 0, ">= 0"),
-        settleWindow: pickNumber(
-            "settleWindow",
-            o.settleWindow,
-            base.settleWindow,
-            isPositiveInteger,
-            "an integer >= 1",
-        ),
-        iterationsPerStep: pickNumber(
-            "iterationsPerStep",
-            o.iterationsPerStep,
-            base.iterationsPerStep,
-            (v) => isPositiveInteger(v) && v <= MAX_ITERATIONS_PER_STEP,
-            `an integer in [1, ${MAX_ITERATIONS_PER_STEP}]`,
-        ),
-        maxInFlight: pickNumber("maxInFlight", o.maxInFlight, base.maxInFlight, isPositiveInteger, "an integer >= 1"),
+        ...pickSharedForceOptions(o, base),
     };
     return Object.freeze(resolved);
 }
@@ -338,13 +309,15 @@ export class SpringElectricalModel
      * FR temperature) and ngraph's five constants with `gravity` in `coulomb`.
      * @param iteration - the global iteration index
      * @param options - the simulation's current option record
+     * @param live - n less the inert rows: the n the size-scaled constants read (default n)
      * @returns the uniform values
      */
-    paramsFor(iteration: number, options: SpringElectricalOptions): UniformValues {
-        const { n } = this.requireResources();
+    paramsFor(iteration: number, options: SpringElectricalOptions, live?: number): UniformValues {
+        const { n: all } = this.requireResources();
+        const n = live ?? all;
         const resolved = resolveSpringElectricalOptions(options, this.current);
         return {
-            ...this.sharedParams(iteration, resolved),
+            ...this.sharedParams(iteration, resolved, live),
             scalingRatio: 0,
             gravity: 0,
             jitterTolerance: 0,

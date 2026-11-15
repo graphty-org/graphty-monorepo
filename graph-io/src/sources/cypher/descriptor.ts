@@ -3,7 +3,7 @@
  * the sources' code.
  */
 
-import { type SourceDescriptor, type SourceParamDescriptor } from "../types.js";
+import { type SourceDescriptor, type SourceExample, type SourceFeature, type SourceParamDescriptor } from "../types.js";
 
 /** The parameters every Cypher source shares. */
 const CYPHER_PARAMS: readonly SourceParamDescriptor[] = [
@@ -38,6 +38,9 @@ const CYPHER_PARAMS: readonly SourceParamDescriptor[] = [
     { name: "pageSize", plainName: "Page size", type: "integer", default: 1000, min: 1, max: 100000, advanced: true },
 ];
 
+/** What every Cypher source can do: expand, probe, validate, and page a capped load. */
+const CYPHER_FEATURES: readonly SourceFeature[] = ["expand", "probe", "validate", "page"];
+
 /** The transport parameter of the generic source. */
 const TRANSPORT_PARAM: SourceParamDescriptor = {
     name: "transport",
@@ -61,8 +64,34 @@ export const CYPHER_DESCRIPTOR: SourceDescriptor = Object.freeze({
     version: 1,
     auth: ["basic", "bearer", "aws-sigv4"],
     authRequired: "optional",
+    features: CYPHER_FEATURES,
     params: [...CYPHER_PARAMS, TRANSPORT_PARAM],
 });
+
+/** Neo4j Labs' public read-only demo server: its Query API, and its Bolt address. */
+const NEO4J_DEMO = "https://demo.neo4jlabs.com:7473";
+const NEO4J_DEMO_BOLT = "bolt+s://demo.neo4jlabs.com:7687";
+
+/**
+ * One database on Neo4j Labs' demo server, loaded whole over the Query API. Its login is the
+ * database's name as both user and password, which Neo4j publishes for everyone.
+ * @param id - the example id
+ * @param plainName - its name
+ * @param database - the database
+ * @param nodes - its node count
+ * @param edges - its edge count
+ * @returns the example
+ */
+function demoDatabase(id: string, plainName: string, database: string, nodes: number, edges: number): SourceExample {
+    return {
+        id,
+        plainName,
+        endpoint: NEO4J_DEMO,
+        params: { database, mode: "all" },
+        publicLogin: { username: database, password: database },
+        counts: { nodes, edges },
+    };
+}
 
 /**
  * The descriptor of the `neo4j` preset. Experimental.
@@ -74,6 +103,7 @@ export const NEO4J_DESCRIPTOR: SourceDescriptor = Object.freeze({
     version: 1,
     auth: ["basic", "bearer"],
     authRequired: "optional",
+    features: CYPHER_FEATURES,
     params: [
         ...CYPHER_PARAMS,
         {
@@ -82,18 +112,23 @@ export const NEO4J_DESCRIPTOR: SourceDescriptor = Object.freeze({
             values: TRANSPORT_PARAM.values?.filter((v) => v.value === "query-api" || v.value === "bolt"),
         },
     ],
-    samples: [
+    examples: [
+        demoDatabase("neo4j-movies", "Neo4j demo: movies", "movies", 171, 253),
+        demoDatabase("neo4j-northwind", "Neo4j demo: Northwind orders", "northwind", 1035, 3139),
+        demoDatabase("neo4j-gameofthrones", "Neo4j demo: Game of Thrones", "gameofthrones", 798, 6620),
+        demoDatabase("neo4j-fincen", "Neo4j demo: FinCEN files", "fincen", 7524, 40835),
         {
-            id: "neo4j-movies",
-            plainName: "Neo4j demo: movies",
-            endpoint: "https://demo.neo4jlabs.com:7473",
-            params: { database: "movies", mode: "all" },
+            id: "neo4j-movies-bolt",
+            plainName: "Neo4j demo: movies over Bolt",
+            endpoint: NEO4J_DEMO_BOLT,
+            params: { database: "movies", mode: "all", transport: "bolt" },
             publicLogin: { username: "movies", password: "movies" }, // NOSONAR(S2068): the public login Neo4j publishes for its demo server
             counts: { nodes: 171, edges: 253 },
         },
         {
+            // neo4j.het.io runs Neo4j 3.5 (end of life) and speaks only Bolt 3: kept as an extra
             id: "hetionet",
-            plainName: "Hetionet",
+            plainName: "Hetionet (end-of-life server)",
             endpoint: "bolt+s://neo4j.het.io:7687",
             params: { transport: "bolt", mode: "neighborhood", idProperty: "name", ids: ["Metformin"], depth: 1 },
             counts: { nodes: 47031, edges: 2250197 },
@@ -112,6 +147,7 @@ export const NEPTUNE_DESCRIPTOR: SourceDescriptor = Object.freeze({
     version: 1,
     auth: ["aws-sigv4"],
     authRequired: "optional",
+    features: CYPHER_FEATURES,
     params: [
         ...CYPHER_PARAMS,
         {
@@ -122,4 +158,19 @@ export const NEPTUNE_DESCRIPTOR: SourceDescriptor = Object.freeze({
     ],
     // Neptune sends no CORS headers (Database), or is not shown to (Analytics)
     runtimes: { browser: { supported: false, reason: "cors" }, worker: { supported: false, reason: "cors" } },
+});
+
+/**
+ * The descriptor of the `memgraph` preset: a Memgraph on this machine, over Bolt. Experimental.
+ * @category Network sources
+ */
+export const MEMGRAPH_DESCRIPTOR: SourceDescriptor = Object.freeze({
+    plainName: "Memgraph on this computer",
+    kind: "database",
+    version: 1,
+    auth: ["basic", "bearer"],
+    authRequired: "optional",
+    features: CYPHER_FEATURES,
+    params: CYPHER_PARAMS,
+    defaultEndpoint: "bolt://localhost:7687",
 });

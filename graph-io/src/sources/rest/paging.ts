@@ -5,6 +5,7 @@
  */
 
 import { type ImportReportBuilder } from "../../common/report.js";
+import { originOf } from "../credentials.js";
 import { failOn } from "../fail.js";
 import { type RestPaging } from "./params.js";
 import { selectOne } from "./selectors.js";
@@ -128,6 +129,7 @@ function nextLink(rel: string, page: PageResponse, endpoint: URL, report: Import
         if (page.runtime === "browser") {
             // a browser reads Link only when the service exposes it: never a silent single page
             failOn(report, "E_SOURCE_RESPONSE", "the Link header cannot be read", {
+                origin: originOf(endpoint),
                 expected: "link-header",
                 contentType: page.headers.get("content-type"),
             });
@@ -148,6 +150,34 @@ function nextLink(rel: string, page: PageResponse, endpoint: URL, report: Import
  * @returns the next position
  */
 export function nextPosition(
+    paging: RestPaging | undefined,
+    position: PagePosition,
+    page: PageResponse,
+    endpoint: URL,
+    report: ImportReportBuilder,
+): PagePosition {
+    const next = following(paging, position, page, endpoint, report);
+    if (next !== null && (next === position || next === page.url.href)) {
+        // a server that hands back the page it just served would be read forever
+        failOn(report, "E_SOURCE_RESPONSE", "the next page is the page just read", {
+            origin: originOf(endpoint),
+            expected: "advancing-cursor",
+            contentType: page.headers.get("content-type"),
+        });
+    }
+    return next;
+}
+
+/**
+ * Where the response says the next page is, unchecked.
+ * @param paging - the request's paging
+ * @param position - this page's position
+ * @param page - this page's response
+ * @param endpoint - the mapping's endpoint
+ * @param report - the load's report
+ * @returns the next position
+ */
+function following(
     paging: RestPaging | undefined,
     position: PagePosition,
     page: PageResponse,

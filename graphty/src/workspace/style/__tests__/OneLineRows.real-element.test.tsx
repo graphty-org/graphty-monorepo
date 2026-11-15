@@ -19,9 +19,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** The scene: the session, the store, and each run's tree row name. */
 interface Scene {
     readonly session: GraphSession;
@@ -41,14 +38,11 @@ async function openScene(width = 1440, height = 900): Promise<Scene> {
     await page.viewport(width, height);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -89,7 +83,7 @@ async function openScene(width = 1440, height = 900): Promise<Scene> {
  * @returns the Style tab.
  */
 async function openStyle(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escape(name)}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
@@ -213,16 +207,16 @@ describe("one line per property", () => {
         assert.match(said, /^Node color no longer varies by data, now [a-z ]+$/, said);
     });
 
-    it("shows Edges, Text and Effects for several rows when one of them paints edges", async () => {
+    it("shows Edges, Text and Shaders for several rows when one of them paints edges", async () => {
         const { rows } = await openScene();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         const user = userEvent.setup();
         await user.click(within(tree).getByRole("treeitem", { name: /^Key people, / }));
         await user.keyboard("{Control>}");
         await user.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${escape(rows.route)}, `) }));
         await user.keyboard("{/Control}");
         const tab = await screen.findByTestId("style-tab");
-        await within(tab).findByRole("button", { name: "Add to node effects" });
+        await within(tab).findByRole("button", { name: "Add to node shaders" });
         await showKind("edge");
         await waitFor(() => {
             assert.isNotNull(tab.querySelector('[data-group="edge"]'), "an Edges section");

@@ -8,6 +8,8 @@
  * A "partition" option on nodes gets `values` too: one choice per categorical node column that
  * can group the nodes -- a node attribute or a finished run's field -- leaving out the key and
  * label columns and any column with a value per node, which would make a group of each node.
+ * The location map layout's `latitude`, `longitude` and `location` options get every node column,
+ * the columns whose values read in that role first and the rest with a refusal saying why not.
  * Everything else comes back exactly as the descriptor declares it.
  */
 
@@ -26,6 +28,7 @@ import {
     type Scope,
 } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
+import { columnFits, type ColumnValues, type LocationRole } from "../layout/locationMap/source";
 import { englishRunLabel } from "./english";
 import { fieldMeasurement, type ResultsApi } from "./results/types";
 import type { Resolution } from "./sets/resolve";
@@ -45,6 +48,8 @@ export interface OptionsForSource {
     resolve(scope: Scope | undefined): { readonly resolution: Resolution; readonly graph: GraphSnapshot };
     /** The graph's attributes, for a partition's choices; none when absent. */
     attributes?(): readonly AttributeDescriptor[];
+    /** A node attribute's values by row, for the location options' choices; none when absent. */
+    nodeValues?(path: string): readonly unknown[] | null;
     /** The session's results, for a partition's choices; none when absent. */
     results?(): ResultsApi;
 }
@@ -144,6 +149,34 @@ function groupings(source: OptionsForSource, graph: GraphSnapshot): OptionDescri
     return [...attributes, ...fields];
 }
 
+/** The location map layout's options that name a column, by their role. */
+const LOCATION_ROLES: ReadonlySet<string> = new Set<LocationRole>(["latitude", "longitude", "location"]);
+
+/**
+ * A location option's choices: every node column, the ones whose values read in that role first
+ * (best first), then the rest with the refusal that says why they do not fit.
+ * @param columns - The node columns and their values.
+ * @param role - The option's role.
+ * @param source - For each column's plain name.
+ * @returns The choices.
+ */
+function locationChoices(
+    columns: readonly ColumnValues[],
+    role: LocationRole,
+    source: OptionsForSource,
+): OptionDescriptor["values"] {
+    const names = new Map(
+        (source.attributes?.() ?? []).filter((a) => a.kind === "node").map((a) => [a.name, a.plainName]),
+    );
+    return columnFits(columns, role).map((fit) => ({
+        value: fit.name,
+        label: names.get(fit.name) ?? fit.name,
+        ...(fit.fits
+            ? {}
+            : { refusal: { code: "location.column-unfit" as const, params: { role, share: fit.share } } }),
+    }));
+}
+
 /**
  * One algorithm's or layout's options, resolved for a scope.
  * @param source - The descriptor tables and the scope resolver.
@@ -181,6 +214,7 @@ export function optionsFor(
     const measure = measurer(resolution, graph);
     let choices: OptionDescriptor["values"];
     let groups: OptionDescriptor["values"];
+    let locationColumns: ColumnValues[] | undefined;
 
     return declared.map((option) => {
         const resolved: OptionDescriptor = { ...option };
@@ -200,6 +234,13 @@ export function optionsFor(
                 return { value: id, label: id };
             });
             resolved.values = choices;
+        }
+
+        if (key === "location-map" && LOCATION_ROLES.has(option.name)) {
+            locationColumns ??= (source.attributes?.() ?? [])
+                .filter((a) => a.kind === "node")
+                .map((a) => ({ name: a.name, values: source.nodeValues?.(a.name) ?? [] }));
+            resolved.values = locationChoices(locationColumns, option.name as LocationRole, source);
         }
 
         // ponytail: node partitions only; an edge partition keeps no choices until one exists.

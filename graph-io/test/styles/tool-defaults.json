@@ -43,6 +43,7 @@
             "labelPadding": 0,
             "labelLineHeight": 1,
             "curved": false,
+            "fanned": true,
             "bendCurve": "midpoints"
         },
         "graph": {
@@ -147,6 +148,7 @@
             "arrowSize": 1,
             "curved": false,
             "fanSpacing": 20,
+            "fanned": true,
             "labelColor": "#000000",
             "labelSize": 16,
             "labelFont": "Helvetica Neue, Helvetica, sans-serif",
@@ -203,7 +205,7 @@
     "yed": {
         "units": "px",
         "node": {
-            "fill": "#ffcc00",
+            "fill": "#ccccff",
             "shape": "rectangle",
             "borderColor": "#000000",
             "borderWidth": 1,
@@ -213,6 +215,9 @@
             "labelSize": 12,
             "labelWeight": "normal",
             "labelPosition": "center",
+            "labelPadding": 2,
+            "labelLineHeight": 1,
+            "labelKeepBlankLines": true,
             "borderPosition": "center"
         },
         "edge": {
@@ -223,7 +228,9 @@
             "targetArrow": "none",
             "labelColor": "#000000",
             "labelFont": "DejaVu Sans, sans-serif",
-            "labelSize": 12
+            "labelSize": 12,
+            "labelKeepBlankLines": true,
+            "fanned": false
         },
         "graph": {
             "background": "#ffffff"
@@ -250,7 +257,8 @@
             "targetArrow": "none",
             "labelColor": "#000000",
             "labelFont": "Arial",
-            "labelSize": 12
+            "labelSize": 12,
+            "fanned": false
         },
         "graph": {
             "background": "#ffffff"
@@ -308,6 +316,7 @@
         },
         "edge": {
             "width": 1,
+            "minScreenWidth": 0.3,
             "outlineColor": "#6f6f6f",
             "lineStyle": "solid",
             "sourceArrow": "none",

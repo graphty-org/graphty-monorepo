@@ -12,13 +12,15 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { findTreeRow } from "../../graph-place/rows";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables with the starting rows, Degree, Louvain and Closeness, at the given window size.
@@ -29,14 +31,11 @@ const TIMEOUT_MS = 90_000;
 async function openScene(width: number, height: number): Promise<Record<"degree" | "louvain" | "closeness", string>> {
     await page.viewport(width, height);
     render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -62,7 +61,7 @@ async function openScene(width: number, height: number): Promise<Record<"degree"
  * @returns the Style tab.
  */
 async function openStyle(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
@@ -139,11 +138,16 @@ describe("value popovers", () => {
 
     it("shows the row of values opacity cannot take whole, at the picker's width", async () => {
         await openScene(1440, 900);
-        const tab = await openStyle("Everything");
-        if (tab.querySelector('.ws-row[data-line="node.opacity"]') === null) {
-            await userEvent.click(within(tab).getByRole("button", { name: "Add to node visibility" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Opacity" }));
-        }
+        // Opacity alone on a layer is a line of its own; beside a color it is the color's box.
+        const live = document.querySelector("graphty-element")?.session;
+        await live?.styles.add({
+            name: "Faded",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.opacity": 0.5 },
+        });
+        await live?.styles.settled();
+        const tab = await openStyle("Faded");
         const row = await waitFor(() => {
             const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.opacity"]');
             assert.isNotNull(found, "an opacity row");
@@ -159,11 +163,16 @@ describe("value popovers", () => {
 
     it("varies opacity from 20% to 100%, the app's own range, when a number is picked for it", async () => {
         await openScene(1440, 900);
-        const tab = await openStyle("Everything");
-        if (tab.querySelector('.ws-row[data-line="node.opacity"]') === null) {
-            await userEvent.click(within(tab).getByRole("button", { name: "Add to node visibility" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Opacity" }));
-        }
+        // Opacity alone on a layer is a line of its own; beside a color it is the color's box.
+        const live = document.querySelector("graphty-element")?.session;
+        await live?.styles.add({
+            name: "Faded",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.opacity": 0.5 },
+        });
+        await live?.styles.settled();
+        const tab = await openStyle("Faded");
         const row = await waitFor(() => {
             const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.opacity"]');
             assert.isNotNull(found, "an opacity row");

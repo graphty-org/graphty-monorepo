@@ -47,10 +47,12 @@ A layer id the list does not hold throws a `GraphtyError` with code `E_UNKNOWN_L
 ## Keeping the numbers current
 
 The counts follow the data, the run results and the layers. Read them again after a
-`style:changed` event and after a data change:
+`style:batch-changed` event (once per repaint, however many edits it carried; `style:changed`
+fires once per edit) and after a `project:derived` event, which follows every change -- a data
+edit included -- once the picture has caught up with it:
 
 ```ts
-session.on("style:changed", () => {
+session.on("style:batch-changed", () => {
     const { painted, matched } = session.styles.counts(layer.id);
     console.log(painted["node.color"], matched);
 });

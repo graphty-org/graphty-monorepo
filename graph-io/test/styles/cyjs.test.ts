@@ -442,6 +442,17 @@ describe("the cascade", () => {
         expect(r.node.values.shapePoints?.[0]).toBe("-1,1 1,1 0,-1");
     });
 
+    it("keeps a bottom-round-rectangle's own shape in both its spellings", () => {
+        const r = evaluateCytoscapeJs({
+            elements: SMALL.elements,
+            style: [
+                { selector: "node", style: { shape: "bottom-round-rectangle" } },
+                { selector: ".big", style: { shape: "bottomroundrectangle" } },
+            ],
+        });
+        expect(new Set(r.node.values.shape)).toEqual(new Set(["other:bottom-round-rectangle"]));
+    });
+
     it("reads an em as the 16 px Cytoscape.js takes from a page's default font size", () => {
         const r = evaluateCytoscapeJs({
             elements: SMALL.elements,
@@ -1076,8 +1087,8 @@ describe("the stylesheet emitter", () => {
         const back = readCytoscapeStyles({ elements: coreElements(s, em), style: em.stylesheet, snapshot: s });
         const got = resolved(back, s);
         const want = resolved(ex, s);
-        expect(want["node.labelOpacity"]?.[0]).toBe(0.2);
-        expect(want["node.borderOpacity"]?.[0]).toBe(0.25);
+        expect(want["node.labelOpacity"][0]).toBe(0.2);
+        expect(want["node.borderOpacity"][0]).toBe(0.25);
         for (const [k, col] of Object.entries(want)) {
             expect(
                 col.map((v, i) => v ?? got[k][i] ?? null),

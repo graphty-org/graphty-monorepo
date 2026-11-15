@@ -1,0 +1,23 @@
+{
+    "id": 40238975833,
+    "name": "CI",
+    "path": ".github/workflows/ci.yml",
+    "head_branch": "ci/3418-design-studio-master-wait",
+    "head_sha": "5a2ebfac75cc6510846149d8cc07b65d83f0ba0b",
+    "event": "pull_request",
+    "status": "completed",
+    "conclusion": "success",
+    "run_attempt": 1,
+    "created_at": "2026-10-25T22:10:54Z",
+    "run_started_at": "2026-10-25T22:10:54Z",
+    "updated_at": "2026-10-25T23:09:15Z",
+    "display_title": "docs(ci): design studio waits for master, not golden",
+    "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZHJKuA",
+    "triggering_actor": {
+        "login": "graphty-agent"
+    },
+    "pull_requests": [],
+    "repository": {
+        "full_name": "graphty-org/graphty-monorepo"
+    }
+}

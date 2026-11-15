@@ -9,6 +9,9 @@ import { afterEach, assert, describe, test } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { readDrawn } from "../fidelity/drawn-scene";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const TYPE = "org.cytoscape.view.presentation.annotations.";
 
@@ -42,14 +45,20 @@ afterEach(() => {
  * @param styles - Whether to load the file's styles.
  * @returns The element.
  */
-async function load(styles: "file" | "none"): Promise<Graphty> {
+async function load(
+    styles: "file" | "none",
+    source: { type: string; data: string } = { type: "xgmml", data: XGMML },
+): Promise<Graphty> {
     const element = document.createElement("graphty-element");
     element.style.cssText = "display:block;width:800px;height:600px";
     element.viewMode = "2d";
     document.body.appendChild(element);
     mounted = element;
     await element.updateComplete;
-    await element.session.data.import({ type: "xgmml", config: { data: XGMML } }, { styles, layout: "recommended" });
+    await element.session.data.import(
+        { type: source.type, config: { data: source.data } },
+        { styles, layout: "recommended" },
+    );
     await element.waitForSettled();
     await element.session.styles.settled();
     await element.waitForStableFrame();
@@ -95,7 +104,26 @@ describe("a file's annotations", () => {
         assert.isAtMost(note.box.y1, box.y0 + 1);
         assert.closeTo(arrow.x1, b.x, 2);
         assert.closeTo(arrow.y1, b.y, 2);
-        assert.closeTo(arrow.x0, note.box.x0, 2);
+        // it leaves the note where a line from the center of the note's text box toward b crosses the box, as
+        // Cytoscape 3.10.5 does (cys-annotation-example: the GCN3 arrow starts at (1049.6, 546.6), on its note's box,
+        // not at the arrow's saved corner (1000.5, 522.2)); here that is the box's bottom side
+        const c = { x: (note.box.x0 + note.box.x1) / 2, y: (note.box.y0 + note.box.y1) / 2 };
+        const [dx, dy] = [b.x - c.x, b.y - c.y];
+        const t = Math.min(
+            (note.box.x1 - note.box.x0) / 2 / Math.abs(dx),
+            (note.box.y1 - note.box.y0) / 2 / Math.abs(dy),
+        );
+        assert.closeTo(arrow.x0, c.x + dx * t, 2);
+        assert.closeTo(arrow.y0, c.y + dy * t, 2);
+        // its one head (a triangle at the target, none at the source) is read as a box of its own at the target end
+        const heads = drawn.annotations.find((x) => x.kind === "arrow")?.heads ?? [];
+        assert.lengthOf(heads, 1);
+        const [head] = heads;
+        assert.isTrue(
+            head.x0 <= b.x + 1 && head.x1 >= b.x - 1 && head.y0 <= b.y + 1 && head.y1 >= b.y - 1,
+            "at the tip",
+        );
+        assert.isBelow(head.x1 - head.x0, arrow.x1 - arrow.x0);
     });
 
     test("are not drawn when the file is loaded without its styles", async () => {
@@ -103,5 +131,27 @@ describe("a file's annotations", () => {
         const drawn = readDrawn(element.graph);
         assert.equal(drawn.nodes.size, 2);
         assert.deepEqual(drawn.annotations, []);
+    });
+
+    test("include a DOT diagram's title, drawn where Graphviz puts the root graph's label", async () => {
+        // laid out (the root has a bb), the label below the drawing and centered, as Graphviz draws it by default
+        const dot =
+            'digraph { graph [bb="0,0,300,100", label="The title"]; a [pos="50,50"]; b [pos="250,50"]; a -> b; }';
+        const element = await load("file", { type: "dot", data: dot });
+        const drawn = readDrawn(element.graph);
+        const title = drawn.annotations.find((x) => x.kind === "text");
+        const a = drawn.nodes.get("a");
+        const b = drawn.nodes.get("b");
+        assert.isDefined(title);
+        assert.isDefined(a);
+        assert.isDefined(b);
+        if (title === undefined || a === undefined || b === undefined) {
+            return;
+        }
+
+        assert.equal(title.text, "The title");
+        assert.closeTo((title.box.x0 + title.box.x1) / 2, (a.x + b.x) / 2, 2);
+        // below the nodes, on screen y grows downward
+        assert.isAbove(title.box.y0, Math.max(a.box.y1, b.box.y1));
     });
 });

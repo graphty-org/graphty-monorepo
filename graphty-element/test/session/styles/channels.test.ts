@@ -1,11 +1,12 @@
 import { assert, describe, it } from "vitest";
 
 import { LABEL_STYLE_FIELDS } from "../../../src/catalog/label-style";
-import type { EdgeLinePattern } from "../../../src/catalog/types";
+import type { Binding, EdgeLinePattern } from "../../../src/catalog/types";
 import { defaultEdgeStyle } from "../../../src/config/EdgeStyle";
 import { defaultNodeStyle, NodeShapes } from "../../../src/config/NodeStyle";
 import {
     type ArrowValue,
+    asColorValue,
     type AuthoredValue,
     CHANNEL_DESCRIPTORS,
     type ChannelDescriptor,
@@ -20,6 +21,7 @@ import {
     DEFAULT_OUTLINE_COLOR,
     type EdgeLineValue,
     isChannel,
+    modelBindingProblem,
     type NodeShapeValue,
     type PaintedValue,
     toColorValue,
@@ -64,6 +66,9 @@ const DECLARED = [
     "node.labelOffsetY",
     "node.labelShiftX",
     "node.labelShiftY",
+    "node.labelShiftOf",
+    "node.labelGapOf",
+    "node.labelBox",
     "node.labelDeclutter",
     "node.labelMinNodeScreenSize",
     "node.labelTextAlign",
@@ -72,6 +77,7 @@ const DECLARED = [
     "node.tooltipStyle",
     "node.opacity",
     "node.outline",
+    "node.outlineWidth",
     "node.glow",
     "node.glowStrength",
     "node.halo",
@@ -79,12 +85,14 @@ const DECLARED = [
     "node.haloScale",
     "node.haloOpacity",
     "node.wireframe",
+    "node.meshDetail",
     "node.flat",
     "node.unlit",
     "node.marker",
     "node.width",
     "node.height",
     "node.depth",
+    "node.relativeExtents",
     "node.planar",
     "node.zIndex",
     "node.drawOrder",
@@ -101,6 +109,15 @@ const DECLARED = [
     "node.outerBorderOpacity",
     "node.outerBorderStyle",
     "node.outerBorderOffset",
+    "node.outerBorderCount",
+    "node.raisedBorderWidth",
+    "node.raisedBorderLightColor",
+    "node.raisedBorderDarkColor",
+    "node.shadowColor",
+    "node.shadowOpacity",
+    "node.shadowBlur",
+    "node.shadowOffsetX",
+    "node.shadowOffsetY",
     "node.underlayColor",
     "node.underlayOpacity",
     "node.underlayPadding",
@@ -145,6 +162,7 @@ const DECLARED = [
     "node.stripeOpacities",
     "node.stripeDirection",
     "node.stripeSize",
+    "node.stripeFrame",
     "node.chartKind",
     "node.chartValues",
     "node.chartColors",
@@ -152,32 +170,72 @@ const DECLARED = [
     "node.chartMax",
     "node.chartHorizontal",
     "node.chartSize",
+    "node.chartWidth",
+    "node.chartHeight",
+    "node.chartOffsetX",
+    "node.chartOffsetY",
     "node.chartMargin",
     "node.chartGap",
     "node.chartLineWidth",
     "node.chartBorderColor",
     "node.chartBorderWidth",
+    "node.chartBackgroundColor",
+    "node.chartBackgroundOpacity",
+    "node.groupPadding",
+    "node.groupPaddingRatio",
+    "node.groupPaddingOf",
+    "node.groupMinWidth",
+    "node.groupMinHeight",
+    "node.groupMinWidthBiasLeft",
+    "node.groupMinHeightBiasTop",
+    "node.groupIncludeLabels",
     "node.cornerRadius",
     "node.exactCornerRadius",
+    "node.cornerFraction",
     "node.shapePoints",
     "node.shapeStretchPoints",
+    "node.shapeRotation",
     "node.shapeParts",
     "node.shapeLines",
     "node.shapeTexts",
+    "node.labelTable",
     "node.shapeLineWidth",
+    "node.shapeLineHaloColor",
+    "node.shapeLineHaloWidth",
     "node.labelFit",
     "node.labelPaddingX",
     "node.labelPaddingY",
     "node.labelFitSquare",
+    "node.labelFitQuantum",
+    "node.labelFitImage",
+    "node.labelFitImagePadding",
     "node.gradientColor",
     "node.gradientDirection",
     "node.gradientColors",
     "node.gradientStops",
     "node.gradientKind",
+    "node.gradientCenterX",
+    "node.gradientCenterY",
+    "node.gradientRadius",
+    "node.model",
+    "node.modelSourceUp",
+    "node.modelTurn",
+    "node.modelTint",
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelDoubleSided",
+    "node.modelFit",
+    "node.modelCenter",
+    "node.texture",
     "edge.color",
     "edge.width",
     "edge.minScreenWidth",
     "edge.opacity",
+    "edge.fadeEnd",
+    "edge.fadeStart",
+    "edge.fadeOpacity",
+    "edge.blending",
     "edge.bandColor",
     "edge.bandWidth",
     "edge.bandOpacity",
@@ -198,22 +256,38 @@ const DECLARED = [
     "edge.patternCount",
     "edge.waveAmplitude",
     "edge.wavePeriod",
+    "edge.dashLength",
+    "edge.dashGap",
     "edge.curvature",
     "edge.bends",
     "edge.fanSpacing",
     "edge.fanned",
     "edge.bendCurve",
     "edge.arcRadius",
+    "edge.supportModel",
+    "edge.supportSpringLength",
+    "edge.supportSpringConstant",
+    "edge.supportRepulsion",
+    "edge.supportCentralGravity",
+    "edge.supportUnit",
+    "edge.supportScale",
+    "edge.route",
+    "edge.arcHeight",
     "edge.nodeGap",
+    "edge.sourceNodeGap",
+    "edge.targetNodeGap",
     "edge.sourcePort",
     "edge.targetPort",
     "edge.arrowHead",
     "edge.arrowHeadSize",
     "edge.arrowHeadWidth",
     "edge.arrowHeadSide",
+    "edge.arrowHeadOutlineWidth",
     "edge.arrowHeadPosition",
     "edge.arrowHeadGap",
+    "edge.arrowHeadStack",
     "edge.arrowHeadColor",
+    "edge.arrowHeadFillColor",
     "edge.arrowHeadOpacity",
     "edge.arrowHeadImage",
     "edge.arrowHeadText",
@@ -232,9 +306,12 @@ const DECLARED = [
     "edge.arrowTailSize",
     "edge.arrowTailWidth",
     "edge.arrowTailSide",
+    "edge.arrowTailOutlineWidth",
     "edge.arrowTailPosition",
     "edge.arrowTailGap",
+    "edge.arrowTailStack",
     "edge.arrowTailColor",
+    "edge.arrowTailFillColor",
     "edge.arrowTailOpacity",
     "edge.arrowTailImage",
     "edge.arrowTailText",
@@ -253,16 +330,20 @@ const DECLARED = [
     "edge.arrowMiddleHeadSize",
     "edge.arrowMiddleHeadWidth",
     "edge.arrowMiddleHeadSide",
+    "edge.arrowMiddleHeadOutlineWidth",
     "edge.arrowMiddleHeadPosition",
     "edge.arrowMiddleHeadColor",
+    "edge.arrowMiddleHeadFillColor",
     "edge.arrowMiddleHeadOpacity",
     "edge.arrowMiddleHeadImage",
     "edge.arrowMiddleTail",
     "edge.arrowMiddleTailSize",
     "edge.arrowMiddleTailWidth",
     "edge.arrowMiddleTailSide",
+    "edge.arrowMiddleTailOutlineWidth",
     "edge.arrowMiddleTailPosition",
     "edge.arrowMiddleTailColor",
+    "edge.arrowMiddleTailFillColor",
     "edge.arrowMiddleTailOpacity",
     "edge.arrowMiddleTailImage",
     "edge.animationSpeed",
@@ -308,6 +389,24 @@ const DECLARED = [
     "edge.labelOffsetY",
     "edge.labelShiftX",
     "edge.labelShiftY",
+    "edge.labelShiftOf",
+    "edge.labelGapOf",
+    "edge.labelBox",
+    "node.shaders",
+    "edge.shaders",
+    "edge.taper",
+    "edge.lift",
+    "node.xlabel",
+    "node.xlabelStyle",
+    "node.xlabelLocation",
+    "node.xlabelOffsetX",
+    "node.xlabelOffsetY",
+    "edge.labelTable",
+    "edge.xlabel",
+    "edge.xlabelStyle",
+    "edge.xlabelLocation",
+    "edge.xlabelOffsetX",
+    "edge.xlabelOffsetY",
 ];
 
 describe("the channel set", () => {
@@ -334,9 +433,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and fifty-one node channels and one hundred and thirty edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 151);
-        assert.strictEqual(channelsFor("edge").length, 130);
+    it("splits into two hundred and nine node channels and one hundred and sixty-nine edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 209);
+        assert.strictEqual(channelsFor("edge").length, 169);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -379,7 +478,9 @@ describe("what the element can really draw", () => {
         // A curvature is a switch, not an amount.
         assert.isDefined(CHANNEL_DESCRIPTORS["edge.curvature"].caveat);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.curvature"].accepts, "boolean");
-        assert.isDefined(CHANNEL_DESCRIPTORS["node.outline"].caveat);
+        // An outline's width is set per layer by `node.outlineWidth`, so the outline carries no caveat.
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].caveat);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].caveatCode);
         // A glow's strength is drawn per style (one source mesh per strength), so it carries no
         // caveat: the old one said two glowing styles shared whichever strength landed last.
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.glowStrength"].caveat);
@@ -557,15 +658,35 @@ describe("what a style editor needs to draw a row", () => {
 
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
+        "edge.fadeEnd",
+        // Unset, a group reaches its largest member's radius past its members.
+        "node.groupPadding",
+        "node.groupPaddingRatio",
         "node.shapeParts",
         "node.shapeLines",
         "node.shapeTexts",
+        "node.labelTable",
+        "edge.labelTable",
         "node.shapeLineWidth",
+        "node.shapeLineHaloColor",
+        "node.shapeLineHaloWidth",
         "node.gradientColors",
         "node.gradientStops",
         "node.label",
         "node.labelStyle",
         "node.tooltip",
+        // Unset, a node has no external label, and one that has sits at its corner or where the layout put it.
+        "node.xlabel",
+        "node.xlabelStyle",
+        "node.xlabelLocation",
+        "node.xlabelOffsetX",
+        "node.xlabelOffsetY",
+        // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
+        "edge.xlabel",
+        "edge.xlabelStyle",
+        "edge.xlabelLocation",
+        "edge.xlabelOffsetX",
+        "edge.xlabelOffsetY",
         "node.tooltipStyle",
         // Unset, a node is highlighted when it is selected and not otherwise.
         "node.halo",
@@ -582,6 +703,9 @@ describe("what a style editor needs to draw a row", () => {
         "node.cornerRadius",
         // Unset, a polygon is drawn as its box.
         "node.shapePoints",
+        // Unset, a chart's plot is as wide and as tall as `node.chartSize` says.
+        "node.chartWidth",
+        "node.chartHeight",
         // Unset, a node draws no image, pie or stripes over its face; the sizes and opacities of slices and
         // bands, and an image's width, height and pixel size, follow from the rest.
         "node.image",
@@ -602,17 +726,28 @@ describe("what a style editor needs to draw a row", () => {
         "node.chartMax",
         "node.chartLineWidth",
         "node.chartBorderColor",
+        "node.chartBackgroundColor",
         "node.stripeColors",
         "node.stripeSizes",
         "node.stripeOpacities",
+        "node.stripeFrame",
         // Unset, a node is the size it states rather than its label's.
         "node.labelFit",
         // Unset, a node is filled flat with its colour.
         "node.gradientColor",
+        // Unset, a node draws its shape and no model.
+        "node.model",
+        // Unset, a model is drawn still, in its rest pose.
+        "node.modelAnimation",
+        // Unset, a node draws its own color and no picture.
+        "node.texture",
         "edge.patternCount",
         // Unset, a wave is drawn within its line's width or its border's ring.
         "edge.waveAmplitude",
         "edge.wavePeriod",
+        // Unset, a dash is three widths long and the elements spread from end to end.
+        "edge.dashLength",
+        "edge.dashGap",
         "node.borderWaveAmplitude",
         "node.borderWavePeriod",
         // Unset, an underlay's or an overlay's shape is the node's own, its corners the node's.
@@ -625,6 +760,14 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowTailImage",
         "edge.arrowMiddleHeadImage",
         "edge.arrowMiddleTailImage",
+        // Unset, an end cap is drawn alone, with no row of caps behind it.
+        "edge.arrowHeadStack",
+        "edge.arrowTailStack",
+        // Unset, an open cap's inside is left empty.
+        "edge.arrowHeadFillColor",
+        "edge.arrowTailFillColor",
+        "edge.arrowMiddleHeadFillColor",
+        "edge.arrowMiddleTailFillColor",
         // Unset, a cap is drawn whole.
         "edge.arrowHeadSide",
         "edge.arrowTailSide",
@@ -638,6 +781,16 @@ describe("what a style editor needs to draw a row", () => {
         "edge.fanned",
         // Unset, a curved edge keeps the element's own bow.
         "edge.arcRadius",
+        // Unset, a curved edge has no support point, and the support's numbers have nothing to place.
+        "edge.supportModel",
+        "edge.supportSpringLength",
+        "edge.supportSpringConstant",
+        "edge.supportRepulsion",
+        "edge.supportCentralGravity",
+        "edge.supportUnit",
+        "edge.supportScale",
+        // Unset, the layout decides the route: straight but on a geographic map.
+        "edge.route",
         "edge.sourcePort",
         "edge.targetPort",
         // Unset, a line is painted in its color.
@@ -679,6 +832,9 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelFont",
         "edge.labelWeight",
         "edge.labelItalic",
+        // Unset, no shader parameter is set and no effect is drawn.
+        "node.shaders",
+        "edge.shaders",
         "node.labelLetterSize",
         "node.labelWrapWidth",
         "node.labelWrapTrailingSpace",
@@ -707,6 +863,9 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOffsetY",
         "node.labelShiftX",
         "node.labelShiftY",
+        "node.labelShiftOf",
+        "node.labelGapOf",
+        "node.labelBox",
         "edge.labelLetterSize",
         "edge.labelTextAlign",
         "edge.labelLocation",
@@ -734,6 +893,9 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelOffsetY",
         "edge.labelShiftX",
         "edge.labelShiftY",
+        "edge.labelShiftOf",
+        "edge.labelGapOf",
+        "edge.labelBox",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -807,19 +969,20 @@ describe("what a style editor needs to draw a row", () => {
         );
     });
 
-    it("says in a sentence why a channel cannot be set, exactly when it cannot", () => {
+    it("says with a code why a channel cannot be set, exactly when it cannot", () => {
         for (const channel of CHANNELS) {
-            const { renderable, unsupportedReason } = CHANNEL_DESCRIPTORS[channel];
+            const { renderable, unsupported } = CHANNEL_DESCRIPTORS[channel];
 
-            assert.strictEqual(unsupportedReason !== undefined, !renderable, channel);
+            assert.notProperty(CHANNEL_DESCRIPTORS[channel], "unsupportedReason", channel);
+            assert.strictEqual(unsupported !== undefined, !renderable, channel);
         }
 
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupportedReason, "The element draws no marker yet");
+        assert.deepEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupported, { code: "channel.not-drawn", params: {} });
     });
 });
 
 describe("colour channels", () => {
-    it("are the thirty-four that carry a colour, and the type says the same thirty-four", () => {
+    it("are the forty-one that carry a colour, and the type says the same forty-one", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -831,10 +994,15 @@ describe("colour channels", () => {
             "node.haloColor",
             "node.borderColor",
             "node.outerBorderColor",
+            "node.raisedBorderLightColor",
+            "node.raisedBorderDarkColor",
+            "node.shadowColor",
             "node.underlayColor",
             "node.overlayColor",
             "node.glyphColor",
             "node.chartBorderColor",
+            "node.chartBackgroundColor",
+            "node.shapeLineHaloColor",
             "node.gradientColor",
             "edge.color",
             "edge.bandColor",
@@ -842,11 +1010,15 @@ describe("colour channels", () => {
             "edge.underlayColor",
             "edge.overlayColor",
             "edge.arrowHeadColor",
+            "edge.arrowHeadFillColor",
             "edge.arrowHeadTextColor",
             "edge.arrowTailColor",
+            "edge.arrowTailFillColor",
             "edge.arrowTailTextColor",
             "edge.arrowMiddleHeadColor",
+            "edge.arrowMiddleHeadFillColor",
             "edge.arrowMiddleTailColor",
+            "edge.arrowMiddleTailFillColor",
             "node.tooltipColor",
             "node.tooltipBackground",
             "edge.labelColor",
@@ -911,6 +1083,15 @@ describe("what each channel carries", () => {
 
         assert.strictEqual(kinds.filter((kind) => kind === "nothing").length, 1);
         assert.isFalse(drawn(CHANNEL_DESCRIPTORS["node.marker"]));
+    });
+});
+
+describe("asColorValue", () => {
+    it("accepts a carried colour and refuses an object whose hex is not a string", () => {
+        const color = toColorValue("#ff0000");
+        assert.strictEqual(asColorValue(color), color);
+        assert.isNull(asColorValue({ hex: 5 }));
+        assert.isNull(asColorValue("#ff0000"));
     });
 });
 
@@ -996,6 +1177,38 @@ describe("the arrow-end channels", () => {
     });
 });
 
+describe("modelBindingProblem", () => {
+    const at = "encode.node.model";
+
+    it("accepts a value map of asset ids that skips unlisted categories", () => {
+        assert.isNull(modelBindingProblem({ by: "data.kind", map: { a: "asset:a" }, unmapped: "skip" }, at));
+        assert.isNull(modelBindingProblem({ value: "https://example.com/x.glb" }, at), "a literal is judged by origin");
+    });
+
+    it("accepts http(s) URLs among the listed values, and a value read from the data", () => {
+        const url = "https://example.com/x.glb";
+        const bindings: Binding[] = [
+            { by: "data.kind", map: { a: url }, unmapped: "skip" },
+            { by: "data.kind", map: {}, unmapped: "skip", missing: { value: url } },
+            { by: "data.url", scale: "passthrough" },
+            { template: ["{data.url}"] },
+        ];
+        for (const binding of bindings) {
+            assert.isNull(modelBindingProblem(binding, at));
+        }
+    });
+
+    it("refuses a listed value that is neither an asset id nor an http(s) URL", () => {
+        const bindings: Binding[] = [
+            { by: "data.kind", map: { a: "rack.glb" }, unmapped: "skip" },
+            { by: "data.kind", map: {}, unmapped: "skip", other: { threshold: 1, value: "file:///etc/x.glb" } },
+        ];
+        for (const binding of bindings) {
+            assert.equal(modelBindingProblem(binding, at)?.code, "E_MODEL_URL_BLOCKED");
+        }
+    });
+});
+
 describe("how far one step moves a number channel", () => {
     it("is given on every number channel and on no other", () => {
         for (const channel of CHANNELS) {
@@ -1032,5 +1245,7 @@ describe("which drawn part a channel adjusts", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].modifies, "node.label");
         assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadText"].modifies, "an end label is a part of its own");
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].modifies);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outlineWidth"].modifies, "node.outline");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outlineWidth"].stylePath, "effect.outline.width");
     });
 });

@@ -6,7 +6,13 @@
  * column is never re-typed after rows were written and a caller's sink needs no widening call.
  */
 
-import { type ColumnDecl, type Dtype, type GraphSink, type ScalarDtype } from "@graphty/graph-format";
+import {
+    type ColumnDecl,
+    type ColumnHandle,
+    type Dtype,
+    type GraphSink,
+    type ScalarDtype,
+} from "@graphty/graph-format";
 
 import { declareResolved, DictHeuristic, uniqueColumnName } from "../../common/attributes.js";
 import { type ImportReportBuilder, type IssueLocation } from "../../common/report.js";
@@ -73,6 +79,60 @@ const DTYPES: Readonly<Record<ScalarKind, ScalarDtype>> = {
     real: "f64",
     string: "string",
 };
+
+/**
+ * Mark a column for a parsed value beyond i32 (it widens) or beyond a double's exact range.
+ * @param plan - the column
+ * @param overflow - what parsing the value found
+ * @param isInt - the value was read as an int
+ */
+function noteOverflow(plan: Plan, overflow: "i32" | "precision" | undefined, isInt: boolean): void {
+    if (overflow === "i32") {
+        plan.overflow = true;
+    } else if (overflow === "precision") {
+        plan.precision = true;
+        plan.overflow ||= isInt;
+    }
+}
+
+/**
+ * The declaration of a decided column.
+ * @param plan - the column
+ * @param name - the name to declare it under
+ * @param decision - its dtype decision
+ * @returns the declaration
+ */
+function columnDecl(plan: Plan, name: string, decision: Decision): ColumnDecl {
+    const decl: ColumnDecl = {
+        name,
+        dtype: decision.dtype,
+        nullable: true,
+        origin: {
+            format: FORMAT,
+            id: null,
+            title: name === plan.name ? null : plan.name,
+            type: originType(plan, decision),
+            namespace: plan.namespace ?? (plan.hidden ? CYTOSCAPE_ORIGIN_NAMESPACE : null),
+        },
+    };
+    if (decision.itemDtype !== null) {
+        decl.itemDtype = decision.itemDtype;
+    }
+    const extra: Record<string, unknown> = {};
+    if (plan.hidden) {
+        extra.hidden = true;
+    }
+    if (plan.suid) {
+        extra.suidReference = true;
+    }
+    if (plan.equation) {
+        extra.equation = true;
+    }
+    if (Object.keys(extra).length > 0) {
+        decl.extra = extra;
+    }
+    return decl;
+}
 
 /**
  * Collects the attribute values of one table, then declares and writes the columns.
@@ -306,12 +366,7 @@ export class ColumnSet {
             return null;
         }
         plan.declared.add(kind);
-        if (parsed.overflow === "i32") {
-            plan.overflow = true;
-        } else if (parsed.overflow === "precision") {
-            plan.precision = true;
-            plan.overflow ||= kind === "int";
-        }
+        noteOverflow(plan, parsed.overflow, kind === "int");
         return scalarCell(kind, parsed.value, att.value, true);
     }
 
@@ -334,7 +389,20 @@ export class ColumnSet {
             this.recordList(`"${name}" is a record or a list of lists; it is kept as json`, at);
             return jsonCell(names.size > 1 ? recordOf(att) : children.map(jsonOfAtt));
         }
-        let itemKind = elementKind(att.elementType);
+        const itemKind = this.listItemKind(att, name, at);
+        const items = this.listItems(att, itemKind, plan, at);
+        return { kind: "list", value: null, text: "", items, itemKind, typed: true };
+    }
+
+    /**
+     * The item kind of a list att: its `cy:elementType`, else the widened kinds of its children.
+     * @param att - the att
+     * @param name - the column name
+     * @param at - the location
+     * @returns the item kind, or null for an empty list whose type nothing states
+     */
+    private listItemKind(att: AttRec, name: string, at: IssueLocation): ScalarKind | null {
+        const itemKind = elementKind(att.elementType);
         if (itemKind === null && att.elementType !== null && att.elementType.trim().length > 0) {
             this.report.warnOnce(
                 "unsupported",
@@ -344,26 +412,40 @@ export class ColumnSet {
                 `${XGMML_ISSUE.UNKNOWN_ATTR_TYPE}:${this.domain}:${name}:items`,
             );
         }
-        if (itemKind === null) {
-            const kinds = new Set<ScalarKind>();
-            for (const child of children) {
-                const type = attType(child);
-                const kind: ScalarKind = type.kind === "list" || type.kind === "map" ? "string" : type.kind;
-                kinds.add(kind);
-                itemKind = itemKind === null ? kind : widenScalar(itemKind, kind);
-            }
-            if (kinds.size > 1) {
-                this.report.warnOnce(
-                    "coercion",
-                    XGMML_ISSUE.WIDENED,
-                    `the items of list "${name}" declare different types; they are read as ${itemKind ?? "string"}`,
-                    at,
-                    `${XGMML_ISSUE.WIDENED}:${this.domain}:${name}`,
-                );
-            }
+        if (itemKind !== null) {
+            return itemKind;
         }
+        let widened: ScalarKind | null = null;
+        const kinds = new Set<ScalarKind>();
+        for (const child of att.children) {
+            const type = attType(child);
+            const kind: ScalarKind = type.kind === "list" || type.kind === "map" ? "string" : type.kind;
+            kinds.add(kind);
+            widened = widened === null ? kind : widenScalar(widened, kind);
+        }
+        if (kinds.size > 1) {
+            this.report.warnOnce(
+                "coercion",
+                XGMML_ISSUE.WIDENED,
+                `the items of list "${name}" declare different types; they are read as ${widened ?? "string"}`,
+                at,
+                `${XGMML_ISSUE.WIDENED}:${this.domain}:${name}`,
+            );
+        }
+        return widened;
+    }
+
+    /**
+     * Parse the items of a list att by its item kind; an invalid item is reported and skipped.
+     * @param att - the att
+     * @param itemKind - the item kind (null reads as string)
+     * @param plan - the column (an item beyond i32 widens it)
+     * @param at - the location
+     * @returns the items
+     */
+    private listItems(att: AttRec, itemKind: ScalarKind | null, plan: Plan, at: IssueLocation): Item[] {
         const items: Item[] = [];
-        for (const child of children) {
+        for (const child of att.children) {
             if (child.value === null) {
                 continue;
             }
@@ -373,15 +455,10 @@ export class ColumnSet {
                 this.badValue(child.value, itemKind ?? "string", { line: child.line, element: at.element });
                 continue;
             }
-            if (parsed.overflow === "i32") {
-                plan.overflow = true;
-            } else if (parsed.overflow === "precision") {
-                plan.precision = true;
-                plan.overflow ||= itemKind === "int";
-            }
+            noteOverflow(plan, parsed.overflow, itemKind === "int");
             items.push({ value: parsed.value, text: child.value });
         }
-        return { kind: "list", value: null, text: "", items, itemKind, typed: true };
+        return items;
     }
 
     // ------------------------------------------------------------------ decision and writing
@@ -396,34 +473,7 @@ export class ColumnSet {
     private writePlan(sink: GraphSink, plan: Plan, name: string, rowIndex: (row: number) => number): void {
         const cells = [...plan.cells.values()];
         const decision = this.decide(plan, cells);
-        const decl: ColumnDecl = {
-            name,
-            dtype: decision.dtype,
-            nullable: true,
-            origin: {
-                format: FORMAT,
-                id: null,
-                title: name === plan.name ? null : plan.name,
-                type: originType(plan, decision),
-                namespace: plan.namespace ?? (plan.hidden ? CYTOSCAPE_ORIGIN_NAMESPACE : null),
-            },
-        };
-        if (decision.itemDtype !== null) {
-            decl.itemDtype = decision.itemDtype;
-        }
-        const extra: Record<string, unknown> = {};
-        if (plan.hidden) {
-            extra.hidden = true;
-        }
-        if (plan.suid) {
-            extra.suidReference = true;
-        }
-        if (plan.equation) {
-            extra.equation = true;
-        }
-        if (Object.keys(extra).length > 0) {
-            decl.extra = extra;
-        }
+        const decl = columnDecl(plan, name, decision);
         const where = { element: name };
         if (this.domain === "graph") {
             const cell = plan.cells.get(0);
@@ -441,6 +491,26 @@ export class ColumnSet {
             this.report.recordError(err, where);
             return;
         }
+        this.writeRows(sink, handle, plan, decision, name, rowIndex);
+    }
+
+    /**
+     * Write a declared node or edge column's values.
+     * @param sink - the sink
+     * @param handle - the declared column
+     * @param plan - the column
+     * @param decision - its dtype decision
+     * @param name - the name it was declared under
+     * @param rowIndex - the row to sink index map
+     */
+    private writeRows(
+        sink: GraphSink,
+        handle: ColumnHandle,
+        plan: Plan,
+        decision: Decision,
+        name: string,
+        rowIndex: (row: number) => number,
+    ): void {
         for (const [row, cell] of plan.cells) {
             const index = rowIndex(row);
             if (index < 0) {
@@ -466,7 +536,6 @@ export class ColumnSet {
      * @returns the decision
      */
     private decide(plan: Plan, cells: readonly Cell[]): Decision {
-        const where = { element: plan.name };
         const typedKinds = new Set(cells.filter((c) => c.typed).map((c) => c.kind));
         let widened = typedKinds.size > 1 || plan.declared.size > 1;
         let decision: Decision;
@@ -476,32 +545,60 @@ export class ColumnSet {
         ) {
             decision = { dtype: "json", itemDtype: null, scalar: null, item: null, long: false };
         } else if (cells.length > 0 && cells.every((c) => c.kind === "list")) {
-            let item: ScalarKind | null = null;
-            for (const cell of cells) {
-                if (cell.itemKind !== null) {
-                    widened ||= item !== null && item !== cell.itemKind;
-                    item = item === null ? cell.itemKind : widenScalar(item, cell.itemKind);
-                }
-            }
-            if (item === null) {
-                this.report.warnOnce(
-                    "coercion",
-                    XGMML_ISSUE.EMPTY_LIST_TYPE,
-                    `list "${plan.name}" has no element type and no items; it is a list of strings`,
-                    where,
-                    `${XGMML_ISSUE.EMPTY_LIST_TYPE}:${this.domain}:${plan.name}`,
-                );
-                item = "string";
-            }
-            if (plan.overflow && item === "int") {
-                item = "real";
-                widened = true;
-            }
-            decision = { dtype: "list", itemDtype: DTYPES[item], scalar: null, item, long: item === "long" };
+            const list = this.decideList(plan, cells);
+            ({ decision } = list);
+            widened ||= list.widened;
         } else {
             decision = this.decideScalar(plan, cells);
             widened ||= plan.overflow && decision.scalar === "real" && plan.declared.has("int");
         }
+        this.warnDecision(plan, decision, widened);
+        return decision;
+    }
+
+    /**
+     * The list decision of a column whose cells are all lists.
+     * @param plan - the column
+     * @param cells - its cells
+     * @returns the decision, and whether its item kinds disagreed or overflowed
+     */
+    private decideList(plan: Plan, cells: readonly Cell[]): { decision: Decision; widened: boolean } {
+        let widened = false;
+        let item: ScalarKind | null = null;
+        for (const cell of cells) {
+            if (cell.itemKind !== null) {
+                widened ||= item !== null && item !== cell.itemKind;
+                item = item === null ? cell.itemKind : widenScalar(item, cell.itemKind);
+            }
+        }
+        if (item === null) {
+            this.report.warnOnce(
+                "coercion",
+                XGMML_ISSUE.EMPTY_LIST_TYPE,
+                `list "${plan.name}" has no element type and no items; it is a list of strings`,
+                { element: plan.name },
+                `${XGMML_ISSUE.EMPTY_LIST_TYPE}:${this.domain}:${plan.name}`,
+            );
+            item = "string";
+        }
+        if (plan.overflow && item === "int") {
+            item = "real";
+            widened = true;
+        }
+        return {
+            decision: { dtype: "list", itemDtype: DTYPES[item], scalar: null, item, long: item === "long" },
+            widened,
+        };
+    }
+
+    /**
+     * Report a column's widening and lost precision.
+     * @param plan - the column
+     * @param decision - its decision
+     * @param widened - its values or declared types disagreed
+     */
+    private warnDecision(plan: Plan, decision: Decision, widened: boolean): void {
+        const where = { element: plan.name };
         if (widened) {
             this.report.warnOnce(
                 "coercion",
@@ -520,7 +617,6 @@ export class ColumnSet {
                 `${XGMML_ISSUE.PRECISION}:${this.domain}:${plan.name}`,
             );
         }
-        return decision;
     }
 
     /**

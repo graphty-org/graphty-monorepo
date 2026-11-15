@@ -1,0 +1,3278 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Open security-events-120k.csv</title>
+        <style>
+            body {
+                margin: 0;
+                background: #111;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            a {
+                color: #5b8ff9;
+            }
+            a:hover {
+                color: #75a5f9;
+            }
+        </style>
+    </head>
+    <body>
+        <div
+            style="
+                width: 1440px;
+                height: 900px;
+                position: relative;
+                overflow: hidden;
+                background: #2c2c2c;
+                color: #ffffff;
+                font-size: 12px;
+                line-height: 16px;
+            "
+        >
+            <div
+                style="
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 1440px;
+                    height: 40px;
+                    background: #2c2c2c;
+                    border-bottom: 1px solid #444444;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    padding: 0 16px;
+                    box-sizing: border-box;
+                "
+            >
+                <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none"
+                >
+                    <path d="M2.5 4h11M2.5 8h11M2.5 12h11" /></svg
+                ><span style="font-weight: 600; font-size: 13px">Untitled</span
+                ><span style="color: #b3b3b3; display: flex; gap: 12px"
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M5 3.5 2.5 6 5 8.5" />
+                        <path d="M2.5 6h7a3.5 3.5 0 0 1 0 7H7" /></svg
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M11 3.5 13.5 6 11 8.5" />
+                        <path d="M13.5 6h-7a3.5 3.5 0 0 0 0 7H9" /></svg></span
+                ><span style="color: #b3b3b3; display: flex; align-items: center; gap: 6px"
+                    ><svg
+                        width="13"
+                        height="13"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+                        <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></svg
+                    >Local only</span
+                >
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 0;
+                    top: 40px;
+                    width: 57px;
+                    height: 860px;
+                    background: #2c2c2c;
+                    border-right: 1px solid #444444;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 10px;
+                    padding-top: 12px;
+                    box-sizing: border-box;
+                "
+            >
+                <div
+                    style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        font-size: 10px;
+                        color: #b3b3b3;
+                    "
+                >
+                    <div
+                        style="
+                            width: 32px;
+                            height: 28px;
+                            border-radius: 6px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: #b3b3b3;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="4" cy="4" r="2" />
+                            <circle cx="12" cy="6" r="2" />
+                            <circle cx="6" cy="12" r="2" />
+                            <path d="M5.8 4.6 10.1 5.5M4.6 5.9l.9 4.2M7.7 11 10.5 7.4" />
+                        </svg>
+                    </div>
+                    Graph
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        font-size: 10px;
+                        color: #fff;
+                    "
+                >
+                    <div
+                        style="
+                            width: 32px;
+                            height: 28px;
+                            border-radius: 6px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            background: #0a6dc2;
+                            color: #fff;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <ellipse cx="8" cy="4" rx="5" ry="2" />
+                            <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
+                        </svg>
+                    </div>
+                    Data
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        font-size: 10px;
+                        color: #b3b3b3;
+                    "
+                >
+                    <div
+                        style="
+                            width: 32px;
+                            height: 28px;
+                            border-radius: 6px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: #b3b3b3;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M4 2.5h6l2.5 2.5v8.5h-8.5z" />
+                            <path d="M6 7.5h4.5M6 10h4.5" />
+                        </svg>
+                    </div>
+                    Notes
+                </div>
+                <div style="flex: 1"></div>
+                <div style="padding-bottom: 14px">
+                    <div
+                        style="
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            gap: 3px;
+                            font-size: 10px;
+                            color: #b3b3b3;
+                        "
+                    >
+                        <div
+                            style="
+                                width: 32px;
+                                height: 28px;
+                                border-radius: 6px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                color: #b3b3b3;
+                            "
+                        >
+                            <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <circle cx="8" cy="8" r="2.2" />
+                                <path
+                                    d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"
+                                />
+                            </svg>
+                        </div>
+                        Settings
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 297px;
+                    top: 40px;
+                    width: 1143px;
+                    height: 860px;
+                    background: #f5f5f5;
+                    overflow: hidden;
+                "
+            ></div>
+            <div
+                style="
+                    position: absolute;
+                    left: 57px;
+                    top: 40px;
+                    width: 1383px;
+                    height: 860px;
+                    background: #2c2c2c;
+                    display: flex;
+                    flex-direction: column;
+                    z-index: 8;
+                "
+            >
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        height: 44px;
+                        padding: 0 16px;
+                        border-bottom: 1px solid #444444;
+                    "
+                >
+                    <span style="color: #b3b3b3; display: flex"
+                        ><svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="m9.5 4.5-3.5 3.5 3.5 3.5" /></svg></span
+                    ><span style="font-size: 14px; font-weight: 600">Open security-events-120k.csv</span
+                    ><span style="color: #b3b3b3; display: flex; align-items: center; gap: 5px; font-size: 11px"
+                        ><svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+                            <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></svg
+                        >Local only</span
+                    >
+                </div>
+                <div style="flex: 1; display: flex; min-height: 0">
+                    <div style="width: 300px; flex: none; border-right: 1px solid #444444; overflow: hidden">
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 32px;
+                                padding: 0 10px 0 8px;
+                                font-weight: 600;
+                                font-size: 12px;
+                            "
+                        >
+                            <span style="color: #b3b3b3; display: flex"
+                                ><svg
+                                    width="10"
+                                    height="10"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg></span
+                            ><span>File</span
+                            ><span style="margin-left: auto; display: flex; align-items: center; gap: 6px"></span>
+                        </div>
+                        <div style="display: flex; align-items: flex-start; gap: 8px; padding: 5px 10px 5px 16px">
+                            <span style="color: #b3b3b3; display: flex; padding-top: 1px"
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M4 2.5h5.5L12 5v8.5H4z" />
+                                    <path d="M9.5 2.5V5H12" /></svg
+                            ></span>
+                            <div style="flex: 1; min-width: 0">
+                                <div
+                                    style="
+                                        flex: 1;
+                                        min-width: 0;
+                                        white-space: nowrap;
+                                        overflow: hidden;
+                                        text-overflow: ellipsis;
+                                    "
+                                >
+                                    security-events-120k.csv
+                                </div>
+                                <div style="display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap">
+                                    <span
+                                        style="
+                                            display: inline-flex;
+                                            align-items: center;
+                                            gap: 4px;
+                                            height: 18px;
+                                            padding: 0 6px;
+                                            border-radius: 9px;
+                                            background: #383838;
+                                            color: #ffffff;
+                                            font-size: 11px;
+                                            white-space: nowrap;
+                                            flex: none;
+                                        "
+                                        >1,486,930 rows</span
+                                    ><span
+                                        style="
+                                            display: inline-flex;
+                                            align-items: center;
+                                            gap: 4px;
+                                            height: 18px;
+                                            padding: 0 6px;
+                                            border-radius: 9px;
+                                            background: #383838;
+                                            color: #ffffff;
+                                            font-size: 11px;
+                                            white-space: nowrap;
+                                            flex: none;
+                                        "
+                                        >7 columns</span
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 32px;
+                                padding: 0 10px 0 8px;
+                                font-weight: 600;
+                                font-size: 12px;
+                                border-top: 1px solid #444444;
+                            "
+                        >
+                            <span style="color: #b3b3b3; display: flex"
+                                ><svg
+                                    width="10"
+                                    height="10"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg></span
+                            ><span>Nodes</span
+                            ><span style="margin-left: auto; display: flex; align-items: center; gap: 6px"
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M8 3.5v9M3.5 8h9" /></svg></span
+                            ></span>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                min-height: 28px;
+                                padding: 0 10px 0 16px;
+                                gap: 6px;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 16px;
+                                    flex: none;
+                                    color: #b3b3b3;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                "
+                                >Aa</span
+                            ><span style="flex: none; width: 58px">user</span>
+                            <div
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px;
+                                    border-radius: 4px;
+                                    background: #383838;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <span style="color: #b3b3b3; display: flex"
+                                    ><span
+                                        style="
+                                            width: 10px;
+                                            height: 10px;
+                                            border-radius: 5px;
+                                            background: #5c5fe0;
+                                            flex: none;
+                                        "
+                                    ></span></span
+                                ><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"
+                                    >User</span
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                min-height: 28px;
+                                padding: 0 10px 0 16px;
+                                gap: 6px;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 16px;
+                                    flex: none;
+                                    color: #b3b3b3;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                "
+                                >Aa</span
+                            ><span style="flex: none; width: 58px">host</span>
+                            <div
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px;
+                                    border-radius: 4px;
+                                    background: #383838;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <span style="color: #b3b3b3; display: flex"
+                                    ><span
+                                        style="
+                                            width: 10px;
+                                            height: 10px;
+                                            border-radius: 5px;
+                                            background: #2f9e44;
+                                            flex: none;
+                                        "
+                                    ></span></span
+                                ><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"
+                                    >Host</span
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                min-height: 28px;
+                                padding: 0 10px 0 16px;
+                                gap: 6px;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 16px;
+                                    flex: none;
+                                    color: #b3b3b3;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                "
+                                >Aa</span
+                            ><span style="flex: none; width: 58px">process</span>
+                            <div
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px;
+                                    border-radius: 4px;
+                                    background: #383838;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <span style="color: #b3b3b3; display: flex"
+                                    ><span
+                                        style="
+                                            width: 10px;
+                                            height: 10px;
+                                            border-radius: 5px;
+                                            background: #f08c00;
+                                            flex: none;
+                                        "
+                                    ></span></span
+                                ><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"
+                                    >Process</span
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                min-height: 28px;
+                                padding: 0 10px 0 16px;
+                                gap: 6px;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 16px;
+                                    flex: none;
+                                    color: #b3b3b3;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                "
+                                >Aa</span
+                            ><span style="flex: none; width: 58px">dst_ip</span>
+                            <div
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px;
+                                    border-radius: 4px;
+                                    background: #383838;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <span style="color: #b3b3b3; display: flex"
+                                    ><span
+                                        style="
+                                            width: 10px;
+                                            height: 10px;
+                                            border-radius: 5px;
+                                            background: #e64980;
+                                            flex: none;
+                                        "
+                                    ></span></span
+                                ><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"
+                                    >IP address</span
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 32px;
+                                padding: 0 10px 0 8px;
+                                font-weight: 600;
+                                font-size: 12px;
+                                border-top: 1px solid #444444;
+                            "
+                        >
+                            <span style="color: #b3b3b3; display: flex"
+                                ><svg
+                                    width="10"
+                                    height="10"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg></span
+                            ><span>Edges</span
+                            ><span style="margin-left: auto; display: flex; align-items: center; gap: 6px"
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M8 3.5v9M3.5 8h9" /></svg></span
+                            ></span>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                min-height: 28px;
+                                padding: 0 10px 0 16px;
+                                gap: 4px;
+                            "
+                        >
+                            <span style="flex: none; width: 52px">user</span
+                            ><span style="color: #b3b3b3; display: flex"
+                                ><svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M3 8h10M9.5 4.5 13 8l-3.5 3.5" /></svg></span
+                            ><span style="flex: none; width: 58px">host</span>
+                            <div
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px;
+                                    border-radius: 4px;
+                                    background: #383838;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"
+                                    >logon, ssh</span
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                min-height: 28px;
+                                padding: 0 10px 0 16px;
+                                gap: 4px;
+                            "
+                        >
+                            <span style="flex: none; width: 52px">host</span
+                            ><span style="color: #b3b3b3; display: flex"
+                                ><svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M3 8h10M9.5 4.5 13 8l-3.5 3.5" /></svg></span
+                            ><span style="flex: none; width: 58px">process</span>
+                            <div
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px;
+                                    border-radius: 4px;
+                                    background: #383838;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"
+                                    >spawn</span
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                min-height: 28px;
+                                padding: 0 10px 0 16px;
+                                gap: 4px;
+                            "
+                        >
+                            <span style="flex: none; width: 52px">process</span
+                            ><span style="color: #b3b3b3; display: flex"
+                                ><svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M3 8h10M9.5 4.5 13 8l-3.5 3.5" /></svg></span
+                            ><span style="flex: none; width: 58px">dst_ip</span>
+                            <div
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px;
+                                    border-radius: 4px;
+                                    background: #383838;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"
+                                    >connect, dns</span
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                min-height: 28px;
+                                padding: 0 10px 0 16px;
+                                gap: 4px;
+                            "
+                        >
+                            <span style="flex: none; width: 52px">host</span
+                            ><span style="color: #b3b3b3; display: flex"
+                                ><svg
+                                    width="12"
+                                    height="12"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M3 8h10M9.5 4.5 13 8l-3.5 3.5" /></svg></span
+                            ><span style="flex: none; width: 58px">process</span>
+                            <div
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px;
+                                    border-radius: 4px;
+                                    background: #383838;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"
+                                    >file_write</span
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                min-height: 28px;
+                                padding: 0 10px 0 16px;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 58px;
+                                    flex: none;
+                                    color: #b3b3b3;
+                                    font-size: 11px;
+                                    white-space: nowrap;
+                                    overflow: hidden;
+                                "
+                                >Kind from</span
+                            >
+                            <div
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px;
+                                    border-radius: 4px;
+                                    background: #383838;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"
+                                    >event_type</span
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                min-height: 28px;
+                                padding: 0 10px 0 16px;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 58px;
+                                    flex: none;
+                                    color: #b3b3b3;
+                                    font-size: 11px;
+                                    white-space: nowrap;
+                                    overflow: hidden;
+                                "
+                                >Repeats</span
+                            >
+                            <div
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px;
+                                    border-radius: 4px;
+                                    background: #383838;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis"
+                                    >Combine: count</span
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                min-height: 28px;
+                                padding: 0 10px 0 16px;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 58px;
+                                    flex: none;
+                                    color: #b3b3b3;
+                                    font-size: 11px;
+                                    white-space: nowrap;
+                                    overflow: hidden;
+                                "
+                                >Time</span
+                            >
+                            <div
+                                style="
+                                    flex: 1;
+                                    min-width: 0;
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 6px;
+                                    border-radius: 4px;
+                                    background: #383838;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                "
+                            >
+                                <span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="12"
+                                        height="12"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <rect x="2.5" y="3.5" width="11" height="10" rx="1" />
+                                        <path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg></span
+                                ><span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis">ts</span
+                                ><span style="color: #b3b3b3; display: flex"
+                                    ><svg
+                                        width="10"
+                                        height="10"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                                ></span>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 32px;
+                                padding: 0 10px 0 8px;
+                                font-weight: 600;
+                                font-size: 12px;
+                                border-top: 1px solid #444444;
+                            "
+                        >
+                            <span style="color: #b3b3b3; display: flex"
+                                ><svg
+                                    width="10"
+                                    height="10"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="m6.5 4.5 3.5 3.5-3.5 3.5" /></svg></span
+                            ><span>Other columns</span
+                            ><span style="margin-left: auto; display: flex; align-items: center; gap: 6px"
+                                ><span style="color: #b3b3b3">1</span></span
+                            >
+                        </div>
+                    </div>
+                    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden">
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                height: 36px;
+                                padding: 0 12px;
+                                border-bottom: 1px solid #444444;
+                            "
+                        >
+                            <span style="font-weight: 600">Preview</span
+                            ><span style="color: #b3b3b3">first 16 of 1,486,930 rows</span>
+                        </div>
+                        <table style="border-collapse: collapse; font-size: 12px; width: 100%">
+                            <thead>
+                                <tr>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            height: 26px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #444444;
+                                            border-right: 1px solid #444444;
+                                            background: #2c2c2c;
+                                            white-space: nowrap;
+                                            width: 30px;
+                                        "
+                                    ></th>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            height: 26px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #444444;
+                                            border-right: 1px solid #444444;
+                                            background: #2c2c2c;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        <span style="display: inline-flex; align-items: center; gap: 5px"
+                                            ><span
+                                                style="
+                                                    width: 16px;
+                                                    flex: none;
+                                                    color: #b3b3b3;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    font-size: 10px;
+                                                    font-weight: 700;
+                                                "
+                                                ><svg
+                                                    width="12"
+                                                    height="12"
+                                                    viewBox="0 0 16 16"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="1.5"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    style="flex: none"
+                                                >
+                                                    <rect x="2.5" y="3.5" width="11" height="10" rx="1" />
+                                                    <path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg></span
+                                            >ts</span
+                                        >
+                                    </th>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            height: 26px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #444444;
+                                            border-right: 1px solid #444444;
+                                            background: #2c2c2c;
+                                            white-space: nowrap;
+                                            background: #33384d;
+                                        "
+                                    >
+                                        <span style="display: inline-flex; align-items: center; gap: 5px"
+                                            ><span
+                                                style="
+                                                    width: 16px;
+                                                    flex: none;
+                                                    color: #b3b3b3;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    font-size: 10px;
+                                                    font-weight: 700;
+                                                "
+                                                >Aa</span
+                                            >user</span
+                                        >
+                                    </th>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            height: 26px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #444444;
+                                            border-right: 1px solid #444444;
+                                            background: #2c2c2c;
+                                            white-space: nowrap;
+                                            background: #33384d;
+                                        "
+                                    >
+                                        <span style="display: inline-flex; align-items: center; gap: 5px"
+                                            ><span
+                                                style="
+                                                    width: 16px;
+                                                    flex: none;
+                                                    color: #b3b3b3;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    font-size: 10px;
+                                                    font-weight: 700;
+                                                "
+                                                >Aa</span
+                                            >host</span
+                                        >
+                                    </th>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            height: 26px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #444444;
+                                            border-right: 1px solid #444444;
+                                            background: #2c2c2c;
+                                            white-space: nowrap;
+                                            background: #33384d;
+                                        "
+                                    >
+                                        <span style="display: inline-flex; align-items: center; gap: 5px"
+                                            ><span
+                                                style="
+                                                    width: 16px;
+                                                    flex: none;
+                                                    color: #b3b3b3;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    font-size: 10px;
+                                                    font-weight: 700;
+                                                "
+                                                >Aa</span
+                                            >process</span
+                                        >
+                                    </th>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            height: 26px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #444444;
+                                            border-right: 1px solid #444444;
+                                            background: #2c2c2c;
+                                            white-space: nowrap;
+                                            background: #33384d;
+                                        "
+                                    >
+                                        <span style="display: inline-flex; align-items: center; gap: 5px"
+                                            ><span
+                                                style="
+                                                    width: 16px;
+                                                    flex: none;
+                                                    color: #b3b3b3;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    font-size: 10px;
+                                                    font-weight: 700;
+                                                "
+                                                >Aa</span
+                                            >dst_ip</span
+                                        >
+                                    </th>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            height: 26px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #444444;
+                                            border-right: 1px solid #444444;
+                                            background: #2c2c2c;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        <span style="display: inline-flex; align-items: center; gap: 5px"
+                                            ><span
+                                                style="
+                                                    width: 16px;
+                                                    flex: none;
+                                                    color: #b3b3b3;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    font-size: 10px;
+                                                    font-weight: 700;
+                                                "
+                                                ><svg
+                                                    width="12"
+                                                    height="12"
+                                                    viewBox="0 0 16 16"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="1.5"
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    style="flex: none"
+                                                >
+                                                    <circle cx="5" cy="5" r="2" />
+                                                    <circle cx="11" cy="5" r="2" />
+                                                    <circle cx="8" cy="11" r="2" /></svg></span
+                                            >event_type</span
+                                        >
+                                    </th>
+                                    <th
+                                        style="
+                                            text-align: left;
+                                            font-weight: 600;
+                                            height: 26px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #444444;
+                                            border-right: 1px solid #444444;
+                                            background: #2c2c2c;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                        "
+                                    >
+                                        <span style="display: inline-flex; align-items: center; gap: 5px"
+                                            ><span
+                                                style="
+                                                    width: 16px;
+                                                    flex: none;
+                                                    color: #b3b3b3;
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    font-size: 10px;
+                                                    font-weight: 700;
+                                                    font-size: 12px;
+                                                "
+                                                >#</span
+                                            >bytes</span
+                                        >
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        1
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:01:12
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        j.chen
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        ws-0412
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        logon
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    ></td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        2
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:01:40
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        ws-0412
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        outlook.exe
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        spawn
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    ></td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        3
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:02:03
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        outlook.exe
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        52.96.88.14
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        connect
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    >
+                                        14,220
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        4
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:02:05
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        outlook.exe
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        52.96.88.14
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        connect
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    >
+                                        3,112
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        5
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:05:51
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        m.ortiz
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        srv-db-02
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        ssh
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    ></td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        6
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:05:58
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        srv-db-02
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        psql
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        spawn
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    ></td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        7
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:06:10
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        psql
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        10.4.2.19
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        connect
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    >
+                                        880
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        8
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:07:44
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        ws-0412
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        powershell.exe
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        spawn
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    ></td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        9
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:07:45
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        powershell.exe
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        185.220.101.7
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        dns
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    >
+                                        212
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        10
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:07:47
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        powershell.exe
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        185.220.101.7
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        connect
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    >
+                                        1,048,576
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        11
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:09:02
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        ws-0412
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        powershell.exe
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        file_write
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    >
+                                        40,960
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        12
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:11:30
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        a.patel
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        ws-0198
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        logon
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    ></td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        13
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:11:52
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        ws-0198
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        chrome.exe
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        spawn
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    ></td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        14
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:12:01
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        chrome.exe
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        142.250.72.14
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        connect
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    >
+                                        22,410
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        15
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:12:09
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        chrome.exe
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        142.250.72.14
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        connect
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    >
+                                        9,804
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                            color: #a3a3a3;
+                                        "
+                                    >
+                                        16
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        2026-09-30 08:15:33
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        j.chen
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    >
+                                        srv-db-02
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            background: #2f3342;
+                                        "
+                                    ></td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                        "
+                                    >
+                                        ssh
+                                    </td>
+                                    <td
+                                        style="
+                                            height: 22px;
+                                            padding: 0 8px;
+                                            border-bottom: 1px solid #383838;
+                                            border-right: 1px solid #383838;
+                                            white-space: nowrap;
+                                            text-align: right;
+                                            font-variant-numeric: tabular-nums;
+                                        "
+                                    ></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        height: 48px;
+                        padding: 0 16px;
+                        border-top: 1px solid #444444;
+                    "
+                >
+                    <span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                            height: 18px;
+                            padding: 0 6px;
+                            border-radius: 9px;
+                            background: #383838;
+                            color: #ffffff;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            flex: none;
+                        "
+                        ><span
+                            style="width: 10px; height: 10px; border-radius: 5px; background: #5c5fe0; flex: none"
+                        ></span
+                        >2,140 User</span
+                    ><span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                            height: 18px;
+                            padding: 0 6px;
+                            border-radius: 9px;
+                            background: #383838;
+                            color: #ffffff;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            flex: none;
+                        "
+                        ><span
+                            style="width: 10px; height: 10px; border-radius: 5px; background: #2f9e44; flex: none"
+                        ></span
+                        >860 Host</span
+                    ><span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                            height: 18px;
+                            padding: 0 6px;
+                            border-radius: 9px;
+                            background: #383838;
+                            color: #ffffff;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            flex: none;
+                        "
+                        ><span
+                            style="width: 10px; height: 10px; border-radius: 5px; background: #f08c00; flex: none"
+                        ></span
+                        >96,212 Process</span
+                    ><span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                            height: 18px;
+                            padding: 0 6px;
+                            border-radius: 9px;
+                            background: #383838;
+                            color: #ffffff;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            flex: none;
+                        "
+                        ><span
+                            style="width: 10px; height: 10px; border-radius: 5px; background: #e64980; flex: none"
+                        ></span
+                        >21,206 IP address</span
+                    ><span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 4px;
+                            height: 18px;
+                            padding: 0 6px;
+                            border-radius: 9px;
+                            background: #383838;
+                            color: #ffffff;
+                            font-size: 11px;
+                            white-space: nowrap;
+                            flex: none;
+                        "
+                        >1,104,206 edges</span
+                    >
+                    <div style="flex: 1"></div>
+                    <span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 6px;
+                            height: 24px;
+                            padding: 0 10px;
+                            border-radius: 5px;
+                            font-size: 12px;
+                            color: #ffffff;
+                            background: #383838;
+                            white-space: nowrap;
+                            flex: none;
+                            box-sizing: border-box;
+                        "
+                        >Cancel</span
+                    ><span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            justify-content: center;
+                            gap: 6px;
+                            height: 24px;
+                            padding: 0 12px;
+                            border-radius: 5px;
+                            font-size: 12px;
+                            color: #ffffff;
+                            background: #0c8ce9;
+                            white-space: nowrap;
+                            flex: none;
+                            box-sizing: border-box;
+                            box-shadow: 0 0 0 2px #7cc4f8;
+                        "
+                        >Load</span
+                    >
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #fff;
+                    z-index: 30;
+                    left: 380px;
+                    top: 580px;
+                "
+            >
+                <span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #e8590c;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        flex: none;
+                    "
+                    >1</span
+                ><span style="background: #e8590c; padding: 2px 6px; border-radius: 4px; white-space: nowrap"
+                    >Nodes: one row per column that names a node, + adds one</span
+                >
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #fff;
+                    z-index: 30;
+                    left: 380px;
+                    top: 610px;
+                "
+            >
+                <span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #e8590c;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        flex: none;
+                    "
+                    >2</span
+                ><span style="background: #e8590c; padding: 2px 6px; border-radius: 4px; white-space: nowrap"
+                    >Edges: each row joins two kinds</span
+                >
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #fff;
+                    z-index: 30;
+                    left: 380px;
+                    top: 640px;
+                "
+            >
+                <span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #e8590c;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        flex: none;
+                    "
+                    >3</span
+                ><span style="background: #e8590c; padding: 2px 6px; border-radius: 4px; white-space: nowrap"
+                    >Repeats: repeated events become one edge with a count</span
+                >
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #fff;
+                    z-index: 30;
+                    left: 560px;
+                    top: 836px;
+                "
+            >
+                <span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #e8590c;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        flex: none;
+                    "
+                    >4</span
+                ><span style="background: #e8590c; padding: 2px 6px; border-radius: 4px; white-space: nowrap"
+                    >Counts per kind before Load</span
+                >
+            </div>
+        </div>
+    </body>
+</html>

@@ -20,6 +20,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath, URL } from "node:url";
 
+import { logsReceiveInputSchema } from "../mcp/tools/logs-receive.js";
 import { JsonlWriter } from "./jsonl-writer.js";
 import { type LogEntry, LogStorage } from "./log-storage.js";
 import { parseIntegerSetting } from "./parse-integer.js";
@@ -147,18 +148,15 @@ export interface LogServerOptions {
     httpOnly?: boolean;
     /** Suppress startup banner (default: false) */
     quiet?: boolean;
+    /** Let the proxy reach loopback, private and link-local addresses (default: false) */
+    proxyAllowPrivate?: boolean;
 }
 
 // Re-export LogEntry from log-storage for backward compatibility
 export type { LogEntry } from "./log-storage.js";
 
-interface LogBatch {
-    sessionId: string;
-    logs: LogEntry[];
-    projectMarker?: string;
-    worktreePath?: string;
-    pageUrl?: string;
-}
+/** Largest POST /log body accepted, in bytes; a larger one is answered 413. */
+const MAX_LOG_BODY_BYTES = 5 * 1024 * 1024;
 
 // File stream for log file
 let logFileStream: fs.WriteStream | null = null;
@@ -230,131 +228,185 @@ function displayLog(sessionId: string, log: LogEntry, quiet: boolean): void {
 }
 
 /**
- * Handle incoming HTTP request.
+ * Read a POSTed log batch, store it, show it in the terminal and answer the browser.
  * @param req - The incoming HTTP request
  * @param res - The HTTP response object
- * @param host - The server hostname
- * @param port - The server port number
- * @param useHttps - Whether HTTPS is being used
  * @param quiet - If true, suppress terminal output
- * @param logReceiveOnly - If true, only serve /log POST and /health GET endpoints
  */
-function handleRequest(
-    req: http.IncomingMessage,
-    res: http.ServerResponse,
-    host: string,
-    port: number,
-    useHttps: boolean,
-    quiet: boolean,
-    logReceiveOnly: boolean = false,
-): void {
-    // CORS headers
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
-    if (req.method === "OPTIONS") {
-        res.writeHead(204);
-        res.end();
-        return;
-    }
-
-    const url = req.url ?? "/";
-    const protocol = useHttps ? "https" : "http";
-
-    // Handle log endpoint - receive logs from browser
-    if (url === "/log" && req.method === "POST") {
-        let body = "";
-        req.on("data", (chunk: Buffer) => {
-            body += chunk.toString();
-        });
-        req.on("end", () => {
-            try {
-                const data = JSON.parse(body) as LogBatch;
-                const { sessionId, logs, projectMarker, worktreePath, pageUrl } = data;
-
-                const storage = getLogStorage();
-                const isNewSession = !storage.hasSession(sessionId);
-
-                // Show new session banner
-                if (isNewSession && !quiet) {
-                    // eslint-disable-next-line no-console
-                    console.log(
-                        `\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`,
-                    );
-                    // eslint-disable-next-line no-console
-                    console.log(`${colors.bright}${colors.magenta}  NEW SESSION: ${sessionId}${colors.reset}`);
-                    // eslint-disable-next-line no-console
-                    console.log(
-                        `${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`,
-                    );
-                }
-
-                // Add logs to storage
-                storage.addLogs(sessionId, logs, { projectMarker, worktreePath, pageUrl });
-
-                // Display each log in terminal
-                for (const log of logs) {
-                    displayLog(sessionId, log, quiet);
-                }
-
-                res.writeHead(200, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ success: true }));
-            } catch (error) {
-                if (!quiet) {
-                    console.error("Error parsing log data:", error);
-                }
-                res.writeHead(400, { "Content-Type": "application/json" });
-                res.end(JSON.stringify({ error: "Invalid JSON" }));
-            }
-        });
-        return;
-    }
-
-    // Health check endpoint (always available)
-    if (url === "/health" && req.method === "GET") {
-        const health = getLogStorage().getHealth();
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ status: health.status, sessions: health.sessionCount }));
-        return;
-    }
-
-    // Serve browser-ready script bundle (available in all modes including logReceiveOnly)
-    if ((url === "/remote-logger.js" || url.startsWith("/remote-logger.js?")) && req.method === "GET") {
-        const bundle = loadBrowserBundle();
-        if (!bundle) {
-            res.writeHead(404, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "Browser bundle not found. Run 'npm run build' first." }));
+function receiveLogBatch(req: http.IncomingMessage, res: http.ServerResponse, quiet: boolean): void {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let tooLarge = false;
+    req.on("data", (chunk: Buffer) => {
+        if (tooLarge) {
             return;
         }
+        size += chunk.length;
+        if (size > MAX_LOG_BODY_BYTES) {
+            tooLarge = true;
+            chunks.length = 0;
+            res.writeHead(413, { "Content-Type": "application/json", Connection: "close" });
+            res.end(JSON.stringify({ error: `Log batch larger than ${MAX_LOG_BODY_BYTES} bytes` }));
+            return;
+        }
+        chunks.push(chunk);
+    });
+    req.on("end", () => {
+        if (tooLarge) {
+            return;
+        }
+        let json: unknown;
+        try {
+            json = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        } catch (error) {
+            if (!quiet) {
+                console.error("Error parsing log data:", error);
+            }
+            sendBadRequest(res, { error: "Invalid JSON" });
+            return;
+        }
+        // Validate the whole batch before storage sees any of it, so a bad batch stores nothing
+        const parsed = logsReceiveInputSchema.safeParse(json);
+        if (!parsed.success) {
+            if (!quiet) {
+                console.error("Invalid log batch:", parsed.error.issues);
+            }
+            sendBadRequest(res, {
+                error: "Invalid log batch",
+                issues: parsed.error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
+            });
+            return;
+        }
+        try {
+            const { sessionId, logs, projectMarker, worktreePath, pageUrl } = parsed.data;
 
-        const hostHeader = req.headers.host ?? `${host}:${port}`;
-        const serverUrl = `${protocol}://${hostHeader}`;
-        const configPrefix = `window.__REMOTE_LOG_SERVER_URL__="${serverUrl}";\n`;
+            const storage = getLogStorage();
+            const isNewSession = !storage.hasSession(sessionId);
 
-        res.writeHead(200, {
-            "Content-Type": "application/javascript",
-            "Cache-Control": "no-cache",
-        });
-        res.end(configPrefix + bundle);
-        return;
-    }
+            // Show new session banner
+            if (isNewSession && !quiet) {
+                // eslint-disable-next-line no-console
+                console.log(
+                    `\n${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}`,
+                );
+                // eslint-disable-next-line no-console
+                console.log(`${colors.bright}${colors.magenta}  NEW SESSION: ${sessionId}${colors.reset}`);
+                // eslint-disable-next-line no-console
+                console.log(
+                    `${colors.bright}${colors.magenta}═══════════════════════════════════════════════════════════${colors.reset}\n`,
+                );
+            }
 
-    // Reverse proxy with auto-injection (available in all modes including logReceiveOnly)
-    if (url.startsWith("/proxy/") && sharedProxy) {
-        const targetUrl = decodeURIComponent(url.substring("/proxy/".length));
-        const hostHeader = req.headers.host ?? `${host}:${port}`;
-        sharedProxy.handleRequest(req, res, targetUrl, protocol, hostHeader);
-        return;
-    }
+            // Add logs to storage
+            storage.addLogs(sessionId, logs, { projectMarker, worktreePath, pageUrl });
 
-    // In logReceiveOnly mode, only /log, /health, /remote-logger.js, and /proxy/ are available
-    if (logReceiveOnly) {
+            // Display each log in terminal
+            for (const log of logs) {
+                displayLog(sessionId, log, quiet);
+            }
+
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ success: true }));
+        } catch (error) {
+            if (!quiet) {
+                console.error("Error storing log batch:", error);
+            }
+            sendBadRequest(res, { error: (error as Error).message });
+        }
+    });
+}
+
+/**
+ * Answer a request with a 400 and a JSON body.
+ * @param res - The HTTP response object
+ * @param body - The JSON body to send
+ */
+function sendBadRequest(res: http.ServerResponse, body: Record<string, unknown>): void {
+    res.writeHead(400, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(body));
+}
+
+/**
+ * Serve the browser-ready script bundle, prefixed with this server's URL.
+ * @param req - The incoming HTTP request
+ * @param res - The HTTP response object
+ * @param defaultHost - The host:port to use when the request has no Host header
+ * @param protocol - "https" or "http"
+ */
+function serveBrowserBundle(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    defaultHost: string,
+    protocol: string,
+): void {
+    const bundle = loadBrowserBundle();
+    if (!bundle) {
         res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Not found (log receive only mode)" }));
+        res.end(JSON.stringify({ error: "Browser bundle not found. Run 'npm run build' first." }));
         return;
     }
 
+    const hostHeader = req.headers.host ?? defaultHost;
+    const serverUrl = `${protocol}://${hostHeader}`;
+    const configPrefix = `window.__REMOTE_LOG_SERVER_URL__="${serverUrl}";\n`;
+
+    res.writeHead(200, {
+        "Content-Type": "application/javascript",
+        "Cache-Control": "no-cache",
+    });
+    res.end(configPrefix + bundle);
+}
+
+/**
+ * Serve the last N logs across all sessions (`?n=`, `?errors=true`).
+ * @param res - The HTTP response object
+ * @param urlObj - The parsed request URL
+ */
+function serveRecentLogs(res: http.ServerResponse, urlObj: URL): void {
+    let count: number;
+    try {
+        count = parseIntegerSetting("n", urlObj.searchParams.get("n") || "50", 1);
+    } catch (error) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: (error as Error).message }));
+        return;
+    }
+    const errorsOnly = urlObj.searchParams.get("errors") === "true";
+
+    const storage = getLogStorage();
+    const filter = errorsOnly ? { level: "ERROR" } : {};
+    const recentLogs = storage.getRecentLogs(count, filter);
+    const totalLogs = storage.getLogs(filter).length;
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(
+        JSON.stringify(
+            {
+                total: totalLogs,
+                showing: recentLogs.length,
+                logs: recentLogs,
+            },
+            null,
+            2,
+        ),
+    );
+}
+
+/**
+ * Serve the log viewer endpoints (/logs, /logs/recent, /logs/errors, /logs/clear), or a 404.
+ * @param req - The incoming HTTP request
+ * @param res - The HTTP response object
+ * @param url - The request path and query
+ * @param origin - protocol://host:port of this server, the base for parsing `url`
+ * @param quiet - If true, suppress terminal output
+ */
+function serveViewerRoute(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    url: string,
+    origin: string,
+    quiet: boolean,
+): void {
     // Handle logs viewer endpoint - GET all logs
     if (url === "/logs" && req.method === "GET") {
         const allLogs = getLogStorage().getAllLogsBySession();
@@ -365,34 +417,7 @@ function handleRequest(
 
     // Handle recent logs endpoint - GET last N logs across all sessions
     if (url.startsWith("/logs/recent") && req.method === "GET") {
-        const urlObj = new URL(url, `${protocol}://${host}:${port}`);
-        let count: number;
-        try {
-            count = parseIntegerSetting("n", urlObj.searchParams.get("n") || "50", 1);
-        } catch (error) {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: (error as Error).message }));
-            return;
-        }
-        const errorsOnly = urlObj.searchParams.get("errors") === "true";
-
-        const storage = getLogStorage();
-        const filter = errorsOnly ? { level: "ERROR" } : {};
-        const recentLogs = storage.getRecentLogs(count, filter);
-        const totalLogs = storage.getLogs(filter).length;
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(
-            JSON.stringify(
-                {
-                    total: totalLogs,
-                    showing: recentLogs.length,
-                    logs: recentLogs,
-                },
-                null,
-                2,
-            ),
-        );
+        serveRecentLogs(res, new URL(url, origin));
         return;
     }
 
@@ -429,6 +454,185 @@ function handleRequest(
     // Default: 404
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Not found" }));
+}
+
+/**
+ * Whether a route is meant to be called from any web page: the routes the browser client
+ * and the script tag use. Only these get the wildcard CORS header.
+ * @param url - The request path and query
+ * @returns True for /log, /health and /remote-logger.js
+ */
+function isBrowserRoute(url: string): boolean {
+    return url === "/log" || url === "/health" || url === "/remote-logger.js" || url.startsWith("/remote-logger.js?");
+}
+
+/**
+ * Whether a request was sent by a web page on another origin. Browsers send Origin on
+ * cross-origin POSTs and fetches; tools such as curl and the MCP server send none.
+ * @param req - The incoming HTTP request
+ * @returns True if the request carries an Origin that is not this server's own
+ */
+function isCrossOriginRequest(req: http.IncomingMessage): boolean {
+    const { origin } = req.headers;
+    if (origin === undefined) {
+        return false;
+    }
+    try {
+        return new URL(origin).host !== req.headers.host;
+    } catch {
+        // "null" (sandboxed frames, file: pages) and anything unparsable
+        return true;
+    }
+}
+
+/**
+ * Answer a request with a JSON error.
+ * @param res - The HTTP response object
+ * @param status - The HTTP status code
+ * @param error - The error text
+ */
+function sendError(res: http.ServerResponse, status: number, error: string): void {
+    res.writeHead(status, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ error }));
+}
+
+/**
+ * Hand a /proxy/<url> request to the proxy, or answer 400 if the target is not a
+ * well-formed percent-encoded URL.
+ * @param req - The incoming HTTP request
+ * @param res - The HTTP response object
+ * @param proxy - The proxy instance
+ * @param url - The request path and query
+ * @param protocol - "https" or "http"
+ * @param defaultHost - The host:port to use when the request has no Host header
+ */
+function serveProxyRoute(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    proxy: ProxyInstance,
+    url: string,
+    protocol: string,
+    defaultHost: string,
+): void {
+    let targetUrl: string;
+    try {
+        targetUrl = decodeURIComponent(url.substring("/proxy/".length));
+    } catch {
+        sendError(res, 400, "Invalid target URL: malformed percent-encoding");
+        return;
+    }
+    proxy.handleRequest(req, res, targetUrl, protocol, req.headers.host ?? defaultHost);
+}
+
+/**
+ * Handle incoming HTTP request. Called synchronously from the server's request callback,
+ * so a throw here would end the whole process (and the MCP server with it): answer 500 instead.
+ * @param req - The incoming HTTP request
+ * @param res - The HTTP response object
+ * @param host - The server hostname
+ * @param port - The server port number
+ * @param useHttps - Whether HTTPS is being used
+ * @param quiet - If true, suppress terminal output
+ * @param logReceiveOnly - If true, only serve /log POST and /health GET endpoints
+ */
+function handleRequest(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    host: string,
+    port: number,
+    useHttps: boolean,
+    quiet: boolean,
+    logReceiveOnly: boolean = false,
+): void {
+    try {
+        routeRequest(req, res, host, port, useHttps, quiet, logReceiveOnly);
+    } catch (error) {
+        if (!quiet) {
+            console.error("Error handling request:", error);
+        }
+        if (!res.headersSent) {
+            sendError(res, 500, "Internal server error");
+        } else {
+            res.end();
+        }
+    }
+}
+
+/**
+ * Route an incoming HTTP request.
+ * @param req - The incoming HTTP request
+ * @param res - The HTTP response object
+ * @param host - The server hostname
+ * @param port - The server port number
+ * @param useHttps - Whether HTTPS is being used
+ * @param quiet - If true, suppress terminal output
+ * @param logReceiveOnly - If true, only serve /log POST and /health GET endpoints
+ */
+function routeRequest(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    host: string,
+    port: number,
+    useHttps: boolean,
+    quiet: boolean,
+    logReceiveOnly: boolean,
+): void {
+    const url = req.url ?? "/";
+
+    // Only the browser routes may be called (and read) from any web page. The proxy and
+    // the log viewer routes get no CORS header, so other pages cannot read their answers.
+    if (isBrowserRoute(url)) {
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+        res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    } else if (isCrossOriginRequest(req)) {
+        // ...and cannot fire them blind either (POST /logs/clear, POSTs through the proxy)
+        sendError(res, 403, "Cross-origin requests are only accepted on /log, /health and /remote-logger.js");
+        return;
+    }
+
+    if (req.method === "OPTIONS") {
+        res.writeHead(204);
+        res.end();
+        return;
+    }
+
+    const protocol = useHttps ? "https" : "http";
+
+    // Handle log endpoint - receive logs from browser
+    if (url === "/log" && req.method === "POST") {
+        receiveLogBatch(req, res, quiet);
+        return;
+    }
+
+    // Health check endpoint (always available)
+    if (url === "/health" && req.method === "GET") {
+        const health = getLogStorage().getHealth();
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ status: health.status, sessions: health.sessionCount }));
+        return;
+    }
+
+    // Serve browser-ready script bundle (available in all modes including logReceiveOnly)
+    if ((url === "/remote-logger.js" || url.startsWith("/remote-logger.js?")) && req.method === "GET") {
+        serveBrowserBundle(req, res, `${host}:${port}`, protocol);
+        return;
+    }
+
+    // Reverse proxy with auto-injection (available in all modes including logReceiveOnly)
+    if (url.startsWith("/proxy/") && sharedProxy) {
+        serveProxyRoute(req, res, sharedProxy, url, protocol, `${host}:${port}`);
+        return;
+    }
+
+    // In logReceiveOnly mode, only /log, /health, /remote-logger.js, and /proxy/ are available
+    if (logReceiveOnly) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Not found (log receive only mode)" }));
+        return;
+    }
+
+    serveViewerRoute(req, res, url, `${protocol}://${host}:${port}`, quiet);
 }
 
 /**
@@ -636,7 +840,7 @@ Usage:
   npx @graphty/remote-logger [options]
 
 Options:
-  --port, -p <port>       Port to listen on (default: 9080)
+  --port, -p <port>       Port to listen on (default: PORT, else 9080)
   --host, -h <host>       Hostname to bind to (default: 0.0.0.0)
   --cert, -c <path>       Path to SSL certificate file (enables HTTPS)
   --key, -k <path>        Path to SSL private key file (enables HTTPS)
@@ -645,6 +849,7 @@ Options:
   --http-only             Start only HTTP server (legacy mode)
   --mcp                   Alias for --mcp-only (deprecated)
   --quiet, -q             Suppress startup banner
+  --proxy-allow-private   Let /proxy/ reach loopback, private and link-local hosts
   --help                  Show this help message
 
 Protocol:
@@ -680,10 +885,20 @@ export interface ParseArgsResult {
  * Parse command line arguments into LogServerOptions.
  * This is separated from main() to enable testing.
  * @param args - Array of command line arguments (excluding node and script name)
+ * @param env - The environment to read PORT from (default: process.env)
  * @returns ParseArgsResult with options, help flag, or error
  */
-export function parseArgs(args: string[]): ParseArgsResult {
+export function parseArgs(args: string[], env: NodeJS.ProcessEnv = process.env): ParseArgsResult {
     const options: LogServerOptions = {};
+
+    // PORT is how process managers such as servherd hand over a port; --port overrides it
+    if (env.PORT !== undefined) {
+        try {
+            options.port = parseIntegerSetting("PORT", env.PORT, 1, 65535);
+        } catch (error) {
+            return { options, showHelp: false, error: (error as Error).message };
+        }
+    }
 
     for (let i = 0; i < args.length; i++) {
         const arg = args[i];
@@ -733,6 +948,9 @@ export function parseArgs(args: string[]): ParseArgsResult {
             case "-q":
                 options.quiet = true;
                 break;
+            case "--proxy-allow-private":
+                options.proxyAllowPrivate = true;
+                break;
             case "--help":
                 return { options, showHelp: true };
             default:
@@ -766,10 +984,14 @@ export async function main(): Promise<void> {
     // Common server options shared across all modes
     const baseOptions = {
         httpPort: options.port ?? 9080,
+        // A port the caller chose (--port or PORT) is bound exactly or the server fails;
+        // only the default port scans upward for a free one
+        maxPortNumber: options.port,
         httpHost: options.host ?? "0.0.0.0",
         quiet: options.quiet ?? false,
         certPath: options.certPath,
         keyPath: options.keyPath,
+        proxyAllowPrivate: options.proxyAllowPrivate,
     };
 
     // Determine mode: mcp-only, http-only, or dual (default)

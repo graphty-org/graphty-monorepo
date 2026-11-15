@@ -86,10 +86,18 @@ describe("planar layout refusing a graph", () => {
         }
     });
 
-    it("moves no node when the graph it refuses renumbered the rows it last drew", async () => {
-        // Node 0 hangs off K5-minus-an-edge on 1..5, which is planar and gets drawn. Then, in one
-        // step, node 0 goes (so 1..5 move up a row) and the missing edge arrives: K5, refused. The
-        // answer for the earlier graph must not be published again over the new rows.
+    /**
+     * Node 0 hangs off K5-minus-an-edge on 1..5, which is planar and gets drawn. Then, in one step,
+     * the missing edge arrives and node 0 goes (so 1..5 move up a row): K5, refused. The answer for
+     * the earlier graph must not be published again over the new rows.
+     *
+     * The edge comes first so that every graph in between is refused too (K5 with node 0 hanging
+     * off it). The two writes of a batch are applied one at a time, and a frame drawn between them
+     * lays out the graph as it stands: with the node removed first, that is K5 minus an edge, which
+     * planar draws, and every node rightly moves.
+     * @param frameBetween - Whether a frame is drawn between the batch's two writes.
+     */
+    async function refuseRenumbered(frameBetween: boolean): Promise<void> {
         const { element, errors } = mount();
         element.nodeData = [0, 1, 2, 3, 4, 5].map((id) => ({ id }));
         element.edgeData = [
@@ -105,8 +113,12 @@ describe("planar layout refusing a graph", () => {
         const before = placed(element);
 
         await element.batchOperations(async (tx) => {
-            await tx.data.removeNodes([0]);
             await tx.data.addEdges([{ src: 1, dst: 2 }]);
+            if (frameBetween) {
+                await element.waitForStableFrame();
+            }
+
+            await tx.data.removeNodes([0]);
         });
         await vi.waitFor(() => {
             assert.isTrue(
@@ -116,10 +128,24 @@ describe("planar layout refusing a graph", () => {
         });
         await element.waitForStableFrame();
 
+        for (const error of errors) {
+            assert.isTrue(isGraphtyError(error) && error.code === "E_NOT_PLANAR", "every refusal carries its code");
+        }
+
         const after = placed(element);
         for (const id of ["1", "2", "3", "4", "5"]) {
             assert.strictEqual(after[id], before[id], `node ${id} stays where it was drawn`);
         }
+    }
+
+    it("moves no node when the graph it refuses renumbered the rows it last drew", async () => {
+        await refuseRenumbered(false);
+    });
+
+    it("reports the refusal a frame meets between a batch's writes by its code", async () => {
+        // The frame's node and edge updates read the layout of K5 with node 0 hanging off it. The
+        // refusal is reported as E_NOT_PLANAR, not thrown into the frame as an uncoded error.
+        await refuseRenumbered(true);
     });
 
     it("reports a bfs layout over a disconnected graph as E_NOT_CONNECTED", async () => {

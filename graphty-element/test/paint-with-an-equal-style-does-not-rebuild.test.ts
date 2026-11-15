@@ -10,7 +10,7 @@
  */
 import { NullEngine, Scene } from "@babylonjs/core";
 import { cloneDeep } from "lodash";
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Edge } from "../src/Edge";
 import { SimpleLayoutEngine } from "../src/layout/LayoutEngine";
@@ -19,7 +19,9 @@ import { EventManager } from "../src/managers/EventManager";
 import { DefaultGraphContext, type GraphContext } from "../src/managers/GraphContext";
 import { LayoutManager, layoutManagerInternals } from "../src/managers/LayoutManager";
 import { StatsManager } from "../src/managers/StatsManager";
-import { bootstrapEdgePaint, bootstrapNodePaint } from "../src/managers/StylePainter";
+import { bootstrapEdgePaint, bootstrapNodePaint, type EdgePaint } from "../src/managers/StylePainter";
+import { ArrowCap } from "../src/meshes/ArrowCapBatch";
+import { EdgeLineBatch } from "../src/meshes/EdgeLineBatch";
 import { MeshCache } from "../src/meshes/MeshCache";
 import { Node } from "../src/Node";
 import { Styles } from "../src/Styles";
@@ -164,5 +166,149 @@ describe("a paint with an equal style adopts the key and rebuilds nothing", () =
         edge.applySessionPaint({ meshKey: "s1|#a9a9a9|", style });
 
         assert.isFalse(edge.mesh === line, "a different line mesh");
+    });
+});
+
+/** The line batch and slots an edge draws from; private to the edge, read here as the fact under test. */
+function lineOf(edge: Edge): { batch: EdgeLineBatch; slots: number[] } {
+    const held = edge as unknown as { lineBatch: EdgeLineBatch | null; lineSlots: number[] };
+    assert.isNotNull(held.lineBatch, "the edge draws a batched line");
+    return { batch: held.lineBatch, slots: held.lineSlots };
+}
+
+/** Where an edge's line is drawn: every slot's two ends, flat. */
+function endsOf(edge: Edge): number[] {
+    const { batch, slots } = lineOf(edge);
+    return slots.flatMap((slot) => batch.endsOf(slot).flatMap((end) => end.asArray()));
+}
+
+describe("a paint that changes only an edge's colour moves it without placing it again (#6026)", () => {
+    let harness: Harness | null = null;
+
+    afterEach(() => {
+        harness?.dispose();
+        harness = null;
+        vi.restoreAllMocks();
+    });
+
+    /**
+     * A placed directed edge, and the paint the Ghost row gives it: grey at low opacity.
+     * @returns The edge and its two looks.
+     */
+    function ghostable(): { edge: Edge; normal: EdgePaint; ghost: EdgePaint } {
+        harness = createHarness();
+        addNode(harness, "src");
+        addNode(harness, "dst");
+        const normal = bootstrapEdgePaint();
+        const edge = new Edge(harness.context, "src", "dst", 0, normal, {});
+        dataManagerInternals.adoptEdge(harness.dataManager, edge);
+        harness.layoutEngine.addEdge(edge);
+        edge.update();
+        const style = cloneDeep(normal.style);
+        style.line = { ...style.line, color: "#9e9e9e", opacity: 0.15 };
+        style.arrowHead = { ...style.arrowHead, opacity: 0.15 };
+
+        return { edge, normal, ghost: { meshKey: "s0|#9e9e9e|0.15|>", style } };
+    }
+
+    it("moves the line and the head to their shape's translucent batches, where they were drawn", () => {
+        const { edge, ghost } = ghostable();
+        const line = edge.mesh;
+        const head = edge.arrowCap;
+        const ends = endsOf(edge);
+        const headAt = head?.position.asArray();
+        assert.isNotNull(head, "a directed edge draws a head");
+
+        edge.applySessionPaint(ghost);
+
+        // A plain line's batch and a billboarded cap's are keyed by shape and pass, and their slots
+        // carry the color (issue #6026). An opaque line in the alpha-blended pass would be hidden by
+        // the depth its batch's translucent lines wrote first, so a look made translucent changes
+        // batch (issues #6325, #6326).
+        assert.isFalse(edge.mesh === line, "the line moves to the translucent batch");
+        assert.deepStrictEqual(endsOf(edge), ends, "drawn between the same two points");
+        const { batch, slots } = lineOf(edge);
+        const [r, g, b, a] = batch.colorOf(slots[0]) ?? [];
+        const grey = Math.fround(0x9e / 255);
+        assert.deepStrictEqual([r, g, b, a], [grey, grey, grey, Math.fround(0.15)], "in the new color and opacity");
+        assert.strictEqual(edge.drawnLine?.visibility, 0.15, "read back at the new opacity");
+        assert.isFalse(edge.arrowCap === head, "the head moved too");
+        assert.deepStrictEqual(edge.arrowCap?.position.asArray(), headAt, "drawn where it was");
+        assert.strictEqual(edge.arrowCap?.visibility, 0.15, "at the new opacity");
+    });
+
+    it("recolors the line and the head where they are for a change within one pass", () => {
+        const { edge, ghost } = ghostable();
+        edge.applySessionPaint(ghost);
+        const line = edge.mesh;
+        const { batch, slots } = lineOf(edge);
+        const head = edge.arrowCap;
+        const style = cloneDeep(ghost.style);
+        style.line = { ...style.line, color: "#ff0000", opacity: 0.3 };
+        style.arrowHead = { ...style.arrowHead, opacity: 0.3 };
+
+        edge.applySessionPaint({ meshKey: "s0|#ff0000|0.3|>", style });
+
+        // A plain line's batch is keyed by its shape and pass, and its slots carry the color (issue #6026).
+        assert.isTrue(edge.mesh === line, "the line stays in its batch");
+        assert.deepStrictEqual(lineOf(edge).slots, slots, "in the same slots");
+        const [r, g, b, a] = batch.colorOf(slots[0]) ?? [];
+        assert.deepStrictEqual([r, g, b, a], [1, 0, 0, Math.fround(0.3)], "in the new color and opacity");
+        assert.isTrue(edge.arrowCap === head, "the head stays in its batch too");
+        assert.strictEqual(edge.arrowCap?.visibility, 0.3, "at the new opacity");
+    });
+
+    it("places nothing on the next update, there and back", () => {
+        const { edge, normal, ghost } = ghostable();
+        const lines = vi.spyOn(EdgeLineBatch.prototype, "place");
+        const runs = vi.spyOn(EdgeLineBatch.prototype, "placeRun");
+        const caps = vi.spyOn(ArrowCap.prototype, "place");
+
+        edge.applySessionPaint(ghost);
+        edge.update();
+        edge.applySessionPaint({ ...normal, meshKey: "s0|#a9a9a9||>" });
+        edge.update();
+
+        assert.strictEqual(lines.mock.calls.length + runs.mock.calls.length, 0, "no line was placed again");
+        assert.strictEqual(caps.mock.calls.length, 0, "no cap was placed again");
+    });
+
+    it("keeps a hidden edge's parked placement, so showing it puts it back", () => {
+        const { edge, ghost } = ghostable();
+        const ends = endsOf(edge);
+        const headAt = edge.arrowCap?.position.asArray();
+        const before = lineOf(edge);
+        for (const slot of before.slots) {
+            before.batch.park(slot);
+        }
+        edge.arrowCap?.park();
+
+        edge.applySessionPaint(ghost);
+
+        const { batch, slots } = lineOf(edge);
+        assert.isTrue(
+            endsOf(edge).every((value) => value === 0),
+            "still hidden after the move",
+        );
+        assert.isTrue(
+            slots.every((slot) => batch.unpark(slot)),
+            "and parked in the new batch",
+        );
+        assert.deepStrictEqual(endsOf(edge), ends, "shown where it was");
+        assert.isTrue(edge.arrowCap?.unpark(), "the head too");
+        assert.deepStrictEqual(edge.arrowCap?.position.asArray(), headAt);
+    });
+
+    it("still rebuilds an edge whose line changed more than its colour", () => {
+        const { edge, ghost } = ghostable();
+        const line = edge.mesh;
+        const caps = vi.spyOn(ArrowCap.prototype, "place");
+        ghost.style.line = { ...ghost.style.line, width: (ghost.style.line?.width ?? 1) * 3 };
+
+        edge.applySessionPaint(ghost);
+        edge.update();
+
+        assert.isFalse(edge.mesh === line);
+        assert.isAbove(caps.mock.calls.length, 0, "a rebuilt edge is placed again");
     });
 });

@@ -186,6 +186,23 @@ describe("the legend card's words", () => {
         assert.equal(sectionTitle(halo, "Key people"), "Halo: Key people");
     });
 
+    it("keys no edge line shape: a route, bends or curve is drawn, not read", () => {
+        const color = block({ layerId: "color", channel: "edge.color", kind: "literal" });
+        const blocks = [
+            block({
+                layerId: "graphml",
+                channel: "edge.bends",
+                kind: "categorical",
+                swatches: [swatch({ label: "0 0 10 10", value: "0 0 10 10" }), swatch({ label: "5 5", value: "5 5" })],
+            }),
+            block({ layerId: "graphml", channel: "edge.curvature", kind: "literal" }),
+            block({ layerId: "graphml", channel: "edge.sourcePort", kind: "literal" }),
+            color,
+        ];
+        assert.deepEqual(keyBlocks(blocks), [color]);
+        assert.deepEqual(keyBlocks(blocks.slice(0, 3)), []);
+    });
+
     it("keys no layer whose every element a filter step hides, and keeps one that still reaches some", () => {
         const hidden = block({ layerId: "hidden", kind: "literal", scope: { count: 0, of: 24 } });
         const some = block({ layerId: "some", kind: "literal", scope: { count: 4, of: 24 } });
@@ -294,6 +311,7 @@ describe("the legend card's words", () => {
             scope: { spec: "graph" },
             status: "succeeded",
             stale: null as Run["stale"],
+            caveats: {},
         };
         const summary = { visibleNodes: 15, totalNodes: 20 };
         const session = {
@@ -320,6 +338,31 @@ describe("the legend card's words", () => {
         assert.equal(title(), "Size: PageRank on 12 nodes");
     });
 
+    it("names the time window a run carries", () => {
+        const run = {
+            id: "r1",
+            algorithm: "pagerank",
+            params: {},
+            distinguishedBy: null,
+            siblingsDifferBy: null,
+            scope: { spec: "graph" },
+            status: "succeeded",
+            stale: null,
+            caveats: { window: { from: 5, to: 8 } },
+        };
+        const session = {
+            time: { field: { edges: { start: "tick", unit: "ordinal" } } },
+            runs: { get: () => run },
+            visibility: { summary: { visibleNodes: 20, totalNodes: 20 } },
+            styles: { get: () => undefined, counts: () => ({ covers: {} }) },
+            sets: { get: () => undefined },
+            catalog: { algorithms: () => [{ key: "pagerank", plainName: "PageRank" }] },
+        } as unknown as GraphSession;
+        const size = block({ channel: "node.size", runId: "r1" });
+        const title = (): string => keySections([size], keyNames(session))[0].title;
+        assert.equal(title(), "Size: PageRank, 5 - 7");
+    });
+
     it("names a run by its algorithm as the Analyze list names it, not the catalog's plain name", () => {
         const run = {
             id: "r1",
@@ -330,6 +373,7 @@ describe("the legend card's words", () => {
             scope: { spec: "graph" },
             status: "succeeded",
             stale: null,
+            caveats: {},
         };
         const session = {
             runs: { get: () => run },
@@ -398,5 +442,14 @@ describe("the words for a block of some elements", () => {
             "E: 1 of 1,000 edges",
         );
         assert.isNull(scopeLine(of({ scope: undefined }), "Size: donations", "Picked"));
+    });
+
+    it("counts out of the nodes the filter leaves drawn, the base Which nodes reads", () => {
+        const filtered = of({ scope: { count: 4, of: 24, visible: 15 } });
+        assert.equal(scopeLine(filtered, "Color: Staff", "Staff"), "4 of 15 nodes");
+        assert.isNull(
+            scopeLine(of({ scope: { count: 7, of: 24, visible: 7 } }), "Color: Staff", "Staff"),
+            "a layer holding every node drawn has no line",
+        );
     });
 });

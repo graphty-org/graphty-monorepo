@@ -98,10 +98,10 @@ describe.each(["light", "dark"] as const)("--cm-* colors resolve (%s)", (scheme)
 });
 
 describe.each(["light", "dark"] as const)("the AA option (%s)", (scheme) => {
-    it.each(Object.entries(CM_HIGH_CONTRAST))("--cm-%s", async (name, token) => {
+    it.each(Object.keys(CM_HIGH_CONTRAST) as CmColorName[])("--cm-%s", async (name) => {
         const { container } = await renderThemed(<Box />, { scheme, highContrast: true });
         expect(document.documentElement.getAttribute("data-cm-contrast")).toBe("high");
-        expect(paint(name, container)).toBe(expected(token?.[scheme] ?? ""));
+        expect(paint(name, container)).toBe(expected(valueOf(name, scheme, true)));
     });
 
     it("leaves every other token at Figma", async () => {

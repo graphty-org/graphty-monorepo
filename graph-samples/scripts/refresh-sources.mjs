@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
  * Fetch every redistributable dataset source (scripts/hosted-sources.mjs) from its ORIGINAL host into
- * a directory, verify each against its recorded SHA-256, and list the ones fetched in SHA256SUMS there.
- * The graph-samples-sources.yml workflow (dispatched by hand) runs it and uploads them to the release
- * graph-samples-sources-v1, the copy that rebuilds use instead of the original hosts.
+ * a directory, verify each against its recorded SHA-256, and list the ones fetched in SHA256SUMS there,
+ * and in RELEASES each one's release tag (sourceRelease) and file. The graph-samples-sources.yml workflow
+ * (dispatched by hand) runs it and creates each release that does not exist yet, the copies that rebuilds
+ * use instead of the original hosts.
  *
  *     node scripts/refresh-sources.mjs <dir>
  *
@@ -13,10 +14,11 @@
 import { writeFileSync } from "node:fs";
 import path from "node:path";
 
-import { fetchSource, SOURCES } from "./hosted-sources.mjs";
+import { fetchSource, SOURCES, sourceRelease } from "./hosted-sources.mjs";
 
 const dir = path.resolve(process.argv[2] ?? "tmp/graph-samples-sources-refresh");
 const sums = [];
+const releases = [];
 let failed = 0;
 for (const source of Object.values(SOURCES)) {
     if (!source.redistribute) {
@@ -26,6 +28,7 @@ for (const source of Object.values(SOURCES)) {
     try {
         await fetchSource(source, dir, { fromOriginalHost: true });
         sums.push(`${source.sha256}  ${source.file}\n`);
+        releases.push(`${sourceRelease(source)} ${source.file}\n`);
     } catch (error) {
         const cause = error.cause ? " (" + error.cause.message + ")" : "";
         console.error(`FAILED ${source.file}: ${error.message}${cause}`);
@@ -33,5 +36,6 @@ for (const source of Object.values(SOURCES)) {
     }
 }
 writeFileSync(path.join(dir, "SHA256SUMS"), sums.join(""));
+writeFileSync(path.join(dir, "RELEASES"), releases.join(""));
 console.log(`${sums.length} sources in ${dir}, ${failed} failed`);
 process.exitCode = failed > 0 ? 1 : 0;

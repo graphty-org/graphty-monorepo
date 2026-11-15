@@ -192,6 +192,27 @@ describe("a node's image", () => {
         assert.lengthOf(faced.decorationPieces, 0);
     });
 
+    test("that cannot be loaded, nor its fallback, is reported as E_IMAGE_LOAD under the URL the layer named", async () => {
+        await oneNode({});
+        assert(graph, "the graph is up");
+        const broken = "data:image/png;base64,bm90IGFuIGltYWdl";
+        const fallback = "data:image/png;base64,YWxzbyBub3Q=";
+        const session = graph.getSession();
+        const reported = new Promise<unknown>((resolve) => {
+            session.on("model:changed", (change) => {
+                if (change.ref === broken) {
+                    resolve(change);
+                }
+            });
+        });
+        await styleEveryNode(graph, { "node.image": broken, "node.imageFallback": fallback });
+        assert.deepInclude(await reported, {
+            ref: broken,
+            state: "failed",
+            problems: [{ code: "E_IMAGE_LOAD", params: { url: fallback } }],
+        });
+    });
+
     test("that cannot be loaded gives way to its fallback", async () => {
         const { faced } = await oneNode({
             "node.image": "data:image/png;base64,bm90IGFuIGltYWdl",

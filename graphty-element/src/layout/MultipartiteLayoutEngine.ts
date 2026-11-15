@@ -59,9 +59,9 @@ type MultipartiteLayoutOpts = Partial<MultipartiteLayoutConfigType>;
  * Multipartite layout engine for graphs with multiple node partitions
  */
 export class MultipartiteLayout extends SnapshotLayoutEngine {
-    static type = "multipartite";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = multipartiteLayoutOptionsSchema;
+    static readonly type: string = "multipartite";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = multipartiteLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: MultipartiteLayoutConfigType;
 

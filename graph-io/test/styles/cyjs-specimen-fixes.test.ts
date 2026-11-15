@@ -86,6 +86,16 @@ describe("Cytoscape.js label boxes", () => {
 });
 
 describe("Cytoscape.js edges", () => {
+    it("tapers a straight-triangle edge to a point at its target", () => {
+        const taper = (curve: string): unknown =>
+            evaluateCytoscapeJs(doc({}, { "curve-style": curve })).edge.values.taper?.[0] ?? null;
+        expect(taper("straight-triangle")).toBe(0);
+        expect(taper("straight")).toBeNull();
+        expect(evaluateCytoscapeJs(doc({}, { "curve-style": "straight-triangle" })).edge.values.curved?.[0]).toBe(
+            false,
+        );
+    });
+
     it("draws no arrow on a haystack edge, the default curve style", () => {
         const arrows = { "target-arrow-shape": "triangle", "source-arrow-shape": "tee" };
         const haystack = evaluateCytoscapeJs(doc({}, arrows)).edge.values;
@@ -287,6 +297,45 @@ describe("Cytoscape.js node sizes", () => {
         expect([v.width?.[0], v.height?.[0]]).toEqual([48, 48]);
         // a percentage is drawn as its fraction in pixels on a node that holds no others
         expect(v.width?.[1]).toBeCloseTo(36.4, 6);
+    });
+
+    it("sizes a compound parent round its children by its padding, minimum size, biases and labels", () => {
+        const parent = (id: string, style: Record<string, unknown> = {}): unknown[] => [
+            { data: { id }, style },
+            { data: { id: `${id}-a`, parent: id }, position: { x: 0, y: 0 } },
+        ];
+        const v = evaluateCytoscapeJs(
+            doc({}, {}, [
+                ...parent("p0"),
+                ...parent("p1", { padding: "20px", "min-width": "80px", "min-width-bias-left": "80%" }),
+                ...parent("p2", {
+                    padding: "20%",
+                    "padding-relative-to": "height",
+                    "min-height": "64px",
+                    "min-height-bias-top": "16px",
+                    "min-height-bias-bottom": "48px",
+                    "compound-sizing-wrt-labels": "exclude",
+                }),
+            ]),
+        ).node.values;
+        const at = (p: string, k: number): unknown => v[p]?.[k] ?? null;
+        // Cytoscape.js's own `:parent` rule pads a parent 10px, and its children's labels count
+        expect([at("groupPadding", 0), at("groupIncludeLabels", 0), at("groupMinWidth", 0)]).toEqual([10, true, null]);
+        // a child holds no group values
+        expect(at("groupPadding", 1)).toBeNull();
+        // a bias is a share of both sides' biases: 80% against none puts all the growth on the left
+        expect([at("groupPadding", 2), at("groupMinWidth", 2), at("groupMinWidthBiasLeft", 2)]).toEqual([20, 80, 1]);
+        // a percentage is of the children's box; a length bias is its percentage of the minimum
+        expect([at("groupPaddingRatio", 4), at("groupPaddingOf", 4), at("groupPadding", 4)]).toEqual([
+            0.2,
+            "height",
+            null,
+        ]);
+        expect([at("groupMinHeight", 4), at("groupMinHeightBiasTop", 4), at("groupIncludeLabels", 4)]).toEqual([
+            64,
+            0.25,
+            false,
+        ]);
     });
 });
 

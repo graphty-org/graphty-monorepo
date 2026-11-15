@@ -1,0 +1,2388 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>server-2-capped-and-expand.html</title>
+        <style>
+            body {
+                margin: 0;
+                background: #111;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            a {
+                color: #82aafb;
+            }
+            a:hover {
+                color: #9dbcfc;
+            }
+        </style>
+    </head>
+    <body>
+        <div
+            style="
+                position: relative;
+                width: 1440px;
+                height: 900px;
+                display: flex;
+                flex-direction: column;
+                background: #2c2c2c;
+                color: #e3e3e3;
+                overflow: hidden;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    &quot;Segoe UI&quot;,
+                    sans-serif;
+            "
+        >
+            <div
+                style="
+                    height: 40px;
+                    flex: none;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    padding: 0 16px;
+                    background: #2c2c2c;
+                    border-bottom: 1px solid #444444;
+                "
+            >
+                <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none"
+                >
+                    <path d="M2.5 4h11M2.5 8h11M2.5 12h11"></path></svg
+                ><span style="font-size: 14px; font-weight: 600; color: #e3e3e3">fraud-db</span
+                ><span style="display: flex; gap: 10px; color: #a6a6a6"
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M5 4L2.5 6.5L5 9M2.5 6.5h7a3.5 3.5 0 0 1 0 7h-2"></path></svg
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M11 4l2.5 2.5L11 9M13.5 6.5h-7a3.5 3.5 0 0 0 0 7h2"></path></svg></span
+                ><span style="display: inline-flex; align-items: center; gap: 6px; color: #e3e3e3; font-size: 12px"
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M4 7.5h8v6H4zM5.5 7.5V5.5a2.5 2.5 0 0 1 5 0v2"></path></svg
+                    >Local only</span
+                >
+            </div>
+            <div style="flex: 1; display: flex; min-height: 0">
+                <div
+                    style="
+                        width: 56px;
+                        flex: none;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                        padding: 14px 0 12px;
+                        background: #2c2c2c;
+                        border-right: 1px solid #444444;
+                    "
+                >
+                    <div style="display: flex; flex-direction: column; gap: 16px">
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 3px;
+                                font-size: 10px;
+                                color: #e3e3e3;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 32px;
+                                    height: 32px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    color: #e3e3e3;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M3 3h4v4H3zM9 9h4v4H9zM7 5h3.5V9"></path></svg></span
+                            >Graph
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 3px;
+                                font-size: 10px;
+                                color: #e3e3e3;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 32px;
+                                    height: 32px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    background: #394360;
+                                    color: #8fb3ff;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path
+                                        d="M3 4c0-1.1 2.2-2 5-2s5 .9 5 2-2.2 2-5 2-5-.9-5-2zM3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"
+                                    ></path></svg></span
+                            >Data
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 3px;
+                                font-size: 10px;
+                                color: #e3e3e3;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 32px;
+                                    height: 32px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    color: #e3e3e3;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M3.5 2.5h6l3 3v8h-9zM9.5 2.5v3h3"></path></svg></span
+                            >Notes
+                        </div>
+                    </div>
+                    <div>
+                        <div
+                            style="
+                                display: flex;
+                                flex-direction: column;
+                                align-items: center;
+                                gap: 3px;
+                                font-size: 10px;
+                                color: #e3e3e3;
+                            "
+                        >
+                            <span
+                                style="
+                                    width: 32px;
+                                    height: 32px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    color: #e3e3e3;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path
+                                        d="M8 5.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 0 1 0-5zM8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"
+                                    ></path></svg></span
+                            >Settings
+                        </div>
+                    </div>
+                </div>
+                <div
+                    style="
+                        width: 240px;
+                        flex: none;
+                        background: #2c2c2c;
+                        border-right: 1px solid #444444;
+                        overflow: hidden;
+                        display: flex;
+                        flex-direction: column;
+                    "
+                >
+                    <div style="padding: 16px 16px 6px; font-size: 13px; font-weight: 600; color: #e3e3e3">
+                        fraud-db
+                    </div>
+                    <div style="padding: 2px 16px 4px; color: #e3e3e3; font-size: 12px; line-height: 17px">
+                        1,846 nodes, 5,000 links, directed. Partial: 5,000 of the 40,000 links the query matches.
+                    </div>
+                    <div style="border-bottom: 1px solid #444444; padding: 8px 0 10px">
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                justify-content: space-between;
+                                padding: 4px 16px 6px 8px;
+                            "
+                        >
+                            <span
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    color: #e3e3e3;
+                                "
+                                ><svg
+                                    width="10"
+                                    height="10"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M4 6l4 4 4-4"></path></svg
+                                >What happened</span
+                            >
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                gap: 8px;
+                                padding: 6px 12px 6px 16px;
+                                margin: 0 6px;
+                                align-items: flex-start;
+                                background: #333a48;
+                                border-radius: 4px;
+                            "
+                        >
+                            <span style="color: #a6a6a6; margin-top: 1px"
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M2.5 3h11v4h-11zM2.5 9h11v4h-11zM5 5h.1M5 11h.1"></path></svg
+                            ></span>
+                            <div style="flex: 1; min-width: 0">
+                                <div style="display: flex; justify-content: space-between; gap: 6px">
+                                    <span style="font-size: 12px; line-height: 16px">Loaded from Neo4j, fraud-db</span
+                                    ><span style="color: #82aafb; font-size: 11px">Undo</span>
+                                </div>
+                                <div style="color: #a6a6a6; font-size: 11px; line-height: 15px">
+                                    Just now. 5,000 of 40,000 links.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="position: relative; width: 904px; flex: none; background: #f5f5f5; overflow: hidden">
+                    <svg width="904" height="860" viewBox="0 0 904 860" style="position: absolute; left: 0; top: 0">
+                        <defs>
+                            <radialGradient id="sph" cx="35%" cy="30%" r="70%">
+                                <stop offset="0%" stop-color="#8e90f0"></stop>
+                                <stop offset="100%" stop-color="#5457cc"></stop>
+                            </radialGradient>
+                            <radialGradient id="sphg" cx="35%" cy="30%" r="70%">
+                                <stop offset="0%" stop-color="#d0d0d0"></stop>
+                                <stop offset="100%" stop-color="#a3a3a3"></stop>
+                            </radialGradient>
+                        </defs>
+                        <g stroke="#9a9a9a" stroke-width="0.3" opacity="0.8">
+                            <line x1="491.2" y1="417.7" x2="606.7" y2="368.7"></line>
+                            <line x1="491.2" y1="417.7" x2="606.5" y2="483.6"></line>
+                            <line x1="491.2" y1="417.7" x2="584.7" y2="342.1"></line>
+                            <line x1="491.2" y1="417.7" x2="539.0" y2="406.6"></line>
+                            <line x1="491.2" y1="417.7" x2="588.7" y2="418.4"></line>
+                            <line x1="491.2" y1="417.7" x2="488.5" y2="341.6"></line>
+                            <line x1="491.2" y1="417.7" x2="500.6" y2="439.9"></line>
+                            <line x1="491.2" y1="417.7" x2="572.4" y2="402.0"></line>
+                            <line x1="491.2" y1="417.7" x2="507.5" y2="538.7"></line>
+                            <line x1="491.2" y1="417.7" x2="396.3" y2="290.4"></line>
+                            <line x1="491.2" y1="417.7" x2="612.3" y2="435.7"></line>
+                            <line x1="491.2" y1="417.7" x2="549.2" y2="327.6"></line>
+                            <line x1="491.2" y1="417.7" x2="525.6" y2="505.0"></line>
+                            <line x1="491.2" y1="417.7" x2="487.6" y2="448.6"></line>
+                            <line x1="491.2" y1="417.7" x2="358.5" y2="416.0"></line>
+                            <line x1="491.2" y1="417.7" x2="345.4" y2="520.4"></line>
+                            <line x1="491.2" y1="417.7" x2="417.7" y2="530.1"></line>
+                            <line x1="491.2" y1="417.7" x2="397.2" y2="415.6"></line>
+                            <line x1="491.2" y1="417.7" x2="599.2" y2="452.2"></line>
+                            <line x1="491.2" y1="417.7" x2="382.6" y2="343.8"></line>
+                            <line x1="491.2" y1="417.7" x2="443.6" y2="314.8"></line>
+                            <line x1="518.8" y1="443.5" x2="456.2" y2="386.8"></line>
+                            <line x1="518.8" y1="443.5" x2="392.1" y2="481.3"></line>
+                            <line x1="518.8" y1="443.5" x2="567.3" y2="510.7"></line>
+                            <line x1="518.8" y1="443.5" x2="503.9" y2="458.5"></line>
+                            <line x1="518.8" y1="443.5" x2="618.5" y2="458.2"></line>
+                            <line x1="518.8" y1="443.5" x2="475.8" y2="349.5"></line>
+                            <line x1="518.8" y1="443.5" x2="608.1" y2="454.4"></line>
+                            <line x1="518.8" y1="443.5" x2="504.7" y2="473.9"></line>
+                            <line x1="518.8" y1="443.5" x2="630.7" y2="472.2"></line>
+                            <line x1="518.8" y1="443.5" x2="486.6" y2="554.8"></line>
+                            <line x1="518.8" y1="443.5" x2="363.7" y2="442.7"></line>
+                            <line x1="518.8" y1="443.5" x2="448.9" y2="536.1"></line>
+                            <line x1="518.8" y1="443.5" x2="625.0" y2="442.2"></line>
+                            <line x1="518.8" y1="443.5" x2="525.6" y2="505.0"></line>
+                            <line x1="518.8" y1="443.5" x2="483.9" y2="485.6"></line>
+                            <line x1="518.8" y1="443.5" x2="566.5" y2="449.7"></line>
+                            <line x1="518.8" y1="443.5" x2="510.7" y2="263.8"></line>
+                            <line x1="518.8" y1="443.5" x2="601.8" y2="443.5"></line>
+                            <line x1="518.8" y1="443.5" x2="523.4" y2="590.2"></line>
+                            <line x1="518.8" y1="443.5" x2="407.2" y2="348.4"></line>
+                            <line x1="518.8" y1="443.5" x2="616.8" y2="429.0"></line>
+                            <line x1="518.8" y1="443.5" x2="581.6" y2="473.6"></line>
+                            <line x1="518.8" y1="443.5" x2="577.0" y2="414.7"></line>
+                            <line x1="518.8" y1="443.5" x2="599.2" y2="372.9"></line>
+                            <line x1="425.9" y1="469.4" x2="435.1" y2="499.7"></line>
+                            <line x1="425.9" y1="469.4" x2="404.1" y2="438.7"></line>
+                            <line x1="425.9" y1="469.4" x2="384.5" y2="499.5"></line>
+                            <line x1="425.9" y1="469.4" x2="355.9" y2="479.4"></line>
+                            <line x1="425.9" y1="469.4" x2="351.8" y2="499.1"></line>
+                            <line x1="425.9" y1="469.4" x2="491.4" y2="407.4"></line>
+                            <line x1="425.9" y1="469.4" x2="504.7" y2="473.9"></line>
+                            <line x1="425.9" y1="469.4" x2="475.0" y2="558.0"></line>
+                            <line x1="425.9" y1="469.4" x2="505.0" y2="399.6"></line>
+                            <line x1="425.9" y1="469.4" x2="487.8" y2="508.0"></line>
+                            <line x1="425.9" y1="469.4" x2="367.3" y2="532.0"></line>
+                            <line x1="425.9" y1="469.4" x2="355.8" y2="575.9"></line>
+                            <line x1="425.9" y1="469.4" x2="341.3" y2="375.4"></line>
+                            <line x1="425.9" y1="469.4" x2="396.2" y2="350.0"></line>
+                            <line x1="425.9" y1="469.4" x2="301.9" y2="402.3"></line>
+                            <line x1="425.9" y1="469.4" x2="467.2" y2="350.5"></line>
+                            <line x1="425.9" y1="469.4" x2="553.2" y2="512.1"></line>
+                            <line x1="425.9" y1="469.4" x2="412.1" y2="545.6"></line>
+                            <line x1="425.9" y1="469.4" x2="425.6" y2="541.1"></line>
+                            <line x1="425.9" y1="469.4" x2="500.3" y2="561.6"></line>
+                            <line x1="435.1" y1="499.7" x2="526.4" y2="529.4"></line>
+                            <line x1="435.1" y1="499.7" x2="519.9" y2="544.4"></line>
+                            <line x1="435.1" y1="499.7" x2="424.2" y2="574.6"></line>
+                            <line x1="435.1" y1="499.7" x2="519.6" y2="497.4"></line>
+                            <line x1="435.1" y1="499.7" x2="486.6" y2="554.8"></line>
+                            <line x1="435.1" y1="499.7" x2="359.0" y2="365.5"></line>
+                            <line x1="435.1" y1="499.7" x2="556.5" y2="431.6"></line>
+                            <line x1="435.1" y1="499.7" x2="448.9" y2="536.1"></line>
+                            <line x1="435.1" y1="499.7" x2="284.1" y2="511.9"></line>
+                            <line x1="435.1" y1="499.7" x2="487.6" y2="448.6"></line>
+                            <line x1="435.1" y1="499.7" x2="457.4" y2="562.3"></line>
+                            <line x1="435.1" y1="499.7" x2="358.7" y2="556.6"></line>
+                            <line x1="435.1" y1="499.7" x2="397.9" y2="499.6"></line>
+                            <line x1="435.1" y1="499.7" x2="387.9" y2="580.8"></line>
+                            <line x1="435.1" y1="499.7" x2="356.0" y2="586.9"></line>
+                            <line x1="435.1" y1="499.7" x2="501.4" y2="384.8"></line>
+                            <line x1="445.0" y1="476.7" x2="456.2" y2="386.8"></line>
+                            <line x1="445.0" y1="476.7" x2="384.5" y2="499.5"></line>
+                            <line x1="445.0" y1="476.7" x2="424.9" y2="555.0"></line>
+                            <line x1="445.0" y1="476.7" x2="355.9" y2="479.4"></line>
+                            <line x1="445.0" y1="476.7" x2="392.5" y2="562.3"></line>
+                            <line x1="445.0" y1="476.7" x2="539.0" y2="406.6"></line>
+                            <line x1="445.0" y1="476.7" x2="503.9" y2="458.5"></line>
+                            <line x1="445.0" y1="476.7" x2="372.8" y2="434.5"></line>
+                            <line x1="445.0" y1="476.7" x2="491.4" y2="407.4"></line>
+                            <line x1="445.0" y1="476.7" x2="500.6" y2="439.9"></line>
+                            <line x1="445.0" y1="476.7" x2="501.3" y2="414.7"></line>
+                            <line x1="445.0" y1="476.7" x2="454.8" y2="586.9"></line>
+                            <line x1="445.0" y1="476.7" x2="363.7" y2="442.7"></line>
+                            <line x1="445.0" y1="476.7" x2="377.6" y2="556.1"></line>
+                            <line x1="445.0" y1="476.7" x2="391.3" y2="549.9"></line>
+                            <line x1="445.0" y1="476.7" x2="558.8" y2="500.8"></line>
+                            <line x1="445.0" y1="476.7" x2="572.7" y2="491.2"></line>
+                            <line x1="445.0" y1="476.7" x2="566.5" y2="449.7"></line>
+                            <line x1="445.0" y1="476.7" x2="509.6" y2="517.1"></line>
+                            <line x1="445.0" y1="476.7" x2="322.8" y2="520.2"></line>
+                            <line x1="445.0" y1="476.7" x2="397.9" y2="499.6"></line>
+                            <line x1="445.0" y1="476.7" x2="417.7" y2="530.1"></line>
+                            <line x1="445.0" y1="476.7" x2="402.9" y2="526.1"></line>
+                            <line x1="445.0" y1="476.7" x2="295.8" y2="444.2"></line>
+                            <line x1="445.0" y1="476.7" x2="341.9" y2="507.9"></line>
+                            <line x1="445.0" y1="476.7" x2="465.6" y2="299.6"></line>
+                            <line x1="445.0" y1="476.7" x2="589.0" y2="518.7"></line>
+                            <line x1="432.8" y1="394.0" x2="342.7" y2="352.0"></line>
+                            <line x1="432.8" y1="394.0" x2="378.8" y2="401.6"></line>
+                            <line x1="432.8" y1="394.0" x2="340.3" y2="495.7"></line>
+                            <line x1="432.8" y1="394.0" x2="559.3" y2="338.0"></line>
+                            <line x1="432.8" y1="394.0" x2="402.0" y2="362.6"></line>
+                            <line x1="432.8" y1="394.0" x2="411.5" y2="399.2"></line>
+                            <line x1="432.8" y1="394.0" x2="375.7" y2="492.6"></line>
+                            <line x1="432.8" y1="394.0" x2="483.9" y2="485.6"></line>
+                            <line x1="432.8" y1="394.0" x2="330.8" y2="346.5"></line>
+                            <line x1="432.8" y1="394.0" x2="373.1" y2="290.7"></line>
+                            <line x1="432.8" y1="394.0" x2="384.2" y2="365.2"></line>
+                            <line x1="432.8" y1="394.0" x2="358.5" y2="416.0"></line>
+                            <line x1="432.8" y1="394.0" x2="551.3" y2="402.2"></line>
+                            <line x1="432.8" y1="394.0" x2="320.4" y2="429.7"></line>
+                            <line x1="432.8" y1="394.0" x2="401.6" y2="265.5"></line>
+                            <line x1="432.8" y1="394.0" x2="585.5" y2="352.3"></line>
+                            <line x1="432.8" y1="394.0" x2="534.7" y2="349.5"></line>
+                            <line x1="432.8" y1="394.0" x2="360.1" y2="511.1"></line>
+                            <line x1="432.8" y1="394.0" x2="430.9" y2="305.3"></line>
+                            <line x1="432.8" y1="394.0" x2="506.6" y2="368.8"></line>
+                            <line x1="432.8" y1="394.0" x2="337.9" y2="477.9"></line>
+                            <line x1="432.8" y1="394.0" x2="577.0" y2="414.7"></line>
+                            <line x1="456.2" y1="386.8" x2="471.5" y2="524.9"></line>
+                            <line x1="456.2" y1="386.8" x2="577.4" y2="387.8"></line>
+                            <line x1="456.2" y1="386.8" x2="490.7" y2="497.2"></line>
+                            <line x1="456.2" y1="386.8" x2="415.2" y2="323.0"></line>
+                            <line x1="456.2" y1="386.8" x2="519.6" y2="497.4"></line>
+                            <line x1="456.2" y1="386.8" x2="458.6" y2="257.7"></line>
+                            <line x1="456.2" y1="386.8" x2="503.9" y2="458.5"></line>
+                            <line x1="456.2" y1="386.8" x2="372.8" y2="434.5"></line>
+                            <line x1="456.2" y1="386.8" x2="504.0" y2="285.4"></line>
+                            <line x1="456.2" y1="386.8" x2="359.5" y2="330.2"></line>
+                            <line x1="456.2" y1="386.8" x2="501.3" y2="414.7"></line>
+                            <line x1="456.2" y1="386.8" x2="340.9" y2="467.2"></line>
+                            <line x1="456.2" y1="386.8" x2="394.2" y2="272.2"></line>
+                            <line x1="456.2" y1="386.8" x2="452.8" y2="299.0"></line>
+                            <line x1="456.2" y1="386.8" x2="556.5" y2="365.9"></line>
+                            <line x1="456.2" y1="386.8" x2="341.3" y2="375.4"></line>
+                            <line x1="456.2" y1="386.8" x2="456.8" y2="322.3"></line>
+                            <line x1="456.2" y1="386.8" x2="371.2" y2="264.2"></line>
+                            <line x1="456.2" y1="386.8" x2="541.0" y2="511.3"></line>
+                            <line x1="456.2" y1="386.8" x2="506.9" y2="299.8"></line>
+                            <line x1="456.2" y1="386.8" x2="568.8" y2="355.1"></line>
+                            <line x1="456.2" y1="386.8" x2="541.5" y2="460.9"></line>
+                            <line x1="456.2" y1="386.8" x2="551.3" y2="402.2"></line>
+                            <line x1="456.2" y1="386.8" x2="368.9" y2="508.2"></line>
+                            <line x1="456.2" y1="386.8" x2="543.6" y2="371.4"></line>
+                            <line x1="456.2" y1="386.8" x2="323.2" y2="355.2"></line>
+                            <line x1="456.2" y1="386.8" x2="382.6" y2="343.8"></line>
+                            <line x1="456.2" y1="386.8" x2="424.3" y2="249.8"></line>
+                            <line x1="478.0" y1="388.4" x2="617.5" y2="408.2"></line>
+                            <line x1="478.0" y1="388.4" x2="492.4" y2="257.8"></line>
+                            <line x1="478.0" y1="388.4" x2="557.3" y2="494.1"></line>
+                            <line x1="478.0" y1="388.4" x2="475.8" y2="349.5"></line>
+                            <line x1="478.0" y1="388.4" x2="323.5" y2="460.3"></line>
+                            <line x1="478.0" y1="388.4" x2="404.7" y2="316.8"></line>
+                            <line x1="478.0" y1="388.4" x2="492.8" y2="310.9"></line>
+                            <line x1="478.0" y1="388.4" x2="368.5" y2="420.4"></line>
+                            <line x1="478.0" y1="388.4" x2="409.7" y2="306.4"></line>
+                            <line x1="478.0" y1="388.4" x2="605.3" y2="416.7"></line>
+                            <line x1="478.0" y1="388.4" x2="488.2" y2="519.7"></line>
+                            <line x1="478.0" y1="388.4" x2="335.8" y2="413.0"></line>
+                            <line x1="478.0" y1="388.4" x2="443.5" y2="251.4"></line>
+                            <line x1="478.0" y1="388.4" x2="396.2" y2="350.0"></line>
+                            <line x1="478.0" y1="388.4" x2="594.8" y2="383.9"></line>
+                            <line x1="478.0" y1="388.4" x2="535.3" y2="293.1"></line>
+                            <line x1="478.0" y1="388.4" x2="562.1" y2="407.3"></line>
+                            <line x1="478.0" y1="388.4" x2="585.5" y2="481.3"></line>
+                            <line x1="478.0" y1="388.4" x2="430.9" y2="305.3"></line>
+                            <line x1="478.0" y1="388.4" x2="346.6" y2="388.6"></line>
+                            <line x1="478.0" y1="388.4" x2="528.2" y2="424.4"></line>
+                            <line x1="478.0" y1="388.4" x2="455.7" y2="504.0"></line>
+                            <line x1="478.0" y1="388.4" x2="599.2" y2="372.9"></line>
+                            <line x1="606.7" y1="368.7" x2="621.8" y2="398.1"></line>
+                            <line x1="606.7" y1="368.7" x2="666.9" y2="345.5"></line>
+                            <line x1="606.7" y1="368.7" x2="585.5" y2="352.3"></line>
+                            <line x1="606.7" y1="368.7" x2="680.3" y2="369.2"></line>
+                            <line x1="404.1" y1="438.7" x2="411.5" y2="399.2"></line>
+                            <line x1="606.5" y1="483.6" x2="666.2" y2="546.5"></line>
+                            <line x1="606.5" y1="483.6" x2="670.6" y2="455.2"></line>
+                            <line x1="603.5" y1="680.3" x2="546.4" y2="626.4"></line>
+                            <line x1="603.5" y1="680.3" x2="619.0" y2="626.9"></line>
+                            <line x1="384.5" y1="499.5" x2="340.3" y2="495.7"></line>
+                            <line x1="384.5" y1="499.5" x2="328.1" y2="506.5"></line>
+                            <line x1="235.0" y1="432.2" x2="219.9" y2="395.1"></line>
+                            <line x1="235.0" y1="432.2" x2="323.5" y2="460.3"></line>
+                            <line x1="302.9" y1="279.1" x2="329.0" y2="209.9"></line>
+                            <line x1="302.9" y1="279.1" x2="341.3" y2="375.4"></line>
+                            <line x1="319.8" y1="300.2" x2="238.3" y2="269.1"></line>
+                            <line x1="319.8" y1="300.2" x2="266.5" y2="358.8"></line>
+                            <line x1="319.8" y1="300.2" x2="409.7" y2="306.4"></line>
+                            <line x1="319.8" y1="300.2" x2="237.1" y2="241.1"></line>
+                            <line x1="319.8" y1="300.2" x2="371.2" y2="264.2"></line>
+                            <line x1="319.8" y1="300.2" x2="341.5" y2="247.6"></line>
+                            <line x1="319.8" y1="300.2" x2="396.2" y2="350.0"></line>
+                            <line x1="319.8" y1="300.2" x2="261.6" y2="337.9"></line>
+                            <line x1="319.8" y1="300.2" x2="407.2" y2="348.4"></line>
+                            <line x1="424.9" y1="555.0" x2="391.3" y2="549.9"></line>
+                            <line x1="424.9" y1="555.0" x2="412.1" y2="545.6"></line>
+                            <line x1="637.8" y1="302.1" x2="584.7" y2="342.1"></line>
+                            <line x1="637.8" y1="302.1" x2="649.1" y2="289.7"></line>
+                            <line x1="637.8" y1="302.1" x2="635.7" y2="358.8"></line>
+                            <line x1="637.8" y1="302.1" x2="596.9" y2="326.4"></line>
+                            <line x1="584.7" y1="342.1" x2="505.0" y2="399.6"></line>
+                            <line x1="584.7" y1="342.1" x2="598.7" y2="281.3"></line>
+                            <line x1="584.7" y1="342.1" x2="657.1" y2="356.8"></line>
+                            <line x1="584.7" y1="342.1" x2="653.6" y2="305.6"></line>
+                            <line x1="471.5" y1="524.9" x2="502.1" y2="604.3"></line>
+                            <line x1="471.5" y1="524.9" x2="479.2" y2="615.3"></line>
+                            <line x1="471.5" y1="524.9" x2="455.7" y2="504.0"></line>
+                            <line x1="566.2" y1="590.0" x2="594.5" y2="574.5"></line>
+                            <line x1="566.2" y1="590.0" x2="558.8" y2="500.8"></line>
+                            <line x1="566.2" y1="590.0" x2="510.6" y2="571.2"></line>
+                            <line x1="566.2" y1="590.0" x2="546.4" y2="626.4"></line>
+                            <line x1="276.5" y1="543.7" x2="355.8" y2="575.9"></line>
+                            <line x1="276.5" y1="543.7" x2="305.7" y2="566.7"></line>
+                            <line x1="276.5" y1="543.7" x2="236.8" y2="482.3"></line>
+                            <line x1="276.5" y1="543.7" x2="322.8" y2="520.2"></line>
+                            <line x1="276.5" y1="543.7" x2="228.9" y2="527.0"></line>
+                            <line x1="276.5" y1="543.7" x2="261.2" y2="546.4"></line>
+                            <line x1="276.5" y1="543.7" x2="278.2" y2="499.6"></line>
+                            <line x1="256.0" y1="500.7" x2="323.5" y2="460.3"></line>
+                            <line x1="256.0" y1="500.7" x2="145.3" y2="548.9"></line>
+                            <line x1="256.0" y1="500.7" x2="328.1" y2="506.5"></line>
+                            <line x1="256.0" y1="500.7" x2="295.8" y2="444.2"></line>
+                            <line x1="256.0" y1="500.7" x2="337.9" y2="477.9"></line>
+                            <line x1="238.3" y1="269.1" x2="278.7" y2="297.7"></line>
+                            <line x1="238.3" y1="269.1" x2="189.4" y2="274.4"></line>
+                            <line x1="266.5" y1="358.8" x2="213.1" y2="320.4"></line>
+                            <line x1="266.5" y1="358.8" x2="219.9" y2="395.1"></line>
+                            <line x1="266.5" y1="358.8" x2="184.0" y2="368.0"></line>
+                            <line x1="266.5" y1="358.8" x2="271.2" y2="427.4"></line>
+                            <line x1="266.5" y1="358.8" x2="341.3" y2="375.4"></line>
+                            <line x1="266.5" y1="358.8" x2="358.5" y2="416.0"></line>
+                            <line x1="266.5" y1="358.8" x2="250.2" y2="286.1"></line>
+                            <line x1="510.4" y1="64.5" x2="491.0" y2="145.4"></line>
+                            <line x1="701.2" y1="448.3" x2="694.7" y2="427.6"></line>
+                            <line x1="701.2" y1="448.3" x2="644.2" y2="443.6"></line>
+                            <line x1="701.2" y1="448.3" x2="616.8" y2="429.0"></line>
+                            <line x1="392.1" y1="481.3" x2="328.1" y2="506.5"></line>
+                            <line x1="392.1" y1="481.3" x2="341.9" y2="507.9"></line>
+                            <line x1="392.1" y1="481.3" x2="297.8" y2="492.0"></line>
+                            <line x1="526.4" y1="529.4" x2="519.9" y2="544.4"></line>
+                            <line x1="526.4" y1="529.4" x2="525.6" y2="505.0"></line>
+                            <line x1="526.4" y1="529.4" x2="585.5" y2="481.3"></line>
+                            <line x1="526.4" y1="529.4" x2="576.2" y2="549.4"></line>
+                            <line x1="465.2" y1="729.7" x2="418.3" y2="759.6"></line>
+                            <line x1="465.2" y1="729.7" x2="472.4" y2="653.4"></line>
+                            <line x1="465.2" y1="729.7" x2="494.2" y2="678.5"></line>
+                            <line x1="323.7" y1="672.2" x2="356.0" y2="586.9"></line>
+                            <line x1="190.3" y1="471.9" x2="236.6" y2="454.7"></line>
+                            <line x1="190.3" y1="471.9" x2="236.8" y2="482.3"></line>
+                            <line x1="190.3" y1="471.9" x2="249.6" y2="457.3"></line>
+                            <line x1="213.1" y1="320.4" x2="184.0" y2="368.0"></line>
+                            <line x1="213.1" y1="320.4" x2="283.5" y2="289.7"></line>
+                            <line x1="431.9" y1="168.1" x2="491.0" y2="145.4"></line>
+                            <line x1="431.9" y1="168.1" x2="361.3" y2="187.1"></line>
+                            <line x1="431.9" y1="168.1" x2="443.5" y2="251.4"></line>
+                            <line x1="595.7" y1="82.2" x2="561.2" y2="156.5"></line>
+                            <line x1="799.6" y1="272.5" x2="854.0" y2="212.1"></line>
+                            <line x1="799.6" y1="272.5" x2="705.9" y2="340.8"></line>
+                            <line x1="617.5" y1="408.2" x2="578.3" y2="425.7"></line>
+                            <line x1="617.5" y1="408.2" x2="694.7" y2="427.6"></line>
+                            <line x1="617.5" y1="408.2" x2="704.2" y2="364.6"></line>
+                            <line x1="617.5" y1="408.2" x2="639.2" y2="348.6"></line>
+                            <line x1="617.5" y1="408.2" x2="643.5" y2="477.4"></line>
+                            <line x1="617.5" y1="408.2" x2="600.7" y2="476.0"></line>
+                            <line x1="577.4" y1="387.8" x2="670.3" y2="388.7"></line>
+                            <line x1="577.4" y1="387.8" x2="661.1" y2="421.6"></line>
+                            <line x1="577.4" y1="387.8" x2="605.3" y2="416.7"></line>
+                            <line x1="577.4" y1="387.8" x2="506.6" y2="368.8"></line>
+                            <line x1="594.5" y1="574.5" x2="519.6" y2="497.4"></line>
+                            <line x1="594.5" y1="574.5" x2="626.1" y2="581.6"></line>
+                            <line x1="594.5" y1="574.5" x2="642.6" y2="576.4"></line>
+                            <line x1="594.5" y1="574.5" x2="589.0" y2="518.7"></line>
+                            <line x1="594.5" y1="574.5" x2="619.0" y2="626.9"></line>
+                            <line x1="355.9" y1="479.4" x2="368.5" y2="420.4"></line>
+                            <line x1="355.9" y1="479.4" x2="295.2" y2="433.8"></line>
+                            <line x1="355.9" y1="479.4" x2="355.8" y2="575.9"></line>
+                            <line x1="355.9" y1="479.4" x2="274.6" y2="455.0"></line>
+                            <line x1="351.8" y1="499.1" x2="345.4" y2="520.4"></line>
+                            <line x1="351.8" y1="499.1" x2="341.9" y2="507.9"></line>
+                            <line x1="351.8" y1="499.1" x2="297.8" y2="492.0"></line>
+                            <line x1="375.0" y1="251.0" x2="376.6" y2="197.1"></line>
+                            <line x1="375.0" y1="251.0" x2="396.2" y2="350.0"></line>
+                            <line x1="375.0" y1="251.0" x2="371.2" y2="227.5"></line>
+                            <line x1="321.3" y1="178.1" x2="386.1" y2="173.8"></line>
+                            <line x1="321.3" y1="178.1" x2="288.3" y2="220.0"></line>
+                            <line x1="321.3" y1="178.1" x2="341.5" y2="247.6"></line>
+                            <line x1="492.4" y1="257.8" x2="491.0" y2="145.4"></line>
+                            <line x1="492.4" y1="257.8" x2="506.9" y2="299.8"></line>
+                            <line x1="691.8" y1="310.0" x2="666.8" y2="364.3"></line>
+                            <line x1="691.8" y1="310.0" x2="695.3" y2="332.7"></line>
+                            <line x1="691.8" y1="310.0" x2="666.9" y2="345.5"></line>
+                            <line x1="691.8" y1="310.0" x2="585.5" y2="352.3"></line>
+                            <line x1="691.8" y1="310.0" x2="764.3" y2="264.6"></line>
+                            <line x1="557.3" y1="494.1" x2="617.6" y2="567.2"></line>
+                            <line x1="557.3" y1="494.1" x2="576.3" y2="529.7"></line>
+                            <line x1="557.3" y1="494.1" x2="585.5" y2="481.3"></line>
+                            <line x1="557.3" y1="494.1" x2="576.2" y2="549.4"></line>
+                            <line x1="519.9" y1="544.4" x2="519.6" y2="497.4"></line>
+                            <line x1="519.9" y1="544.4" x2="597.0" y2="542.0"></line>
+                            <line x1="490.7" y1="497.2" x2="475.0" y2="558.0"></line>
+                            <line x1="490.7" y1="497.2" x2="507.5" y2="538.7"></line>
+                            <line x1="490.7" y1="497.2" x2="487.8" y2="508.0"></line>
+                            <line x1="490.7" y1="497.2" x2="545.5" y2="552.2"></line>
+                            <line x1="424.2" y1="574.6" x2="417.7" y2="530.1"></line>
+                            <line x1="226.4" y1="724.2" x2="270.9" y2="654.2"></line>
+                            <line x1="342.7" y1="352.0" x2="341.5" y2="247.6"></line>
+                            <line x1="342.7" y1="352.0" x2="295.8" y2="444.2"></line>
+                            <line x1="524.3" y1="238.2" x2="559.3" y2="338.0"></line>
+                            <line x1="524.3" y1="238.2" x2="450.2" y2="198.5"></line>
+                            <line x1="415.2" y1="323.0" x2="373.1" y2="290.7"></line>
+                            <line x1="565.5" y1="274.6" x2="504.0" y2="285.4"></line>
+                            <line x1="565.5" y1="274.6" x2="568.8" y2="355.1"></line>
+                            <line x1="607.0" y1="465.4" x2="572.7" y2="491.2"></line>
+                            <line x1="607.0" y1="465.4" x2="551.3" y2="402.2"></line>
+                            <line x1="607.0" y1="465.4" x2="643.5" y2="477.4"></line>
+                            <line x1="519.6" y1="497.4" x2="603.7" y2="508.0"></line>
+                            <line x1="567.3" y1="510.7" x2="584.5" y2="500.7"></line>
+                            <line x1="271.9" y1="555.6" x2="323.5" y2="460.3"></line>
+                            <line x1="271.9" y1="555.6" x2="184.4" y2="577.3"></line>
+                            <line x1="271.9" y1="555.6" x2="276.4" y2="584.3"></line>
+                            <line x1="271.9" y1="555.6" x2="351.9" y2="560.2"></line>
+                            <line x1="271.9" y1="555.6" x2="305.9" y2="582.7"></line>
+                            <line x1="392.5" y1="562.3" x2="383.9" y2="595.4"></line>
+                            <line x1="392.5" y1="562.3" x2="328.4" y2="572.6"></line>
+                            <line x1="243.0" y1="372.3" x2="149.3" y2="407.9"></line>
+                            <line x1="243.0" y1="372.3" x2="341.3" y2="375.4"></line>
+                            <line x1="243.0" y1="372.3" x2="323.2" y2="355.2"></line>
+                            <line x1="243.0" y1="372.3" x2="220.1" y2="374.8"></line>
+                            <line x1="379.2" y1="157.4" x2="386.1" y2="173.8"></line>
+                            <line x1="379.2" y1="157.4" x2="400.5" y2="207.5"></line>
+                            <line x1="379.2" y1="157.4" x2="382.8" y2="110.9"></line>
+                            <line x1="379.2" y1="157.4" x2="376.6" y2="197.1"></line>
+                            <line x1="379.2" y1="157.4" x2="358.9" y2="75.1"></line>
+                            <line x1="379.2" y1="157.4" x2="401.6" y2="265.5"></line>
+                            <line x1="379.2" y1="157.4" x2="359.0" y2="150.5"></line>
+                            <line x1="458.6" y1="257.7" x2="492.8" y2="310.9"></line>
+                            <line x1="458.6" y1="257.7" x2="425.1" y2="266.4"></line>
+                            <line x1="458.6" y1="257.7" x2="473.1" y2="166.2"></line>
+                            <line x1="458.6" y1="257.7" x2="423.9" y2="186.6"></line>
+                            <line x1="539.0" y1="406.6" x2="559.3" y2="338.0"></line>
+                            <line x1="539.0" y1="406.6" x2="598.5" y2="404.6"></line>
+                            <line x1="539.0" y1="406.6" x2="625.0" y2="382.7"></line>
+                            <line x1="503.9" y1="458.5" x2="504.7" y2="473.9"></line>
+                            <line x1="503.9" y1="458.5" x2="584.5" y2="500.7"></line>
+                            <line x1="588.7" y1="418.4" x2="689.9" y2="419.2"></line>
+                            <line x1="588.7" y1="418.4" x2="528.2" y2="424.4"></line>
+                            <line x1="645.5" y1="529.3" x2="669.6" y2="482.2"></line>
+                            <line x1="645.5" y1="529.3" x2="656.6" y2="467.3"></line>
+                            <line x1="645.5" y1="529.3" x2="642.6" y2="576.4"></line>
+                            <line x1="645.5" y1="529.3" x2="553.2" y2="512.1"></line>
+                            <line x1="383.9" y1="595.4" x2="377.6" y2="556.1"></line>
+                            <line x1="383.9" y1="595.4" x2="457.4" y2="562.3"></line>
+                            <line x1="383.9" y1="595.4" x2="358.7" y2="556.6"></line>
+                            <line x1="383.9" y1="595.4" x2="328.4" y2="572.6"></line>
+                            <line x1="328.2" y1="544.3" x2="340.9" y2="467.2"></line>
+                            <line x1="328.2" y1="544.3" x2="360.1" y2="511.1"></line>
+                            <line x1="328.2" y1="544.3" x2="356.0" y2="586.9"></line>
+                            <line x1="219.9" y1="395.1" x2="335.8" y2="413.0"></line>
+                            <line x1="219.9" y1="395.1" x2="124.9" y2="392.1"></line>
+                            <line x1="329.0" y1="209.9" x2="396.3" y2="290.4"></line>
+                            <line x1="329.0" y1="209.9" x2="376.6" y2="197.1"></line>
+                            <line x1="329.0" y1="209.9" x2="281.8" y2="136.5"></line>
+                            <line x1="409.3" y1="101.2" x2="382.8" y2="110.9"></line>
+                            <line x1="409.3" y1="101.2" x2="423.9" y2="186.6"></line>
+                            <line x1="662.7" y1="317.1" x2="568.8" y2="355.1"></line>
+                            <line x1="662.7" y1="317.1" x2="657.1" y2="356.8"></line>
+                            <line x1="662.7" y1="317.1" x2="705.9" y2="340.8"></line>
+                            <line x1="666.8" y1="364.3" x2="635.1" y2="397.0"></line>
+                            <line x1="666.8" y1="364.3" x2="577.0" y2="414.7"></line>
+                            <line x1="666.8" y1="364.3" x2="676.9" y2="380.4"></line>
+                            <line x1="618.5" y1="458.2" x2="657.9" y2="513.5"></line>
+                            <line x1="618.5" y1="458.2" x2="621.8" y2="398.1"></line>
+                            <line x1="618.5" y1="458.2" x2="633.4" y2="485.9"></line>
+                            <line x1="618.5" y1="458.2" x2="629.9" y2="408.1"></line>
+                            <line x1="502.1" y1="604.3" x2="486.6" y2="554.8"></line>
+                            <line x1="502.1" y1="604.3" x2="546.4" y2="626.4"></line>
+                            <line x1="392.4" y1="619.1" x2="350.9" y2="629.3"></line>
+                            <line x1="392.4" y1="619.1" x2="461.6" y2="627.9"></line>
+                            <line x1="392.4" y1="619.1" x2="417.7" y2="530.1"></line>
+                            <line x1="392.4" y1="619.1" x2="328.4" y2="598.1"></line>
+                            <line x1="372.8" y1="434.5" x2="295.2" y2="433.8"></line>
+                            <line x1="372.8" y1="434.5" x2="295.8" y2="444.2"></line>
+                            <line x1="378.8" y1="401.6" x2="363.7" y2="442.7"></line>
+                            <line x1="386.1" y1="173.8" x2="422.3" y2="131.4"></line>
+                            <line x1="386.1" y1="173.8" x2="425.1" y2="266.4"></line>
+                            <line x1="504.0" y1="285.4" x2="452.8" y2="299.0"></line>
+                            <line x1="504.0" y1="285.4" x2="538.1" y2="204.8"></line>
+                            <line x1="504.0" y1="285.4" x2="506.9" y2="299.8"></line>
+                            <line x1="504.0" y1="285.4" x2="498.1" y2="322.8"></line>
+                            <line x1="578.3" y1="425.7" x2="491.4" y2="407.4"></line>
+                            <line x1="578.3" y1="425.7" x2="556.5" y2="431.6"></line>
+                            <line x1="578.3" y1="425.7" x2="597.0" y2="542.0"></line>
+                            <line x1="578.3" y1="425.7" x2="577.9" y2="376.0"></line>
+                            <line x1="578.3" y1="425.7" x2="635.7" y2="358.8"></line>
+                            <line x1="578.3" y1="425.7" x2="562.1" y2="407.3"></line>
+                            <line x1="578.3" y1="425.7" x2="543.6" y2="371.4"></line>
+                            <line x1="475.8" y1="349.5" x2="425.1" y2="266.4"></line>
+                            <line x1="608.1" y1="454.4" x2="584.5" y2="500.7"></line>
+                            <line x1="608.1" y1="454.4" x2="566.5" y2="449.7"></line>
+                            <line x1="608.1" y1="454.4" x2="681.2" y2="413.0"></line>
+                            <line x1="553.8" y1="475.6" x2="504.7" y2="473.9"></line>
+                            <line x1="553.8" y1="475.6" x2="556.5" y2="431.6"></line>
+                            <line x1="553.8" y1="475.6" x2="581.6" y2="473.6"></line>
+                            <line x1="323.5" y1="460.3" x2="340.9" y2="467.2"></line>
+                            <line x1="323.5" y1="460.3" x2="265.4" y2="469.9"></line>
+                            <line x1="275.4" y1="571.9" x2="270.4" y2="529.4"></line>
+                            <line x1="275.4" y1="571.9" x2="345.4" y2="520.4"></line>
+                            <line x1="314.7" y1="285.4" x2="288.3" y2="220.0"></line>
+                            <line x1="314.7" y1="285.4" x2="359.0" y2="365.5"></line>
+                            <line x1="314.7" y1="285.4" x2="396.3" y2="290.4"></line>
+                            <line x1="314.7" y1="285.4" x2="283.5" y2="289.7"></line>
+                            <line x1="314.7" y1="285.4" x2="323.2" y2="355.2"></line>
+                            <line x1="314.7" y1="285.4" x2="265.3" y2="229.9"></line>
+                            <line x1="488.5" y1="341.6" x2="465.6" y2="299.6"></line>
+                            <line x1="491.4" y1="407.4" x2="556.5" y2="365.9"></line>
+                            <line x1="491.4" y1="407.4" x2="498.1" y2="322.8"></line>
+                            <line x1="491.4" y1="407.4" x2="445.1" y2="382.3"></line>
+                            <line x1="500.6" y1="439.9" x2="562.1" y2="407.3"></line>
+                            <line x1="644.4" y1="554.8" x2="617.6" y2="567.2"></line>
+                            <line x1="644.4" y1="554.8" x2="626.1" y2="581.6"></line>
+                            <line x1="644.4" y1="554.8" x2="585.5" y2="481.3"></line>
+                            <line x1="644.4" y1="554.8" x2="659.4" y2="532.9"></line>
+                            <line x1="504.7" y1="473.9" x2="541.0" y2="511.3"></line>
+                            <line x1="504.7" y1="473.9" x2="528.2" y2="424.4"></line>
+                            <line x1="184.4" y1="577.3" x2="157.2" y2="526.1"></line>
+                            <line x1="302.8" y1="614.7" x2="355.8" y2="575.9"></line>
+                            <line x1="302.8" y1="614.7" x2="314.5" y2="542.1"></line>
+                            <line x1="359.5" y1="330.2" x2="283.5" y2="289.7"></line>
+                            <line x1="359.5" y1="330.2" x2="330.8" y2="346.5"></line>
+                            <line x1="320.6" y1="219.7" x2="371.2" y2="264.2"></line>
+                            <line x1="320.6" y1="219.7" x2="301.1" y2="326.8"></line>
+                            <line x1="320.6" y1="219.7" x2="351.1" y2="128.9"></line>
+                            <line x1="501.3" y1="414.7" x2="577.9" y2="376.0"></line>
+                            <line x1="572.4" y1="402.0" x2="559.3" y2="338.0"></line>
+                            <line x1="572.4" y1="402.0" x2="556.5" y2="365.9"></line>
+                            <line x1="572.4" y1="402.0" x2="543.6" y2="371.4"></line>
+                            <line x1="572.4" y1="402.0" x2="643.5" y2="477.4"></line>
+                            <line x1="670.3" y1="388.7" x2="650.2" y2="367.0"></line>
+                            <line x1="670.3" y1="388.7" x2="684.6" y2="344.5"></line>
+                            <line x1="670.3" y1="388.7" x2="657.7" y2="455.4"></line>
+                            <line x1="683.6" y1="400.1" x2="661.1" y2="421.6"></line>
+                            <line x1="683.6" y1="400.1" x2="643.8" y2="425.8"></line>
+                            <line x1="683.6" y1="400.1" x2="605.3" y2="416.7"></line>
+                            <line x1="683.6" y1="400.1" x2="657.1" y2="356.8"></line>
+                            <line x1="683.6" y1="400.1" x2="665.4" y2="395.0"></line>
+                            <line x1="418.3" y1="759.6" x2="390.7" y2="689.1"></line>
+                            <line x1="276.4" y1="584.3" x2="270.4" y2="529.4"></line>
+                            <line x1="276.4" y1="584.3" x2="219.5" y2="650.5"></line>
+                            <line x1="276.4" y1="584.3" x2="368.9" y2="508.2"></line>
+                            <line x1="340.3" y1="495.7" x2="351.9" y2="560.2"></line>
+                            <line x1="340.3" y1="495.7" x2="307.7" y2="441.8"></line>
+                            <line x1="340.3" y1="495.7" x2="261.2" y2="546.4"></line>
+                            <line x1="340.3" y1="495.7" x2="318.9" y2="575.0"></line>
+                            <line x1="345.0" y1="277.9" x2="359.0" y2="365.5"></line>
+                            <line x1="345.0" y1="277.9" x2="371.2" y2="227.5"></line>
+                            <line x1="404.7" y1="316.8" x2="396.2" y2="350.0"></line>
+                            <line x1="404.7" y1="316.8" x2="337.1" y2="264.3"></line>
+                            <line x1="404.7" y1="316.8" x2="430.9" y2="305.3"></line>
+                            <line x1="492.8" y1="310.9" x2="534.7" y2="349.5"></line>
+                            <line x1="559.3" y1="338.0" x2="659.2" y2="374.8"></line>
+                            <line x1="559.3" y1="338.0" x2="649.1" y2="289.7"></line>
+                            <line x1="630.7" y1="472.2" x2="661.1" y2="421.6"></line>
+                            <line x1="630.7" y1="472.2" x2="698.8" y2="493.1"></line>
+                            <line x1="630.7" y1="472.2" x2="600.7" y2="476.0"></line>
+                            <line x1="475.0" y1="558.0" x2="461.6" y2="627.9"></line>
+                            <line x1="475.0" y1="558.0" x2="546.3" y2="570.1"></line>
+                            <line x1="351.9" y1="560.2" x2="448.9" y2="536.1"></line>
+                            <line x1="351.9" y1="560.2" x2="387.9" y2="580.8"></line>
+                            <line x1="340.9" y1="467.2" x2="236.6" y2="454.7"></line>
+                            <line x1="340.9" y1="467.2" x2="305.7" y2="566.7"></line>
+                            <line x1="340.9" y1="467.2" x2="310.3" y2="419.2"></line>
+                            <line x1="340.9" y1="467.2" x2="358.5" y2="416.0"></line>
+                            <line x1="340.9" y1="467.2" x2="397.9" y2="499.6"></line>
+                            <line x1="163.0" y1="482.2" x2="149.3" y2="407.9"></line>
+                            <line x1="163.0" y1="482.2" x2="284.1" y2="511.9"></line>
+                            <line x1="163.0" y1="482.2" x2="81.8" y2="501.8"></line>
+                            <line x1="163.0" y1="482.2" x2="184.7" y2="454.3"></line>
+                            <line x1="392.6" y1="121.1" x2="400.5" y2="207.5"></line>
+                            <line x1="392.6" y1="121.1" x2="438.2" y2="103.6"></line>
+                            <line x1="392.6" y1="121.1" x2="351.1" y2="128.9"></line>
+                            <line x1="694.7" y1="427.6" x2="654.7" y2="364.1"></line>
+                            <line x1="694.7" y1="427.6" x2="643.8" y2="425.8"></line>
+                            <line x1="694.7" y1="427.6" x2="698.8" y2="493.1"></line>
+                            <line x1="650.2" y1="367.0" x2="551.3" y2="402.2"></line>
+                            <line x1="650.2" y1="367.0" x2="680.3" y2="369.2"></line>
+                            <line x1="650.2" y1="367.0" x2="705.9" y2="340.8"></line>
+                            <line x1="657.9" y1="513.5" x2="584.5" y2="500.7"></line>
+                            <line x1="454.8" y1="586.9" x2="472.4" y2="653.4"></line>
+                            <line x1="268.1" y1="602.2" x2="209.4" y2="547.2"></line>
+                            <line x1="268.1" y1="602.2" x2="356.0" y2="586.9"></line>
+                            <line x1="268.1" y1="602.2" x2="318.9" y2="575.0"></line>
+                            <line x1="50.0" y1="464.1" x2="128.8" y2="455.7"></line>
+                            <line x1="184.0" y1="368.0" x2="236.6" y2="454.7"></line>
+                            <line x1="184.0" y1="368.0" x2="149.3" y2="407.9"></line>
+                            <line x1="184.0" y1="368.0" x2="104.1" y2="344.4"></line>
+                            <line x1="184.0" y1="368.0" x2="248.8" y2="412.0"></line>
+                            <line x1="184.0" y1="368.0" x2="124.9" y2="392.1"></line>
+                            <line x1="184.0" y1="368.0" x2="189.4" y2="274.4"></line>
+                            <line x1="288.3" y1="220.0" x2="312.3" y2="272.3"></line>
+                            <line x1="411.5" y1="399.2" x2="445.1" y2="382.3"></line>
+                            <line x1="654.7" y1="364.1" x2="556.5" y2="365.9"></line>
+                            <line x1="732.0" y1="514.4" x2="643.5" y2="477.4"></line>
+                            <line x1="486.6" y1="554.8" x2="461.6" y2="627.9"></line>
+                            <line x1="486.6" y1="554.8" x2="525.6" y2="505.0"></line>
+                            <line x1="486.6" y1="554.8" x2="483.9" y2="485.6"></line>
+                            <line x1="486.6" y1="554.8" x2="472.4" y2="653.4"></line>
+                            <line x1="375.7" y1="492.6" x2="448.9" y2="536.1"></line>
+                            <line x1="375.7" y1="492.6" x2="322.8" y2="520.2"></line>
+                            <line x1="375.7" y1="492.6" x2="314.5" y2="542.1"></line>
+                            <line x1="375.7" y1="492.6" x2="328.1" y2="506.5"></line>
+                            <line x1="368.5" y1="420.4" x2="271.2" y2="427.4"></line>
+                            <line x1="330.1" y1="297.4" x2="382.6" y2="343.8"></line>
+                            <line x1="400.5" y1="207.5" x2="396.3" y2="290.4"></line>
+                            <line x1="400.5" y1="207.5" x2="408.2" y2="221.6"></line>
+                            <line x1="400.5" y1="207.5" x2="430.9" y2="305.3"></line>
+                            <line x1="409.7" y1="306.4" x2="443.5" y2="251.4"></line>
+                            <line x1="695.3" y1="332.7" x2="639.2" y2="348.6"></line>
+                            <line x1="695.3" y1="332.7" x2="689.9" y2="419.2"></line>
+                            <line x1="695.3" y1="332.7" x2="649.1" y2="289.7"></line>
+                            <line x1="695.3" y1="332.7" x2="647.8" y2="333.0"></line>
+                            <line x1="295.2" y1="433.8" x2="307.7" y2="441.8"></line>
+                            <line x1="295.2" y1="433.8" x2="301.1" y2="326.8"></line>
+                            <line x1="295.2" y1="433.8" x2="240.8" y2="523.4"></line>
+                            <line x1="547.8" y1="676.1" x2="523.4" y2="590.2"></line>
+                            <line x1="350.9" y1="629.3" x2="355.8" y2="575.9"></line>
+                            <line x1="350.9" y1="629.3" x2="358.7" y2="556.6"></line>
+                            <line x1="208.3" y1="509.2" x2="157.2" y2="526.1"></line>
+                            <line x1="208.3" y1="509.2" x2="270.4" y2="529.4"></line>
+                            <line x1="208.3" y1="509.2" x2="215.4" y2="450.9"></line>
+                            <line x1="208.3" y1="509.2" x2="288.9" y2="490.8"></line>
+                            <line x1="359.0" y1="365.5" x2="301.1" y2="326.8"></line>
+                            <line x1="359.0" y1="365.5" x2="382.6" y2="343.8"></line>
+                            <line x1="50.0" y1="371.0" x2="124.9" y2="392.1"></line>
+                            <line x1="469.8" y1="125.0" x2="473.1" y2="166.2"></line>
+                            <line x1="469.8" y1="125.0" x2="463.8" y2="112.4"></line>
+                            <line x1="469.8" y1="125.0" x2="450.2" y2="198.5"></line>
+                            <line x1="704.2" y1="364.6" x2="659.3" y2="336.7"></line>
+                            <line x1="659.3" y1="336.7" x2="684.6" y2="344.5"></line>
+                            <line x1="659.3" y1="336.7" x2="625.0" y2="382.7"></line>
+                            <line x1="659.3" y1="336.7" x2="596.9" y2="326.4"></line>
+                            <line x1="659.3" y1="336.7" x2="599.2" y2="372.9"></line>
+                            <line x1="643.8" y1="425.8" x2="594.8" y2="383.9"></line>
+                            <line x1="643.8" y1="425.8" x2="601.8" y2="443.5"></line>
+                            <line x1="643.8" y1="425.8" x2="600.7" y2="476.0"></line>
+                            <line x1="643.8" y1="425.8" x2="577.0" y2="414.7"></line>
+                            <line x1="461.6" y1="627.9" x2="494.2" y2="678.5"></line>
+                            <line x1="507.5" y1="538.7" x2="527.3" y2="630.1"></line>
+                            <line x1="507.5" y1="538.7" x2="488.2" y2="519.7"></line>
+                            <line x1="507.5" y1="538.7" x2="523.4" y2="590.2"></line>
+                            <line x1="363.7" y1="442.7" x2="236.6" y2="454.7"></line>
+                            <line x1="363.7" y1="442.7" x2="248.8" y2="412.0"></line>
+                            <line x1="128.8" y1="455.7" x2="79.3" y2="417.9"></line>
+                            <line x1="128.8" y1="455.7" x2="157.2" y2="526.1"></line>
+                            <line x1="128.8" y1="455.7" x2="236.6" y2="454.7"></line>
+                            <line x1="128.8" y1="455.7" x2="124.9" y2="392.1"></line>
+                            <line x1="128.8" y1="455.7" x2="184.7" y2="454.3"></line>
+                            <line x1="394.2" y1="272.2" x2="361.3" y2="187.1"></line>
+                            <line x1="394.2" y1="272.2" x2="408.2" y2="221.6"></line>
+                            <line x1="394.2" y1="272.2" x2="333.9" y2="282.8"></line>
+                            <line x1="565.9" y1="309.9" x2="647.8" y2="333.0"></line>
+                            <line x1="565.9" y1="309.9" x2="467.2" y2="350.5"></line>
+                            <line x1="625.6" y1="288.6" x2="549.2" y2="327.6"></line>
+                            <line x1="625.6" y1="288.6" x2="639.2" y2="348.6"></line>
+                            <line x1="625.6" y1="288.6" x2="653.6" y2="305.6"></line>
+                            <line x1="452.8" y1="299.0" x2="456.8" y2="322.3"></line>
+                            <line x1="452.8" y1="299.0" x2="401.6" y2="265.5"></line>
+                            <line x1="487.8" y1="508.0" x2="483.9" y2="485.6"></line>
+                            <line x1="487.8" y1="508.0" x2="558.8" y2="500.8"></line>
+                            <line x1="487.8" y1="508.0" x2="488.2" y2="519.7"></line>
+                            <line x1="617.6" y1="567.2" x2="686.0" y2="590.4"></line>
+                            <line x1="617.6" y1="567.2" x2="545.5" y2="552.2"></line>
+                            <line x1="265.4" y1="469.9" x2="307.7" y2="441.8"></line>
+                            <line x1="265.4" y1="469.9" x2="320.4" y2="429.7"></line>
+                            <line x1="265.4" y1="469.9" x2="228.9" y2="527.0"></line>
+                            <line x1="367.3" y1="532.0" x2="314.5" y2="542.1"></line>
+                            <line x1="79.3" y1="417.9" x2="149.3" y2="407.9"></line>
+                            <line x1="79.3" y1="417.9" x2="50.0" y2="384.3"></line>
+                            <line x1="283.5" y1="289.7" x2="337.1" y2="264.3"></line>
+                            <line x1="684.6" y1="344.5" x2="647.8" y2="333.0"></line>
+                            <line x1="684.6" y1="344.5" x2="635.7" y2="358.8"></line>
+                            <line x1="684.6" y1="344.5" x2="625.0" y2="382.7"></line>
+                            <line x1="703.6" y1="401.0" x2="659.2" y2="374.8"></line>
+                            <line x1="703.6" y1="401.0" x2="656.6" y2="467.3"></line>
+                            <line x1="703.6" y1="401.0" x2="629.9" y2="408.1"></line>
+                            <line x1="703.6" y1="401.0" x2="705.9" y2="340.8"></line>
+                            <line x1="546.3" y1="570.1" x2="572.7" y2="491.2"></line>
+                            <line x1="545.8" y1="591.8" x2="541.0" y2="511.3"></line>
+                            <line x1="545.8" y1="591.8" x2="500.3" y2="561.6"></line>
+                            <line x1="355.8" y1="575.9" x2="390.7" y2="689.1"></line>
+                            <line x1="355.8" y1="575.9" x2="358.7" y2="556.6"></line>
+                            <line x1="157.2" y1="526.1" x2="159.8" y2="555.4"></line>
+                            <line x1="157.2" y1="526.1" x2="228.9" y2="527.0"></line>
+                            <line x1="268.7" y1="274.4" x2="330.8" y2="346.5"></line>
+                            <line x1="268.7" y1="274.4" x2="265.3" y2="229.9"></line>
+                            <line x1="237.1" y1="241.1" x2="278.7" y2="297.7"></line>
+                            <line x1="237.1" y1="241.1" x2="174.5" y2="185.6"></line>
+                            <line x1="438.2" y1="103.6" x2="382.8" y2="110.9"></line>
+                            <line x1="438.2" y1="103.6" x2="418.0" y2="156.6"></line>
+                            <line x1="438.2" y1="103.6" x2="509.3" y2="146.0"></line>
+                            <line x1="422.3" y1="131.4" x2="450.2" y2="198.5"></line>
+                            <line x1="641.2" y1="390.4" x2="647.8" y2="333.0"></line>
+                            <line x1="641.2" y1="390.4" x2="562.1" y2="407.3"></line>
+                            <line x1="641.2" y1="390.4" x2="644.2" y2="443.6"></line>
+                            <line x1="641.2" y1="390.4" x2="616.8" y2="429.0"></line>
+                            <line x1="612.3" y1="435.7" x2="657.7" y2="455.4"></line>
+                            <line x1="612.3" y1="435.7" x2="656.6" y2="467.3"></line>
+                            <line x1="612.3" y1="435.7" x2="657.1" y2="356.8"></line>
+                            <line x1="612.3" y1="435.7" x2="629.9" y2="408.1"></line>
+                            <line x1="612.3" y1="435.7" x2="622.2" y2="517.3"></line>
+                            <line x1="444.6" y1="620.1" x2="390.7" y2="689.1"></line>
+                            <line x1="444.6" y1="620.1" x2="488.2" y2="519.7"></line>
+                            <line x1="444.6" y1="620.1" x2="457.4" y2="562.3"></line>
+                            <line x1="377.6" y1="556.1" x2="305.7" y2="566.7"></line>
+                            <line x1="271.2" y1="427.4" x2="215.4" y2="450.9"></line>
+                            <line x1="271.2" y1="427.4" x2="278.2" y2="499.6"></line>
+                            <line x1="236.6" y1="454.7" x2="209.4" y2="547.2"></line>
+                            <line x1="236.6" y1="454.7" x2="295.8" y2="444.2"></line>
+                            <line x1="361.3" y1="187.1" x2="382.8" y2="110.9"></line>
+                            <line x1="361.3" y1="187.1" x2="376.6" y2="197.1"></line>
+                            <line x1="361.3" y1="187.1" x2="408.2" y2="221.6"></line>
+                            <line x1="361.3" y1="187.1" x2="265.3" y2="229.9"></line>
+                            <line x1="552.9" y1="298.1" x2="593.6" y2="258.9"></line>
+                            <line x1="552.9" y1="298.1" x2="501.4" y2="384.8"></line>
+                            <line x1="556.5" y1="431.6" x2="598.5" y2="404.6"></line>
+                            <line x1="556.5" y1="431.6" x2="568.8" y2="355.1"></line>
+                            <line x1="556.5" y1="431.6" x2="635.1" y2="397.0"></line>
+                            <line x1="556.5" y1="431.6" x2="629.9" y2="408.1"></line>
+                            <line x1="605.3" y1="416.7" x2="633.4" y2="485.9"></line>
+                            <line x1="605.3" y1="416.7" x2="677.8" y2="435.5"></line>
+                            <line x1="448.9" y1="536.1" x2="368.9" y2="508.2"></line>
+                            <line x1="448.9" y1="536.1" x2="509.6" y2="517.1"></line>
+                            <line x1="448.9" y1="536.1" x2="402.9" y2="526.1"></line>
+                            <line x1="448.9" y1="536.1" x2="546.4" y2="626.4"></line>
+                            <line x1="270.4" y1="529.4" x2="243.4" y2="472.1"></line>
+                            <line x1="270.4" y1="529.4" x2="368.9" y2="508.2"></line>
+                            <line x1="270.4" y1="529.4" x2="288.9" y2="490.8"></line>
+                            <line x1="255.1" y1="526.9" x2="236.8" y2="482.3"></line>
+                            <line x1="255.1" y1="526.9" x2="341.9" y2="507.9"></line>
+                            <line x1="425.1" y1="266.4" x2="371.2" y2="264.2"></line>
+                            <line x1="425.1" y1="266.4" x2="467.2" y2="350.5"></line>
+                            <line x1="425.1" y1="266.4" x2="430.9" y2="305.3"></line>
+                            <line x1="425.1" y1="266.4" x2="371.2" y2="227.5"></line>
+                            <line x1="691.0" y1="600.4" x2="626.1" y2="581.6"></line>
+                            <line x1="691.0" y1="600.4" x2="659.4" y2="532.9"></line>
+                            <line x1="549.2" y1="327.6" x2="598.7" y2="281.3"></line>
+                            <line x1="549.2" y1="327.6" x2="506.9" y2="299.8"></line>
+                            <line x1="549.2" y1="327.6" x2="501.4" y2="384.8"></line>
+                            <line x1="625.0" y1="442.2" x2="689.9" y2="419.2"></line>
+                            <line x1="540.7" y1="527.3" x2="483.9" y2="485.6"></line>
+                            <line x1="540.7" y1="527.3" x2="541.5" y2="460.9"></line>
+                            <line x1="540.7" y1="527.3" x2="576.2" y2="549.4"></line>
+                            <line x1="390.7" y1="689.1" x2="373.7" y2="770.1"></line>
+                            <line x1="391.3" y1="549.9" x2="417.7" y2="530.1"></line>
+                            <line x1="391.3" y1="549.9" x2="318.9" y2="575.0"></line>
+                            <line x1="277.4" y1="475.4" x2="236.8" y2="482.3"></line>
+                            <line x1="277.4" y1="475.4" x2="301.9" y2="402.3"></line>
+                            <line x1="277.4" y1="475.4" x2="360.1" y2="511.1"></line>
+                            <line x1="277.4" y1="475.4" x2="240.1" y2="495.1"></line>
+                            <line x1="556.5" y1="365.9" x2="585.5" y2="352.3"></line>
+                            <line x1="556.5" y1="365.9" x2="596.9" y2="326.4"></line>
+                            <line x1="639.2" y1="348.6" x2="577.9" y2="376.0"></line>
+                            <line x1="639.2" y1="348.6" x2="635.1" y2="397.0"></line>
+                            <line x1="639.2" y1="348.6" x2="629.9" y2="408.1"></line>
+                            <line x1="639.2" y1="348.6" x2="653.6" y2="305.6"></line>
+                            <line x1="639.2" y1="348.6" x2="599.2" y2="372.9"></line>
+                            <line x1="525.6" y1="505.0" x2="584.5" y2="500.7"></line>
+                            <line x1="525.6" y1="505.0" x2="576.3" y2="529.7"></line>
+                            <line x1="525.6" y1="505.0" x2="500.3" y2="561.6"></line>
+                            <line x1="597.0" y1="542.0" x2="622.2" y2="517.3"></line>
+                            <line x1="597.0" y1="542.0" x2="619.0" y2="626.9"></line>
+                            <line x1="159.8" y1="555.4" x2="240.8" y2="523.4"></line>
+                            <line x1="278.7" y1="297.7" x2="301.9" y2="402.3"></line>
+                            <line x1="278.7" y1="297.7" x2="224.1" y2="231.2"></line>
+                            <line x1="278.7" y1="297.7" x2="382.6" y2="343.8"></line>
+                            <line x1="278.7" y1="297.7" x2="212.4" y2="258.4"></line>
+                            <line x1="278.7" y1="297.7" x2="356.3" y2="298.8"></line>
+                            <line x1="341.3" y1="375.4" x2="346.6" y2="388.6"></line>
+                            <line x1="659.2" y1="374.8" x2="677.8" y2="435.5"></line>
+                            <line x1="659.2" y1="374.8" x2="635.1" y2="397.0"></line>
+                            <line x1="598.5" y1="404.6" x2="635.7" y2="358.8"></line>
+                            <line x1="598.5" y1="404.6" x2="599.2" y2="452.2"></line>
+                            <line x1="598.5" y1="404.6" x2="616.8" y2="429.0"></line>
+                            <line x1="598.5" y1="404.6" x2="577.0" y2="414.7"></line>
+                            <line x1="669.6" y1="482.2" x2="677.8" y2="435.5"></line>
+                            <line x1="669.6" y1="482.2" x2="585.5" y2="481.3"></line>
+                            <line x1="669.6" y1="482.2" x2="659.4" y2="532.9"></line>
+                            <line x1="669.6" y1="482.2" x2="658.2" y2="397.7"></line>
+                            <line x1="305.7" y1="566.7" x2="322.8" y2="520.2"></line>
+                            <line x1="305.7" y1="566.7" x2="270.9" y2="654.2"></line>
+                            <line x1="310.3" y1="419.2" x2="243.4" y2="472.1"></line>
+                            <line x1="310.3" y1="419.2" x2="330.8" y2="346.5"></line>
+                            <line x1="310.3" y1="419.2" x2="397.2" y2="415.6"></line>
+                            <line x1="248.8" y1="412.0" x2="215.4" y2="450.9"></line>
+                            <line x1="248.8" y1="412.0" x2="236.8" y2="482.3"></line>
+                            <line x1="248.8" y1="412.0" x2="261.6" y2="337.9"></line>
+                            <line x1="376.6" y1="197.1" x2="408.2" y2="221.6"></line>
+                            <line x1="376.6" y1="197.1" x2="424.3" y2="249.8"></line>
+                            <line x1="593.6" y1="258.9" x2="626.2" y2="310.3"></line>
+                            <line x1="593.6" y1="258.9" x2="535.3" y2="293.1"></line>
+                            <line x1="215.4" y1="450.9" x2="274.6" y2="455.0"></line>
+                            <line x1="584.5" y1="500.7" x2="585.5" y2="481.3"></line>
+                            <line x1="483.9" y1="485.6" x2="509.6" y2="517.1"></line>
+                            <line x1="483.9" y1="485.6" x2="455.7" y2="504.0"></line>
+                            <line x1="347.6" y1="598.4" x2="387.9" y2="580.8"></line>
+                            <line x1="347.6" y1="598.4" x2="360.1" y2="511.1"></line>
+                            <line x1="145.3" y1="548.9" x2="72.8" y2="583.8"></line>
+                            <line x1="307.7" y1="441.8" x2="358.5" y2="416.0"></line>
+                            <line x1="307.7" y1="441.8" x2="274.6" y2="455.0"></line>
+                            <line x1="307.7" y1="441.8" x2="346.6" y2="388.6"></line>
+                            <line x1="371.2" y1="264.2" x2="312.3" y2="272.3"></line>
+                            <line x1="371.2" y1="264.2" x2="337.1" y2="264.3"></line>
+                            <line x1="371.2" y1="264.2" x2="359.0" y2="150.5"></line>
+                            <line x1="418.0" y1="156.6" x2="443.5" y2="251.4"></line>
+                            <line x1="418.0" y1="156.6" x2="415.0" y2="69.0"></line>
+                            <line x1="418.0" y1="156.6" x2="424.3" y2="249.8"></line>
+                            <line x1="418.0" y1="156.6" x2="359.0" y2="150.5"></line>
+                            <line x1="626.2" y1="310.3" x2="540.5" y2="245.9"></line>
+                            <line x1="626.2" y1="310.3" x2="665.4" y2="395.0"></line>
+                            <line x1="626.2" y1="310.3" x2="658.2" y2="397.7"></line>
+                            <line x1="558.8" y1="500.8" x2="624.7" y2="416.7"></line>
+                            <line x1="558.8" y1="500.8" x2="576.3" y2="529.7"></line>
+                            <line x1="558.8" y1="500.8" x2="643.5" y2="477.4"></line>
+                            <line x1="541.0" y1="511.3" x2="488.2" y2="519.7"></line>
+                            <line x1="541.0" y1="511.3" x2="457.4" y2="562.3"></line>
+                            <line x1="541.0" y1="511.3" x2="626.1" y2="581.6"></line>
+                            <line x1="541.0" y1="511.3" x2="656.6" y2="467.3"></line>
+                            <line x1="541.0" y1="511.3" x2="545.5" y2="552.2"></line>
+                            <line x1="284.1" y1="511.9" x2="236.3" y2="540.4"></line>
+                            <line x1="373.1" y1="290.7" x2="450.2" y2="198.5"></line>
+                            <line x1="373.1" y1="290.7" x2="246.1" y2="300.3"></line>
+                            <line x1="506.9" y1="299.8" x2="498.1" y2="322.8"></line>
+                            <line x1="506.9" y1="299.8" x2="540.5" y2="245.9"></line>
+                            <line x1="572.7" y1="491.2" x2="657.7" y2="455.4"></line>
+                            <line x1="572.7" y1="491.2" x2="644.2" y2="443.6"></line>
+                            <line x1="689.9" y1="419.2" x2="781.6" y2="421.3"></line>
+                            <line x1="689.9" y1="419.2" x2="656.6" y2="467.3"></line>
+                            <line x1="689.9" y1="419.2" x2="638.1" y2="460.9"></line>
+                            <line x1="566.5" y1="449.7" x2="628.2" y2="459.2"></line>
+                            <line x1="566.5" y1="449.7" x2="658.2" y2="397.7"></line>
+                            <line x1="488.2" y1="519.7" x2="545.5" y2="552.2"></line>
+                            <line x1="488.2" y1="519.7" x2="455.7" y2="504.0"></line>
+                            <line x1="236.8" y1="482.3" x2="295.8" y2="444.2"></line>
+                            <line x1="498.1" y1="322.8" x2="465.6" y2="299.6"></line>
+                            <line x1="568.8" y1="355.1" x2="621.8" y2="398.1"></line>
+                            <line x1="568.8" y1="355.1" x2="551.3" y2="402.2"></line>
+                            <line x1="487.6" y1="448.6" x2="551.3" y2="402.2"></line>
+                            <line x1="358.5" y1="416.0" x2="289.7" y2="467.1"></line>
+                            <line x1="274.6" y1="455.0" x2="301.9" y2="402.3"></line>
+                            <line x1="274.6" y1="455.0" x2="278.2" y2="499.6"></line>
+                            <line x1="510.7" y1="263.8" x2="408.2" y2="221.6"></line>
+                            <line x1="510.7" y1="263.8" x2="546.1" y2="183.6"></line>
+                            <line x1="510.7" y1="263.8" x2="476.6" y2="240.0"></line>
+                            <line x1="510.7" y1="263.8" x2="561.2" y2="156.5"></line>
+                            <line x1="621.8" y1="398.1" x2="647.8" y2="333.0"></line>
+                            <line x1="621.8" y1="398.1" x2="585.5" y2="352.3"></line>
+                            <line x1="621.8" y1="398.1" x2="635.1" y2="397.0"></line>
+                            <line x1="621.8" y1="398.1" x2="665.4" y2="395.0"></line>
+                            <line x1="621.8" y1="398.1" x2="638.1" y2="460.9"></line>
+                            <line x1="621.8" y1="398.1" x2="581.6" y2="473.6"></line>
+                            <line x1="681.2" y1="413.0" x2="666.9" y2="345.5"></line>
+                            <line x1="681.2" y1="413.0" x2="644.2" y2="443.6"></line>
+                            <line x1="681.2" y1="413.0" x2="658.2" y2="397.7"></line>
+                            <line x1="541.5" y1="460.9" x2="633.4" y2="485.9"></line>
+                            <line x1="457.4" y1="562.3" x2="455.7" y2="504.0"></line>
+                            <line x1="335.8" y1="413.0" x2="297.8" y2="492.0"></line>
+                            <line x1="312.3" y1="272.3" x2="346.6" y2="388.6"></line>
+                            <line x1="312.3" y1="272.3" x2="290.3" y2="208.1"></line>
+                            <line x1="551.3" y1="402.2" x2="624.7" y2="416.7"></line>
+                            <line x1="551.3" y1="402.2" x2="629.9" y2="408.1"></line>
+                            <line x1="633.4" y1="485.9" x2="666.2" y2="546.5"></line>
+                            <line x1="633.4" y1="485.9" x2="670.6" y2="455.2"></line>
+                            <line x1="368.9" y1="508.2" x2="417.7" y2="530.1"></line>
+                            <line x1="341.5" y1="247.6" x2="401.6" y2="265.5"></line>
+                            <line x1="341.5" y1="247.6" x2="408.2" y2="221.6"></line>
+                            <line x1="341.5" y1="247.6" x2="290.3" y2="208.1"></line>
+                            <line x1="341.5" y1="247.6" x2="333.9" y2="282.8"></line>
+                            <line x1="341.5" y1="247.6" x2="371.2" y2="227.5"></line>
+                            <line x1="594.8" y1="383.9" x2="676.9" y2="380.4"></line>
+                            <line x1="509.6" y1="517.1" x2="510.6" y2="571.2"></line>
+                            <line x1="509.6" y1="517.1" x2="600.7" y2="476.0"></line>
+                            <line x1="322.8" y1="520.2" x2="228.9" y2="527.0"></line>
+                            <line x1="322.8" y1="520.2" x2="278.2" y2="499.6"></line>
+                            <line x1="320.4" y1="429.7" x2="249.6" y2="457.3"></line>
+                            <line x1="314.5" y1="542.1" x2="289.7" y2="467.1"></line>
+                            <line x1="624.7" y1="416.7" x2="680.3" y2="369.2"></line>
+                            <line x1="624.7" y1="416.7" x2="599.2" y2="372.9"></line>
+                            <line x1="624.7" y1="416.7" x2="676.9" y2="380.4"></line>
+                            <line x1="576.3" y1="529.7" x2="581.6" y2="473.6"></line>
+                            <line x1="510.6" y1="571.2" x2="455.7" y2="504.0"></line>
+                            <line x1="510.6" y1="571.2" x2="500.3" y2="561.6"></line>
+                            <line x1="358.7" y1="556.6" x2="305.9" y2="582.7"></line>
+                            <line x1="358.7" y1="556.6" x2="341.9" y2="507.9"></line>
+                            <line x1="358.7" y1="556.6" x2="337.9" y2="477.9"></line>
+                            <line x1="397.9" y1="499.6" x2="402.9" y2="526.1"></line>
+                            <line x1="301.9" y1="402.3" x2="323.2" y2="355.2"></line>
+                            <line x1="301.9" y1="402.3" x2="220.1" y2="374.8"></line>
+                            <line x1="351.1" y1="128.9" x2="321.5" y2="50.7"></line>
+                            <line x1="351.1" y1="128.9" x2="423.9" y2="186.6"></line>
+                            <line x1="666.9" y1="345.5" x2="585.5" y2="352.3"></line>
+                            <line x1="677.8" y1="435.5" x2="628.2" y2="459.2"></line>
+                            <line x1="289.7" y1="467.1" x2="249.0" y2="391.8"></line>
+                            <line x1="289.7" y1="467.1" x2="341.9" y2="507.9"></line>
+                            <line x1="289.7" y1="467.1" x2="240.1" y2="495.1"></line>
+                            <line x1="463.8" y1="112.4" x2="450.2" y2="198.5"></line>
+                            <line x1="535.3" y1="293.1" x2="540.5" y2="245.9"></line>
+                            <line x1="635.1" y1="397.0" x2="599.2" y2="452.2"></line>
+                            <line x1="656.6" y1="467.3" x2="698.8" y2="493.1"></line>
+                            <line x1="656.6" y1="467.3" x2="643.5" y2="477.4"></line>
+                            <line x1="656.6" y1="467.3" x2="665.4" y2="395.0"></line>
+                            <line x1="686.0" y1="590.4" x2="659.4" y2="532.9"></line>
+                            <line x1="328.1" y1="506.5" x2="345.4" y2="520.4"></line>
+                            <line x1="249.0" y1="391.8" x2="246.1" y2="300.3"></line>
+                            <line x1="249.0" y1="391.8" x2="295.8" y2="444.2"></line>
+                            <line x1="562.1" y1="407.3" x2="616.8" y2="429.0"></line>
+                            <line x1="534.7" y1="349.5" x2="625.0" y2="382.7"></line>
+                            <line x1="534.7" y1="349.5" x2="596.9" y2="326.4"></line>
+                            <line x1="698.8" y1="493.1" x2="666.2" y2="546.5"></line>
+                            <line x1="585.5" y1="481.3" x2="644.2" y2="443.6"></line>
+                            <line x1="360.1" y1="511.1" x2="455.7" y2="504.0"></line>
+                            <line x1="360.1" y1="511.1" x2="328.4" y2="598.1"></line>
+                            <line x1="360.1" y1="511.1" x2="297.8" y2="492.0"></line>
+                            <line x1="345.4" y1="520.4" x2="402.9" y2="526.1"></line>
+                            <line x1="345.4" y1="520.4" x2="305.9" y2="582.7"></line>
+                            <line x1="345.4" y1="520.4" x2="240.8" y2="523.4"></line>
+                            <line x1="345.4" y1="520.4" x2="328.4" y2="598.1"></line>
+                            <line x1="345.4" y1="520.4" x2="278.2" y2="499.6"></line>
+                            <line x1="84.9" y1="209.2" x2="152.7" y2="249.1"></line>
+                            <line x1="328.1" y1="73.6" x2="359.0" y2="150.5"></line>
+                            <line x1="543.6" y1="371.4" x2="596.9" y2="326.4"></line>
+                            <line x1="601.8" y1="443.5" x2="644.2" y2="443.6"></line>
+                            <line x1="635.6" y1="628.0" x2="546.4" y2="626.4"></line>
+                            <line x1="635.6" y1="628.0" x2="666.2" y2="546.5"></line>
+                            <line x1="417.7" y1="530.1" x2="356.0" y2="586.9"></line>
+                            <line x1="408.2" y1="221.6" x2="371.2" y2="227.5"></line>
+                            <line x1="450.2" y1="198.5" x2="465.6" y2="299.6"></line>
+                            <line x1="625.0" y1="382.7" x2="644.2" y2="443.6"></line>
+                            <line x1="625.0" y1="382.7" x2="670.6" y2="455.2"></line>
+                            <line x1="576.2" y1="549.4" x2="603.7" y2="508.0"></line>
+                            <line x1="323.2" y1="355.2" x2="261.6" y2="337.9"></line>
+                            <line x1="657.1" y1="356.8" x2="665.4" y2="395.0"></line>
+                            <line x1="657.1" y1="356.8" x2="653.6" y2="305.6"></line>
+                            <line x1="642.6" y1="576.4" x2="589.0" y2="518.7"></line>
+                            <line x1="523.4" y1="590.2" x2="494.2" y2="678.5"></line>
+                            <line x1="165.5" y1="575.4" x2="240.8" y2="523.4"></line>
+                            <line x1="261.6" y1="337.9" x2="246.1" y2="300.3"></line>
+                            <line x1="476.6" y1="240.0" x2="443.6" y2="314.8"></line>
+                            <line x1="643.5" y1="477.4" x2="659.4" y2="532.9"></line>
+                            <line x1="305.9" y1="582.7" x2="328.4" y2="572.6"></line>
+                            <line x1="246.1" y1="300.3" x2="152.7" y2="249.1"></line>
+                            <line x1="224.1" y1="231.2" x2="265.3" y2="229.9"></line>
+                            <line x1="540.5" y1="245.9" x2="465.6" y2="299.6"></line>
+                            <line x1="540.5" y1="245.9" x2="509.3" y2="146.0"></line>
+                            <line x1="659.4" y1="532.9" x2="599.2" y2="452.2"></line>
+                            <line x1="659.4" y1="532.9" x2="589.0" y2="518.7"></line>
+                            <line x1="575.4" y1="709.5" x2="546.4" y2="626.4"></line>
+                            <line x1="295.8" y1="444.2" x2="249.6" y2="457.3"></line>
+                            <line x1="295.8" y1="444.2" x2="184.7" y2="454.3"></line>
+                            <line x1="249.6" y1="457.3" x2="297.8" y2="492.0"></line>
+                            <line x1="346.6" y1="388.6" x2="288.9" y2="490.8"></line>
+                            <line x1="599.2" y1="452.2" x2="616.8" y2="429.0"></line>
+                            <line x1="599.2" y1="452.2" x2="628.2" y2="459.2"></line>
+                            <line x1="665.4" y1="395.0" x2="628.2" y2="459.2"></line>
+                            <line x1="638.1" y1="460.9" x2="577.0" y2="414.7"></line>
+                            <line x1="638.1" y1="460.9" x2="603.7" y2="508.0"></line>
+                            <line x1="638.1" y1="460.9" x2="589.0" y2="518.7"></line>
+                            <line x1="622.2" y1="517.3" x2="553.2" y2="512.1"></line>
+                            <line x1="240.8" y1="523.4" x2="261.2" y2="546.4"></line>
+                            <line x1="240.8" y1="523.4" x2="297.8" y2="492.0"></line>
+                            <line x1="382.6" y1="343.8" x2="356.3" y2="298.8"></line>
+                            <line x1="407.2" y1="348.4" x2="333.9" y2="282.8"></line>
+                            <line x1="553.2" y1="512.1" x2="581.6" y2="473.6"></line>
+                            <line x1="546.4" y1="626.4" x2="500.3" y2="561.6"></line>
+                            <line x1="333.9" y1="282.8" x2="250.2" y2="286.1"></line>
+                            <line x1="465.6" y1="299.6" x2="423.9" y2="186.6"></line>
+                            <line x1="705.9" y1="340.8" x2="599.2" y2="372.9"></line>
+                            <line x1="705.9" y1="340.8" x2="658.2" y2="397.7"></line>
+                            <line x1="581.6" y1="473.6" x2="603.7" y2="508.0"></line>
+                            <line x1="270.9" y1="654.2" x2="328.4" y2="598.1"></line>
+                            <line x1="337.9" y1="477.9" x2="288.9" y2="490.8"></line>
+                            <line x1="189.4" y1="274.4" x2="265.3" y2="229.9"></line>
+                            <line x1="189.4" y1="274.4" x2="152.7" y2="249.1"></line>
+                            <line x1="628.2" y1="459.2" x2="577.0" y2="414.7"></line>
+                            <line x1="628.2" y1="459.2" x2="603.7" y2="508.0"></line>
+                            <line x1="628.2" y1="459.2" x2="589.0" y2="518.7"></line>
+                            <line x1="288.9" y1="490.8" x2="328.4" y2="572.6"></line>
+                            <line x1="236.3" y1="540.4" x2="297.8" y2="492.0"></line>
+                            <line x1="443.6" y1="314.8" x2="356.3" y2="298.8"></line>
+                            <line x1="212.4" y1="258.4" x2="250.2" y2="286.1"></line>
+                            <line x1="297.8" y1="492.0" x2="240.1" y2="495.1"></line>
+                        </g>
+                        <circle cx="491.2" cy="417.7" r="5.9" fill="url(#sph)"></circle>
+                        <circle cx="518.8" cy="443.5" r="6.2" fill="url(#sph)"></circle>
+                        <circle cx="425.9" cy="469.4" r="5.8" fill="url(#sph)"></circle>
+                        <circle cx="425.9" cy="469.4" r="9.8" fill="none" stroke="#f0b400" stroke-width="2.5"></circle>
+                        <circle cx="435.1" cy="499.7" r="5.5" fill="url(#sph)"></circle>
+                        <circle cx="445.0" cy="476.7" r="6.4" fill="url(#sph)"></circle>
+                        <circle cx="432.8" cy="394.0" r="6.0" fill="url(#sph)"></circle>
+                        <circle cx="456.2" cy="386.8" r="6.7" fill="url(#sph)"></circle>
+                        <circle cx="478.0" cy="388.4" r="6.1" fill="url(#sph)"></circle>
+                        <circle cx="606.7" cy="368.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="404.1" cy="438.7" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="606.5" cy="483.6" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="603.5" cy="680.3" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="384.5" cy="499.5" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="235.0" cy="432.2" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="302.9" cy="279.1" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="319.8" cy="300.2" r="4.5" fill="url(#sph)"></circle>
+                        <circle cx="424.9" cy="555.0" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="637.8" cy="302.1" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="584.7" cy="342.1" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="471.5" cy="524.9" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="566.2" cy="590.0" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="276.5" cy="543.7" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="256.0" cy="500.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="238.3" cy="269.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="266.5" cy="358.8" r="4.3" fill="url(#sph)"></circle>
+                        <circle cx="510.4" cy="64.5" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="701.2" cy="448.3" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="392.1" cy="481.3" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="526.4" cy="529.4" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="465.2" cy="729.7" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="323.7" cy="672.2" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="190.3" cy="471.9" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="213.1" cy="320.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="431.9" cy="168.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="595.7" cy="82.2" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="799.6" cy="272.5" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="617.5" cy="408.2" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="577.4" cy="387.8" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="594.5" cy="574.5" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="355.9" cy="479.4" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="351.8" cy="499.1" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="375.0" cy="251.0" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="321.3" cy="178.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="492.4" cy="257.8" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="691.8" cy="310.0" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="557.3" cy="494.1" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="519.9" cy="544.4" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="490.7" cy="497.2" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="424.2" cy="574.6" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="226.4" cy="724.2" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="342.7" cy="352.0" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="524.3" cy="238.2" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="415.2" cy="323.0" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="565.5" cy="274.6" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="607.0" cy="465.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="519.6" cy="497.4" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="567.3" cy="510.7" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="271.9" cy="555.6" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="392.5" cy="562.3" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="243.0" cy="372.3" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="379.2" cy="157.4" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="458.6" cy="257.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="539.0" cy="406.6" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="503.9" cy="458.5" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="588.7" cy="418.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="645.5" cy="529.3" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="383.9" cy="595.4" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="328.2" cy="544.3" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="219.9" cy="395.1" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="329.0" cy="209.9" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="409.3" cy="101.2" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="662.7" cy="317.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="666.8" cy="364.3" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="618.5" cy="458.2" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="502.1" cy="604.3" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="392.4" cy="619.1" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="372.8" cy="434.5" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="378.8" cy="401.6" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="386.1" cy="173.8" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="504.0" cy="285.4" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="578.3" cy="425.7" r="4.3" fill="url(#sph)"></circle>
+                        <circle cx="475.8" cy="349.5" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="608.1" cy="454.4" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="553.8" cy="475.6" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="323.5" cy="460.3" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="275.4" cy="571.9" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="314.7" cy="285.4" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="488.5" cy="341.6" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="491.4" cy="407.4" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="500.6" cy="439.9" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="854.0" cy="534.8" r="2.5" fill="url(#sph)"></circle>
+                        <circle cx="644.4" cy="554.8" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="504.7" cy="473.9" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="184.4" cy="577.3" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="302.8" cy="614.7" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="359.5" cy="330.2" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="320.6" cy="219.7" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="501.3" cy="414.7" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="572.4" cy="402.0" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="670.3" cy="388.7" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="683.6" cy="400.1" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="418.3" cy="759.6" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="276.4" cy="584.3" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="340.3" cy="495.7" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="345.0" cy="277.9" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="404.7" cy="316.8" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="492.8" cy="310.9" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="559.3" cy="338.0" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="630.7" cy="472.2" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="661.1" cy="421.6" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="475.0" cy="558.0" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="351.9" cy="560.2" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="340.9" cy="467.2" r="4.3" fill="url(#sph)"></circle>
+                        <circle cx="163.0" cy="482.2" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="491.0" cy="145.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="392.6" cy="121.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="694.7" cy="427.6" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="650.2" cy="367.0" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="657.9" cy="513.5" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="454.8" cy="586.9" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="268.1" cy="602.2" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="50.0" cy="464.1" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="184.0" cy="368.0" r="4.3" fill="url(#sph)"></circle>
+                        <circle cx="288.3" cy="220.0" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="402.0" cy="362.6" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="411.5" cy="399.2" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="654.7" cy="364.1" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="732.0" cy="514.4" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="486.6" cy="554.8" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="375.7" cy="492.6" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="368.5" cy="420.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="330.1" cy="297.4" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="400.5" cy="207.5" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="409.7" cy="306.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="695.3" cy="332.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="505.0" cy="399.6" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="295.2" cy="433.8" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="547.8" cy="676.1" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="350.9" cy="629.3" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="208.3" cy="509.2" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="359.0" cy="365.5" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="50.0" cy="371.0" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="469.8" cy="125.0" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="704.2" cy="364.6" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="659.3" cy="336.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="643.8" cy="425.8" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="461.6" cy="627.9" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="507.5" cy="538.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="363.7" cy="442.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="128.8" cy="455.7" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="394.2" cy="272.2" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="565.9" cy="309.9" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="625.6" cy="288.6" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="452.8" cy="299.0" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="487.8" cy="508.0" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="617.6" cy="567.2" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="265.4" cy="469.9" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="367.3" cy="532.0" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="79.3" cy="417.9" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="396.3" cy="290.4" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="283.5" cy="289.7" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="684.6" cy="344.5" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="703.6" cy="401.0" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="546.3" cy="570.1" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="545.8" cy="591.8" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="355.8" cy="575.9" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="157.2" cy="526.1" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="268.7" cy="274.4" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="237.1" cy="241.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="438.2" cy="103.6" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="422.3" cy="131.4" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="641.2" cy="390.4" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="612.3" cy="435.7" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="444.6" cy="620.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="377.6" cy="556.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="271.2" cy="427.4" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="236.6" cy="454.7" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="361.3" cy="187.1" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="552.9" cy="298.1" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="854.0" cy="212.1" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="556.5" cy="431.6" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="605.3" cy="416.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="448.9" cy="536.1" r="4.3" fill="url(#sph)"></circle>
+                        <circle cx="270.4" cy="529.4" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="255.1" cy="526.9" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="149.3" cy="407.9" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="425.1" cy="266.4" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="691.0" cy="600.4" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="549.2" cy="327.6" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="625.0" cy="442.2" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="540.7" cy="527.3" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="390.7" cy="689.1" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="391.3" cy="549.9" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="277.4" cy="475.4" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="104.1" cy="344.4" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="382.8" cy="110.9" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="538.1" cy="204.8" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="556.5" cy="365.9" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="639.2" cy="348.6" r="4.3" fill="url(#sph)"></circle>
+                        <circle cx="525.6" cy="505.0" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="597.0" cy="542.0" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="527.3" cy="630.1" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="159.8" cy="555.4" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="278.7" cy="297.7" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="341.3" cy="375.4" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="456.8" cy="322.3" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="659.2" cy="374.8" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="598.5" cy="404.6" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="669.6" cy="482.2" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="851.6" cy="810.0" r="2.5" fill="url(#sph)"></circle>
+                        <circle cx="305.7" cy="566.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="310.3" cy="419.2" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="248.8" cy="412.0" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="376.6" cy="197.1" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="593.6" cy="258.9" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="598.7" cy="281.3" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="215.4" cy="450.9" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="584.5" cy="500.7" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="483.9" cy="485.6" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="347.6" cy="598.4" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="145.3" cy="548.9" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="307.7" cy="441.8" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="371.2" cy="264.2" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="418.0" cy="156.6" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="626.2" cy="310.3" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="854.0" cy="215.3" r="2.5" fill="url(#sph)"></circle>
+                        <circle cx="558.8" cy="500.8" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="541.0" cy="511.3" r="4.3" fill="url(#sph)"></circle>
+                        <circle cx="284.1" cy="511.9" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="243.4" cy="472.1" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="330.8" cy="346.5" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="373.1" cy="290.7" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="506.9" cy="299.8" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="572.7" cy="491.2" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="689.9" cy="419.2" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="566.5" cy="449.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="488.2" cy="519.7" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="209.4" cy="547.2" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="236.8" cy="482.3" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="358.9" cy="75.1" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="384.2" cy="365.2" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="498.1" cy="322.8" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="568.8" cy="355.1" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="487.6" cy="448.6" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="657.7" cy="455.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="472.4" cy="653.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="358.5" cy="416.0" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="649.1" cy="289.7" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="274.6" cy="455.0" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="373.7" cy="770.1" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="510.7" cy="263.8" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="621.8" cy="398.1" r="4.5" fill="url(#sph)"></circle>
+                        <circle cx="681.2" cy="413.0" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="541.5" cy="460.9" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="457.4" cy="562.3" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="219.5" cy="650.5" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="301.1" cy="326.8" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="335.8" cy="413.0" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="312.3" cy="272.3" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="443.5" cy="251.4" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="647.8" cy="333.0" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="551.3" cy="402.2" r="4.3" fill="url(#sph)"></circle>
+                        <circle cx="633.4" cy="485.9" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="626.1" cy="581.6" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="368.9" cy="508.2" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="72.8" cy="583.8" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="341.5" cy="247.6" r="4.3" fill="url(#sph)"></circle>
+                        <circle cx="396.2" cy="350.0" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="473.1" cy="166.2" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="577.9" cy="376.0" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="781.6" cy="421.3" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="594.8" cy="383.9" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="509.6" cy="517.1" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="322.8" cy="520.2" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="320.4" cy="429.7" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="81.8" cy="501.8" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="401.6" cy="265.5" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="314.5" cy="542.1" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="635.7" cy="358.8" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="624.7" cy="416.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="576.3" cy="529.7" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="510.6" cy="571.2" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="358.7" cy="556.6" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="397.9" cy="499.6" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="301.9" cy="402.3" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="174.5" cy="185.6" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="351.1" cy="128.9" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="666.9" cy="345.5" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="585.5" cy="352.3" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="677.8" cy="435.5" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="680.3" cy="369.2" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="50.0" cy="810.0" r="2.5" fill="url(#sph)"></circle>
+                        <circle cx="289.7" cy="467.1" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="124.9" cy="392.1" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="463.8" cy="112.4" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="535.3" cy="293.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="635.1" cy="397.0" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="656.6" cy="467.3" r="4.3" fill="url(#sph)"></circle>
+                        <circle cx="686.0" cy="590.4" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="674.0" cy="810.0" r="2.5" fill="url(#sph)"></circle>
+                        <circle cx="328.1" cy="506.5" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="387.9" cy="580.8" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="249.0" cy="391.8" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="415.0" cy="69.0" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="562.1" cy="407.3" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="534.7" cy="349.5" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="698.8" cy="493.1" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="585.5" cy="481.3" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="583.4" cy="810.0" r="2.5" fill="url(#sph)"></circle>
+                        <circle cx="360.1" cy="511.1" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="345.4" cy="520.4" r="4.5" fill="url(#sph)"></circle>
+                        <circle cx="84.9" cy="209.2" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="337.1" cy="264.3" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="328.1" cy="73.6" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="543.6" cy="371.4" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="601.8" cy="443.5" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="635.6" cy="628.0" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="854.0" cy="810.0" r="2.5" fill="url(#sph)"></circle>
+                        <circle cx="417.7" cy="530.1" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="228.9" cy="527.0" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="50.0" cy="384.3" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="408.2" cy="221.6" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="450.2" cy="198.5" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="625.0" cy="382.7" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="764.3" cy="264.6" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="479.2" cy="615.3" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="576.2" cy="549.4" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="402.9" cy="526.1" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="356.0" cy="586.9" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="323.2" cy="355.2" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="501.4" cy="384.8" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="546.1" cy="183.6" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="657.1" cy="356.8" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="629.9" cy="408.1" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="642.6" cy="576.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="523.4" cy="590.2" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="165.5" cy="575.4" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="397.2" cy="415.6" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="261.6" cy="337.9" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="476.6" cy="240.0" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="854.0" cy="50.0" r="2.5" fill="url(#sph)"></circle>
+                        <circle cx="445.1" cy="382.3" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="643.5" cy="477.4" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="467.2" cy="350.5" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="545.5" cy="552.2" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="305.9" cy="582.7" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="600.7" cy="476.0" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="246.1" cy="300.3" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="224.1" cy="231.2" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="430.9" cy="305.3" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="540.5" cy="245.9" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="506.6" cy="368.8" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="659.4" cy="532.9" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="575.4" cy="709.5" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="295.8" cy="444.2" r="4.5" fill="url(#sph)"></circle>
+                        <circle cx="249.6" cy="457.3" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="346.6" cy="388.6" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="321.5" cy="50.7" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="561.2" cy="156.5" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="599.2" cy="452.2" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="665.4" cy="395.0" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="638.1" cy="460.9" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="622.2" cy="517.3" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="240.8" cy="523.4" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="341.9" cy="507.9" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="382.6" cy="343.8" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="407.2" cy="348.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="424.3" cy="249.8" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="644.2" cy="443.6" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="553.2" cy="512.1" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="528.2" cy="424.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="546.4" cy="626.4" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="412.1" cy="545.6" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="261.2" cy="546.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="290.3" cy="208.1" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="333.9" cy="282.8" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="465.6" cy="299.6" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="616.8" cy="429.0" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="705.9" cy="340.8" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="581.6" cy="473.6" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="509.3" cy="146.0" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="270.9" cy="654.2" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="337.9" cy="477.9" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="425.6" cy="541.1" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="281.8" cy="136.5" r="2.8" fill="url(#sph)"></circle>
+                        <circle cx="189.4" cy="274.4" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="628.2" cy="459.2" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="653.6" cy="305.6" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="666.2" cy="546.5" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="455.7" cy="504.0" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="288.9" cy="490.8" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="236.3" cy="540.4" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="220.1" cy="374.8" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="265.3" cy="229.9" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="443.6" cy="314.8" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="596.9" cy="326.4" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="577.0" cy="414.7" r="4.2" fill="url(#sph)"></circle>
+                        <circle cx="603.7" cy="508.0" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="494.2" cy="678.5" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="328.4" cy="598.1" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="278.2" cy="499.6" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="212.4" cy="258.4" r="3.1" fill="url(#sph)"></circle>
+                        <circle cx="250.2" cy="286.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="423.9" cy="186.6" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="599.2" cy="372.9" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="676.9" cy="380.4" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="670.6" cy="455.2" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="500.3" cy="561.6" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="328.4" cy="572.6" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="297.8" cy="492.0" r="4.3" fill="url(#sph)"></circle>
+                        <circle cx="356.3" cy="298.8" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="371.2" cy="227.5" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="359.0" cy="150.5" r="3.6" fill="url(#sph)"></circle>
+                        <circle cx="152.7" cy="249.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="658.2" cy="397.7" r="3.8" fill="url(#sph)"></circle>
+                        <circle cx="589.0" cy="518.7" r="4.0" fill="url(#sph)"></circle>
+                        <circle cx="619.0" cy="626.9" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="318.9" cy="575.0" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="240.1" cy="495.1" r="3.4" fill="url(#sph)"></circle>
+                        <circle cx="184.7" cy="454.3" r="3.4" fill="url(#sph)"></circle>
+                        <text
+                            x="500.2"
+                            y="421.7"
+                            font-size="11"
+                            fill="#333"
+                            stroke="#f5f5f5"
+                            stroke-width="3"
+                            paint-order="stroke"
+                            font-family="system-ui, sans-serif"
+                        >
+                            merch-88
+                        </text>
+                        <text
+                            x="527.8"
+                            y="447.5"
+                            font-size="11"
+                            fill="#333"
+                            stroke="#f5f5f5"
+                            stroke-width="3"
+                            paint-order="stroke"
+                            font-family="system-ui, sans-serif"
+                        >
+                            dev-19c2
+                        </text>
+                        <text
+                            x="434.9"
+                            y="473.4"
+                            font-size="11"
+                            fill="#333"
+                            stroke="#f5f5f5"
+                            stroke-width="3"
+                            paint-order="stroke"
+                            font-family="system-ui, sans-serif"
+                        >
+                            acct-4471
+                        </text>
+                        <text
+                            x="444.1"
+                            y="503.7"
+                            font-size="11"
+                            fill="#333"
+                            stroke="#f5f5f5"
+                            stroke-width="3"
+                            paint-order="stroke"
+                            font-family="system-ui, sans-serif"
+                        >
+                            ph-2076
+                        </text>
+                    </svg>
+                    <div
+                        style="
+                            position: absolute;
+                            left: 0;
+                            right: 0;
+                            bottom: 70px;
+                            display: flex;
+                            justify-content: center;
+                            z-index: 30;
+                        "
+                    >
+                        <div
+                            style="
+                                width: 560px;
+                                background: #2c2c2c;
+                                color: #e3e3e3;
+                                border: 1px solid #555;
+                                border-radius: 8px;
+                                box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+                                font-size: 12px;
+                                line-height: 17px;
+                            "
+                        >
+                            <div style="padding: 12px 14px; display: flex; flex-direction: column; gap: 8px">
+                                <div style="display: flex; gap: 10px; align-items: flex-start">
+                                    <span style="color: #5cb85c; margin-top: 1px"
+                                        ><svg
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 16 16"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            style="flex: none"
+                                        >
+                                            <path d="M3 8.5l3 3 7-7"></path></svg
+                                    ></span>
+                                    <div style="flex: 1">
+                                        <div style="font-weight: 600; font-size: 13px">
+                                            Loaded 5,000 of 40,000 links from Neo4j
+                                            <span
+                                                style="
+                                                    display: inline-flex;
+                                                    flex: none;
+                                                    width: 18px;
+                                                    height: 18px;
+                                                    border-radius: 50%;
+                                                    background: #ffd43b;
+                                                    color: #1a1a1a;
+                                                    font-size: 10px;
+                                                    font-weight: 700;
+                                                    align-items: center;
+                                                    justify-content: center;
+                                                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+                                                    vertical-align: middle;
+                                                "
+                                                >1</span
+                                            >
+                                        </div>
+                                        <div style="color: #e3e3e3; margin-top: 3px">
+                                            1,846 accounts, devices and merchants from fraud-db. The rest of the query
+                                            is still on the server.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 8px; align-items: center; padding-left: 26px">
+                                    <span
+                                        style="
+                                            display: inline-flex;
+                                            align-items: center;
+                                            gap: 6px;
+                                            height: 24px;
+                                            padding: 0 10px;
+                                            border-radius: 4px;
+                                            font-size: 12px;
+                                            white-space: nowrap;
+                                            background: #383838;
+                                            color: #e3e3e3;
+                                            border: 1px solid #555;
+                                        "
+                                        ><svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 16 16"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            style="flex: none"
+                                        >
+                                            <path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10"></path></svg
+                                        >Load 5,000 more</span
+                                    ><span
+                                        style="
+                                            display: inline-flex;
+                                            align-items: center;
+                                            gap: 6px;
+                                            height: 24px;
+                                            padding: 0 10px;
+                                            border-radius: 4px;
+                                            font-size: 12px;
+                                            white-space: nowrap;
+                                            background: #383838;
+                                            color: #e3e3e3;
+                                            border: 1px solid #555;
+                                        "
+                                        >Load all 40,000</span
+                                    ><span
+                                        style="
+                                            display: inline-flex;
+                                            align-items: center;
+                                            gap: 6px;
+                                            height: 24px;
+                                            padding: 0 10px;
+                                            border-radius: 4px;
+                                            font-size: 12px;
+                                            white-space: nowrap;
+                                            background: #383838;
+                                            color: #e3e3e3;
+                                            border: 1px solid #555;
+                                        "
+                                        ><svg
+                                            width="14"
+                                            height="14"
+                                            viewBox="0 0 16 16"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            style="flex: none"
+                                        >
+                                            <path d="M5 4L2.5 6.5L5 9M2.5 6.5h7a3.5 3.5 0 0 1 0 7h-2"></path></svg
+                                        >Undo</span
+                                    ><span style="flex: 1"></span
+                                    ><span
+                                        style="
+                                            display: inline-flex;
+                                            align-items: center;
+                                            gap: 6px;
+                                            height: 24px;
+                                            padding: 0 10px;
+                                            border-radius: 4px;
+                                            font-size: 12px;
+                                            white-space: nowrap;
+                                            background: #383838;
+                                            color: #e3e3e3;
+                                            border: 1px solid #555;
+                                        "
+                                        >Done</span
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        style="
+                            position: absolute;
+                            left: 16px;
+                            top: 16px;
+                            width: 250px;
+                            background: rgba(255, 249, 219, 0.97);
+                            color: #3a3200;
+                            border: 1px solid #e6d48a;
+                            border-radius: 6px;
+                            padding: 8px 10px;
+                            font-size: 11px;
+                            line-height: 15px;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 4px;
+                            z-index: 50;
+                        "
+                    >
+                        <div style="display: flex; gap: 6px; align-items: flex-start">
+                            <span
+                                style="
+                                    flex: none;
+                                    width: 14px;
+                                    height: 14px;
+                                    border-radius: 50%;
+                                    background: #ffd43b;
+                                    color: #1a1a1a;
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin-top: 1px;
+                                "
+                                >1</span
+                            ><span
+                                >A partial load says so on its receipt and in the Data panel, with Load more beside
+                                it.</span
+                            >
+                        </div>
+                        <div style="display: flex; gap: 6px; align-items: flex-start">
+                            <span
+                                style="
+                                    flex: none;
+                                    width: 14px;
+                                    height: 14px;
+                                    border-radius: 50%;
+                                    background: #ffd43b;
+                                    color: #1a1a1a;
+                                    font-size: 9px;
+                                    font-weight: 700;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin-top: 1px;
+                                "
+                                >2</span
+                            ><span
+                                >A node from a server offers Expand, with a depth and a limit; Collapse takes it
+                                back.</span
+                            >
+                        </div>
+                    </div>
+                    <div
+                        style="
+                            position: absolute;
+                            left: 0;
+                            right: 0;
+                            bottom: 12px;
+                            display: flex;
+                            justify-content: center;
+                            z-index: 20;
+                        "
+                    >
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 6px;
+                                padding: 6px 8px;
+                                background: #2c2c2c;
+                                border-radius: 10px;
+                                border: 1px solid #444444;
+                                color: #e3e3e3;
+                                box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+                            "
+                        >
+                            <span
+                                style="
+                                    position: relative;
+                                    width: 34px;
+                                    height: 34px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M6 2h4M6.5 2v4L3 13h10L9.5 6V2"></path></svg></span
+                            ><span
+                                style="
+                                    position: relative;
+                                    width: 34px;
+                                    height: 34px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M3 13V3M3 13h10M5.5 10l2-3 2 1.5 3-4.5"></path></svg></span
+                            ><span
+                                style="
+                                    position: relative;
+                                    width: 34px;
+                                    height: 34px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                                ><span
+                                    style="
+                                        font-size: 11px;
+                                        font-weight: 600;
+                                        display: flex;
+                                        gap: 2px;
+                                        align-items: center;
+                                    "
+                                    >3D<svg
+                                        width="9"
+                                        height="9"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none"
+                                    >
+                                        <path d="M4 6l4 4 4-4"></path></svg></span></span
+                            ><span style="width: 1px; height: 30px; background: #444444"></span
+                            ><span
+                                style="
+                                    position: relative;
+                                    width: 34px;
+                                    height: 34px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M6 4h7.5M6 8h7.5M6 12h7.5M2.5 4h.5M2.5 8h.5M2.5 12h.5"></path></svg></span
+                            ><span
+                                style="
+                                    position: relative;
+                                    width: 34px;
+                                    height: 34px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path
+                                        d="M2.5 3h11v10h-11zM2.5 6.5h11M2.5 10h11M6.5 3v10M10 3v10"
+                                    ></path></svg></span
+                            ><span
+                                style="
+                                    position: relative;
+                                    width: 34px;
+                                    height: 34px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M2.5 4h11M4.5 8h7M6.5 12h3"></path></svg></span
+                            ><span style="width: 1px; height: 30px; background: #444444"></span
+                            ><span
+                                style="
+                                    position: relative;
+                                    width: 34px;
+                                    height: 34px;
+                                    border-radius: 6px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                "
+                                ><svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M7 3a4 4 0 1 1 0 8a4 4 0 0 1 0-8zM10 10l3.5 3.5"></path></svg
+                            ></span>
+                        </div>
+                    </div>
+                </div>
+                <div
+                    style="
+                        width: 240px;
+                        flex: none;
+                        background: #2c2c2c;
+                        border-left: 1px solid #444444;
+                        overflow: hidden;
+                    "
+                >
+                    <div
+                        style="
+                            display: flex;
+                            align-items: flex-start;
+                            justify-content: space-between;
+                            padding: 12px 12px 10px;
+                        "
+                    >
+                        <div style="display: flex; gap: 8px">
+                            <span style="color: #e3e3e3; margin-top: 1px"
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path
+                                        d="M8 3a2 2 0 1 1 0 .1M3.5 11a2 2 0 1 1 0 .1M12.5 11a2 2 0 1 1 0 .1"
+                                    ></path></svg
+                            ></span>
+                            <div>
+                                <div style="font-size: 13px; font-weight: 600; color: #e3e3e3">acct-4471</div>
+                                <div style="font-size: 10px; color: #a6a6a6">Node</div>
+                            </div>
+                        </div>
+                        <span style="color: #a6a6a6"
+                            ><svg
+                                width="14"
+                                height="14"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none"
+                            >
+                                <path d="M3.5 8h.1M8 8h.1M12.5 8h.1"></path></svg
+                        ></span>
+                    </div>
+                    <div style="padding: 4px 0 10px">
+                        <div style="padding: 6px 16px; font-size: 12px; font-weight: 600">
+                            On the server
+                            <span
+                                style="
+                                    display: inline-flex;
+                                    flex: none;
+                                    width: 18px;
+                                    height: 18px;
+                                    border-radius: 50%;
+                                    background: #ffd43b;
+                                    color: #1a1a1a;
+                                    font-size: 10px;
+                                    font-weight: 700;
+                                    align-items: center;
+                                    justify-content: center;
+                                    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+                                    vertical-align: middle;
+                                "
+                                >2</span
+                            >
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                justify-content: space-between;
+                                gap: 8px;
+                                padding: 4px 16px 4px 28px;
+                                font-size: 12px;
+                            "
+                        >
+                            <span style="color: #a6a6a6">Links there</span
+                            ><span style="color: #e3e3e3; text-align: right">37</span>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                justify-content: space-between;
+                                gap: 8px;
+                                padding: 4px 16px 4px 28px;
+                                font-size: 12px;
+                            "
+                        >
+                            <span style="color: #a6a6a6">Drawn here</span
+                            ><span style="color: #e3e3e3; text-align: right">12</span>
+                        </div>
+                        <div style="display: flex; gap: 6px; align-items: center; padding: 8px 16px 4px 28px">
+                            <span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 10px;
+                                    border-radius: 4px;
+                                    font-size: 12px;
+                                    white-space: nowrap;
+                                    background: #1971c2;
+                                    color: #fff;
+                                    border: 1px solid #1971c2;
+                                "
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path
+                                        d="M8 8m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0M8 6V2.5M10 8h3.5M8 10v3.5M6 8H2.5"
+                                    ></path></svg
+                                >Expand</span
+                            ><span style="font-size: 11px; color: #a6a6a6">adds 25 links</span>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                gap: 6px;
+                                align-items: center;
+                                padding: 4px 16px 4px 28px;
+                                font-size: 12px;
+                            "
+                        >
+                            <span style="color: #a6a6a6">Depth</span
+                            ><span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    height: 24px;
+                                    padding: 0 8px;
+                                    border: 1px solid #555;
+                                    border-radius: 4px;
+                                    background: #232323;
+                                    color: #e3e3e3;
+                                    font-size: 12px;
+                                    width: 40px;
+                                    box-sizing: border-box;
+                                "
+                                >1</span
+                            ><span style="color: #a6a6a6">At most</span
+                            ><span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    height: 24px;
+                                    padding: 0 8px;
+                                    border: 1px solid #555;
+                                    border-radius: 4px;
+                                    background: #232323;
+                                    color: #e3e3e3;
+                                    font-size: 12px;
+                                    width: 50px;
+                                    box-sizing: border-box;
+                                "
+                                >50</span
+                            >
+                        </div>
+                        <div style="padding: 4px 16px 4px 28px; font-size: 11px; color: #a6a6a6">
+                            Collapse removes what Expand added.
+                        </div>
+                    </div>
+                    <div style="border-top: 1px solid #444444; padding: 4px 0 10px">
+                        <div style="padding: 6px 16px; font-size: 12px; font-weight: 600">Summary</div>
+                        <div
+                            style="
+                                display: flex;
+                                justify-content: space-between;
+                                gap: 8px;
+                                padding: 4px 16px 4px 28px;
+                                font-size: 12px;
+                            "
+                        >
+                            <span style="color: #a6a6a6">Kind</span
+                            ><span style="color: #e3e3e3; text-align: right">account</span>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                justify-content: space-between;
+                                gap: 8px;
+                                padding: 4px 16px 4px 28px;
+                                font-size: 12px;
+                            "
+                        >
+                            <span style="color: #a6a6a6">Opened</span
+                            ><span style="color: #e3e3e3; text-align: right">2026-03-18</span>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                justify-content: space-between;
+                                gap: 8px;
+                                padding: 4px 16px 4px 28px;
+                                font-size: 12px;
+                            "
+                        >
+                            <span style="color: #a6a6a6">Country</span
+                            ><span style="color: #e3e3e3; text-align: right">RO</span>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                justify-content: space-between;
+                                gap: 8px;
+                                padding: 4px 16px 4px 28px;
+                                font-size: 12px;
+                            "
+                        >
+                            <span style="color: #a6a6a6">risk_score</span
+                            ><span style="color: #e3e3e3; text-align: right">0.87</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

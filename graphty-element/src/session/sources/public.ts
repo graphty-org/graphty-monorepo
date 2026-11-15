@@ -4,20 +4,40 @@
  * element's own load, expand and record types. Experimental.
  */
 
-export { SOURCE_ATTR, SOURCE_EVENT_DOM_NAMES, SOURCE_RECORD_MEMBER, SOURCE_RECORD_VERSION } from "./ids";
+export {
+    SOURCE_ATTR,
+    SOURCE_EVENT_DOM_NAMES,
+    SOURCE_RECORD_MEMBER,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- still published through 3.x for code written against it
+    SOURCE_RECORD_VERSION,
+    SOURCES_MEMBER_VERSION,
+} from "./ids";
 export type {
     CollapseResult,
     ExpandBehavior,
     ExpandOptions,
+    NodeSource,
     PendingSourceLoad,
+    SourceCatalogEntry,
+    SourceCheck,
+    SourceCounts,
     SourceCredentialIdentity,
     SourceExpanded,
     SourceExpandFailed,
+    SourceExpandResult,
     SourceExpandStart,
     SourceExpansionRecord,
+    SourceFeatures,
     SourceInput,
     SourceLoadOptions,
     SourceLoadRecord,
+    SourceMoreOptions,
+    SourcePreview,
+    SourcePreviewOptions,
+    SourcePreviewRow,
+    SourceRead,
+    SourceRefreshReport,
+    SourceSettings,
 } from "./types";
 export type {
     AwsCredentials,
@@ -34,9 +54,11 @@ export type {
     ReplayOptions,
     RetryOptions,
     SourceContext,
+    SourceCredentialSlot,
     SourceCursor,
     SourceDescriptor,
     EdgeRecord as SourceEdgeRecord,
+    SourceExample,
     SourceFeature,
     SourceFile,
     SourceFinish,
@@ -58,11 +80,11 @@ export type {
     SourceRequestInit,
     SourceRuntime,
     SourceRuntimeReason,
-    SourceSample,
     SourceValidators,
 } from "@graphty/graph-io";
 export {
     credentials,
+    credentialSlots,
     defineSource,
     listSources,
     recordingFrom,

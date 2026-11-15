@@ -30,8 +30,7 @@ graph-format/
 +-- tsconfig.build.json           # emit config: graph-format.ts + src/, rootDir ".", outDir dist (-> dist/src/ + dist/graph-format.*)
 +-- tsconfig.strict-consumer.json # public d.ts under noUncheckedIndexedAccess + exactOptionalPropertyTypes
 +-- vitest.config.ts              # single project, environment node, pool forks, thresholds 80/80/75/80
-+-- scripts/build-bundle.js       # programmatic vite lib build -> dist/graph-format.js (+ map)
-+-- scripts/bundle-types.js       # writes dist/graph-format.d.ts = export * from "./src/index.js"
++-- scripts/build-bundle.js       # programmatic vite lib build -> dist/graph-format.js (+ map) and dist/graph-format.d.ts = export * from "./src/index.js" (tools/build-bundle.mjs)
 +-- src/
 |   +-- index.ts                  # the ONLY public barrel; every 12.2 name listed explicitly (no star re-exports)
 |   +-- constants.ts              # INVALID_INDEX, MAX_COUNT, FORMAT_VERSION, SNAPSHOT_BRAND (public) + ALIGNMENT, WIRE_* (internal)
@@ -186,6 +185,10 @@ npm run ready:commit
 - `test/wire/golden.test.ts` compares `test/fixtures/rich-v1.gsnp` byte for byte (modulo `producer`);
   a deliberate layout change regenerates it with `tmp/make-golden.ts`.
 - `test/build-output.test.ts` checks the package.json shape and, when `dist/` exists, the build output.
+
+### Test projects
+
+- Single test project (Node.js); `test/types/*.test-d.ts` are compile-only (`npm run typecheck:strict-consumer` after a build)
 
 ## Adding a View
 

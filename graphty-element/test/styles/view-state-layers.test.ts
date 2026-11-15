@@ -7,6 +7,9 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
 import { exportSession } from "../../src/data/export";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /**
  * A graph of three nodes with one layer on the selection, and optionally one on every node.

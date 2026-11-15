@@ -290,7 +290,7 @@ it. What an export states about scale is `state-matrix.md` 4.7.
 | Note markers, Minimap | `toggle-reader` | View; the zoom and view menu | element transient state the app sets from a reader preference (`conceptual-model.md` 1.1) | not a step | -- | E>A |
 | Additional labels, Follow selection, Table, Time slider | `toggle-chrome` | View; the zoom and view menu | Chrome | not a step | -- | A |
 | Minimize UI, Quick actions..., Preferences, Shortcuts, Documentation | `app` | the main menu (Shortcuts and Documentation under its Help); the toolbar (Quick actions); the Help button | Chrome | not a step | minimize UI, quick actions (A) | A |
-| AI provider... | `ai-provider` | Preferences; the reason line of the disabled Assistant button; Quick actions | Chrome: the reader's provider settings, written through the element's API | not a step | -- | E>A |
+| AI provider... | `ai-provider` | the Assistant panel; Settings; Quick actions | Chrome: the reader's provider settings, written through the element's API | not a step | -- | E>A |
 | Restart viewer | `restart-viewer` | the rendering-lost card | none: a renderer restart | not a step | -- | E |
 | Done | `done` | Version history; the comparison surface; a read-only project's line | Chrome: leaves the mode | not a step | -- | E>A |
 | Memory usage | `memory` | the main menu's Help | Chrome: a reading of the element's memory budget | not a step | -- | E>A |

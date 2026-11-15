@@ -1,0 +1,25 @@
+{
+    "v": 1,
+    "id": "1792890464613-3207641-graphty-element-default",
+    "kind": "verify",
+    "commit": "def0898817d6c8d40cccb90b8c7e0f337e9c5e1c",
+    "tree": "f9f817fe3578d2f10cb3d21d44bb985b4ea872a0",
+    "base": "2322ac080eb040129ed93d7f35e52756f74c7ce4",
+    "branch": "golden",
+    "dirty": false,
+    "shard": "graphty-element-default",
+    "family": "graphty-element-default",
+    "variant": "graphty-element-default",
+    "selected": null,
+    "outcome": "passed",
+    "reused_from": "1792890000000-1-graphty-element-default",
+    "started_at": "2026-10-25T01:07:44.618Z",
+    "secs": 412,
+    "log": "https://github.com/graphty-org/graphty-monorepo/actions/runs/40148074821",
+    "files": [
+        ["graphty-element/test/mesh-testing/animator-test.test.ts", 20, 0, 0, 56, 0],
+        ["graphty-element/test/mesh-testing/label-advanced-golden-masters.test.ts", 44, 0, 0, 164, 2]
+    ],
+    "failures": [],
+    "exonerations": []
+}

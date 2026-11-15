@@ -46,6 +46,7 @@ import {
     type CommonExportOptions,
     type CommonImportOptions,
     type ExportCapabilities,
+    type FileLayout,
     type GraphChoiceOptions,
     type GraphExporter,
     type GraphImporter,
@@ -60,6 +61,7 @@ import {
 import type { ImporterPositions, PositionReadContext } from "../../src/positions/index.js";
 import { type SourceIssueCode } from "../../src/sources/codes.js";
 import { type SourceReportInfo } from "../../src/sources/types.js";
+import type { GraphAnnotation } from "../../src/styles/annotations.js";
 import type {
     EdgeStyleProperty,
     GraphStyleProperty,
@@ -119,6 +121,10 @@ interface DesignGraphImporter<Opts = unknown> {
     styles?(snapshot: GraphSnapshot, context: StyleReadContext): ImporterStyles | null;
     // added after the design: the file-positions hook (design/positions/file-positions.md)
     positions?(snapshot: GraphSnapshot, ctx: PositionReadContext): ImporterPositions | null;
+    // added after the design: the layout the file asks for (issue #2496)
+    layout?(snapshot: GraphSnapshot): FileLayout | null;
+    // added after the design: what the format draws beside its graph (DOT's root graph label)
+    annotations?(snapshot: GraphSnapshot): readonly GraphAnnotation[];
 }
 interface DesignExportCapabilities {
     readonly mixedDirection: boolean;

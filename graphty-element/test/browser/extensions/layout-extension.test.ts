@@ -56,7 +56,7 @@
  */
 
 import { maskTest } from "@graphty/graph-format";
-import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 
 import { LAYOUT_CATALOG, LAYOUT_DESCRIPTORS, layoutDescriptor, layoutIdForEngine } from "../../../catalog";
 import {
@@ -78,7 +78,6 @@ import {
     type SnapshotLayoutInput,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
-import { operationQueueOf } from "../../../src/Graph";
 // Not plugin code: the element's own deterministic stand-in for a device.
 import { createFakeAccelerator } from "../../../src/testing/fakeAccelerator";
 import { drawnFrames } from "../../helpers/drawn-frames";
@@ -94,9 +93,6 @@ const EDGES = [
     { src: "c", dst: "d" },
     { src: "d", dst: "e" },
 ];
-
-/** How long any single wait below is allowed to take before it is called a failure. */
-const PATIENCE_MS = 5000;
 
 /** The ring radius `RingLayout` uses when the consumer asks for nothing in particular. */
 const DEFAULT_RADIUS = 120;
@@ -763,22 +759,15 @@ function distanceFromSegment(point: Coords, from: Coords, to: Coords): number {
 }
 
 /**
- * Poll until something becomes true, or give up loudly.
- * @param condition - what is being waited for
- * @param what - how to describe it if the wait fails
+ * Poll until something becomes true. No deadline of its own: the one hang guard
+ * (tools/test-wait-guard.mjs) ends a wait that never comes true, naming what it waited for.
+ * @param condition - What is being waited for.
+ * @param what - How to describe it if the wait fails.
  */
 async function waitFor(condition: () => boolean, what: string): Promise<void> {
-    const deadline = Date.now() + PATIENCE_MS;
-
-    while (Date.now() < deadline) {
-        if (condition()) {
-            return;
-        }
-
-        await nextFrame();
-    }
-
-    throw new Error(`timed out waiting for ${what}`);
+    await vi.waitFor(() => {
+        assert.isTrue(condition(), `waiting for ${what}`);
+    });
 }
 
 describe("a third party's layout engine", () => {
@@ -797,7 +786,7 @@ describe("a third party's layout engine", () => {
      */
     async function useLayout<T extends LayoutEngine>(type: string, opts: object = {}): Promise<T> {
         await graph.setLayout(type, opts);
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         const manager = graph.getLayoutManager();
         const engine = manager.layoutEngine;
@@ -815,7 +804,7 @@ describe("a third party's layout engine", () => {
      * @param what - how to describe the wait if it fails
      */
     async function waitForRedraw(what: string): Promise<void> {
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         const manager = graph.getLayoutManager();
         await waitFor(() => (manager.layoutEngine?.isSettled ?? false) && !manager.running, what);
@@ -914,7 +903,7 @@ describe("a third party's layout engine", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         // Park the element on a layout that finishes in one pass before any test begins. The
         // element starts every graph on its own force simulation, which is still running while
@@ -1055,7 +1044,7 @@ describe("a third party's layout engine", () => {
             const engine = await useLayout<RingLayout>("test-ring");
 
             await graph.removeNodes(["c"]);
-            await operationQueueOf(graph).waitForCompletion();
+            await graph.waitForSettled();
 
             assert.deepStrictEqual(engine.removedNodeIds, ["c"], "the element named the node it removed");
             assert.strictEqual([...engine.nodes].length, NODES.length - 1, "and the engine is no longer holding it");
@@ -1327,7 +1316,7 @@ describe("a third party's layout engine", () => {
             );
 
             await graph.setViewMode("2d");
-            await operationQueueOf(graph).waitForCompletion();
+            await graph.waitForSettled();
 
             // The helper refuses anything that is not the plugin's engine, so reaching this line
             // is itself the assertion that the element rebuilt the same plugin rather than falling
@@ -1468,7 +1457,7 @@ describe("a third party's layout engine", () => {
 
             // The same accelerator is live: a built-in simulation layout on this graph takes it.
             await graph.setLayout("forceatlas2");
-            await operationQueueOf(graph).waitForCompletion();
+            await graph.waitForSettled();
             assert.strictEqual(fake.calls.forceAtlas2, 1);
         });
     });
@@ -1682,7 +1671,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
      */
     async function useLayout(type: string, opts: object = {}): Promise<void> {
         await graph.setLayout(type, opts);
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
         const manager = graph.getLayoutManager();
         await waitFor(() => (manager.layoutEngine?.isSettled ?? false) && !manager.running, `"${type}" to settle`);
     }
@@ -1699,7 +1688,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         await graph.init();
         await graph.addNodes(NODES);
         await graph.addEdges(EDGES);
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
         await useLayout("circular");
     });
 
@@ -1769,7 +1758,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
     it("aborts an answer that is no longer wanted, and publishes nothing from it", async () => {
         const circle = Object.fromEntries(NODES.map(({ id }) => [id, at(id)]));
         await graph.setLayout("test-snapshot-deferred");
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
         const input = snapshotInputs.at(-1);
         assert.isDefined(input);
         assert.isFalse(input.signal.aborted);
@@ -1797,7 +1786,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         });
 
         await graph.setLayout("test-snapshot-fails");
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
         await waitFor(() => reported.length > 0, "the failure to be reported");
 
         assert.lengthOf(reported, 1, "reported once");
@@ -1813,7 +1802,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         const before = Object.fromEntries(NODES.map(({ id }) => [id, at(id)]));
 
         await graph.addNodes([{ id: "f" }]);
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
         await waitFor(() => graph.getLayoutManager().isSettled, "the line to take in the new node");
 
         const input = snapshotInputs.at(-1);
@@ -1901,7 +1890,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
         const input = await deferredInput(1);
 
         await graph.removeNodes(NODES.map(({ id }) => id));
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
         await waitFor(() => input.signal.aborted, "the answer to be aborted");
         assert.isTrue(graph.getLayoutManager().isSettled, "and nothing is waiting");
     });
@@ -1918,7 +1907,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
     it("is handed a scope, and the rows outside it stay where they are", async () => {
         const before = Object.fromEntries(NODES.map(({ id }) => [id, at(id)]));
         await graph.setLayout("test-snapshot-scoped", {}, { scope: { nodes: ["a", "b"] } });
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
         const manager = graph.getLayoutManager();
         await waitFor(() => manager.isSettled && !manager.running, "the scoped line to settle");
 
@@ -1940,7 +1929,7 @@ describe("a single-pass layout registered on the snapshot contract", () => {
 
     it("reads the node attribute an option names as a column", async () => {
         await graph.addNodes([{ id: "f", geo: { lat: 7 } }]);
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         await useLayout("test-snapshot-scoped", { by: "geo.lat" });
 

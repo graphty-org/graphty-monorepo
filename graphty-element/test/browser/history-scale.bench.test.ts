@@ -149,6 +149,20 @@ function collectGarbage(): void {
 }
 
 /**
+ * Run a full garbage collection from a task of its own, with nothing of the caller's on the stack.
+ * A collection run from the caller's stack (`gc()`) can keep an object alive through a stale stack
+ * slot, at random, for as long as the caller keeps running.
+ */
+async function collectGarbageFromATaskOfItsOwn(): Promise<void> {
+    const { gc } = globalThis as { gc?: (options: { type: "major"; execution: "async" }) => Promise<void> };
+    if (gc === undefined) {
+        throw new Error("gc() is missing: the browser-bench project must launch Chromium with --js-flags=--expose-gc");
+    }
+
+    await gc({ type: "major", execution: "async" });
+}
+
+/**
  * The middle of an odd number of timings.
  * @param ms - The timings.
  * @returns Their median.
@@ -232,9 +246,24 @@ describe("undo on a real graph at the largest graph it draws", () => {
 
     // Disposing a graph this size tears down every node's render objects, which takes about as
     // long as the load did, past the default hook timeout.
-    afterAll(() => {
+    //
+    // The hook then lets go of the graph and waits until it is garbage. The next file runs in the
+    // same page, and a graph this size holds about 3.3 GB of the page's 4 GB heap: a benchmark
+    // that starts while it is still alive runs out of memory and crashes the page ("Browser
+    // connection was closed", issue #3413). A disposed graph that is never collected fails here,
+    // at the hook's limit, instead of somewhere in the next file.
+    afterAll(async () => {
+        const released = new WeakRef(graph);
         graph.dispose();
         container.remove();
+        // The suite's closures outlive this hook, so the references go too.
+        graph = undefined as unknown as Graph;
+        json = "";
+        await collectGarbageFromATaskOfItsOwn();
+        while (released.deref() !== undefined) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            await collectGarbageFromATaskOfItsOwn();
+        }
     }, TIMEOUT_MS);
 
     it(

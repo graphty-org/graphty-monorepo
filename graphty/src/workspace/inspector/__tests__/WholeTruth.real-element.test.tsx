@@ -13,12 +13,10 @@ import type { GraphSession, NodeId } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { columnVerb } from "../../../test/column-header";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
 
 /** Five people on an undirected graph: four on staff or board with no phone, one with a phone. */
 const PEOPLE = `graph [
@@ -43,14 +41,11 @@ async function openPeople(): Promise<{ store: WorkspaceStore; session: GraphSess
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -110,8 +105,8 @@ describe("summaries that tell the whole truth", () => {
         });
         assert.notInclude(document.body.textContent ?? "", "1 to 1");
 
-        await userEvent.click(screen.getByRole("button", { name: "Data" }));
-        await userEvent.click(await screen.findByRole("treeitem", { name: "role, node attribute" }));
+        // An attribute's Details, from its column header in the table (the Data place lists no attributes).
+        await columnVerb("node", "role", "Details");
         await waitFor(() => {
             assert.equal(store.get().inspected?.kind, "attribute");
             assert.include(screen.getByRole("group", { name: "staff" }).textContent ?? "", "3");

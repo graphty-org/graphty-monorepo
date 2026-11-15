@@ -1,0 +1,18 @@
+[
+    {
+        "body": "`graphty/src/workspace/data-place/__tests__/Fields.real-element.test.tsx > Data > Fields as a + list on the real element > lists the airline sample's label, location and weight with no action from the reader` (shard family `graphty`) failed and passed on the same commit and inputs (40457379258.1.test.graphty-3.1 failed it, 40457379258.1.test.graphty-3.2 passed it).\n\nIt is quarantined in the results store: it still runs and is reported loudly, but its failures no\nlonger fail CI. It leaves when this issue closes, after 20 consecutive passing runs on\nmaster, or on 2026-11-10.\nFind the mechanism: timing or load is not an accepted cause without one.\n\nFirst failure:\n```\nError: Test timed out in 15000ms.\nIf this is a long-running test, pass a timeout value as the last argument or configure it globally with \"testTimeout\".\n > src/workspace/data-place/__tests__/Fields.real-element.test.tsx:162:4\n```\n\n<!-- results kind=flaky signature=36efec43c8a2ff61 -->",
+        "closedAt": null,
+        "number": 3981,
+        "state": "OPEN",
+        "stateReason": null,
+        "title": "Flaky test quarantined: graphty/src/workspace/data-place/__tests__/Fields.real-element.test.tsx > Data > Fields as a + list on the real element > lists the airline sample's label, location and weight "
+    },
+    {
+        "body": "`graphty/src/workspace/start/__tests__/open-doors.real-element.test.tsx > the loading doors on the real element > reads a node file and an edge file dropped together as one load, with its problems` (shard family `graphty`) failed and passed on the same commit and inputs (40457379258.1.test.graphty-3.1 failed it, 40457379258.1.test.graphty-3.2 passed it).\n\nIt is quarantined in the results store: it still runs and is reported loudly, but its failures no\nlonger fail CI. It leaves when this issue closes, after 20 consecutive passing runs on\nmaster, or on 2026-11-10.\nFind the mechanism: timing or load is not an accepted cause without one.\n\nFirst failure:\n```\nAssertionError: expected 'closed' to equal 'docked'\n\nExpected: \"docked\"\nReceived: \"closed\"\n\n > src/workspace/start/__tests__/open-doors.real-element.test.tsx:219:15\n```\n\n<!-- results kind=flaky signature=393ceb1b67c0ea85 -->",
+        "closedAt": null,
+        "number": 3982,
+        "state": "OPEN",
+        "stateReason": null,
+        "title": "Flaky test quarantined: graphty/src/workspace/start/__tests__/open-doors.real-element.test.tsx > the loading doors on the real element > reads a node file and an edge file dropped together as one load"
+    }
+]

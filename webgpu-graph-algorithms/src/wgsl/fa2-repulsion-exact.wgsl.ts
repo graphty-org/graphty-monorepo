@@ -5,7 +5,7 @@
  * with the kick's magnitude taken from the law at d = 0.01, PD-10), the gravity epilogue
  * (GRAVITY_CENTER 0 = centroid, 1 = origin; STRONG_GRAVITY) added under the `valid` guard, `force += f`, and the
  * swing / traction workgroup reduction in uniform control flow (SWING_MODE 0 = paper: free nodes only against
- * `oldForce`; 1 = NetworkX: positions and forces mixed, every node) whose lane 0 writes
+ * `oldForce`; 1 = NetworkX: positions and forces mixed, free nodes only too) whose lane 0 writes
  * `partials[group].swingTraction`. `pos` is `array<vec4f>` with the mass in `.w`; `force` / `oldForce` are stride-3
  * `array<f32>` read through the per-body helpers (4.4 rule 6). Normative text, copied verbatim: the P1-T5 sabotage
  * rows (gravity sign, `k / d2`, the `jj != i` guard, the `.w` mass lane) are textual edits of this string.
@@ -88,10 +88,11 @@ fn repulsion(
         f = f + gravity_force(pi);
         let fnew = load_force(i) + f;
         store_force(i, fnew);
-        if (SWING_MODE == 1u) {                                                   // NetworkX: positions and forces mixed, every node (7.2)
+        let free = !mask_bit(fixedMask[i >> 5u], i);                               // a pinned node says nothing about the speed (#3255)
+        if (SWING_MODE == 1u && free) {                                           // NetworkX: positions and forces mixed, every free node (7.2)
             sw = pi.w * length(pi.xyz - fnew);
             tr = 0.5 * pi.w * length(pi.xyz + fnew);
-        } else if (!mask_bit(fixedMask[i >> 5u], i)) {                            // paper: free nodes only (Gephi ForceAtlas2.java 283-293)
+        } else if (free) {                            // paper: free nodes only (Gephi ForceAtlas2.java 283-293)
             let fold = load_old(i);
             sw = pi.w * length(fnew - fold);
             tr = 0.5 * pi.w * length(fnew + fold);

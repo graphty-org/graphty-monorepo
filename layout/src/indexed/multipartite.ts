@@ -25,7 +25,7 @@ export interface MultipartiteLayoutOptions extends CommonLayoutOptions {
  * @param n - node count (rows)
  * @param layers - node indices per layer
  * @param place - the unscaled x, y of the `j`-th of `size` nodes in layer `k` of `count`
- * @param align - the layer direction
+ * @param align - the layer direction, checked, since a JavaScript caller may pass any string
  * @param scale - the distance of the farthest node from the centre
  * @param center - the centre, at least 2 components
  * @param option - the option the layers came from, for a refusal's `params`
@@ -36,7 +36,7 @@ export function layeredRows(
     n: number,
     layers: readonly ArrayLike<number>[],
     place: (k: number, count: number, j: number, size: number) => readonly [number, number],
-    align: LayerAlign,
+    align: string,
     scale: number,
     center: readonly number[],
     option = "subsets",

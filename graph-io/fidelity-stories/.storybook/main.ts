@@ -1,6 +1,15 @@
+import { createRequire } from "node:module";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { StorybookConfig } from "@storybook/web-components-vite";
+
+import { stubAnthropicNodeToolset } from "../../../vite.anthropic-sdk-stub.mjs";
+
+// The framework by its install directory, not its bare name: Storybook loads the framework's preset from
+// its own install directory, where a bare name resolves only through the root node_modules link pnpm
+// hoists, and an incremental `pnpm install` can drop that link (issue #7754).
+const framework = dirname(createRequire(import.meta.url).resolve("@storybook/web-components-vite/package.json"));
 
 /** graphty-element's Storybook settings, which the stories' copy of the element needs too. */
 const element = (path: string): string => fileURLToPath(new URL(`../../../graphty-element/${path}`, import.meta.url));
@@ -8,10 +17,15 @@ const element = (path: string): string => fileURLToPath(new URL(`../../../grapht
 const config: StorybookConfig = {
     stories: ["../stories/**/*.stories.ts"],
     addons: [],
-    // the brand logo and favicon (manager.ts); the oracle pictures are imported by the stories
-    staticDirs: [{ from: "./brand", to: "/" }],
+    // the brand logo and favicon (manager.ts); the oracle pictures are imported by the stories. The specimen
+    // sheets that name pictures beside them (DOT, GML) are served with them by their own file names
+    // (stories/fidelity.ts, #5344).
+    staticDirs: [
+        { from: "./brand", to: "/" },
+        ...["dot", "gml"].map((f) => ({ from: `../../test/fidelity/specimens/${f}`, to: `/fidelity/specimens/${f}` })),
+    ],
     framework: {
-        name: "@storybook/web-components-vite",
+        name: framework,
         options: {},
     },
     core: {
@@ -21,6 +35,7 @@ const config: StorybookConfig = {
         const { mergeConfig } = await import("vite");
         // Host, port and HTTPS come from the `storybook` npm script's CLI flags, which servherd fills in.
         return mergeConfig(config, {
+            plugins: [stubAnthropicNodeToolset()],
             server: {
                 allowedHosts: true,
                 // graphty-element's source and graph-io's samples sit outside this package
@@ -29,7 +44,9 @@ const config: StorybookConfig = {
             optimizeDeps: {
                 exclude: ["@mlc-ai/web-llm"],
                 // Pre-bundled rather than discovered mid-run (graphty-element/.storybook/main.ts says why).
-                include: ["lit/directives/ref.js"],
+                // The DOT stories load Graphviz on first use, which the start-up scan does not see: found
+                // mid-run, it reloaded the test page in every story-test run (#4145).
+                include: ["lit/directives/ref.js", "@hpcc-js/wasm-graphviz"],
             },
             resolve: {
                 // graphty-element loads the in-browser LLM from a CDN at run time; the stories never use it

@@ -8,14 +8,20 @@
  * test runs under walk the whole history on every write by design, and would be counted here.
  */
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
 import type { GraphSession } from "../../src/session/types";
 import { assertScalesLinearly, type Growth, visitsDuring } from "../helpers/cost";
-import { makeSession } from "./helpers";
+import { makeSession, withConsumerStrictState } from "./helpers";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /** The two graph sizes: big enough that a quadratic path is 16x, small enough to stay cheap. */
 const SIZES = [200, 800] as const;
@@ -58,23 +64,16 @@ function partitionOf(size: number): (context: RunExecutionContext) => Promise<Ru
 
 /**
  * A session over a path of `size` nodes, each with a weight and one of five groups, whose runs
- * publish that partition. Strict state is off, as it is for a consumer.
+ * publish that partition. Build it inside `withConsumerStrictState`.
  * @param size - The node count.
  * @returns The session.
  */
 function pathSession(size: number): GraphSession {
-    const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
-    const strict = scope.__GRAPHTY_STRICT_STATE__;
-    scope.__GRAPHTY_STRICT_STATE__ = false;
-    try {
-        const harness = makeSession({ runs: { execute: partitionOf(size) } });
-        const nodes = ids(size).map((id, at) => ({ id, weight: at, group: at % 5 }));
-        const edges = nodes.slice(1).map((node, at) => ({ src: `n${String(at)}`, dst: node.id, w: at }));
-        harness.add(nodes, edges);
-        return harness.session;
-    } finally {
-        scope.__GRAPHTY_STRICT_STATE__ = strict;
-    }
+    const harness = makeSession({ runs: { execute: partitionOf(size) } });
+    const nodes = ids(size).map((id, at) => ({ id, weight: at, group: at % 5 }));
+    const edges = nodes.slice(1).map((node, at) => ({ src: `n${String(at)}`, dst: node.id, w: at }));
+    harness.add(nodes, edges);
+    return harness.session;
 }
 
 /**
@@ -104,11 +103,6 @@ interface Case {
     /** `linear` when the call reaches every node, `constant` when it reaches one record. */
     readonly growth: Growth;
     /**
-     * The issue recording that the method does more work than its reach today. Its test is
-     * expected to fail until the issue is fixed, and the method stays out of the registry.
-     */
-    readonly superlinear?: number;
-    /**
      * Build the state the call needs and return the call.
      * @param session - A fresh session over a path of `size` nodes.
      * @param size - The node count.
@@ -118,6 +112,20 @@ interface Case {
 }
 
 const RED = "#ff0000";
+
+/** A node shader with one parameter, as a reader pastes it. */
+const TINT = `/* graphty-shader 1
+{
+    "id": "user/tint",
+    "name": "Tint",
+    "place": "paint",
+    "params": [{ "name": "amount", "type": "number", "default": 0.5, "min": 0, "max": 1 }]
+}
+*/
+vec4 shade(NodeInput n) {
+    return vec4(n.color.rgb * amount, n.color.a);
+}
+`;
 
 /** A saved view: one camera state, the same at any graph size. */
 const VIEW = { position: { x: 0, y: 0, z: 10 }, target: { x: 0, y: 0, z: 0 } };
@@ -285,6 +293,15 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "SelectionApi.restore",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.selection.apply({ nodes: ids(size) });
+            session.selection.clear();
+            return () => session.selection.restore();
+        },
+    },
+    {
         method: "SelectionApi.previewHover",
         growth: "linear",
         prepare: async (session, size) => {
@@ -294,6 +311,17 @@ const CASES: readonly Case[] = [
                 session.selection.previewHover(true);
                 await session.styles.settled();
             };
+        },
+    },
+    {
+        method: "SelectionApi.peek",
+        growth: "linear",
+        prepare: (session, size) => {
+            setDefaultFeatures(["timeline", "assistant"]);
+            return Promise.resolve(async () => {
+                await session.selection.peek({ nodes: ids(size) });
+                await session.styles.settled();
+            });
         },
     },
     {
@@ -579,15 +607,6 @@ const CASES: readonly Case[] = [
         },
     },
     {
-        method: "StylesApi.restoreStartingRows",
-        growth: "linear",
-        prepare: (session) =>
-            Promise.resolve(async () => {
-                await session.styles.restoreStartingRows();
-                await session.styles.settled();
-            }),
-    },
-    {
         method: "StylesApi.deleteRow",
         growth: "linear",
         prepare: async (session) => {
@@ -679,6 +698,28 @@ const CASES: readonly Case[] = [
         growth: "linear",
         prepare: (session) => Promise.resolve(() => session.data.setValueLabel("data.group", 1, "First")),
     },
+    // The column commands: each walks the column once, never once per row per row.
+    {
+        method: "SessionDataApi.setRole",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.data.setRole({ kind: "node", name: "group" }, "label")),
+    },
+    {
+        method: "SessionDataApi.setType",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.data.setType({ kind: "node", name: "weight" }, "text")),
+    },
+    {
+        method: "SessionDataApi.renameColumn",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() => session.data.renameColumn({ kind: "node", name: "weight" }, "mass")),
+    },
+    {
+        method: "SessionDataApi.setHidden",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.data.setHidden([{ kind: "node", name: "group" }], true)),
+    },
     // Visibility, scope and settings
     {
         method: "VisibilityApi.set",
@@ -686,10 +727,112 @@ const CASES: readonly Case[] = [
         prepare: (session) => Promise.resolve(() => session.visibility.set({ kind: "degree", min: 2 })),
     },
     {
+        method: "VisibilityApi.setSteps",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() =>
+                session.visibility.setSteps([{ id: "s", on: true, rule: { kind: "degree", min: 2 } }]),
+            ),
+    },
+    {
+        method: "VisibilityApi.setConditions",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() =>
+                session.visibility.setConditions([
+                    { effect: "exclude", rule: { kind: "degree", min: 2 } },
+                    { effect: "select", rule: { kind: "degree", max: 1 } },
+                ]),
+            ),
+    },
+    {
+        method: "VisibilityApi.addCondition",
+        growth: "linear",
+        prepare: (session) =>
+            Promise.resolve(() =>
+                session.visibility.addCondition({ effect: "select", rule: { kind: "degree", min: 2 } }),
+            ),
+    },
+    {
+        method: "VisibilityApi.updateCondition",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.visibility.addCondition({ id: "c", effect: "keep", rule: { kind: "degree", min: 2 } });
+            return () => session.visibility.updateCondition("c", { effect: "select" });
+        },
+    },
+    {
+        method: "FilterDraft.commit",
+        growth: "linear",
+        prepare: (session) => {
+            const draft = session.visibility.draft({ effect: "keep", rule: { kind: "degree", min: 2 } });
+            draft.update({ rule: { kind: "degree", min: 1 } });
+            return Promise.resolve(() => draft.commit());
+        },
+    },
+    {
+        method: "VisibilityApi.removeCondition",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.visibility.addCondition({ id: "c", effect: "exclude", rule: { kind: "degree", min: 2 } });
+            return () => session.visibility.removeCondition("c");
+        },
+    },
+    {
         method: "VisibilityApi.setWindow",
         growth: "linear",
         prepare: (session, size) =>
             Promise.resolve(() => session.visibility.setWindow({ attribute: "data.weight", from: 0, to: size / 2 })),
+    },
+    {
+        method: "TimeApi.setField",
+        growth: "linear",
+        prepare: (session) => Promise.resolve(() => session.time.setField({ edges: { start: "w" } })),
+    },
+    {
+        method: "TimeApi.window",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            return () => session.time.window({ from: 0, to: size / 2 });
+        },
+    },
+    {
+        method: "TimeApi.stepBy",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: 10, step: 10 });
+            return () => session.time.stepBy(1);
+        },
+    },
+    {
+        method: "TimeApi.commit",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: 10, step: 10 });
+            await session.time.seek(size / 2, { commit: false });
+            return () => session.time.commit();
+        },
+    },
+    {
+        method: "TimeApi.seek",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: 10, step: 10 });
+            return () => session.time.seek(size / 2);
+        },
+    },
+    {
+        method: "TimeApi.setSettings",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.time.setField({ edges: { start: "w" } });
+            await session.time.window({ from: 0, to: size / 2, step: 10 });
+            return () => session.time.setSettings({ step: 5 });
+        },
     },
     {
         method: "ScopeApi.save",
@@ -796,22 +939,163 @@ const CASES: readonly Case[] = [
             };
         },
     },
+    // Runs, highlight colour and playback
+    {
+        method: "RunsApi.move",
+        growth: "linear",
+        prepare: async (session) => {
+            const run = await session.runs.start("louvain", {});
+            await session.styles.settled();
+            await everyNodeLayer(session);
+            return async () => {
+                await session.runs.move(run.runId, null);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "RunsApi.rename",
+        growth: "constant",
+        prepare: async (session) => {
+            const run = await session.runs.start("louvain", {});
+            await session.styles.settled();
+            return async () => {
+                await session.runs.rename(run.runId, "Groups");
+            };
+        },
+    },
+    {
+        method: "StylesApi.setHighlightColor",
+        growth: "constant",
+        prepare: (session) =>
+            Promise.resolve(() => {
+                session.styles.setHighlightColor(BLUE);
+            }),
+    },
+    {
+        method: "TimeApi.play",
+        growth: "linear",
+        prepare: async (session) => {
+            await session.time.setField({ edges: { start: "w" } });
+            // One step of a play: it opens the first window, and is paused once that step is shown.
+            return () =>
+                new Promise<void>((done) => {
+                    const off = session.on("time:step", () => {
+                        off();
+                        session.time.pause();
+                        done();
+                    });
+                    session.time.play({ motion: "steps", step: 10 });
+                });
+        },
+    },
+    // Loads that replace the graph with one of the same size
+    {
+        method: "SessionDataApi.generate",
+        growth: "linear",
+        prepare: (session, size) => Promise.resolve(() => session.data.generate("cycle", { n: size })),
+    },
+    {
+        method: "SessionDataApi.loadDataset",
+        growth: "linear",
+        prepare: (session, size) => {
+            const source = pathSession(size);
+            const bytes = source.data.snapshot().toBytes();
+            source.dispose();
+            // A mirror answering from memory, never the network.
+            vi.stubGlobal("fetch", (): Promise<Response> => Promise.resolve(new Response(bytes)));
+            return Promise.resolve(() => session.data.loadDataset("scaling-path", { baseUrl: "https://mirror.test/" }));
+        },
+    },
+    // Shaders, applied to a layer painting every node
+    {
+        method: "SessionShaders.add",
+        growth: "linear",
+        prepare: async (session) => {
+            const layer = await everyNodeLayer(session);
+            return async () => {
+                assert.isTrue((await session.shaders.add(TINT, { apply: { layer } })).ok);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "SessionShaders.replace",
+        growth: "linear",
+        prepare: async (session) => {
+            const layer = await everyNodeLayer(session);
+            await session.shaders.add(TINT, { apply: { layer } });
+            await session.styles.settled();
+            return async () => {
+                assert.isTrue((await session.shaders.replace("user/tint", TINT.replace("0.5", "0.25"))).ok);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "SessionShaders.remove",
+        growth: "linear",
+        prepare: async (session) => {
+            const layer = await everyNodeLayer(session);
+            await session.shaders.add(TINT, { apply: { layer } });
+            await session.styles.settled();
+            return async () => {
+                await session.shaders.remove("user/tint");
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "SessionShaders.approve",
+        growth: "linear",
+        prepare: async (session) => {
+            const layer = await everyNodeLayer(session);
+            // Text that arrives in content is held until the reader approves it.
+            await session.shaders.add(TINT, { source: "content", apply: { layer } });
+            await session.styles.settled();
+            return async () => {
+                assert.isTrue((await session.shaders.approve("user/tint")).ok);
+                await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "SessionShaders.fromCatalog",
+        growth: "linear",
+        prepare: async (session) => {
+            // The project holds pearl's id with other text, so the pick copies pearl in under a fresh id.
+            await session.styles.applyTemplate({
+                version: 1,
+                layers: [],
+                shaders: [{ id: "pearl", text: TINT.replace('"user/tint"', '"pearl"') }],
+            });
+            await session.styles.settled();
+            return async () => {
+                assert.notStrictEqual(await session.shaders.fromCatalog("pearl"), "pearl");
+                await session.styles.settled();
+            };
+        },
+    },
 ];
 
 describe("the session's mutating methods do work in proportion to their reach", () => {
-    for (const { method, growth, superlinear, prepare } of CASES) {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        // Put back this file's default (the timeline on) after a case that switched more on.
+        setDefaultFeatures(["timeline"]);
+    });
+    for (const { method, growth, prepare } of CASES) {
         const reach = growth === "linear" ? "no more than linear in the graph" : "about the same at any size";
-        // A method with an open superlinear issue is expected to fail, so the fix turns it green.
-        const test = superlinear === undefined ? it : it.fails;
-        test(`${method}: ${reach}${superlinear === undefined ? "" : ` (not yet: #${String(superlinear)})`}`, async () => {
+        it(`${method}: ${reach}`, async () => {
             await assertScalesLinearly(
-                async (size) => {
-                    const session = pathSession(size);
-                    const call = await prepare(session, size);
-                    const visits = await visitsDuring(call);
-                    session.dispose();
-                    return visits;
-                },
+                (size) =>
+                    withConsumerStrictState(async () => {
+                        const session = pathSession(size);
+                        const call = await prepare(session, size);
+                        const visits = await visitsDuring(call);
+                        session.dispose();
+                        return visits;
+                    }),
                 { sizes: SIZES, growth, counter: `elements visited by ${method}` },
             );
         });

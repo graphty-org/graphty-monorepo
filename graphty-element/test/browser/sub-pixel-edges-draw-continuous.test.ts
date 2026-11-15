@@ -113,7 +113,7 @@ describe("a sub-pixel 2D line", () => {
      * @param pixelsWide - The edge's width on screen, in render pixels.
      * @returns The frame and the edge's line batch.
      */
-    async function drawEdge(pixelsWide: number): Promise<{ pixels: Uint8Array; batch: EdgeLineBatch }> {
+    async function drawEdge(pixelsWide: number): Promise<{ pixels: Uint8Array; batch: EdgeLineBatch | null }> {
         container = document.createElement("div");
         container.style.width = `${String(WIDTH)}px`;
         container.style.height = `${String(HEIGHT)}px`;
@@ -150,8 +150,8 @@ describe("a sub-pixel 2D line", () => {
         assert.equal(engine.getRenderWidth(), WIDTH);
         const pixels = (await engine.readPixels(0, 0, WIDTH, HEIGHT)) as unknown as Uint8Array;
         const [edge] = graph.getDataManager().edges.values();
+        // null on "batched", where the line is pulled from the row table (`PulledLineBatch`)
         const batch = (edge as unknown as { lineBatch: EdgeLineBatch | null }).lineBatch;
-        assert(batch, "the edge is a slot in a line batch");
         return { pixels, batch };
     }
 
@@ -165,6 +165,12 @@ describe("a sub-pixel 2D line", () => {
 
     test("a line of one pixel or more keeps its own width and opacity", async () => {
         const { batch } = await drawEdge(3);
+        if (graph?.renderPath === "batched") {
+            // a pulled line carries its width per piece, not on its material
+            return;
+        }
+
+        assert(batch, "the edge is a slot in a line batch");
         const { material } = batch.mesh;
         assert(material, "the batch has a material");
         assert.equal(material.alpha, 1);

@@ -3,9 +3,10 @@
  *
  * The peer, `@graphty/webgpu-graph-algorithms`, is never imported here: its modules arrive as
  * arguments. Two callers hand them over. The root entry point loads them itself the first time
- * a controller probes (`./autoload.ts`), and the explicit `./webgpu` entry point imports them
- * statically. Both build the same factory through {@link createWebGpuFactory}, so the self-check,
- * the software-adapter rule, the ceiling and the device-loss wiring are written once.
+ * a controller probes (`./autoload.ts`), and the explicit `./webgpu` entry point
+ * loads them when it is first asked. Both build the same factory through {@link createWebGpuFactory}, so the self-check,
+ * the software-adapter rule, the ceiling and the device-loss wiring are written once. The explicit
+ * entry point loads them on first use too (issue #6389).
  *
  * Only `import type` reaches the peer from this file, and the emitter deletes it, so nothing at
  * run time and nothing in a published signature names the peer.
@@ -29,7 +30,11 @@
  */
 
 import type { GpuAccelerator } from "@graphty/webgpu-graph-algorithms";
-import type { AcceleratorDeclined, acquireAccelerator } from "@graphty/webgpu-graph-algorithms/browser";
+import type {
+    AcceleratorDeclined,
+    acquireAccelerator,
+    summarizeAdapter,
+} from "@graphty/webgpu-graph-algorithms/browser";
 
 import { GraphtyError } from "../errors";
 import type { AcceleratorFactory, AcceleratorFactoryOptions, GraphAccelerator } from "./types";
@@ -44,6 +49,8 @@ export interface WebGpuPeerRoot {
 export interface WebGpuPeerBrowser {
     /** Acquires a checked accelerator, or says why there is none. */
     readonly acquireAccelerator: typeof acquireAccelerator;
+    /** Describes an adapter; read to decide whether the accelerator shares the renderer's device. */
+    readonly summarizeAdapter?: typeof summarizeAdapter;
 }
 
 /** The name the WebGPU accelerator is registered and reported under. */
@@ -214,6 +221,7 @@ export function createWebGpuFactory(root: WebGpuPeerRoot, browser: WebGpuPeerBro
         const gpu = acquire({
             acceptSoftware: options?.acceptSoftware ?? false,
             accelerator: exactMaxNodes === undefined ? undefined : { layout: { exactMaxNodes } },
+            ...(options?.device === undefined ? {} : { device: options.device as GPUDevice }),
         });
         const result = await gpu.current();
         if (!result.ok) {
@@ -224,4 +232,16 @@ export function createWebGpuFactory(root: WebGpuPeerRoot, browser: WebGpuPeerBro
             gpu.dispose();
         });
     };
+}
+
+/**
+ * Builds the registration's `sharesDevice` answer over the peer's `/browser` module.
+ * @param browser - The peer's browser module.
+ * @returns Whether the accelerator should run on the device the renderer opens on an adapter: not
+ * on a software adapter, which draws a frame slower with the layout on the same device than beside
+ * it. A peer without `summarizeAdapter` says no, and the accelerator finds its own device.
+ */
+export function createWebGpuSharesDevice(browser: Pick<WebGpuPeerBrowser, "summarizeAdapter">): (adapter: unknown) => boolean {
+    const { summarizeAdapter: summarize } = browser;
+    return (adapter) => summarize !== undefined && !summarize(adapter as GPUAdapter).software;
 }

@@ -6,9 +6,17 @@
  */
 
 import { formatDescriptor } from "@graphty/graphty-element/catalog";
-import type { ColumnRole, DraftTable, LoadChoices, LoadDraft, TableMapping } from "@graphty/graphty-element/session";
+import {
+    type ColumnRole,
+    type DraftColumn,
+    type DraftTable,
+    LOAD_ROLES,
+    type LoadChoices,
+    type LoadDraft,
+    type TableMapping,
+} from "@graphty/graphty-element/session";
 
-import { fileStylesChoice } from "../settings/preferences";
+import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
 
 /** A column's role on the page: one of the element's roles, or "attribute" (no role). */
 export type PageRole = ColumnRole | "attribute";
@@ -21,6 +29,8 @@ interface TableEdits {
     readonly roles: Readonly<Record<string, PageRole>>;
     /** What the weight means, once the reader chose; unset until then (tier2-design.md section 5). */
     readonly weightMeaning?: NonNullable<TableMapping["weightMeaning"]>;
+    /** How a number time column is read, once the reader chose. */
+    readonly timeUnit?: NonNullable<TableMapping["timeUnit"]>;
 }
 
 /** Every choice on the page. */
@@ -38,10 +48,11 @@ export const INITIAL_CHOICES: PageChoices = { tables: {}, unmatched: "leave-out"
 
 /**
  * The choices a new draft starts with: the defaults, with the reader's import-styles preference.
+ * @param fileStyles - whether the element's file styles experiment is on; off, no styles are drawn.
  * @returns the choices.
  */
-export function initialChoices(): PageChoices {
-    return { ...INITIAL_CHOICES, styles: fileStylesChoice() };
+export function initialChoices(fileStyles = false): PageChoices {
+    return { ...INITIAL_CHOICES, styles: fileStyles ? fileStylesChoice() : "none" };
 }
 
 /**
@@ -53,16 +64,6 @@ export function initialChoices(): PageChoices {
 export function offersStyles(draft: LoadDraft): boolean {
     return draft.styles?.declared === true || formatDescriptor(draft.type)?.styles?.read === true;
 }
-
-/**
- * The roles a table of each kind takes, in menu order (the element's own role names).
- * Temporary: the element keeps this list private (`session/draft.ts` ROLES) and does not export
- * it; #926 asks it to. Delete this copy when it does.
- */
-export const ROLES_BY_KIND: Readonly<Record<"nodes" | "edges", readonly ColumnRole[]>> = {
-    nodes: ["key", "label", "time"],
-    edges: ["source", "target", "weight", "time", "edgeId"],
-};
 
 /**
  * What each row of a table becomes: the reader's choice, else the element's reading.
@@ -107,6 +108,19 @@ export function elementRole(
         return undefined;
     }
     return table.columns.find((each) => each.name === column)?.suggested ?? "attribute";
+}
+
+/**
+ * Whether a column should say it looks like time: graphty-element found it so, and the reader has
+ * not made it the time column yet.
+ * @param draft - the draft.
+ * @param table - the table.
+ * @param column - the column.
+ * @param choices - the page's choices.
+ * @returns true when the mark shows.
+ */
+export function timeMarked(draft: LoadDraft, table: DraftTable, column: DraftColumn, choices: PageChoices): boolean {
+    return column.looksLike === "time" && roleOf(draft, table, column.name, choices) !== "time";
 }
 
 /**
@@ -183,12 +197,24 @@ export function setWeightMeaning(
     meaning: NonNullable<TableMapping["weightMeaning"]> | undefined,
     choices: PageChoices,
 ): PageChoices {
-    const { rowsAre, roles } = choices.tables[table.id] ?? { roles: {} };
-    const edits: TableEdits = {
-        ...(rowsAre === undefined ? {} : { rowsAre }),
-        roles,
-        ...(meaning === undefined ? {} : { weightMeaning: meaning }),
-    };
+    const { weightMeaning: _was, ...rest } = choices.tables[table.id] ?? { roles: {} };
+    const edits: TableEdits = { ...rest, ...(meaning === undefined ? {} : { weightMeaning: meaning }) };
+    return { ...choices, tables: { ...choices.tables, [table.id]: edits } };
+}
+
+/**
+ * Says how a table's number time column is read.
+ * @param table - the table.
+ * @param unit - the unit.
+ * @param choices - the page's choices.
+ * @returns the new choices.
+ */
+export function setTimeUnit(
+    table: DraftTable,
+    unit: NonNullable<TableMapping["timeUnit"]>,
+    choices: PageChoices,
+): PageChoices {
+    const edits: TableEdits = { ...(choices.tables[table.id] ?? { roles: {} }), timeUnit: unit };
     return { ...choices, tables: { ...choices.tables, [table.id]: edits } };
 }
 
@@ -212,6 +238,29 @@ export function setRowsAre(
 }
 
 /**
+ * The mapping of a table whose roles the file sets: only the time column the reader picked.
+ * @param draft - the draft.
+ * @param table - the table.
+ * @param edits - the reader's edits to it.
+ * @param choices - the page's choices.
+ * @returns the mapping, or undefined when the reader picked none.
+ */
+function fixedTableMapping(
+    draft: LoadDraft,
+    table: DraftTable,
+    edits: TableEdits,
+    choices: PageChoices,
+): TableMapping | undefined {
+    const time = table.columns.find(
+        (column) => column.looksLike === "time" && roleOf(draft, table, column.name, choices) === "time",
+    );
+    if (time === undefined) {
+        return undefined;
+    }
+    return { time: time.name, ...(edits.timeUnit === undefined ? {} : { timeUnit: edits.timeUnit }) };
+}
+
+/**
  * One table's mapping from the reader's edits: each role the reader placed, and `null` for a role
  * the element had placed on a column the reader took it from.
  * @param draft - the draft.
@@ -221,12 +270,15 @@ export function setRowsAre(
  */
 function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices): TableMapping | undefined {
     const edits = choices.tables[table.id];
-    if (edits === undefined || table.fixed) {
+    if (edits === undefined) {
         return undefined;
+    }
+    if (table.fixed) {
+        return fixedTableMapping(draft, table, edits, choices);
     }
     const kind = rowsAreOf(draft, table, choices);
     const mapping: Record<string, string | null> = {};
-    for (const role of ROLES_BY_KIND[kind]) {
+    for (const role of LOAD_ROLES[kind].takes) {
         const holder = table.columns.find((column) => roleOf(draft, table, column.name, choices) === role);
         if (holder !== undefined) {
             mapping[role] = holder.name;
@@ -236,12 +288,15 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
     }
     const meaning =
         edits.weightMeaning !== undefined && kind === "edges" && weightHolder(draft, table, choices) !== undefined;
-    const changed = edits.rowsAre !== undefined || Object.keys(edits.roles).length > 0 || meaning;
+    const unit =
+        edits.timeUnit !== undefined && table.columns.some((c) => roleOf(draft, table, c.name, choices) === "time");
+    const changed = edits.rowsAre !== undefined || Object.keys(edits.roles).length > 0 || meaning || unit;
     return changed
         ? {
               ...(edits.rowsAre === undefined ? {} : { rowsAre: edits.rowsAre }),
               ...mapping,
               ...(meaning ? { weightMeaning: edits.weightMeaning } : {}),
+              ...(unit ? { timeUnit: edits.timeUnit } : {}),
           }
         : undefined;
 }
@@ -251,9 +306,15 @@ function tableMapping(draft: LoadDraft, table: DraftTable, choices: PageChoices)
  * @param draft - the draft.
  * @param choices - the page's choices.
  * @param mode - "replace" for a new graph, "merge" to add to the open project.
+ * @param fileStyles - whether the element's file styles experiment is on; off, no styles are asked for.
  * @returns the choices `report` and `load` take.
  */
-export function loadChoices(draft: LoadDraft, choices: PageChoices, mode: "replace" | "merge"): LoadChoices {
+export function loadChoices(
+    draft: LoadDraft,
+    choices: PageChoices,
+    mode: "replace" | "merge",
+    fileStyles = false,
+): LoadChoices {
     const tables: Record<string, TableMapping> = {};
     for (const table of draft.tables) {
         const mapping = tableMapping(draft, table, choices);
@@ -265,7 +326,92 @@ export function loadChoices(draft: LoadDraft, choices: PageChoices, mode: "repla
         mode,
         unmatched: choices.unmatched,
         directed: choices.directed,
-        styles: choices.styles,
+        ...(fileStyles ? { styles: choices.styles, styleOptions: FILE_STYLE_OPTIONS } : {}),
         ...(Object.keys(tables).length > 0 ? { mapping: { tables } } : {}),
     };
+}
+
+/**
+ * The column a mapping's role names, when it names one of the table's columns: a column name, or
+ * an end's `{ column }`.
+ * @param table - the table.
+ * @param value - the role's value in the mapping.
+ * @returns the column's name, or undefined.
+ */
+function mappedColumn(table: DraftTable, value: unknown): string | undefined {
+    const name = typeof value === "object" && value !== null && "column" in value ? value.column : value;
+    return table.columns.some((column) => column.name === name) ? (name as string) : undefined;
+}
+
+/**
+ * Each table's mapping in a load's choices, by table id: a bare mapping is the draft's one table's.
+ * @param draft - the draft.
+ * @param mapping - the load's mapping.
+ * @returns the mappings.
+ */
+function tablesOf(draft: LoadDraft, mapping: LoadChoices["mapping"]): Readonly<Record<string, TableMapping>> {
+    if (mapping === undefined) {
+        return {};
+    }
+    if ("tables" in mapping) {
+        return mapping.tables;
+    }
+    const [only] = draft.tables;
+    return only === undefined ? {} : { [only.id]: mapping };
+}
+
+/**
+ * Lays one table's mapping from a load's choices onto the page's choices.
+ * @param draft - the draft.
+ * @param table - the table.
+ * @param read - the table's mapping.
+ * @param start - the page's choices so far.
+ * @returns the new choices.
+ */
+function carryTable(draft: LoadDraft, table: DraftTable, read: TableMapping, start: PageChoices): PageChoices {
+    let choices = read.rowsAre === undefined ? start : setRowsAre(draft, table, read.rowsAre, start);
+    for (const role of LOAD_ROLES[rowsAreOf(draft, table, choices)].takes) {
+        const value = (read as Readonly<Record<string, unknown>>)[role];
+        // A null role is one the load took off the column the element gave it.
+        const column =
+            value === null
+                ? table.columns.find((each) => roleOf(draft, table, each.name, choices) === role)?.name
+                : mappedColumn(table, value);
+        if (column !== undefined) {
+            choices = setRole(draft, table, column, value === null ? "attribute" : role, choices);
+        }
+    }
+    if (read.weightMeaning !== undefined && read.weightMeaning !== null) {
+        choices = setWeightMeaning(table, read.weightMeaning, choices);
+    }
+    if (read.timeUnit !== undefined && read.timeUnit !== null) {
+        choices = setTimeUnit(table, read.timeUnit, choices);
+    }
+    return choices;
+}
+
+/**
+ * The page's choices for a load's own `LoadChoices` (`LoadedSource.choices`), read onto a draft of
+ * the same data or of a newer copy, so Edit source... and Replace with file... open on the roles
+ * the load was read with. A role naming a column the draft lacks is left to the element's reading.
+ * @param draft - the draft.
+ * @param carried - the choices the load was read with.
+ * @param fileStyles - whether the element's file styles experiment is on.
+ * @returns the page's choices.
+ */
+export function carriedChoices(draft: LoadDraft, carried: LoadChoices, fileStyles = false): PageChoices {
+    let choices: PageChoices = {
+        ...initialChoices(fileStyles),
+        ...(carried.unmatched === undefined ? {} : { unmatched: carried.unmatched }),
+        ...(carried.directed === undefined ? {} : { directed: carried.directed }),
+        ...(fileStyles && carried.styles !== undefined ? { styles: carried.styles } : {}),
+    };
+    const tables = tablesOf(draft, carried.mapping);
+    for (const table of draft.tables) {
+        const read = tables[table.id];
+        if (read !== undefined) {
+            choices = carryTable(draft, table, read, choices);
+        }
+    }
+    return choices;
 }

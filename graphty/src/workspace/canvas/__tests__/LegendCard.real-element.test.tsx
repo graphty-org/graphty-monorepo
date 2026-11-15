@@ -15,30 +15,15 @@ import { assert, describe, it } from "vitest";
 import { cdp, page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
+import { inBothSchemes, insetRing } from "../../../test/focus-ring";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and runs finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
-/**
- * Waits until the element holds the room the store reserves, so the camera has the insets to frame
- * with before the next stable frame is read.
- * @param element - the element.
- * @param store - the workspace store.
- */
-async function insetsInForce(element: HTMLElementTagNameMap["graphty-element"], store: WorkspaceStore): Promise<void> {
-    await waitFor(
-        () => {
-            const held = element.viewInsets;
-            for (const [side, room] of Object.entries(store.get().viewInsets)) {
-                assert.strictEqual(held[side as keyof typeof held], room, `the ${side} inset reached the element`);
-            }
-        },
-        { timeout: TIMEOUT_MS },
-    );
-}
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** Where the pictures for the owner's review go, relative to this file. */
 const SHOTS = "../../../../../design/ui/studio/tier3/build/tree-key-settings";
@@ -58,14 +43,11 @@ async function scene(
     await page.viewport(width, height);
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
     render(<Workspace store={store} />);
-    const element = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const element = await waitFor(() => {
+        const found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+        return found;
+    });
     const session = element?.session;
     if (element === null || session === undefined) {
         throw new Error("the element never came up");
@@ -115,8 +97,8 @@ async function longKey(): Promise<{
         encode: { "node.shape": { by: group, scale: "ordinal" } },
     });
     await session.styles.settled();
-    const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-    await within(legend).findByRole("group", { name: /^Shape: / }, { timeout: TIMEOUT_MS });
+    const legend = await screen.findByRole("region", { name: "Legend" });
+    await within(legend).findByRole("group", { name: /^Shape: / });
     return { session, element, store, legend };
 }
 
@@ -179,8 +161,8 @@ async function wheelOver(element: HTMLElement, deltaY: number): Promise<void> {
 describe("the canvas key on the real element", () => {
     it("keys only what a reader can read, groups in rank order, with chits ringed on the dark card", async () => {
         await scene(1440, 900);
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        const louvain = await within(legend).findByRole("group", { name: "Color: Louvain" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        const louvain = await within(legend).findByRole("group", { name: "Color: Louvain" });
 
         const titles = within(legend)
             .getAllByRole("group")
@@ -224,8 +206,8 @@ describe("the canvas key on the real element", () => {
             set: { "edge.style": "solid", "edge.patternCount": 2 },
         });
         await session.styles.settled();
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        const line = await within(legend).findByRole("group", { name: "Edge line: Bob" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        const line = await within(legend).findByRole("group", { name: "Edge line: Bob" });
         const titles = within(legend)
             .getAllByRole("group")
             // A section of one row named as its title takes no name of its own: its row says it.
@@ -241,8 +223,8 @@ describe("the canvas key on the real element", () => {
 
     it("keys what encodes the data, never the Selected row's glow or halo, with a node selected", async () => {
         const { session } = await scene(1440, 900);
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await within(legend).findByRole("group", { name: "Color: Louvain" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        await within(legend).findByRole("group", { name: "Color: Louvain" });
         await session.selection.apply({ ids: [session.data.nodes()[0]?.id ?? ""] });
         await session.styles.settled();
         await waitFor(() => {
@@ -264,26 +246,32 @@ describe("the canvas key on the real element", () => {
     });
 
     it("at 900 x 700 leaves the drawing at least half the canvas's width", async () => {
-        const { session, element, store } = await longKey();
+        const { session, element } = await longKey();
         const canvas = element.closest<HTMLElement>(".ws-canvas");
         assert.isNotNull(canvas);
         const ids = session.data.nodes().map((node) => node.id);
-        // The key's room is reserved and the graph framed clear of it: wait for the inset, then for
-        // the frame after it to land and settle, and measure the drawing as it stays.
-        await waitFor(
-            () => {
-                assert.isNotEmpty(Object.keys(store.get().viewInsets));
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        await insetsInForce(element, store);
+        // The key floats over the drawing, which is framed in the whole canvas: measure it as it stays.
         await element.waitForStableFrame();
-        const xs = ids.flatMap((id) => {
-            const at = element.nodeScreenPosition(id);
-            return at === null || at === undefined ? [] : [at.x];
-        });
-        const span = Math.max(...xs) - Math.min(...xs);
-        assert.isAtLeast(span, (canvas?.clientWidth ?? 0) / 2, "the drawing's width on the canvas");
+        const measure = (): { count: number; min: number; max: number; span: number } => {
+            const xs = ids.flatMap((id) => {
+                const at = element.nodeScreenPosition(id);
+                return at === null || at === undefined ? [] : [at.x];
+            });
+            const min = Math.min(...xs);
+            const max = Math.max(...xs);
+            return { count: xs.length, min, max, span: max - min };
+        };
+        const first = measure();
+        const width = canvas?.clientWidth ?? 0;
+        if (first.span < width / 2) {
+            // Diagnostics for #3767 (passed on retry in CI, never reproduced locally): whether the
+            // "stable" frame was still moving shows in a second measurement after another wait.
+            await element.waitForStableFrame();
+            const again = measure();
+            assert.fail(
+                `the drawing's width on the canvas: ${JSON.stringify({ first, again, canvasWidth: width, nodes: ids.length })}`,
+            );
+        }
         await page.screenshot({ path: `${SHOTS}/key-900x700.png` });
     });
 
@@ -322,6 +310,11 @@ describe("the canvas key on the real element", () => {
         assert.notStrictEqual(document.activeElement, legend);
         await userEvent.keyboard("{Tab}");
         assert.strictEqual(document.activeElement, legend);
+        // Its ring is the shared inset one, 3:1 against the card in both schemes (WCAG 1.4.11).
+        for (const [scheme, ring] of Object.entries(inBothSchemes(() => insetRing(legend)))) {
+            assert.isAtLeast(ring.width, 1, `${scheme}: the key draws a ring`);
+            assert.isAtLeast(ring.contrast, 3, `${scheme}: the ring is 3:1 against the card`);
+        }
         await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}");
         await waitFor(() => {
             assert.isAbove(legend.scrollTop, 0, "scrolled by the arrow keys");
@@ -335,8 +328,8 @@ describe("the canvas key on the real element", () => {
         await session.runs.start("edge-betweenness");
         await session.runs.start("shortest-path", { source: String(ids[0]), target: String(ids[11]) });
         await session.styles.settled();
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await within(legend).findByRole("group", { name: /Shortest path/ }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        await within(legend).findByRole("group", { name: /Shortest path/ });
         assert.notInclude(legend.textContent, "Shortest route");
         await page.screenshot({ path: `${SHOTS}/key-1366x768-three-runs.png` });
         await waitFor(() => {
@@ -347,7 +340,7 @@ describe("the canvas key on the real element", () => {
 
     it("at 200% zoom stays inside the canvas, clear of the inspector beside it", async () => {
         await scene(683, 384);
-        const legend = await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
+        const legend = await screen.findByRole("region", { name: "Legend" });
         const canvas = legend.closest<HTMLElement>(".ws-canvas") ?? legend.parentElement;
         await waitFor(() => {
             assert.isAtMost(
@@ -363,14 +356,11 @@ describe("the canvas key on the real element", () => {
         await page.viewport(1440, 900);
         const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
         render(<Workspace store={store} />);
-        const element = await waitFor(
-            () => {
-                const found = document.querySelector("graphty-element");
-                assert.isDefined(found?.session);
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const element = await waitFor(() => {
+            const found = document.querySelector("graphty-element");
+            assert.isDefined(found?.session);
+            return found;
+        });
         const session = element?.session;
         if (element === null || session === undefined) {
             throw new Error("the element never came up");
@@ -402,16 +392,7 @@ describe("the canvas key on the real element", () => {
             selector: { match: "ids", nodes: [session.data.nodes()[0]?.id ?? ""] },
             set: { "node.haloColor": "#ff00ff" },
         });
-        await waitFor(
-            () => {
-                assert.isDefined(
-                    store.get().viewInsets.left ?? store.get().viewInsets.top,
-                    "the key came up and reserved its room",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        await insetsInForce(element, store);
+        await screen.findByRole("region", { name: "Legend" });
         await element.waitForStableFrame();
 
         const now = drawn();
@@ -425,14 +406,11 @@ describe("the canvas key on the real element", () => {
         await page.viewport(1440, 900);
         const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
         render(<Workspace store={store} />);
-        const element = await waitFor(
-            () => {
-                const found = document.querySelector("graphty-element");
-                assert.isDefined(found?.session);
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const element = await waitFor(() => {
+            const found = document.querySelector("graphty-element");
+            assert.isDefined(found?.session);
+            return found;
+        });
         const session = element?.session;
         if (element === null || session === undefined) {
             throw new Error("the element never came up");
@@ -448,8 +426,12 @@ describe("the canvas key on the real element", () => {
             });
         const framed = drawn();
         const unmoved = async (what: string): Promise<void> => {
-            await insetsInForce(element, store);
             await element.waitForStableFrame();
+            assert.deepEqual(
+                element.viewInsets,
+                { top: 0, right: 0, bottom: 0, left: 0 },
+                "the key is an overlay, never a view inset",
+            );
             const now = drawn();
             assert.strictEqual(now.length, framed.length);
             now.forEach((value, at) => {
@@ -464,37 +446,89 @@ describe("the canvas key on the real element", () => {
             selector: { match: "ids", nodes: [session.data.nodes()[0]?.id ?? ""] },
             set: { "node.color": "#ff00ff" },
         });
-        await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-        await waitFor(
-            () => {
-                assert.isDefined(
-                    store.get().viewInsets.left ?? store.get().viewInsets.top,
-                    "the key came up and reserved its room",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await screen.findByRole("region", { name: "Legend" });
         await unmoved("the key coming up moved the drawing");
 
         await session.runs.start("louvain");
         await session.styles.settled();
-        await waitFor(
-            () => {
-                const legend = screen.getByRole("region", { name: "Legend" });
-                assert.isAtLeast(within(legend).getAllByRole("group").length, 2, "the key grew by the run's groups");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const legend = screen.getByRole("region", { name: "Legend" });
+            assert.isAtLeast(within(legend).getAllByRole("group").length, 2, "the key grew by the run's groups");
+        });
         await unmoved("the key growing as a run ended moved the drawing");
 
         await session.undo();
         await session.undo();
-        await waitFor(
-            () => {
-                assert.isNull(screen.queryByRole("region", { name: "Legend" }), "Undo took the key away");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("region", { name: "Legend" }), "Undo took the key away");
+        });
         await unmoved("Undo taking the key away moved the drawing");
+    });
+
+    it("does not come up for an effect, and names the effect when the reader asks for the key", async () => {
+        await page.viewport(1440, 900);
+        const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, inspected: null });
+        render(<Workspace store={store} />);
+        const element = await waitFor(() => {
+            const found = document.querySelector("graphty-element");
+            assert.isDefined(found?.session);
+            return found;
+        });
+        const session = element?.session;
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
+        await session.config.set({ startingRows: true, editableBase: true });
+        const ids = session.data.nodes().map((node) => node.id);
+        const layer = await session.styles.add({
+            name: "Glowing",
+            target: "node",
+            selector: { match: "ids", nodes: ids.slice(0, 5) },
+            set: { "node.shaders": [{ shader: "uncertainty-aura" }] },
+        });
+        await session.styles.settled();
+        await element?.waitForStableFrame();
+        // A style write of a shader is no reason for the key to come up.
+        assert.isNull(screen.queryByRole("region", { name: "Legend" }));
+        assert.isFalse(store.get().keyHasEntries);
+
+        // Asked for, the key names the shader, as the catalog does.
+        store.set({ legendShown: true, legendAsked: true });
+        const legend = await screen.findByRole("region", { name: "Legend" });
+        const section = await within(legend).findByRole("group", { name: "Shaders: Glowing" });
+        assert.deepEqual(
+            [...section.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent),
+            ["Aura"],
+        );
+
+        // A shader a project adds is named by its catalog name, as a built-in is.
+        const added = await session.shaders.add(`/* graphty-shader 1
+{ "id": "acme/sticker", "name": "Sticker", "place": "replace" }
+*/
+vec4 shade(NodeInput n) {
+    return vec4(n.color.rgb, step(length(n.uv), 0.9));
+}
+`);
+        assert.isTrue(added.ok, JSON.stringify(added));
+        const sticker = added.ok ? added.descriptor.id : "";
+        await session.styles.update(layer.id, {
+            set: { "node.shaders": [{ shader: "uncertainty-aura" }, { shader: sticker }] },
+        });
+        await session.styles.settled();
+        await waitFor(() => {
+            const now = within(legend).getByRole("group", { name: "Shaders: Glowing" });
+            assert.deepEqual(
+                [...now.querySelectorAll(".cm-data-row-name")].map((name) => name.textContent),
+                ["Aura, Sticker"],
+            );
+        });
+
+        // A shader the layer turns off draws nothing, so its block goes: no empty "Shaders" block.
+        await session.styles.update(layer.id, { set: { "node.shaders": [{ shader: "uncertainty-aura", off: true }] } });
+        await session.styles.settled();
+        await waitFor(() => {
+            assert.isNull(within(legend).queryByRole("group", { name: /^Shaders/ }));
+        });
     });
 });

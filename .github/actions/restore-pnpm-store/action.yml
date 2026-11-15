@@ -1,0 +1,22 @@
+name: Restore the pnpm store without saving it
+description: >
+    Restores the pnpm store master's runs saved through actions/setup-node's `cache: pnpm`, under the same
+    key and path, and never saves one. A pull request job uses it in place of setup-node's cache, whose
+    post step would save a 300 MB copy of the store into the pull request's own cache scope whenever the
+    lockfile differs from master's (#3591). The prefix match restores master's newest store when the
+    lockfile changed, so `pnpm install` fetches only the packages the change added.
+runs:
+    using: composite
+    steps:
+        - id: key
+          shell: bash
+          # setup-node's key: node-cache-<RUNNER_OS>-<process.arch>-pnpm-<hash of the lockfile>
+          run: |
+              echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+              echo "prefix=node-cache-${RUNNER_OS}-$(node -p process.arch)-pnpm-" >> "$GITHUB_OUTPUT"
+
+        - uses: actions/cache/restore@v6
+          with:
+              path: ${{ steps.key.outputs.path }}
+              key: ${{ steps.key.outputs.prefix }}${{ hashFiles('pnpm-lock.yaml') }}
+              restore-keys: ${{ steps.key.outputs.prefix }}

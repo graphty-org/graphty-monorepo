@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Did this run attempt fail only because a runner was taken away (a machine.dev spot reclaim)? Needs GH_TOKEN and
-# GITHUB_REPOSITORY. Used by gpu-rerun-on-runner-loss.yml (to re-run the attempt once) and release.yml's held job
+# GITHUB_REPOSITORY. Used by release-rerun.yml (tools/release-rerun.mjs, to re-run the attempt once) and release.yml's held job
 # (to open no "Release held" issue for an attempt that rerun will repeat), so the two always agree.
 #
 #   tools/gpu-runner-lost.sh <run id> <attempt>

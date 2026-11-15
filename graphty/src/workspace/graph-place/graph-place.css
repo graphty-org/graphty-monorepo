@@ -166,6 +166,13 @@
     color: var(--cm-text-secondary);
 }
 
+/* A layer row whose run is out of date: the mark, then the count. */
+.ws-row-stale {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
 /* A group layer's row: the color it paints its group, and how many nodes the group holds. */
 .ws-row-swatch {
     display: block;

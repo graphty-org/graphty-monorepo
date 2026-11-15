@@ -1,4 +1,6 @@
-import type { Engine, Scene, WebGPUEngine } from "@babylonjs/core";
+import type { Engine } from "@babylonjs/core/Engines/engine.js";
+import type { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { EventManager } from "./EventManager";
 import type { OperationCategory } from "./OperationQueueManager";

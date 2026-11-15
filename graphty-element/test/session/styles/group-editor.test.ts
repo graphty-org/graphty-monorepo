@@ -156,6 +156,47 @@ describe("a group editor's element side", () => {
         session.dispose();
     });
 
+    it("never answers a re-added layer from the paint of the layer that held its id before", async () => {
+        const { session, id } = await grouped();
+        // The editor has read the old layer's paint, in which no group is hidden.
+        assert.isTrue(session.styles.categories(id, "node.color").every((category) => !category.hidden));
+        await session.styles.remove(id);
+        // What a panel does: read the categories on every change the session announces.
+        const seen: string[] = [];
+        const read = (): void => {
+            if (session.styles.list().some((layer) => layer.id === id)) {
+                const categories = session.styles.categories(id, "node.color");
+                const hidden = categories.filter((category) => category.hidden).map((category) => category.value);
+                seen.push(`${String(categories.length)} hiding [${hidden.join(" ")}]`);
+            }
+        };
+        const stops = (["style:changed", "project:changed", "history:changed"] as const).map((event) =>
+            session.on(event, read),
+        );
+        // Re-applying a suggested layer: one of the same name takes the departed layer's id.
+        const again = await session.styles.add({
+            name: "Groups",
+            target: "node",
+            selector: { match: "has", path: "data.group" },
+            encode: { "node.color": { by: "data.group", scale: "ordinal", hidden: ["1"] } },
+        });
+        await session.styles.settled();
+        read();
+        for (const stop of stops) {
+            stop();
+        }
+        assert.strictEqual(again.id, id, "the id was recycled");
+        assert.isAbove(seen.length, 1, "the add was announced");
+        // Before its first repaint the new layer has painted nothing and reads no categories; it
+        // never reads the departed layer's four, none of them hidden.
+        assert.isTrue(
+            seen.every((read) => read === "0 hiding []" || read === "4 hiding [1]"),
+            `every read saw the new layer or nothing: ${seen.join(", ")}`,
+        );
+        assert.strictEqual(seen.at(-1), "4 hiding [1]");
+        session.dispose();
+    });
+
     it("reads which group a node is in", async () => {
         const { session } = await grouped();
         assert.strictEqual(session.styles.valueAt({ node: "n5" }, "data.group"), 1);

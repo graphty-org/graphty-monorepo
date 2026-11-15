@@ -4,7 +4,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, type LoadedSource } from "../../session";
+import { createGraphSession, type GraphSession, type LoadedSource } from "../../session";
 
 const FRIENDS = "source,target\nAva,Ben\nBen,Cara\nCara,Ava\n";
 const MESSAGES = "source,target\nAva,Dan\nDan,Eve\n";
@@ -16,12 +16,7 @@ const MESSAGES = "source,target\nAva,Dan\nDan,Eve\n";
  * @param name - the file's name
  * @param mode - replace or merge
  */
-async function load(
-    session: ReturnType<typeof createGraphSession>,
-    data: string,
-    name: string,
-    mode: "replace" | "merge",
-): Promise<void> {
+async function load(session: GraphSession, data: string, name: string, mode: "replace" | "merge"): Promise<void> {
     const draft = await session.data.prepare({ type: "csv", config: { data }, name });
     await draft.load({ mode });
 }
@@ -29,9 +24,9 @@ async function load(
 /**
  * The parts of each source the tests compare.
  * @param session - the session
- * @returns name, tables and counts per load
+ * @returns name, type, tables and counts per load
  */
-function summary(session: ReturnType<typeof createGraphSession>): unknown[] {
+function summary(session: GraphSession): unknown[] {
     return session.data.sources().map((each) => [each.name, each.type, each.tables, each.added]);
 }
 
@@ -55,6 +50,17 @@ describe("session.data.sources", () => {
 
         await load(session, MESSAGES, "messages.csv", "replace");
         assert.deepStrictEqual(summary(session), [["messages.csv", "csv", ["messages.csv"], { nodes: 3, edges: 2 }]]);
+        session.dispose();
+    });
+
+    it("lists two file loads made with data.import", async () => {
+        const session = createGraphSession();
+        await session.data.import({ type: "csv", config: { data: FRIENDS }, name: "friends.csv" });
+        await session.data.import({ type: "csv", config: { data: MESSAGES }, name: "messages.csv" }, { mode: "merge" });
+        assert.deepStrictEqual(summary(session), [
+            ["friends.csv", "csv", ["friends.csv"], { nodes: 3, edges: 3 }],
+            ["messages.csv", "csv", ["messages.csv"], { nodes: 2, edges: 2 }],
+        ]);
         session.dispose();
     });
 

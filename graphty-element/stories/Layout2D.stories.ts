@@ -5,6 +5,7 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import { Graphty } from "../src/graphty-element";
 import {
+    assertCommunitiesLumped,
     assertDistinctPicture,
     assertGraphLoaded,
     assertHeavyEdgesShorter,
@@ -46,173 +47,195 @@ const placed = async (
     return scene;
 };
 
+/*
+ * Each story's controls, one set per layout. A story takes only its own layout's set: the controls
+ * are named for the `layoutConfig` option they set, several layouts share an option name (`seed`,
+ * `scale`, `gravity`), and Storybook's `controls.include` matches on that name, so a set shared
+ * through the meta showed every layout's seed in every story.
+ */
+const springControls: Meta["argTypes"] = {
+    springK: { control: { type: "number" }, table: { category: "Spring Layout" }, name: "layoutConfig.k" },
+    springIterations: {
+        control: { type: "range", min: 10, max: 200, step: 10 },
+        table: { category: "Spring Layout" },
+        name: "layoutConfig.iterations",
+    },
+    springScale: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "Spring Layout" },
+        name: "layoutConfig.scale",
+    },
+    springSeed: {
+        control: { type: "number" },
+        table: { category: "Spring Layout" },
+        name: "layoutConfig.seed",
+    },
+    springNodeGap: {
+        control: { type: "number" },
+        table: { category: "Spring Layout" },
+        name: "layoutConfig.nodeGap",
+    },
+};
+
+const circularControls: Meta["argTypes"] = {
+    circularScale: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "Circular Layout" },
+        name: "layoutConfig.scale",
+    },
+};
+
+const shellControls: Meta["argTypes"] = {
+    shellScale: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "Shell Layout" },
+        name: "layoutConfig.scale",
+    },
+};
+
+const randomControls: Meta["argTypes"] = {
+    randomSeed: {
+        control: { type: "number" },
+        table: { category: "Random Layout" },
+        name: "layoutConfig.seed",
+    },
+};
+
+const spiralControls: Meta["argTypes"] = {
+    spiralScale: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "Spiral Layout" },
+        name: "layoutConfig.scale",
+    },
+    spiralResolution: {
+        control: { type: "range", min: 0.1, max: 1, step: 0.05 },
+        table: { category: "Spiral Layout" },
+        name: "layoutConfig.resolution",
+    },
+    spiralEquidistant: {
+        control: { type: "boolean" },
+        table: { category: "Spiral Layout" },
+        name: "layoutConfig.equidistant",
+    },
+};
+
+const planarControls: Meta["argTypes"] = {
+    planarScale: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "Planar Layout" },
+        name: "layoutConfig.scale",
+    },
+};
+
+const kamadaControls: Meta["argTypes"] = {
+    kamadaScale: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "Kamada-Kawai Layout" },
+        name: "layoutConfig.scale",
+    },
+};
+
+const fa2Controls: Meta["argTypes"] = {
+    fa2MaxIter: {
+        control: { type: "range", min: 10, max: 500, step: 10 },
+        table: { category: "ForceAtlas2 Layout" },
+        name: "layoutConfig.maxIter",
+    },
+    fa2ScalingRatio: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "ForceAtlas2 Layout" },
+        name: "layoutConfig.scalingRatio",
+    },
+    fa2Gravity: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "ForceAtlas2 Layout" },
+        name: "layoutConfig.gravity",
+    },
+    fa2StrongGravity: {
+        control: { type: "boolean" },
+        table: { category: "ForceAtlas2 Layout" },
+        name: "layoutConfig.strongGravity",
+    },
+    fa2DissuadeHubs: {
+        control: { type: "boolean" },
+        table: { category: "ForceAtlas2 Layout" },
+        name: "layoutConfig.dissuadeHubs",
+    },
+    fa2LinLog: {
+        control: { type: "boolean" },
+        table: { category: "ForceAtlas2 Layout" },
+        name: "layoutConfig.linlog",
+    },
+    fa2Seed: {
+        control: { type: "number" },
+        table: { category: "ForceAtlas2 Layout" },
+        name: "layoutConfig.seed",
+    },
+};
+
+const arfControls: Meta["argTypes"] = {
+    arfScaling: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "Arf Layout" },
+        name: "layoutConfig.scaling",
+    },
+    arfMaxIter: {
+        control: { type: "range", min: 100, max: 5000, step: 100 },
+        table: { category: "Arf Layout" },
+        name: "layoutConfig.maxIter",
+    },
+    arfSeed: { control: { type: "number" }, table: { category: "Arf Layout" }, name: "layoutConfig.seed" },
+};
+
+const bfsControls: Meta["argTypes"] = {
+    bfsAlign: {
+        control: { type: "select", options: ["vertical", "horizontal"] },
+        table: { category: "Bfs Layout" },
+        name: "layoutConfig.align",
+    },
+    bfsScale: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "Bfs Layout" },
+        name: "layoutConfig.scale",
+    },
+};
+
+const bipartiteControls: Meta["argTypes"] = {
+    bipartiteAlign: {
+        control: { type: "select", options: ["vertical", "horizontal"] },
+        table: { category: "Bipartite Layout" },
+        name: "layoutConfig.align",
+    },
+    bipartiteScale: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "Bipartite Layout" },
+        name: "layoutConfig.scale",
+    },
+    bipartiteAspectRatio: {
+        control: { type: "range", min: 0.5, max: 2, step: 0.1 },
+        table: { category: "Bipartite Layout" },
+        name: "layoutConfig.aspectRatio",
+    },
+};
+
+const multipartiteControls: Meta["argTypes"] = {
+    multipartiteAlign: {
+        control: { type: "select", options: ["vertical", "horizontal"] },
+        table: { category: "Multipartite Layout" },
+        name: "layoutConfig.align",
+    },
+    multipartiteScale: {
+        control: { type: "range", min: 0.1, max: 10, step: 0.1 },
+        table: { category: "Multipartite Layout" },
+        name: "layoutConfig.scale",
+    },
+};
+
 const meta: Meta = {
     title: "Layout/2D",
     component: "graphty-element",
     render: renderFn,
     decorators: [eventWaitingDecorator],
-    argTypes: {
-        // Spring layout controls
-        springK: { control: { type: "number" }, table: { category: "Spring Layout" }, name: "layoutConfig.k" },
-        springIterations: {
-            control: { type: "range", min: 10, max: 200, step: 10 },
-            table: { category: "Spring Layout" },
-            name: "layoutConfig.iterations",
-        },
-        springScale: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "Spring Layout" },
-            name: "layoutConfig.scale",
-        },
-        springSeed: {
-            control: { type: "number" },
-            table: { category: "Spring Layout" },
-            name: "layoutConfig.seed",
-        },
-
-        // Circular layout controls
-        circularScale: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "Circular Layout" },
-            name: "layoutConfig.scale",
-        },
-
-        // Shell layout controls
-        shellScale: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "Shell Layout" },
-            name: "layoutConfig.scale",
-        },
-
-        // Random layout controls
-        randomSeed: {
-            control: { type: "number" },
-            table: { category: "Random Layout" },
-            name: "layoutConfig.seed",
-        },
-
-        // Spiral layout controls
-        spiralScale: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "Spiral Layout" },
-            name: "layoutConfig.scale",
-        },
-        spiralResolution: {
-            control: { type: "range", min: 0.1, max: 1, step: 0.05 },
-            table: { category: "Spiral Layout" },
-            name: "layoutConfig.resolution",
-        },
-        spiralEquidistant: {
-            control: { type: "boolean" },
-            table: { category: "Spiral Layout" },
-            name: "layoutConfig.equidistant",
-        },
-
-        // Planar layout controls
-        planarScale: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "Planar Layout" },
-            name: "layoutConfig.scale",
-        },
-
-        // Kamada-Kawai layout controls
-        kamadaScale: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "Kamada-Kawai Layout" },
-            name: "layoutConfig.scale",
-        },
-
-        // ForceAtlas2 layout controls
-        fa2MaxIter: {
-            control: { type: "range", min: 10, max: 500, step: 10 },
-            table: { category: "ForceAtlas2 Layout" },
-            name: "layoutConfig.maxIter",
-        },
-        fa2ScalingRatio: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "ForceAtlas2 Layout" },
-            name: "layoutConfig.scalingRatio",
-        },
-        fa2Gravity: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "ForceAtlas2 Layout" },
-            name: "layoutConfig.gravity",
-        },
-        fa2StrongGravity: {
-            control: { type: "boolean" },
-            table: { category: "ForceAtlas2 Layout" },
-            name: "layoutConfig.strongGravity",
-        },
-        fa2DissuadeHubs: {
-            control: { type: "boolean" },
-            table: { category: "ForceAtlas2 Layout" },
-            name: "layoutConfig.dissuadeHubs",
-        },
-        fa2LinLog: {
-            control: { type: "boolean" },
-            table: { category: "ForceAtlas2 Layout" },
-            name: "layoutConfig.linlog",
-        },
-        fa2Seed: {
-            control: { type: "number" },
-            table: { category: "ForceAtlas2 Layout" },
-            name: "layoutConfig.seed",
-        },
-
-        // Arf layout controls
-        arfScaling: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "Arf Layout" },
-            name: "layoutConfig.scaling",
-        },
-        arfMaxIter: {
-            control: { type: "range", min: 100, max: 5000, step: 100 },
-            table: { category: "Arf Layout" },
-            name: "layoutConfig.maxIter",
-        },
-        arfSeed: { control: { type: "number" }, table: { category: "Arf Layout" }, name: "layoutConfig.seed" },
-
-        // Bfs layout controls
-        bfsAlign: {
-            control: { type: "select", options: ["vertical", "horizontal"] },
-            table: { category: "Bfs Layout" },
-            name: "layoutConfig.align",
-        },
-        bfsScale: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "Bfs Layout" },
-            name: "layoutConfig.scale",
-        },
-
-        // Bipartite layout controls
-        bipartiteAlign: {
-            control: { type: "select", options: ["vertical", "horizontal"] },
-            table: { category: "Bipartite Layout" },
-            name: "layoutConfig.align",
-        },
-        bipartiteScale: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "Bipartite Layout" },
-            name: "layoutConfig.scale",
-        },
-        bipartiteAspectRatio: {
-            control: { type: "range", min: 0.5, max: 2, step: 0.1 },
-            table: { category: "Bipartite Layout" },
-            name: "layoutConfig.aspectRatio",
-        },
-
-        // Multipartite layout controls
-        multipartiteAlign: {
-            control: { type: "select", options: ["vertical", "horizontal"] },
-            table: { category: "Multipartite Layout" },
-            name: "layoutConfig.align",
-        },
-        multipartiteScale: {
-            control: { type: "range", min: 0.1, max: 10, step: 0.1 },
-            table: { category: "Multipartite Layout" },
-            name: "layoutConfig.scale",
-        },
-    },
     parameters: {
         controls: { exclude: /^(#|_)/ },
     },
@@ -228,6 +251,7 @@ export default meta;
 type Story = StoryObj<Graphty & Record<string, unknown>>;
 
 export const Spiral: Story = {
+    argTypes: spiralControls,
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "spiral",
@@ -248,6 +272,7 @@ export const Spiral: Story = {
 };
 
 export const Circular: Story = {
+    argTypes: circularControls,
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "circular",
@@ -268,6 +293,7 @@ export const Circular: Story = {
 };
 
 export const Shell: Story = {
+    argTypes: shellControls,
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "shell",
@@ -324,6 +350,7 @@ export const Shell: Story = {
 };
 
 export const Random: Story = {
+    argTypes: randomControls,
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "random",
@@ -343,6 +370,7 @@ export const Random: Story = {
 };
 
 export const Spring: Story = {
+    argTypes: springControls,
     args: {
         /*
          * `preSteps` MATCHES `springIterations` BELOW, so under capture the 50 iterations run
@@ -371,6 +399,65 @@ export const Spring: Story = {
     },
 };
 
+/**
+ * ForceAtlas2 pulling Louvain's communities into lumps with `clusterBy`: the layout names the run's field before the run
+ * exists, and moves when it lands.
+ */
+export const ClusterBy: Story = {
+    args: {
+        setup: storySetup({ viewMode: "2d", algorithms: ["graphty:louvain"], preSteps: 100, stepMultiplier: 20 }),
+        runAlgorithmsOnLoad: true,
+        layout: "forceatlas2",
+        layoutConfig: { dim: 2, seed: 12, clusterBy: "results.louvain.group", clusterStrength: 4 },
+    },
+    parameters: {
+        controls: {
+            include: ["layoutConfig.clusterStrength"],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "ClusterBy");
+
+        await assertCommunitiesLumped(scene, "louvain", 0.3);
+        await assertDistinctPicture(scene, "Layout/2D");
+    },
+};
+
+/**
+ * Spring with `nodeGap`: nodes drawn large, kept apart by their drawn size, so none covers another. Beside the Spring
+ * story, whose nodes stay points to the layout. `preSteps` matches Spring's, for the same reason.
+ */
+export const NodeGap: Story = {
+    argTypes: springControls,
+    args: {
+        setup: storySetup({ viewMode: "2d", preSteps: 50, node: { "node.size": 12 } }),
+        layout: "spring",
+        layoutConfig: { dim: 2 },
+        springK: null,
+        springIterations: 50,
+        springScale: 1,
+        springSeed: 12,
+        springNodeGap: 2,
+    },
+    parameters: {
+        controls: {
+            // A control left out here does not reach the layout, so `layoutConfig.seed` has to stay.
+            include: [
+                "layoutConfig.k",
+                "layoutConfig.iterations",
+                "layoutConfig.scale",
+                "layoutConfig.seed",
+                "layoutConfig.nodeGap",
+            ],
+        },
+    },
+    play: async ({ canvasElement }) => {
+        const scene = await placed(canvasElement, "NodeGap");
+
+        await assertDistinctPicture(scene, "Layout/2D");
+    },
+};
+
 /** The planar story's graph: a seeded random Apollonian network, a planar triangulation other layouts tangle. */
 const apollonian = randomApollonianGraph({ n: 20, seed: 42 });
 
@@ -379,6 +466,7 @@ const apollonian = randomApollonianGraph({ n: 20, seed: 42 });
  * and no two edges crossing. The nodes are not evenly spaced.
  */
 export const Planar: Story = {
+    argTypes: planarControls,
     args: {
         dataSource: undefined,
         nodeData: Array.from({ length: apollonian.nodeCount }, (_, id) => ({ id })),
@@ -407,6 +495,7 @@ export const Planar: Story = {
  * so this story turns it off; KamadaKawaiWeighted shows the weighted picture.
  */
 export const KamadaKawai: Story = {
+    argTypes: kamadaControls,
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "kamada-kawai",
@@ -430,6 +519,7 @@ export const KamadaKawai: Story = {
  * default, so this story turns it off; ForceAtlas2Weighted shows the weighted picture.
  */
 export const ForceAtlas2: Story = {
+    argTypes: fa2Controls,
     args: {
         /*
          * `preSteps` MATCHES `fa2MaxIter` BELOW, so under capture the 100 iterations run before
@@ -489,6 +579,7 @@ export const ForceAtlas2: Story = {
  * story shows the switch a consumer turns, next to the unweighted KamadaKawai story above.
  */
 export const KamadaKawaiWeighted: Story = {
+    argTypes: KamadaKawai.argTypes,
     args: { ...KamadaKawai.args, layoutConfig: { dim: 2, weighted: true } },
     parameters: KamadaKawai.parameters,
     play: async ({ canvasElement }) => {
@@ -509,6 +600,7 @@ export const KamadaKawaiWeighted: Story = {
  * turns, next to the unweighted ForceAtlas2 story above.
  */
 export const ForceAtlas2Weighted: Story = {
+    argTypes: ForceAtlas2.argTypes,
     args: { ...ForceAtlas2.args, layoutConfig: { dim: 2, weighted: true } },
     parameters: ForceAtlas2.parameters,
     play: async ({ canvasElement }) => {
@@ -520,6 +612,7 @@ export const ForceAtlas2Weighted: Story = {
 };
 
 export const Arf: Story = {
+    argTypes: arfControls,
     args: {
         setup: storySetup({ viewMode: "2d" }),
         layout: "arf",
@@ -540,6 +633,7 @@ export const Arf: Story = {
 };
 
 export const Bfs: Story = {
+    argTypes: bfsControls,
     args: {
         dataSource: undefined,
         nodeData: [
@@ -612,6 +706,7 @@ export const Bfs: Story = {
 };
 
 export const Bipartite: Story = {
+    argTypes: bipartiteControls,
     args: {
         dataSource: undefined,
         nodeData: [
@@ -709,6 +804,7 @@ export const Bipartite: Story = {
 };
 
 export const Multipartite: Story = {
+    argTypes: multipartiteControls,
     args: {
         dataSource: undefined,
         nodeData: [

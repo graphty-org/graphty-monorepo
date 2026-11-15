@@ -121,7 +121,9 @@ function checkRequest(r: RestRequest, at: string, entities: ReadonlySet<string>,
         push("missing", at);
         return;
     }
-    if (r.method !== undefined && r.method !== "GET" && r.method !== "POST") {
+    // the mapping is data from anywhere, so its values can be anything
+    const { method }: { method?: unknown } = r;
+    if (method !== undefined && method !== "GET" && method !== "POST") {
         push("missing", `${at}.method`);
     }
     checkTemplate(r.path, `${at}.path`, push);
@@ -244,14 +246,16 @@ function checkEntity(e: RestEntity, at: string, entities: ReadonlySet<string>, p
     if (e.label !== undefined && typeof e.label !== "string") {
         push("missing", `${at}.label`);
     }
-    if (e.node !== undefined && e.node) {
+    // the mapping is data from anywhere, so its values can be anything
+    const { node, fields }: { node?: unknown; fields?: unknown } = e;
+    if (node !== undefined && node) {
         push("missing", `${at}.node`);
     }
-    if (isObject(e.fields)) {
-        for (const [k, v] of Object.entries(e.fields)) {
+    if (isObject(fields)) {
+        for (const [k, v] of Object.entries(fields)) {
             checkSelector(v, `${at}.fields.${k}`, push, true, true);
         }
-    } else if (e.fields !== undefined) {
+    } else if (fields !== undefined) {
         push("missing", `${at}.fields`);
     }
     if (Array.isArray(e.edges)) {
@@ -348,10 +352,10 @@ export function checkRestMapping(mapping: unknown): readonly RestMappingIssue[] 
         push("missing", "");
         return issues;
     }
-    const m = mapping as unknown as RestMapping;
-    if (m.version !== 1) {
+    if (mapping.version !== 1) {
         push("version", "version");
     }
+    const m = mapping as unknown as RestMapping;
     checkEndpoint(m.endpoint, push);
     const requests = isObject(m.requests) ? m.requests : {};
     const entities = isObject(m.entities) ? m.entities : {};

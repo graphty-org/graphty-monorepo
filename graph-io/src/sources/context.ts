@@ -10,7 +10,7 @@ import { throwIfAborted } from "../common/input.js";
 import { type ImportReportBuilder } from "../common/report.js";
 import { type ImportReport } from "../types.js";
 import { type SourceBlockedCause } from "./codes.js";
-import { applyCredential, originOf } from "./credentials.js";
+import { applyCredential, endpointOrigin, originOf } from "./credentials.js";
 import { failOn, warnOn } from "./fail.js";
 import {
     type Credential,
@@ -56,6 +56,9 @@ export class LimitStop extends Error {
         this.name = "LimitStop";
     }
 }
+
+/** The User-Agent a request from Node carries when the caller gives none. */
+const DEFAULT_USER_AGENT = "graphty-graph-io (+https://graphty.app)";
 
 /**
  * Where code is running. Node is checked first, since a test may stub a `document`.
@@ -116,6 +119,39 @@ export function isLocalNetwork(hostname: string): boolean {
     );
 }
 
+/** The Permissions API, where the page has one. */
+type Permissions = { query(descriptor: { readonly name: string }): Promise<{ readonly state: string }> };
+
+/**
+ * Whether the browser's local network permission explains a refused request: the page is on a
+ * public address, the target on a local one (Chrome's Local Network Access, Firefox's local network
+ * check), and the browser does not say the permission is granted. Chrome answers the Permissions API
+ * for `loopback-network` and `local-network` (before them, one `local-network-access`); Firefox and
+ * Safari answer none of these, so there the addresses alone decide. The refusal itself cannot be
+ * told from a closed port: a page sees the same failure for both.
+ * @param url - the refused URL
+ * @returns true when the permission is the likely cause
+ */
+export async function localNetworkRefused(url: URL): Promise<boolean> {
+    const page = (globalThis as { location?: { hostname?: string } }).location?.hostname;
+    if (page === undefined || isLocalNetwork(page) || !isLocalNetwork(url.hostname)) {
+        return false;
+    }
+    const permissions = (globalThis as { navigator?: { permissions?: Permissions } }).navigator?.permissions;
+    const names = [isLoopback(url.hostname) ? "loopback-network" : "local-network", "local-network-access"];
+    for (const name of names) {
+        // the first name this browser knows decides; an unknown name rejects
+        const state = await permissions?.query({ name }).then(
+            (status) => status.state,
+            () => undefined,
+        );
+        if (state !== undefined) {
+            return state !== "granted";
+        }
+    }
+    return true;
+}
+
 /** Requests in flight and recently sent, per source and origin, for `descriptor.rateLimit`. */
 interface Pacer {
     active: number;
@@ -127,7 +163,7 @@ interface Pacer {
 const PACERS = new Map<string, Pacer>();
 
 /** What the runner reads back from a context after a load. */
-export interface ContextState {
+interface ContextState {
     /** Requests sent. */
     requests: number;
     /** Decoded response bytes read. */
@@ -194,6 +230,34 @@ export function sleep(ms: number, signal: AbortSignal): Promise<void> {
             signal.removeEventListener("abort", onAbort);
             resolve();
         }, ms);
+        signal.addEventListener("abort", onAbort, { once: true });
+    });
+}
+
+/**
+ * Wait until a request on this pacer releases its slot, or the signal aborts (the waiter then leaves the queue).
+ * @param p - the pacer
+ * @param signal - the load's signal
+ * @returns resolves when woken; rejects with the signal's reason on abort
+ */
+function waitForSlot(p: Pacer, signal: AbortSignal): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+        if (signal.aborted) {
+            reject(signal.reason as Error);
+            return;
+        }
+        const wake = (): void => {
+            signal.removeEventListener("abort", onAbort);
+            resolve();
+        };
+        const onAbort = (): void => {
+            const i = p.waiters.indexOf(wake);
+            if (i >= 0) {
+                p.waiters.splice(i, 1);
+            }
+            reject(signal.reason as Error);
+        };
+        p.waiters.push(wake);
         signal.addEventListener("abort", onAbort, { once: true });
     });
 }
@@ -307,6 +371,7 @@ class SourceFetcher {
     private timeOut(timeoutMs: number): void {
         try {
             failOn(this.input.report, "E_SOURCE_TIMEOUT", `the load ran longer than ${String(timeoutMs)} ms`, {
+                origin: endpointOrigin(this.input.endpoint),
                 timeoutMs,
                 serverSide: false,
             });
@@ -424,7 +489,7 @@ class SourceFetcher {
             const now = Date.now();
             p.times = p.times.filter((t) => now - t < rate.perMs);
             if (rate.concurrent !== undefined && p.active >= rate.concurrent) {
-                await new Promise<void>((r) => p.waiters.push(r));
+                await waitForSlot(p, this.signal);
             } else if (p.times.length >= rate.requests) {
                 await sleep(Math.max(1, rate.perMs - (now - p.times[0])), this.signal);
             } else {
@@ -487,11 +552,20 @@ class SourceFetcher {
                     serverCode: null,
                 });
             case 403:
-                return failOn(report, "E_SOURCE_FORBIDDEN", `${where} answered 403`, { status, serverCode: null });
+                return failOn(report, "E_SOURCE_FORBIDDEN", `${where} answered 403`, {
+                    origin: originOf(url),
+                    status,
+                    serverCode: null,
+                });
             case 404:
-                return failOn(report, "E_SOURCE_NOT_FOUND", `${where} answered 404`, { what: "url", value: where });
+                return failOn(report, "E_SOURCE_NOT_FOUND", `${where} answered 404`, {
+                    origin: originOf(url),
+                    what: "url",
+                    value: where,
+                });
             case 429:
                 return failOn(report, "E_SOURCE_QUOTA", `${where} answered 429`, {
+                    origin: originOf(url),
                     retryAfterMs: retryAfterMs(response),
                 });
             default:
@@ -509,8 +583,10 @@ class SourceFetcher {
     private async request(url: URL, init: SourceRequestInit, attach: boolean): Promise<Request> {
         const { options, report } = this.input;
         const headers = new Headers(init.headers);
-        if (options.userAgent !== undefined && this.runtime === "node") {
-            headers.set("User-Agent", options.userAgent);
+        // Browsers forbid setting it; Node sends none of its own, and some services (Wikidata)
+        // answer 403 without one.
+        if (this.runtime === "node") {
+            headers.set("User-Agent", options.userAgent ?? headers.get("User-Agent") ?? DEFAULT_USER_AGENT);
         }
         const { retry: _retry, idempotent: _idempotent, allowStatus: _allowStatus, ...requestInit } = init;
         const guarded: RequestInit = {
@@ -601,8 +677,7 @@ class SourceFetcher {
      * @returns the cause
      */
     private async diagnose(url: URL): Promise<SourceBlockedCause> {
-        const page = (globalThis as { location?: { hostname?: string } }).location;
-        if (page?.hostname !== undefined && !isLocalNetwork(page.hostname) && isLocalNetwork(url.hostname)) {
+        if (await localNetworkRefused(url)) {
             return "local-network";
         }
         if (this.input.options.retry === false) {
@@ -811,6 +886,7 @@ class SourceFetcher {
             return JSON.parse(text) as T;
         } catch {
             return failOn(this.input.report, "E_SOURCE_RESPONSE", "the response is not JSON", {
+                origin: originOf(this.resolve(target)),
                 expected: "json",
                 contentType: response.headers.get("content-type"),
             });
@@ -835,6 +911,7 @@ class SourceFetcher {
             ...(finish?.server === undefined ? {} : { server: finish.server }),
             ...(finish?.budget === undefined ? {} : { budget: finish.budget }),
             ...(finish?.validators === undefined ? {} : { validators: finish.validators }),
+            ...(finish?.total === undefined ? {} : { total: finish.total }),
         });
     }
 }

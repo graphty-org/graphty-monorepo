@@ -12,6 +12,9 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { openAndSave } from "../../../docs/examples/file-styles/open-and-save";
 import type { Graphty } from "../../../index.js";
 import { fileStyleOf } from "../../../session";
+import { fileStylesOn } from "../../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** Twelve nodes in two teams, each team with its own viz color. */
 const GEXF = `<?xml version="1.0" encoding="UTF-8"?>
@@ -70,7 +73,8 @@ describe("the styles-from-files guide's first example", () => {
 
         const element = await mount();
         // The example is typed against the published declarations, this element against the source.
-        const graphml = await openAndSave(element as unknown as PublishedGraphty, "https://example.com/teams.gexf");
+        const published: unknown = element;
+        const graphml = await openAndSave(published as PublishedGraphty, "https://example.com/teams.gexf");
 
         const fileLayers = element.session.styles.list().filter((layer) => fileStyleOf(layer) !== null);
         assert.isNotEmpty(fileLayers);

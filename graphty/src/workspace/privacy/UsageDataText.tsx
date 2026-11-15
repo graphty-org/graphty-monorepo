@@ -16,13 +16,17 @@ const COLLECTED = [
 ];
 
 /**
- * The owner's request and the "What is collected" disclosure, shared by the start screen's usage
+ * The owner's request and the "What is collected" disclosure, shared by the first-visit usage
  * data card and Settings > Privacy so both say the same words.
  * @param props - Component props
  * @param props.headline - Whether to draw the first sentence as the card's headline
+ * @param props.assistantSends - Whether a saved provider receives graph values, so "ever" is untrue
  * @returns The text
  */
-export function UsageDataText({ headline = true }: Readonly<{ headline?: boolean }>): React.JSX.Element {
+export function UsageDataText({
+    headline = true,
+    assistantSends = false,
+}: Readonly<{ headline?: boolean; assistantSends?: boolean }>): React.JSX.Element {
     return (
         <>
             {headline ? (
@@ -39,7 +43,9 @@ export function UsageDataText({ headline = true }: Readonly<{ headline?: boolean
                     ))}
                 </List>
                 <Text size="xs" fw={600} mt={4}>
-                    No file contents ever leave your computer.
+                    {assistantSends
+                        ? "Usage data holds no file contents."
+                        : "No file contents ever leave your computer."}
                 </Text>
             </details>
         </>

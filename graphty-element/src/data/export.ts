@@ -62,15 +62,17 @@ import { type ExtractedStyles, STYLE_ISSUE, type StyleRule } from "@graphty/grap
 
 import { formatDescriptor, NEO4J_WRITER_OPTIONS } from "../catalog/formats";
 import { resolveOptionValues } from "../catalog/options";
-import type { FormatId, Rgba } from "../catalog/types";
+import type { EdgeId, FormatId, NodeId, Rgba, RuleTree, ScopeInput, SetId } from "../catalog/types";
 import {
     catalogFormatDescriptors,
     COMMON_WRITER_OPTIONS,
     type FormatWriterRegistration,
     registeredFormatWriter,
+    withCommonWriterOptions,
 } from "../catalog/writerRegistry";
 import { GraphtyError } from "../errors";
-import { dispatcherOf } from "../session/GraphSession";
+import { featureOff } from "../features/resolve";
+import { dispatcherOf, scopeResolverOfSession } from "../session/GraphSession";
 import { rowsOf } from "../session/notes/countIndex";
 import { resolveEdgeWeight } from "../session/project/ingest";
 import { partitionGroupRanks } from "../session/results/pageColumns";
@@ -78,13 +80,61 @@ import type { CodedFact, CodedFactParam } from "../session/shared";
 import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import { asFileStyleStore, FILE_STYLES_VALUE } from "../session/styles/fileStyles/store";
-import type { EdgeRecord, GraphSession, NodeRecord } from "../session/types";
+import type { EdgeRecord, GraphSession, GroupTableOptions, NodeRecord } from "../session/types";
+import { wholeGraph } from "../session/working/graphs";
 import { writtenPositions } from "./filePositions";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 
-/** Options of one export: the writer's own, and graph-io's common ones. */
-export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions;
+/**
+ * Which nodes and edges an export writes. With no `scope`, the whole graph, or, while the
+ * session's `workingGraph` option is on, what is shown:
+ *
+ * - `"all"`: the whole graph, whatever is shown.
+ * - `"shown"`: what the visibility filter and the time window leave showing.
+ * - `"selection"`: the selected nodes and the edges between them.
+ * - `{ set }`: a kept set's members.
+ * - `{ nodes }`: these nodes and the edges between them.
+ * - a {@link RuleTree}: the nodes and edges it keeps, read as the visibility filter reads it.
+ *
+ * An edge is written only when both its ends are.
+ */
+export type ExportScope =
+    RuleTree | "all" | "shown" | "selection" | { readonly set: SetId } | { readonly nodes: readonly NodeId[] };
+
+/**
+ * Options of one export: the writer's own, graph-io's common ones, and the element's `scope`
+ * (which nodes and edges, {@link ExportScope}; when absent, the whole graph, or what is shown
+ * while `workingGraph` is on), `columns` (which attribute columns, by name, `data.<name>` or
+ * result path; every column when absent -- the id, the ends of an edge, positions and styles are
+ * always written) and `groupTable` (write one row per group instead of the graph,
+ * {@link ExportGroupTable}).
+ */
+export type ExportGraphOptions = Readonly<Record<string, unknown>> &
+    CommonExportOptions & {
+        readonly scope?: ExportScope;
+        readonly columns?: readonly string[];
+        readonly groupTable?: ExportGroupTable;
+    };
+
+/**
+ * The `groupTable` option of `exportGraph`: write the table `session.data.groupTable(groupBy,
+ * { summaries })` returns -- one row per group, with its size and the summaries asked for --
+ * instead of the graph. `"csv"` writes a header row of the column keys and one line per group
+ * (only `neutraliseFormulas` of the writer options applies); `"json"` writes the rows as an array
+ * of objects. Any other format, `scope` or `columns` beside it is refused with `E_OPTION_RANGE`.
+ *
+ * ```ts
+ * const result = await graph.exportGraph("csv", {
+ *     groupTable: { groupBy: "results.louvain.group", summaries: { "data.age": ["mean"] } },
+ * });
+ * await result.text(); // "group,size,data.age.mean\n3,14,31.5\n..."
+ * ```
+ */
+export interface ExportGroupTable extends GroupTableOptions {
+    /** The node path holding each node's group, such as a community run's `results.<run>.group`. */
+    readonly groupBy: string;
+}
 
 /** The codes of one of graph-io's loss tables. */
 type CodesOf<Table> = Extract<Table[keyof Table], string>;
@@ -268,6 +318,7 @@ function neutraliseFormula<T>(value: T): T | string {
  * @param skip - The structural keys.
  * @param cell - What each key and text value goes through: the formula guard, or nothing.
  * @param dropped - Counts, per `graphty.` column left out, the values it held.
+ * @param kept - Whether a column, by name, is written; every one by default.
  * @returns The attributes.
  */
 function attributesOf(
@@ -275,10 +326,11 @@ function attributesOf(
     skip: ReadonlySet<string>,
     cell: <T>(value: T) => T | string,
     dropped: Map<string, number>,
+    kept: (name: string) => boolean = () => true,
 ): Record<string, unknown> {
     const out: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(record)) {
-        if (skip.has(key) || value === undefined || value === null) {
+        if (skip.has(key) || value === undefined || value === null || !kept(key)) {
             continue;
         }
 
@@ -314,10 +366,83 @@ interface ExportBuildOptions {
     readonly groupRanks?: boolean;
     /** The writer writes the node table alone (a CSV node table): report no edge or graph loss. */
     readonly nodesOnly?: boolean;
-    /** Write the graph's styles through the format's style writer. The `styles` option every writer takes; off by default. */
+    /**
+     * Write the graph's styles through the format's style writer. The `styles` option every writer takes; off by default.
+     * @experimental file-styles
+     */
     readonly styles?: boolean;
     /** The format written, which decides how node coordinates are spelled. */
     readonly format?: string;
+    /** The session rows written, ascending; every row when absent. */
+    readonly rows?: ExportRows;
+    /** The attribute columns written, by name, `data.<name>` or result path; every one when absent. */
+    readonly columns?: ReadonlySet<string>;
+}
+
+/** The node and edge rows of the session an export writes, ascending. */
+interface ExportRows {
+    readonly nodes: readonly number[];
+    readonly edges: readonly number[];
+}
+
+/**
+ * The rows of the session a scope covers; with none, what `exportGraph` writes with none.
+ * @param session - The session.
+ * @param scope - The scope.
+ * @returns The rows.
+ */
+function exportRows(session: GraphSession, scope: ExportScope | undefined): ExportRows {
+    const all = (count: number): number[] => Array.from({ length: count }, (_value, row) => row);
+    const nodes = session.data.nodes({ scope: "graph" });
+    const edges = session.data.edges({ scope: "graph" });
+    // No scope reads what every reader naming none reads: the working graph while it is on.
+    const named = scope ?? (session.workingGraph ? "shown" : "all");
+    if (named === "all") {
+        return { nodes: all(nodes.length), edges: all(edges.length) };
+    }
+
+    const resolver = scopeResolverOfSession(session);
+    const resolved = resolver.resolveNow(resolver.canonical(scopeInputOf(named)));
+    const rowsIn = (
+        records: readonly { readonly id: NodeId | EdgeId }[],
+        ids: ReadonlySet<NodeId | EdgeId>,
+    ): number[] => records.flatMap((record, row) => (ids.has(record.id) ? [row] : []));
+    const nodeRows = rowsIn(nodes, resolved.nodes);
+    const written = new Set(nodeRows.map((row) => nodes[row].id));
+    return {
+        nodes: nodeRows,
+        // A scope's edges are the edges between its nodes; check the ends anyway, so no edge
+        // brings back a node the scope left out.
+        edges: rowsIn(edges, resolved.edges).filter(
+            (row) => written.has(edges[row].source) && written.has(edges[row].target),
+        ),
+    };
+}
+
+/**
+ * An export scope as the scope resolver reads it.
+ * @param scope - The export scope.
+ * @returns The scope.
+ */
+function scopeInputOf(scope: Exclude<ExportScope, "all">): ScopeInput {
+    if (scope === "shown") {
+        return "visible";
+    }
+
+    if (scope === "selection") {
+        return "selection";
+    }
+
+    return "kind" in scope ? { define: { kind: "rule", where: scope, reading: "clipped" } } : scope;
+}
+
+/**
+ * Whether a column is written under a `columns` choice.
+ * @param columns - The chosen columns, or undefined for every one.
+ * @returns The test, by the column's name.
+ */
+function columnTest(columns: ReadonlySet<string> | undefined): (name: string) => boolean {
+    return columns === undefined ? () => true : (name) => columns.has(name) || columns.has(`data.${name}`);
 }
 
 /** A loss note the element raised, with the facts its coded form carries beyond graph-io's. */
@@ -351,20 +476,24 @@ function cutToBytes(text: string, limit: number): { text: string; cut: boolean }
  * @param builder - The export's builder, rows in the session's order.
  * @param lossNotes - Receives `W_GRAPHTY_TRUNCATED` for each cut cell.
  * @param cell - What each text value goes through.
+ * @param rows - The session rows written.
  */
 function writeNotes(
     session: GraphSession,
     builder: GraphBuilder,
     lossNotes: LossNote[],
     cell: <T>(value: T) => T | string,
+    rows: ExportRows,
 ): void {
+    const writtenRow = { node: writtenRows(rows.nodes), edge: writtenRows(rows.edges) };
     // `list()` is newest first, so each row's texts arrive in the order they are written.
     const notes = session.notes.list();
     const texts = { node: new Map<number, string[]>(), edge: new Map<number, string[]>() };
-    rowsOf(notes, session.data.snapshot()).forEach((rows, at) => {
+    rowsOf(notes, wholeGraph(session.data.store)).forEach((targets, at) => {
         const seen = { node: new Set<number>(), edge: new Set<number>() };
-        rows.forEach((row, position) => {
+        targets.forEach((sessionRow, position) => {
             const kind = "node" in notes[at].targets[position] ? "node" : "edge";
+            const row = sessionRow === undefined ? undefined : writtenRow[kind].get(sessionRow);
             if (row === undefined || row < 0 || seen[kind].has(row)) {
                 return;
             }
@@ -402,27 +531,42 @@ function writeNotes(
 }
 
 /**
+ * Where each session row is written.
+ * @param rows - The session rows written, in order.
+ * @returns Session row to written row.
+ */
+function writtenRows(rows: readonly number[]): Map<number, number> {
+    return new Map(rows.map((row, at) => [row, at]));
+}
+
+/**
  * Write each placed node's coordinates into the position column, spelled as the format's writer
  * expects (see `writtenPositions`). A node no layout has placed yet has no coordinates, not the
  * origin. The session holds scene units; a file holds file units, which a load multiplies by
  * positionScale, so divide here.
  * @param builder - The export's builder, its node rows already added.
  * @param session - The session.
- * @param count - How many node rows there are.
+ * @param nodeRows - The session row of each node row written.
  * @param format - The format written.
  */
-function writePositions(builder: GraphBuilder, session: GraphSession, count: number, format: string | undefined): void {
+function writePositions(
+    builder: GraphBuilder,
+    session: GraphSession,
+    nodeRows: readonly number[],
+    format: string | undefined,
+): void {
     const { positions } = session;
     if (positions.placedCount === 0) {
         return;
     }
 
+    const count = nodeRows.length;
     const scale = session.config.data.knownFields.positionScale;
     const coords = new Float64Array(3 * count).fill(Number.NaN);
     const at = { x: 0, y: 0, z: 0 };
     for (let row = 0; row < count; row++) {
-        if (positions.isPlaced(row)) {
-            positions.read(row, at);
+        if (positions.isPlaced(nodeRows[row])) {
+            positions.read(nodeRows[row], at);
             coords.set([at.x / scale, at.y / scale, at.z / scale], 3 * row);
         }
     }
@@ -451,7 +595,7 @@ export function buildExportSnapshot(
     const notes: LossNote[] = [];
     const guard = formulaGuard(options.neutraliseFormulas === true);
     const { cell } = guard;
-    const current = session.data.snapshot();
+    const current = wholeGraph(session.data.store);
     const builder = new GraphBuilder({
         directed: current.directed,
         duplicateEdges: "keep",
@@ -460,20 +604,30 @@ export function buildExportSnapshot(
         weightDtype: "f64",
     });
 
-    const nodes = session.data.nodes();
-    const edges = session.data.edges();
+    const allNodes = session.data.nodes({ scope: "graph" });
+    const allEdges = session.data.edges({ scope: "graph" });
+    const rows = options.rows ?? exportRows(session, "all");
+    const nodes = rows.nodes.map((row) => allNodes[row]);
+    const edges = rows.edges.map((row) => allEdges[row]);
+    const kept = columnTest(options.columns);
     const nodeSkip = new Set([...NODE_STRUCTURE, ...(view.nodeStyle === undefined ? [] : NODE_STYLE_KEYS)]);
     // A loaded column under the reserved `graphty.` root is left out, never silently.
     const dropped = new Map<string, number>();
     for (const record of nodes) {
-        builder.addNodeRecord(cell(record.id), attributesOf(record, nodeSkip, cell, dropped));
+        builder.addNodeRecord(cell(record.id), attributesOf(record, nodeSkip, cell, dropped, kept));
     }
 
     // An edge's reserved columns are counted only when the edges are written.
     const edgeDropped = options.nodesOnly === true ? new Map<string, number>() : dropped;
     const { edgeWeightPath } = session.config.data.knownFields;
     const edgeSkip = new Set([...EDGE_STRUCTURE, ...(view.edgeStyle === undefined ? [] : EDGE_STYLE_KEYS)]);
-    const unweighable = writeEdges(builder, current, edges, edgeWeightPath, edgeSkip, cell, edgeDropped);
+    const unweighable = writeEdges(builder, current, rows.edges, edgeWeightPath, {
+        edges,
+        skip: edgeSkip,
+        cell,
+        dropped: edgeDropped,
+        kept,
+    });
     if (unweighable > 0 && options.nodesOnly !== true) {
         notes.push({
             code: "W_WEIGHT_NOT_NUMERIC",
@@ -483,9 +637,9 @@ export function buildExportSnapshot(
         });
     }
 
-    writePositions(builder, session, nodes.length, options.format);
-    writeNodeStyles(builder, nodes, view);
-    writeEdgeStyles(builder, edges, view);
+    writePositions(builder, session, rows.nodes, options.format);
+    writeNodeStyles(builder, rows.nodes, view);
+    writeEdgeStyles(builder, rows.edges, view);
 
     for (const [column, count] of dropped) {
         notes.push({
@@ -500,11 +654,11 @@ export function buildExportSnapshot(
 
     writeResults(
         session,
-        { builder, cell, nodes, edges },
+        { builder, cell, nodes, edges, kept },
         options.nodesOnly === true ? [] : notes,
         options.groupRanks === true,
     );
-    writeHeldNotes(session, builder, notes, cell, options.notes === true);
+    writeHeldNotes(session, builder, notes, cell, options.notes === true ? rows : null);
 
     const neutralised = guard.count();
     if (neutralised > 0) {
@@ -517,6 +671,63 @@ export function buildExportSnapshot(
     }
 
     return { snapshot: builder.freeze(), notes };
+}
+
+/**
+ * Write a group table (the `groupTable` option) as CSV or JSON rows.
+ * @param session - The session.
+ * @param format - `"csv"` or `"json"`.
+ * @param options - The export's options, `groupTable` among them.
+ * @returns The export.
+ * @throws A `GraphtyError` with `E_OPTION_RANGE` for another format, or `scope` or `columns` beside it.
+ */
+function exportGroupTable(session: GraphSession, format: FormatId, options: ExportGraphOptions): ExportResult {
+    const { groupTable, scope, columns } = options;
+    if ((format !== "csv" && format !== "json") || scope !== undefined || columns !== undefined) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: "groupTable writes only csv or json, and takes no scope or columns",
+            source: "data",
+            details: { option: "groupTable", format, available: ["csv", "json"] },
+        });
+    }
+
+    const table = session.data.groupTable(groupTable?.groupBy ?? "", groupTable ?? {});
+    let output: string;
+    const notes: LossNote[] = [];
+    if (format === "json") {
+        output = JSON.stringify(table.rows);
+    } else {
+        const { cell, count } = formulaGuard(options.neutraliseFormulas !== false);
+        const quote = (value: string | number | boolean | null | undefined): string => {
+            const written = value === null || value === undefined ? "" : String(cell(value));
+            return /[",\r\n]/.test(written) ? `"${written.replaceAll('"', '""')}"` : written;
+        };
+        output = [table.columns, ...table.rows.map((row) => table.columns.map((key) => row[key]))]
+            .map((line) => line.map(quote).join(","))
+            .join("\n");
+        if (count() > 0) {
+            notes.push({
+                code: "W_GRAPHTY_CSV_NEUTRALIZED",
+                message: `${String(count())} cell(s) a spreadsheet would run as a formula were prefixed with an apostrophe`,
+                column: null,
+                count: count(),
+            });
+        }
+    }
+
+    const lossNotes = Object.freeze(notes);
+    return {
+        format,
+        losses: Object.freeze(lossNotes.map(lossOf)),
+        lossNotes,
+        text: () => Promise.resolve(output),
+        bytes: {
+            async *[Symbol.asyncIterator](): AsyncGenerator<Uint8Array> {
+                yield await Promise.resolve(new TextEncoder().encode(output));
+            },
+        },
+    };
 }
 
 /** The weight column every exporter writes under its format's own weight name. */
@@ -550,29 +761,39 @@ function formulaGuard(neutralise: boolean): { cell: <T>(value: T) => T | string;
  * name; the record's own keys (a custom weight path, `value`) are written as the attributes they are.
  * @param builder - The export's builder, its node rows already added.
  * @param current - The session's snapshot, holding the stored weights.
- * @param edges - The edge records, in the snapshot's order.
+ * @param edgeRows - The session row of each edge written.
  * @param edgeWeightPath - Where a record keeps its weight.
- * @param edgeSkip - The keys not written as attributes.
- * @param cell - What each key and text value goes through.
- * @param dropped - Counts, per `graphty.` column left out, the values it held.
+ * @param out - The edge records written and how their attributes are written.
+ * @param out.edges - The edge records, in the order written.
+ * @param out.skip - The keys not written as attributes.
+ * @param out.cell - What each key and text value goes through.
+ * @param out.dropped - Counts, per `graphty.` column left out, the values it held.
+ * @param out.kept - Whether a column, by name, is written.
  * @returns How many edges carried a weight that is not a number, left unwritten.
  */
 function writeEdges(
     builder: GraphBuilder,
     current: GraphSnapshot,
-    edges: readonly EdgeRecord[],
+    edgeRows: readonly number[],
     edgeWeightPath: Parameters<typeof resolveEdgeWeight>[1],
-    edgeSkip: ReadonlySet<string>,
-    cell: <T>(value: T) => T | string,
-    dropped: Map<string, number>,
+    out: {
+        readonly edges: readonly EdgeRecord[];
+        readonly skip: ReadonlySet<string>;
+        readonly cell: <T>(value: T) => T | string;
+        readonly dropped: Map<string, number>;
+        readonly kept: (name: string) => boolean;
+    },
 ): number {
+    const { edges, cell, kept } = out;
     const { weights, edgeToArc } = current;
     let unweighable = 0;
     edges.forEach((record, row) => {
-        const attributes = attributesOf(record, edgeSkip, cell, dropped);
-        const stored = weights === null ? undefined : weights[edgeToArc[row]];
+        const attributes = attributesOf(record, out.skip, cell, out.dropped, kept);
+        const stored = weights === null ? undefined : weights[edgeToArc[edgeRows[row]]];
         const weighted =
-            stored !== undefined && (stored !== 1 || resolveEdgeWeight(record, edgeWeightPath).source !== "default");
+            kept(EXPORT_WEIGHT_KEY) &&
+            stored !== undefined &&
+            (stored !== 1 || resolveEdgeWeight(record, edgeWeightPath).source !== "default");
         if (weighted) {
             attributes[EXPORT_WEIGHT_KEY] = stored;
         } else if (attributes.weight !== undefined && typeof attributes.weight !== "number") {
@@ -593,10 +814,10 @@ function writeEdges(
 /**
  * Write each node's drawn colour, size and shape, when the view supplies them.
  * @param builder - The export's builder.
- * @param nodes - The node records, in the snapshot's order.
+ * @param nodeRows - The session row of each node written.
  * @param view - Style, from the renderer.
  */
-function writeNodeStyles(builder: GraphBuilder, nodes: readonly NodeRecord[], view: ExportViewState): void {
+function writeNodeStyles(builder: GraphBuilder, nodeRows: readonly number[], view: ExportViewState): void {
     if (view.nodeStyle === undefined) {
         return;
     }
@@ -604,8 +825,8 @@ function writeNodeStyles(builder: GraphBuilder, nodes: readonly NodeRecord[], vi
     const color = builder.declareNodeColumn(NODE_COLOR);
     const size = builder.declareNodeColumn(NODE_SIZE);
     const shape = builder.declareNodeColumn(NODE_SHAPE);
-    nodes.forEach((_record, row) => {
-        const style = view.nodeStyle?.(row);
+    nodeRows.forEach((sessionRow, row) => {
+        const style = view.nodeStyle?.(sessionRow);
         if (style?.color) {
             builder.setNodeValue(color, row, colorCell(style.color));
         }
@@ -623,18 +844,18 @@ function writeNodeStyles(builder: GraphBuilder, nodes: readonly NodeRecord[], vi
 /**
  * Write each edge's drawn colour and width, when the view supplies them.
  * @param builder - The export's builder.
- * @param edges - The edge records, in the snapshot's order.
+ * @param edgeRows - The session row of each edge written.
  * @param view - Style, from the renderer.
  */
-function writeEdgeStyles(builder: GraphBuilder, edges: readonly EdgeRecord[], view: ExportViewState): void {
+function writeEdgeStyles(builder: GraphBuilder, edgeRows: readonly number[], view: ExportViewState): void {
     if (view.edgeStyle === undefined) {
         return;
     }
 
     const color = builder.declareEdgeColumn(EDGE_COLOR);
     const thickness = builder.declareEdgeColumn(EDGE_THICKNESS);
-    edges.forEach((_record, row) => {
-        const style = view.edgeStyle?.(row);
+    edgeRows.forEach((sessionRow, row) => {
+        const style = view.edgeStyle?.(sessionRow);
         if (style?.color) {
             builder.setEdgeValue(color, row, colorCell(style.color));
         }
@@ -651,31 +872,32 @@ function writeEdgeStyles(builder: GraphBuilder, edges: readonly EdgeRecord[], vi
  * @param builder - The export's builder.
  * @param notes - Receives the note about the session's notes.
  * @param cell - What each column name and text value goes through.
- * @param asColumns - Write the notes' text as columns.
+ * @param asColumns - The session rows written, to write the notes' text as columns; null not to.
  */
 function writeHeldNotes(
     session: GraphSession,
     builder: GraphBuilder,
     notes: LossNote[],
     cell: <T>(value: T) => T | string,
-    asColumns: boolean,
+    asColumns: ExportRows | null,
 ): void {
     const held = session.notes.counts().notes;
     if (held === 0) {
         return;
     }
 
-    if (asColumns) {
-        writeNotes(session, builder, notes, cell);
+    if (asColumns !== null) {
+        writeNotes(session, builder, notes, cell, asColumns);
     }
 
     notes.push({
         code: "W_GRAPHTY_NOTES",
-        message: asColumns
-            ? `${String(held)} note(s) are not carried as notes: only their text is, in the ` +
-              `graphty.notes.count and graphty.notes.text columns. Save them with notes.toDocument()`
-            : `${String(held)} note(s) were left out. Export with { notes: true } to write their text ` +
-              `as columns, or save them with notes.toDocument()`,
+        message:
+            asColumns !== null
+                ? `${String(held)} note(s) are not carried as notes: only their text is, in the ` +
+                  `graphty.notes.count and graphty.notes.text columns. Save them with notes.toDocument()`
+                : `${String(held)} note(s) were left out. Export with { notes: true } to write their text ` +
+                  `as columns, or save them with notes.toDocument()`,
         column: null,
         count: held,
     });
@@ -690,6 +912,8 @@ interface ResultColumns {
     readonly cell: <T>(value: T) => T | string;
     readonly nodes: readonly NodeRecord[];
     readonly edges: readonly EdgeRecord[];
+    /** Whether a column, by name or path, is written. */
+    readonly kept: (name: string) => boolean;
 }
 
 /**
@@ -700,6 +924,9 @@ interface ResultColumns {
  * @param groupRanks - Write a partition's group as its rank by size instead of its group id.
  */
 function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote[], groupRanks: boolean): void {
+    // A field only a directed graph can tell apart (a degree's in and out halves) means nothing on
+    // an undirected one, so it is left out there, as the readable fields leave it out.
+    const { directed } = wholeGraph(session.data.store);
     for (const root of session.results.roots) {
         const result = session.results.get(root.runId);
         if (result === undefined) {
@@ -710,20 +937,61 @@ function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote
         // can name it by ("Group 2"), so a table read beside the picture joins it. Otherwise the
         // file holds the algorithm's own group ids, as the live result does.
         const ranks = groupRanks ? partitionGroupRanks(result) : undefined;
-        for (const field of result.fields) {
-            const name = out.cell(session.results.path(root.runId, field.name));
-            try {
-                writeResultField(out, result, field, name, ranks);
-            } catch (error) {
-                notes.push({
-                    code: "W_RESULT_FIELD_DROPPED",
-                    message: `the result field ${name} could not be written: ${error instanceof Error ? error.message : String(error)}`,
-                    column: name,
-                    count: null,
-                });
-            }
+        writeResultFields(session, out, notes, { runId: root.runId, result, ranks, directed });
+    }
+}
+
+/**
+ * Write each kept field of one published result as a column.
+ * @param session - The session, for the fields' paths.
+ * @param out - The export's builder, its cell guard and the rows in the session's order.
+ * @param notes - Receives a note for each field no column could hold.
+ * @param run - The result, its run id and its group ranks when groups are written as ranks.
+ * @param run.runId - The result's run id.
+ * @param run.result - The result.
+ * @param run.ranks - A partition's group ranks, when groups are written as ranks.
+ * @param run.directed - Whether the graph is directed; on an undirected one a `directedOnly` field is left out.
+ */
+function writeResultFields(
+    session: GraphSession,
+    out: ResultColumns,
+    notes: LossNote[],
+    run: {
+        readonly runId: Parameters<GraphSession["results"]["path"]>[0];
+        readonly result: PublishedResult;
+        readonly ranks: ReturnType<typeof partitionGroupRanks> | undefined;
+        readonly directed: boolean;
+    },
+): void {
+    const { runId, result, ranks, directed } = run;
+    for (const field of result.fields) {
+        const path = session.results.path(runId, field.name);
+        if (!out.kept(path) || (!directed && field.directedOnly === true)) {
+            continue;
+        }
+
+        const name = out.cell(path);
+        try {
+            writeResultField(out, result, field, name, ranks);
+        } catch (error) {
+            notes.push(droppedFieldNote(name, error));
         }
     }
+}
+
+/**
+ * The note for a result field that could not be written.
+ * @param name - The column name.
+ * @param error - What writing it threw.
+ * @returns The note.
+ */
+function droppedFieldNote(name: string, error: unknown): LossNote {
+    return {
+        code: "W_RESULT_FIELD_DROPPED",
+        message: `the result field ${name} could not be written: ${error instanceof Error ? error.message : String(error)}`,
+        column: name,
+        count: null,
+    };
 }
 
 /**
@@ -813,7 +1081,7 @@ function writerFor(format: FormatId, options: ExportGraphOptions): ChosenWriter 
     if (neo4j) {
         declared = NEO4J_WRITER_OPTIONS;
     } else if (registered !== undefined) {
-        declared = [...(registered.writerOptions ?? []), ...COMMON_WRITER_OPTIONS];
+        declared = withCommonWriterOptions(registered.writerOptions);
     }
     // `notes`, `groupRanks` and `styles` are the element's own options; no exporter reads them as they are.
     const { notes, groupRanks, styles, ...resolved } = resolveOptionValues(declared, options, {
@@ -906,14 +1174,36 @@ export function exportSession(
         return exportProject(session, options);
     }
 
-    const writer = writerFor(format, options);
+    if (options.groupTable !== undefined) {
+        return exportGroupTable(session, format, options);
+    }
+
+    const { scope, columns, groupTable: _groupTable, ...writerOptions } = options;
+    if (columns !== undefined && (!Array.isArray(columns) || columns.some((name) => typeof name !== "string"))) {
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            message: "columns must be a list of column names",
+            source: "data",
+            details: { option: "columns" },
+        });
+    }
+
+    // Writing a graph's styles into a file is the file styles experiment.
+    const fileStyles = session.features.enabled.includes("file-styles");
+    if (writerOptions.styles === true && !fileStyles) {
+        throw featureOff("file-styles", "styles");
+    }
+
+    const writer = writerFor(format, writerOptions);
+    const rows = exportRows(session, scope);
+    const build = { ...writer.build, rows, ...(columns === undefined ? {} : { columns: new Set(columns) }) };
     let built: { snapshot: GraphSnapshot; notes: LossNote[] };
     let styles: StylesToWrite | null = null;
     try {
         // With styles, the style writer is the only path: the drawn colour, size and width columns are left out.
-        built = buildExportSnapshot(session, writer.build.styles === true ? {} : view, writer.build);
+        built = buildExportSnapshot(session, writer.build.styles === true ? {} : view, build);
         if (writer.build.styles === true) {
-            styles = sessionStyles(session, built.snapshot, writer.exporter);
+            styles = sessionStyles(session, built.snapshot, writer.exporter, rows);
         }
     } catch (error) {
         throw GraphtyError.wrap(error, {
@@ -927,7 +1217,7 @@ export function exportSession(
         return writeWith(writer, built.snapshot, format, [...built.notes, ...styles.notes], styles);
     }
 
-    const layers = ownLayers(session);
+    const layers = fileStyles ? ownLayers(session) : 0;
     const notExported: ElementLossNote[] =
         layers === 0
             ? []
@@ -966,16 +1256,24 @@ interface StylesToWrite {
  * @param session - The session.
  * @param snapshot - The snapshot being written, rows in the session's order.
  * @param exporter - The format's writer.
+ * @param rows - The session rows written.
  * @returns The styles and the element's own notes about them.
  */
-function sessionStyles(session: GraphSession, snapshot: GraphSnapshot, exporter: AnyExporter): StylesToWrite {
+function sessionStyles(
+    session: GraphSession,
+    snapshot: GraphSnapshot,
+    exporter: AnyExporter,
+    rows: ExportRows,
+): StylesToWrite {
     const block = exporter.styles?.capabilities.block;
     const { state } = dispatcherOf(session);
-    const nodes = session.data.nodes();
-    const edges = session.data.edges();
+    const allNodes = session.data.nodes({ scope: "graph" });
+    const allEdges = session.data.edges({ scope: "graph" });
+    const nodes = rows.nodes.map((row) => allNodes[row]);
+    const edges = rows.edges.map((row) => allEdges[row]);
     const nodeMask = session.visibility.nodeMask();
     const edgeMask = session.visibility.edgeMask();
-    const rowOf = new Map(nodes.map((record, row) => [record.id, row]));
+    const rowOf = new Map(allNodes.map((record, row) => [record.id, row]));
     const shown = (id: unknown): boolean => {
         const row = rowOf.get(id as never);
         return row === undefined || nodeMask[row] === 1;
@@ -986,9 +1284,11 @@ function sessionStyles(session: GraphSession, snapshot: GraphSnapshot, exporter:
         ids: { node: nodes.map((record) => record.id), edge: edges.map((record) => record.id) },
         explain: (target) => session.styles.explain(target),
         hidden: {
-            node: nodes.map((_record, row) => nodeMask[row] !== 1),
+            node: rows.nodes.map((row) => nodeMask[row] !== 1),
             // An edge hidden only because an end of it is hidden comes back with that end.
-            edge: edges.map((record, row) => edgeMask[row] !== 1 && shown(record.source) && shown(record.target)),
+            edge: rows.edges.map(
+                (row) => edgeMask[row] !== 1 && shown(allEdges[row].source) && shown(allEdges[row].target),
+            ),
         },
         fileStyles: asFileStyleStore(state.graph.values.get(FILE_STYLES_VALUE)),
         format: exporter.format,

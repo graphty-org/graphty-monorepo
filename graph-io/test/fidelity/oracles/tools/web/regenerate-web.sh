@@ -5,7 +5,7 @@
 #
 #   graph-io/test/fidelity/oracles/tools/web/regenerate-web.sh [<sample-id> ...]
 #
-# Installs the pinned libraries of package.json here (npm ci) on first use. The samples run one after
+# The pinned libraries are graph-io's devDependencies (pnpm install). The samples run one after
 # another, each in its own headless Chromium, under one of the machine's shared browser slots
 # (WITH_BROWSER, default tools/with-browser.sh of this checkout, when it exists). Set
 # ORACLE_SCREENSHOT_DIR to also save what Chromium showed, for checking an oracle against the live
@@ -18,7 +18,6 @@ test=$(cd "$out/../.." && pwd)
 WITH_BROWSER=${WITH_BROWSER:-$(git -C "$here" rev-parse --show-toplevel)/tools/with-browser.sh}
 export FC_FONTATIONS=1
 
-[[ -d "$here/node_modules" ]] || npm ci --prefix "$here" --no-audit --no-fund
 if [[ -z "${WEB_ORACLE_SLOT:-}" && -x "$WITH_BROWSER" ]]; then
     WEB_ORACLE_SLOT=1 exec "$WITH_BROWSER" "$0" "$@"
 fi

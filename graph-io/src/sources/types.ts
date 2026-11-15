@@ -171,7 +171,8 @@ export type SourceRequestInit = RequestInit & {
 };
 
 /**
- * The caps of a load. Every default is "no limit". Experimental.
+ * The caps of a load. Every default is "no limit", except what a compressed file inflates to
+ * (`maxBytes`). Experimental.
  * @category Network sources
  */
 export interface SourceLimitOptions {
@@ -183,7 +184,11 @@ export interface SourceLimitOptions {
     readonly maxNodes?: number | undefined;
     /** Stop once this many edges were written. Checked after each page, as `maxNodes` is. */
     readonly maxEdges?: number | undefined;
-    /** Stop once this many decoded response bytes were read. */
+    /**
+     * Stop once this many decoded response bytes were read. A .gz or .zip file a file source
+     * returns is also held to this many bytes once inflated, or to 2 GiB when it is unset; past it
+     * the load fails with E_SOURCE_LIMIT.
+     */
     readonly maxBytes?: number | undefined;
     /** Stop before sending more requests than this. */
     readonly maxRequests?: number | undefined;
@@ -224,6 +229,18 @@ export interface RetryOptions {
 }
 
 /**
+ * How much a source holds for a load, as it counted it, so a caller can show "100 of 28,455".
+ * Experimental.
+ * @category Network sources
+ */
+export interface SourceTotal {
+    /** The nodes the load's params match at the source. */
+    readonly nodes?: number | undefined;
+    /** The edges the load's params match at the source. */
+    readonly edges?: number | undefined;
+}
+
+/**
  * Facts a source reports with `ctx.finish()`. Experimental.
  * @category Network sources
  */
@@ -243,6 +260,8 @@ export interface SourceFinish {
         | undefined;
     /** What lets a later call tell whether the data changed. */
     readonly validators?: SourceValidators | undefined;
+    /** What the source holds for this load, when it counted: the nodes and edges it matches. */
+    readonly total?: SourceTotal | undefined;
 }
 
 /**
@@ -325,11 +344,12 @@ export interface SourceParamDescriptor {
 }
 
 /**
- * A public example a source offers. Experimental.
+ * A public server and the params that load a known graph from it: a dependable example of what a
+ * source reads, shipped as catalog data. Not a graph-samples dataset. Experimental.
  * @category Network sources
  */
-export interface SourceSample {
-    /** Its id ("neo4j-movies"). */
+export interface SourceExample {
+    /** Its id, unique within its source ("neo4j-movies"). */
     readonly id: string;
     /** Its default name; catalog data. */
     readonly plainName: string;
@@ -355,8 +375,41 @@ export interface SourceSample {
               readonly edges?: number | undefined;
           }
         | undefined;
-    /** false: too big to load whole; start from a neighborhood. */
+    /** false: too big to load whole; its params start from a neighborhood or it has `firstPage`. */
     readonly whole?: boolean | undefined;
+    /**
+     * A node cap for loading the example when the caller gives none, for an example too big to
+     * load whole that pages: the load stops at the first page past it, and its cursor reads on.
+     */
+    readonly firstPage?: number | undefined;
+}
+
+/**
+ * One credential a source takes, as its descriptor declares it: a name a project file records
+ * instead of the credential, the kind, whether a load needs it, and for an API key how it is sent.
+ * `credentials.forSlot(slot, value)` makes the credential it describes. Experimental.
+ * @category Network sources
+ */
+export interface SourceCredentialSlot {
+    /** The slot's name, recorded as a load's `credentialSlot` ("api_key", "default"). */
+    readonly name: string;
+    /** The credential kind it takes. */
+    readonly kind: CredentialKind;
+    /** Whether a load needs it. @defaultValue false */
+    readonly required?: boolean | undefined;
+    /** Its default name; catalog data an application may replace by name. */
+    readonly plainName?: string | undefined;
+    /** For an API key: the query parameter or request header it is sent in. */
+    readonly send?:
+        | {
+              /** The query parameter the key is sent in. */
+              readonly query: string;
+          }
+        | {
+              /** The request header the key is sent in. */
+              readonly header: string;
+          }
+        | undefined;
 }
 
 /**
@@ -377,6 +430,25 @@ export interface SourceDescriptor {
     readonly auth?: readonly CredentialKind[] | undefined;
     /** Whether a credential is needed. @defaultValue "none" */
     readonly authRequired?: "required" | "optional" | "none" | undefined;
+    /**
+     * The credential slots it takes. A source that takes a credential (`auth`) and declares none
+     * has one slot, `default`: `credentialSlots(descriptor)` reads either. @defaultValue []
+     */
+    readonly credentials?: readonly SourceCredentialSlot[] | undefined;
+    /**
+     * Where an `api-key` credential goes, for a form that asks for the key alone: pass it to
+     * `credentials.apiKey(descriptor.apiKey, key)`. Absent when the caller must say.
+     */
+    readonly apiKey?:
+        | {
+              /** The request header that carries the key. */
+              readonly header: string;
+          }
+        | {
+              /** The query parameter that carries the key. */
+              readonly query: string;
+          }
+        | undefined;
     /** The endpoint used when the caller names none. @defaultValue null */
     readonly defaultEndpoint?: string | null | undefined;
     /** Where it runs; a runtime marked unsupported is refused with E_SOURCE_RUNTIME before any request. */
@@ -430,8 +502,8 @@ export interface SourceDescriptor {
      */
     readonly migrateParams?:
         ((params: Record<string, unknown>, fromVersion: number) => Record<string, unknown>) | undefined;
-    /** Public examples to offer. */
-    readonly samples?: readonly SourceSample[] | undefined;
+    /** Public servers and params that load a known graph, to offer as examples. */
+    readonly examples?: readonly SourceExample[] | undefined;
 }
 
 /**
@@ -584,6 +656,8 @@ export interface SourceReportInfo {
         | undefined;
     /** What lets a later call tell whether the data changed. */
     readonly validators?: SourceValidators | undefined;
+    /** What the source holds for this load, when it counted: the nodes and edges it matches. */
+    readonly total?: SourceTotal | undefined;
 }
 
 /**
@@ -732,7 +806,10 @@ export interface LoadFromSourceOptions extends CommonImportOptions {
     readonly allowInsecure?: boolean | undefined;
     /** The fetch to use instead of the global one (tests, recorded responses, Node agents). */
     readonly fetch?: typeof fetch | undefined;
-    /** Sent as User-Agent in Node. No default string. */
+    /**
+     * Sent as User-Agent in Node, where every request carries one; browsers do not allow setting it.
+     * @defaultValue "graphty-graph-io (+https://graphty.app)" in Node
+     */
     readonly userAgent?: string | undefined;
     /** Settings for the builder (loadFromSource and expandFromSource). */
     readonly builder?: BuilderSeed | undefined;

@@ -9,13 +9,16 @@ import type {
     DataSourceInput,
     DraftRow,
     GraphSession,
+    LoadChoices,
     LoadDraft,
     LoadReport,
     RecordPage,
+    SourceKey,
 } from "@graphty/graphty-element/session";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { INITIAL_CHOICES, initialChoices as freshChoices, loadChoices, type PageChoices } from "./choices";
+import { fileStylesOn } from "../features";
+import { carriedChoices, initialChoices as freshChoices, loadChoices, type PageChoices } from "./choices";
 
 /** What the reader handed over. */
 export type PageSource =
@@ -58,7 +61,7 @@ export function sourceName(source: PageSource): string {
  * @param settings - the reader's file settings.
  * @returns what `prepare` takes.
  */
-function sourceInput(source: PageSource, settings: ReadSettings): DataSourceInput {
+export function sourceInput(source: PageSource, settings: ReadSettings): DataSourceInput {
     const extra = {
         ...(settings.delimiter === undefined ? {} : { delimiter: settings.delimiter }),
         ...(settings.errorLimit === undefined ? {} : { errorLimit: settings.errorLimit }),
@@ -108,10 +111,11 @@ export interface LoadDraftState {
     setFilter: (filter: RowFilter) => void;
     /**
      * Loads the draft with the reader's choices.
+     * @param history - "start" when the load makes a new graph, which starts its history.
      * @returns true once the rows are in the graph; false when the element refused the load,
      *     which `loadError` then holds.
      */
-    load: () => Promise<boolean>;
+    load: (history?: LoadChoices["history"]) => Promise<boolean>;
 }
 
 /**
@@ -119,22 +123,24 @@ export interface LoadDraftState {
  * @param session - the element's session, or null before it has come up.
  * @param mode - "replace" for a new graph, "merge" to add to the open project.
  * @param initial - the source a door handed over, if any.
- * @param initialChoices - the choices a door handed over with it (Edit source...), kept while the
- *     page reads that same source with no file settings.
+ * @param carried - the choices the load being replaced was read with (`LoadedSource.choices`),
+ *     laid onto the draft while the page reads the source the door handed over with no file settings.
+ * @param replacing - the load a Load replaces (`data.replaceSource`), when the page replaces one.
  * @returns the page's state and setters.
  */
 export function useLoadDraft(
     session: GraphSession | null,
     mode: "replace" | "merge",
     initial: PageSource | null,
-    initialChoices: PageChoices = INITIAL_CHOICES,
+    carried?: LoadChoices,
+    replacing?: SourceKey,
 ): LoadDraftState {
     const [source, setSource] = useState<PageSource | null>(initial);
     const [settings, setSettings] = useState<ReadSettings>({});
     const [draft, setDraft] = useState<LoadDraft | null>(null);
     const [reading, setReading] = useState(false);
     const [readError, setReadError] = useState<unknown>(null);
-    const [choices, setChoices] = useState<PageChoices>(initialChoices);
+    const [choices, setChoices] = useState<PageChoices>(() => freshChoices(fileStylesOn(session)));
     const [report, setReport] = useState<LoadReport | null>(null);
     const [reportError, setReportError] = useState<unknown>(null);
     const [tableId, setTableId] = useState<string | null>(null);
@@ -144,6 +150,8 @@ export function useLoadDraft(
     const [loadError, setLoadError] = useState<unknown>(null);
     /** The draft a load was started on: leaving the page must not dispose it mid-load. */
     const loadingDraft = useRef<LoadDraft | null>(null);
+    /** Whether loads carry a file's styles: a boolean, so the hooks below re-run only when it flips. */
+    const fileStyles = fileStylesOn(session);
 
     const chooseSource = useCallback((next: PageSource | null) => {
         setSource(next);
@@ -157,13 +165,10 @@ export function useLoadDraft(
         setReportError(null);
         setReadError(null);
         setRows(null);
-        // The choices a door handed over hold for its own source; any other starts from the
-        // reader's preferences (whether a file's styles are imported).
-        setChoices(
-            source === initial && Object.keys(settings).length === 0 && initialChoices !== INITIAL_CHOICES
-                ? initialChoices
-                : freshChoices(),
-        );
+        // The choices a door handed over hold for its own source, once its draft is read; any
+        // other starts from the reader's preferences (whether a file's styles are imported).
+        const carry = source === initial && Object.keys(settings).length === 0 ? carried : undefined;
+        setChoices(freshChoices(fileStylesOn(session)));
         setLoadError(null);
         setFilter("all");
         if (session === null || source === null) {
@@ -180,6 +185,9 @@ export function useLoadDraft(
                     return;
                 }
                 held = next;
+                if (carry !== undefined) {
+                    setChoices(carriedChoices(next, carry, fileStylesOn(session)));
+                }
                 setDraft(next);
                 setTableId(next.tables[0]?.id ?? null);
                 setReading(false);
@@ -197,7 +205,7 @@ export function useLoadDraft(
                 held.dispose();
             }
         };
-    }, [session, source, settings, initial, initialChoices]);
+    }, [session, source, settings, initial, carried]);
 
     // What a load with these choices would do: recomputed on the held rows, no I/O.
     useEffect(() => {
@@ -206,7 +214,7 @@ export function useLoadDraft(
         }
         let stale = false;
         setLoadError(null);
-        draft.report(loadChoices(draft, choices, mode)).then(
+        draft.report(loadChoices(draft, choices, mode, fileStyles)).then(
             (next) => {
                 if (!stale) {
                     setReport(next);
@@ -223,7 +231,7 @@ export function useLoadDraft(
         return () => {
             stale = true;
         };
-    }, [draft, choices, mode]);
+    }, [session, draft, choices, mode, fileStyles]);
 
     // The grid's rows. The unmatched and rejected filters are read under the same choices the
     // report counted with: without them the element reads a load that replaces the graph, so an
@@ -233,7 +241,7 @@ export function useLoadDraft(
             return undefined;
         }
         let stale = false;
-        const only = filter === "all" ? {} : { only: filter, choices: loadChoices(draft, choices, mode) };
+        const only = filter === "all" ? {} : { only: filter, choices: loadChoices(draft, choices, mode, fileStyles) };
         // "Show the 32 unmatched rows" shows all of them, not a sample (round 8).
         const limit = filter === "all" ? SAMPLE_ROWS : Infinity;
         draft.rows(tableId, { limit, ...only }).then(
@@ -249,26 +257,35 @@ export function useLoadDraft(
         return () => {
             stale = true;
         };
-    }, [draft, tableId, filter, choices, mode]);
+    }, [session, draft, tableId, filter, choices, mode, fileStyles]);
 
-    const load = useCallback(async (): Promise<boolean> => {
-        if (draft === null) {
-            return false;
-        }
-        setLoading(true);
-        loadingDraft.current = draft;
-        try {
-            await draft.load(loadChoices(draft, choices, mode));
-            return true;
-        } catch (error: unknown) {
-            setLoadError(error);
-            return false;
-        } finally {
-            // A refused load leaves the draft on the page, which disposes it as usual.
-            loadingDraft.current = null;
-            setLoading(false);
-        }
-    }, [draft, choices, mode]);
+    const load = useCallback(
+        async (history?: LoadChoices["history"]): Promise<boolean> => {
+            if (draft === null) {
+                return false;
+            }
+            setLoading(true);
+            loadingDraft.current = draft;
+            try {
+                const chosen = loadChoices(draft, choices, mode, fileStyles);
+                if (replacing !== undefined && session !== null && source !== null) {
+                    // The page's source in place of one load, by key: every other load stays.
+                    await session.data.replaceSource(replacing, sourceInput(source, settings), chosen);
+                } else {
+                    await draft.load({ ...chosen, ...(history === undefined ? {} : { history }) });
+                }
+                return true;
+            } catch (error: unknown) {
+                setLoadError(error);
+                return false;
+            } finally {
+                // A refused load leaves the draft on the page, which disposes it as usual.
+                loadingDraft.current = null;
+                setLoading(false);
+            }
+        },
+        [draft, choices, mode, fileStyles, replacing, session, source, settings],
+    );
 
     return {
         source,

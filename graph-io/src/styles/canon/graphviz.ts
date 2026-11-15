@@ -25,6 +25,7 @@
  *   with a `;` and no `:` is not a list: it is one unknown color, drawn black.
  */
 
+import { itemAt } from "../../common/text.js";
 import { BREWER_SCHEMES, CSS_COLORS, X11_COLORS } from "./color-tables.js";
 
 /**
@@ -98,7 +99,7 @@ function resolveOne(text: string, scheme: string): { hex: string; alpha: number 
         }
         return {
             hex: `#${m[1]}${m[2]}${m[3]}`.toLowerCase(),
-            alpha: m[4] === undefined ? 1 : Number.parseInt(m[4], 16) / 255,
+            alpha: Number.parseInt(itemAt(m, 4) ?? "ff", 16) / 255,
         };
     }
     const hsv = /^[.\d]/.test(text) ? hsvColor(text) : null;

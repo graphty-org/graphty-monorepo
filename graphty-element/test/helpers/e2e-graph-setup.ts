@@ -33,6 +33,8 @@ export interface E2EGraphOptions {
     edges?: TestEdgeData[];
     /** Whether to enable AI control (default: true) */
     enableAi?: boolean;
+    /** The assistant's `toolset`, when not its default. */
+    toolset?: "generated";
     /** Container width in pixels (default: 800) */
     width?: number;
     /** Container height in pixels (default: 600) */
@@ -78,7 +80,7 @@ let current: Graph | null = null;
  * ```
  */
 export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2EGraphResult> {
-    const { nodes = [], edges = [], enableAi = true, width = 800, height = 600 } = options;
+    const { nodes = [], edges = [], enableAi = true, toolset, width = 800, height = 600 } = options;
 
     // Clean up any previous test graph
     cleanupE2EGraph();
@@ -112,7 +114,7 @@ export async function createE2EGraph(options: E2EGraphOptions = {}): Promise<E2E
 
     // Enable AI control if requested
     if (enableAi) {
-        await graph.enableAiControl({ provider: "mock" });
+        await graph.enableAiControl({ provider: "mock", ...(toolset === undefined ? {} : { toolset }) });
     }
 
     return { element: container, graph };

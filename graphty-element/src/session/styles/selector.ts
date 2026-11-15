@@ -33,7 +33,17 @@
  */
 
 import { parseScope } from "../../catalog/sets/parse";
-import type { EdgeId, EdgeReading, NodeId, Path, Query, RuleTree, Scope, TopTies } from "../../catalog/types";
+import type {
+    EdgeId,
+    EdgeReading,
+    ElementState,
+    NodeId,
+    Path,
+    Query,
+    RuleTree,
+    Scope,
+    TopTies,
+} from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
 import {
     columnsFor,
@@ -84,7 +94,7 @@ export type Selector =
      * The top `n` elements by one run field, `results.<run>.<field>`, cut only between tie
      * groups: a group of equal values is painted whole, and only when all of it fits inside `n`.
      * So a layer never paints more than `n` elements, and paints none on a graph whose highest
-     * value is shared by more than `n`. `RunResult.top` is the same cut with its reason. With
+     * value is shared by more than `n`. `RunResult.top` is the same cut, with the tie group it left out. With
      * `ties: "all"` the group the cut falls in is painted whole instead, past `n`.
      */
     | { readonly match: "top"; readonly path: Path; readonly n: number; readonly ties?: TopTies }
@@ -103,7 +113,10 @@ export type Selector =
     /**
      * The elements a reader is pointing at now: in the selection (`"selected"`, nodes and edges as
      * the selection holds them), or under the pointer (`"hovered"`, one node at most; no edge is
-     * ever hovered). View state, never data: the layer follows each change without a step.
+     * ever hovered), or drawn outside the time window (`"ghosted"`, while the timeline setting
+     * `outside` is `"ghost"`), or pinned in place (`"pinned"`, nodes only, as
+     * `session.positions.pinned` holds them). View state, never data: the layer follows each
+     * change without a step.
      * @since 3.26.0
      */
     | { readonly match: "state"; readonly state: ElementState }
@@ -118,14 +131,8 @@ export type Selector =
           readonly orSelected?: boolean;
       };
 
-/**
- * What a reader is doing to an element now, which a `{ match: "state" }` selector reads.
- * @since 3.26.0
- */
-export type ElementState = "selected" | "hovered";
-
 /** Every element state, for a refusal that lists what was allowed. */
-const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered"];
+const ELEMENT_STATES: readonly ElementState[] = ["selected", "hovered", "ghosted", "pinned"];
 
 /** The path list every selector that reads no column shares. */
 const EMPTY_PATHS: readonly Path[] = Object.freeze([]);
@@ -330,11 +337,13 @@ export type RuleSelector = Extract<Selector, { readonly match: "rule" }>;
  *     `data.donations` from 10000 up.
  * @param options - How much to read.
  * @param options.comparisons - Read ordering comparisons and bare column names too. Default false.
+ * @param options.states - Read a `state` selector as a `state` leaf, so an editor can put conditions
+ *     beside it. Default false: a `state` selector has no rule form. Since 3.36.0.
  * @since 3.26.0
  */
 export function selectorRule(
     selector: Selector,
-    options: { readonly comparisons?: boolean } = {},
+    options: { readonly comparisons?: boolean; readonly states?: boolean } = {},
 ): RuleSelector | undefined {
     switch (selector.match) {
         case "rule":
@@ -351,6 +360,10 @@ export function selectorRule(
                     ...(selector.ties === undefined ? {} : { ties: selector.ties }),
                 },
             };
+        case "state":
+            return options.states === true
+                ? { match: "rule", where: { kind: "state", state: selector.state } }
+                : undefined;
         case "expression": {
             const where = expressionRule(selector.where, options.comparisons === true);
             return where === undefined ? undefined : { match: "rule", where };
@@ -358,6 +371,46 @@ export function selectorRule(
         default:
             return undefined;
     }
+}
+
+/**
+ * The states a rule reads, however deep: its `state` leaves, a union's steps included.
+ * @param rule - The rule.
+ * @returns The states, once each order of reading.
+ */
+function statesInRule(rule: RuleTree): ElementState[] {
+    switch (rule.kind) {
+        case "state":
+            return [rule.state];
+        case "all":
+        case "any":
+            return rule.of.flatMap(statesInRule);
+        case "not":
+            return statesInRule(rule.of);
+        case "union":
+            return rule.branches.flatMap((branch) => branch.steps.flatMap((step) => statesInRule(step.rule)));
+        default:
+            return [];
+    }
+}
+
+/**
+ * The states a selector reads, whichever way it is written: `{ match: "state" }`, or a rule with a
+ * `state` leaf in it however deep. A layer that reads none is about data, not about what a reader
+ * is doing.
+ *
+ * ```ts
+ * import { selectorStates } from "@graphty/graphty-element/session";
+ *
+ * selectorStates(layer.selector); // ["selected"] for a layer on the selection, however narrowed
+ * ```
+ * @param selector - Any selector.
+ * @returns The states it reads, each once.
+ * @since 3.36.0
+ */
+export function selectorStates(selector: Selector): readonly ElementState[] {
+    const rule = selectorRule(selector, { states: true })?.where;
+    return rule === undefined ? [] : [...new Set(statesInRule(rule))];
 }
 
 /**

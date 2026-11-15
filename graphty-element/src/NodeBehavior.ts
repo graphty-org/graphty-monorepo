@@ -1,176 +1,32 @@
-// Installs scene.pick and scene.createPickingRay; see test/packaging/babylon-side-effects.test.ts.
+// Installs scene.createPickingRay; see test/packaging/babylon-side-effects.test.ts.
 import "@babylonjs/core/Culling/ray.js";
 
-import {
-    type AbstractMesh,
-    type ActionEvent,
-    ActionManager,
-    ExecuteCodeAction,
-    Matrix,
-    PointerEventTypes,
-    type PointerInfoPre,
-    Ray,
-    Scene,
-    Vector3,
-} from "@babylonjs/core";
+import type { ActionEvent, PointerInfoPre } from "@babylonjs/core";
+import { ActionManager } from "@babylonjs/core/Actions/actionManager.js";
+import { ExecuteCodeAction } from "@babylonjs/core/Actions/directActions.js";
+import { Ray } from "@babylonjs/core/Culling/ray.core.js";
+import { PointerEventTypes, type PointerInfo } from "@babylonjs/core/Events/pointerEvents.js";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
-import { readEndpoint, resolveEndpoints } from "./data/endpoints";
+import { expansionOf } from "./data/expand";
 import type { Graph } from "./Graph";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
-import { ON_TOP_RENDERING_GROUP } from "./meshes/RichTextLabel";
 import type { Node as GraphNode, NodeIdType } from "./Node";
+import { MIN_RADIUS_PX } from "./render/NodeIdTarget";
+import { filterPointerPicks, hoverNodeId, type HoverPick, pickNodeId } from "./render/PickService";
 import { dispatcherOf } from "./session/GraphSession";
-import type { Dispatcher, DispatchFunction, TransactionScope } from "./session/project/Dispatcher";
-
-/**
- * The mesh a click at a canvas point lands on, as the reader sees the picture.
- *
- * Babylon's pick returns the hit nearest the camera, whatever group it is drawn in. A label drawn
- * on top (`ON_TOP_RENDERING_GROUP`, `onTop`) covers every node, even one nearer the camera, so the nearest
- * hit is the wrong answer there: a click on the card went to the node hidden under it. A mesh drawn
- * on top that is hit wins; otherwise the nearest hit does.
- * @param scene - The scene to pick in.
- * @param x - X in CSS pixels from the canvas's left edge.
- * @param y - Y in CSS pixels from the canvas's top edge.
- * @returns The mesh, or null when the point lands on nothing.
- */
-export function pickAsDrawn(scene: Scene, x: number, y: number): AbstractMesh | null {
-    const ray = scene.createPickingRay(x, y, null, null);
-    const pickable = (mesh: AbstractMesh): boolean => mesh.isPickable && mesh.isVisible && mesh.isEnabled();
-    const onTop = scene.pick(
-        x,
-        y,
-        alongRay(scene, ray, (mesh) => mesh.renderingGroupId >= ON_TOP_RENDERING_GROUP && pickable(mesh)),
-    );
-    return onTop.hit ? onTop.pickedMesh : scene.pick(x, y, alongRay(scene, ray, pickable)).pickedMesh;
-}
-
-/**
- * A pick predicate that admits a mesh only when `admit` does AND the world-space ray can reach
- * its world bounding sphere.
- *
- * Babylon's pick builds a ray in each admitted mesh's own space -- a world x view x projection
- * multiply, an invert and two unprojects -- before it tests the mesh, and every node is a mesh of
- * its own, so a pick with no such filter cost one unproject per node (issue #3244). Testing the one
- * world ray against the sphere Babylon keeps in world space costs a few multiplies, and Babylon's
- * own test is against that same sphere in the mesh's space, so a mesh this rejects is one Babylon
- * would have rejected: the line test below drops Babylon's "behind the ray's origin" check and pads
- * the radius, so it only ever admits more. What is picked is unchanged.
- *
- * ponytail: Babylon's pick still walks every mesh in `scene.meshes` and calls this for each, about
- * 15-20 ms a pick at 100,000 nodes; a GPU id buffer or a spatial index over node positions is the
- * upgrade if that matters.
- * @param scene - The scene being picked.
- * @param ray - The pick's ray in world space.
- * @param admit - Which meshes may be picked at all.
- * @returns The predicate.
- */
-export function alongRay(
-    scene: Scene,
-    ray: Ray,
-    admit: (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean,
-): (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean {
-    // With several active cameras Babylon recomputes a camera-dependent mesh's world matrix for the
-    // pointer's camera, so the sphere read here could be the other camera's: filter nothing then.
-    const cameraDependent =
-        (scene.activeCameras?.length ?? 0) > 1 && scene.cameraToUseForPointers !== scene.activeCamera;
-    const { origin, direction } = ray;
-    const usable = !cameraDependent && direction.lengthSquared() > 0;
-    return (mesh, thinInstanceIndex = -1) => {
-        if (thinInstanceIndex >= 0) {
-            return admit(mesh, thinInstanceIndex);
-        }
-
-        if (!admit(mesh, thinInstanceIndex)) {
-            return false;
-        }
-
-        if (!usable || mesh.hasThinInstances) {
-            return true;
-        }
-
-        mesh.computeWorldMatrix();
-        const { centerWorld, radiusWorld } = mesh.getBoundingInfo().boundingSphere;
-        const dx = centerWorld.x - origin.x;
-        const dy = centerWorld.y - origin.y;
-        const dz = centerWorld.z - origin.z;
-        const along = dx * direction.x + dy * direction.y + dz * direction.z;
-        // Babylon widens the test by a line mesh's own threshold; no other mesh has one.
-        const threshold =
-            "intersectionThreshold" in mesh && typeof mesh.intersectionThreshold === "number"
-                ? mesh.intersectionThreshold
-                : 0;
-        const radius = radiusWorld * (1 + 1e-5) + threshold;
-        return dx * dx + dy * dy + dz * dz - along * along <= radius * radius;
-    };
-}
-
-/** Babylon's own pointer picks, each made with the predicate the scene holds under this name. */
-const POINTER_PICK_PREDICATES = ["pointerMovePredicate", "pointerDownPredicate", "pointerUpPredicate"] as const;
-
-/** A pick predicate as Babylon calls it: the mesh, and a thin instance's index or -1. */
-type PickPredicate = (mesh: AbstractMesh, thinInstanceIndex?: number) => boolean;
-
-/**
- * Put {@link alongRay} in front of the predicates Babylon picks with on a pointer move, press and
- * release.
- *
- * Babylon picks the scene itself on every pointer move -- for the cursor and the action manager's
- * triggers, which every node mesh carries -- with `scene.pointerMovePredicate`, so a move cost one
- * unproject per node there too, besides the element's own picks. Babylon sets its default
- * predicates on the first event, and a consumer may set its own at any time, so each property is
- * replaced on this scene by one that wraps whatever is stored in it. A pick tests
- * `scene.meshes[0]` first, so the wrapper builds the pick's world ray there, from the pointer and
- * camera Babylon's own pointer picks use.
- * @param scene - The scene.
- */
-function filterPointerPicks(scene: Scene): void {
-    for (const key of POINTER_PICK_PREDICATES) {
-        const wrap = (base: PickPredicate | null | undefined): PickPredicate | null | undefined => {
-            if (!base) {
-                return base;
-            }
-
-            const ray = Ray.Zero();
-            let test = base;
-            return (mesh, thinInstanceIndex = -1) => {
-                if (thinInstanceIndex < 0 && mesh === scene.meshes[0]) {
-                    const pointer = scene.unTranslatedPointer;
-                    scene.createPickingRayToRef(pointer.x, pointer.y, null, ray, scene.cameraToUseForPointers);
-                    test = alongRay(scene, ray, base);
-                }
-
-                return test(mesh, thinInstanceIndex);
-            };
-        };
-        let held = wrap(scene[key]);
-        Object.defineProperty(scene, key, {
-            configurable: true,
-            enumerable: true,
-            get: () => held,
-            set: (base: PickPredicate | null | undefined) => {
-                held = wrap(base);
-            },
-        });
-    }
-}
-
-/**
- * The id of the node a click at a canvas point lands on, or `undefined` when it lands on none.
- *
- * Every pointer handler that asks "which node is under the pointer" and `elementAt` ask it here,
- * so the public answer and what a click selects cannot drift apart.
- * @param scene - The scene to pick in.
- * @param x - X in CSS pixels from the canvas's left edge.
- * @param y - Y in CSS pixels from the canvas's top edge.
- * @returns The node's id, or `undefined`.
- */
-export function pickNodeId(scene: Scene, x: number, y: number): NodeIdType | undefined {
-    const metadata = pickAsDrawn(scene, x, y)?.metadata as { nodeId?: NodeIdType } | null | undefined;
-    return metadata?.nodeId;
-}
+import {
+    cancelReasonOf,
+    type Dispatcher,
+    type DispatchFunction,
+    type TransactionScope,
+} from "./session/project/Dispatcher";
+import { sourceLoadsOf } from "./session/sources/ids";
+import type { HoverDrawn } from "./session/types";
 
 /**
  * When a pointer event HAPPENED, on the `performance.now()` clock.
@@ -198,6 +54,10 @@ interface DragState {
     dragging: boolean;
     dragStartMeshPosition: Vector3 | null;
     dragStartWorldPosition: Vector3 | null;
+    /** Where the pointer was at the last drag update, for the XR tracking-glitch guard. */
+    lastWorldPosition: Vector3 | null;
+    /** When the last drag update (or the drag start) came, in ms, for the same guard. */
+    lastUpdateTime: number;
     dragPlaneNormal: Vector3 | null;
     /** The pointer moved the node during this drag (set with or without a session). */
     moved: boolean;
@@ -239,12 +99,57 @@ interface ClickState {
  * #2894).
  */
 export interface NodePointerRoster {
-    /** Each node's handler, by node id. */
-    readonly byId: Map<NodeIdType, NodeDragHandler>;
+    /** Each node, by id. Its handler is built when the pointer first reaches it (`dragHandler`). */
+    readonly byId: Map<NodeIdType, GraphNode>;
     /** Handlers with a press or a drag in progress: they hear every move and every release. */
     readonly engaged: Set<NodeDragHandler>;
     /** Handlers whose node the pointer is over: they hear the move that leaves it. */
     readonly hovered: Set<NodeDragHandler>;
+    /** Pointer moves so far, so a hover answered late is dropped once a newer move came. */
+    moves: number;
+    /** The node the last move found under the pointer. */
+    overId: NodeIdType | undefined;
+}
+
+/** How many drag handlers were built; see {@link dragHandlersBuilt}. */
+let handlersBuilt = 0;
+
+/**
+ * How many drag handlers this page has built, so a test can count that a node the pointer never
+ * reached has none.
+ * @returns The count.
+ * @internal
+ */
+export function dragHandlersBuilt(): number {
+    return handlersBuilt;
+}
+
+/**
+ * Whether a node batch draws this node now, so the pointer reaches it through the roster and not
+ * through its mesh's actions (design/rendering/row-renderer.md 4.4).
+ * @param node - The node.
+ * @returns True when a batch draws it.
+ */
+function drawnByBatch(node: GraphNode): boolean {
+    return node.parentGraph.getNodeBatches?.()?.draws(node) ?? false;
+}
+
+/**
+ * The node a tap landed on: the mesh Babylon picked, as its actions read it, or else the row the
+ * element's own pick finds there.
+ * @param scene - The scene.
+ * @param roster - The scene's nodes.
+ * @param pointerInfo - The tap.
+ * @returns The node, or undefined.
+ */
+function tappedNode(scene: Scene, roster: NodePointerRoster, pointerInfo: PointerInfo): GraphNode | undefined {
+    const metadata = pointerInfo.pickInfo?.pickedMesh?.metadata as { graphNode?: GraphNode } | null | undefined;
+    if (metadata?.graphNode) {
+        return metadata.graphNode;
+    }
+
+    const id = inXR(scene) ? undefined : pickNodeId(scene, scene.pointerX, scene.pointerY);
+    return id === undefined ? undefined : roster.byId.get(id);
 }
 
 /** The roster of each scene; see {@link nodePointerRosterOf}. */
@@ -279,7 +184,7 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
             // nodeId from mesh metadata works with both regular and instanced meshes
             const pickedId = pickNodeId(scene, scene.pointerX, scene.pointerY);
             if (pickedId !== undefined) {
-                roster.byId.get(pickedId)?.onPointerDown(pointerInfo);
+                roster.byId.get(pickedId)?.dragHandler?.onPointerDown(pointerInfo);
             }
 
             break;
@@ -290,15 +195,18 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
             }
 
             // Picked AFTER the drags above have moved their nodes, so the hover reads where things
-            // are now.
-            const pickedId = pickNodeId(scene, scene.pointerX, scene.pointerY);
-            for (const handler of roster.hovered) {
-                handler.onHover(pickedId);
-            }
-
-            const target = pickedId === undefined ? undefined : roster.byId.get(pickedId);
-            if (target && !roster.hovered.has(target)) {
-                target.onHover(pickedId);
+            // are now. On the batched path the answer is read from the node ID target and comes
+            // later; only the latest move's answer is heard.
+            const move = ++roster.moves;
+            const picked = hoverNodeId(scene, scene.pointerX, scene.pointerY);
+            if (picked instanceof Promise) {
+                void picked.then((pick) => {
+                    if (move === roster.moves) {
+                        deliverHover(roster, pick);
+                    }
+                });
+            } else {
+                deliverHover(roster, picked);
             }
 
             break;
@@ -316,6 +224,24 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
 }
 
 /**
+ * Tell the hovered nodes and the node under the pointer where the pointer is.
+ * @param roster - The scene's nodes.
+ * @param pick - The node under the pointer, if any, and where the pick found it drawn.
+ */
+function deliverHover(roster: NodePointerRoster, pick: HoverPick): void {
+    const { id: pickedId, drawn } = pick;
+    roster.overId = pickedId;
+    for (const handler of roster.hovered) {
+        handler.onHover(pickedId, drawn);
+    }
+
+    const target = pickedId === undefined ? undefined : roster.byId.get(pickedId)?.dragHandler;
+    if (target && !roster.hovered.has(target)) {
+        target.onHover(pickedId, drawn);
+    }
+}
+
+/**
  * The roster of a scene's nodes, created with its one `onPrePointerObservable` observer on first
  * use. The graph creates it when it sets up its scene, so the shared observer sits where the
  * first node's own observers used to.
@@ -325,16 +251,78 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
 export function nodePointerRosterOf(scene: Scene): NodePointerRoster {
     let roster = nodePointerRosters.get(scene);
     if (!roster) {
-        const created: NodePointerRoster = { byId: new Map(), engaged: new Set(), hovered: new Set() };
+        const created: NodePointerRoster = {
+            byId: new Map(),
+            engaged: new Set(),
+            hovered: new Set(),
+            overId: undefined,
+            moves: 0,
+        };
         scene.onPrePointerObservable.add((pointerInfo) => {
             deliverPointerEvent(scene, created, pointerInfo);
         });
+        // A row a batch draws answers a click here, as an object row's mesh answers it through its
+        // actions: the same taps Babylon's own click detection makes.
+        scene.onPointerObservable.add((pointerInfo) => {
+            const node = tappedNode(scene, created, pointerInfo);
+            if (node !== undefined && !node.isDisposed() && drawnByBatch(node)) {
+                clickNode(node);
+            }
+        }, PointerEventTypes.POINTERTAP);
+        listenForDoubleClicks(scene, created);
+        // And says it can be clicked, as Babylon says over a mesh with actions. Babylon has just
+        // put back its default cursor on this move.
+        scene.onPointerObservable.add((pointerInfo) => {
+            const canvas = scene.getEngine().getInputElement();
+            const { buttons } = pointerInfo.event as { buttons?: number };
+            const node = created.overId === undefined ? undefined : created.byId.get(created.overId);
+            if (canvas && !scene.doNotHandleCursors && (buttons ?? 0) === 0 && node && drawnByBatch(node)) {
+                canvas.style.cursor = scene.hoverCursor;
+            }
+        }, PointerEventTypes.POINTERMOVE);
         filterPointerPicks(scene);
         nodePointerRosters.set(scene, created);
         roster = created;
     }
 
     return roster;
+}
+
+/**
+ * Expand the node a double-click of the mouse lands on, object row or batched row alike.
+ *
+ * THE BROWSER JUDGES THE DOUBLE-CLICK, NOT BABYLON. Babylon calls two presses a double-click when
+ * the second release is handled within 300 ms of the first press, timed with `Date.now()` when the
+ * page gets round to each event. A busy page -- a long frame, the restyle the first click's
+ * selection starts, a slow CI machine -- handles them later than they happened, and a quick
+ * double-click read as two single clicks and expanded nothing. The canvas's `dblclick` comes from
+ * the input itself (the system's double-click setting, or the click count an automation sends), so
+ * it holds however long the page takes.
+ * @param scene - The scene.
+ * @param roster - The scene's nodes.
+ */
+function listenForDoubleClicks(scene: Scene, roster: NodePointerRoster): void {
+    const canvas = scene.getEngine().getInputElement();
+    if (!canvas) {
+        return;
+    }
+
+    const onDoubleClick = (event: MouseEvent): void => {
+        if (inXR(scene)) {
+            return;
+        }
+
+        const box = canvas.getBoundingClientRect();
+        const id = pickNodeId(scene, event.clientX - box.left, event.clientY - box.top);
+        const node = id === undefined ? undefined : roster.byId.get(id);
+        if (node !== undefined && !node.isDisposed()) {
+            expandNode(node);
+        }
+    };
+    canvas.addEventListener("dblclick", onDoubleClick);
+    scene.onDisposeObservable.addOnce(() => {
+        canvas.removeEventListener("dblclick", onDoubleClick);
+    });
 }
 
 /** The one action manager the nodes of each scene share; see {@link nodeActionManagerOf}. */
@@ -368,7 +356,10 @@ export function nodeActionManagerOf(scene: Scene): ActionManager {
             new ExecuteCodeAction({ trigger: ActionManager.OnDoublePickTrigger }, (event?: ActionEvent) => {
                 const metadata = (event?.source as { metadata?: { graphNode?: GraphNode } } | undefined)?.metadata;
                 const node = metadata?.graphNode;
-                if (node && !node.isDisposed()) {
+                // A double-click of the mouse is the canvas's `dblclick` (listenForDoubleClicks); this
+                // answers an XR controller's double pick and a call made without a pointer event.
+                const fromMouse = event?.sourceEvent !== undefined && event.sourceEvent !== null && !inXR(scene);
+                if (node && !node.isDisposed() && !fromMouse) {
                     expandNode(node);
                 }
             }),
@@ -377,9 +368,8 @@ export function nodeActionManagerOf(scene: Scene): ActionManager {
             new ExecuteCodeAction({ trigger: ActionManager.OnPickTrigger }, (event?: ActionEvent) => {
                 const metadata = (event?.source as { metadata?: { graphNode?: GraphNode } } | undefined)?.metadata;
                 const node = metadata?.graphNode;
-                const graph = node?.parentGraph as (Graph & { fetchNodes?: unknown; fetchEdges?: unknown }) | undefined;
-                if (node && !node.isDisposed() && (!graph?.fetchNodes || !graph.fetchEdges)) {
-                    expandFromSource(node, "click");
+                if (node && !node.isDisposed() && !drawnByBatch(node)) {
+                    clickNode(node);
                 }
             }),
         );
@@ -387,6 +377,17 @@ export function nodeActionManagerOf(scene: Scene): ActionManager {
     }
 
     return manager;
+}
+
+/**
+ * A single click on a node: expand it from its source when no fetchers are set.
+ * @param node - The node.
+ */
+function clickNode(node: GraphNode): void {
+    const graph = node.parentGraph as Graph & { fetchNodes?: unknown; fetchEdges?: unknown };
+    if (!graph.fetchNodes || !graph.fetchEdges) {
+        expandFromSource(node, "click");
+    }
 }
 
 /**
@@ -399,13 +400,12 @@ function expandNode(node: GraphNode): void {
     // Only Graph has fetchNodes/fetchEdges, not GraphContext
     const graph = node.parentGraph as Graph & { fetchNodes?: unknown; fetchEdges?: unknown };
 
-    const { fetchNodes, fetchEdges } = graph;
-
     // No fetchers: the node's own network source expands it, when the consumer
     // switched that on (`behavior.expand.trigger`). Neither is the default, and
     // neither is an error: a graph that holds everything it is ever going to
     // hold has nothing to expand.
-    if (!fetchNodes || !fetchEdges) {
+    const command = expansionOf(graph, node);
+    if (command === undefined) {
         expandFromSource(node, "double-click");
         return;
     }
@@ -413,43 +413,11 @@ function expandNode(node: GraphNode): void {
     // make sure the graph is running, unless the consumer paused it
     context.getLayoutManager().running = true;
 
-    // fetch all edges for current node
-    const edgeSet = fetchEdges(node, graph);
-    const edges = Array.from(edgeSet);
-
-    // Which keys name this batch's endpoints is decided ONCE, by the same
-    // resolver the data manager uses, and the answer is then passed to
-    // `addEdges` so both halves of the expansion read the same columns.
-    //
-    // Reading `e.src` and `e.dst` here, as this handler used to, made the
-    // expansion work for exactly one spelling -- and not the canonical one. A
-    // `fetchEdges` written the way every guide teaches, returning
-    // `{source, target}`, yielded a set of `undefined` neighbours: nothing was
-    // fetched, and the edges queued as pending for ever.
-    const endpoints = resolveEndpoints(edges, { source: null, target: null });
-    const nodeIds = new Set<NodeIdType>();
-    edges.forEach((e) => {
-        nodeIds.add(readEndpoint(e, endpoints.source) as NodeIdType);
-        nodeIds.add(readEndpoint(e, endpoints.target) as NodeIdType);
-    });
-    nodeIds.delete(node.id);
-
-    // fetch all nodes from associated edges
-    const nodes = fetchNodes(nodeIds, graph);
-
-    // Add what was fetched as one step. The records ride in the command, so a
-    // redo puts them back without asking the consumer again; the command adds
-    // the edges under `repeated: "first"`, because a neighbourhood legitimately
-    // names edges the graph already holds.
+    // Add what was fetched as one step; the command adds the edges under
+    // `repeated: "first"`, because a neighbourhood legitimately names edges the
+    // graph already holds.
     void dispatcherOf(graph.getSession())
-        .dispatch({
-            op: "data.expand",
-            seed: node.id,
-            nodes: [...nodes],
-            edges,
-            source: endpoints.source,
-            target: endpoints.target,
-        })
+        .dispatch(command)
         .catch((error: unknown) => {
             console.error("[graphty] Expanding a node failed:", error);
         });
@@ -464,13 +432,53 @@ function expandNode(node: GraphNode): void {
  */
 function expandFromSource(node: GraphNode, gesture: "click" | "double-click"): void {
     const context: GraphContext = node.parentGraph;
-    const { trigger, ...options } = context.getStyles().config.behavior.expand;
     const session = context.getSession?.();
-    if (trigger !== gesture || session === undefined) {
+    if (session === undefined) {
+        return;
+    }
+
+    // The load that brought the node may carry its own expand behavior, which wins over the config.
+    const keys = sourceLoadsOf(session.data.node(node.id)).map((key) => key.split("/")[0]);
+    // ponytail: loads() walks every node; only a node a source brought pays for it, once per click.
+    const own = keys.length === 0 ? undefined : session.data.loads().find((load) => keys.includes(load.key))?.expand;
+    const { trigger, ...options } = { ...context.getStyles().config.behavior.expand, ...own };
+    if (trigger !== gesture) {
         return;
     }
 
     session.data.expand([node.id], options).catch(() => undefined);
+}
+
+/*
+ * The XR tracking-glitch guard: the largest move a reader's hand can make between two drag updates,
+ * in metres of the reader's own space, measured before `zAxisAmplification`. A bigger jump is a
+ * controller losing and reacquiring tracking (a snap of tens of centimetres in one frame), not a
+ * hand, and is ignored.
+ *
+ * - XR_MAX_HAND_SPEED: 10 m/s. Deliberate arm movement peaks well below it: fast reaching runs 1 to
+ *   3 m/s at the hand, the hardest VR rhythm-game swings and punches reach 6 to 10 m/s. A 30 cm
+ *   tracking snap inside one 72 Hz frame is 22 m/s.
+ * - The time is what passed since the previous update, so the bound holds at any frame rate. It is
+ *   never less than one frame of the fastest headset display (120 Hz), so updates that arrive
+ *   close together (an emulator, a script) still allow a hand's frame of movement.
+ * - XR_MAX_HAND_REACH: 2 m, about a standing adult's arm span. However long tracking was lost, a
+ *   hand comes back no further than that from where it went, so a long gap cannot excuse a bigger
+ *   snap.
+ */
+const XR_MAX_HAND_SPEED = 10;
+const XR_SHORTEST_FRAME_SECONDS = 1 / 120;
+const XR_MAX_HAND_REACH = 2;
+
+/**
+ * The longest pointer move one XR drag update may make. XRInputHandler moves the drag pointer by the
+ * hand's movement in the reader's own space (its position under the pivot, turned with the pivot
+ * but never scaled by zoom), so the pointer moves in metres.
+ * @param elapsedMs - Time since the previous update.
+ * @returns The limit, in metres.
+ */
+function xrMaxDragStep(elapsedMs: number): number {
+    const seconds = Math.max(elapsedMs / 1000, XR_SHORTEST_FRAME_SECONDS);
+    return Math.min(XR_MAX_HAND_SPEED * seconds, XR_MAX_HAND_REACH);
 }
 
 // Click detection thresholds
@@ -488,8 +496,8 @@ export class NodeDragHandler {
     private readonly scene: Scene;
     private readonly roster: NodePointerRoster;
     private isHovered = false;
-    private readonly zAxisAmplification: number;
-    private readonly enableZAmplificationInDesktop: boolean;
+    private zAxisAmplification = 10;
+    private enableZAmplificationInDesktop = false;
 
     /**
      * Creates a new drag handler for a node.
@@ -497,30 +505,27 @@ export class NodeDragHandler {
      */
     constructor(node: GraphNode) {
         this.node = node;
-        this.scene = node.mesh.getScene();
+        this.scene = node.drawnScene;
         this.dragState = {
             dragging: false,
             dragStartMeshPosition: null,
             dragStartWorldPosition: null,
+            lastWorldPosition: null,
+            lastUpdateTime: 0,
             dragPlaneNormal: null,
             moved: false,
         };
 
-        // Read config from graph context
         const context = this.getContext();
-        const xrConfig = context.getConfig().xr;
-
-        this.zAxisAmplification = xrConfig?.input.zAxisAmplification ?? 10;
-        this.enableZAmplificationInDesktop = xrConfig?.input.enableZAmplificationInDesktop ?? false;
 
         // A restyle rebuilds the node's mesh and this handler with it, often while the pointer is
         // over the node (a hover layer restyles the node it hovers). Starting from the session's
         // answer, not from false, is what lets the next move off the node end the hover.
         this.isHovered = context.getSelectionManager?.()?.isHovered(node.id) ?? false;
 
-        // Join the scene's pointer roster; see nodePointerRosterOf.
+        // The scene's pointer roster, which already names the node; see nodePointerRosterOf.
+        handlersBuilt++;
         this.roster = nodePointerRosterOf(this.scene);
-        this.roster.byId.set(node.id, this);
         if (this.isHovered) {
             this.roster.hovered.add(this);
         }
@@ -543,11 +548,18 @@ export class NodeDragHandler {
         this.gesture?.finish();
         this.gesture = this.openGesture();
 
+        // Read at each drag start, so `setXRConfig` reaches nodes drawn before it.
+        const input = this.getContext().getConfig().xr?.input;
+        this.zAxisAmplification = input?.zAxisAmplification ?? 10;
+        this.enableZAmplificationInDesktop = input?.enableZAmplificationInDesktop ?? false;
+
         this.dragState.dragging = true;
         this.dragState.moved = false;
         this.roster.engaged.add(this);
-        this.dragState.dragStartMeshPosition = this.node.mesh.position.clone();
+        this.dragState.dragStartMeshPosition = this.node.drawnPosition.clone();
         this.dragState.dragStartWorldPosition = worldPosition.clone();
+        this.dragState.lastWorldPosition = worldPosition.clone();
+        this.dragState.lastUpdateTime = performance.now();
         this.node.dragging = true;
 
         // Capture the drag plane orientation at drag start
@@ -581,7 +593,7 @@ export class NodeDragHandler {
         // Emit node-drag-start event
         const eventManager = context.getEventManager?.();
         if (eventManager) {
-            const pos = this.node.mesh.position;
+            const pos = this.node.drawnPosition;
             eventManager.emitNodeEvent("node-drag-start", {
                 node: this.node,
                 position: { x: pos.x, y: pos.y, z: pos.z },
@@ -607,22 +619,31 @@ export class NodeDragHandler {
             return;
         }
 
+        const isXR = this.isXRMode();
+        const jump = worldPosition.subtract(this.dragState.lastWorldPosition ?? worldPosition);
+        const now = performance.now();
+        const elapsedMs = now - this.dragState.lastUpdateTime;
+        this.dragState.lastWorldPosition = worldPosition.clone();
+        this.dragState.lastUpdateTime = now;
+        // A controller that loses and reacquires tracking reports one huge jump. Absorb it into the
+        // drag start, so the node stays where it is and later movement carries on from here.
+        if (isXR && jump.length() > xrMaxDragStep(elapsedMs)) {
+            this.dragState.dragStartWorldPosition.addInPlace(jump);
+            return;
+        }
+
         // Calculate delta from drag start
         const delta = worldPosition.subtract(this.dragState.dragStartWorldPosition);
 
-        // TODO: Add back delta validation with appropriate threshold for XR mode
-        // The previous MAX_REASONABLE_DELTA of 5.0 was too small for 10x amplification
-        // and was blocking ALL movement in XR
-
-        // Apply movement amplification in XR mode
-        // In VR, all controller movements are physically constrained (not just Z-axis)
-        // so we amplify all axes to make node manipulation practical
-        const shouldAmplify = this.isXRMode() || this.enableZAmplificationInDesktop;
-
-        if (shouldAmplify) {
-            delta.x *= this.zAxisAmplification;
-            delta.y *= this.zAxisAmplification;
+        // Amplify depth only: in XR, reaching forward and back is what the arm cannot do far. In XR
+        // depth is the reader's, along the Z of the pivot the camera is parented to: once the reader
+        // turns the scene, scene Z is sideways to them.
+        if (isXR || this.enableZAmplificationInDesktop) {
+            const parent = isXR ? this.scene.activeCamera?.parent : null;
+            const frame = parent instanceof TransformNode ? parent.absoluteRotationQuaternion : Quaternion.Identity();
+            delta.rotateByQuaternionToRef(Quaternion.Inverse(frame), delta);
             delta.z *= this.zAxisAmplification;
+            delta.rotateByQuaternionToRef(frame, delta);
         }
 
         // Calculate new position
@@ -661,7 +682,9 @@ export class NodeDragHandler {
         const context = this.getContext();
         const { gesture } = this;
         this.gesture = null;
-        const pins = this.node.pinOnDrag && this.placedByPointer();
+        // `layoutBehavior.node.pinOnDrag` read at the drop, so a change reaches nodes already drawn
+        const pins =
+            this.node.pinOnDrag && context.getStyles().config.behavior.node.pinOnDrag && this.placedByPointer();
         // An undo during the drag already released the node, put everything back and stopped
         // the layout: the drop of that gesture does nothing.
         if (gesture?.aborted !== true) {
@@ -684,7 +707,7 @@ export class NodeDragHandler {
         // Emit node-drag-end event before resetting drag state
         const eventManager = context.getEventManager?.();
         if (eventManager) {
-            const pos = this.node.mesh.position;
+            const pos = this.node.drawnPosition;
             eventManager.emitNodeEvent("node-drag-end", {
                 node: this.node,
                 position: { x: pos.x, y: pos.y, z: pos.z },
@@ -699,6 +722,7 @@ export class NodeDragHandler {
         this.dragState.dragging = false;
         this.dragState.dragStartMeshPosition = null;
         this.dragState.dragStartWorldPosition = null;
+        this.dragState.lastWorldPosition = null;
         this.dragState.dragPlaneNormal = null;
         this.settle();
     }
@@ -808,8 +832,24 @@ export class NodeDragHandler {
         }
 
         if (gesture.moved) {
-            const { x, y, z } = this.node.mesh.position;
-            scope.dispatch({ op: "positions.set", entries: [{ id: this.node.id, x, y, z }] }).catch(() => undefined);
+            const { x, y, z } = this.node.drawnPosition;
+            scope
+                .dispatch({ op: "positions.set", entries: [{ id: this.node.id, x, y, z }] })
+                .catch((error: unknown) => {
+                    // An undo during the drag aborts it; that ends the drag, and is no failure.
+                    if (gesture.aborted || cancelReasonOf(error) !== undefined) {
+                        return;
+                    }
+
+                    this.getContext()
+                        .getEventManager?.()
+                        ?.emitGraphError(
+                            this.getContext(),
+                            error instanceof Error ? error : new Error(String(error)),
+                            "other",
+                            { op: "positions.set", node: this.node.id },
+                        );
+                });
         }
 
         if (pins) {
@@ -854,7 +894,7 @@ export class NodeDragHandler {
 
     /**
      * Get the node being dragged.
-     * Used by XRInputHandler to access the node's mesh for position calculations.
+     * Used by XRInputHandler to read the node's position.
      * @returns The graph node associated with this drag handler
      */
     public getNode(): GraphNode {
@@ -941,8 +981,10 @@ export class NodeDragHandler {
      * A move: emit node-hover when the pointer arrives on this node, and hide its tooltip when it
      * leaves. The scene's roster calls it for the node under the pointer and the hovered ones.
      * @param pickedNodeId - The node under the pointer, if any.
+     * @param drawn - Where the pick found it drawn, when the pick says (a read that answers frames
+     *     later); absent, the pick read the scene as it stands, so it is measured now.
      */
-    public onHover(pickedNodeId: NodeIdType | undefined): void {
+    public onHover(pickedNodeId: NodeIdType | undefined, drawn?: HoverDrawn): void {
         // Skip if we're currently dragging
         if (this.dragState.dragging) {
             return;
@@ -953,14 +995,16 @@ export class NodeDragHandler {
         // Tell the session which node is under the pointer, for `{ match: "hover" }` layers.
         // Asked on every move over the node, not only on arrival, because the pointer can
         // leave the canvas and come back onto the same node without this node seeing it go.
-        if (isOverThisNode) {
-            this.getContext().getSelectionManager?.()?.hover(this.node.id);
+        const selection = this.getContext().getSelectionManager?.();
+        if (isOverThisNode && selection && !selection.isHovered(this.node.id)) {
+            selection.hover(this.node.id, drawn ?? this.drawnNow());
         }
 
         // Emit node-hover when entering the node (not when already hovering)
         if (isOverThisNode && !this.isHovered) {
             this.isHovered = true;
             this.roster.hovered.add(this);
+            this.node.shaderStateChanged("hovered", true);
 
             // THE TOOLTIP IS DRAWN HERE, and this is the only moment it can be. A tooltip is
             // an answer to pointing at something, so no style pass knows when to draw one:
@@ -988,6 +1032,21 @@ export class NodeDragHandler {
     }
 
     /**
+     * Where this node is drawn now, with the radius hover picks it within: on a batch, never under
+     * the node ID target's least radius.
+     * @returns The place, or undefined when the graph cannot say.
+     */
+    private drawnNow(): HoverDrawn | undefined {
+        const screen = this.getContext().nodeScreenPosition?.(this.node.id);
+        if (screen === undefined) {
+            return undefined;
+        }
+
+        const least = drawnByBatch(this.node) ? MIN_RADIUS_PX * this.scene.getEngine().getHardwareScalingLevel() : 0;
+        return { x: screen.x, y: screen.y, radius: Math.max(screen.radius, least) };
+    }
+
+    /**
      * The element the scene takes pointer events from.
      * @returns The canvas, or null when the engine has none (a headless engine).
      */
@@ -1008,6 +1067,7 @@ export class NodeDragHandler {
         }
 
         this.isHovered = false;
+        this.node.shaderStateChanged("hovered", false);
         this.node.hideTooltip();
         this.getContext().getSelectionManager?.()?.leave(this.node.id);
     };
@@ -1090,10 +1150,10 @@ export class NodeDragHandler {
         // This maintains predictable drag behavior
         const camera = this.scene.activeCamera;
         if (!camera) {
-            return this.node.mesh.position.clone();
+            return this.node.drawnPosition.clone();
         }
 
-        const nodePosition = this.node.mesh.position;
+        const nodePosition = this.node.drawnPosition;
 
         // Use stored plane normal from drag start if available
         // Otherwise fall back to current camera forward (for initial calculation)
@@ -1111,7 +1171,7 @@ export class NodeDragHandler {
         const denominator = Vector3.Dot(ray.direction, planeNormal);
         if (Math.abs(denominator) < 0.0001) {
             // Ray parallel to plane, return current position
-            return this.node.mesh.position.clone();
+            return this.node.drawnPosition.clone();
         }
 
         const t = Vector3.Dot(planePoint.subtract(ray.origin), planeNormal) / denominator;
@@ -1144,10 +1204,6 @@ export class NodeDragHandler {
         this.gesture?.finish();
         this.gesture = null;
         // Leaving the roster, not searching the scene's observers: see nodePointerRosterOf.
-        if (this.roster.byId.get(this.node.id) === this) {
-            this.roster.byId.delete(this.node.id);
-        }
-
         this.roster.engaged.delete(this);
 
         // A node removed under the pointer is no longer hovered.
@@ -1167,16 +1223,16 @@ export class NodeBehavior {
      * @param options - Configuration options for node behaviors
      */
     static addDefaultBehaviors(node: GraphNode, options: NodeBehaviorOptions = {}): void {
-        node.mesh.isPickable = true;
-
         // Set pinOnDrag config
         node.pinOnDrag = options.pinOnDrag ?? true;
 
-        // ONE HANDLER FOR THE NODE'S LIFE, kept when a restyle rebuilds the mesh: it reads
-        // `node.mesh` whenever it acts, so it needs nothing from the new mesh, and it holds what the
-        // pointer is in the middle of. Rebuilding it on every restyle dropped a hover without
-        // telling the selection, so a Hovered layer kept painting a node the pointer had left.
-        node.dragHandler ??= new NodeDragHandler(node);
+        // The roster names the node; its handler is built when the pointer first reaches it
+        // (`Node.dragHandler`), so a node never pointed at costs no handler. ONE HANDLER FOR THE
+        // NODE'S LIFE, kept when a restyle rebuilds the mesh: it reads the node's drawn* accessors
+        // whenever it acts, so it needs nothing from the new mesh, and it holds what the pointer is
+        // in the middle of. Rebuilding it on every restyle dropped a hover without telling the
+        // selection, so a Hovered layer kept painting a node the pointer had left.
+        nodePointerRosterOf(node.drawnScene).byId.set(node.id, node);
 
         this.addClickBehavior(node);
     }
@@ -1187,7 +1243,7 @@ export class NodeBehavior {
      * @param node - The graph node to add click behavior to
      */
     private static addClickBehavior(node: GraphNode): void {
-        node.mesh.actionManager = nodeActionManagerOf(this.getContext(node).getScene());
+        node.makeDrawnPickable(nodeActionManagerOf(this.getContext(node).getScene()));
     }
 
     /**

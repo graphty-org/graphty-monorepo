@@ -1,0 +1,6 @@
+{
+    "clip": "make-all-the-nodes-red.wav",
+    "spoken": "Make all the nodes red.",
+    "source": "Gemini speech (gemini-3.1-flash-tts-preview, voice Kore), 24 kHz 16-bit mono, recorded 2026-10-12",
+    "expectedWords": ["make", "all", "nodes", "red"]
+}

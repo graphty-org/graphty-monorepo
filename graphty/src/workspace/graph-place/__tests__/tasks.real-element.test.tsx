@@ -21,9 +21,6 @@ import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { addLabelLine, labelRow, writeLine } from "../../style/row";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** Numeric ids, as karate's are, with names that differ from them. */
 const NAMES = ["Mr Hi", "Officer", "Ada", "Bea", "Cy", "Dot", "Eve", "Flo", "Gus", "Hal"];
 const NODES = NAMES.map((name, i) => ({ id: i + 1, name, club: i < 5 ? "Mr Hi" : "Officer" }));
@@ -42,13 +39,10 @@ async function openGraph(): Promise<{ session: GraphSession; store: WorkspaceSto
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -133,7 +127,11 @@ describe("the Graph place on the real element", () => {
         // A rule with a bare number reads as typed: Enter runs it.
         await userEvent.clear(box);
         await userEvent.type(box, "=minutes >= 10");
-        assert.isNotNull(await screen.findByText("Rule: press Enter to select matches"));
+        // The line drawn under the box. The status line says the same words once the line settles,
+        // so a query over the whole page finds two elements, or one, depending on when it looks.
+        assert.isNotNull(
+            await screen.findByText("Rule: press Enter to select matches", { selector: ".ws-find-empty" }),
+        );
         assert.equal(session.selection.size, 0);
         await userEvent.keyboard("{Enter}");
         await linksOfTenOrMore();
@@ -181,23 +179,22 @@ describe("the Graph place on the real element", () => {
             "node.labelSize": 72,
         });
         await element.waitForStableFrame();
-        // A point on Officer's name: off the sphere's drawn disc -- above, beside or below it,
-        // wherever the name is placed -- the first one that answers Officer. Off the disc, only
-        // the name can.
+        // A point on Officer's name: off the sphere's drawn disc, in rings around it at every
+        // angle -- the name is placed clear of the node's edges, so it can sit diagonally from the
+        // sphere rather than straight above, beside or below it -- the first one that answers
+        // Officer. Off the disc, only the name can.
         const nameAt = (): { x: number; y: number } | undefined => {
             const at = element.nodeScreenPosition(2);
             if (at?.visible !== true) {
                 return undefined;
             }
-            for (let off = Math.ceil(at.radius) + 2; off < at.radius + 120; off++) {
-                for (const [dx, dy] of [
-                    [0, -1],
-                    [1, 0],
-                    [0, 1],
-                    [-1, 0],
-                ]) {
-                    const point = { x: at.x + dx * off, y: at.y + dy * off };
-                    if (element.elementAt(point)?.id === 2) {
+            for (let off = Math.ceil(at.radius) + 2; off < at.radius + 120; off += 3) {
+                const count = Math.ceil((2 * Math.PI * off) / 3);
+                for (let i = 0; i < count; i++) {
+                    const angle = (2 * Math.PI * i) / count;
+                    const point = { x: at.x + Math.cos(angle) * off, y: at.y + Math.sin(angle) * off };
+                    const hit = element.elementAt(point);
+                    if (hit?.kind === "node" && hit.id === 2) {
                         return point;
                     }
                 }
@@ -205,13 +202,10 @@ describe("the Graph place on the real element", () => {
             return undefined;
         };
         let point: { x: number; y: number } | undefined;
-        await waitFor(
-            () => {
-                point = nameAt();
-                assert.isDefined(point, "a point above Officer's sphere answers Officer");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            point = nameAt();
+            assert.isDefined(point, "a point above Officer's sphere answers Officer");
+        });
 
         await userEvent.click(element, { position: point });
         await waitFor(() => {
@@ -229,12 +223,9 @@ describe("the Graph place on the real element", () => {
         if (element === null) {
             return;
         }
-        await waitFor(
-            () => {
-                assert.isTrue(element.nodeScreenPosition(7)?.visible === true);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isTrue(element.nodeScreenPosition(7)?.visible === true);
+        });
         await element.waitForStableFrame();
         const centered = (id: number): void => {
             const { target } = element.getCameraState();

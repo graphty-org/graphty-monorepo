@@ -72,11 +72,11 @@ function InfoCircleTrigger({ name, bubbleId }: Readonly<InfoCircleTriggerProps>)
     return (
         // Hovering has already opened the bubble by the time a click arrives,
         // so the trigger only ever opens rather than toggling.
-        // Its tooltip is its name, as every icon button's is: the bubble below says what the thing
-        // is, the tooltip above which thing the circle is about. On hover only: focus already
+        // Its tooltip is its name, as every icon button's is, below it as Figma places them; it stays
+        // shut while the bubble is open. On hover only: focus already
         // says the name, and a tooltip open on focus would take the Escape that closes the bubble.
         <Popout.Trigger action="open">
-            <Tooltip label={name} position="top" events={{ hover: true, focus: false, touch: false }}>
+            <Tooltip label={name} events={{ hover: true, focus: false, touch: false }}>
                 <ActionIcon
                     variant="subtle"
                     size="sm"

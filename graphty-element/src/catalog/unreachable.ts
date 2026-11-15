@@ -106,6 +106,16 @@ export const WAIVER_OWNER_UNASSIGNED = "unassigned -- no person has taken this y
 export const WAIVER_EXPIRY_UNSET = "2026-12-21";
 
 /**
+ * A defect waiver nobody has taken yet: read the reason, decide who owns it, and give it a date
+ * that reflects a real plan instead of the placeholder.
+ * @param reason - What is broken, and what a consumer meets because of it.
+ * @returns The waiver, carrying the placeholder owner and the placeholder expiry.
+ */
+function unownedDefect(reason: string): DefectWaiver {
+    return { kind: "defect", reason, owner: WAIVER_OWNER_UNASSIGNED, expires: WAIVER_EXPIRY_UNSET };
+}
+
+/**
  * How far ahead a defect waiver may be parked, in days.
  *
  * A year and a bit: long enough for a defect that genuinely waits on a release, short enough that
@@ -197,6 +207,21 @@ const LABEL_RESIDUE: Readonly<Record<string, string>> = {
         "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
         "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
         "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.centerX":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.centerY":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.radius":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
     "backgroundColor.opacity":
         "The panel behind a label takes a plain colour from the vocabulary's `background`, which " +
         "carries its own alpha when it is written as `#rrggbbaa`.",
@@ -221,6 +246,17 @@ function namedBlockOf(
         reason,
     }));
 }
+
+/**
+ * A label block's table (`table`), published only for an edge's own label (`edge.labelTable`), where it is waived for
+ * every other block.
+ */
+const TABLE_RESIDUE: Readonly<Record<string, string>> = {
+    table:
+        "A label laid out as a table of cells is published for an edge's own label (`edge.labelTable`), as a " +
+        "node's is through `node.labelTable` on its shape. A table for a node's label block, a tooltip, an " +
+        "external label or an arrow's caption has no file format behind it that draws one.",
+};
 
 /**
  * Every declared style field no style channel can change, with the reason for each and whether
@@ -262,11 +298,16 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     // label leaves, for the same reasons. The whole block used to be waived here as a defect: the
     // renderer read every field of it and only the words had a door.
     ...namedBlockOf("node", "tooltip", LABEL_RESIDUE),
+    // A node's external label: its words, its place and its appearance are channels, so what is left is the same
+    // leaves a label leaves, for the same reasons.
+    ...namedBlockOf("node", "xlabel", LABEL_RESIDUE),
 
     // ------------------------------------------------------------------------------------------
     // Edges
     // ------------------------------------------------------------------------------------------
     ...namedBlockOf("edge", "label", LABEL_RESIDUE),
+    // An edge's external label: its words, its place and its appearance are channels, as the node's.
+    ...namedBlockOf("edge", "xlabel", LABEL_RESIDUE),
 
     // A caption at each end of an edge, published as four channels -- the words and the
     // appearance at each end -- so what is left is the same sixteen leaves a label leaves, for
@@ -274,6 +315,14 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     // caption and no channel could ask for one.
     ...namedBlockOf("edge", "arrowHead.text", LABEL_RESIDUE),
     ...namedBlockOf("edge", "arrowTail.text", LABEL_RESIDUE),
+    ...[
+        ["node", "label"],
+        ["node", "tooltip"],
+        ["node", "xlabel"],
+        ["edge", "xlabel"],
+        ["edge", "arrowHead.text"],
+        ["edge", "arrowTail.text"],
+    ].flatMap(([target, prefix]) => namedBlockOf(target as "node" | "edge", prefix, TABLE_RESIDUE)),
 ];
 
 /**
@@ -290,6 +339,18 @@ export type UnpaintedChannel = Waiver & {
     /** The channel's name. */
     readonly channel: Channel;
 };
+
+/** The channels that size a group round its members, which only a graph holding a group can show. */
+const GROUP_SIZING_CHANNELS: readonly Channel[] = [
+    "node.groupPadding",
+    "node.groupPaddingRatio",
+    "node.groupPaddingOf",
+    "node.groupMinWidth",
+    "node.groupMinHeight",
+    "node.groupMinWidthBiasLeft",
+    "node.groupMinHeightBiasTop",
+    "node.groupIncludeLabels",
+];
 
 /**
  * Every channel published as renderable that `test/browser/channel-paints.test.ts` could not see
@@ -336,6 +397,30 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
             "requires the typeface, the panel colour and the size a layer asked for to be the " +
             "ones drawn.",
     },
+    ...(["node.modelAnimationSpeed", "node.modelAnimationOffset"] as const).map((channel): UnpaintedChannel => ({
+        kind: "by-design",
+        channel,
+        reason:
+            "A MODEL'S CLIP IS PLAYED AT THIS SPEED AND FROM THIS START TIME, so this waiver is about " +
+            "the reading and not about the capability. Both set where a playing clip is on its own " +
+            "clock: they change nothing on a node without a model that has clips, which is what this " +
+            "gate's resting scene draws, and on one that plays, two frames of the same layer already " +
+            "differ because time moved, so before and after cannot tell the write apart. " +
+            "`test/browser/models/model-animation.test.ts` is where they are proved: speed 0 holds " +
+            "the pose at its start time, another start time draws another pose, and a playing clip " +
+            "draws new pictures.",
+    })),
+    ...GROUP_SIZING_CHANNELS.map((channel): UnpaintedChannel => ({
+        kind: "by-design",
+        channel,
+        reason:
+            "A GROUP IS SIZED BY IT, so this waiver is about the reading and not about the capability. " +
+            "The channel sizes a group drawn round its members -- a node a file names as the parent of " +
+            "others -- and the gate's graph holds no group, so there is nothing for it to resize. " +
+            "`test/browser/groups-follow-members.test.ts` is where it is proved: it reads a Cytoscape.js " +
+            "file whose compound parents set a padding, a minimum width and a bias, and requires each " +
+            "group's box to be the size Cytoscape.js draws.",
+    })),
     ...(["node.tooltipSize", "node.tooltipColor", "node.tooltipBackground"] as const).map(
         (channel): UnpaintedChannel => ({
             kind: "by-design",
@@ -348,6 +433,28 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
                 "these channels write to be the ones drawn.",
         }),
     ),
+    ...(["node.shaders", "edge.shaders"] as const).map((channel): UnpaintedChannel => ({
+        channel,
+        ...unownedDefect(
+            "THE ELEMENT SHIPS NO SHADER PRESET YET, so the only value this gate can write to these " +
+                'channels on every build is `"none"` (or an empty map), which draws the plain look. ' +
+                "A registered or pasted shader draws: node surfaces, sprites and effects " +
+                "(test/browser/shaders/node-drawing.test.ts) and edge surfaces and effects " +
+                "(test/browser/shaders/edge-drawing.test.ts). " +
+                "The presets are later packages of design/rendering/shader-styles.md (section 8, P1 " +
+                "to P6); once one ships, this gate can write it and this waiver goes.",
+        ),
+    })),
+    {
+        channel: "edge.lift",
+        kind: "by-design",
+        reason:
+            "A LIFT RISES OUT OF A FLAT LAYOUT'S PLANE, so it draws only for a flat layout in the 3D " +
+            "view, and this gate's scene is a 3D layout. Anywhere else the edge is drawn flat and " +
+            "`styles.counts(id).undrawn` reports `edge.lift-needs-flat-layout`. " +
+            "`test/browser/shaders/edge-drawing.test.ts` draws and picks a lifted edge on a flat " +
+            "layout in 3D.",
+    },
 ];
 
 /**

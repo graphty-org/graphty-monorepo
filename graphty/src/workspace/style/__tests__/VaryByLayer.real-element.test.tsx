@@ -17,13 +17,18 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { fieldName, valueWords } from "../words";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
+
+/** Layout steps taken before the first frame is drawn, so the layout is at rest when it is. */
+const PRE_STEPS = 1000;
 
 /**
  * Les Miserables in the workspace.
@@ -33,17 +38,19 @@ async function openSample(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
+    // The force layout settles before the first frame: these tests are about the Style panel, not
+    // the layout. Left to settle on screen, the layout draws a frame per step, and on a software
+    // GPU each frame holds the page's main thread until it is read back (hundreds of milliseconds
+    // on a busy machine), so the clicks made while it settles wait behind those frames (#4239).
+    await session.config.set({ layoutBehavior: { preSteps: PRE_STEPS } });
     await session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } });
     await session.config.set({ startingRows: true, editableBase: true, runPlacement: "top" });
     return session;
@@ -104,7 +111,7 @@ async function handMade(
  * @param name - The row's name.
  */
 async function clickRow(name: string): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${name}, `) }));
 }
 
@@ -188,7 +195,7 @@ async function rowShape(popover: HTMLElement): Promise<{ shape: unknown; items: 
  * @param popover - The popover.
  */
 async function close(popover: HTMLElement): Promise<void> {
-    await userEvent.click(within(popover).getByRole("button", { name: "Close panel" }));
+    await userEvent.click(within(popover).getByRole("button", { name: /^Close / }));
 }
 
 /**
@@ -393,7 +400,7 @@ describe("vary by layer", () => {
             .list()
             .find((l) => session.runs.bindings(runId).includes(l.id) && l.encode?.["node.color"] !== undefined);
         assert.isDefined(louvain);
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         const name = session.styles.tree().find((row) => row.id === (louvain?.row ?? louvain?.id))?.name ?? "";
         await userEvent.click(within(tree).getByRole("treeitem", { name: (n) => n.startsWith(`${name}, `) }));
         const tab = await screen.findByTestId("style-tab");
@@ -444,8 +451,8 @@ describe("vary by layer", () => {
         await clickRow("Many");
 
         const tab = await screen.findByTestId("style-tab");
-        // The layers set a size, so Shape is the one property its "+" has left: it adds it, no menu.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const panel = await varyByLayer(await line("node.shape"));
         await close(panel);
 
@@ -466,8 +473,8 @@ describe("vary by layer", () => {
         await clickRow("Story");
 
         const tab = await screen.findByTestId("style-tab");
-        // The layers set a size, so Shape is the one property its "+" has left: it adds it, no menu.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Shape" }));
         const panel = await varyByLayer(await line("node.shape"));
         const before = written(session, layers, "node.shape");
         // One row's own value, picked in its row as a group's is.
@@ -501,7 +508,7 @@ describe("vary by layer", () => {
     });
 
     it.each([true, false])(
-        "opens a clicked '+' menu on its first item, so Enter adds it (several layers: %s)",
+        "opens a clicked '+' menu, and ArrowDown then Enter adds its first item (several layers: %s)",
         async (many) => {
             const session = await openSample();
             // A color, not a size: Shape's "+" then has Shape and Size to offer, so it opens a menu.
@@ -528,8 +535,13 @@ describe("vary by layer", () => {
 
             await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
             const first = (await screen.findAllByRole("menuitem"))[0];
+            // Opened by a click, the menu itself has focus and no row is highlighted (Figma).
             await waitFor(() => {
-                assert.strictEqual(document.activeElement, first, "the first item is active on open");
+                assert.strictEqual(document.activeElement, screen.getByRole("menu"), "the menu is focused on open");
+            });
+            await userEvent.keyboard("{ArrowDown}");
+            await waitFor(() => {
+                assert.strictEqual(document.activeElement, first, "ArrowDown reaches the first item");
             });
             await userEvent.keyboard("{Enter}");
             await line("node.shape");
@@ -837,7 +849,9 @@ describe("several layers holding different values", () => {
         await userEvent.click(within(await line("node.color")).getByRole("button", { name: /^Node color: / }));
         const popover = await screen.findByRole("dialog", { name: / from each layer$/ });
         await userEvent.click(within(popover).getAllByRole("button", { name: /^Layer .* color/ })[1]);
-        await screen.findByRole("dialog", { name: "Color" });
+        const picker = await screen.findByRole("dialog", { name: "Color" });
+        // Enter applies the value and keeps the picker open (Figma); Escape closes it, then the popover.
+        await userEvent.click(within(picker).getByRole("textbox", { name: "Color value" }));
         await userEvent.keyboard("{Control>}a{/Control}000000{Enter}");
         await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
@@ -853,7 +867,9 @@ describe("several layers holding different values", () => {
         const second = session.styles.get(layers[1])?.name ?? "";
         await userEvent.click(within(popover).getByRole("button", { name: new RegExp(`^Layer ${second} color`) }));
         const picker = await screen.findByRole("dialog", { name: "Color" });
-        // Tab out of the value box applies it and leaves the picker open (Enter would close it).
+        // The picker opens focused on itself (Figma); the reader clicks into the value box, and Tab
+        // out of it applies the value and leaves the picker open.
+        await userEvent.click(within(picker).getByRole("textbox", { name: "Color value" }));
         await userEvent.keyboard("{Control>}a{/Control}000000{Tab}");
         assert.isTrue(picker.isConnected, "the picker is still open");
         await userEvent.keyboard("{Escape}");
@@ -968,7 +984,7 @@ async function louvainSelected(): Promise<{ readonly session: GraphSession; read
         throw new Error("Louvain colored no layer");
     }
     const name = session.styles.tree().find((row) => row.id === (louvain.row ?? louvain.id))?.name ?? "";
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(within(tree).getByRole("treeitem", { name: (n) => n.startsWith(`${name}, `) }));
     return { session, layerId: louvain.id };
 }
@@ -1060,7 +1076,7 @@ describe("color sets from 2 to dozens", () => {
             throw new Error("the run colored no layer");
         }
         const name = session.styles.tree().find((r) => r.id === (layer.row ?? layer.id))?.name ?? "";
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(within(tree).getByRole("treeitem", { name: (n) => n.startsWith(`${name}, `) }));
         const row = await line("node.color");
         await userEvent.click(within(row).getByRole("button", { name: /^Node color: / }));

@@ -86,24 +86,28 @@ export function serverError(
     }
     if (/Security\.Forbidden|AccessMode|AccessDenied/i.test(code)) {
         return failOn(report, "E_SOURCE_FORBIDDEN", `${origin} refused the statement`, {
+            origin,
             status: err.status,
             serverCode: err.code,
         });
     }
     if (/TimedOut|Timeout|TimeLimitExceeded/i.test(code)) {
         return failOn(report, "E_SOURCE_TIMEOUT", `${origin} timed the statement out`, {
+            origin,
             timeoutMs: null,
             serverSide: true,
         });
     }
     if (/DatabaseNotFound/i.test(code)) {
         return failOn(report, "E_SOURCE_NOT_FOUND", `${origin} has no database ${String(database)}`, {
+            origin,
             what: "database",
             value: database ?? null,
         });
     }
     const where = /line (\d+), column (\d+)/i.exec(err.message);
     return failOn(report, "E_SOURCE_QUERY", `${origin} refused the query: ${code}`, {
+        origin,
         serverCode: err.code,
         line: where === null ? null : Number(where[1]),
         column: where === null ? null : Number(where[2]),

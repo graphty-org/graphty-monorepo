@@ -1,0 +1,45 @@
+{
+    "testStepLimitMs": 1560000,
+    "groups": {
+        "small-node": [
+            "graph-format",
+            "graph-samples",
+            "babylonjs-map",
+            "babylonjs-models",
+            "cytoscape-extensions",
+            "cytoscape-extensions-cytoscape-versions",
+            "layout",
+            "algorithms-default"
+        ],
+        "small-browser": [
+            "algorithms-browser",
+            "graph-io-browser",
+            "remote-logger",
+            "compact-mantine",
+            "visual-review",
+            "webgpu-graph-algorithms-browser",
+            "algorithms-storybook",
+            "layout-storybook",
+            "cytoscape-extensions-storybook"
+        ]
+    },
+    "memberSeconds": {
+        "graph-format": 78,
+        "graph-samples": 39,
+        "babylonjs-map": 3,
+        "babylonjs-models": 4,
+        "cytoscape-extensions": 15,
+        "cytoscape-extensions-cytoscape-versions": 25,
+        "layout": 46,
+        "algorithms-default": 40,
+        "algorithms-browser": 4,
+        "graph-io-browser": 20,
+        "remote-logger": 17,
+        "compact-mantine": 463,
+        "visual-review": 286,
+        "webgpu-graph-algorithms-browser": 76,
+        "algorithms-storybook": 135,
+        "layout-storybook": 32,
+        "cytoscape-extensions-storybook": 54
+    }
+}

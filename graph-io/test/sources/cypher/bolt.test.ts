@@ -162,6 +162,7 @@ describe("cypher over Bolt (neo4j-driver mocked)", () => {
         const session = fake.sessions[before];
         expect(session.config).toEqual({ defaultAccessMode: "READ" });
         expect(session.runs.map((r) => r.statement.slice(0, 40))).toEqual([
+            "MATCH (n) RETURN count(n) AS c",
             "MATCH (n) WITH n, id(n) AS key RETURN n,",
             "MATCH (n) WITH n, id(n) AS key WHERE key",
             "MATCH (a)-[r]->(b) WITH a, r, b, id(r) A",
@@ -188,7 +189,10 @@ describe("cypher over Bolt (neo4j-driver mocked)", () => {
         );
         expect([...snapshot.ids].sort()).toEqual(["G1", "G2", "G3"]);
         expect(snapshot.nodes.value("_source.degree", snapshot.ids.requireIndex("G2"))).toBe(2);
-        expect(fake.sessions.at(-1)?.runs[0].statement).toContain("s.`name` IN $ids");
+        const statement = fake.sessions.at(-1)?.runs[0].statement;
+        expect(statement).toContain("s.`name` IN $ids");
+        // a neighbor without the id property is kept, keyed by its server id (#6215)
+        expect(statement).not.toContain("x.`name` IS NOT NULL");
     });
 
     it("hands a basic or bearer credential to the driver, bound to the endpoint", async () => {
@@ -220,7 +224,49 @@ describe("cypher over Bolt (neo4j-driver mocked)", () => {
         expect(fake.drivers.at(-1)?.auth).toBeUndefined();
     });
 
-    it("refuses routing schemes, +ssc with a credential and plain bolt with one", async () => {
+    it("connects to a neo4j: scheme directly, as the bolt scheme with the same TLS setting", async () => {
+        const params = { query: "MATCH (n) RETURN n" };
+        for (const [endpoint, direct] of [
+            ["neo4j://localhost:7687", "bolt://localhost:7687"],
+            ["neo4j+s://graph.example.com:7687", "bolt+s://graph.example.com:7687"],
+            ["neo4j+ssc://graph.example.com:7687", "bolt+ssc://graph.example.com:7687"],
+            ["bolt+s://graph.example.com", "bolt+s://graph.example.com"],
+        ]) {
+            await loadFromSource("neo4j", params, { endpoint });
+            expect(fake.drivers.at(-1)?.url).toBe(direct);
+        }
+        await loadFromSource("neo4j", params, {
+            endpoint: "neo4j+s://graph.example.com:7687",
+            credential: credentials.basic("neo4j", "pw"),
+        });
+        expect(fake.drivers.at(-1)).toMatchObject({
+            url: "bolt+s://graph.example.com:7687",
+            auth: { scheme: "basic", principal: "neo4j" },
+        });
+        const down = await rejection(
+            loadFromSource("neo4j", { query: "DOWN" }, { endpoint: "neo4j+s://graph.example.com:7687" }),
+        );
+        expect(down.issue?.params).toEqual({ url: "neo4j+s://graph.example.com:7687", status: null });
+    });
+
+    it("refuses a non-Bolt scheme or no host, with the endpoint's user and password never echoed", async () => {
+        const reason = async (endpoint: string): Promise<unknown> =>
+            (await rejection(loadFromSource("neo4j", { query: "MATCH (n) RETURN n", transport: "bolt" }, { endpoint })))
+                .issue?.params;
+        expect(await reason("https://graph.example.com")).toEqual({ name: "endpoint", reason: "scheme" });
+        expect(await reason("neo4j+s://")).toEqual({ name: "endpoint", reason: "type" });
+        const err = await rejection(
+            loadFromSource(
+                "neo4j",
+                { query: "MATCH (n) RETURN n" },
+                { endpoint: "neo4j+s://u:secret@graph.example.com" },
+            ),
+        );
+        expect(err.issue?.params).toEqual({ name: "endpoint", reason: "credentials-in-url" });
+        expect(JSON.stringify(err.issue)).not.toContain("secret");
+    });
+
+    it("refuses +ssc with a credential and plain bolt with one, under either scheme family", async () => {
         const params = { query: "MATCH (n) RETURN n" };
         const cred = credentials.basic("u", "p");
         const reason = async (endpoint: string, withCredential: boolean): Promise<unknown> =>
@@ -229,9 +275,13 @@ describe("cypher over Bolt (neo4j-driver mocked)", () => {
                     loadFromSource("neo4j", params, { endpoint, credential: withCredential ? cred : undefined }),
                 )
             ).issue?.params;
-        expect(await reason("neo4j+s://graph.example.com:7687", false)).toEqual({
+        expect(await reason("neo4j+ssc://graph.example.com:7687", true)).toEqual({
             name: "endpoint",
-            reason: "routing",
+            reason: "unverified-tls",
+        });
+        expect(await reason("neo4j://graph.example.com:7687", true)).toEqual({
+            name: "endpoint",
+            reason: "insecure-endpoint",
         });
         expect(await reason("bolt+ssc://graph.example.com:7687", true)).toEqual({
             name: "endpoint",

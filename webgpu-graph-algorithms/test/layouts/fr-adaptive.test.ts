@@ -29,8 +29,6 @@ import { expectBitwiseEqual } from "../helpers/matchers.js";
 import { FruchtermanReingoldOracle } from "../oracle/fruchterman-reingold.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
-
 type FrSim = GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
 
 /** Layout units = scene units, seeded, one iteration per step, settling off unless a case turns it on. */
@@ -195,44 +193,39 @@ describe("FR adaptive cooling (Yifan Hu's step control on the GPU)", () => {
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 15 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "random1k settles on its own under the shared rule, well inside the budget, with the layout expanded past 50 linear iterations",
-        async (t) => {
-            requireGpu(t);
-            const s = paritySnapshot("random1k", 1, false);
-            try {
-                const settle = { settleThreshold: 1e-3, settleWindow: 20, iterationsPerStep: 50 };
-                const linear = await withSim(
-                    ctx,
-                    { ...BASE, ...settle, cooling: "linear", iterations: 50 },
-                    async (sim) => {
-                        sim.load(s, startPositions(s, BASE, false));
-                        await sim.run({ batch: 50 });
-                        return sim.stats.rmsRadius;
-                    },
-                );
-                const adaptive = await twice(async () => {
-                    const positions = startPositions(s, BASE, false);
-                    return withSim(ctx, { ...BASE, ...settle }, async (sim) => {
-                        sim.load(s, positions);
-                        await sim.run({ batch: 50, maxIter: 3000 });
-                        expect(sim.settled, "settled before the 3000-iteration cap").toBe(true);
-                        return {
-                            positions,
-                            result: { iterations: sim.iterationsDone, rmsRadius: sim.stats.rmsRadius },
-                        };
-                    });
+    it("random1k settles on its own under the shared rule, well inside the budget, with the layout expanded past 50 linear iterations", async (t) => {
+        requireGpu(t);
+        const s = paritySnapshot("random1k", 1, false);
+        try {
+            const settle = { settleThreshold: 1e-3, settleWindow: 20, iterationsPerStep: 50 };
+            const linear = await withSim(
+                ctx,
+                { ...BASE, ...settle, cooling: "linear", iterations: 50 },
+                async (sim) => {
+                    sim.load(s, startPositions(s, BASE, false));
+                    await sim.run({ batch: 50 });
+                    return sim.stats.rmsRadius;
+                },
+            );
+            const adaptive = await twice(async () => {
+                const positions = startPositions(s, BASE, false);
+                return withSim(ctx, { ...BASE, ...settle }, async (sim) => {
+                    sim.load(s, positions);
+                    await sim.run({ batch: 50, maxIter: 3000 });
+                    expect(sim.settled, "settled before the 3000-iteration cap").toBe(true);
+                    return {
+                        positions,
+                        result: { iterations: sim.iterationsDone, rmsRadius: sim.stats.rmsRadius },
+                    };
                 });
-                expect(adaptive.iterations).toBeLessThan(2000);
-                expect(adaptive.rmsRadius).toBeGreaterThan(linear);
-                console.log(
-                    `[fr-adaptive] random1k settled at ${adaptive.iterations} iterations, rmsRadius ${adaptive.rmsRadius.toFixed(3)} (linear after 50: ${linear.toFixed(3)})`,
-                );
-            } finally {
-                ctx.release(s);
-            }
-        },
-        CASE_TIMEOUT,
-    );
+            });
+            expect(adaptive.iterations).toBeLessThan(2000);
+            expect(adaptive.rmsRadius).toBeGreaterThan(linear);
+            console.log(
+                `[fr-adaptive] random1k settled at ${adaptive.iterations} iterations, rmsRadius ${adaptive.rmsRadius.toFixed(3)} (linear after 50: ${linear.toFixed(3)})`,
+            );
+        } finally {
+            ctx.release(s);
+        }
+    });
 });

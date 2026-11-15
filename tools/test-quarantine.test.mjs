@@ -6,24 +6,32 @@
 //
 //   node --test tools/test-quarantine.test.mjs
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
+import RunningTests from "./running-tests.mjs";
 import {
     activeList,
-    afterShard,
-    closeFinished,
+    blameChange,
+    DEADLINE_ENV,
     decide,
+    failedFirst,
     emptyState,
-    PASSES_TO_LEAVE,
+    HANG_CODE,
+    HANG_NAME,
+    hangFailures,
+    hangReport,
     quarantineEnabled,
-    quarantineTests,
-    readState,
     runShard,
-    splitLog,
+    shardOfRun,
+    stillRunning,
 } from "./test-quarantine.mjs";
+import { selectedCommand } from "./test-select.mjs";
+import { WAIT_GUARD_MS } from "./test-wait-guard.mjs";
 
 const TMP = mkdtempSync(join(tmpdir(), "test-quarantine-"));
 after(() => rmSync(TMP, { recursive: true, force: true }));
@@ -48,6 +56,23 @@ const entry = (t, extra = {}) => ({
     since: DAY,
     expires: LATER,
     ...extra,
+});
+
+describe("failedFirst", () => {
+    it("keeps only the flaky tests that failed on the first run", () => {
+        const first = { failures: [{ file: "a.ts", name: "t1" }] };
+        const second = { failures: [{ file: "a.ts", name: "t2" }] };
+        const d = decide({ family: "graphty", first, firstOutcome: "failed", second, list: [] });
+        assert.deepEqual(
+            d.flaky.map((f) => f.name),
+            ["t1", "t2"],
+        );
+        assert.deepEqual(
+            failedFirst(d.flaky, first).map((f) => f.name),
+            ["t1"],
+        );
+        assert.deepEqual(failedFirst(d.flaky, undefined), []);
+    });
 });
 
 describe("decide", () => {
@@ -88,6 +113,15 @@ describe("decide", () => {
         );
         const gpu = decide({ family: "webgpu-graph-algorithms-node", first, firstOutcome: "failed", second, list: [] });
         assert.deepEqual(gpu.flaky, []);
+        // a fidelity sample judged differently on the same inputs is a determinism defect to see, not to quarantine
+        const fidelity = decide({
+            family: "graphty-element-fidelity",
+            first,
+            firstOutcome: "failed",
+            second,
+            list: [],
+        });
+        assert.deepEqual(fidelity.flaky, []);
         const crashed = decide({ family: "graphty", first, firstOutcome: "error", second, list: [] });
         assert.equal(crashed.pass, false, "an unhandled error or a coverage failure is not judged here");
     });
@@ -108,7 +142,18 @@ describe("the list", () => {
 
 // A stand-in for a checkout: its CI matrix names one plain vitest shard, and tools/run-tests.sh (the retry's
 // runner) writes the JUnit report the scenario asks for instead of running vitest.
-function checkout({ retryFails, quarantine = [] }) {
+// `suite`: the first run fails as a whole file (a hook timed out), so vitest counts it under "Failed Suites", not
+// under "Tests N failed". `oldNaming`: the checkout predates the run-id JUnit names (vitest.ci-junit.mjs before
+// e3f94aced7) and writes junit-<package>-<pid>.xml whatever TEST_LEDGER_RUN says.
+// `firstSeconds`: how long T1 ran in the first run (its JUnit time).
+function checkout({
+    retryFails,
+    quarantine = [],
+    suite = false,
+    oldNaming = false,
+    retryReport = "full",
+    firstSeconds = 0,
+}) {
     const root = fresh();
     mkdirSync(join(root, "tools"));
     mkdirSync(join(root, "test-results"));
@@ -117,28 +162,120 @@ function checkout({ retryFails, quarantine = [] }) {
         `export const SHARDS = [{ shard: "graphty-1", package: "graphty", "test-command": "cd graphty && pnpm exec vitest run --project=x --shard=1/3 --coverage" }];`,
     );
     writeFileSync(join(root, "tools/test-quarantine.json"), JSON.stringify({ quarantine }));
-    const junit = (failures) =>
+    const run = oldNaming ? "" : "$TEST_LEDGER_RUN-";
+    const junit = (failures, seconds = 0) =>
         `<testsuites><testsuite>${[T1, T2]
             .map(
                 (t) =>
-                    `<testcase classname="${t.file.slice(8)}" name="${t.name.replace(">", "&gt;")}">${failures.includes(t) ? '<failure message="boom">AssertionError: boom</failure>' : ""}</testcase>`,
+                    `<testcase classname="${t.file.slice(8)}" name="${t.name.replace(">", "&gt;")}" time="${t === T1 ? seconds : 0}">${failures.includes(t) ? '<failure message="boom">AssertionError: boom</failure>' : ""}</testcase>`,
             )
             .join("")}</testsuite></testsuites>`;
-    writeFileSync(join(root, "first.xml"), junit([T1]));
-    writeFileSync(join(root, "retry.xml"), junit(retryFails ? [T1] : []));
+    writeFileSync(join(root, "first.xml"), junit([T1], firstSeconds));
+    writeFileSync(
+        join(root, "retry.xml"),
+        retryReport === "empty" ? "<testsuites></testsuites>" : junit(retryFails ? [T1] : []),
+    );
     // the retry: `bash tools/run-tests.sh --command graphty-1 '<files command>'`
     writeFileSync(
         join(root, "tools/run-tests.sh"),
-        `echo "$3" > retry-command; cp retry.xml "test-results/junit-graphty-$TEST_LEDGER_RUN-2.xml"; ${retryFails ? "echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1" : "echo ' Test Files  1 passed (1)'"}`,
+        `echo "$3" > retry-command; ${retryReport === "none" ? "true" : "cp"} retry.xml "test-results/junit-graphty-${run}2.xml"; ${retryFails ? "echo ' Test Files  1 failed (1)'; echo '      Tests  1 failed (1)'; exit 1" : "echo ' Test Files  1 passed (1)'"}`,
     );
-    const first = `cp first.xml "test-results/junit-graphty-$TEST_LEDGER_RUN-1.xml"; echo ' Test Files  1 failed (2)'; echo '      Tests  1 failed | 1 passed (2)'; exit 1`;
+    const counts = suite
+        ? "echo ' Failed Suites 1 '; echo ' Test Files  1 failed | 1 passed (2)'; echo '      Tests  1 passed (1)'"
+        : "echo ' Test Files  1 failed (2)'; echo '      Tests  1 failed | 1 passed (2)'";
+    const first = `cp first.xml "test-results/junit-graphty-${run}1.xml"; ${counts}; exit 1`;
     return { root, first };
 }
 
+describe("blameChange", () => {
+    // A ledger whose failuresBefore() count is `prior[file]`.
+    const ledgerOf = (prior) => () => ({
+        db: { prepare: () => ({ get: (file) => ({ n: prior[file] ?? 0 }) }), close: () => {} },
+    });
+    const d = { pass: true, flaky: [fail(T1), fail(T2)], excused: [], failing: [] };
+    const landCheck = { TEST_LEDGER_KIND: "land-check", TEST_LEDGER_BRANCH: "fix/1-x" };
+
+    it("fails a land check on a flaky test with no failure before the change, and names the landing", () => {
+        const r = blameChange(d, fresh(), "graphty", landCheck, ledgerOf({ [T2.file]: 3 }));
+        assert.equal(r.pass, false);
+        assert.deepEqual(
+            r.caused.map((f) => f.name),
+            [T1.name],
+        );
+        assert.deepEqual(
+            r.flaky.map((f) => f.name),
+            [T2.name],
+            "flaky before the change: quarantined",
+        );
+        assert.deepEqual(
+            r.failing.map((f) => f.name),
+            [T1.name],
+        );
+        assert.equal(r.suspects[0].branch, "fix/1-x");
+    });
+
+    it("changes nothing outside a land check, and with no ledger only names the suspect", () => {
+        assert.equal(blameChange(d, fresh(), "graphty", {}, ledgerOf({})).pass, true);
+        const none = blameChange(d, fresh(), "graphty", landCheck, () => ({ why: "no database yet" }));
+        assert.equal(none.pass, true);
+        assert.equal(none.flaky.length, 2);
+        assert.equal(none.suspects[0].branch, "fix/1-x");
+    });
+});
+
+describe("shardOfRun", () => {
+    const layout = {
+        shard: "layout",
+        package: "layout",
+        "test-command": "pnpm exec nx run layout:coverage --exclude-task-dependencies",
+    };
+
+    it("retries a story-tests leg's failed story files with the leg's own config, not the unit shard's", () => {
+        const command = "cd layout && pnpm exec vitest run --config vitest.storybook.config.ts";
+        const shard = shardOfRun(fresh(), layout, command);
+        assert.equal(shard["test-command"], command);
+        assert.equal(
+            selectedCommand(fresh(), shard, ["layout/stories/3d/Spring3D.stories.ts"]),
+            "cd layout && pnpm exec vitest run --config=vitest.storybook.config.ts 'stories/3d/Spring3D.stories.ts'",
+        );
+    });
+
+    it("keeps the shard's own command for a command that is not a plain vitest run of its package", () => {
+        assert.equal(shardOfRun(fresh(), layout, "bash tools/run-tests.sh layout"), layout);
+        assert.equal(shardOfRun(fresh(), layout, "cd algorithms && pnpm exec vitest run"), layout);
+        assert.equal(shardOfRun(fresh(), undefined, "cd layout && pnpm exec vitest run"), undefined);
+    });
+});
+
+/**
+ * A run's deadline on a mocked clock. The run's command runs `ready` once it has done what the test needs done
+ * before the deadline; reachDeadline() waits for that and only then moves the clock to the deadline. A wall-clock
+ * deadline raced the command's start: on a loaded machine the shell had not written its files when it was stopped.
+ * @param t the test context
+ * @param root the checkout
+ * @returns `{ env, ready, reachDeadline, runAll }`
+ */
+function deadlineClock(t, root) {
+    const DEADLINE_IN = 500;
+    t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+    const fifo = join(root, "ready.fifo");
+    execFileSync("mkfifo", [fifo]);
+    const opened = readFile(fifo); // resolves once the command has written it and closed it
+    return {
+        env: { [DEADLINE_ENV]: String(DEADLINE_IN) },
+        ready: `echo > '${fifo}'`,
+        reachDeadline: async () => {
+            await opened;
+            t.mock.timers.tick(DEADLINE_IN);
+        },
+        runAll: () => t.mock.timers.runAll(),
+    };
+}
+
 describe("runShard", () => {
-    const run = async (c, env = {}) => {
+    const run = async (c, env = {}, name = "graphty-1") => {
         const result = join(c.root, "result.json");
-        const code = await runShard("graphty-1", c.first, {
+        const code = await runShard(name, c.first, {
             root: c.root,
             viaRunTests: true,
             state: emptyState(),
@@ -184,6 +321,57 @@ describe("runShard", () => {
         assert.deepEqual(result.ran.sort(), [T1.file, T2.file]);
     });
 
+    // #5128: a pull request's light-check bin (graphty-7, past the family's shards) found no SHARDS entry of its
+    // name, so a test that failed once was never retried and was reported as failing every time.
+    it("retries a light-check bin's failed files as a shard of its family", async () => {
+        const c = checkout({ retryFails: false });
+        const { code, result } = await run(c, {}, "graphty-7");
+        assert.equal(result.retried, true);
+        assert.equal(code, 0);
+        assert.deepEqual(
+            result.flaky.map((f) => f.name),
+            [T1.name],
+        );
+    });
+
+    // A story leg once retried its stories under the unit config, which found no test files: with no report
+    // the failure was never judged, and an empty report called every failure flaky and passed the leg.
+    for (const retryReport of ["none", "empty"]) {
+        it(`fails the shard when the retry wrote ${retryReport === "none" ? "no report" : "an empty report"}`, async () => {
+            const { code, result } = await run(checkout({ retryFails: false, retryReport }));
+            assert.equal(code, 1);
+            assert.equal(result.retried, true);
+            assert.equal(result.retryRan, false);
+            assert.deepEqual(result.flaky, []);
+        });
+    }
+
+    // #3323: a graphty shard whose file failed as a whole (a setup hook timed out) was never retried: vitest's
+    // "Tests" line counts no failed test, so the run looked like an error rather than test failures.
+    it("retries a file that failed as a whole suite", async () => {
+        const c = checkout({ retryFails: false, suite: true });
+        const { code, result } = await run(c);
+        assert.equal(result.retried, true);
+        assert.equal(code, 0);
+        assert.deepEqual(
+            result.flaky.map((f) => f.name),
+            [T1.name],
+        );
+    });
+
+    // #3323: a checkout older than the run-id JUnit names wrote reports the wrapper never found, so nothing was
+    // retried and nothing was said.
+    it("retries a checkout that writes JUnit reports without the run id", async () => {
+        const c = checkout({ retryFails: false, oldNaming: true });
+        // another shard of the same gate, beside it, in another package
+        const other = `<testsuites><testcase classname="x.test.ts" name="y"><failure>no</failure></testcase></testsuites>`;
+        c.first = `echo '${other}' > test-results/junit-graphty-element-7.xml; ${c.first}`;
+        const { code, result } = await run(c);
+        assert.equal(result.retried, true);
+        assert.equal(code, 0);
+        assert.deepEqual(result.ran.sort(), [T1.file, T2.file], "another package's report is not read");
+    });
+
     it("fails a test that fails on the retry too, unless it is quarantined", async () => {
         const failing = await run(checkout({ retryFails: true }));
         assert.equal(failing.code, 1);
@@ -200,113 +388,153 @@ describe("runShard", () => {
         );
     });
 
-    it("splits a log at the retry for the ledger", () => {
-        assert.deepEqual(splitLog("a\ntest-quarantine: retrying x\nb"), {
-            first: "a\n",
-            retry: "test-quarantine: retrying x\nb",
-        });
-    });
-});
-
-describe("afterShard", () => {
-    const flaky = { flaky: [{ ...T1, excerpt: "boom" }], excused: [], failing: [], failed: [T1], ran: [T1.file] };
-    const calls = [];
-    const gh = (args) => {
-        calls.push(args);
-        return "https://github.com/graphty-org/graphty-monorepo/issues/321\n";
-    };
-
-    it("quarantines a flaky test and files one issue for it, once", () => {
-        const main = fresh();
-        const root = checkout({}).root;
-        const done = afterShard({ main, root, shard: "graphty-2", result: flaky, gh, day: DAY });
-        assert.equal(done.added.length, 1);
-        assert.equal(calls.length, 1);
-        assert.deepEqual(calls[0].slice(0, 2), ["issue", "create"]);
-        for (const l of ["bug", "priority:critical", "effort:medium"]) assert.ok(calls[0].includes(l), l);
-        const added = Object.values(readState(main).added)[0];
-        assert.deepEqual([added.family, added.issue, added.since, added.expires], ["graphty", 321, DAY, LATER]);
-        afterShard({ main, root, shard: "graphty-3", result: flaky, gh, day: DAY });
-        assert.equal(calls.length, 1, "a test already quarantined files nothing");
-        const gpu = afterShard({ main, root, shard: "webgpu-graph-algorithms-node", result: flaky, gh, day: DAY });
-        assert.deepEqual(gpu.added, [], "GPU tests are never quarantined");
-    });
-
-    it(`ends an entry after ${PASSES_TO_LEAVE} gate runs in a row that passed it; a failure starts the count again`, () => {
-        const main = fresh();
-        const root = checkout({ quarantine: [entry(T1)] }).root;
-        const pass = { flaky: [], excused: [], failing: [], failed: [], ran: [T1.file] };
-        for (let i = 0; i < PASSES_TO_LEAVE - 1; i++)
-            afterShard({ main, root, shard: "graphty-1", result: pass, gh, day: DAY });
-        afterShard({ main, root, shard: "graphty-1", result: { ...pass, failed: [T1] }, gh, day: DAY });
-        assert.equal(Object.values(readState(main).passes)[0], 0);
-        let left = [];
-        for (let i = 0; i < PASSES_TO_LEAVE; i++)
-            left = afterShard({ main, root, shard: "graphty-1", result: pass, gh, day: DAY }).left;
-        assert.equal(left.length, 1);
-        assert.deepEqual(activeList([entry(T1)], readState(main), DAY), []);
-    });
-
-    it("proves a test flaky when a later gate run of the same inputs passes what an earlier one failed", () => {
-        const main = fresh();
-        const root = checkout({}).root;
-        const before = calls.length;
-        const failed = { flaky: [], excused: [], failing: [{ ...T2, excerpt: "x" }], failed: [T2], ran: [T2.file] };
-        afterShard({ main, root, shard: "graphty-1", inputKey: "k1", result: failed, gh, day: DAY });
-        assert.equal(calls.length, before, "a failure alone quarantines nothing");
-        const other = { flaky: [], excused: [], failing: [], failed: [], ran: [T2.file] };
-        afterShard({ main, root, shard: "graphty-1", inputKey: "k2", result: other, gh, day: DAY });
-        assert.equal(calls.length, before, "a pass of other inputs proves nothing");
-        const done = afterShard({ main, root, shard: "graphty-1", inputKey: "k1", result: other, gh, day: DAY });
+    // #5255: a test whose wait never came true failed after the 900 s wait guard, and its retry waited the guard out
+    // again until GitHub cancelled the 30-minute job, with no result recorded. It fails once instead.
+    it("does not retry a test that waited out the hang guard, and fails it", async () => {
+        const c = checkout({ retryFails: false, firstSeconds: WAIT_GUARD_MS / 1000 + 3 });
+        const { code, result } = await run(c);
+        assert.equal(code, 1);
+        assert.equal(result.retried, false);
+        assert.equal(existsSync(join(c.root, "retry-command")), false, "no retry ran");
         assert.deepEqual(
-            done.added.map((e) => e.name),
-            [T2.name],
+            result.failing.map((f) => f.name),
+            [T1.name],
         );
-        assert.match(done.added[0].reason, /another of the same inputs/);
     });
-});
 
-describe("quarantineTests", () => {
-    it("files a critical issue that lists the range's landings as suspects, and keeps them out of the entry", () => {
-        const main = fresh();
-        const calls = [];
-        const gh = (args) => (calls.push(args), "https://github.com/graphty-org/graphty-monorepo/issues/55\n");
-        const suspects = [
-            { sha: "a".repeat(40), branch: "fix/one" },
-            { sha: "b".repeat(40), branch: "feat/two" },
-        ];
-        const t = { ...T1, family: "graphty", how: "failed, then passed", excerpt: "boom", suspects };
-        const held = quarantineTests(main, [t], gh, DAY);
-        assert.deepEqual(
-            held.map((e) => e.issue),
-            [55],
-        );
-        assert.ok(calls[0].includes("priority:critical"));
-        const body = calls[0][calls[0].indexOf("--body") + 1];
-        assert.match(body, new RegExp(`- ${"a".repeat(40)} fix/one\n- ${"b".repeat(40)} feat/two`));
-        assert.equal(Object.values(readState(main).added)[0].suspects, undefined, "the list holds no suspects");
+    // #5845: `sh` waited for the pipes to close, so a process the command left behind kept the step alive for ever.
+    it("ends when the command has exited, though a process it left behind holds its output", async () => {
+        const c = checkout({ retryFails: false });
+        const first = "setsid sleep 600 & echo $! > survivor.pid; echo ' Test Files  1 passed (1)'; exit 0";
+        const { code } = await run({ ...c, first });
+        process.kill(Number(readFileSync(join(c.root, "survivor.pid"), "utf8")));
+        assert.equal(code, 0);
     });
-});
 
-describe("closeFinished", () => {
-    it("ends the entries whose issue closed, with one query, at most once an hour", () => {
-        const main = fresh();
-        const root = checkout({
-            quarantine: [entry(T1), entry(T2, { issue: 8 })],
-        }).root;
-        const asked = [];
-        const gh = (args) => {
-            asked.push(args);
-            return JSON.stringify({ data: { repository: { i7: { state: "CLOSED" }, i8: { state: "OPEN" } } } });
-        };
-        assert.deepEqual(closeFinished(main, root, gh, 10_000_000), [`${T1.file} > ${T1.name} (issue #7 closed)`]);
-        assert.equal(asked.length, 1);
-        assert.match(asked[0].at(-1), /i7: issue\(number: 7\).*i8: issue\(number: 8\)/);
-        assert.deepEqual(closeFinished(main, root, gh, 10_000_000 + 60_000), []);
-        assert.equal(asked.length, 1, "not again within the hour");
+    // #5845: a browser run hung until GitHub cancelled the job, which keeps no log, so nothing named the test.
+    it("stops a stuck run at its deadline, names the test still running and does not retry it", async (t) => {
+        const c = checkout({ retryFails: false });
+        const log = t.mock.method(console, "log", () => {});
+        const clock = deadlineClock(t, c.root);
+        const first = [
+            `printf '+ a.test.ts\\n+ a.test.ts > done\\n- a.test.ts > done\\n+ a.test.ts > stuck\\n' > "$GRAPHTY_RUNNING_TESTS"`,
+            // a stuck child that left the process group and ignores the TERM, holding the output pipes. It says ready
+            // itself, once out of the group: said by the parent, the deadline's TERM to the group could reach the
+            // child before `setsid` ran and kill it (#6266).
+            `setsid sh -c "trap '' TERM; echo \\$\\$ > survivor.pid; ${clock.ready}; exec sleep 600" & wait`,
+        ].join("; ");
+        const running = run({ ...c, first }, clock.env);
+        await clock.reachDeadline();
+        clock.runAll(); // the survivor holds the pipes, so the run ends at its KILL
+        const { code, result } = await running;
+        process.kill(Number(readFileSync(join(c.root, "survivor.pid"), "utf8")), "SIGKILL");
+        const printed = log.mock.calls.map((call) => call.arguments[0]).join("\n");
+        assert.equal(code, HANG_CODE);
+        assert.match(printed, /^::error::\[HANG\] .*still running: a\.test\.ts > stuck\. slowest/mu);
+        // #6374: the store, and so a full run's bisect, learns what hung
         assert.deepEqual(
-            activeList([entry(T1), entry(T2, { issue: 8 })], readState(main)).map((e) => e.issue),
-            [8],
+            result.hung.map((f) => [f.file, f.name]),
+            [["graphty/a.test.ts", "stuck"]],
         );
+        assert.equal(result.retried, false);
+        assert.equal(existsSync(join(c.root, "retry-command")), false, "no retry ran");
+    });
+
+    it("gives the last output of a stuck run with no test running, and starts nothing past the deadline", async (t) => {
+        const c = checkout({ retryFails: false });
+        const log = t.mock.method(console, "log", () => {});
+        const clock = deadlineClock(t, c.root);
+        const env = clock.env;
+        const running = run({ ...c, first: `echo installing; ${clock.ready}; exec sleep 600` }, env);
+        await clock.reachDeadline();
+        const stuck = await running;
+        assert.equal(stuck.code, HANG_CODE);
+        assert.match(log.mock.calls.map((call) => call.arguments[0]).join("\n"), /Last output: installing$/mu);
+        assert.deepEqual(
+            stuck.result.hung.map((f) => [f.file, f.name]),
+            [["graphty", HANG_NAME]],
+        );
+        const late = await run({ ...c, first: "touch started" }, env);
+        assert.equal(late.code, HANG_CODE);
+        assert.equal(existsSync(join(c.root, "started")), false);
+        assert.deepEqual(
+            late.result.hung.map((f) => f.file),
+            ["graphty"],
+        );
+    });
+
+    // #6374: CI / Test (graphty-4) ended "[HANG] the run reached the job's deadline and was stopped; still running:
+    // src/workspace/selection/__tests__/cardPalette.test.ts", and the bisect named no failing test
+    it("names a hung file and test by their repo paths, and the package when nothing was running", () => {
+        assert.deepEqual(
+            hangFailures(
+                ["src/workspace/selection/__tests__/cardPalette.test.ts", "src/a.test.ts > suite works"],
+                "graphty",
+            ).map((f) => [f.file, f.name]),
+            [
+                ["graphty/src/workspace/selection/__tests__/cardPalette.test.ts", HANG_NAME],
+                ["graphty/src/a.test.ts", "suite works"],
+            ],
+        );
+        assert.deepEqual(
+            hangFailures([], "graphty").map((f) => [f.file, f.name]),
+            [["graphty", HANG_NAME]],
+        );
+        assert.deepEqual(hangFailures(["src/a.test.ts"], undefined), []);
+    });
+
+    it("reads the tests still running, and the files with none, from the running-tests reporter's record", () => {
+        const file = join(fresh(), "record");
+        assert.deepEqual(stillRunning(file), []);
+        const reporter = new RunningTests({ file });
+        const testModule = { relativeModuleId: "src/a.test.ts" };
+        const testCase = { module: testModule, fullName: "suite works" };
+        reporter.onTestModuleQueued(testModule);
+        assert.deepEqual(stillRunning(file), ["src/a.test.ts"]);
+        reporter.onTestCaseReady(testCase);
+        assert.deepEqual(stillRunning(file), ["src/a.test.ts > suite works"]);
+        reporter.onTestModuleQueued({ relativeModuleId: "src/b.test.ts" });
+        assert.deepEqual(stillRunning(file), ["src/a.test.ts > suite works", "src/b.test.ts"]);
+        reporter.onTestModuleEnd({ relativeModuleId: "src/b.test.ts" });
+        reporter.onTestCaseResult(testCase);
+        reporter.onTestModuleEnd(testModule);
+        assert.deepEqual(stillRunning(file), []);
+    });
+
+    // #6567: graphty-5 ended "still running: UndoRedoWordsKeys..." while TimelineDock had used 451 s of the shard.
+    it("names what used the time at a deadline, and how long before it the running test started", () => {
+        const file = join(fresh(), "record");
+        writeFileSync(
+            file,
+            [
+                "+ src/slow.test.ts\t0",
+                "+ src/slow.test.ts > restores\t1000",
+                "- src/slow.test.ts > restores\t320000",
+                "- src/slow.test.ts\t451000",
+                "+ src/quick.test.ts\t451000",
+                "- src/quick.test.ts\t461000",
+                "+ src/undo.test.ts\t461000",
+                "+ src/undo.test.ts > names the change\t599000",
+            ].join("\n"),
+        );
+        assert.equal(
+            hangReport(file, 600_000),
+            "still running: src/undo.test.ts > names the change (started 1 s before the deadline). " +
+                "slowest files: src/slow.test.ts 451 s; src/quick.test.ts 10 s. " +
+                "slowest tests: src/slow.test.ts > restores 319 s",
+        );
+        assert.equal(
+            hangReport(join(fresh(), "none"), 0),
+            "no test running. slowest files: none ended. slowest tests: none ended",
+        );
+    });
+
+    it("fails a run whose output is over the log budget, whatever it exited with, quarantine on or off", async () => {
+        const flood = `for i in 1 2 3 4 5 6 7 8; do echo 'Warning: An update was not wrapped in act(...)'; done; echo ' Test Files  1 passed (1)'`;
+        const opts = (env) => ({ root: fresh(), env: { ...process.env, ...env }, state: emptyState(), logBudget: 200 });
+        for (const env of [{ GRAPHTY_TEST_QUARANTINE: undefined }, { GRAPHTY_TEST_QUARANTINE: "0" }]) {
+            assert.equal(await runShard("graphty-1", flood, opts(env)), 1, JSON.stringify(env));
+            assert.equal(await runShard("graphty-1", "echo ok", opts(env)), 0, "within the budget it passes");
+        }
     });
 });

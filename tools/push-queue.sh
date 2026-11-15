@@ -32,20 +32,16 @@ if [ -z "${PUSH_QUEUE_COPY:-}" ]; then
         copy=$(mktemp "$main/tmp/push-queue-copies/push-queue.XXXXXX.sh") && cp "$0" "$copy" &&
         PUSH_QUEUE_COPY=$copy exec bash "$copy" "$@"
 fi
+# The queue's settings are for this script only, never for the command it runs: exported, the
+# snapshot's PUSH_QUEUE_GATE reached every test the gate runs, and a test running a throwaway
+# checkout's own push-queue.sh then pushed through the machine's snapshot instead (2026-10-24).
+export -n PUSH_QUEUE_GATE PUSH_QUEUE_COPY
 # 4 gates at once: since each Node test run is capped at its share of the cores (#2184) and the GPU
 # step has its own slot (#2267), 3 gates left the machine at load ~29 of 32 with 20 pushes waiting;
 # the 4 machine-wide test slots still keep the test stages from oversubscribing it.
 SLOTS=${PUSH_QUEUE_SLOTS:-4}
 dir=${PUSH_QUEUE_DIR:-$main/tmp/push-queue}
 mkdir -p "$dir"
-rank=1; [ "${PUSH_QUEUE_PRIORITY:-}" = critical ] && rank=0
-ticket="$dir/$rank-$(date +%s%N)-$$"
-queued_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-echo "$PWD :: $*" > "$ticket"
-trap 'rm -f "$ticket" "$PUSH_QUEUE_COPY"' EXIT
-gate_log="$(dirname "$dir")/push-gate-logs/$(basename "$ticket").log"
-mkdir -p "$(dirname "$gate_log")" 2>/dev/null && find "$(dirname "$gate_log")" -name '*.log' -mtime +14 -delete 2>/dev/null
-
 # The gate's live copy (CLAUDE.md, "Where a change takes effect"): every push's gate runs the scripts
 # of .worktrees/gate-live against the checkout being pushed, so a gate fix helps every branch as soon
 # as `tools/live.sh gate <branch>` puts it there, instead of after it merges and each branch picks it
@@ -55,9 +51,18 @@ mkdir -p "$(dirname "$gate_log")" 2>/dev/null && find "$(dirname "$gate_log")" -
 # the push goes on with the gate as it was. Gates already running are not disturbed: git replaces a
 # changed file with a new one, and a running script keeps reading the old. A gate-live without the
 # split (no PREPUSH_ROOT in its hook) is not used; the push runs its own checkout's gate as before.
+#
+# Then the push runs from a snapshot of that live copy (tools/gate-snapshot.sh): this script again, from
+# the snapshot, with PUSH_QUEUE_GATE naming it, so the source checks, the hook and every script the gate
+# starts hours later are one version, whatever live.sh does meanwhile. A caller that already holds a
+# snapshot (tools/land.mjs, for a landing's check and its push) passes it as PUSH_QUEUE_GATE, and nothing
+# here changes it. This runs before the ticket is written: the snapshot's copy writes the one ticket.
 gate_dir=${PUSH_QUEUE_GATE:-$main/.worktrees/gate-live}
 use_gate=0
-if [ "${1:-}" = git ] && [ -d "$gate_dir" ]; then
+if [ -f "$gate_dir/.gate-snapshot" ]; then
+    grep -q PREPUSH_ROOT "$gate_dir/.husky/pre-push" 2>/dev/null && use_gate=1
+    echo "push-queue: the gate is the snapshot $gate_dir ($(cat "$gate_dir/.gate-snapshot"))"
+elif [ "${1:-}" = git ] && [ -d "$gate_dir" ]; then
     (
         flock 8
         git -C "$gate_dir" fetch -q origin master || exit 1
@@ -74,7 +79,29 @@ if [ "${1:-}" = git ] && [ -d "$gate_dir" ]; then
         fi
     ) 8>"$dir/../gate-live.lock" || echo "push-queue: could not bring $gate_dir up to origin/master; this push uses the gate as it is" >&2
     grep -q PREPUSH_ROOT "$gate_dir/.husky/pre-push" 2>/dev/null && use_gate=1
+    if [ "$use_gate" = 1 ] && [ -x "$gate_dir/tools/gate-snapshot.sh" ]; then
+        exec 8>"$main/tmp/gate-snapshot.lock"
+        flock 8
+        snap=$(GATE_SNAPSHOT_LOCKED=1 "$gate_dir/tools/gate-snapshot.sh" "$gate_dir") || {
+            echo "push-queue: could not take a snapshot of the live gate $gate_dir, so this push is not run:" \
+                "a gate run from the live copy itself could mix two versions of the gate if live.sh moves it." >&2
+            exit 1
+        }
+        exec 9<"$snap/.in-use"
+        flock -s 9
+        exec 8>&-
+        rm -f "$PUSH_QUEUE_COPY"
+        PUSH_QUEUE_GATE=$snap PUSH_QUEUE_COPY= exec bash "$snap/tools/push-queue.sh" "$@"
+    fi
 fi
+
+rank=1; [ "${PUSH_QUEUE_PRIORITY:-}" = critical ] && rank=0
+ticket="$dir/$rank-$(date +%s%N)-$$"
+queued_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+echo "$PWD :: $*" > "$ticket"
+trap 'rm -f "$ticket" "$PUSH_QUEUE_COPY"' EXIT
+gate_log="$(dirname "$dir")/push-gate-logs/$(basename "$ticket").log"
+mkdir -p "$(dirname "$gate_log")" 2>/dev/null && find "$(dirname "$gate_log")" -name '*.log' -mtime +14 -delete 2>/dev/null
 
 # What is pushed (only the last refspec of a push; one branch per push is the norm here), for the
 # push log below and the refusal of a commit that already failed.
@@ -92,6 +119,27 @@ if [ "${args[0]:-}" = git ]; then
     fi
     branch=${dst#refs/heads/}
     sha=$(git rev-parse --verify -q "${src:-HEAD}^{commit}" 2>/dev/null)
+    remote=${pos[0]:-origin}
+    case " ${args[*]} " in *" --force"* | *" -f "* | *" --mirror "* | *" --delete "* | *" -d "*) forced=1 ;; esac
+    [ "${ref:-}" != "${ref#+}" ] && forced=1
+fi
+
+# Whether the branch on the remote holds a commit this push lacks: git would reject the push, but only after
+# the gate (18 pushes in the 14 days to 2026-10-24 failed so after a passing gate, about 47 minutes each).
+# Asked before the source checks and again once the push holds a gate slot. A forced push, a new branch and a
+# remote that cannot be asked go on; golden, golden-cut and master are tools/land.mjs's to handle.
+remote_moved() {
+    [ -n "$sha" ] && [ -n "$branch" ] && [ "${forced:-0}" = 0 ] || return 1
+    case "$branch" in golden | golden-cut | master) return 1 ;; esac
+    local tip
+    tip=$(git ls-remote "$remote" "refs/heads/$branch" 2>/dev/null | cut -f1)
+    [ -n "$tip" ] && ! git merge-base --is-ancestor "$tip" "$sha" 2>/dev/null || return 1
+    echo "push-queue: stopped before the gate -- $remote's $branch is at ${tip:0:12}, which ${sha:0:12} does not contain" \
+        "(a newer commit's push moved it), so git would reject this push after the gate." \
+        "Run git fetch $remote && git merge $remote/$branch, then push again." >&2
+}
+if [ "${1:-}" = git ] && remote_moved; then
+    exit 1
 fi
 
 # Refuse a commit the gate already failed, when nothing it depends on changed: the push log's latest
@@ -236,6 +284,9 @@ while [ "$rc" = 0 ] && [ "$fast" = 0 ]; do
     fi
     sleep "${PUSH_QUEUE_POLL:-10}"
 done
+if [ "$rc" = 0 ] && [ "${1:-}" = git ] && remote_moved; then
+    rc=1
+fi
 wait_log="$top/tools/wait-log.mjs"
 [ "$use_gate" = 1 ] && wait_log="$gate_dir/tools/wait-log.mjs"
 if [ ${#held_by[@]} -gt 0 ] && [ -f "$wait_log" ]; then
@@ -278,10 +329,27 @@ done
 # Through the live gate: git runs gate-live's pre-push hook, in the pushed checkout.
 cmd=("$@")
 [ "$use_gate" = 1 ] && cmd=(git -c core.hooksPath="$gate_dir/.husky/_" "${@:2}") && echo "push-queue: gate from $gate_dir ($(git -C "$gate_dir" rev-parse --short HEAD))"
+# The gate stages its screenshot capture under the pushed checkout's HEAD and, told
+# PUSH_QUEUE_PROMOTES=1, leaves it staged (visual-preview.sh --promote does nothing then). This script
+# promotes it to the branch's preview only once GitHub accepted the push, and throws it away when the
+# push was rejected, so the preview of the head GitHub already has stays. 2026-10-24: the gate
+# promoted before the push, the push of golden-cut was then rejected, and the cut's owner-reviewed
+# preview was replaced by one of a commit GitHub never got, which kept ship from shipping.
+preview="$top/tools/visual-preview.sh"
+[ "$use_gate" = 1 ] && preview="$gate_dir/tools/visual-preview.sh"
+head_sha=$(git rev-parse -q --verify HEAD 2>/dev/null)
 if [ "$rc" = 0 ]; then
     gate_tree=$(gate_tree_of)
-    logged "${cmd[@]}"
+    PUSH_QUEUE_PROMOTES=1 logged "${cmd[@]}"
     rc=$?
+    if [ -n "$sha" ] && [ -n "$head_sha" ] && [ -x "$preview" ]; then
+        if [ "$rc" = 0 ]; then
+            PUSH_QUEUE_PROMOTES= PREPUSH_ROOT="$top" "$preview" --promote "$head_sha" ||
+                echo "push-queue: could not promote the screenshot preview of ${head_sha:0:10}" >&2
+        else
+            PREPUSH_ROOT="$top" "$preview" --discard "$head_sha" >/dev/null 2>&1
+        fi
+    fi
 fi
 if [ "$rc" != 0 ] && grep -qaE "$KILLED_RE" "$gate_log" 2>/dev/null; then
     echo "push-queue: a process in the gate was killed by a signal from outside it (\"Terminated\", \"Killed\" or exit 143/137 in $gate_log):" \

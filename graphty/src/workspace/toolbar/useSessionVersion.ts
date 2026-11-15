@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
  * The element's events that change what the toolbar, Analyze and Layout read: the project, the
  * runs, the selection, and the device facts (whether VR or AR can be entered, or is presenting).
  */
-const EVENTS = ["project:changed", "run:changed", "selection:changed", "capabilities:changed"] as const;
+const EVENTS = ["project:changed", "run:changed", "selection:changed", "capabilities:changed", "time:field"] as const;
 
 /**
  * Re-renders the caller whenever the element reports a change to its project, its runs, its
@@ -40,4 +40,14 @@ export function useSessionVersion(session: GraphSession | null): number {
  */
 export function nothingDrawn(session: GraphSession | null): string | null {
     return session === null || session.data.statistics().nodeCount === 0 ? "Nothing is drawn" : null;
+}
+
+/**
+ * Why Filters cannot open: there is no graph at all. A filter that hides every node leaves the
+ * graph, and Filters is the way back to it.
+ * @param session - the element's session, or null.
+ * @returns "No data yet", or null when the graph holds a node.
+ */
+export function noGraph(session: GraphSession | null): string | null {
+    return session === null || session.data.statistics({ scope: "all" }).nodeCount === 0 ? "No data yet" : null;
 }

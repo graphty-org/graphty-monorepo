@@ -8,15 +8,16 @@ import {
     SegmentedControl,
     Select,
     Tooltip,
+    VisuallyHidden,
 } from "@mantine/core";
 import { clampUseMovePosition, useMove } from "@mantine/hooks";
-import React, { type ReactNode, useEffect, useId, useRef, useState } from "react";
+import React, { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { UiGlyph } from "../../icons";
 import { colorWord, normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
 import { useOptionalPopoutContext } from "../popout/PopoutContext";
 import { Chit } from "./Chit";
-import { revertOnEscape } from "./escape";
+import { useDiscardedEdit } from "./escape";
 import { OpacityInput } from "./OpacityInput";
 import { typedColor } from "./typed-color";
 
@@ -334,25 +335,12 @@ export function ColorPickerPanel({
     hsvaRef.current = hsva;
     const [format, setFormat] = useState<ColorPickerFormat>(defaultFormat);
     const [draft, setDraft] = useState(formatValue(hsva, format));
-    // Why the last entry in the value box was refused, until the next edit. `held` while the box
-    // still holds the refused text (after Enter), false once it went back (it was left).
-    const [refusal, setRefusal] = useState<{ message: string; held: boolean } | undefined>(undefined);
-    const refusalId = useId();
-    // The color the picker opened on, and the swatches it has shown since, in their first order.
-    const [start] = useState(() => normalizeHexa(value));
-    const [shown, setShown] = useState<readonly string[]>(() => {
-        const length = withAlpha ? 9 : 7;
-        const held = swatches.some((swatch) => normalizeHexa(swatch)?.slice(0, length) === start?.slice(0, length));
-        return held || start === undefined ? swatches : [start, ...swatches];
-    });
+    // Why the last entry in the value box was refused: said aloud, never drawn, since Figma's box
+    // silently goes back to the color in force.
+    const [refusal, setRefusal] = useState<string>("");
+    // What Escape took back, said in the same region.
+    const discarded = useDiscardedEdit();
     const popout = useOptionalPopoutContext();
-    useEffect(() => {
-        setShown((before) => {
-            const known = new Set(before.map((swatch) => normalizeHexa(swatch)));
-            const gained = swatches.filter((swatch) => !known.has(normalizeHexa(swatch)));
-            return gained.length === 0 ? before : [...before, ...gained];
-        });
-    }, [swatches]);
 
     // Follow the value from outside, but keep our own HSV (and so the hue) while it still
     // describes the same color.
@@ -366,7 +354,7 @@ export function ColorPickerPanel({
     useEffect(() => {
         setDraft(formatValue(hsva, format));
         // A new color or format answers an earlier refusal.
-        setRefusal(undefined);
+        setRefusal("");
     }, [hsva, format]);
 
     /**
@@ -432,39 +420,23 @@ export function ColorPickerPanel({
     };
 
     /**
-     * Apply what was typed in the value box. Text that reads as no color is refused with a line
-     * saying what the box takes: Enter keeps it, marked, to be corrected; leaving the box redraws
-     * the color in force.
-     * @param byEnter - Enter ended the edit
-     * @returns whether the text was refused
+     * Apply what was typed in the value box. Text that reads as no color goes back to the color
+     * in force, as Figma's box does, and the reason is said aloud.
      */
-    const commitDraft = (byEnter = false): boolean => {
+    const commitDraft = (): void => {
         const parsed = parseValue(draft, format, hsvaRef.current.a);
         if (parsed === undefined) {
             const typed = draft.trim();
             const shownValue = formatValue(hsvaRef.current, format);
-            const refused = typed !== "" && draft !== shownValue;
-            setRefusal(
-                refused
-                    ? {
-                          message: byEnter
-                              ? labels.refused(typed, format)
-                              : labels.refusedKept(typed, shownValue, format),
-                          held: byEnter,
-                      }
-                    : undefined,
-            );
-            if (!refused || !byEnter) {
-                setDraft(shownValue);
-            }
-            return refused;
+            setRefusal(typed !== "" && draft !== shownValue ? labels.refusedKept(typed, shownValue, format) : "");
+            setDraft(shownValue);
+            return;
         }
-        setRefusal(undefined);
+        setRefusal("");
         if (toHexa(parsed) !== toHexa(hsvaRef.current)) {
             emit(parsed);
             settle();
         }
-        return false;
     };
 
     const eyeDropper = typeof window === "undefined" ? undefined : (window as EyeDropperWindow).EyeDropper;
@@ -626,28 +598,24 @@ export function ColorPickerPanel({
                                     autoComplete="off"
                                     spellCheck={false}
                                     aria-label={labels.value}
-                                    aria-describedby={refusal === undefined ? undefined : refusalId}
-                                    aria-invalid={refusal?.held === true || undefined}
                                     data-testid="color-picker-value"
-                                    // A pop-out opened on the picker starts in its value box, so typing a hex sets it.
-                                    data-autofocus
                                     value={draft}
                                     onChange={(event) => {
-                                        setRefusal(undefined);
+                                        setRefusal("");
+                                        discarded.clear();
                                         setDraft(event.currentTarget.value);
                                     }}
                                     onFocus={(event) => {
                                         event.currentTarget.select();
                                     }}
                                     onBlur={() => {
+                                        discarded.clear();
                                         commitDraft();
                                     }}
                                     onKeyDown={(event) => {
                                         if (event.key === "Enter") {
-                                            // Refused text keeps the picker open, to be corrected.
-                                            if (commitDraft(true)) {
-                                                event.preventDefault();
-                                            } else if (closeOnEnter && popout !== null) {
+                                            commitDraft();
+                                            if (closeOnEnter && popout !== null) {
                                                 // Without this the Enter would go on to press the
                                                 // trigger that close() focuses, opening it again.
                                                 event.preventDefault();
@@ -655,13 +623,15 @@ export function ColorPickerPanel({
                                             }
                                         } else if (event.key === "Escape") {
                                             const shownValue = formatValue(hsvaRef.current, format);
-                                            setRefusal(undefined);
-                                            revertOnEscape(
+                                            setRefusal("");
+                                            discarded.revert(
                                                 event,
                                                 () => {
                                                     setDraft(shownValue);
                                                 },
                                                 draft !== shownValue,
+                                                // With its words, as the color field says what it keeps.
+                                                `${shownValue} ${labels.colorWord(toHexa(hsvaRef.current).slice(0, 7))}`,
                                             );
                                         }
                                     }}
@@ -679,30 +649,17 @@ export function ColorPickerPanel({
                                 )}
                             </div>
                         </div>
-                        {/* An alert, so the reason is spoken when it appears, also after Tab has moved on. */}
-                        {refusal !== undefined && (
-                            <div
-                                id={refusalId}
-                                role="alert"
-                                className="cm-field-error cm-color-picker-message"
-                                data-testid="color-picker-message"
-                            >
-                                {refusal.message}
-                            </div>
-                        )}
+                        <VisuallyHidden role="status">{refusal === "" ? discarded.text : refusal}</VisuallyHidden>
                     </div>
 
-                    {shown.length > 0 && (
+                    {swatches.length > 0 && (
                         <fieldset className="cm-fieldset cm-color-swatches" aria-label={labels.swatches}>
-                            {shown.map((swatch, index) => {
+                            {swatches.map((swatch, index) => {
                                 const hexa = normalizeHexa(swatch);
-                                const isStart =
-                                    hexa !== undefined &&
-                                    hexa.slice(0, withAlpha ? 9 : 7) === start?.slice(0, withAlpha ? 9 : 7);
                                 const name = labels.swatch(
                                     labels.colorWord(swatch),
                                     (hexa ?? swatch).replace("#", "").replace(/(.{6})FF$/, "$1"),
-                                    isStart,
+                                    false,
                                 );
                                 return (
                                     <Tooltip key={`${String(index)}-${swatch}`} label={name}>
@@ -711,7 +668,6 @@ export function ColorPickerPanel({
                                             className="cm-color-swatch-button cm-focus-double"
                                             aria-label={name}
                                             aria-pressed={isCurrent(swatch)}
-                                            data-start={isStart || undefined}
                                             onClick={() => {
                                                 emitExact(swatch);
                                             }}

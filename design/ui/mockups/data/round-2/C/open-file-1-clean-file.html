@@ -1,0 +1,2421 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Open a clean file</title>
+        <style>
+            body {
+                margin: 0;
+                background: #111111;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            a {
+                color: #7cc4f8;
+            }
+            a:hover {
+                color: #80caff;
+            }
+        </style>
+    </head>
+    <body>
+        <div
+            style="
+                position: relative;
+                width: 1440px;
+                height: 900px;
+                display: flex;
+                flex-direction: column;
+                background: #2c2c2c;
+                color: #ffffff;
+                overflow: hidden;
+                font-size: 12px;
+                line-height: 16px;
+            "
+        >
+            <div
+                style="
+                    height: 40px;
+                    flex: none;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    padding: 0 16px;
+                    background: #2c2c2c;
+                    border-bottom: 1px solid #3e3e3e;
+                    font-size: 12px;
+                "
+            >
+                <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none; display: block"
+                >
+                    <path d="M3 4h10M3 8h10M3 12h10" /></svg
+                ><span style="font-weight: 600; font-size: 13px">Untitled</span
+                ><svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="#a3a3a3"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none; display: block"
+                >
+                    <path d="M5 3L2 6l3 3" />
+                    <path d="M2 6h7a4 4 0 010 8H6" /></svg
+                ><svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="#a3a3a3"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none; display: block"
+                >
+                    <path d="M11 3l3 3-3 3" />
+                    <path d="M14 6H7a4 4 0 000 8h3" /></svg
+                ><span style="display: flex; gap: 6px; align-items: center; color: #ffffff"
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="#a3a3a3"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none; display: block"
+                    >
+                        <rect x="3.5" y="7" width="9" height="7" rx="1.5" />
+                        <path d="M5.5 7V5a2.5 2.5 0 015 0v2" /></svg
+                    >Local only</span
+                >
+            </div>
+            <div style="display: flex; flex: 1; min-height: 0">
+                <div
+                    style="
+                        width: 56px;
+                        flex: none;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 14px 0;
+                        box-sizing: border-box;
+                        background: #2c2c2c;
+                        border-right: 1px solid #3e3e3e;
+                    "
+                >
+                    <div style="display: flex; flex-direction: column; gap: 14px">
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+                            <div
+                                style="
+                                    width: 32px;
+                                    height: 28px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    border-radius: 6px;
+                                    background: transparent;
+                                "
+                            >
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <circle cx="4" cy="4" r="2" />
+                                    <circle cx="12" cy="6" r="2" />
+                                    <circle cx="6" cy="12" r="2" />
+                                    <path d="M5.7 4.6l4.4 1M5.2 10.3l-.6-4.3M10.6 7.4l-3.3 3.3" />
+                                </svg>
+                            </div>
+                            <span style="font-size: 10px; color: #a3a3a3">Graph</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+                            <div
+                                style="
+                                    width: 32px;
+                                    height: 28px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    border-radius: 6px;
+                                    background: #37466a;
+                                "
+                            >
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#fff"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <ellipse cx="8" cy="4" rx="5" ry="2" />
+                                    <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
+                                </svg>
+                            </div>
+                            <span style="font-size: 10px; color: #ffffff">Data</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+                            <div
+                                style="
+                                    width: 32px;
+                                    height: 28px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    border-radius: 6px;
+                                    background: transparent;
+                                "
+                            >
+                                <svg
+                                    width="18"
+                                    height="18"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <rect x="3" y="2.5" width="10" height="11" rx="1.5" />
+                                    <path d="M5.5 6h5M5.5 9h5" />
+                                </svg>
+                            </div>
+                            <span style="font-size: 10px; color: #a3a3a3">Notes</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 3px">
+                        <div
+                            style="
+                                width: 32px;
+                                height: 28px;
+                                display: flex;
+                                align-items: center;
+                                justify-content: center;
+                                border-radius: 6px;
+                                background: transparent;
+                            "
+                        >
+                            <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                stroke="#a3a3a3"
+                                stroke-width="1.5"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                style="flex: none; display: block"
+                            >
+                                <circle cx="8" cy="8" r="2.2" />
+                                <path
+                                    d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"
+                                />
+                            </svg>
+                        </div>
+                        <span style="font-size: 10px; color: #a3a3a3">Settings</span>
+                    </div>
+                </div>
+                <div style="flex: 1; display: flex; flex-direction: column; min-width: 0">
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            height: 44px;
+                            padding: 0 16px;
+                            border-bottom: 1px solid #3e3e3e;
+                            background: #2b2b2b;
+                        "
+                    >
+                        <span style="font-weight: 600; font-size: 14px; flex: 1">Open as a new graph</span
+                        ><svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="#a3a3a3"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none; display: block"
+                        >
+                            <path d="M4 4l8 8M12 4l-8 8" />
+                        </svg>
+                    </div>
+                    <div style="display: flex; flex: 1; min-height: 0">
+                        <div style="width: 240px; flex: none; border-right: 1px solid #3e3e3e; background: #2b2b2b">
+                            <div style="display: flex; align-items: center; height: 32px; padding: 0 12px">
+                                <span style="font-weight: 600; flex: 1">Tables</span
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#a3a3a3"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none; display: block"
+                                >
+                                    <path d="M8 3v10M3 8h10" />
+                                </svg>
+                            </div>
+                            <div style="padding: 0 8px; display: flex; flex-direction: column; gap: 2px">
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 8px;
+                                        height: 26px;
+                                        padding: 0 8px 0 8px;
+                                        border-radius: 4px;
+                                        background: transparent;
+                                        font-size: 12px;
+                                    "
+                                >
+                                    <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="#a3a3a3"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <path d="M4 1.5h5l3.5 3.5v9.5h-8.5z" />
+                                        <path d="M9 1.5V5h3.5" /></svg
+                                    ><span
+                                        style="
+                                            flex: 1;
+                                            min-width: 0;
+                                            overflow: hidden;
+                                            white-space: nowrap;
+                                            text-overflow: ellipsis;
+                                            color: #ffffff;
+                                        "
+                                        >cat-social-network.json</span
+                                    >
+                                </div>
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 8px;
+                                        height: 26px;
+                                        padding: 0 8px 0 24px;
+                                        border-radius: 4px;
+                                        background: #37466a;
+                                        font-size: 12px;
+                                    "
+                                >
+                                    <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="#a3a3a3"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <circle cx="8" cy="8" r="4.5" /></svg
+                                    ><span
+                                        style="
+                                            flex: 1;
+                                            min-width: 0;
+                                            overflow: hidden;
+                                            white-space: nowrap;
+                                            text-overflow: ellipsis;
+                                            color: #ffffff;
+                                        "
+                                        >Nodes</span
+                                    ><span
+                                        style="
+                                            display: inline-flex;
+                                            align-items: center;
+                                            gap: 4px;
+                                            background: #3b3b3b;
+                                            color: #a3a3a3;
+                                            border: none;
+                                            border-radius: 10px;
+                                            padding: 1px 7px;
+                                            font-size: 11px;
+                                            line-height: 16px;
+                                            white-space: nowrap;
+                                            flex: none;
+                                        "
+                                        >20</span
+                                    >
+                                </div>
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 8px;
+                                        height: 26px;
+                                        padding: 0 8px 0 24px;
+                                        border-radius: 4px;
+                                        background: transparent;
+                                        font-size: 12px;
+                                    "
+                                >
+                                    <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="#a3a3a3"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <circle cx="3.5" cy="12.5" r="1.5" />
+                                        <circle cx="12.5" cy="3.5" r="1.5" />
+                                        <path d="M4.6 11.4l6.8-6.8" /></svg
+                                    ><span
+                                        style="
+                                            flex: 1;
+                                            min-width: 0;
+                                            overflow: hidden;
+                                            white-space: nowrap;
+                                            text-overflow: ellipsis;
+                                            color: #ffffff;
+                                        "
+                                        >Edges</span
+                                    ><span
+                                        style="
+                                            display: inline-flex;
+                                            align-items: center;
+                                            gap: 4px;
+                                            background: #3b3b3b;
+                                            color: #a3a3a3;
+                                            border: none;
+                                            border-radius: 10px;
+                                            padding: 1px 7px;
+                                            font-size: 11px;
+                                            line-height: 16px;
+                                            white-space: nowrap;
+                                            flex: none;
+                                        "
+                                        >29</span
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                        <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: #262626">
+                            <div style="flex: 1; overflow: hidden">
+                                <div style="font-size: 12px">
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                            border-top: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                display: flex;
+                                                align-items: center;
+                                                gap: 5px;
+                                                padding: 0 8px;
+                                                height: 30px;
+                                                border-right: 1px solid #3e3e3e;
+                                                font-weight: 600;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                background: transparent;
+                                            "
+                                        >
+                                            <svg
+                                                width="12"
+                                                height="12"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="#a3a3a3"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none; display: block"
+                                            >
+                                                <circle cx="5" cy="8" r="3" />
+                                                <path d="M8 8h6M12 8v2.5" /></svg
+                                            ><span style="overflow: hidden; text-overflow: ellipsis">id</span>
+                                        </div>
+                                        <div
+                                            style="
+                                                display: flex;
+                                                align-items: center;
+                                                gap: 5px;
+                                                padding: 0 8px;
+                                                height: 30px;
+                                                border-right: 1px solid #3e3e3e;
+                                                font-weight: 600;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                background: transparent;
+                                            "
+                                        >
+                                            <svg
+                                                width="12"
+                                                height="12"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="#a3a3a3"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none; display: block"
+                                            >
+                                                <path d="M2 13l3-9 3 9M3 10h4" />
+                                                <path
+                                                    d="M10 8.5a2 2 0 114 0V13M14 10.5c-1.5-.5-4-.2-4 1.2 0 1.6 3 1.6 4 0"
+                                                /></svg
+                                            ><span style="overflow: hidden; text-overflow: ellipsis">name</span>
+                                        </div>
+                                        <div
+                                            style="
+                                                display: flex;
+                                                align-items: center;
+                                                gap: 5px;
+                                                padding: 0 8px;
+                                                height: 30px;
+                                                border-right: 1px solid #3e3e3e;
+                                                font-weight: 600;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                background: transparent;
+                                            "
+                                        >
+                                            <svg
+                                                width="12"
+                                                height="12"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="#a3a3a3"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none; display: block"
+                                            >
+                                                <path d="M5.5 2.5l-1 11M11.5 2.5l-1 11M2.5 6h11M2 10.5h11" /></svg
+                                            ><span style="overflow: hidden; text-overflow: ellipsis">age</span>
+                                        </div>
+                                        <div
+                                            style="
+                                                display: flex;
+                                                align-items: center;
+                                                gap: 5px;
+                                                padding: 0 8px;
+                                                height: 30px;
+                                                border-right: 1px solid #3e3e3e;
+                                                font-weight: 600;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                background: transparent;
+                                            "
+                                        >
+                                            <svg
+                                                width="12"
+                                                height="12"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="#a3a3a3"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none; display: block"
+                                            >
+                                                <circle cx="5.5" cy="6" r="3" />
+                                                <circle cx="10.5" cy="6" r="3" />
+                                                <circle cx="8" cy="10.5" r="3" /></svg
+                                            ><span style="overflow: hidden; text-overflow: ellipsis">indoor</span>
+                                        </div>
+                                        <div
+                                            style="
+                                                display: flex;
+                                                align-items: center;
+                                                gap: 5px;
+                                                padding: 0 8px;
+                                                height: 30px;
+                                                border-right: 1px solid #3e3e3e;
+                                                font-weight: 600;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                background: transparent;
+                                            "
+                                        >
+                                            <svg
+                                                width="12"
+                                                height="12"
+                                                viewBox="0 0 16 16"
+                                                fill="none"
+                                                stroke="#a3a3a3"
+                                                stroke-width="1.5"
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                style="flex: none; display: block"
+                                            >
+                                                <path d="M2 13l3-9 3 9M3 10h4" />
+                                                <path
+                                                    d="M10 8.5a2 2 0 114 0V13M14 10.5c-1.5-.5-4-.2-4 1.2 0 1.6 3 1.6 4 0"
+                                                /></svg
+                                            ><span style="overflow: hidden; text-overflow: ellipsis"
+                                                >favorite_spot</span
+                                            >
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c01
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Miso
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            1
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            yes
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            window
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c02
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Tofu
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            8
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            no
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            porch
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c03
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Pepper
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            1
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            both
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            garden
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c04
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Luna
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            8
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            yes
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            stairs
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c05
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Biscuit
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            1
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            no
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            shed
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c06
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Nori
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            8
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            both
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            window
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c07
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Mochi
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            1
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            yes
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            porch
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c08
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Olive
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            8
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            no
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            garden
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c09
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Pumpkin
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            1
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            both
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            stairs
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c10
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Ziggy
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            8
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            yes
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            shed
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c11
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Clementine
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            1
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            no
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            window
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c12
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Juniper
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            8
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            both
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            porch
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c13
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Sable
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            1
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            yes
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            garden
+                                        </div>
+                                    </div>
+                                    <div
+                                        style="
+                                            display: grid;
+                                            grid-template-columns: repeat(5, minmax(0, 1fr));
+                                            border-bottom: 1px solid #3e3e3e;
+                                        "
+                                    >
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            c14
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            Basil
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: right;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            8
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            no
+                                        </div>
+                                        <div
+                                            style="
+                                                padding: 0 8px;
+                                                height: 28px;
+                                                line-height: 28px;
+                                                border-right: 1px solid #3e3e3e;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                text-align: left;
+                                                color: #ffffff;
+                                                background: transparent;
+                                            "
+                                        >
+                                            stairs
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                width: 240px;
+                                flex: none;
+                                background: #2b2b2b;
+                                border-left: 1px solid #3e3e3e;
+                                overflow: hidden;
+                                display: flex;
+                                flex-direction: column;
+                            "
+                        >
+                            <div
+                                style="
+                                    padding: 10px 12px;
+                                    border-bottom: 1px solid #3e3e3e;
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 2px;
+                                "
+                            >
+                                <div style="display: flex; align-items: center; gap: 8px">
+                                    <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <path d="M4 1.5h5l3.5 3.5v9.5h-8.5z" />
+                                        <path d="M9 1.5V5h3.5" /></svg
+                                    ><span
+                                        style="
+                                            font-weight: 600;
+                                            font-size: 13px;
+                                            flex: 1;
+                                            overflow: hidden;
+                                            white-space: nowrap;
+                                            text-overflow: ellipsis;
+                                        "
+                                        >cat-social-network.json</span
+                                    >
+                                </div>
+                                <span style="color: #a3a3a3; font-size: 11px; padding-left: 22px">File, graph</span>
+                            </div>
+                            <div
+                                style="
+                                    padding: 4px 12px 10px;
+                                    border-bottom: 1px solid #3e3e3e;
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 2px;
+                                "
+                            >
+                                <div style="display: flex; align-items: center; gap: 6px; height: 30px">
+                                    <span style="font-weight: 600; flex: 1">Reads as</span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px; min-height: 28px">
+                                    <span
+                                        style="
+                                            width: 64px;
+                                            flex: none;
+                                            color: #a3a3a3;
+                                            font-size: 11px;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                        >Nodes</span
+                                    ><span
+                                        style="
+                                            display: inline-flex;
+                                            align-items: center;
+                                            gap: 4px;
+                                            background: #3b3b3b;
+                                            color: #ffffff;
+                                            border: none;
+                                            border-radius: 10px;
+                                            padding: 1px 7px;
+                                            font-size: 11px;
+                                            line-height: 16px;
+                                            white-space: nowrap;
+                                            flex: none;
+                                        "
+                                        >20</span
+                                    >
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px; min-height: 28px">
+                                    <span
+                                        style="
+                                            width: 64px;
+                                            flex: none;
+                                            color: #a3a3a3;
+                                            font-size: 11px;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                        >Edges</span
+                                    ><span
+                                        style="
+                                            display: inline-flex;
+                                            align-items: center;
+                                            gap: 4px;
+                                            background: #3b3b3b;
+                                            color: #ffffff;
+                                            border: none;
+                                            border-radius: 10px;
+                                            padding: 1px 7px;
+                                            font-size: 11px;
+                                            line-height: 16px;
+                                            white-space: nowrap;
+                                            flex: none;
+                                        "
+                                        >29</span
+                                    >
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px; min-height: 28px">
+                                    <span
+                                        style="
+                                            width: 64px;
+                                            flex: none;
+                                            color: #a3a3a3;
+                                            font-size: 11px;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                        >Node id</span
+                                    ><span
+                                        style="
+                                            flex: 1;
+                                            min-width: 0;
+                                            display: flex;
+                                            align-items: center;
+                                            gap: 6px;
+                                            height: 24px;
+                                            padding: 0 6px 0 8px;
+                                            box-sizing: border-box;
+                                            background: #383838;
+                                            border: 1px solid #4a4a4a;
+                                            border-radius: 4px;
+                                            color: #fff;
+                                            font-size: 12px;
+                                        "
+                                        ><svg
+                                            width="13"
+                                            height="13"
+                                            viewBox="0 0 16 16"
+                                            fill="none"
+                                            stroke="#a3a3a3"
+                                            stroke-width="1.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            style="flex: none; display: block"
+                                        >
+                                            <circle cx="5" cy="8" r="3" />
+                                            <path d="M8 8h6M12 8v2.5" /></svg
+                                        ><span
+                                            style="
+                                                flex: 1;
+                                                overflow: hidden;
+                                                white-space: nowrap;
+                                                text-overflow: ellipsis;
+                                            "
+                                            >id</span
+                                        ><svg
+                                            width="12"
+                                            height="12"
+                                            viewBox="0 0 16 16"
+                                            fill="none"
+                                            stroke="#a3a3a3"
+                                            stroke-width="1.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            style="flex: none; display: block"
+                                        >
+                                            <path d="M4 6l4 4 4-4" /></svg
+                                    ></span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px; min-height: 28px">
+                                    <span
+                                        style="
+                                            width: 64px;
+                                            flex: none;
+                                            color: #a3a3a3;
+                                            font-size: 11px;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                        >Name</span
+                                    ><span
+                                        style="
+                                            flex: 1;
+                                            min-width: 0;
+                                            display: flex;
+                                            align-items: center;
+                                            gap: 6px;
+                                            height: 24px;
+                                            padding: 0 6px 0 8px;
+                                            box-sizing: border-box;
+                                            background: #383838;
+                                            border: 1px solid #4a4a4a;
+                                            border-radius: 4px;
+                                            color: #fff;
+                                            font-size: 12px;
+                                        "
+                                        ><svg
+                                            width="13"
+                                            height="13"
+                                            viewBox="0 0 16 16"
+                                            fill="none"
+                                            stroke="#a3a3a3"
+                                            stroke-width="1.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            style="flex: none; display: block"
+                                        >
+                                            <path d="M2 13l3-9 3 9M3 10h4" />
+                                            <path
+                                                d="M10 8.5a2 2 0 114 0V13M14 10.5c-1.5-.5-4-.2-4 1.2 0 1.6 3 1.6 4 0"
+                                            /></svg
+                                        ><span
+                                            style="
+                                                flex: 1;
+                                                overflow: hidden;
+                                                white-space: nowrap;
+                                                text-overflow: ellipsis;
+                                            "
+                                            >name</span
+                                        ><svg
+                                            width="12"
+                                            height="12"
+                                            viewBox="0 0 16 16"
+                                            fill="none"
+                                            stroke="#a3a3a3"
+                                            stroke-width="1.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            style="flex: none; display: block"
+                                        >
+                                            <path d="M4 6l4 4 4-4" /></svg
+                                    ></span>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px; min-height: 28px">
+                                    <span
+                                        style="
+                                            width: 64px;
+                                            flex: none;
+                                            color: #a3a3a3;
+                                            font-size: 11px;
+                                            white-space: nowrap;
+                                            overflow: hidden;
+                                            text-overflow: ellipsis;
+                                        "
+                                        >From / To</span
+                                    ><span style="display: flex; gap: 6px; align-items: center"
+                                        >source
+                                        <svg
+                                            width="12"
+                                            height="12"
+                                            viewBox="0 0 16 16"
+                                            fill="none"
+                                            stroke="#a3a3a3"
+                                            stroke-width="1.5"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            style="flex: none; display: block"
+                                        >
+                                            <path d="M2 8h11M9.5 4.5L13 8l-3.5 3.5" />
+                                        </svg>
+                                        target</span
+                                    >
+                                </div>
+                            </div>
+                            <div
+                                style="
+                                    padding: 4px 12px 10px;
+                                    border-bottom: 1px solid #3e3e3e;
+                                    display: flex;
+                                    flex-direction: column;
+                                    gap: 2px;
+                                "
+                            >
+                                <div style="display: flex; align-items: center; gap: 6px; height: 30px">
+                                    <span style="font-weight: 600; flex: 1">Columns</span
+                                    ><span
+                                        style="
+                                            display: inline-flex;
+                                            align-items: center;
+                                            gap: 4px;
+                                            background: #3b3b3b;
+                                            color: #a3a3a3;
+                                            border: none;
+                                            border-radius: 10px;
+                                            padding: 1px 7px;
+                                            font-size: 11px;
+                                            line-height: 16px;
+                                            white-space: nowrap;
+                                            flex: none;
+                                        "
+                                        >3</span
+                                    >
+                                </div>
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 8px;
+                                        height: 26px;
+                                        padding: 0 8px 0 8px;
+                                        border-radius: 4px;
+                                        background: transparent;
+                                        font-size: 12px;
+                                    "
+                                >
+                                    <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="#a3a3a3"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <path d="M5.5 2.5l-1 11M11.5 2.5l-1 11M2.5 6h11M2 10.5h11" /></svg
+                                    ><span
+                                        style="
+                                            flex: 1;
+                                            min-width: 0;
+                                            overflow: hidden;
+                                            white-space: nowrap;
+                                            text-overflow: ellipsis;
+                                            color: #ffffff;
+                                        "
+                                        >age</span
+                                    >
+                                </div>
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 8px;
+                                        height: 26px;
+                                        padding: 0 8px 0 8px;
+                                        border-radius: 4px;
+                                        background: transparent;
+                                        font-size: 12px;
+                                    "
+                                >
+                                    <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="#a3a3a3"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <circle cx="5.5" cy="6" r="3" />
+                                        <circle cx="10.5" cy="6" r="3" />
+                                        <circle cx="8" cy="10.5" r="3" /></svg
+                                    ><span
+                                        style="
+                                            flex: 1;
+                                            min-width: 0;
+                                            overflow: hidden;
+                                            white-space: nowrap;
+                                            text-overflow: ellipsis;
+                                            color: #ffffff;
+                                        "
+                                        >indoor</span
+                                    >
+                                </div>
+                                <div
+                                    style="
+                                        display: flex;
+                                        align-items: center;
+                                        gap: 8px;
+                                        height: 26px;
+                                        padding: 0 8px 0 8px;
+                                        border-radius: 4px;
+                                        background: transparent;
+                                        font-size: 12px;
+                                    "
+                                >
+                                    <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 16 16"
+                                        fill="none"
+                                        stroke="#a3a3a3"
+                                        stroke-width="1.5"
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        style="flex: none; display: block"
+                                    >
+                                        <path d="M2 13l3-9 3 9M3 10h4" />
+                                        <path
+                                            d="M10 8.5a2 2 0 114 0V13M14 10.5c-1.5-.5-4-.2-4 1.2 0 1.6 3 1.6 4 0"
+                                        /></svg
+                                    ><span
+                                        style="
+                                            flex: 1;
+                                            min-width: 0;
+                                            overflow: hidden;
+                                            white-space: nowrap;
+                                            text-overflow: ellipsis;
+                                            color: #ffffff;
+                                        "
+                                        >favorite_spot</span
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                            height: 52px;
+                            padding: 0 16px;
+                            border-top: 1px solid #3e3e3e;
+                            background: #2b2b2b;
+                        "
+                    >
+                        <div style="flex: 1; display: flex; align-items: center; gap: 10px">
+                            <span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    background: #3b3b3b;
+                                    color: #ffffff;
+                                    border: none;
+                                    border-radius: 10px;
+                                    padding: 1px 7px;
+                                    font-size: 11px;
+                                    line-height: 16px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >20 nodes</span
+                            ><span
+                                style="
+                                    display: inline-flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                    background: #3b3b3b;
+                                    color: #ffffff;
+                                    border: none;
+                                    border-radius: 10px;
+                                    padding: 1px 7px;
+                                    font-size: 11px;
+                                    line-height: 16px;
+                                    white-space: nowrap;
+                                    flex: none;
+                                "
+                                >29 edges</span
+                            >
+                        </div>
+                        <span
+                            style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 26px;
+                                padding: 0 10px;
+                                border-radius: 5px;
+                                background: #3a3a3a;
+                                color: #fff;
+                                font-size: 12px;
+                                white-space: nowrap;
+                                flex: none;
+                            "
+                            >Cancel</span
+                        ><span
+                            style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 6px;
+                                height: 26px;
+                                padding: 0 10px;
+                                border-radius: 5px;
+                                background: #228be6;
+                                color: #fff;
+                                font-size: 12px;
+                                white-space: nowrap;
+                                flex: none;
+                                box-shadow:
+                                    0 0 0 2px #2b2b2b,
+                                    0 0 0 4px #74c0fc;
+                            "
+                            >Load</span
+                        >
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 1060px;
+                    top: 820px;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    z-index: 50;
+                "
+            >
+                <span
+                    style="
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #ff7a1a;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        box-shadow: 0 0 0 2px #fff8;
+                    "
+                    >1</span
+                ><span
+                    style="
+                        background: #ff7a1a;
+                        color: #fff;
+                        font-size: 11px;
+                        padding: 1px 6px;
+                        border-radius: 9px;
+                        white-space: nowrap;
+                        font-weight: 600;
+                    "
+                    >Enter loads</span
+                >
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 1080px;
+                    top: 143px;
+                    display: flex;
+                    align-items: center;
+                    gap: 4px;
+                    z-index: 50;
+                "
+            >
+                <span
+                    style="
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #ff7a1a;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        box-shadow: 0 0 0 2px #fff8;
+                    "
+                    >2</span
+                ><span
+                    style="
+                        background: #ff7a1a;
+                        color: #fff;
+                        font-size: 11px;
+                        padding: 1px 6px;
+                        border-radius: 9px;
+                        white-space: nowrap;
+                        font-weight: 600;
+                    "
+                    >Nothing to check</span
+                >
+            </div>
+        </div>
+    </body>
+</html>

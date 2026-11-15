@@ -8,13 +8,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { FilterStep, RuleTree } from "../../catalog/types";
+import type { FilterStep } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
-import type { CodedFact } from "../shared";
-import type { HistoryCode } from "../types";
-
-/** No steps. */
-export const NO_STEPS: readonly FilterStep[] = Object.freeze([]);
 
 /**
  * Refuse a steps list that is not one: each step an object with a non-empty, unique string `id`,
@@ -49,115 +44,4 @@ export function assertSteps(steps: unknown): asserts steps is readonly FilterSte
 
         seen.add(id);
     }
-}
-
-/** The rule last combined from each steps list, with the filter it was combined with. */
-const combined = new WeakMap<readonly FilterStep[], { filter: RuleTree | null; rule: RuleTree | null }>();
-
-/**
- * The one rule the masks evaluate: the single filter AND every step that is on, in order.
- *
- * The same object comes back for the same filter and steps, so a caller may compare rules by
- * identity. With no step on, it is the filter itself.
- * @param filter - The single filter, or null.
- * @param steps - The steps.
- * @returns The rule, or null when nothing filters.
- */
-export function combinedRule(filter: RuleTree | null, steps: readonly FilterStep[]): RuleTree | null {
-    const kept = combined.get(steps);
-    if (kept?.filter === filter) {
-        return kept.rule;
-    }
-
-    const rules = [...(filter === null ? [] : [filter]), ...steps.filter((step) => step.on).map((step) => step.rule)];
-    let rule: RuleTree | null = rules.length === 1 ? rules[0] : null;
-    if (rules.length > 1) {
-        rule = Object.freeze({ kind: "all", of: rules });
-    }
-    combined.set(steps, { filter, rule });
-
-    return rule;
-}
-
-/**
- * What one steps edit did, as a history fact: one step added, edited, switched on or off, or
- * removed, naming its id; `visibility.steps` for anything else (a reorder, several at once).
- * @param before - The steps before.
- * @param after - The steps after.
- * @returns The fact.
- */
-export function stepsFact(before: readonly FilterStep[], after: readonly FilterStep[]): CodedFact<HistoryCode> {
-    const added = after.length === before.length + 1 ? onlyIn(after, before) : undefined;
-    if (added !== undefined) {
-        return { code: "visibility.step-add", params: { id: added.id } };
-    }
-    const removed = after.length === before.length - 1 ? onlyIn(before, after) : undefined;
-    if (removed !== undefined) {
-        return { code: "visibility.step-remove", params: { id: removed.id } };
-    }
-    return oneStepChanged(before, after) ?? { code: "visibility.steps", params: {} };
-}
-
-/**
- * Whether two lists of ids are equal, in order.
- * @param a - One list.
- * @param b - The other.
- * @returns true when they are.
- */
-function sameIds(a: readonly string[], b: readonly string[]): boolean {
-    return a.length === b.length && a.every((id, index) => id === b[index]);
-}
-
-/**
- * The one step a longer list has that a shorter one lacks, when the rest are the same steps in
- * the same order.
- * @param longer - The list with one more step.
- * @param shorter - The list with one fewer.
- * @returns The extra step, or undefined.
- */
-function onlyIn(longer: readonly FilterStep[], shorter: readonly FilterStep[]): FilterStep | undefined {
-    const extra = longer.find((step) => !shorter.some((other) => other.id === step.id));
-    if (extra === undefined) {
-        return undefined;
-    }
-    const rest = longer.filter((step) => step.id !== extra.id).map((step) => step.id);
-    return sameIds(
-        shorter.map((step) => step.id),
-        rest,
-    )
-        ? extra
-        : undefined;
-}
-
-/**
- * The fact for an edit of exactly one step in an unchanged order: switched on or off, or edited.
- * @param before - The steps before.
- * @param after - The steps after.
- * @returns The fact, or undefined for anything else.
- */
-function oneStepChanged(
-    before: readonly FilterStep[],
-    after: readonly FilterStep[],
-): CodedFact<HistoryCode> | undefined {
-    if (
-        !sameIds(
-            before.map((step) => step.id),
-            after.map((step) => step.id),
-        )
-    ) {
-        return undefined;
-    }
-    // By value: the steps are admitted as new objects on every edit.
-    const sameRule = (a: FilterStep, b: FilterStep): boolean =>
-        a.rule === b.rule || JSON.stringify(a.rule) === JSON.stringify(b.rule);
-    const changed = after.filter((step, index) => step.on !== before[index].on || !sameRule(step, before[index]));
-    if (changed.length !== 1) {
-        return undefined;
-    }
-    const [step] = changed;
-    const old = before[after.indexOf(step)];
-    if (sameRule(old, step)) {
-        return { code: step.on ? "visibility.step-on" : "visibility.step-off", params: { id: step.id } };
-    }
-    return { code: "visibility.step-edit", params: { id: step.id } };
 }

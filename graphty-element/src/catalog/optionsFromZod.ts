@@ -17,8 +17,8 @@
  * Two rules the emitter never breaks:
  *
  * - An option is never dropped. A construct it cannot classify still produces a descriptor,
- *   carrying the option's name, its default and a type of "unknown" with a sentence in
- *   `unsupportedReason` saying what stopped it.
+ *   carrying the option's name, its default and a type of "unknown" with an `unsupported` code
+ *   saying what stopped it.
  * - The emitter never throws. A schema that cannot be converted at all becomes a set of
  *   "unknown" descriptors, one per option, not an exception in the middle of building a
  *   catalogue.
@@ -31,7 +31,7 @@
 import { z } from "zod";
 
 import type { OptionsSchema } from "../config/OptionsSchema";
-import type { OptionChoice, OptionDescriptor, OptionType } from "./types";
+import type { OptionChoice, OptionDescriptor, OptionType, OptionUnsupported, OptionUnsupportedCode } from "./types";
 
 /** The UI metadata the element's own option schemas carry beside each Zod schema. */
 export type OptionUiMeta = OptionsSchema[string]["meta"];
@@ -81,8 +81,6 @@ interface JsonSchemaNode {
 interface OptionEntry {
     name: string;
     node: JsonSchemaNode | null;
-    /** Why there is no node. Only set when `node` is null. */
-    failure?: string;
     meta?: Partial<OptionUiMeta>;
 }
 
@@ -112,9 +110,7 @@ export function optionsFromZod(
     return entries.map((entry) => {
         const meta = { ...entry.meta, ...options.meta?.[entry.name] };
         const base =
-            entry.node === null
-                ? unknownDescriptor(entry.name, meta, entry.failure ?? "the schema could not be converted")
-                : describeNode(entry.name, entry.node, meta);
+            entry.node === null ? unknownDescriptor(entry.name, meta) : describeNode(entry.name, entry.node, meta);
 
         const override = options.overrides?.[entry.name];
 
@@ -175,7 +171,6 @@ function entriesFromOptionsSchema(schema: OptionsSchema): OptionEntry[] {
             return {
                 name,
                 node: null,
-                failure: "the schema could not be converted to JSON Schema",
                 meta: definition.meta,
             };
         }
@@ -250,12 +245,8 @@ function describeNode(name: string, node: JsonSchemaNode, meta: Partial<OptionUi
         plainName: meta.label ?? humanize(name),
         technicalName: name,
         type: classified.type,
+        ...describedBy(meta.description ?? node.description ?? classified.node?.description),
     };
-
-    const description = meta.description ?? node.description ?? classified.node?.description;
-    if (description !== undefined) {
-        descriptor.description = description;
-    }
 
     if ("default" in node) {
         descriptor.default = node.default;
@@ -291,8 +282,8 @@ function describeNode(name: string, node: JsonSchemaNode, meta: Partial<OptionUi
         descriptor.advanced = meta.advanced;
     }
 
-    if (classified.unsupportedReason !== undefined) {
-        descriptor.unsupportedReason = classified.unsupportedReason;
+    if (classified.unsupported !== undefined) {
+        descriptor.unsupported = classified.unsupported;
     }
 
     return descriptor;
@@ -302,21 +293,17 @@ function describeNode(name: string, node: JsonSchemaNode, meta: Partial<OptionUi
  * Build the descriptor for an option whose schema could not be converted at all.
  * @param name - The option's name.
  * @param meta - The UI metadata for this option, if any.
- * @param reason - Why the option could not be classified.
  * @returns A descriptor of type "unknown" that still names the option.
  */
-function unknownDescriptor(name: string, meta: Partial<OptionUiMeta>, reason: string): OptionDescriptor {
+function unknownDescriptor(name: string, meta: Partial<OptionUiMeta>): OptionDescriptor {
     const descriptor: OptionDescriptor = {
         name,
         plainName: meta.label ?? humanize(name),
         technicalName: name,
         type: "unknown",
-        unsupportedReason: reason,
+        unsupported: unsupported("option.not-convertible"),
+        ...describedBy(meta.description),
     };
-
-    if (meta.description !== undefined) {
-        descriptor.description = meta.description;
-    }
 
     if (meta.step !== undefined) {
         descriptor.step = meta.step;
@@ -331,6 +318,15 @@ function unknownDescriptor(name: string, meta: Partial<OptionUiMeta>, reason: st
     }
 
     return descriptor;
+}
+
+/**
+ * The deprecated `description` field, when there is a description to publish.
+ * @param description - The authored description, if any.
+ * @returns `{ description }`, or nothing.
+ */
+function describedBy(description: string | undefined): { description?: string } {
+    return description === undefined ? {} : { description };
 }
 
 /**
@@ -380,7 +376,20 @@ interface Classification {
     /** The arm the bounds and the description come from, when exactly one arm survived. */
     node?: JsonSchemaNode;
     values?: readonly OptionChoice[];
-    unsupportedReason?: string;
+    unsupported?: OptionUnsupported;
+}
+
+/**
+ * Why an option has no control, as a code.
+ * @param code - The code.
+ * @param types - The union's arm types, for `option.union`.
+ * @returns The coded fact, frozen.
+ */
+function unsupported(code: OptionUnsupportedCode, types?: readonly string[]): OptionUnsupported {
+    return Object.freeze({
+        code,
+        params: Object.freeze(types === undefined ? {} : { types: Object.freeze([...types]) }),
+    });
 }
 
 /**
@@ -394,15 +403,13 @@ function classify(union: FlatUnion, labels?: Readonly<Record<string, string>>): 
         if (union.unresolvedRef) {
             return {
                 type: "unknown",
-                unsupportedReason: "the schema is recursive, so it has no single value type",
+                unsupported: unsupported("option.recursive"),
             };
         }
 
         return {
             type: "unknown",
-            unsupportedReason: union.nullable
-                ? "the only value the schema accepts is null"
-                : "the schema declares no value type",
+            unsupported: unsupported(union.nullable ? "option.only-null" : "option.no-type"),
         };
     }
 
@@ -423,7 +430,7 @@ function classify(union: FlatUnion, labels?: Readonly<Record<string, string>>): 
 
     return {
         type: "unknown",
-        unsupportedReason: `the schema is a union of ${types.join(" and ")}, which has no single control`,
+        unsupported: unsupported("option.union", types),
     };
 }
 
@@ -446,19 +453,19 @@ function classifyLeaf(node: JsonSchemaNode): Classification {
             return {
                 type: "unknown",
                 node,
-                unsupportedReason: "an array option has no descriptor type; give it one with an override",
+                unsupported: unsupported("option.array"),
             };
         case "object":
             return {
                 type: "unknown",
                 node,
-                unsupportedReason: "an object or record option has no descriptor type; give it one with an override",
+                unsupported: unsupported("option.object"),
             };
         default:
             return {
                 type: "unknown",
                 node,
-                unsupportedReason: "the Zod construct has no JSON Schema type, so its values cannot be classified",
+                unsupported: unsupported("option.untyped"),
             };
     }
 }

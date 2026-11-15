@@ -24,6 +24,9 @@ export {
     INVALID_INDEX,
 } from "@graphty/graph-format";
 
+// The tool a file's layout names (`FileLayout.tool`).
+export type { GraphTool } from "./common/units.js";
+
 // ============================================================ a line format in one function
 export { defineLineFormat, type LineAttributes, type LineFormat, type LineGraph } from "./common/line-format.js";
 
@@ -35,6 +38,7 @@ export {
     type CommonExportOptions,
     type CommonImportOptions,
     type ExportCapabilities,
+    type FileLayout,
     type GraphChoiceOptions,
     type GraphExporter,
     type GraphImporter,
@@ -108,7 +112,7 @@ export {
 
 // ============================================================ network sources (experimental)
 // The contract, the load functions and credentials; each built-in source's code is its own subpath
-// (@graphty/graph-io/sources/ndex, /cypher, /rest), loaded on first use.
+// (@graphty/graph-io/sources/ndex, /cypher, /rest, /sparql), loaded on first use.
 export {
     SOURCE_ISSUE,
     type SourceBlockedCause,
@@ -119,25 +123,32 @@ export {
     type AwsSigV4Options,
     type CredentialBind,
     credentials,
+    credentialSlots,
     fromStorableCredential,
+    type SlotValue,
     type StorableCredential,
     storableCredential,
 } from "./sources/credentials.js";
 export { defineSource } from "./sources/define.js";
 export {
     CYPHER_SOURCE_ID,
+    GITHUB_SOURCE_ID,
     NDEX_SOURCE_ID,
     NEO4J_SOURCE_ID,
     NEPTUNE_SOURCE_ID,
     OPENALEX_SOURCE_ID,
     REST_SOURCE_ID,
+    S3_SOURCE_ID,
     SOURCE_ATTR_PREFIX,
     SOURCE_DEGREE_ATTR,
     SOURCE_ENTITY_ATTR,
     SOURCE_FORMAT_PREFIX,
     SOURCE_STUB_ATTR,
+    SPARQL_SOURCE_ID,
+    ZENODO_SOURCE_ID,
 } from "./sources/ids.js";
 export { type SourceParamsMap } from "./sources/params.js";
+export { sha256Hex } from "./sources/sigv4.js";
 export {
     type Recording,
     recordingFrom,
@@ -164,8 +175,10 @@ export {
     type RetryOptions,
     type SourceBase,
     type SourceContext,
+    type SourceCredentialSlot,
     type SourceCursor,
     type SourceDescriptor,
+    type SourceExample,
     type SourceFeature,
     type SourceFile,
     type SourceFinish,
@@ -184,7 +197,7 @@ export {
     type SourceRequestInit,
     type SourceRuntime,
     type SourceRuntimeReason,
-    type SourceSample,
+    type SourceTotal,
     type SourceValidators,
 } from "./sources/types.js";
 
@@ -227,14 +240,21 @@ export {
     type CysImportOptions,
 } from "./formats/cys/index.js";
 export {
+    type BendPoint,
     DOT_ISSUE,
     DOT_LOSS,
     DOT_STYLE_BLOCK_ATTRIBUTE,
     DOT_STYLE_CAPABILITIES,
     dotExporter,
     type DotExportOptions,
+    dotFileLayout,
     dotImporter,
     type DotImportOptions,
+    type GraphvizFont,
+    graphvizFont,
+    graphvizPosBends,
+    RANK_COLUMN,
+    RANK_SET_COLUMN,
 } from "./formats/dot/index.js";
 export {
     GEXF_1_2_CAPABILITIES,
@@ -407,6 +427,7 @@ export {
     keptForStyles,
     type MutableCounts,
     PARSE_ERROR_CODE,
+    SKIPPED_VALUE,
 } from "./common/report.js";
 export {
     inferTextDtype,

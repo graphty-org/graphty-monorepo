@@ -26,7 +26,7 @@ describe("GradientEditor", () => {
 
     it("renders color stops header", () => {
         renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
-        expect(screen.getByText("Color Stops")).toBeInTheDocument();
+        expect(screen.getByText("Stops")).toBeInTheDocument();
     });
 
     it("renders add button", () => {
@@ -67,7 +67,12 @@ describe("GradientEditor", () => {
         await user.click(screen.getByRole("button", { name: /add/i }));
         expect(onChange).toHaveBeenCalled();
         const [newStops] = onChange.mock.calls[0];
-        expect(newStops).toHaveLength(3);
+        // The new stop goes halfway between the last stop and the end, in the default stop color.
+        expect(newStops.map((stop: { color: string; offset: number }) => [stop.color, stop.offset])).toEqual([
+            ["#FF0000", 0],
+            ["#0000FF", 1],
+            ["#888888", 1],
+        ]);
     });
 
     it("disables add button when 5 stops", () => {
@@ -104,9 +109,12 @@ describe("GradientEditor", () => {
 
         await user.click(screen.getAllByRole("button", { name: /remove/i })[0]);
 
-        expect(onChange).toHaveBeenCalled();
+        expect(onChange).toHaveBeenCalledTimes(1);
         const [newStops] = onChange.mock.calls[0];
-        expect(newStops).toHaveLength(2);
+        expect(newStops.map((stop: { color: string; offset: number }) => [stop.color, stop.offset])).toEqual([
+            ["#0000FF", 1],
+            ["#00FF00", 0.5],
+        ]);
     });
 
     it("calls onChange when color input value changes", async () => {
@@ -120,6 +128,11 @@ describe("GradientEditor", () => {
         await user.tab();
 
         expect(onChange).toHaveBeenCalled();
+        const [newStops] = onChange.mock.calls.at(-1) ?? [];
+        expect(newStops.map((stop: { color: string; offset: number }) => [stop.color, stop.offset])).toEqual([
+            ["#00FF00", 0],
+            ["#0000FF", 1],
+        ]);
     });
 
     it("works in uncontrolled mode with defaultStops", async () => {
@@ -131,20 +144,25 @@ describe("GradientEditor", () => {
 
         expect(onChange).toHaveBeenCalled();
         const [newStops] = onChange.mock.calls[0];
-        expect(newStops).toHaveLength(3);
+        // The new stop goes halfway between the last stop and the end, in the default stop color.
+        expect(newStops.map((stop: { color: string; offset: number }) => [stop.color, stop.offset])).toEqual([
+            ["#FF0000", 0],
+            ["#0000FF", 1],
+            ["#888888", 1],
+        ]);
     });
 
     it("works in fully uncontrolled mode without onChange", () => {
         renderGradientEditor(<GradientEditor defaultStops={defaultStops} />);
 
-        expect(screen.getByText("Color Stops")).toBeInTheDocument();
+        expect(screen.getByText("Stops")).toBeInTheDocument();
         expect(screen.getAllByRole("textbox", { name: /^stop \d+ color$/i })).toHaveLength(2);
     });
 
     it("uses default stops when neither stops nor defaultStops provided", () => {
         renderGradientEditor(<GradientEditor onChange={vi.fn()} />);
 
-        expect(screen.getByText("Color Stops")).toBeInTheDocument();
+        expect(screen.getByText("Stops")).toBeInTheDocument();
         expect(screen.getAllByRole("textbox", { name: /^stop \d+ color$/i }).length).toBeGreaterThanOrEqual(2);
     });
 
@@ -398,7 +416,11 @@ describe("GradientEditor", () => {
 
             screen.getByRole("slider", { name: "Stop 3 position" }).focus();
             await user.keyboard("{Delete}");
-            expect(onChange.mock.calls[0][0]).toHaveLength(2);
+            const [newStops] = onChange.mock.calls[0];
+            expect(newStops.map((stop: { color: string; offset: number }) => [stop.color, stop.offset])).toEqual([
+                ["#FF0000", 0],
+                ["#0000FF", 1],
+            ]);
 
             screen.getByRole("slider", { name: "Stop 1 position" }).focus();
             await user.keyboard("{Backspace}");
@@ -676,7 +698,7 @@ describe("GradientEditor", () => {
         it("groups the stops under their own heading", () => {
             renderGradientEditor(<GradientEditor stops={defaultStops} onChange={vi.fn()} />);
 
-            const group = screen.getByRole("group", { name: "Color Stops" });
+            const group = screen.getByRole("group", { name: "Stops" });
             expect(group.tagName).toBe("FIELDSET");
             expect(group).toContainElement(screen.getByRole("slider", { name: "Stop 1 position" }));
         });
@@ -732,7 +754,7 @@ describe("GradientEditor", () => {
             );
 
             expect(screen.getByRole("spinbutton", { name: "Gradient direction" })).toBeInTheDocument();
-            expect(screen.getByRole("group", { name: "Color Stops" })).toBeInTheDocument();
+            expect(screen.getByRole("group", { name: "Stops" })).toBeInTheDocument();
         });
     });
 });

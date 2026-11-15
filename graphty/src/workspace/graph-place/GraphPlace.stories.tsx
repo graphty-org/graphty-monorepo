@@ -2,9 +2,8 @@
 import "@graphty/graphty-element";
 
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
-import { storyWaitOptions } from "../../stories/wait";
 import { Workspace } from "../Workspace";
 import { EDGES, NODES } from "./twoRings.fixture";
 
@@ -57,10 +56,7 @@ async function run(element: GraphtyElement, algorithm: string): Promise<void> {
  * @param text - what to type.
  */
 async function find(canvasElement: HTMLElement, text: string): Promise<void> {
-    await userEvent.type(
-        await within(canvasElement).findByRole("combobox", { name: "Find" }, storyWaitOptions(1000)),
-        text,
-    );
+    await userEvent.type(await within(canvasElement).findByRole("combobox", { name: "Find" }), text);
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -102,11 +98,9 @@ export const Hidden: Story = {
         await run(element, "pagerank");
         const [listed] = element.session.runs.list();
         const layer = listed === undefined ? undefined : element.session.runs.bindings(listed.id)[0];
-        const eye = await within(canvasElement).findByRole(
-            "button",
-            { name: `Hide ${layer === undefined ? "" : (element.session.styles.get(layer)?.name ?? "")}` },
-            storyWaitOptions(1000),
-        );
+        const eye = await within(canvasElement).findByRole("button", {
+            name: `Hide ${layer === undefined ? "" : (element.session.styles.get(layer)?.name ?? "")}`,
+        });
         await userEvent.click(eye);
         await userEvent.unhover(eye);
         await element.waitForStableFrame();
@@ -135,12 +129,18 @@ export const Find: Story = {
     },
 };
 
-/** Nothing matches (`#/graph-place/find-no-match`). */
+/** Nothing matches, with an example rule over the data (`#/graph-place/find-no-match`). */
 export const FindNoMatch: Story = {
     args: { initialState: OPEN },
     play: async ({ canvasElement }) => {
         await loadRings(canvasElement);
         await find(canvasElement, "xyz");
+        // The box asks the element whether the text reads as a rule once typing pauses, and only
+        // its answer ("no") brings the example: until then the line is a bare "No match". Ended at
+        // the answer, the story draws the same line however late it is shot.
+        await waitFor(() => {
+            expect(canvasElement.querySelector(".ws-find-example")).not.toBeNull();
+        });
     },
 };
 

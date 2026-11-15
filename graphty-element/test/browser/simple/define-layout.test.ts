@@ -18,7 +18,7 @@
  *   option checks, same registry.
  */
 
-import { afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { layoutDescriptor, layoutIdForEngine } from "../../../catalog";
 import {
@@ -36,7 +36,6 @@ import { Graph } from "../../../index.js";
 import { GraphtyLogger } from "../../../logging";
 import { operationQueueOf } from "../../../src/Graph";
 import { expandOptions } from "../../../src/simple/options";
-import { nextFrame } from "../../helpers/real-input";
 
 /**
  * Six nodes carrying every attribute the three toy layouts read. "f" carries none of them, so
@@ -59,9 +58,6 @@ const EDGES = [
     { src: "d", dst: "e" },
     { src: "e", dst: "f" },
 ];
-
-/** How long a wait may take before it is called a failure. */
-const PATIENCE_MS = 5000;
 
 /** A position as the element reports it. */
 interface Coords {
@@ -100,16 +96,9 @@ describe("defineLayout on a rendered graph", () => {
     async function settled(what: string): Promise<void> {
         await operationQueueOf(graph).waitForCompletion();
         const manager = graph.getLayoutManager();
-        const deadline = Date.now() + PATIENCE_MS;
-        while (Date.now() < deadline) {
-            if ((manager.layoutEngine?.isSettled ?? false) && !manager.running) {
-                return;
-            }
-
-            await nextFrame();
-        }
-
-        throw new Error(`timed out waiting for ${what}`);
+        await vi.waitFor(() => {
+            assert.isTrue((manager.layoutEngine?.isSettled ?? false) && !manager.running, `waiting for ${what}`);
+        });
     }
 
     /**
@@ -530,5 +519,38 @@ describe("defineLayout on a rendered graph", () => {
             assert.strictEqual(failure.code, "E_UNKNOWN_OPTION");
             assert.include(failure.details.candidates as readonly string[], "spacing");
         });
+    });
+});
+
+describe("defineLayout set on an empty graph", () => {
+    it("does not run place() before the graph holds a node, as on renderPath objects before row layout", async () => {
+        const calls: number[] = [];
+        defineLayout({
+            id: "acme-needs-a-node",
+            dimensions: 2,
+            options: {},
+            place(view) {
+                const count = [...view.nodes()].length;
+                calls.push(count);
+                if (count === 0) {
+                    throw new Error("needs a node");
+                }
+
+                return new Map();
+            },
+        });
+        const container = document.createElement("div");
+        container.style.width = "300px";
+        container.style.height = "300px";
+        document.body.appendChild(container);
+        const graph = new Graph(container);
+        try {
+            await graph.init();
+            await graph.setLayout("acme-needs-a-node");
+            assert.deepEqual(calls, [], "place() is not run over an empty graph");
+        } finally {
+            graph.dispose();
+            container.remove();
+        }
     });
 });

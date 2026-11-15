@@ -1,4 +1,4 @@
-import { assert, beforeEach, describe, it } from "vitest";
+import { assert, beforeEach, describe, it, vi } from "vitest";
 
 import { EventManager } from "../../src/managers/EventManager";
 import { type OperationContext, OperationQueueManager } from "../../src/managers/OperationQueueManager";
@@ -123,27 +123,65 @@ describe("OperationQueueManager", () => {
         assert.include(events, "error");
     });
 
-    it("should provide queue statistics", async () => {
-        // Queue some operations but don't wait
-        queueManager.queueOperation("data-add", async () => {
-            await new Promise((resolve) => setTimeout(resolve, 10));
+    it("reports an AbortError the operation body throws itself as an error, once", async () => {
+        const errors: unknown[] = [];
+        const queueEvents: string[] = [];
+        eventManager.addListener("error", (event) => {
+            errors.push(event);
+        });
+        eventManager.onGraphEvent.add((event) => {
+            if (event.type === "operation-obsoleted" || event.type === "operation-cancelled") {
+                queueEvents.push(event.type);
+            }
         });
 
-        queueManager.queueOperation("layout-set", async () => {
-            await new Promise((resolve) => setTimeout(resolve, 10));
+        const thrown = new Error("aborted by the body");
+        thrown.name = "AbortError";
+        const outcome = queueManager.queueOperationAsync("data-add", () => {
+            throw thrown;
         });
 
-        // Check stats immediately after queueing
-        // The batch is scheduled on a microtask; one macrotask yield lets it start
-        await new Promise((resolve) => setTimeout(resolve, 0));
-        const stats = queueManager.getStats();
-
-        assert.isDefined(stats.pending);
-        assert.isDefined(stats.size);
-        assert.isDefined(stats.isPaused);
-        assert.equal(stats.isPaused, false);
-
+        let rejection: unknown;
+        await outcome.catch((error: unknown) => {
+            rejection = error;
+        });
         await queueManager.waitForCompletion();
+
+        assert.strictEqual(rejection, thrown);
+        assert.lengthOf(errors, 1);
+        assert.deepEqual(queueEvents, []);
+    });
+
+    it("should provide queue statistics", async () => {
+        let started!: () => void;
+        const running = new Promise<void>((resolve) => {
+            started = resolve;
+        });
+        let release!: () => void;
+        const released = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+
+        // One operation runs and holds the queue; the other waits behind it
+        queueManager.queueOperation(
+            "data-add",
+            async () => {
+                started();
+                await released;
+            },
+            { skipTriggers: true },
+        );
+        queueManager.queueOperation("layout-set", () => undefined, { skipTriggers: true });
+
+        await running;
+        assert.deepEqual(queueManager.getStats(), { pending: 1, size: 1, isPaused: false });
+
+        release();
+        await queueManager.waitForCompletion();
+        assert.deepEqual(queueManager.getStats(), { pending: 0, size: 0, isPaused: false });
+
+        queueManager.pause();
+        assert.isTrue(queueManager.getStats().isPaused);
     });
 
     it("should support pausing and resuming the queue", async () => {
@@ -244,5 +282,22 @@ describe("OperationQueueManager", () => {
 
         // Should execute in dependency order
         assert.deepEqual(executionOrder, ["style-init-sync", "data-add-async", "layout-set-sync"]);
+    });
+
+    it("lets go of finished operations when disposed, without waiting for their cleanup", async () => {
+        // A finished operation's cleanup runs a second later and holds the manager -- and through
+        // it a whole graph -- until it does. Dispose cancels every one (issue #3413).
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            queueManager.queueOperation("data-add", () => undefined, { skipTriggers: true });
+            queueManager.queueOperation("layout-set", () => undefined, { skipTriggers: true });
+            await queueManager.waitForCompletion();
+            assert.equal(vi.getTimerCount(), 2, "each finished operation scheduled its cleanup");
+
+            queueManager.dispose();
+            assert.equal(vi.getTimerCount(), 0, "dispose cancelled the cleanups");
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

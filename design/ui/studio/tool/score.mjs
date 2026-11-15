@@ -20,6 +20,7 @@
 //          other task's empty-start sessions is reported, not judged
 //
 //   node score.mjs <round dir> [--task T39]   writes <round dir>/score.json
+//   node score.mjs <tier 5 round dir> [--tier 5] [--rating-gates]   tier 5's bars (scoreTier5 below)
 //   node score.mjs --self-test                     plants a failing and a passing round and checks both
 //
 // Reads <round dir>/plan.md (one row per session: | id | task | A or B: dataset | persona | `start` |),
@@ -65,13 +66,18 @@ function readGrade(dir) {
     const f = join(dir, "grade.md");
     if (!existsSync(f)) return null;
     const t = readFileSync(f, "utf8");
-    const grade = t.match(/^Grade: (S|SD|F|G|VOID)\b/m)?.[1];
+    const grade = t.match(/^Grade: (S|SD|P|F|G|VOID)\b/m)?.[1];
     const falseDone = t.match(/^False done: (yes|no)\b/im)?.[1]?.toLowerCase();
     const turns = t.match(/^Wrong turns: (\d+)/m)?.[1];
     const route = t.match(/^Route: (folder|several|one by one|around|cover)\b/im)?.[1]?.toLowerCase() ?? null;
     const scriptedExit = /^Scripted exit: yes\b/im.test(t);
+    // tier 5's follow-up rating: "Overwhelm: 5 -- <screen element> -- <the reason, in their words>"
+    const ow = t.match(/^Overwhelm: ([1-7])\b(?:\s*--\s*([^\n]*?)(?:\s+--\s+(.*))?)?\s*$/m);
+    const overwhelm = ow
+        ? { rating: Number(ow[1]), element: ow[2]?.trim().toLowerCase() || null, reason: ow[3] ?? null }
+        : null;
     if (!grade || !falseDone || turns === undefined) return { unreadable: f };
-    return { grade, falseDone: falseDone === "yes", wrongTurns: Number(turns), route, scriptedExit };
+    return { grade, falseDone: falseDone === "yes", wrongTurns: Number(turns), route, scriptedExit, overwhelm };
 }
 
 // Steps and minutes from 01.png to the first screenshot whose layers look different from the first
@@ -222,6 +228,118 @@ export function score(rd, firstTask = "T39") {
         scriptedExits: sessions.filter((s) => s.scriptedExit).map((s) => s.id),
     };
     return { problems, bars, reported, sessions, holds: !problems.length && bars.every((b) => b.holds) };
+}
+
+// ---------- tier 5 (../tier5/criteria.md) ----------
+// Bar 1: each task's S or SD at least 75% of its valid pointer sessions and no dataset half with 0
+// successes: 2 of 2 on a two-session task, 3 of 4 on a four-session task; a task with fewer valid
+// sessions than its plan runs does not hold. Bar 2: no false "done". Bar 3: each task's median
+// wrong turns at most 2. Bar 9 (its scripted half): every valid pointer session's "Overwhelm:" line;
+// no screen element named as the reason for a rating of 4 or more in two sessions on different task
+// halves; and the median rating (at most 2, no task half's median above 3), which gates only when the
+// rating check held (ratingGates), and is reported as a measure otherwise. Sam's keyboard-only
+// sessions (a start with --keys) count in none of these: bar 5 needs them S or SD, reported here.
+export const T5_SUCCESS = 0.75;
+export const T5_RATING = { median: 2, half: 3, named: 4 };
+export function scoreTier5(rd, { ratingGates = false } = {}) {
+    const problems = [];
+    const sessions = [];
+    for (const row of planRows(rd)) {
+        const tries = [row.id, `${row.id}b`, `${row.id}bb`].filter((id) => existsSync(join(rd, "sessions", id)));
+        let used = null;
+        for (const id of tries) {
+            const g = readGrade(join(rd, "sessions", id));
+            if (g?.unreadable) problems.push(`${g.unreadable} lacks the three grade lines`);
+            if (g && !g.unreadable && g.grade !== "VOID") used = { id, ...g };
+        }
+        const keys = row.start.includes("--keys");
+        if (!used) {
+            problems.push(`${row.id}: no valid grade (${tries.join(", ") || "no session folder"})`);
+            sessions.push({ ...row, keys, missing: true });
+            continue;
+        }
+        if (!keys && !used.overwhelm)
+            problems.push(
+                `${used.id}: no readable "Overwhelm: <1-7> -- <screen element> -- <reason>" line in grade.md`,
+            );
+        sessions.push({ ...row, ...used, keys });
+    }
+    const pointer = sessions.filter((s) => !s.keys);
+    const valid = pointer.filter((s) => !s.missing);
+    if (!valid.length) problems.push("no valid pointer session, so no bar was measured");
+    const won = (s) => s.grade === "S" || s.grade === "SD";
+    const bars = [];
+    for (const t of [...new Set(pointer.map((s) => s.task))].sort()) {
+        const planned = pointer.filter((s) => s.task === t);
+        const of = valid.filter((s) => s.task === t);
+        const ok = of.filter(won).length;
+        const halves = [...new Set(planned.map((s) => s.half))].sort();
+        const empty = halves.filter((h) => !of.some((s) => s.half === h && won(s)));
+        bars.push({
+            bar: 1,
+            what: `${t} success (at least ${T5_SUCCESS * 100}% of ${planned.length}, no half with 0)`,
+            value: `${ok} of ${of.length}${of.length < planned.length ? ` (${planned.length - of.length} planned not valid)` : ""}${empty.length ? `; no success on ${empty.join(", ")}` : ""}`,
+            holds: of.length === planned.length && of.length > 0 && ok / of.length >= T5_SUCCESS && !empty.length,
+        });
+        const mt = median(of.map((s) => s.wrongTurns));
+        bars.push({ bar: 3, what: `${t} median wrong turns`, value: String(mt), holds: mt !== null && mt <= 2 });
+    }
+    const fd = valid.filter((s) => s.falseDone);
+    bars.push({
+        bar: 2,
+        what: "false done",
+        value: fd.length ? fd.map((s) => s.id).join(", ") : "0",
+        holds: fd.length === 0 && valid.length > 0,
+    });
+    // bar 9: a screen element named as the reason for a 4 or more in two sessions on different halves
+    const rated = valid.filter((s) => s.overwhelm);
+    const high = rated.filter(
+        (s) => s.overwhelm.rating >= T5_RATING.named && s.overwhelm.element && s.overwhelm.element !== "none",
+    );
+    const byElement = Object.groupBy(high, (s) => s.overwhelm.element);
+    const named = Object.entries(byElement).filter(([, xs]) => new Set(xs.map((x) => x.task + x.half)).size >= 2);
+    bars.push({
+        bar: 9,
+        what: `no screen element named as the reason for a rating of ${T5_RATING.named} or more in two sessions on different task halves`,
+        value: named.length
+            ? named
+                  .map(
+                      ([e, xs]) =>
+                          `"${e}": ${xs.map((x) => `${x.id} ${x.task}${x.half} ${x.overwhelm.rating}`).join(", ")}`,
+                  )
+                  .join("; ")
+            : "none",
+        holds: !named.length && rated.length > 0,
+    });
+    const m = median(rated.map((s) => s.overwhelm.rating));
+    const halfMedians = Object.entries(Object.groupBy(rated, (s) => s.task + s.half))
+        .map(([h, xs]) => [h, median(xs.map((x) => x.overwhelm.rating))])
+        .sort(([a], [b]) => a.localeCompare(b));
+    const overHalf = halfMedians.filter(([, v]) => v > T5_RATING.half);
+    const ratingHolds = m !== null && m <= T5_RATING.median && !overHalf.length;
+    const rating = {
+        bar: 9,
+        what: `median overwhelm rating at most ${T5_RATING.median}, no task half above ${T5_RATING.half}${ratingGates ? "" : " (a measure: the rating check did not hold, so it gates nothing)"}`,
+        value: `median ${m} over ${rated.length}; by half ${halfMedians.map(([h, v]) => `${h} ${v}`).join(", ")}`,
+        holds: ratingGates ? ratingHolds : true,
+        measured: ratingHolds,
+    };
+    bars.push(rating);
+    // bar 5's grade half: Sam's sessions S or SD (the rest of bar 5 is the walks' and bars.mjs's)
+    const sam = sessions.filter((s) => s.keys);
+    if (sam.length)
+        bars.push({
+            bar: 5,
+            what: "keyboard-only sessions S or SD",
+            value: sam.map((s) => `${s.id} ${s.missing ? "no valid grade" : s.grade}`).join(", "),
+            holds: sam.every((s) => !s.missing && won(s)),
+        });
+    const reported = {
+        // every rating with its coded reason, for the report's overwhelm table
+        overwhelm: rated.map((s) => ({ id: s.id, half: s.task + s.half, ...s.overwhelm })),
+        keyboard: sam.map((s) => ({ id: s.id, task: s.task, grade: s.grade ?? null })),
+    };
+    return { tier: "5", problems, bars, reported, sessions, holds: !problems.length && bars.every((b) => b.holds) };
 }
 
 async function selfTest() {
@@ -409,13 +527,99 @@ async function selfTest() {
         "4 of 5",
         "Alex's session was not left out of the newcomers' count",
     );
+    // tier 5: two-session and four-session tasks, Sam's keyboard sessions left out, the ratings
+    const round5 = async (name, sessions) => {
+        const rd = join(base, `t5-${name}`);
+        await mkdir(rd, { recursive: true });
+        const rows = [];
+        for (const s of sessions) {
+            const d = join(rd, "sessions", s.id);
+            await mkdir(d, { recursive: true });
+            rows.push(
+                `| ${s.id.replace(/b$/, "")} | ${s.task} | ${s.half}: data | P | \`setup:x.txt${s.keys ? " --keys" : ""}\` |`,
+            );
+            if (s.grade)
+                await writeFile(
+                    join(d, "grade.md"),
+                    `Grade: ${s.grade}\nFalse done: ${s.falseDone ? "yes" : "no"}\nWrong turns: ${s.turns ?? 1}\n` +
+                        (s.ow === null ? "" : `Overwhelm: ${s.ow ?? "2 -- none -- it was clear"}\n`),
+                );
+        }
+        await writeFile(join(rd, "plan.md"), [...new Set(rows)].join("\n") + "\n");
+        return rd;
+    };
+    const good5 = [
+        { id: "r1-s01", task: "T70", half: "A", grade: "S" },
+        { id: "r1-s02", task: "T70", half: "B", grade: "SD", ow: "5 -- the reference picker -- too many names" },
+        { id: "r1-s03", task: "T70", half: "A", grade: "F", turns: 4 },
+        { id: "r1-s04", task: "T70", half: "B", grade: "S", ow: "1 -- none -- calm" },
+        { id: "r1-s21", task: "T72", half: "A", grade: "S", ow: "3 -- the matches strip -- busy" },
+        { id: "r1-s22", task: "T72", half: "B", grade: "SD", ow: "4 -- the matches strip -- in the way" },
+        { id: "r1-s29", task: "T70", half: "A", grade: "S", keys: true, ow: null },
+    ];
+    const ok5 = scoreTier5(await round5("pass", good5));
+    assert.ok(
+        ok5.holds,
+        `a passing tier 5 round fails: ${JSON.stringify([ok5.problems, ok5.bars.filter((b) => !b.holds)])}`,
+    );
+    assert.match(
+        ok5.bars.find((b) => b.what.startsWith("T70 success")).value,
+        /^3 of 4/,
+        "Sam's session was counted in bar 1",
+    );
+    assert.equal(ok5.reported.overwhelm.find((o) => o.id === "r1-s02").element, "the reference picker");
+    console.log("tier 5: a passing round holds (3 of 4, 2 of 2, Sam apart, ratings coded by screen element)");
+    const planted5 = {
+        "a four-session task at 2 of 4": good5.map((s) => (s.id === "r1-s04" ? { ...s, grade: "P" } : s)),
+        "a two-session task at 1 of 2": good5.map((s) => (s.id === "r1-s22" ? { ...s, grade: "F" } : s)),
+        "a false done": good5.map((s) => (s.id === "r1-s03" ? { ...s, falseDone: true } : s)),
+        "a median of 3 wrong turns": good5.map((s) => (s.task === "T72" ? { ...s, turns: 3 } : s)),
+        "a pointer session with no Overwhelm line": good5.map((s) => (s.id === "r1-s01" ? { ...s, ow: null } : s)),
+        "one screen element named for a 4 or more on two halves": good5.map((s) =>
+            s.id === "r1-s21" ? { ...s, ow: "6 -- the reference picker -- a wall of names" } : s,
+        ),
+        "a planned session with no grade": good5.map((s) => (s.id === "r1-s21" ? { ...s, grade: undefined } : s)),
+        "Sam's keyboard session not a success": good5.map((s) => (s.keys ? { ...s, grade: "F" } : s)),
+        "a VOID with no re-run": good5.map((s) => (s.id === "r1-s22" ? { ...s, grade: "VOID" } : s)),
+        "a round with no session": [],
+    };
+    for (const [what, sessions] of Object.entries(planted5)) {
+        const r = scoreTier5(await round5(what.replaceAll(" ", "-"), sessions));
+        assert.equal(r.holds, false, `tier 5: planted "${what}" was not caught`);
+        console.log(
+            `tier 5 caught: ${what} (${[...r.problems, ...r.bars.filter((b) => !b.holds).map((b) => b.what)].join("; ")})`,
+        );
+    }
+    // the median rating gates only when the rating check held; otherwise it is a measure
+    const loud = good5.map((s) => (s.keys ? s : { ...s, ow: `${s.half === "A" ? 5 : 4} -- none -- loud` }));
+    assert.ok(scoreTier5(await round5("loud", loud)).holds, "a high median gated though the rating check did not hold");
+    const gated = scoreTier5(await round5("loud-gated", loud), { ratingGates: true });
+    assert.ok(!gated.holds, "a median rating of 4.5 passed with the rating check holding");
+    console.log("tier 5 caught: a median rating above 2 once the rating check holds (a measure before)");
     await rm(base, { recursive: true, force: true });
     console.log("score.mjs self-test: every planted failure caught, the passing round passes");
 }
 
 const args = process.argv.slice(2);
 if (args[0] === "--self-test") await selfTest();
-else if (args[0]) {
+else if (
+    args[0] &&
+    (args.includes("--tier") ? args[args.indexOf("--tier") + 1] : resolve(args[0]).match(/\/tier(\d+)\//)?.[1]) === "5"
+) {
+    // tier 5: bars 1 to 3, bar 9's scripted half and Sam's grades; --rating-gates once the rating
+    // check held (criteria.md, "The rating check")
+    const rd = resolve(args[0]);
+    const r = scoreTier5(rd, { ratingGates: args.includes("--rating-gates") });
+    await writeFile(join(rd, "score.json"), JSON.stringify(r, null, 1) + "\n");
+    for (const p of r.problems) console.log(`PROBLEM: ${p}`);
+    for (const b of r.bars) console.log(`${b.holds ? "holds" : "FAILS"}  bar ${b.bar}  ${b.what}: ${b.value}`);
+    for (const o of r.reported.overwhelm)
+        console.log(
+            `reported: ${o.id} ${o.half} overwhelm ${o.rating}, ${o.element ?? "no element"}: ${o.reason ?? ""}`,
+        );
+    console.log(r.holds ? "every scripted bar holds" : "a scripted bar fails or was not measured");
+    process.exitCode = r.holds ? 0 : 1;
+} else if (args[0]) {
     const rd = resolve(args[0]);
     const ti = args.indexOf("--task");
     const r = score(rd, ti > 0 ? args[ti + 1] : "T39");

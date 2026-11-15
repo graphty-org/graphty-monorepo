@@ -16,6 +16,7 @@ import {
     metricFieldSpecs,
 } from "../../../extend";
 import { detachedRunContext } from "../../../src/algorithms/results";
+import { Graph as LegacyGraph } from "../../../src/algorithms/utils/legacyGraph";
 import type { Graph } from "../../../src/Graph";
 import { createMockGraph } from "../../helpers/mockGraph";
 
@@ -113,4 +114,22 @@ describe("deprecated Algorithm.algorithmGraph()", () => {
         assert.strictEqual(built.nodeCount, 2);
         assert.isTrue(built.hasNode("ghost"));
     });
+});
+
+describe("the legacy graph's removeNode", () => {
+    for (const directed of [true, false]) {
+        it(`takes out every edge touching the node in a ${directed ? "directed" : "undirected"} graph`, () => {
+            const graph = new LegacyGraph({ directed });
+            graph.addEdge("a", "b");
+            graph.addEdge("c", "a");
+            graph.addEdge("b", "c");
+
+            assert.isTrue(graph.removeNode("a"));
+            assert.isFalse(graph.removeNode("a"));
+            assert.isFalse(graph.hasNode("a"));
+            assert.strictEqual(graph.totalEdgeCount, 1);
+            assert.isTrue(graph.hasEdge("b", "c"));
+            assert.deepEqual([...graph.neighbors("b")], ["c"]);
+        });
+    }
 });

@@ -5,8 +5,28 @@
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { type GraphtyError, isGraphtyError } from "../../extend";
+import { defineSource, registerSource } from "../../session";
 import type { DataLoadingErrorEvent } from "../../src/events.js";
 import { Graph } from "../../src/Graph.js";
+
+/** Opened by the test: the held source's read waits for it. */
+let openHeldRead = (): void => undefined;
+/** Called by the held source once its read has started. */
+let heldReadStarts = (): void => undefined;
+
+// A network source whose read waits until the test lets it go.
+registerSource(
+    defineSource({
+        id: "held-clear",
+        descriptor: { plainName: "Held", params: [] },
+        async records() {
+            const gate = new Promise<void>((done) => (openHeldRead = done));
+            heldReadStarts();
+            await gate;
+            return { nodes: [{ id: "s1" }, { id: "s2" }] };
+        },
+    }),
+);
 
 const GOOD = JSON.stringify({ nodes: [{ id: "a" }, { id: "b" }], edges: [{ src: "a", dst: "b" }] });
 const OTHER = JSON.stringify({ nodes: [{ id: "x" }, { id: "y" }, { id: "z" }], edges: [{ src: "x", dst: "y" }] });
@@ -165,16 +185,29 @@ describe("the load CALLED last wins", () => {
         assert.deepStrictEqual(ids(graph), { nodes: ["late"], edges: 0 });
     });
 
-    test("load ids rise in call order, not in the order the reads finish", async () => {
+    test("adding loads land, and their ids rise, in call order, not in the order the reads finish", async () => {
         const graph = await graphWith(GOOD);
 
         const held = heldFile(OTHER);
-        const fileLoad = graph.loadFromFile(held.file);
-        const late = await graph.addDataFromSource("json", { data: JSON.stringify({ nodes: [{ id: "late" }] }) });
+        const landed: string[] = [];
+        const fileLoad = graph.loadFromFile(held.file).then((load) => {
+            landed.push("file");
+            return load;
+        });
+        // Asked for later and with nothing to read, it still waits for the file read ahead of it
+        // (issue #3382): the session's loads go in the order they were asked for.
+        const lateLoad = graph
+            .addDataFromSource("json", { data: JSON.stringify({ nodes: [{ id: "late" }] }) })
+            .then((load) => {
+                landed.push("late");
+                return load;
+            });
         held.release();
-        const file = await fileLoad;
+        const [file, late] = await Promise.all([fileLoad, lateLoad]);
 
         assert.isBelow(file.loadId, late.loadId);
+        assert.deepStrictEqual(landed, ["file", "late"]);
+        assert.deepStrictEqual(ids(graph).nodes, ["a", "b", "late", "x", "y", "z"]);
     });
 
     test("clearData abandons a load in flight, so it cannot bring its data back", async () => {
@@ -187,5 +220,39 @@ describe("the load CALLED last wins", () => {
 
         assert.strictEqual((error as GraphtyError).code, "E_SUPERSEDED");
         assert.deepStrictEqual(ids(graph), { nodes: [], edges: 0 });
+    });
+
+    test("clearData abandons a session load still reading, so it cannot bring its data back (issue #3524)", async () => {
+        const graph = await graphWith(GOOD);
+        const started = new Promise<void>((done) => (heldReadStarts = done));
+        const sessionLoad = graph.getSession().data.import({ source: "held-clear", config: {} });
+        sessionLoad.catch(() => undefined);
+        await started;
+        graph.clearData();
+        openHeldRead();
+
+        const error = await rejection(sessionLoad);
+
+        assert.strictEqual((error as GraphtyError).code, "E_SUPERSEDED");
+        assert.deepStrictEqual(ids(graph), { nodes: [], edges: 0 });
+    });
+
+    test("clearData cancels an edit still waiting behind a load, and clears before it returns", async () => {
+        const graph = await graphWith(GOOD);
+        const started = new Promise<void>((done) => (heldReadStarts = done));
+        const sessionLoad = graph.getSession().data.import({ source: "held-clear", config: {} });
+        sessionLoad.catch(() => undefined);
+        await started;
+        const edit = graph.getSession().data.addNodes([{ id: "edited" }]);
+        graph.clearData();
+        // Synchronous, as it has always been: a caller adding right after the clear keeps its node.
+        assert.deepStrictEqual(ids(graph), { nodes: [], edges: 0 });
+        await graph.addNodes([{ id: "after" }]);
+        openHeldRead();
+
+        // The cancelled edit resolves and adds nothing.
+        await edit;
+
+        assert.deepStrictEqual(ids(graph).nodes, ["after"]);
     });
 });

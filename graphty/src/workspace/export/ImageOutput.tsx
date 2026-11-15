@@ -1,5 +1,6 @@
 import { ModalFooter, SegmentedControl } from "@graphty/compact-mantine";
-import type { ScreenshotErrorCode, ScreenshotLegendSection } from "@graphty/graphty-element";
+import type { ScreenshotLegendSection } from "@graphty/graphty-element";
+import { SCREENSHOT_PRESET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Alert, Button, Input, Loader, Select, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
@@ -12,17 +13,15 @@ import {
     failureWords,
     fileName,
     IMAGE_EXTENSIONS,
-    IMAGE_PRESETS,
     type ImageChoices,
     type ImageFormat,
     type ImageSize,
+    PRESET_LABELS,
+    presetChoices,
     presetOf,
-    SAVED_LOCALLY,
+    refusalWords,
     screenshotOptions,
 } from "./choices";
-
-/** The error graphty-element throws when the layout does not settle before a capture. */
-const SETTLE_TIMEOUT: `${ScreenshotErrorCode.LAYOUT_SETTLE_TIMEOUT}` = "LAYOUT_SETTLE_TIMEOUT";
 
 /** The app's words for the element's camera ids; another id shows as itself. */
 const VIEW_LABELS: Readonly<Record<string, string>> = {
@@ -40,12 +39,6 @@ const SIZES: readonly ImageSize[] = ["1x", "2x", "4x", "400x300"];
 const PREVIEW_WIDTH = 480;
 
 /**
- * Why a size cannot be captured. `canCaptureScreenshot` gives a sentence but no code, so the app
- * cannot say which limit it hit; the gap is recorded with the Export dialog package.
- */
-const SIZE_REFUSED = "this browser cannot make an image this size";
-
-/**
  * The key an image carries when the canvas shows the legend card: the card's sections, in the
  * same words.
  * @param session - the session, or null.
@@ -60,8 +53,8 @@ interface ImageOutputProps {
     choices: ImageChoices;
     onChange: (choices: ImageChoices) => void;
     onCancel: () => void;
-    /** Closes the dialog with a notice. */
-    onDone: (message: string) => void;
+    /** Closes the dialog with a notice, and lists the file under Recent. */
+    onDone: (message: string, file?: string) => void;
 }
 
 /** What the footer is doing. */
@@ -123,7 +116,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
             })
             .catch((error: unknown) => {
                 if (live) {
-                    setPreviewError(failureWords(error));
+                    setPreviewError(failureWords(error, true));
                 }
             });
         return () => {
@@ -145,7 +138,7 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 const check = await element.canCaptureScreenshot(
                     screenshotOptions({ ...choices, size }, { blob: true }),
                 );
-                return [size, check.supported ? undefined : SIZE_REFUSED] as const;
+                return [size, check.reason === undefined ? undefined : refusalWords(check.reason)] as const;
             }),
         ).then((entries) => {
             if (live) {
@@ -180,12 +173,16 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 setStatus({ kind: "clipboard-refused" });
                 return;
             }
-            onDone(destination === "clipboard" ? "Copied the image" : `Exported ${name}`);
+            if (destination === "clipboard") {
+                onDone("Copied the image");
+            } else {
+                onDone(`Exported ${name}`, name);
+            }
         } catch (error) {
-            if (error instanceof Error && "code" in error && error.code === SETTLE_TIMEOUT) {
+            if (error instanceof Error && "code" in error && error.code === "E_NOT_SETTLED") {
                 setStatus({ kind: "settle-timeout", destination });
             } else {
-                setStatus({ kind: "failed", words: failureWords(error) });
+                setStatus({ kind: "failed", words: failureWords(error, true) });
             }
         }
     };
@@ -197,17 +194,9 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
     const callout = (() => {
         switch (status.kind) {
             case "settle-timeout":
-                return (
-                    <Alert color="yellow" title="The layout is still moving">
-                        It did not settle in time. Capture it as it is now, or try again.
-                    </Alert>
-                );
+                return <Alert color="yellow" title="Layout still moving" />;
             case "clipboard-refused":
-                return (
-                    <Alert color="yellow" title="The browser did not allow copying">
-                        Use Export to save the image as a file instead.
-                    </Alert>
-                );
+                return <Alert color="yellow" title="Copy refused by the browser" />;
             case "failed":
                 return (
                     <Alert color="red" title="The image was not saved" role="alert">
@@ -228,21 +217,20 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                     <Text fw={550} size="md" role="heading" aria-level={3}>
                         Image
                     </Text>
-                    <Text size="sm" c="dimmed">
-                        A picture of the drawing, {pixels(choices.size)}, {choices.format.toUpperCase()}
-                        {choices.view === "current" ? "" : "; your own camera does not move"}
-                    </Text>
                 </div>
                 <div className="ws-export-fields">
                     <Select
                         label="Preset"
-                        data={[...IMAGE_PRESETS.map(({ id, label }) => ({ value: id, label })), CUSTOM]}
+                        data={[
+                            ...SCREENSHOT_PRESET_DESCRIPTORS.map(({ id }) => ({ value: id, label: PRESET_LABELS[id] })),
+                            CUSTOM,
+                        ]}
                         value={preset?.id ?? CUSTOM}
                         allowDeselect={false}
                         onChange={(id) => {
-                            const chosen = IMAGE_PRESETS.find((entry) => entry.id === id);
+                            const chosen = SCREENSHOT_PRESET_DESCRIPTORS.find((entry) => entry.id === id);
                             if (chosen !== undefined) {
-                                set(chosen.choices);
+                                set(presetChoices(chosen));
                             }
                         }}
                     />
@@ -325,11 +313,9 @@ export function ImageOutput({ choices, onChange, onCancel, onDone }: Readonly<Im
                 <Text size="sm" c="dimmed" className="ws-export-note">
                     {busy ? (
                         <>
-                            <Loader size="xs" /> Waiting for the layout to settle, then capturing
+                            <Loader size="xs" /> Capturing
                         </>
-                    ) : (
-                        SAVED_LOCALLY
-                    )}
+                    ) : null}
                 </Text>
                 <Button variant="default" onClick={onCancel}>
                     Cancel

@@ -10,9 +10,10 @@
  * - a specular light adds white on top, so even a MID color like a plain blue gets a white glint
  *   on every shiny face.
  *
- * The default, "studio" (a key light and a fill, neither with specular, and a rim in the node's
- * own color), lifts a lit face a little past the style color -- 1.13 times its lightness at most
- * in the lighting experiment -- and never to white. "headlight" and "matte" top out at the style
+ * The default, "studio" (a light that follows the camera, a fill with a light ground, neither with
+ * specular, and a rim in the node's own color), lifts a lit face a little past the style color --
+ * 1.07 times its lightness at most, measured here -- and never to white, and keeps the darkest face
+ * at about three quarters of the style lightness, so no side of a node goes dark. "headlight" and "matte" top out at the style
  * color, and "flat" draws exactly it. Shapes with flat faces (tetrahedron, box) are used because
  * each face is lit evenly and a face turned toward the light is where a clamp shows.
  */
@@ -42,15 +43,14 @@ const HUE_TOLERANCE_DEG = 10;
 const RELATIVE_CHROMA_TOLERANCE = 0.15;
 const LIGHTNESS_HEADROOM = 0.02;
 
-/**
- * The relative chroma tolerance under the studio lighting, which lifts a lit face past the style
- * color: a saturated blue made lighter loses chroma relative to lightness inside sRGB (measured
- * 0.20 for the mid blue) without any white in it, which the white-pixel count rules out on its own.
- */
-const STUDIO_RELATIVE_CHROMA_TOLERANCE = 0.25;
+/** How far past the style color's lightness the studio lighting may lift a lit face (measured 1.07). */
+const STUDIO_MAX_LIGHTNESS_RATIO = 1.09;
 
-/** How far past the style color's lightness the studio lighting may lift a lit face. */
-const STUDIO_MAX_LIGHTNESS_RATIO = 1.15;
+/**
+ * How dark the studio lighting may draw a node's darkest face (its 5th-percentile lightness), as a
+ * share of the style lightness: measured 0.73 for the palest default color and 0.74 for the blue.
+ */
+const STUDIO_MIN_DARKEST_RATIO = 0.7;
 
 /** A pixel with every channel above this has been lifted to white. */
 const WHITE = 240;
@@ -60,8 +60,6 @@ const MIN_CHROMA = 0.04;
 
 /** How far in from the silhouette a pixel must be to count as surface. */
 const INTERIOR_RADIUS = 2;
-
-const CASE_TIMEOUT_MS = 30000;
 
 interface Lch {
     l: number;
@@ -105,6 +103,8 @@ interface Reading {
     white: number;
     /** Lightness spread (95th minus 5th percentile): how much depth the shading gives. */
     spread: number;
+    /** The 5th-percentile lightness: the darkest face, ignoring a stray pixel. */
+    darkest: number;
 }
 
 /**
@@ -169,7 +169,7 @@ function readAgainst(frame: Frame, style: Lch): Reading {
     lightness.sort((a, b) => a - b);
     const at = (q: number): number => lightness[Math.floor((lightness.length - 1) * q)] ?? 0;
 
-    return { pixels, worstHue, worstRelativeChroma, brightest, white, spread: at(0.95) - at(0.05) };
+    return { pixels, worstHue, worstRelativeChroma, brightest, white, spread: at(0.95) - at(0.05), darkest: at(0.05) };
 }
 
 /**
@@ -221,7 +221,7 @@ async function mount(color: string): Promise<{ container: HTMLElement; graph: Gr
         },
     });
     await operationQueueOf(graph).waitForCompletion();
-    await graph.waitForStableFrame({ timeoutMs: CASE_TIMEOUT_MS });
+    await graph.waitForStableFrame();
 
     const state = graph.getCameraState();
     const target = state.target ?? { x: 0, y: 0, z: 0 };
@@ -257,7 +257,6 @@ for (const [name, color] of [
         let graph: Graph;
         const readings = new Map<Lighting | "default", Reading>();
 
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         beforeAll(async () => {
             let frame: Frame;
             ({ container, graph, frame } = await mount(color));
@@ -269,7 +268,7 @@ for (const [name, color] of [
                 await nextFrameDrawn(graph);
                 readings.set(lighting, readAgainst(await readFrame(graph), style));
             }
-        }, CASE_TIMEOUT_MS * 4);
+        });
 
         afterAll(() => {
             graph.dispose();
@@ -298,10 +297,9 @@ for (const [name, color] of [
                 it("never lifts a pixel to white", () => {
                     const r = reading(lighting);
                     assert.strictEqual(r.white, 0, `${String(r.white)} pixels of ${color} were lifted to white.`);
-                    const studio = lighting === "default" || lighting === "studio";
                     assert.isAtMost(
                         r.worstRelativeChroma,
-                        studio ? STUDIO_RELATIVE_CHROMA_TOLERANCE : RELATIVE_CHROMA_TOLERANCE,
+                        RELATIVE_CHROMA_TOLERANCE,
                         `A lit pixel lost the saturation of ${color}: white was added on top of it.`,
                     );
                 });
@@ -331,8 +329,13 @@ for (const [name, color] of [
             assert.closeTo(r.brightest, style.l, 0.01, `A flat node is not ${color}.`);
         });
 
-        it("under studio, shades with more depth than matte", () => {
-            assert.isAbove(reading("studio").spread, reading("matte").spread, "Studio is no rounder than matte.");
+        it(`under studio, keeps the darkest face at least ${String(STUDIO_MIN_DARKEST_RATIO)} of the style lightness`, () => {
+            assert.isAtLeast(reading("studio").darkest, style.l * STUDIO_MIN_DARKEST_RATIO, "A studio face goes dark.");
+        });
+
+        it("under studio, keeps its darkest face lighter than headlight and matte do", () => {
+            assert.isAbove(reading("studio").darkest, reading("headlight").darkest, "The rim lifts no dark face.");
+            assert.isAbove(reading("studio").darkest, reading("matte").darkest, "Studio has a darker side than matte.");
         });
 
         it("switching back at runtime gives the same picture as the default", () => {

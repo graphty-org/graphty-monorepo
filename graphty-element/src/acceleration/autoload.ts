@@ -31,17 +31,28 @@
 import { checkPeerExports, classifyPeerLoadError } from "./peerLoad";
 import { registerDefaultAccelerator } from "./registry";
 import type { AcceleratorFactory, AcceleratorFactoryOptions, GraphAccelerator } from "./types";
-import { createWebGpuFactory, WEBGPU_ACCELERATOR_NAME, type WebGpuPeerBrowser } from "./webgpuFactory";
+import {
+    createWebGpuFactory,
+    createWebGpuSharesDevice,
+    WEBGPU_ACCELERATOR_NAME,
+    type WebGpuPeerBrowser,
+} from "./webgpuFactory";
 
-let loaded: Promise<AcceleratorFactory> | null = null;
+/** The factory and the device-sharing answer, built over the loaded package. */
+interface Loaded {
+    readonly factory: AcceleratorFactory;
+    readonly sharesDevice: (adapter: unknown) => boolean;
+}
+
+let loaded: Promise<Loaded> | null = null;
 
 /**
  * Imports the package and builds the factory over it.
- * @returns The factory.
+ * @returns The factory and the device-sharing answer.
  * @throws A `GraphtyError` with `E_MISSING_PACKAGE`, `E_ACCELERATOR_FAILED` or
  * `E_ACCELERATOR_INCOMPATIBLE`.
  */
-async function loadFactory(): Promise<AcceleratorFactory> {
+async function loadFactory(): Promise<Loaded> {
     let root: unknown;
     let browser: unknown;
     try {
@@ -52,9 +63,13 @@ async function loadFactory(): Promise<AcceleratorFactory> {
     }
 
     const peer = checkPeerExports(root, browser);
-    return createWebGpuFactory(peer.root, {
+    const peerBrowser: WebGpuPeerBrowser = {
         acquireAccelerator: peer.acquireAccelerator as WebGpuPeerBrowser["acquireAccelerator"],
-    });
+        ...(peer.summarizeAdapter === undefined
+            ? {}
+            : { summarizeAdapter: peer.summarizeAdapter as NonNullable<WebGpuPeerBrowser["summarizeAdapter"]> }),
+    };
+    return { factory: createWebGpuFactory(peer.root, peerBrowser), sharesDevice: createWebGpuSharesDevice(peerBrowser) };
 }
 
 /**
@@ -66,8 +81,28 @@ async function loadFactory(): Promise<AcceleratorFactory> {
  */
 async function lazyWebGpuFactory(options?: AcceleratorFactoryOptions): Promise<GraphAccelerator | null> {
     loaded ??= loadFactory();
-    const factory = await loaded;
+    const { factory } = await loaded;
     return factory(options);
 }
 
-registerDefaultAccelerator({ name: WEBGPU_ACCELERATOR_NAME, backend: "webgpu", factory: lazyWebGpuFactory });
+/**
+ * Whether the accelerator should run on the device the renderer opens on an adapter. A package
+ * that is missing or fails to load says no here; the probe reports why.
+ * @param adapter - The `GPUAdapter`, opaque here.
+ * @returns True to share.
+ */
+async function lazySharesDevice(adapter: unknown): Promise<boolean> {
+    loaded ??= loadFactory();
+    try {
+        return (await loaded).sharesDevice(adapter);
+    } catch {
+        return false;
+    }
+}
+
+registerDefaultAccelerator({
+    name: WEBGPU_ACCELERATOR_NAME,
+    backend: "webgpu",
+    factory: lazyWebGpuFactory,
+    sharesDevice: lazySharesDevice,
+});

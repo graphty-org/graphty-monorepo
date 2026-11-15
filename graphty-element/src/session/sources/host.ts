@@ -3,11 +3,12 @@
  * surface, and the session's dispatcher and events. Internal.
  */
 
-import type { EdgeId, NodeId } from "../../catalog/types";
+import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
+import type { DefaultableLimits } from "../limits";
 import type { SessionCommand } from "../planning";
 import type { SessionEventMap } from "../types";
 import type { SourceLedger } from "./ledger";
-import type { SourceLoadRecord } from "./types";
+import type { ExpandOptions, SourceLoadRecord } from "./types";
 
 /** One edge as the expand code reads it. */
 export interface HostEdge {
@@ -18,7 +19,7 @@ export interface HostEdge {
 }
 
 /** Where a node is drawn, and whether a reader pinned it. */
-export interface HostPlacement {
+interface HostPlacement {
     /** Scene units; null while no layout has placed it. */
     readonly at: { readonly x: number; readonly y: number; readonly z: number } | null;
     readonly pinned: boolean;
@@ -35,16 +36,39 @@ export interface SourceHost {
     /** What expansions keep beside the graph: the ones running, and the rows each wrote. */
     readonly expansions: ExpansionState;
     /**
+     * The ceilings a load is refused above, when the session's differ from the defaults.
+     * @returns the ceilings, or undefined while the defaults stand
+     */
+    ceilings?(): Readonly<Pick<DefaultableLimits, "renderCeiling" | "edgesDrawn">> | undefined;
+    /**
      * The load records the graph still holds rows of: `data.loads()`.
      * @returns the records, in load order
      */
     loads(): readonly SourceLoadRecord[];
+    /**
+     * The `data.sources()` entry that lists a load's rows.
+     * @param load - the load's key
+     * @returns the entry's key, or undefined when the graph lists none for it
+     */
+    sourceKeyOf(load: string): SourceKey | undefined;
+    /**
+     * The credential slot an opened project's load filled, as its file named it.
+     * @param load - the load's key
+     * @returns the slot, or undefined when the file named none
+     */
+    credentialSlotOf(load: string): string | undefined;
     /**
      * Dispatch a command through the session's dispatcher, as one undoable step.
      * @param command - the command
      * @returns what it settles with
      */
     dispatch(command: SessionCommand): Promise<unknown>;
+    /**
+     * Waits for every load asked for before this one to dispatch, for a load that holds a
+     * place in line (`session.data.import`, `loadExample`); unset, or undefined, when none is ahead.
+     * @returns the wait
+     */
+    waitTurn?(): Promise<void> | undefined;
     /**
      * Publish a session event.
      * @param event - its name
@@ -80,16 +104,42 @@ export interface SourceHost {
      */
     placement(id: NodeId): HostPlacement;
     /**
+     * Whether the graph's edges are directed.
+     * @returns true when they are
+     */
+    directed(): boolean;
+    /**
+     * The attribute a node's name is read from: `data.knownFields.nodeLabelPath`.
+     * @returns the path, or null for none
+     */
+    labelPath(): string | null;
+    /**
+     * Whether a text column of plain dates measures time: the timeline experiment is on.
+     * @returns true when it does
+     */
+    readDates(): boolean;
+    /**
      * Record units to scene units: `data.knownFields.positionScale`.
      * @returns the scale
      */
     positionScale(): number;
 }
 
+/** An expansion running for some seeds, and the options it was asked with. */
+export interface RunningExpansion {
+    /** Settles with what it added. */
+    readonly run: Promise<{ readonly nodes: number; readonly edges: number; readonly partial: boolean }>;
+    /** What its caller asked. */
+    readonly options: ExpandOptions;
+}
+
 /** What one session's expansions keep beside the graph. */
 export class ExpansionState {
-    /** The expansion running for each seed, by `String(id)`, so a second click joins it. */
-    readonly running = new Map<string, Promise<void>>();
+    /**
+     * The expansion running for each seed, by `String(id)`, and the options it was asked with: a
+     * second click asking the same joins it.
+     */
+    readonly running = new Map<string, RunningExpansion>();
     /** Each expansion's rows as it wrote them, by key then `String(node id)`: what tells an edit. */
     readonly written = new Map<string, Map<string, string>>();
 }

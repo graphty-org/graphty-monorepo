@@ -1,0 +1,617 @@
+{
+ "tier": "5",
+ "problems": [
+  "r1-s01: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/sessions/r1-s02/grade.md lacks the three grade lines",
+  "r1-s02: no valid grade (r1-s02)",
+  "r1-s03: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/sessions/r1-s04/grade.md lacks the three grade lines",
+  "r1-s04: no valid grade (r1-s04)",
+  "r1-s05: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s07: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s08: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s09: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s11: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/sessions/r1-s13/grade.md lacks the three grade lines",
+  "r1-s13: no valid grade (r1-s13)",
+  "r1-s14: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s15: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s16: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s17: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s18: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s19: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s20: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/sessions/r1-s21/grade.md lacks the three grade lines",
+  "r1-s21: no valid grade (r1-s21)",
+  "r1-s22: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s23: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s24: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s25: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "/home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tier5/rounds/round-1/sessions/r1-s26/grade.md lacks the three grade lines",
+  "r1-s26: no valid grade (r1-s26)",
+  "r1-s27: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md",
+  "r1-s28: no readable \"Overwhelm: <1-7> -- <screen element> -- <reason>\" line in grade.md"
+ ],
+ "bars": [
+  {
+   "bar": 1,
+   "what": "T70 success (at least 75% of 4, no half with 0)",
+   "value": "2 of 2 (2 planned not valid); no success on B",
+   "holds": false
+  },
+  {
+   "bar": 3,
+   "what": "T70 median wrong turns",
+   "value": "0.5",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T71 success (at least 75% of 4, no half with 0)",
+   "value": "4 of 4",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T71 median wrong turns",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T72 success (at least 75% of 2, no half with 0)",
+   "value": "1 of 1 (1 planned not valid); no success on A",
+   "holds": false
+  },
+  {
+   "bar": 3,
+   "what": "T72 median wrong turns",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T73 success (at least 75% of 4, no half with 0)",
+   "value": "0 of 4; no success on A, B",
+   "holds": false
+  },
+  {
+   "bar": 3,
+   "what": "T73 median wrong turns",
+   "value": "1",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T74 success (at least 75% of 4, no half with 0)",
+   "value": "2 of 3 (1 planned not valid)",
+   "holds": false
+  },
+  {
+   "bar": 3,
+   "what": "T74 median wrong turns",
+   "value": "1",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T75 success (at least 75% of 2, no half with 0)",
+   "value": "1 of 2; no success on A",
+   "holds": false
+  },
+  {
+   "bar": 3,
+   "what": "T75 median wrong turns",
+   "value": "3.5",
+   "holds": false
+  },
+  {
+   "bar": 1,
+   "what": "T77 success (at least 75% of 2, no half with 0)",
+   "value": "1 of 1 (1 planned not valid); no success on B",
+   "holds": false
+  },
+  {
+   "bar": 3,
+   "what": "T77 median wrong turns",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T78 success (at least 75% of 4, no half with 0)",
+   "value": "3 of 4",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T78 median wrong turns",
+   "value": "1",
+   "holds": true
+  },
+  {
+   "bar": 1,
+   "what": "T79 success (at least 75% of 2, no half with 0)",
+   "value": "2 of 2",
+   "holds": true
+  },
+  {
+   "bar": 3,
+   "what": "T79 median wrong turns",
+   "value": "0.5",
+   "holds": true
+  },
+  {
+   "bar": 2,
+   "what": "false done",
+   "value": "0",
+   "holds": true
+  },
+  {
+   "bar": 9,
+   "what": "no screen element named as the reason for a rating of 4 or more in two sessions on different task halves",
+   "value": "none",
+   "holds": true
+  },
+  {
+   "bar": 9,
+   "what": "median overwhelm rating at most 2, no task half above 3 (a measure: the rating check did not hold, so it gates nothing)",
+   "value": "median 3 over 3; by half T71B 3, T73B 2.5",
+   "holds": true,
+   "measured": false
+  },
+  {
+   "bar": 5,
+   "what": "keyboard-only sessions S or SD",
+   "value": "r1-s29 S, r1-s30 S",
+   "holds": true
+  }
+ ],
+ "reported": {
+  "overwhelm": [
+   {
+    "id": "r1-s06",
+    "half": "T71B",
+    "rating": 3,
+    "element": "the or group (a and b group colors, group colors on, the matches table's group column)",
+    "reason": "\"right after I pressed Or... ... I didn't know whether I had just put new colours on the lab's file or whether that was only how the filter screen shows things ... for a moment I didn't know if I was building a filter or making groups\""
+   },
+   {
+    "id": "r1-s10",
+    "half": "T73B",
+    "rating": 2,
+    "element": "the fill color box",
+    "reason": "after \"+\" on Fill, an empty Color text box with a link icon and a minus; a click in it opened no picker or swatches, and \"orange\" was typed as a guess"
+   },
+   {
+    "id": "r1-s12",
+    "half": "T73B",
+    "rating": 3,
+    "element": "none (the node table)",
+    "reason": "\"right after I right-clicked the Cedar Bend row in the node table and nothing happened (screenshot 02) ... No menu, no hint of where a 'neighbors within N steps' option might live\"; a smaller wobble when the Neighborhood panel header read \"G03\" instead of \"Cedar Bend\""
+   }
+  ],
+  "keyboard": [
+   {
+    "id": "r1-s29",
+    "task": "T70",
+    "grade": "S"
+   },
+   {
+    "id": "r1-s30",
+    "task": "T71",
+    "grade": "S"
+   }
+  ]
+ },
+ "sessions": [
+  {
+   "id": "r1-s01",
+   "task": "T70",
+   "half": "A",
+   "persona": "Grace",
+   "start": "setup:volunteers.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s02",
+   "task": "T70",
+   "half": "B",
+   "persona": "Tom",
+   "start": "setup:gauges-clean.txt",
+   "keys": false,
+   "missing": true
+  },
+  {
+   "id": "r1-s03",
+   "task": "T70",
+   "half": "A",
+   "persona": "Dana",
+   "start": "setup:volunteers.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s04",
+   "task": "T70",
+   "half": "B",
+   "persona": "Maren",
+   "start": "setup:gauges-clean.txt",
+   "keys": false,
+   "missing": true
+  },
+  {
+   "id": "r1-s05",
+   "task": "T71",
+   "half": "A",
+   "persona": "Grace",
+   "start": "setup:volunteers.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s06",
+   "task": "T71",
+   "half": "B",
+   "persona": "Tom",
+   "start": "setup:gauges-clean.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": {
+    "rating": 3,
+    "element": "the or group (a and b group colors, group colors on, the matches table's group column)",
+    "reason": "\"right after I pressed Or... ... I didn't know whether I had just put new colours on the lab's file or whether that was only how the filter screen shows things ... for a moment I didn't know if I was building a filter or making groups\""
+   },
+   "keys": false
+  },
+  {
+   "id": "r1-s07",
+   "task": "T71",
+   "half": "A",
+   "persona": "Dana",
+   "start": "setup:volunteers.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s08",
+   "task": "T71",
+   "half": "B",
+   "persona": "Alex",
+   "start": "setup:gauges-clean.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s09",
+   "task": "T73",
+   "half": "A",
+   "persona": "Grace",
+   "start": "setup:volunteers.txt",
+   "grade": "P",
+   "falseDone": false,
+   "wrongTurns": 4,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s10",
+   "task": "T73",
+   "half": "B",
+   "persona": "Maren",
+   "start": "setup:gauges-clean.txt",
+   "grade": "P",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": {
+    "rating": 2,
+    "element": "the fill color box",
+    "reason": "after \"+\" on Fill, an empty Color text box with a link icon and a minus; a click in it opened no picker or swatches, and \"orange\" was typed as a guess"
+   },
+   "keys": false
+  },
+  {
+   "id": "r1-s11",
+   "task": "T73",
+   "half": "A",
+   "persona": "Dana",
+   "start": "setup:volunteers.txt",
+   "grade": "P",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s12",
+   "task": "T73",
+   "half": "B",
+   "persona": "Alex",
+   "start": "setup:gauges-clean.txt",
+   "grade": "P",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": {
+    "rating": 3,
+    "element": "none (the node table)",
+    "reason": "\"right after I right-clicked the Cedar Bend row in the node table and nothing happened (screenshot 02) ... No menu, no hint of where a 'neighbors within N steps' option might live\"; a smaller wobble when the Neighborhood panel header read \"G03\" instead of \"Cedar Bend\""
+   },
+   "keys": false
+  },
+  {
+   "id": "r1-s13",
+   "task": "T74",
+   "half": "A",
+   "persona": "Grace",
+   "start": "setup:volunteers.txt",
+   "keys": false,
+   "missing": true
+  },
+  {
+   "id": "r1-s14",
+   "task": "T74",
+   "half": "B",
+   "persona": "Maren",
+   "start": "setup:gauges-clean.txt",
+   "grade": "P",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s15",
+   "task": "T74",
+   "half": "A",
+   "persona": "Dana",
+   "start": "setup:volunteers.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s16",
+   "task": "T74",
+   "half": "B",
+   "persona": "Alex",
+   "start": "setup:gauges-clean.txt",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 3,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s17",
+   "task": "T78",
+   "half": "A",
+   "persona": "Grace",
+   "start": "setup:volunteers-shifts.txt",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s18",
+   "task": "T78",
+   "half": "B",
+   "persona": "Tom",
+   "start": "setup:gauges-clean.txt",
+   "grade": "P",
+   "falseDone": false,
+   "wrongTurns": 2,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s19",
+   "task": "T78",
+   "half": "A",
+   "persona": "Dana",
+   "start": "setup:volunteers-shifts.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s20",
+   "task": "T78",
+   "half": "B",
+   "persona": "Maren",
+   "start": "setup:gauges-clean.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s21",
+   "task": "T72",
+   "half": "A",
+   "persona": "Ruth",
+   "start": "setup:sources.txt",
+   "keys": false,
+   "missing": true
+  },
+  {
+   "id": "r1-s22",
+   "task": "T72",
+   "half": "B",
+   "persona": "Tom",
+   "start": "setup:gauges-clean.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s23",
+   "task": "T75",
+   "half": "A",
+   "persona": "Alex",
+   "start": "setup:researchers.txt",
+   "grade": "P",
+   "falseDone": false,
+   "wrongTurns": 7,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s24",
+   "task": "T75",
+   "half": "B",
+   "persona": "Maren",
+   "start": "setup:yeast.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s25",
+   "task": "T77",
+   "half": "A",
+   "persona": "Grace",
+   "start": "setup:volunteers-thanks.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s26",
+   "task": "T77",
+   "half": "B",
+   "persona": "Tom",
+   "start": "setup:gauges-telemetry.txt",
+   "keys": false,
+   "missing": true
+  },
+  {
+   "id": "r1-s27",
+   "task": "T79",
+   "half": "A",
+   "persona": "Alex",
+   "start": "setup:staff-50k.txt",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 0,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s28",
+   "task": "T79",
+   "half": "B",
+   "persona": "Tom",
+   "start": "setup:sensors-50k.txt",
+   "grade": "SD",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": false
+  },
+  {
+   "id": "r1-s29",
+   "task": "T70",
+   "half": "A",
+   "persona": "Sam",
+   "start": "setup:volunteers.txt --keys",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 2,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": true
+  },
+  {
+   "id": "r1-s30",
+   "task": "T71",
+   "half": "A",
+   "persona": "Sam",
+   "start": "setup:volunteers.txt --keys",
+   "grade": "S",
+   "falseDone": false,
+   "wrongTurns": 1,
+   "route": null,
+   "scriptedExit": false,
+   "overwhelm": null,
+   "keys": true
+  }
+ ],
+ "holds": false
+}

@@ -1,7 +1,7 @@
 import { Box, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
 import { useState } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 // Imported from "../../../src", the package's published entry point, so the stories exercise
 // exactly what a consumer gets from `@graphty/compact-mantine`.
@@ -9,7 +9,6 @@ import { CompactColorInput, LabelsProvider, PopoutManager } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { ForceState, StateCell } from "../../helpers/force-state";
 import { BOTH_SCHEMES, OPEN_OVERLAY } from "../../helpers/schemes";
-import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * A color and its opacity in one 24px panel field: a color chit that opens a picker, the hex
@@ -25,8 +24,8 @@ import { storyWaitOptions } from "../../helpers/settled";
  *
  * CompactColorInput is ColorPickerPanel inside a pop-out, plus the field that opens it. Its one
  * idea beyond the field: `undefined` means "the reader has chosen nothing here". While nothing is
- * chosen the default is drawn in italics and there is no reset; once something is set the text
- * turns upright and a reset button appears in the trailing slot. The reset reports `undefined`.
+ * chosen the default is drawn as the value and there is no reset; once something is set a reset
+ * button appears in the trailing slot. The reset reports `undefined`.
  *
  * It needs a `PopoutManager` somewhere above it, which owns the floating layer the picker opens
  * into. Without one it throws on first render.
@@ -98,7 +97,7 @@ const meta: Meta<typeof CompactColorInput> = {
 export default meta;
 type Story = StoryObj<typeof CompactColorInput>;
 
-/** Nothing has been chosen, so the color and the opacity are drawn in italics and there is no reset. */
+/** Nothing has been chosen, so the default color and opacity are drawn and there is no reset. */
 export const Default: Story = {
     args: {
         defaultColor: "#5B8FF9",
@@ -107,10 +106,9 @@ export const Default: Story = {
 };
 
 /**
- * Every state, light and dark side by side: rest, the default in italics, focus and
+ * Every state, light and dark side by side: rest, the default, hover, focus and
  * picker open (forced, since a story cannot hold the pointer), a translucent color with the
- * checkerboard half, a near-white color with its ring, disabled, and without opacity. Hover
- * changes nothing, as on the select: the field is outlined at rest.
+ * checkerboard half, a near-white color with its ring, disabled, and without opacity.
  */
 export const States: Story = {
     parameters: BOTH_SCHEMES,
@@ -122,6 +120,11 @@ export const States: Story = {
                 </StateCell>
                 <StateCell label="Default (nothing chosen)">
                     <CompactColorInput defaultColor="#3373E5" width={156} />
+                </StateCell>
+                <StateCell label="Hover">
+                    <ForceState state="hover" selector=".cm-paint-field">
+                        <CompactColorInput color="#3373E5" opacity={100} defaultColor="#000000" width={156} />
+                    </ForceState>
                 </StateCell>
                 <StateCell label="Focus">
                     <ForceState state="focus" selector=".cm-paint-field">
@@ -221,7 +224,7 @@ export const PickerOpen: Story = {
         const canvas = within(canvasElement);
         await userEvent.click(canvas.getByRole("button", { name: "Pick fill color" }));
         // The row and the picker both have an Opacity box: this story drives the picker's.
-        const opacity = within(await canvas.findByRole("dialog", {}, storyWaitOptions(1000))).getByRole("textbox", {
+        const opacity = within(await canvas.findByRole("dialog", {})).getByRole("textbox", {
             name: /opacity/i,
         });
         await userEvent.click(opacity);
@@ -248,7 +251,7 @@ export const SwatchesAndChangeEnd: Story = {
     play: async ({ args, canvasElement }) => {
         const canvas = within(canvasElement);
         await userEvent.click(canvas.getByRole("button", { name: "Pick fill color" }));
-        const dialog = within(await canvas.findByRole("dialog", {}, storyWaitOptions(1000)));
+        const dialog = within(await canvas.findByRole("dialog", {}));
         await userEvent.click(dialog.getByRole("button", { name: / 2F9E44$/ }));
         await expect(args.onChangeEnd).toHaveBeenCalledTimes(1);
         await expect(args.onChangeEnd).toHaveBeenCalledWith("#2F9E44", 100);

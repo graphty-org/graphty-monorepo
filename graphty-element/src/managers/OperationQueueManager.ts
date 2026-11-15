@@ -91,6 +91,10 @@ export class OperationQueueManager implements Manager {
     // Active operation controllers for cancellation
     private readonly activeControllers = new Map<string, AbortController>();
 
+    // The delayed cleanups of finished operations. Cleared on dispose: each one holds this manager,
+    // and through it the whole graph, until it fires (issue #3413).
+    private readonly cleanupTimers = new Set<ReturnType<typeof setTimeout>>();
+
     // Track running vs queued operations
     private readonly runningOperations = new Map<string, Operation>();
     private readonly queuedOperations = new Map<string, Operation>();
@@ -245,6 +249,12 @@ export class OperationQueueManager implements Manager {
         this.activeControllers.forEach((controller) => {
             controller.abort();
         });
+
+        // A disposed graph is garbage at once, not a second after its last operation.
+        this.cleanupTimers.forEach((timer) => {
+            clearTimeout(timer);
+        });
+        this.cleanupTimers.clear();
 
         // Before the maps are emptied, because emptying them is what loses the resolvers.
         this.settleEveryOutstandingOperation();
@@ -549,26 +559,27 @@ export class OperationQueueManager implements Manager {
                             };
                             await this.executeOperation(operation, context);
                         } finally {
-                            // Cleanup progress and controller after delay
-                            setTimeout(() => {
-                                this.operationProgress.delete(operation.id);
-                                this.activeControllers.delete(operation.id);
+                            // Cleanup progress and controller after delay. Only the id is
+                            // captured: the operation holds its work, and the work the graph.
+                            const { id } = operation;
+                            const timer = setTimeout(() => {
+                                this.cleanupTimers.delete(timer);
+                                this.operationProgress.delete(id);
+                                this.activeControllers.delete(id);
                             }, CLEANUP_DELAY_MS);
+                            this.cleanupTimers.add(timer);
                         }
                     },
                     {
                         signal: operation.abortController?.signal,
                     },
                 )
-                .catch((error: unknown) => {
-                    if (error && (error as Error).name === "AbortError") {
-                        this.eventManager.emit("operation-obsoleted", {
-                            id: operation.id,
-                            category: operation.category,
-                            reason: "Obsoleted by newer operation",
-                        });
-                    }
-                });
+                // p-queue rejects here only when the operation's signal aborted. Whoever aborted it
+                // already said why: `obsolete()` emits `operation-obsoleted` with the operation that
+                // replaced it, `cancelOperation()` and `clear()` emit `operation-cancelled`, and a
+                // disposed queue has nobody left to tell. Emitting again here reported every
+                // obsoleted operation twice, and called a manual cancel an obsolescence.
+                .catch(() => undefined);
         }
 
         // Emit batch complete event after all operations
@@ -713,12 +724,8 @@ export class OperationQueueManager implements Manager {
                 this.settleRejected(operation, error);
             }
 
-            if (error instanceof Error && error.name === "AbortError") {
-                // Remove from running on abort
-                this.runningOperations.delete(operation.id);
-                throw error; // Let p-queue handle abort errors
-            }
-
+            // The name of the error does not decide this either: an `AbortError` the body raised
+            // itself, with the operation's signal untouched, is a failure like any other.
             if (!cancelled) {
                 this.handleOperationError(operation, error);
             }
@@ -886,6 +893,19 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
+     * Whether an operation is queued, about to be, or running: what
+     * {@link OperationQueueManager.waitForCompletion} waits for, asked without waiting.
+     *
+     * Not an operation held by an open `batchOperations()` callback: it runs only when the batch
+     * closes, so a settle wait made inside the batch that counted it would wait for ever, and
+     * `waitForCompletion` does not wait for it either.
+     * @returns True until the queue is idle.
+     */
+    get hasWork(): boolean {
+        return this.currentBatch.size > 0 || this.queue.size > 0 || this.queue.pending > 0;
+    }
+
+    /**
      * Get queue statistics
      * @returns Current queue state including pending operations, size, and pause status
      */
@@ -919,14 +939,17 @@ export class OperationQueueManager implements Manager {
      * Clear all pending operations
      */
     clear(): void {
-        // Cancel all active operations
+        // Cancel every operation that has not finished. A finished one keeps its controller until
+        // its cleanup runs, and is not cancelled: its work is done.
         this.activeControllers.forEach((controller, id) => {
-            if (!controller.signal.aborted) {
+            if (!controller.signal.aborted && this.rankOf(id) !== -1) {
                 controller.abort();
                 this.eventManager.emit("operation-cancelled", {
+                    type: "operation-cancelled",
                     id,
+                    code: "queue-cleared",
                     reason: "Queue cleared",
-                } satisfies Omit<OperationCancelledEvent, "type">);
+                } satisfies OperationCancelledEvent);
             }
         });
 
@@ -1072,14 +1095,27 @@ export class OperationQueueManager implements Manager {
      */
     cancelOperation(operationId: string): boolean {
         const controller = this.activeControllers.get(operationId);
-        if (controller && !controller.signal.aborted) {
+        // A finished operation keeps its controller until its cleanup runs; it is not cancelled.
+        if (controller && !controller.signal.aborted && this.rankOf(operationId) !== -1) {
             controller.abort();
+
+            // One that has not started never reaches `executeOperation`, the only other place that
+            // settles: drop it and answer whoever awaits it, as `obsolete` does, or they wait for ever.
+            const waiting = this.pendingOperations.get(operationId) ?? this.queuedOperations.get(operationId);
+            if (waiting !== undefined) {
+                this.pendingOperations.delete(operationId);
+                this.queuedOperations.delete(operationId);
+                this.currentBatch.delete(operationId);
+                this.settleResolved(waiting);
+            }
 
             // Emit cancellation event
             this.eventManager.emit("operation-cancelled", {
+                type: "operation-cancelled",
                 id: operationId,
+                code: "cancelled",
                 reason: "Manual cancellation",
-            } satisfies Omit<OperationCancelledEvent, "type">);
+            } satisfies OperationCancelledEvent);
 
             return true;
         }
@@ -1108,21 +1144,20 @@ export class OperationQueueManager implements Manager {
     }
 
     /**
-     * Cancel all operations of a specific category
+     * Cancel all operations of a specific category: pending, queued and running.
      * @param category - The operation category to cancel
      * @returns Number of operations cancelled
      */
     cancelByCategory(category: OperationCategory): number {
         let cancelledCount = 0;
 
-        // Cancel pending operations
-        this.pendingOperations.forEach((operation) => {
-            if (operation.category === category) {
-                if (this.cancelOperation(operation.id)) {
-                    cancelledCount++;
-                }
+        // Running ones too: only looking at the pending ones left a running camera animation going
+        // after the camera was placed elsewhere, and it then moved the camera off that placement.
+        for (const operation of this.liveOf(new Set([category]), false)) {
+            if (this.cancelOperation(operation.id)) {
+                cancelledCount++;
             }
-        });
+        }
 
         return cancelledCount;
     }

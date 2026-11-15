@@ -81,21 +81,17 @@ function alive(pid) {
 }
 
 /**
- * Waits for a condition, checking every 50 ms.
+ * Waits for a condition.
  * @param {() => unknown} check returns truthy when done
  * @param {string} what for the failure message
- * @param {number} [ms] the limit
  * @returns {Promise<any>} the check's value
  */
-async function until(check, what, ms = 15_000) {
-    return vi.waitFor(
-        async () => {
-            const value = await check();
-            if (!value) throw new Error(`timed out waiting for ${what}`);
-            return value;
-        },
-        { timeout: ms, interval: 50 },
-    );
+async function until(check, what) {
+    return vi.waitFor(async () => {
+        const value = await check();
+        if (!value) throw new Error(`timed out waiting for ${what}`);
+        return value;
+    });
 }
 
 /**

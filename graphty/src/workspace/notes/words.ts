@@ -4,7 +4,13 @@
  * what each target points at now (`session.notes.status`); every word here is the app's.
  */
 
-import type { GraphSession, NoteTarget, NoteTargetInput, NoteTargetStatus } from "@graphty/graphty-element/session";
+import type {
+    GraphSession,
+    Note,
+    NoteTarget,
+    NoteTargetInput,
+    NoteTargetStatus,
+} from "@graphty/graphty-element/session";
 
 import type { Resolved } from "../inspector/inspected";
 import { count, edgeName } from "../inspector/words";
@@ -46,14 +52,16 @@ export function targetsOf(session: GraphSession, resolved: Resolved): NoteTarget
  * One target's name, as a chip shows it.
  * @param session - the session.
  * @param target - the target, as saved or as a door built it.
- * @returns the words: "Ava", "Ava -> Ben", "Graph", a run's name.
+ * @returns the words: "Ohio (71)", "71", "Ava -> Ben", "Graph", a run's name.
  */
 export function targetWords(session: GraphSession, target: NoteTarget | NoteTargetInput): string {
     if ("graph" in target) {
         return "Graph";
     }
     if ("node" in target) {
-        return String(target.node);
+        // The label with the id beside it, "Ohio (71)"; the id alone when the node has no label.
+        const { name, id, labeled } = session.data.nodeName(target.node);
+        return labeled ? `${name} (${String(id)})` : name;
     }
     if ("edge" in target) {
         const edge = typeof target.edge === "string" ? session.data.edge(target.edge) : target.edge;
@@ -120,20 +128,20 @@ export function noteTimeWords(time: string, edited: string | undefined): string 
     return edited === undefined ? when : `${when}, edited`;
 }
 
-/** The inspector kinds whose header counts the notes about them: the ones a note can name. */
+/** The inspector kinds that list the notes about them: the ones a note can name. */
 const COUNTED = new Set<Resolved["kind"]>(["graph", "node", "edge", "several", "measure-row", "run-row"]);
 
 /**
- * How many notes are about what the inspector shows, exactly (a note about a node is not counted
- * under a selection that holds it plus others).
+ * The notes about what the inspector shows, exactly (a note about a node is not listed under a
+ * selection that holds it plus others), as the Notes place orders them.
  * @param session - the session.
  * @param resolved - what the inspector shows.
- * @returns the count.
+ * @returns the notes, none for a view a note cannot name.
  */
-export function notesAbout(session: GraphSession, resolved: Resolved): number {
+export function notesAbout(session: GraphSession, resolved: Resolved): readonly Note[] {
     if (!COUNTED.has(resolved.kind)) {
-        return 0;
+        return [];
     }
     const targets = targetsOf(session, resolved);
-    return targets.length === 0 ? 0 : session.notes.list({ target: targets }).length;
+    return targets.length === 0 ? [] : session.notes.list({ target: targets });
 }

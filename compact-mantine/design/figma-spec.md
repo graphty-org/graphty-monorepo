@@ -69,11 +69,12 @@ These restate the owner's settled decisions. They are not open for re-argument i
    window), 300 ms hide. Dark (#1e1e1e) in both themes. They KEEP `aria-describedby` (Figma
    hides them from assistive technology; we do not).
 9. **One popover at a time.** Opening another light popover (Popout) replaces the open one.
-10. **Menus and listboxes follow the page theme**: in light mode a #ffffff surface, #000000e5
-    rows, #0000008c shortcuts and a #0768cf inset highlight; in dark mode #1e1e1e, white rows,
-    #ffffffb2 shortcuts and a #0a6dc2 highlight. Row text on the highlight is white (5.4:1 light,
-    5.3:1 dark), the highlight is 5.4:1 / 3.2:1 against the surface and shortcuts are at least
-    4.7:1. `variant="inverse"` on a Menu, or the class `cm-menu-inverse` on any dropdown, keeps
+10. **Menus and listboxes follow the page theme** (owner ruling, 2026-10-18): in light mode a
+    #ffffff surface, #000000e5 rows, #00000080 shortcuts and Figma's #0d99ff inset highlight; in
+    dark mode #1e1e1e, white rows, #ffffffb2 shortcuts and Figma's #0c8ce9 highlight. Row text on
+    the highlight is white and the shortcut on it #ffffffcc, as in Figma. The AA option darkens
+    the highlight to #0768cf / #0a6dc2 (white text 5.4:1 / 5.3:1), the shortcuts to #0000008c and
+    the shortcut on the highlight to full white (section 2.9). `variant="inverse"` on a Menu, or the class `cm-menu-inverse` on any dropdown, keeps
     Figma's menu: #1e1e1e and the #0c8ce9 highlight in both themes. Tooltips and the toast stay
     dark in both themes.
 11. **Accessibility we keep beyond Figma**: tooltip `aria-describedby`; a real ARIA tree for the
@@ -121,7 +122,7 @@ Source for every value in this section: `design/ui/figma/tokens/css-variables.js
 | `--cm-bg-disabled`                                             | #d9d9d9                           | #757575                         | `--color-bg-disabled`                       |
 | `--cm-bg-menu` (inverse menus; same in both)                   | #1e1e1e                           | #1e1e1e                         | `--color-bg-menu`                           |
 | `--cm-bg-menu-page` (menus, listboxes; follows the page)       | #ffffff                           | #1e1e1e                         | --                                          |
-| `--cm-text-menu-page` / `-secondary` / `-disabled`             | #000000e5 / #0000008c / #0000004d | #ffffff / #ffffffb2 / #ffffff66 | --                                          |
+| `--cm-text-menu-page` / `-secondary` / `-disabled`             | #000000e5 / #00000080 / #0000004d | #ffffff / #ffffffb2 / #ffffff66 | --                                          |
 | `--cm-border-menu-page`                                        | #e6e6e6                           | #383838                         | --                                          |
 | `--cm-bg-tooltip` (same in both)                               | #1e1e1e                           | #1e1e1e                         | `--color-bg-tooltip`                        |
 | `--cm-bg-toolbar` (toast; same in both)                        | #2c2c2c                           | #2c2c2c                         | `--color-bg-toolbar`                        |
@@ -142,6 +143,8 @@ Source for every value in this section: `design/ui/figma/tokens/css-variables.js
 | `--cm-text-oninverse`                                          | #ffffffe5                         | #000000e5                       | `--color-text-oninverse`                    |
 | `--cm-text-component`                                          | #8638e5                           | #d1a8ff                         | `--color-text-component`                    |
 | `--cm-text-danger`                                             | #dc3412                           | #fca397                         | `--color-text-danger`                       |
+| `--cm-text-warning`                                            | #b86200                           | #f7d15f                         | `--color-text-warning`                      |
+| `--cm-text-success`                                            | #009951                           | #7cd797                         | `--color-text-success`                      |
 | `--cm-text-menu` / `-secondary` / `-disabled` (same in both)   | #ffffff / #ffffffb2 / #ffffff66   | same                            | `--color-text-menu*`                        |
 | `--cm-icon`                                                    | #000000e5                         | #ffffff                         | `--color-icon`                              |
 | `--cm-icon-secondary`                                          | #00000080                         | #ffffffb2                       | `--color-icon-secondary`                    |
@@ -286,14 +289,14 @@ Panels have no shadow; they are separated by 1px `--cm-border`. Floating surface
 `--cm-elevation-*` token; the dark value adds white inset hairlines, so the tokens are written
 with `light-dark()` per color stop and `transparent` where a layer exists in only one theme:
 
-| Token                  | Light                                                                                                                                       | Dark                                                                                                                               | Used by                                      |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `--cm-elevation-100`   | `0 0 .5px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.15)`                                                                                        | `0 0 .5px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.1), inset 0 0 1px rgba(255,255,255,.3)`        | sliding thumb of the mode switch             |
-| `--cm-elevation-200`   | `0 0 .5px rgba(0,0,0,.18), 0 3px 8px rgba(0,0,0,.1), 0 1px 3px rgba(0,0,0,.1)`                                                              | `0 3px 8px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 1px rgba(255,255,255,.3)`     | floating toolbar, quick actions, help button |
-| `--cm-elevation-300`   | `0 0 .5px rgba(0,0,0,.15), 0 5px 12px rgba(0,0,0,.13), 0 1px 3px rgba(0,0,0,.1)`                                                            | `0 5px 12px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 1px rgba(255,255,255,.3)`    | tooltips, slider thumb under-layer           |
-| `--cm-elevation-400`   | `0 0 .5px rgba(0,0,0,.12), 0 10px 16px rgba(0,0,0,.12), 0 2px 5px rgba(0,0,0,.15)`                                                          | `0 10px 16px rgba(0,0,0,.35), 0 2px 5px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 1px rgba(255,255,255,.35)` | menus, listboxes, light popovers             |
-| `--cm-elevation-500`   | `0 0 .5px rgba(0,0,0,.08), 0 10px 24px rgba(0,0,0,.18), 0 2px 5px rgba(0,0,0,.15)`                                                          | `0 10px 24px rgba(0,0,0,.45), 0 3px 5px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08), inset 0 0 1px rgba(255,255,255,.35)` | modals                                       |
-| `--cm-elevation-toast` | `0 1px 3px rgba(0,0,0,.4), inset 0 0 .5px rgba(255,255,255,.3), inset 0 .5px 0 rgba(255,255,255,.1), 0 0 .5px rgba(0,0,0,.5)` (both themes) | same                                                                                                                               | toast (C37)                                  |
+| Token                  | Light                                                                                                                                       | Dark                                                                                                                                 | Used by                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
+| `--cm-elevation-100`   | `0 0 .5px rgba(0,0,0,.3), 0 1px 3px rgba(0,0,0,.15)`                                                                                        | `0 0 .5px rgba(0,0,0,.5), 0 1px 3px rgba(0,0,0,.4), inset 0 .5px 0 rgba(255,255,255,.1), inset 0 0 .5px rgba(255,255,255,.3)`        | sliding thumb of the mode switch             |
+| `--cm-elevation-200`   | `0 0 .5px rgba(0,0,0,.18), 0 3px 8px rgba(0,0,0,.1), 0 1px 3px rgba(0,0,0,.1)`                                                              | `0 3px 8px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.5), inset 0 .5px 0 rgba(255,255,255,.08), inset 0 0 .5px rgba(255,255,255,.3)`     | floating toolbar, quick actions, help button |
+| `--cm-elevation-300`   | `0 0 .5px rgba(0,0,0,.15), 0 5px 12px rgba(0,0,0,.13), 0 1px 3px rgba(0,0,0,.1)`                                                            | `0 5px 12px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.5), inset 0 .5px 0 rgba(255,255,255,.08), inset 0 0 .5px rgba(255,255,255,.3)`    | tooltips, slider thumb under-layer           |
+| `--cm-elevation-400`   | `0 0 .5px rgba(0,0,0,.12), 0 10px 16px rgba(0,0,0,.12), 0 2px 5px rgba(0,0,0,.15)`                                                          | `0 10px 16px rgba(0,0,0,.35), 0 2px 5px rgba(0,0,0,.35), inset 0 .5px 0 rgba(255,255,255,.08), inset 0 0 .5px rgba(255,255,255,.35)` | menus, listboxes, light popovers             |
+| `--cm-elevation-500`   | `0 0 .5px rgba(0,0,0,.08), 0 10px 24px rgba(0,0,0,.18), 0 2px 5px rgba(0,0,0,.15)`                                                          | `0 10px 24px rgba(0,0,0,.45), 0 3px 5px rgba(0,0,0,.35), inset 0 .5px 0 rgba(255,255,255,.08), inset 0 0 .5px rgba(255,255,255,.35)` | modals                                       |
+| `--cm-elevation-toast` | `0 1px 3px rgba(0,0,0,.4), inset 0 0 .5px rgba(255,255,255,.3), inset 0 .5px 0 rgba(255,255,255,.1), 0 0 .5px rgba(0,0,0,.5)` (both themes) | same                                                                                                                                 | toast (C37)                                  |
 
 Tooltips and inverse menus are dark surfaces, but their SHADOW follows the page theme: in
 the light app Figma measured the light column on a menu (bc/tab-design--default #40:
@@ -373,16 +376,26 @@ darker Figma token, so the look stays inside Figma's palette). The owner has not
 yet; they are listed separately so the owner can veto any row, and each is one line in the token
 file:
 
-| Token                                                                                             | Figma light / dark    | AA light / dark                                                                 | Why                                                                         |
-| ------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| `--cm-text-tertiary` (placeholder only; `--cm-text-disabled` stays, disabled controls are exempt) | #0000004d / #ffffff66 | #0000008c / #ffffffb2                                                           | placeholder is text: 2.3:1 fails 4.5:1                                      |
-| `--cm-border-selected` (focus ring)                                                               | #0d99ff / #0c8ce9     | **#007be5** / #0c8ce9                                                           | #0d99ff is 2.99:1 on #fff and 2.74:1 on #f5f5f5, under 3:1                  |
-| `--cm-bg-brand` (white text on it: primary button, menu highlight, selected tool, checked box)    | #0d99ff / #0c8ce9     | **#0768cf** / **#0a6dc2**                                                       | white on #0d99ff is 2.99:1 and on #0c8ce9 3.53:1, under 4.5:1 for 11px text |
-| `--cm-bg-brand-hover` / `-pressed`                                                                | #007be5 / #0768cf     | #0768cf / #105cad (light hover = the new rest; pressed one step darker #105cad) | keep a visible step                                                         |
-| `--cm-text-brand`, `--cm-icon-brand` (links)                                                      | #007be5 / #7cc4f8     | **#0768cf** / #7cc4f8                                                           | #007be5 is 4.23:1 on #fff                                                   |
-| `--cm-bg-danger`                                                                                  | #f24822 / #e03e1a     | #bd2915 / #963323                                                               | white on #f24822 is 3.67:1                                                  |
-| `--cm-bg-success`                                                                                 | #14ae5c / #198f51     | #008043 / #0a5c35                                                               | white on #14ae5c is 2.9:1                                                   |
-| menu highlight (`--cm-bg-brand` inside the dark scope)                                            | #0c8ce9               | #0a6dc2                                                                         | white on #0c8ce9 is 3.53:1                                                  |
+| Token                                                                                             | Figma light / dark                  | AA light / dark                                                                 | Why                                                                         |
+| ------------------------------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `--cm-text-tertiary` (placeholder only; `--cm-text-disabled` stays, disabled controls are exempt) | #0000004d / #ffffff66               | #0000008c / #ffffffb2                                                           | placeholder is text: 2.3:1 fails 4.5:1                                      |
+| `--cm-border-selected` (focus ring)                                                               | #0d99ff / #0c8ce9                   | **#007be5** / #0c8ce9                                                           | #0d99ff is 2.99:1 on #fff and 2.74:1 on #f5f5f5, under 3:1                  |
+| `--cm-bg-brand` (white text on it: primary button, menu highlight, selected tool, checked box)    | #0d99ff / #0c8ce9                   | **#0768cf** / **#0a6dc2**                                                       | white on #0d99ff is 2.99:1 and on #0c8ce9 3.53:1, under 4.5:1 for 11px text |
+| `--cm-bg-brand-hover` / `-pressed`                                                                | #007be5 / #0768cf                   | #0768cf / #105cad (light hover = the new rest; pressed one step darker #105cad) | keep a visible step                                                         |
+| `--cm-text-brand`, `--cm-icon-brand` (links)                                                      | #007be5 / #7cc4f8                   | **#0768cf** / #7cc4f8                                                           | #007be5 is 4.23:1 on #fff                                                   |
+| `--cm-bg-danger`                                                                                  | #f24822 / #e03e1a                   | #bd2915 / #963323                                                               | white on #f24822 is 3.67:1                                                  |
+| `--cm-bg-success`                                                                                 | #14ae5c / #198f51                   | #008043 / #0a5c35                                                               | white on #14ae5c is 2.9:1                                                   |
+| menu highlight (`--cm-bg-brand` inside the dark scope)                                            | #0c8ce9                             | #0a6dc2                                                                         | white on #0c8ce9 is 3.53:1                                                  |
+| `--cm-text-warning`                                                                               | #b86200 / #f7d15f                   | **#a65900** / #f7d15f                                                           | #b86200 is 4.39:1 on #fff and 4.03:1 on a field                             |
+| `--cm-text-success`                                                                               | #009951 / #7cd797                   | **#008043** / #7cd797                                                           | #009951 is 3.7:1 on #fff                                                    |
+| `--cm-swatch-ring` (color chit ring)                                                              | #0000001a / #ffffff1a               | **#00000073** / **#ffffff80**                                                   | a pale or a dark chit keeps a 3:1 edge against the panel                    |
+| new `--cm-chart-bar-ring` (a histogram bar painted in a mapping's color)                          | transparent                         | transparent / **#ffffffb2**                                                     | a black bar on the dark panel keeps a 3:1 edge                              |
+| new `--cm-tab-edge` (the selected pill tab)                                                       | transparent                         | **#00000073** / **#ffffff73**                                                   | the selected tab is otherwise told by its fill alone (about 1.1:1)          |
+| new `--cm-tree-parent-selected` / `--cm-tree-child-hover`                                         | `bg-selected` / `bg-selected-hover` | swapped                                                                         | Figma's parent sits within 1.05:1 / 1.2:1 of its children's band            |
+| `--cm-text-menu-page-secondary` (page-following menu shortcuts and labels)                        | #00000080 / #ffffffb2               | **#0000008c** / #ffffffb2                                                       | 3.95:1 on white                                                             |
+| new `--cm-menu-onbrand-secondary` (shortcut on a page menu's highlight)                           | #ffffffcc                           | the row's full ink (`--cm-text-onbrand`)                                        | 4.5:1 on the darkened highlight                                             |
+| segmented control, chosen text option weight                                                      | 450                                 | 600                                                                             | which side is chosen reads at 11px                                          |
+| tree row toggles (lock, eye)                                                                      | 24 targets on a 20 pitch            | side by side, each 24 x 24 (also under a coarse pointer)                        | WCAG 2.5.8 target size                                                      |
 
 Fields in the AA mode: a field (number, text, search, combo, paint) draws `--cm-field-edge` at
 rest; hover swaps it for `--cm-field-edge-hover`; focus replaces it with the 1px focus ring, as
@@ -1023,7 +1036,7 @@ cr/main-menu-hover-highlight, bt/flyout-\*, bc/tab-design--default #40)
 | Row (`Menu.Item`)         | 24 tall, padding 0 8px, full width; the highlight is an inner pill inset 8px each side, radius 5, `padding-inline-end: 8`                    |
 | Label                     | 11/16 450 0.055px `--cm-text-menu-page` #000000e5 / #fff; text starts 16px from the menu edge (32 with a check column)                       |
 | Leading slot              | 16 x 16 check column (white 9 x 8.5 check, `opacity: 0` when unchecked) and/or a 24 x 24 icon with 4px gap                                   |
-| Shortcut (`rightSection`) | right-aligned, same font, `--cm-text-menu-page-secondary` #0000008c / #ffffffb2, at least 16px after the label                               |
+| Shortcut (`rightSection`) | right-aligned, same font, `--cm-text-menu-page-secondary` #00000080 / #ffffffb2, at least 16px after the label                               |
 | Submenu chevron           | 24 x 24 box, 3 x 5 glyph, shortcut color                                                                                                     |
 | Divider (`Menu.Divider`)  | 1px `--cm-border-translucent` (#0000001a / #ffffff1a) with 8px above and below: 17px between two rows                                        |
 | Label (`Menu.Label`)      | same row, text `--cm-text-menu-secondary`                                                                                                    |
@@ -1054,8 +1067,9 @@ must NOT close it. Prove both with a test; add no coordinator unless the test sh
 (C33; pm/ctx-canvas-frame, pm/ctx-layer-row; we build the CURRENT dark-scoped look, not the
 legacy #0d99ff one)
 
-A Menu opened at the pointer: top-left 3px right of and 5px above the pointer; the first enabled
-row is highlighted on open. Wrapper component: `<ContextMenu items|children target>` that listens
+A Menu opened at the pointer: top-left 3px right of and 5px above the pointer; no row is
+highlighted on a pointer open (pm/ctx-canvas-frame), and a keyboard open highlights the first
+enabled row. Wrapper component: `<ContextMenu items|children target>` that listens
 for `contextmenu` on its target. Unlike Figma it ALSO opens from the keyboard: Shift+F10 and the
 ContextMenu key open it at the focused element's bottom-left (section 14). Escape closes and
 returns focus to the element that had it.
@@ -1130,12 +1144,10 @@ ac/dialog-accessibility-settings, hm/comment-delete-confirm-dialog)
   but not dimmed; a caller dims it with `overlayProps={{ backgroundOpacity: 0.5 }}` (`--cm-modal-backdrop`).
 - Header 40 (41 with its 1px bottom border `inset 0 -1px 0 var(--cm-border)`), padding
   `0 32px 0 16px`, title 11/16 550 at x+16, Close 24 ghost at the end.
-- Body padding 16. Footer (a NEW `ModalFooter` helper or documented markup): 48 tall,
-  `box-shadow: inset 0 1px 0 var(--cm-border)`, padding `0 16px`, buttons 24 tall (12 above
-  and below), end-aligned 8 apart: secondary Cancel then primary (disabled until valid) or danger.
-  This is a deliberate departure from Figma, made for touch: Figma's desktop footer is 40 tall
-  with an 8px end inset, which puts the last button 8px from the edge inside a 13px corner and
-  leaves it cramped under a finger. The 48/16 footer applies to every pointer type.
+- Body padding 8 16. Footer (a NEW `ModalFooter` helper or documented markup): 40 tall,
+  `box-shadow: inset 0 1px 0 var(--cm-border)`, padding `0 8px 0 16px`, buttons 24 tall,
+  end-aligned 8 apart: secondary Cancel then primary (disabled until valid) or danger
+  (pm/dialog-file--save-to-version-history).
 - Focus moves to the first field; Tab trapped; Escape closes. No animation.
 
 ### 8.6 Toast (NEW exports `Toast`, `ToastProvider`, `useToast`; Mantine `Notification` themed for the look)
@@ -1387,8 +1399,8 @@ actions }`, controlled `selected`, `expanded`, with `onSelect`, `onExpandedChang
   `--cm-bg-secondary` AND weight 550 (no blue); hover on current unchanged.
 - Divider row: the same row holding a 208 x 1 `--cm-border` line with 8px margins.
 - Keyboard: Figma's own model is accessible, so keep it: a one-column `grid` with one Tab stop; ArrowUp / Down move focus without switching;
-  Enter / Space / click switches. Focus ring: 1px `--cm-border-selected` on the whole 240 x 32
-  wrapper, radius 5, offset 0.
+  Enter / Space / click switches. Focus ring: 1px `--cm-border-selected` on the 224 x 24
+  pill (bc/page-row--focus), radius 5, offset 0.
 - The same row, with `--cm-bg-selected` and weight 600 for a selected GROUP, is the variables
   collection list (`tone="group"`).
 
@@ -1425,11 +1437,11 @@ column labels, sort caret 5 x 3. RankChip: section 9.8.
 
 - Grid lines: every cell draws `outline: 1px solid var(--cm-border)` (lines overlap instead of
   doubling); no outer `PANEL_INK.BORDER` border.
-- Header row 32, text 11/16 600 `--cm-text`; data rows 32 (Figma's list pitch, the pitch of
-  layer, page and property rows; the Variables spreadsheet itself is 40, its cells hold editable
-  fields); cell padding 0 16 (name column) / 0 8; cell text 11/16 450.
+- Header row 40, text 11/16 600 `--cm-text`; data rows 40, 41 apart (the Variables spreadsheet;
+  `rowHeight` / `headerHeight` take the 32 list pitch for a caller that wants it); cell padding
+  0 16 (name column) / 0 8; cell text 11/16 450.
 - Row hover: no tint. Selected row: every cell `--cm-bg-selected`. Active (keyboard) cell: a 1px
-  `--cm-border-selected` box drawn inset by `::before` (278 x 30 in a 280 x 32 cell); the cell's
+  `--cm-border-selected` box drawn inset by `::before` (278 x 38 in a 280 x 40 cell); the cell's
   own input shows no outline.
 - Sort indicator: 5 x 3 caret after the header label. Keyboard model unchanged (the existing
   grid navigation in `navigation.ts` / `selection.ts` stays).
@@ -1681,31 +1693,38 @@ ColorPicker (color).
 
 ## 14. Deliberate departures from exact Figma (kept or added on purpose)
 
+**This list is owner-approved and closed (2026-10-23).** Adding a row, removing one or changing one
+needs the owner's approval, given as a `Figma-Approved: <reason>` trailer on the commit
+(`tools/check-figma-lock.mjs` enforces it).
+
 These are the places the result will NOT match Figma, and why. Everything else matches.
 
-| Where                                                               | Figma                                          | Ours                                                           | Why                                                                   |
-| ------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Tooltips                                                            | hidden from assistive technology               | `aria-describedby` kept                                        | owner decision; WCAG 4.1.2                                            |
-| Layer tree                                                          | no roles, no keyboard                          | ARIA tree, roving focus, arrows, F2 rename, focus ring on rows | owner decision                                                        |
-| Tree rows, find results, quick actions                              | not focusable / no `aria-activedescendant`     | focusable, announced                                           | same reason                                                           |
-| Context menu                                                        | right-click only                               | also Shift+F10 and the ContextMenu key                         | flows.md section 9 "do not copy"                                      |
-| Shortcuts sheet                                                     | Escape does not close it                       | Escape closes it                                               | flows.md section 9                                                    |
-| Quick actions                                                       | no dialog role                                 | `role=dialog` + combobox / listbox                             | screen reader users need a name and a model                           |
-| Enter in a number / text field, rename commit                       | returns focus to the canvas                    | keeps focus in the field (rename: returns to the row)          | we have no canvas focus target; losing focus to `body` would be worse |
-| Resize handle                                                       | 1px per arrow only                             | 1px, Shift 10px, Home / End                                    | additional keys, nothing removed                                      |
-| Alignment matrix                                                    | radios                                         | radios with 2D arrow movement                                  | a 3x3 grid read left-to-right is otherwise hard to operate            |
-| Existing props                                                      | --                                             | every existing component and prop keeps working                | owner decision; restyles land inside                                  |
-| `InfoCircle`                                                        | no equivalent (tooltips only)                  | kept, restyled as a light popover                              | existing export; graphty uses it                                      |
-| `ResetButton` / `CompactColorInput` reset button                    | none                                           | kept in the trailing slot                                      | existing prop and graphty behavior                                    |
-| `RampRow`, chart rows, `ProseBlock`, `RankChip`, `DataTable` extras | no equivalent                                  | kept, restyled on tokens                                       | existing exports                                                      |
-| Nested popouts                                                      | only the create-style dialog docks to the left | a child popout docks flush to its parent                       | existing API; root popouts are one-at-a-time as Figma                 |
-| Checkbox default                                                    | neutral in the panel, blue in dialogs          | Mantine `Checkbox` defaults to blue; `ToggleRow` uses neutral  | a bare Mantine Checkbox reads as a dialog checkbox                    |
-| `highContrast` option                                               | --                                             | section 2.9                                                    | owner decision; off by default                                        |
-| Tree row with a count                                               | the name ellipsizes, the count keeps its room  | the count shortens first (to a 2.5em stub), then the name      | the name says which row it is; "friends-v2.csv" lost its "v2"         |
-| Selected parent in the tree                                         | `bg-selected`, 1.05:1 / 1.2:1 from the band    | `bg-selected-hover`; a hovered child takes `bg-selected`       | the selected row could not be told from its children                  |
-| Segmented control, unchecked label                                  | 50% ink (secondary)                            | body text color; the face and edge mark the choice             | a gray word beside the raised face read as a disabled option          |
-| Context menu opened by the pointer                                  | --                                             | no row highlighted; keyboard opens still highlight the first   | a pre-highlighted row read as the suggested choice                    |
-| Escape in an open list field                                        | --                                             | closes the list and stops there                                | Escape closes the innermost thing; the panel around stays open        |
+| Where                                                                   | Figma                                          | Ours                                                           | Why                                                                   |
+| ----------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Tooltips                                                                | hidden from assistive technology               | `aria-describedby` kept                                        | owner decision; WCAG 4.1.2                                            |
+| Layer tree                                                              | no roles, no keyboard                          | ARIA tree, roving focus, arrows, F2 rename, focus ring on rows | owner decision                                                        |
+| Tree rows, find results, quick actions                                  | not focusable / no `aria-activedescendant`     | focusable, announced                                           | same reason                                                           |
+| Context menu                                                            | right-click only                               | also Shift+F10 and the ContextMenu key                         | flows.md section 9 "do not copy"                                      |
+| Shortcuts sheet                                                         | Escape does not close it                       | Escape closes it                                               | flows.md section 9                                                    |
+| Quick actions                                                           | no dialog role                                 | `role=dialog` + combobox / listbox                             | screen reader users need a name and a model                           |
+| Enter in a number / text field, rename commit                           | returns focus to the canvas                    | keeps focus in the field (rename: returns to the row)          | we have no canvas focus target; losing focus to `body` would be worse |
+| Resize handle                                                           | 1px per arrow only                             | 1px, Shift 10px, Home / End                                    | additional keys, nothing removed                                      |
+| Alignment matrix                                                        | radios                                         | radios with 2D arrow movement                                  | a 3x3 grid read left-to-right is otherwise hard to operate            |
+| Existing props                                                          | --                                             | every existing component and prop keeps working                | owner decision; restyles land inside                                  |
+| `InfoCircle`                                                            | no equivalent (tooltips only)                  | kept, restyled as a light popover                              | existing export; graphty uses it                                      |
+| `ResetButton` / `CompactColorInput` reset button                        | none                                           | kept in the trailing slot                                      | existing prop and graphty behavior                                    |
+| `RampRow`, chart rows, `ProseBlock`, `RankChip`, `DataTable` extras     | no equivalent                                  | kept, restyled on tokens                                       | existing exports                                                      |
+| Nested popouts                                                          | only the create-style dialog docks to the left | a child popout docks flush to its parent                       | existing API; root popouts are one-at-a-time as Figma                 |
+| Checkbox default                                                        | neutral in the panel, blue in dialogs          | Mantine `Checkbox` defaults to blue; `ToggleRow` uses neutral  | a bare Mantine Checkbox reads as a dialog checkbox                    |
+| `highContrast` option                                                   | --                                             | section 2.9                                                    | owner decision; off by default                                        |
+| Tree row with a count                                                   | the name ellipsizes, the count keeps its room  | the count shortens first (to a 2.5em stub), then the name      | the name says which row it is; "friends-v2.csv" lost its "v2"         |
+| Escape in a hex, opacity, number or picker value box                    | reverts and returns focus to the canvas        | reverts and keeps focus, the value selected                    | we have no canvas focus target; losing focus to `body` would be worse |
+| Menus, listboxes, context menus                                         | always the dark #1e1e1e menu                   | follow the page theme; `variant="inverse"` keeps Figma's       | owner ruling, 2026-10-18                                              |
+| Pointer targets (tree caret, toggles on touch, sm ActionIcon, xs check) | the glyph's own size                           | 24px (32 for sm ActionIcon) hit areas that draw nothing        | WCAG 2.5.8; nothing drawn changes                                     |
+| A disabled control kept in the Tab order (`aria-disabled`)              | skipped by focus                               | shows Figma's own 1px focus ring                               | WCAG 2.4.7: focus must be visible                                     |
+| States Figma never draws (mixed or empty swatch, two-line menu row)     | --                                             | built from Figma's tokens, no extra decoration                 | no Figma reference to copy                                            |
+| Toolbar narrower than its tools                                         | one row (never narrow)                         | wraps onto more rows                                           | WCAG 1.4.10 reflow; identical at Figma's sizes                        |
+| Escape in an open list field                                            | --                                             | closes the list and stops there                                | Escape closes the innermost thing; the panel around stays open        |
 
 ## 15. Breaking changes for the release notes (0.x)
 
@@ -1722,7 +1741,7 @@ These are the places the result will NOT match Figma, and why. Everything else m
 5. `focusRing` is `"never"`; the ring is ours (1px). A consumer's own `focusRing` override no
    longer controls compact-mantine components.
 6. Overlays have no transitions; Tooltip opens after 1000 ms (was immediate).
-7. `Select` defaults to `variant="outlined"`; its dropdown is the dark listbox opening over the
+7. `Select` defaults to `variant="outlined"`; its dropdown is the listbox (page-themed; `cm-menu-inverse` for Figma's dark one) opening over the
    trigger. `Tabs` default `variant="pills"`.
 8. ActionIcon `variant="light"` no longer draws the 1px accent border the old theme added for a
    3:1 state boundary (the Figma "highlighted" look replaces it). The brand glyph on

@@ -242,6 +242,31 @@ describe("the project file", () => {
         target.session.dispose();
     });
 
+    it("keeps the name the reader gave a run, and opens a file whose runs carry none (#829)", async () => {
+        const source = await busySession();
+        await source.session.runs.rename("links", "My links");
+        const { text } = await source.session.project.save();
+        const saved = JSON.parse(text) as { members: { kind: string; runs?: { name?: string }[] }[] };
+        const runs = saved.members.find((member) => member.kind === "graphty-results")?.runs;
+        assert.strictEqual(runs?.[0].name, "My links");
+
+        const { harness: target } = withDegree();
+        await target.session.project.open(text);
+        assert.strictEqual(target.session.runs.get("links")?.record.name, "My links");
+
+        // A file written before runs carried a name: the run opens unnamed.
+        delete runs?.[0].name;
+        const { harness: older } = withDegree();
+        const report = await older.session.project.open(JSON.stringify(saved));
+        assert.deepStrictEqual(report.problems, []);
+        assert.isNull(older.session.runs.get("links")?.record.name);
+        assert.strictEqual(older.session.results.get("links")?.node("b")?.value, 2);
+
+        source.session.dispose();
+        target.session.dispose();
+        older.session.dispose();
+    });
+
     it("carries edge results and the edge selection over to the edge ids of the session it opens in", async () => {
         const source = await busySession();
         const [, middle] = source.session.data.edges();
@@ -562,6 +587,51 @@ describe("the project file", () => {
         assert.strictEqual(session.styles.list().length, before + 1);
         await session.undo();
         assert.strictEqual(session.styles.list().length, before);
+        session.dispose();
+    });
+
+    it("a document opened with history start is where the history starts, not a step", async () => {
+        const harness = await busySession();
+        const { session } = harness;
+        assert.isTrue(session.canUndo, "steps from before the open");
+        const style = {
+            kind: "graphty-style",
+            version: 1,
+            layers: [{ name: "Big", selector: { match: "everything" }, set: { "node.size": 3 } }],
+        };
+        const report = await session.project.open(JSON.stringify(style), { history: "start" });
+
+        assert.deepStrictEqual(report.restored, ["styles"]);
+        assert.lengthOf(session.history.steps, 0);
+        assert.isFalse(session.project.dirty);
+        session.dispose();
+    });
+
+    it("work the reader starts while a project opens stays a step of its own", async () => {
+        const source = await busySession();
+        const saved = await source.session.project.save();
+        source.session.dispose();
+        const { harness } = withDegree();
+        const { session } = harness;
+
+        // The reader's edit is dispatched the moment the open is pending work.
+        let styled: PromiseLike<unknown> | undefined;
+        const off = session.on("history:changed", () => {
+            if (session.history.pending.some((each) => each.label === "Open project")) {
+                off();
+                styled = session.styles.add({
+                    name: "during",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.color": "#ff0000" },
+                });
+            }
+        });
+        await session.project.open(saved.text, { discard: true });
+        await styled;
+
+        assert.lengthOf(session.history.steps, 1, "the reader's edit is theirs to undo");
+        assert.isTrue(session.project.dirty, "and it is an unsaved change");
         session.dispose();
     });
 

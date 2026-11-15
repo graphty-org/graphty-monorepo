@@ -199,14 +199,27 @@
                         "exclusiveMinimum": 0,
                         "type": "number"
                     },
+                    "model": {
+                        "description": "Draw the nodes as a 3D model: a model id ('asset:...', such as 'asset:sample/server') or the URL of a .glb, .gltf or .obj file. A URL is fetched only after the reader allows its site",
+                        "type": "string"
+                    },
                     "outlineColor": {
                         "description": "Outline color",
                         "type": "string"
                     },
                     "outlineWidth": {
-                        "description": "Outline width. Not drawn: every outline in the scene is stroked at one width, so asking for this is answered with the reason rather than applied",
+                        "description": "Outline width (default 1, a multiple of the ring's own band), per style. It widens an outline color and draws nothing without one",
                         "exclusiveMinimum": 0,
+                        "maximum": 10,
                         "type": "number"
+                    },
+                    "shader": {
+                        "description": "A node shader from the shader catalog to draw the nodes with, by its id, at its own place",
+                        "type": "string"
+                    },
+                    "shaderText": {
+                        "description": "Shader text the person pasted or asked for (GLSL with a graphty-shader 1 header). It is added to the project and held until the person approves it in the app; the nodes draw as before until then",
+                        "type": "string"
                     },
                     "shape": {
                         "description": "Shape type (e.g., 'sphere', 'box', 'cylinder')",
@@ -216,6 +229,10 @@
                         "description": "Size of the node (default is 1)",
                         "exclusiveMinimum": 0,
                         "type": "number"
+                    },
+                    "texture": {
+                        "description": "A picture drawn on the nodes (a PNG, JPEG or WebP): a picture id ('asset:...') or a URL. A URL is fetched only after the reader allows its site",
+                        "type": "string"
                     }
                 },
                 "type": "object"

@@ -131,6 +131,8 @@ export const NODE_SHAPE_DESCRIPTORS: readonly GlyphDescriptor<NodeShape>[] = des
     // The flat shapes: drawn on one plane, so each glyph is its outline.
     ["rectangle", "Rectangle", '<rect x="3" y="6" width="18" height="12"/>'],
     ["round-rectangle", "Rounded rectangle", '<rect x="3" y="6" width="18" height="12" rx="3"/>'],
+    ["top-round-rectangle", "Rectangle, rounded top", '<path d="M3 18V9a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v9z"/>'],
+    ["bottom-round-rectangle", "Rectangle, rounded bottom", '<path d="M3 6v9a3 3 0 0 0 3 3h12a3 3 0 0 0 3-3V6z"/>'],
     ["ellipse", "Ellipse", '<ellipse cx="12" cy="12" rx="9" ry="6"/>'],
     ["diamond", "Diamond", '<path d="M12 3l9 9-9 9-9-9z"/>'],
     ["triangle", "Triangle", '<path d="M12 4l9 16H3z"/>'],
@@ -234,6 +236,15 @@ export const EDGE_ARROW_DESCRIPTORS: readonly GlyphDescriptor<EdgeArrowKind>[] =
     ["cross-delta", "Cross and triangle", `<path d="M2 12h12 M9 7l-3 10"/><path d="M14 7l8 5-8 5z" ${FILL}/>`],
     ["open-cross-delta", "Cross and open triangle", '<path d="M2 12h12 M9 7l-3 10 M14 7l8 5-8 5z"/>'],
     ["open-inverted", "Open inverted triangle", '<path d="M2 12h12"/><path d="M22 7l-8 5 8 5z"/>'],
+    ["half-barb", "Half barb", '<path d="M2 12h20 M21 12l-8-6"/>'],
+    ["half-barb-flipped", "Half barb, flipped", '<path d="M2 12h20 M21 12l-8 6"/>'],
+    ["inverted-vee", "Inverted vee", `<path d="M2 12h12"/><path d="M22 7l-8 5 8 5-3-5z" ${FILL}/>`],
+    ["cross", "Cross", '<path d="M2 12h16 M14 8l8 8 M22 8l-8 8"/>'],
+    ["kite", "Kite", `<path d="M2 12h12"/><path d="M22 12l-6-4-4 4 4 4z" ${FILL}/>`],
+    ["deltoid", "Deltoid", `<path d="M2 12h14"/><path d="M22 12q-3-1-7-6 1 6 0 12 4-5 7-6z" ${FILL}/>`],
+    ["open-vee", "Open vee", '<path d="M2 12h16 M14 7l8 5-8 5"/>'],
+    ["slash", "Slash", '<path d="M2 12h20 M10 7l8 10"/>'],
+    ["stem", "Stem", '<path d="M2 12h20"/>'],
 ]);
 
 /**
@@ -289,3 +300,18 @@ export const EDGE_LINE_DESCRIPTORS: readonly GlyphDescriptor<EdgeLinePattern>[] 
     ["separate-arrow", "Separate arrows", '<path d="M2 12h20 M4 9l3 3-3 3 M11 9l3 3-3 3 M18 9l3 3-3 3"/>'],
     ["contiguous-arrow", "Joined arrows", '<path d="M2 9l5 3-5 3 M9 9l5 3-5 3 M16 9l5 3-5 3 M2 12h20"/>'],
 ]);
+
+/**
+ * The built-in node shapes, edge arrowheads and edge line patterns, for the saved-name scan: a save file that names one by id depends on this
+ * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.
+ * @returns Each kind and its ids.
+ * @public
+ */
+export function builtInIdsForTesting(): readonly { kind: string; ids: readonly string[] }[] {
+    return [
+        { kind: "nodeShapes", ids: NODE_SHAPE_DESCRIPTORS.map((each) => each.id) },
+        { kind: "edgeArrows", ids: EDGE_ARROW_DESCRIPTORS.map((each) => each.id) },
+        { kind: "edgeLines", ids: EDGE_LINE_DESCRIPTORS.map((each) => each.id) },
+    ];
+}

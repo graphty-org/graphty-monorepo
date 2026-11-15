@@ -149,7 +149,7 @@ async function captureScreenshots(storyId: string, includeZoomLevels = false): P
         await page.goto(storyUrl);
 
         // Wait for the component to load and render
-        await page.waitForSelector("graphty-element", { timeout: 10000 });
+        await page.waitForSelector("graphty-element");
         console.log("Component loaded");
 
         await waitForStablePicture(page);

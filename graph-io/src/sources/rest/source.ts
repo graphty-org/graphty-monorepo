@@ -8,6 +8,7 @@
 import { type GraphSink } from "@graphty/graph-format";
 
 import { throwIfAborted } from "../../common/input.js";
+import { itemAt } from "../../common/text.js";
 import { ImportError, type ImportReport } from "../../types.js";
 import { sleep } from "../context.js";
 import { originOf } from "../credentials.js";
@@ -19,6 +20,7 @@ import {
     type GraphSource,
     type RecordBatch,
     type SourceContext,
+    type SourceCredentialSlot,
     type SourceCursor,
     type SourceDescriptor,
     type SourceFinish,
@@ -160,6 +162,7 @@ class RestRun {
             body = JSON.parse(text) as unknown;
         } catch {
             failOn(report, "E_SOURCE_RESPONSE", "the response is not JSON", {
+                origin: originOf(new URL(url, this.endpoint)),
                 expected: "json",
                 contentType: response.headers.get("content-type"),
             });
@@ -530,6 +533,13 @@ class Expansion {
     private writeNew(page: Page, entity: string, reached: string[]): void {
         const { state } = this;
         const before = new Set([...state.full, ...state.stubs]);
+        // The page's stubs stop at the expansion's limit and the node cap ("at most this many new
+        // nodes"). A load keeps every stub of its pages instead, so its cursor resumes exactly.
+        // ponytail: a stub left out here is not stubbed again when a capped first hop resumes.
+        state.room = Math.min(
+            (this.request.limit ?? Infinity) - this.added,
+            (this.run.ctx.limits.maxNodes ?? Infinity) - this.run.ctx.report.counts.nodes,
+        );
         const out = toRecords(this.mapping, [{ records: page.records, entity }], state);
         writePage(out, this.sink, this.run.ctx, this.types);
         this.wrote = true;
@@ -659,6 +669,7 @@ export function restMethods<P>(
             const page = await run.read(run.plan.mapping.load, run.plan.values, undefined);
             if (page.records.length === 0 && page.status !== 304) {
                 failOn(ctx.report, "E_SOURCE_NOT_FOUND", "the load request found no records", {
+                    origin: run.endpoint.origin,
                     what: "records",
                     value: run.plan.mapping.load,
                 });
@@ -676,7 +687,7 @@ export function restMethods<P>(
  * @returns the mapping, checked
  */
 function checkedMapping(mapping: unknown, ctx: SourceContext): RestMapping {
-    const [issue] = checkRestMapping(mapping);
+    const issue = itemAt(checkRestMapping(mapping), 0);
     if (issue !== undefined) {
         failOn(ctx.report, "E_SOURCE_PARAM", `the mapping is invalid at ${issue.at}`, {
             name: "mapping",
@@ -698,6 +709,44 @@ export type RestSourceInfo = {
 } & Partial<SourceDescriptor>;
 
 /**
+ * The credential slot a mapping's `auth` describes: an API key's slot is named by the query
+ * parameter or header it is sent in (`{ query: "api_key" }` is the slot `api_key`), a bearer
+ * token's is `default`. Optional, as a mapping cannot say a key is required.
+ * @param mapping - the mapping
+ * @returns the slots
+ */
+function mappingSlots(mapping: RestMapping): readonly SourceCredentialSlot[] {
+    const { auth } = mapping;
+    if (auth === undefined) {
+        return [];
+    }
+    if (auth.kind === "bearer") {
+        return [{ name: "default", kind: "bearer", required: false }];
+    }
+    const { header } = auth;
+    if (header !== undefined) {
+        return [{ name: header.toLowerCase(), kind: "api-key", required: false, send: { header } }];
+    }
+    const query = auth.query ?? "api_key";
+    return [{ name: query, kind: "api-key", required: false, send: { query } }];
+}
+
+/**
+ * Where a mapping's API key goes, as a descriptor says it.
+ * @param auth - the mapping's auth
+ * @returns `{ apiKey }`, or nothing when the mapping takes no key or does not say where
+ */
+function apiKeyOf(auth: RestMapping["auth"]): Pick<SourceDescriptor, "apiKey"> {
+    if (auth?.kind !== "api-key") {
+        return {};
+    }
+    if (auth.header !== undefined) {
+        return { apiKey: { header: auth.header } };
+    }
+    return auth.query === undefined ? {} : { apiKey: { query: auth.query } };
+}
+
+/**
  * Turn a REST mapping into a source: a `records` source that loads the mapping's `load` request
  * page by page, with `expand` (breadth-first over the `expand` requests, `{ids}` batched; depth 0
  * fetches the seeds' own records through `hydrate`), `probe` and `validate`. The descriptor is
@@ -716,7 +765,7 @@ export type RestSourceInfo = {
  * @category Network sources
  */
 export function restSource(mapping: RestMapping, info: RestSourceInfo): GraphSource<Readonly<Record<string, unknown>>> {
-    const [issue] = checkRestMapping(mapping);
+    const issue = itemAt(checkRestMapping(mapping), 0);
     if (issue !== undefined) {
         failAlone("E_SOURCE_INVALID", `the mapping of ${info.id} is invalid at ${issue.at}`, {
             id: info.id,
@@ -733,6 +782,8 @@ export function restSource(mapping: RestMapping, info: RestSourceInfo): GraphSou
         defaultEndpoint: mapping.endpoint,
         auth,
         authRequired: auth.length === 0 ? "none" : "optional",
+        credentials: mappingSlots(mapping),
+        ...apiKeyOf(mapping.auth),
         ...(mapping.rateLimit === undefined ? {} : { rateLimit: mapping.rateLimit }),
         ...fields,
     });

@@ -1,0 +1,1440 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>A column's menu</title>
+        <style>
+            body {
+                margin: 0;
+                background: #111;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            a {
+                color: #5b8ff9;
+            }
+            a:hover {
+                color: #75a5f9;
+            }
+        </style>
+    </head>
+    <body>
+        <div
+            style="
+                width: 1440px;
+                height: 900px;
+                position: relative;
+                overflow: hidden;
+                background: #242424;
+                color: #e4e4e4;
+                font-size: 12px;
+            "
+        >
+            <div
+                style="
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 1440px;
+                    height: 40px;
+                    background: #2b2b2b;
+                    border-bottom: 1px solid #3a3a3a;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    padding: 0 16px;
+                    box-sizing: border-box;
+                "
+            >
+                <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none"
+                >
+                    <path d="M2.5 4h11M2.5 8h11M2.5 12h11" /></svg
+                ><span style="font-weight: 600; font-size: 14px">fraud-march</span
+                ><span style="color: #a3a3a3; display: flex; gap: 12px"
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M5 3.5 2.5 6 5 8.5" />
+                        <path d="M2.5 6h7a3.5 3.5 0 0 1 0 7H7" /></svg
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M11 3.5 13.5 6 11 8.5" />
+                        <path d="M13.5 6h-7a3.5 3.5 0 0 0 0 7H9" /></svg></span
+                ><span style="display: flex; align-items: center; gap: 6px"
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+                        <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></svg
+                    >Local only</span
+                >
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 0;
+                    top: 41px;
+                    width: 56px;
+                    height: 859px;
+                    background: #262626;
+                    border-right: 1px solid #3a3a3a;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 6px;
+                    padding-top: 12px;
+                    box-sizing: border-box;
+                "
+            >
+                <div
+                    style="
+                        width: 44px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        padding: 6px 0;
+                        border-radius: 6px;
+                        font-size: 10px;
+                        color: #e4e4e4;
+                    "
+                >
+                    <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <circle cx="4" cy="4" r="2" />
+                        <circle cx="12" cy="6" r="2" />
+                        <circle cx="6" cy="12" r="2" />
+                        <path d="M5.8 4.6 10.1 5.5M4.6 5.9l.9 4.2M7.7 11 10.5 7.4" /></svg
+                    ><span>Graph</span>
+                </div>
+                <div
+                    style="
+                        width: 44px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        padding: 6px 0;
+                        border-radius: 6px;
+                        font-size: 10px;
+                        color: #e4e4e4;
+                        background: #353d5c;
+                    "
+                >
+                    <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <ellipse cx="8" cy="4" rx="5" ry="2" />
+                        <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" /></svg
+                    ><span>Data</span>
+                </div>
+                <div
+                    style="
+                        width: 44px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        padding: 6px 0;
+                        border-radius: 6px;
+                        font-size: 10px;
+                        color: #e4e4e4;
+                    "
+                >
+                    <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M4 2.5h6l2.5 2.5v8.5h-8.5z" />
+                        <path d="M6 7.5h4.5M6 10h4.5" /></svg
+                    ><span>Notes</span>
+                </div>
+                <div style="flex: 1"></div>
+                <div style="padding-bottom: 14px">
+                    <div
+                        style="
+                            width: 44px;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            gap: 3px;
+                            padding: 6px 0;
+                            border-radius: 6px;
+                            font-size: 10px;
+                            color: #e4e4e4;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="8" cy="8" r="2.2" />
+                            <path
+                                d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"
+                            /></svg
+                        ><span>Settings</span>
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 57px;
+                    top: 41px;
+                    width: 240px;
+                    height: 859px;
+                    background: #2b2b2b;
+                    border-right: 1px solid #3a3a3a;
+                    overflow: hidden;
+                    box-sizing: border-box;
+                "
+            >
+                <div style="padding: 12px 12px 4px; font-weight: 600; font-size: 13px">fraud-march</div>
+                <div style="padding: 2px 12px 10px 12px; font-size: 12px; line-height: 17px; color: #e4e4e4">
+                    180 accounts and 500 transfers in one connected group, with direction.
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 10px 12px 6px 10px;
+                        font-weight: 600;
+                        font-size: 12px;
+                        border-top: 1px solid #3a3a3a;
+                    "
+                >
+                    <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                    ><span>Sources</span>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 8px;
+                        padding: 5px 12px 5px 22px;
+                        padding-left: 22px;
+                    "
+                >
+                    <span style="width: 16px; height: 16px; flex: none; color: #a3a3a3; margin-top: 1px"
+                        ><svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M4 2.5h5.5L12 5v8.5H4z" />
+                            <path d="M9.5 2.5V5H12" /></svg
+                    ></span>
+                    <div style="flex: 1; min-width: 0">
+                        <div style="font-size: 12px; line-height: 16px">transfers-march.csv</div>
+                        <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">180 nodes, 500 links</div>
+                    </div>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 10px 12px 6px 10px;
+                        font-weight: 600;
+                        font-size: 12px;
+                        border-top: 1px solid #3a3a3a;
+                    "
+                >
+                    <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                    ><span>Columns</span>
+                </div>
+                <div style="font-size: 11px; line-height: 15px; color: #a3a3a3; padding: 2px 12px 4px 22px">
+                    Transfers
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 8px;
+                        padding: 5px 12px 5px 22px;
+                        background: #353d5c;
+                        border-radius: 4px;
+                        margin: 0 6px;
+                        padding-left: 16px;
+                        padding-left: 16px;
+                    "
+                >
+                    <span style="width: 16px; height: 16px; flex: none; color: #a3a3a3; margin-top: 1px"
+                        ><svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M5.5 2.5 4.5 13.5M11.5 2.5l-1 11M2.5 6h11M2.5 10h11" /></svg
+                    ></span>
+                    <div style="flex: 1; min-width: 0">
+                        <div style="font-size: 12px; line-height: 16px">amount</div>
+                        <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">
+                            Number, 499 of 500, 1 blank
+                        </div>
+                    </div>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 8px;
+                        padding: 5px 12px 5px 22px;
+                        padding-left: 22px;
+                    "
+                >
+                    <span style="width: 16px; height: 16px; flex: none; color: #a3a3a3; margin-top: 1px"
+                        ><svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <rect x="2.5" y="3.5" width="11" height="10" rx="1" />
+                            <path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg
+                    ></span>
+                    <div style="flex: 1; min-width: 0">
+                        <div style="font-size: 12px; line-height: 16px">date</div>
+                        <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">Date, all have one</div>
+                    </div>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 8px;
+                        padding: 5px 12px 5px 22px;
+                        padding-left: 22px;
+                    "
+                >
+                    <span style="width: 16px; height: 16px; flex: none; color: #a3a3a3; margin-top: 1px"
+                        ><svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="5" cy="5" r="2" />
+                            <circle cx="11" cy="5" r="2" />
+                            <circle cx="8" cy="11" r="2" /></svg
+                    ></span>
+                    <div style="flex: 1; min-width: 0">
+                        <div style="font-size: 12px; line-height: 16px">channel</div>
+                        <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">Category, 4 values</div>
+                    </div>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: flex-start;
+                        gap: 8px;
+                        padding: 5px 12px 5px 22px;
+                        padding-left: 22px;
+                    "
+                >
+                    <span style="width: 16px; height: 16px; flex: none; color: #a3a3a3; margin-top: 1px"
+                        ><svg
+                            width="14"
+                            height="14"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M3 12.5 5.5 4.5 8 12.5M3.8 10h3.4M10 8.5h3v4h-3a1.5 1.5 0 0 1 0-3h3" /></svg
+                    ></span>
+                    <div style="flex: 1; min-width: 0">
+                        <div style="font-size: 12px; line-height: 16px">memo</div>
+                        <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">Text, 61 of 500</div>
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 297px;
+                    top: 41px;
+                    width: 903px;
+                    height: 859px;
+                    background: #f4f4f5;
+                    overflow: hidden;
+                "
+            >
+                <svg width="903" height="859" viewBox="0 0 903 859" style="position: absolute; left: 0; top: 0">
+                    <line x1="716.5" y1="348.4" x2="714.4" y2="376.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="716.5" y1="348.4" x2="709.7" y2="365.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="523.8" y1="699.4" x2="535.5" y2="703.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="523.8" y1="699.4" x2="515.5" y2="703.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="271.3" y1="480.2" x2="260.0" y2="436.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="271.3" y1="480.2" x2="244.5" y2="447.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="271.3" y1="480.2" x2="298.9" y2="468.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="458.6" y1="145.7" x2="446.8" y2="140.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="458.6" y1="145.7" x2="464.6" y2="149.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="458.6" y1="145.7" x2="445.5" y2="161.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="616.0" y1="312.4" x2="634.6" y2="279.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="616.0" y1="312.4" x2="628.4" y2="298.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="616.0" y1="312.4" x2="583.6" y2="338.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="301.2" y1="703.9" x2="389.6" y2="711.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="301.2" y1="703.9" x2="250.4" y2="612.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="211.5" y1="410.1" x2="209.1" y2="419.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="211.5" y1="410.1" x2="213.7" y2="417.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="548.3" y1="150.8" x2="568.6" y2="127.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="548.3" y1="150.8" x2="529.8" y2="120.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="714.4" y1="376.2" x2="709.7" y2="365.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="714.4" y1="376.2" x2="669.4" y2="389.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="389.6" y1="711.0" x2="445.9" y2="676.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="389.6" y1="711.0" x2="426.2" y2="658.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="211.8" y1="443.1" x2="244.5" y2="447.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="211.8" y1="443.1" x2="191.3" y2="439.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="211.8" y1="443.1" x2="214.2" y2="432.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="400.2" y1="135.3" x2="417.4" y2="159.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="400.2" y1="135.3" x2="438.4" y2="110.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="827.2" y1="294.6" x2="822.5" y2="322.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="827.2" y1="294.6" x2="794.8" y2="275.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="479.4" y1="632.8" x2="472.7" y2="652.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="479.4" y1="632.8" x2="494.0" y2="635.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="479.4" y1="632.8" x2="467.7" y2="635.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="479.4" y1="632.8" x2="472.2" y2="613.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="479.4" y1="632.8" x2="471.9" y2="609.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="312.5" y1="253.3" x2="321.7" y2="278.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="312.5" y1="253.3" x2="252.5" y2="298.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="596.2" y1="190.8" x2="673.4" y2="134.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="596.2" y1="190.8" x2="582.8" y2="255.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="596.2" y1="190.8" x2="578.0" y2="189.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="596.2" y1="190.8" x2="608.9" y2="161.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="596.2" y1="190.8" x2="619.8" y2="226.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="765.3" y1="264.2" x2="733.1" y2="287.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="765.3" y1="264.2" x2="794.8" y2="275.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="535.5" y1="703.9" x2="515.5" y2="703.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="535.5" y1="703.9" x2="549.4" y2="704.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="193.1" y1="365.5" x2="205.3" y2="359.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="193.1" y1="365.5" x2="189.7" y2="350.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="446.8" y1="140.9" x2="464.6" y2="149.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="446.8" y1="140.9" x2="444.0" y2="101.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="446.8" y1="140.9" x2="438.4" y2="110.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="757.4" y1="340.2" x2="741.9" y2="324.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="757.4" y1="340.2" x2="744.7" y2="343.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="757.4" y1="340.2" x2="412.3" y2="244.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="757.4" y1="340.2" x2="761.2" y2="353.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="472.7" y1="652.4" x2="467.7" y2="635.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="472.7" y1="652.4" x2="445.9" y2="676.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="472.7" y1="652.4" x2="426.2" y2="658.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="472.7" y1="652.4" x2="498.7" y2="664.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="115.3" y1="315.0" x2="120.3" y2="349.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="115.3" y1="315.0" x2="87.6" y2="334.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="673.4" y1="134.2" x2="608.9" y2="161.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="673.4" y1="134.2" x2="761.2" y2="353.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="822.5" y1="322.4" x2="789.4" y2="351.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="494.0" y1="635.9" x2="497.4" y2="657.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="494.0" y1="635.9" x2="502.7" y2="620.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="133.8" y1="352.0" x2="120.3" y2="349.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="133.8" y1="352.0" x2="166.9" y2="356.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="464.6" y1="149.7" x2="484.8" y2="143.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="751.5" y1="449.8" x2="769.6" y2="398.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="751.5" y1="449.8" x2="765.5" y2="425.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="419.3" y1="548.2" x2="440.8" y2="454.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="419.3" y1="548.2" x2="364.6" y2="547.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="419.3" y1="548.2" x2="434.1" y2="560.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="419.3" y1="548.2" x2="453.3" y2="572.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="260.0" y1="436.9" x2="244.5" y2="447.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="260.0" y1="436.9" x2="329.4" y2="418.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="260.0" y1="436.9" x2="298.9" y2="468.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="568.6" y1="127.4" x2="529.8" y2="120.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="741.9" y1="324.6" x2="744.7" y2="343.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="383.9" y1="631.1" x2="338.9" y2="601.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="383.9" y1="631.1" x2="426.2" y2="658.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="383.9" y1="631.1" x2="402.1" y2="601.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="78.1" y1="438.6" x2="84.5" y2="389.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="78.1" y1="438.6" x2="109.7" y2="471.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="445.5" y1="161.6" x2="417.4" y2="159.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="445.5" y1="161.6" x2="441.3" y2="181.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="863.0" y1="423.6" x2="769.6" y2="398.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="863.0" y1="423.6" x2="765.5" y2="425.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="544.9" y1="627.9" x2="522.7" y2="638.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="544.9" y1="627.9" x2="566.1" y2="643.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="544.9" y1="627.9" x2="536.7" y2="653.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="544.9" y1="627.9" x2="526.0" y2="624.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="140.3" y1="482.9" x2="114.4" y2="477.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="140.3" y1="482.9" x2="109.7" y2="471.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="140.3" y1="482.9" x2="159.2" y2="507.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="529.8" y1="120.0" x2="509.0" y2="120.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="529.8" y1="120.0" x2="527.7" y2="85.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="564.9" y1="327.8" x2="583.6" y2="338.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="564.9" y1="327.8" x2="566.6" y2="266.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="564.9" y1="327.8" x2="570.3" y2="298.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="497.4" y1="657.3" x2="498.7" y2="664.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="120.3" y1="349.5" x2="106.5" y2="378.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="513.9" y1="179.5" x2="529.9" y2="190.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="513.9" y1="179.5" x2="494.8" y2="194.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="769.6" y1="398.1" x2="765.5" y2="425.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="769.6" y1="398.1" x2="772.2" y2="369.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="440.8" y1="454.6" x2="683.7" y2="453.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="440.8" y1="454.6" x2="434.1" y2="560.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="205.3" y1="359.0" x2="225.6" y2="359.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="205.3" y1="359.0" x2="189.7" y2="350.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="499.9" y1="40.0" x2="509.0" y2="120.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="499.9" y1="40.0" x2="527.7" y2="85.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="687.2" y1="333.7" x2="709.4" y2="311.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="687.2" y1="333.7" x2="666.8" y2="336.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="687.2" y1="333.7" x2="667.6" y2="328.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="209.1" y1="419.4" x2="213.7" y2="417.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="209.1" y1="419.4" x2="214.2" y2="432.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="582.8" y1="255.3" x2="619.8" y2="226.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="789.4" y1="351.5" x2="772.2" y2="369.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="789.4" y1="351.5" x2="761.2" y2="353.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="522.7" y1="638.6" x2="536.7" y2="653.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="522.7" y1="638.6" x2="526.0" y2="624.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="225.6" y1="359.1" x2="251.8" y2="343.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="225.6" y1="359.1" x2="248.2" y2="365.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="511.8" y1="231.6" x2="494.8" y2="194.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="511.8" y1="231.6" x2="499.7" y2="211.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="663.4" y1="259.6" x2="671.5" y2="255.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="663.4" y1="259.6" x2="666.9" y2="249.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="556.8" y1="556.1" x2="518.8" y2="559.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="556.8" y1="556.1" x2="574.9" y2="568.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="556.8" y1="556.1" x2="535.7" y2="579.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="556.8" y1="556.1" x2="599.6" y2="504.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="556.8" y1="556.1" x2="591.1" y2="589.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="84.5" y1="389.5" x2="79.1" y2="368.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="84.5" y1="389.5" x2="106.5" y2="378.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="84.5" y1="389.5" x2="67.6" y2="380.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="366.7" y1="194.9" x2="364.2" y2="230.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="366.7" y1="194.9" x2="401.7" y2="197.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="655.3" y1="333.0" x2="637.9" y2="350.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="655.3" y1="333.0" x2="666.8" y2="336.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="655.3" y1="333.0" x2="667.6" y2="328.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="655.3" y1="333.0" x2="649.5" y2="337.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="600.9" y1="673.3" x2="569.1" y2="687.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="600.9" y1="673.3" x2="618.3" y2="660.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="193.5" y1="263.9" x2="186.4" y2="294.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="193.5" y1="263.9" x2="252.5" y2="298.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="444.0" y1="101.2" x2="438.4" y2="110.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="566.1" y1="643.5" x2="536.7" y2="653.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="244.5" y1="447.7" x2="654.2" y2="290.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="452.3" y1="230.3" x2="466.6" y2="273.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="452.3" y1="230.3" x2="412.3" y2="244.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="452.3" y1="230.3" x2="452.8" y2="202.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="671.5" y1="255.8" x2="666.9" y2="249.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="671.5" y1="255.8" x2="662.3" y2="234.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="186.4" y1="294.5" x2="189.7" y2="350.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="578.0" y1="189.3" x2="561.3" y2="186.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="578.0" y1="189.3" x2="608.9" y2="161.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="738.3" y1="299.0" x2="733.1" y2="287.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="738.3" y1="299.0" x2="709.4" y2="311.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="738.3" y1="299.0" x2="723.0" y2="279.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="549.4" y1="704.1" x2="569.1" y2="687.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="150.7" y1="448.2" x2="167.4" y2="455.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="150.7" y1="448.2" x2="128.7" y2="421.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="150.7" y1="448.2" x2="160.6" y2="432.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="509.0" y1="120.3" x2="527.7" y2="85.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="509.0" y1="120.3" x2="485.4" y2="127.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="445.9" y1="676.3" x2="426.2" y2="658.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="114.4" y1="477.4" x2="109.7" y2="471.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="529.9" y1="190.5" x2="547.5" y2="196.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="634.6" y1="279.4" x2="628.4" y2="298.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="634.6" y1="279.4" x2="654.2" y2="290.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="338.9" y1="601.9" x2="250.4" y2="612.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="338.9" y1="601.9" x2="364.6" y2="547.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="191.3" y1="439.9" x2="214.2" y2="432.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="561.3" y1="186.8" x2="547.5" y2="196.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="669.4" y1="389.9" x2="699.1" y2="417.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="669.4" y1="389.9" x2="683.7" y2="453.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="511.2" y1="601.8" x2="526.0" y2="624.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="511.2" y1="601.8" x2="502.7" y2="620.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="429.1" y1="295.2" x2="379.3" y2="297.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="429.1" y1="295.2" x2="466.6" y2="273.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="518.8" y1="559.8" x2="535.7" y2="579.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="87.6" y1="334.1" x2="79.1" y2="368.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="417.4" y1="159.7" x2="401.7" y2="197.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="772.2" y1="369.9" x2="761.2" y2="353.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="40.0" y1="366.9" x2="79.1" y2="368.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="40.0" y1="366.9" x2="67.6" y2="380.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="733.1" y1="287.6" x2="723.0" y2="279.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="150.5" y1="389.7" x2="166.9" y2="356.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="150.5" y1="389.7" x2="117.9" y2="386.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="364.2" y1="230.6" x2="326.6" y2="241.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="364.2" y1="230.6" x2="359.7" y2="252.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="699.1" y1="417.8" x2="683.7" y2="453.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="683.1" y1="645.0" x2="624.5" y2="624.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="683.1" y1="645.0" x2="618.3" y2="660.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="173.2" y1="356.2" x2="189.7" y2="350.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="173.2" y1="356.2" x2="166.9" y2="356.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="744.7" y1="343.3" x2="761.2" y2="353.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="470.9" y1="189.0" x2="477.7" y2="195.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="470.9" y1="189.0" x2="452.8" y2="202.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="617.3" y1="365.9" x2="637.9" y2="350.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="617.3" y1="365.9" x2="649.5" y2="337.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="472.2" y1="613.5" x2="471.9" y2="609.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="329.4" y1="418.8" x2="298.9" y2="468.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="401.7" y1="197.3" x2="412.3" y2="244.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="620.8" y1="537.8" x2="574.9" y2="568.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="620.8" y1="537.8" x2="599.6" y2="504.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="189.7" y1="350.9" x2="166.9" y2="356.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="494.8" y1="194.8" x2="499.7" y2="211.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="494.8" y1="194.8" x2="477.7" y2="195.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="167.4" y1="455.6" x2="160.6" y2="432.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="167.4" y1="455.6" x2="159.2" y2="507.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="326.6" y1="241.9" x2="359.7" y2="252.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="637.5" y1="224.4" x2="666.9" y2="249.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="637.5" y1="224.4" x2="662.3" y2="234.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="624.5" y1="624.6" x2="618.3" y2="660.4" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="624.5" y1="624.6" x2="591.1" y2="589.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="128.7" y1="421.5" x2="160.6" y2="432.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="574.9" y1="568.7" x2="591.1" y2="589.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="79.1" y1="368.2" x2="67.6" y2="380.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="441.3" y1="181.8" x2="452.8" y2="202.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="566.6" y1="266.1" x2="570.3" y2="298.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="379.3" y1="297.1" x2="359.7" y2="252.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="637.9" y1="350.7" x2="649.5" y2="337.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="666.8" y1="336.3" x2="667.6" y2="328.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="666.8" y1="336.3" x2="649.5" y2="337.2" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="117.9" y1="386.0" x2="106.5" y2="378.7" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="667.6" y1="328.9" x2="662.3" y2="304.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="458.7" y1="571.7" x2="434.1" y2="560.9" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="458.7" y1="571.7" x2="453.3" y2="572.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="251.8" y1="343.0" x2="248.2" y2="365.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="251.8" y1="343.0" x2="279.5" y2="323.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="251.8" y1="343.0" x2="252.5" y2="298.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="484.8" y1="143.5" x2="485.4" y2="127.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="484.8" y1="143.5" x2="507.0" y2="149.1" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="484.8" y1="143.5" x2="506.5" y2="145.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="666.9" y1="249.3" x2="662.3" y2="234.3" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="434.1" y1="560.9" x2="402.1" y2="601.8" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="434.1" y1="560.9" x2="453.3" y2="572.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="321.7" y1="278.4" x2="279.5" y2="323.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="662.3" y1="304.9" x2="654.2" y2="290.0" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="507.0" y1="149.1" x2="506.5" y2="145.6" stroke="#a8a8b0" stroke-width=".7" />
+                    <line x1="279.5" y1="323.5" x2="252.5" y2="298.5" stroke="#a8a8b0" stroke-width=".7" />
+                    <circle cx="716.5" cy="348.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="523.8" cy="699.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="271.3" cy="480.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="458.6" cy="145.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="616.0" cy="312.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="301.2" cy="703.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="211.5" cy="410.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="548.3" cy="150.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="714.4" cy="376.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="389.6" cy="711.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="211.8" cy="443.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="400.2" cy="135.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="827.2" cy="294.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="479.4" cy="632.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="312.5" cy="253.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="596.2" cy="190.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="765.3" cy="264.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="535.5" cy="703.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="193.1" cy="365.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="446.8" cy="140.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="757.4" cy="340.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="472.7" cy="652.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="115.3" cy="315.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="673.4" cy="134.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="822.5" cy="322.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="494.0" cy="635.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="133.8" cy="352.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="464.6" cy="149.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="751.5" cy="449.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="419.3" cy="548.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="260.0" cy="436.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="568.6" cy="127.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="741.9" cy="324.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="383.9" cy="631.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="78.1" cy="438.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="445.5" cy="161.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="863.0" cy="423.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="544.9" cy="627.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="140.3" cy="482.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="529.8" cy="120.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="564.9" cy="327.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="497.4" cy="657.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="120.3" cy="349.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="513.9" cy="179.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="769.6" cy="398.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="440.8" cy="454.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="205.3" cy="359.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="499.9" cy="40.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="687.2" cy="333.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="467.7" cy="635.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="209.1" cy="419.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="582.8" cy="255.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="789.4" cy="351.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="522.7" cy="638.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="225.6" cy="359.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="511.8" cy="231.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="663.4" cy="259.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="556.8" cy="556.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="84.5" cy="389.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="366.7" cy="194.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="655.3" cy="333.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="600.9" cy="673.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="193.5" cy="263.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="444.0" cy="101.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="765.5" cy="425.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="566.1" cy="643.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="244.5" cy="447.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="452.3" cy="230.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="671.5" cy="255.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="515.5" cy="703.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="186.4" cy="294.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="578.0" cy="189.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="738.3" cy="299.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="549.4" cy="704.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="150.7" cy="448.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="509.0" cy="120.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="709.7" cy="365.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="445.9" cy="676.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="114.4" cy="477.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="529.9" cy="190.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="634.6" cy="279.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="338.9" cy="601.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="191.3" cy="439.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="561.3" cy="186.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="669.4" cy="389.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="511.2" cy="601.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="109.7" cy="471.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="429.1" cy="295.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="628.4" cy="298.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="518.8" cy="559.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="87.6" cy="334.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="417.4" cy="159.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="772.2" cy="369.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="536.7" cy="653.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="40.0" cy="366.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="438.4" cy="110.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="733.1" cy="287.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="426.2" cy="658.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="150.5" cy="389.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="364.2" cy="230.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="699.1" cy="417.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="683.1" cy="645.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="173.2" cy="356.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="608.9" cy="161.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="744.7" cy="343.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="250.4" cy="612.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="213.7" cy="417.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="470.9" cy="189.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="617.3" cy="365.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="472.2" cy="613.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="329.4" cy="418.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="401.7" cy="197.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="583.6" cy="338.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="620.8" cy="537.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="189.7" cy="350.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="494.8" cy="194.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="709.4" cy="311.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="364.6" cy="547.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="167.4" cy="455.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="326.6" cy="241.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="637.5" cy="224.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="624.5" cy="624.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="128.7" cy="421.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="527.7" cy="85.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="794.8" cy="275.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="574.9" cy="568.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="79.1" cy="368.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="441.3" cy="181.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="566.6" cy="266.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="535.7" cy="579.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="160.6" cy="432.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="379.3" cy="297.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="637.9" cy="350.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="498.7" cy="664.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="166.9" cy="356.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="499.7" cy="211.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="683.7" cy="453.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="569.1" cy="687.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="298.9" cy="468.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="466.6" cy="273.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="666.8" cy="336.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="618.3" cy="660.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="117.9" cy="386.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="412.3" cy="244.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="667.6" cy="328.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="458.7" cy="571.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="251.8" cy="343.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="484.8" cy="143.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="666.9" cy="249.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="599.6" cy="504.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="106.5" cy="378.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="485.4" cy="127.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="570.3" cy="298.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="434.1" cy="560.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="321.7" cy="278.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="477.7" cy="195.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="662.3" cy="304.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="591.1" cy="589.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="67.6" cy="380.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="507.0" cy="149.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="649.5" cy="337.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="471.9" cy="609.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="248.2" cy="365.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="359.7" cy="252.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="723.0" cy="279.2" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="402.1" cy="601.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="214.2" cy="432.7" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="506.5" cy="145.6" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="662.3" cy="234.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="453.3" cy="572.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="279.5" cy="323.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="619.8" cy="226.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="654.2" cy="290.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="526.0" cy="624.9" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="252.5" cy="298.5" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="452.8" cy="202.8" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="761.2" cy="353.4" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="502.7" cy="620.0" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="159.2" cy="507.1" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                    <circle cx="547.5" cy="196.3" r="4" fill="#5c5fe0" stroke="#3b3ea8" stroke-width=".6" />
+                </svg>
+                <div
+                    style="
+                        position: absolute;
+                        left: 293px;
+                        bottom: 12px;
+                        width: 316px;
+                        height: 48px;
+                        box-sizing: border-box;
+                        background: #2b2b2b;
+                        border: 1px solid #444;
+                        border-radius: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: space-between;
+                        padding: 0 8px;
+                        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+                    "
+                >
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M6 2.5h4M6.8 2.5v4L3.5 12.5a1 1 0 0 0 .9 1.5h7.2a1 1 0 0 0 .9-1.5L9.2 6.5v-4" />
+                        </svg>
+                    </div>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M2.5 13.5v-11M2.5 13.5h11" />
+                            <circle cx="6" cy="9" r="1.3" />
+                            <circle cx="10.5" cy="5.5" r="1.3" />
+                            <path d="M7 8.2 9.5 6.3" />
+                        </svg>
+                    </div>
+                    <div style="width: 1px; height: 28px; background: #3a3a3a"></div>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                        "
+                    >
+                        <span style="font-size: 11px; font-weight: 600">2D</span
+                        ><svg
+                            width="10"
+                            height="10"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="m4.5 6.5 3.5 3.5 3.5-3.5" />
+                        </svg>
+                    </div>
+                    <div style="width: 1px; height: 28px; background: #3a3a3a"></div>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M5.5 4h8M5.5 8h8M5.5 12h8M2.5 4h.5M2.5 8h.5M2.5 12h.5" />
+                        </svg>
+                    </div>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <rect x="2.5" y="2.5" width="11" height="11" rx="1" />
+                            <path d="M2.5 6h11M2.5 9.5h11M6.5 2.5v11" />
+                        </svg>
+                    </div>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <path d="M2.5 4h11M4.5 8h7M6.5 12h3" />
+                        </svg>
+                    </div>
+                    <div style="width: 1px; height: 28px; background: #3a3a3a"></div>
+                    <div
+                        style="
+                            display: flex;
+                            align-items: center;
+                            gap: 2px;
+                            justify-content: center;
+                            min-width: 32px;
+                            height: 32px;
+                            border-radius: 6px;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="7" cy="7" r="4.2" />
+                            <path d="m10.2 10.2 3.3 3.3" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 1200px;
+                    top: 41px;
+                    width: 240px;
+                    height: 859px;
+                    background: #2b2b2b;
+                    border-left: 1px solid #3a3a3a;
+                    overflow: hidden;
+                    box-sizing: border-box;
+                "
+            >
+                <div style="display: flex; align-items: flex-start; gap: 8px; padding: 12px 12px 10px 12px">
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none; margin-top: 2px"
+                    >
+                        <path d="M5.5 2.5 4.5 13.5M11.5 2.5l-1 11M2.5 6h11M2.5 10h11" />
+                    </svg>
+                    <div>
+                        <div style="font-weight: 600; font-size: 13px">amount</div>
+                        <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">Transfer column</div>
+                    </div>
+                    <span style="color: #a3a3a3; margin-left: auto"
+                        ><svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="4" cy="8" r=".6" />
+                            <circle cx="8" cy="8" r=".6" />
+                            <circle cx="12" cy="8" r=".6" /></svg
+                    ></span>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        padding: 10px 12px 6px 10px;
+                        font-weight: 600;
+                        font-size: 12px;
+                    "
+                >
+                    <svg
+                        width="10"
+                        height="10"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="m4.5 6.5 3.5 3.5 3.5-3.5" /></svg
+                    ><span>Summary</span>
+                </div>
+                <div
+                    style="display: flex; justify-content: space-between; gap: 8px; padding: 5px 16px; font-size: 12px"
+                >
+                    <span style="color: #a3a3a3">Type</span
+                    ><span style="font-weight: 600; text-align: right">Number</span>
+                </div>
+                <div
+                    style="display: flex; justify-content: space-between; gap: 8px; padding: 5px 16px; font-size: 12px"
+                >
+                    <span style="color: #a3a3a3">Role</span
+                    ><span style="font-weight: 600; text-align: right">The weight</span>
+                </div>
+                <div
+                    style="display: flex; justify-content: space-between; gap: 8px; padding: 5px 16px; font-size: 12px"
+                >
+                    <span style="color: #a3a3a3">Has a value</span
+                    ><span style="font-weight: 600; text-align: right">499 of 500</span>
+                </div>
+                <div
+                    style="display: flex; justify-content: space-between; gap: 8px; padding: 5px 16px; font-size: 12px"
+                >
+                    <span style="color: #a3a3a3">Blank</span
+                    ><span style="font-weight: 600; text-align: right">1 (row 212 read N/A)</span>
+                </div>
+                <div
+                    style="display: flex; justify-content: space-between; gap: 8px; padding: 5px 16px; font-size: 12px"
+                >
+                    <span style="color: #a3a3a3">Smallest</span
+                    ><span style="font-weight: 600; text-align: right">5.00</span>
+                </div>
+                <div
+                    style="display: flex; justify-content: space-between; gap: 8px; padding: 5px 16px; font-size: 12px"
+                >
+                    <span style="color: #a3a3a3">Largest</span
+                    ><span style="font-weight: 600; text-align: right">48,000.00</span>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    background: #2b2b2b;
+                    border: 1px solid #4a4a4a;
+                    border-radius: 8px;
+                    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+                    color: #e4e4e4;
+                    left: 290px;
+                    top: 190px;
+                    width: 250px;
+                    padding: 6px 0;
+                "
+            >
+                <div style="font-size: 11px; line-height: 15px; color: #a3a3a3; padding: 4px 10px">
+                    amount: 1 of 500 read N/A and is blank
+                </div>
+                <div style="height: 1px; background: #3a3a3a; margin: 4px 0"></div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 5px 10px;
+                        font-size: 12px;
+                        background: #353d5c;
+                    "
+                >
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M5.5 2.5 4.5 13.5M11.5 2.5l-1 11M2.5 6h11M2.5 10h11" /></svg
+                    ><span style="flex: 1">Type: Number</span
+                    ><svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="m6.5 4.5 3.5 3.5-3.5 3.5" />
+                    </svg>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 12px">
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M3 13c3-1 7-5 10-10" /></svg
+                    ><span style="flex: 1">Role: the weight</span
+                    ><svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="m6.5 4.5 3.5 3.5-3.5 3.5" />
+                    </svg>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 12px">
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M10.5 3 13 5.5 6 12.5H3.5V10z" /></svg
+                    >Rename...
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 12px">
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z" />
+                        <circle cx="8" cy="8" r="2" /></svg
+                    >Hide from the table
+                </div>
+                <div style="height: 1px; background: #3a3a3a; margin: 4px 0"></div>
+                <div style="display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 12px">
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M8 3.5v9M3.5 8h9" /></svg
+                    >Fill the blank...
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    background: #2b2b2b;
+                    border: 1px solid #4a4a4a;
+                    border-radius: 8px;
+                    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+                    color: #e4e4e4;
+                    left: 542px;
+                    top: 220px;
+                    width: 290px;
+                    padding: 6px 0;
+                "
+            >
+                <div style="display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 12px">
+                    <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="m3.5 8.5 3 3 6-7" /></svg
+                    ><span style="flex: 1">Number</span
+                    ><span style="font-size: 11px; line-height: 15px; color: #a3a3a3">1 blank</span>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 5px 10px;
+                        font-size: 12px;
+                        background: #353d5c;
+                    "
+                >
+                    <span style="width: 14px"></span><span style="flex: 1">Whole number</span
+                    ><span style="color: #f0a43a">37 will not convert</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 12px">
+                    <span style="width: 14px"></span><span style="flex: 1">Text</span
+                    ><span style="font-size: 11px; line-height: 15px; color: #a3a3a3">all convert</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px; padding: 5px 10px; font-size: 12px">
+                    <span style="width: 14px"></span><span style="flex: 1">Category</span
+                    ><span style="font-size: 11px; line-height: 15px; color: #a3a3a3">412 values</span>
+                </div>
+                <div style="height: 1px; background: #3a3a3a; margin: 4px 0"></div>
+                <div style="font-size: 11px; line-height: 15px; color: #a3a3a3; padding: 4px 10px; line-height: 15px">
+                    37 amounts have cents (row 18: 1,250.75). They would become blank. One undo step.
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #fff;
+                    z-index: 20;
+                    left: 840px;
+                    top: 248px;
+                "
+            >
+                <span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #e8590c;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        flex: none;
+                    "
+                    >1</span
+                ><span style="background: #e8590c; padding: 2px 6px; border-radius: 4px"
+                    >Counted before you change it</span
+                >
+            </div>
+        </div>
+    </body>
+</html>

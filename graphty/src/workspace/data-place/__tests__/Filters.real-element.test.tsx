@@ -1,25 +1,28 @@
 /**
- * Filters on the REAL graphty-element: a step added from an attribute's Filter to... is the
- * element's (`visibility.steps`), the row, the chip and the status line read the element's counts,
- * the checkbox switches the step, and Undo names the step.
+ * Filter cards on the REAL graphty-element (design/ui/selection-groups/spec.md, section 3.3): every
+ * card is one of the element's filter conditions (`visibility.conditions`) and says what stays,
+ * All nodes (or edges) narrowed by Keep and Except, with no effect word; one card is open, every
+ * other is one row of on box, name and count; its box switches it; its "..." holds Select N,
+ * Duplicate and Delete; and every change is one undo step. Driven by real clicks and keys only.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
+import type { GraphSession, UnionLeaf } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
-import { act, render, screen, waitFor, within } from "../../../test/test-utils";
+import { columnVerb } from "../../../test/column-header";
+import { withFeatures } from "../../../test/features";
+import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { GRAPH_FILE_GML } from "../fixtures";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
+// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+withFeatures([]);
 
 /**
  * Renders the workspace on the Data place, waits for the session and loads the small graph file
@@ -30,13 +33,10 @@ async function openWithGraph(): Promise<{ session: GraphSession; store: Workspac
     const store = createWorkspaceStore({ project: { name: "Les Miserables", id: 1 }, place: "data" });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -44,316 +44,329 @@ async function openWithGraph(): Promise<{ session: GraphSession; store: Workspac
     return { session, store };
 }
 
-/** The number condition card's From box, on the edge column `value` (2 to 31). */
-const FROM = "value from, number";
+/**
+ * The Filters list in the Data place.
+ * @returns the list.
+ */
+const filters = (): HTMLElement =>
+    within(screen.getByRole("region", { name: "Data place" })).getByRole("list", { name: "Filters" });
 
-describe("Filters on the real element", () => {
+/**
+ * One card, by its name.
+ * @param name - its name.
+ * @returns queries inside it.
+ */
+async function card(name: RegExp): Promise<ReturnType<typeof within>> {
+    // The card itself, never a group inside it (an open card's step pane is a group too).
+    const found = await waitFor(() => {
+        const each = [...filters().querySelectorAll<HTMLElement>(":scope > li > [role=group]")].find((group) =>
+            name.test(group.getAttribute("aria-label") ?? ""),
+        );
+        assert.isDefined(each);
+        return each;
+    });
+    return within(found);
+}
+
+/**
+ * Opens a new card on the edge column `value` from its header's Filter to..., types 9 in From and
+ * commits it with Enter, which writes the card.
+ * @param session - the element's session.
+ */
+async function addValueCard(session: GraphSession): Promise<void> {
+    await columnVerb("edge", "value", "Filter to...");
+    // A new card's step is edited in the selection workspace (selection spec 3.0).
+    const from = await screen.findByRole("textbox", { name: "value from, number" });
+    await userEvent.clear(from);
+    await userEvent.type(from, "9{Enter}");
+    await waitFor(() => {
+        assert.lengthOf(session.visibility.conditions, 1);
+    });
+}
+
+/**
+ * The open selection workspace (selection spec 3.0), waited for.
+ * @returns it.
+ */
+async function workspace(): Promise<HTMLElement> {
+    return waitFor(() => {
+        const found = document.querySelector<HTMLElement>(".sel-ws");
+        assert.isNotNull(found, "the workspace is open");
+        return found;
+    });
+}
+
+/**
+ * The first condition's selection.
+ * @param session - the element's session.
+ * @returns the union rule, or undefined.
+ */
+function unionOf(session: GraphSession): UnionLeaf | undefined {
+    const rule = session.visibility.conditions[0]?.rule;
+    return rule?.kind === "union" ? rule : undefined;
+}
+
+describe("Filter cards on the real element", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "adds an edge-attribute step from Filter to..., and the row, chip and status agree with the element",
-        async () => {
-            const { session, store } = await openWithGraph();
-            const filters = (): HTMLElement =>
-                within(screen.getByRole("region", { name: "Data place" })).getByRole("tree", { name: "Filters" });
+    it("Filter to... opens a card as All + Keep; its first value writes it as one step; it reads no effect word", async () => {
+        const { session, store } = await openWithGraph();
+        const before = session.history.position;
+        await addValueCard(session);
+        assert.equal(store.get().place, "data");
+        assert.equal(session.history.position, before + 1, "one undo step");
+        const rule = unionOf(session);
+        assert.equal(rule?.side, "edges");
+        assert.equal(rule?.branches[0]?.start, "all");
+        assert.equal(rule?.branches[0]?.steps[0]?.op, "keep");
+        assert.equal(session.visibility.conditions[0]?.effect, "keep");
+        assert.equal(session.visibility.summary.visibleEdges, 4);
+        for (const word of ["Select", "Filter to", "Filter out"]) {
+            assert.isNull(within(filters()).queryByText(word), word);
+        }
+        await screen.findByRole("button", { name: /^Filter: / });
+    });
 
-            const row = await screen.findByRole("treeitem", { name: "value, edge attribute" });
-            row.focus();
-            await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Filter to..." }));
-            assert.deepEqual(store.get().inspected, { kind: "filter-step", id: "new:edge:data.value" });
-            // The attribute it was opened from stays marked.
-            assert.equal(row.getAttribute("aria-selected"), "true");
+    it("the box switches the card, Undo and Redo name it, and an off card keeps its count", async () => {
+        const { session, store } = await openWithGraph();
+        await addValueCard(session);
+        const valueCard = await card(/value/);
+        await userEvent.click(valueCard.getByRole("checkbox", { name: /^Use / }));
+        await waitFor(() => {
+            assert.isFalse(session.visibility.conditions[0]?.on);
+        });
+        assert.equal(session.visibility.summary.visibleEdges, 9);
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("button", { name: /^Filter: / }));
+        });
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await waitFor(() => {
+            assert.isTrue(session.visibility.conditions[0]?.on);
+            assert.match(store.get().notice?.message ?? "", /^Undid turning off the filter /);
+        });
+        await userEvent.click(screen.getByRole("button", { name: /^Redo( |$)/ }));
+        await waitFor(() => {
+            assert.isFalse(session.visibility.conditions[0]?.on);
+        });
+    });
 
-            // The editor says what an edge-attribute step keeps.
-            await screen.findByText("Keeps edges that pass and the nodes at their ends.");
-            const from = screen.getByRole("textbox", { name: FROM });
-            await userEvent.clear(from);
-            await userEvent.type(from, "9");
-            await userEvent.click(screen.getByRole("button", { name: "Add step" }));
+    it("the header chip's x switches every hiding card off in one step; Undo turns them back on", async () => {
+        const { session } = await openWithGraph();
+        await addValueCard(session);
+        await session.visibility.addCondition({ effect: "keep", rule: { kind: "member", of: "largest-component" } });
+        const before = session.history.position;
+        await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+        await waitFor(() => {
+            assert.isTrue(session.visibility.conditions.every((c) => !c.on));
+        });
+        assert.equal(session.history.position, before + 1);
+        assert.lengthOf(session.visibility.conditions, 2, "cards are kept, off");
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await waitFor(() => {
+            assert.isTrue(session.visibility.conditions.every((c) => c.on));
+        });
+    });
 
-            await waitFor(() => {
-                assert.equal(session.visibility.steps.length, 1);
-            });
-            const [step] = session.visibility.steps;
-            assert.deepEqual(step.rule, { kind: "range", attribute: "data.value", min: 9, max: 31, nodes: "ends" });
-            const { visibleNodes, totalNodes, visibleEdges, totalEdges } = session.visibility.summary;
-            assert.deepEqual([visibleNodes, totalNodes, visibleEdges], [5, 8, 4]);
-            // A step over an edge column names both counts, on its row and on the header chip.
-            const edgesShown = `5 of 8 nodes, ${String(visibleEdges)} of ${String(totalEdges)} edges`;
+    it("one card is open at a time; every other is one row: its on box, name and count", async () => {
+        const { session } = await openWithGraph();
+        await addValueCard(session);
+        // At rest: while a card's workspace is open the other cards drop their counts (ws-polish 2).
+        await userEvent.click(within(await workspace()).getByRole("button", { name: "Done" }));
+        // Done closes the workspace once graphty-element has painted the result, not in the click.
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"));
+        });
+        await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "text", reads: "data.label", mode: "substring", text: "e" },
+        });
+        const label = await card(/label/);
+        await userEvent.click(label.getByRole("button", { name: /^label/ }));
+        await waitFor(() => {
+            assert.lengthOf(document.querySelectorAll(".sel-rest"), 1);
+        });
+        const resting = await card(/value/);
+        assert.equal(resting.getByRole("button", { name: /^value/ }).getAttribute("aria-expanded"), "false");
+        // Its count reads the whole graph; the label card hides some of its edges, which it says.
+        const shown = session.visibility.conditionCounts()[0]?.edges?.shown ?? 4;
+        assert.isNotNull(resting.getByText(shown < 4 ? `4 of 9, ${String(shown)} shown` : "4 of 9"));
+        assert.isNotNull(resting.getByRole("checkbox", { name: /^Use / }));
+    });
 
-            const stepRow = await within(filters()).findByRole("treeitem", { name: "value is between 9 and 31" });
-            // The outcome shows under the sentence, on the row's second line.
-            await waitFor(() => {
-                const outcome = within(stepRow).getByText(
-                    `8 to 5 nodes, ${String(totalEdges)} to ${String(visibleEdges)} edges`,
-                );
-                assert.isTrue(outcome.checkVisibility());
-            });
-            assert.isNull(stepRow.getAttribute("data-dimmed"));
-            // The chip's tooltip names the step that is on.
-            const chip = screen.getByRole("button", { name: `Filter: ${edgesShown}` });
-            await userEvent.hover(chip);
-            await screen.findByText(
-                'Showing only: "value is between 9 and 31". Click to open Filters, where you can turn it off.',
-                {},
-                { timeout: 3000 },
-            );
-            await userEvent.unhover(chip);
-            await waitFor(() => {
-                assert.equal(store.get().announcement, "Filter on: 5 of 8 nodes, 4 edges");
-            });
+    it("a card beside another filter says how many of its matches are shown", async () => {
+        const { session } = await openWithGraph();
+        await session.visibility.addCondition({ effect: "keep", rule: { kind: "degree", min: 3 } });
+        await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "text", reads: "data.label", mode: "substring", text: "e" },
+        });
+        // Its count reads the whole graph (a filter's own conditions do); the degree card hides some
+        // of what it matches, and the card says how many of its matches a reader can see.
+        const label = session.data.nodes({ scope: "graph" }).filter((node) => String(node.label).includes("e"));
+        const visible = new Set([...session.visibility.nodes].map(String));
+        const shown = label.filter((node) => visible.has(String(node.id)));
+        assert.isBelow(shown.length, label.length, "the degree card hides some of them");
+        const resting = await card(/label/);
+        await waitFor(() => {
+            assert.isNotNull(resting.getByText(`${String(label.length)} of 8, ${String(shown.length)} shown`));
+        });
+    });
 
-            // The step's own editor says it is on, as its row does.
-            act(() => {
-                store.set({ inspected: { kind: "filter-step", id: step.id } });
-            });
-            const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
-            await inspector.findByText("On");
-            // The step whose editor is open is marked in the list, as an inspected row is.
-            assert.equal(
-                within(filters())
-                    .getByRole("treeitem", { name: "value is between 9 and 31" })
-                    .getAttribute("aria-selected"),
-                "true",
-            );
+    it("Delete in the card's menu takes it out; Undo puts it back", async () => {
+        const { session } = await openWithGraph();
+        await addValueCard(session);
+        const valueCard = await card(/value/);
+        await userEvent.click(valueCard.getByRole("treeitem", { name: /^value / }));
+        await userEvent.click(await within(await workspace()).findByRole("button", { name: /^More for / }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Delete/ }));
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 0);
+        });
+        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        await card(/value/);
+    });
 
-            // The checkbox's tooltip says what a click does.
-            const tick = screen.getByRole("checkbox", { name: "Apply step: value is between 9 and 31" });
-            await userEvent.hover(tick);
-            await screen.findByText("Turn this step off", {}, { timeout: 3000 });
-            await userEvent.unhover(tick);
+    it("Duplicate in the card's menu adds a copy that is opened", async () => {
+        const { session } = await openWithGraph();
+        await addValueCard(session);
+        const valueCard = await card(/value/);
+        await userEvent.click(valueCard.getByRole("treeitem", { name: /^value / }));
+        await userEvent.click(await within(await workspace()).findByRole("button", { name: /^More for / }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Duplicate/ }));
+        await waitFor(() => {
+            assert.lengthOf(session.visibility.conditions, 2);
+        });
+        assert.deepEqual(session.visibility.conditions[1]?.rule, session.visibility.conditions[0]?.rule);
+    });
 
-            // Untick: the full graph, the chip gone, the row and the editor say off.
-            await userEvent.click(tick);
-            await waitFor(() => {
-                assert.isFalse(session.visibility.steps[0]?.on);
-            });
-            await inspector.findByText("Off");
+    it("a Filter out card reads as All / Except; an edit writes it as what stays, the picture unchanged", async () => {
+        const { session } = await openWithGraph();
+        await session.visibility.addCondition({
+            effect: "exclude",
+            rule: { kind: "range", attribute: "data.value", min: 9 },
+        });
+        await waitFor(() => {
+            assert.equal(session.visibility.summary.visibleEdges, 5);
+        });
+        const excluded = await card(/value/);
+        // A card that removes is named with its verb (repolish 2): "Except value min 9".
+        await userEvent.click(excluded.getByRole("button", { name: /value min 9/ }));
+        const row = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-step-row[data-row]");
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.match(row?.getAttribute("aria-label") ?? "", /^Except, value min 9/);
+        await userEvent.click(row?.querySelector(".sel-value") ?? document.body);
+        const from = await screen.findByRole("textbox", { name: "value from, number" });
+        await userEvent.clear(from);
+        await userEvent.type(from, "10{Enter}");
+        await waitFor(() => {
+            assert.equal(session.visibility.conditions[0]?.effect, "keep");
+            assert.equal(unionOf(session)?.branches[0]?.steps[0]?.op, "except");
+        });
+        // Edges of value 10 or more go, as Filter out took them: 17, 31 and 21.
+        assert.equal(session.visibility.summary.visibleEdges, 6);
+    });
+
+    it("an old Hide step opens as All / Except and still hides what it hid", async () => {
+        const { session } = await openWithGraph();
+        await session.visibility.setSteps([
+            {
+                id: "step-1",
+                on: true,
+                rule: { kind: "not", of: { kind: "text", reads: "data.label", mode: "substring", text: "Cos" } },
+            },
+        ]);
+        const old = await card(/label/);
+        assert.equal(session.visibility.summary.visibleNodes, 7);
+        await userEvent.click(old.getByRole("checkbox", { name: /^Use / }));
+        await waitFor(() => {
             assert.equal(session.visibility.summary.visibleNodes, 8);
-            await waitFor(() => {
-                assert.isNull(screen.queryByRole("button", { name: /^Filter: / }));
-                const offRow = within(filters()).getByRole("treeitem");
-                assert.isTrue(within(offRow).getByText("off").checkVisibility());
-                assert.equal(offRow.getAttribute("data-dimmed"), "");
-            });
-            assert.equal(store.get().announcement, "Filter off");
+        });
+    });
 
-            // Editing the step while it is off: the button says saving turns it on.
-            act(() => {
-                store.set({ inspected: { kind: "filter-step", id: step.id } });
-            });
-            const save = await inspector.findByRole("button", { name: "Save and turn on" });
-            const value = inspector.getByRole("textbox", { name: FROM });
-            await userEvent.clear(value);
-            await userEvent.type(value, "10");
-            await waitFor(() => {
-                assert.isFalse(save.hasAttribute("disabled"));
-            });
-            await userEvent.click(save);
-            await waitFor(() => {
-                assert.equal(store.get().announcement, 'Saved "value is between 10 and 31". The step is on.');
-                assert.isTrue(session.visibility.steps[0]?.on);
-            });
-            await within(filters()).findByRole("treeitem", { name: "value is between 10 and 31" });
-            // Undo restores the step as it was: the old rule, off.
-            await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
-            await within(filters()).findByRole("treeitem", { name: "value is between 9 and 31" });
-            assert.isFalse(session.visibility.steps[0]?.on);
+    it("an open card is named by its first step; Space on its title row switches it, its box no Tab stop", async () => {
+        const { session } = await openWithGraph();
+        await addValueCard(session);
+        const title = await waitFor(() => {
+            const found = filters().querySelector<HTMLElement>('[data-row="title"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        assert.match(title?.getAttribute("aria-label") ?? "", /^value min 9, /);
+        const box = within(filters()).getByRole("checkbox", { name: /^Use value min 9/ });
+        assert.equal(box.getAttribute("tabindex"), "-1");
+        title?.focus();
+        await userEvent.keyboard(" ");
+        await waitFor(() => {
+            assert.isFalse(session.visibility.conditions[0]?.on);
+        });
+        await waitFor(() => {
+            assert.match(title?.getAttribute("aria-label") ?? "", /, off$/);
+        });
+        // The Filters header says what the cards leave together, only while one hides.
+        assert.isNull(document.querySelector("[data-filters-count]"));
+    });
 
-            // Undo puts the step back on and the notice names it.
-            await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
-            await waitFor(() => {
-                assert.isTrue(session.visibility.steps[0]?.on);
-                assert.equal(
-                    store.get().notice?.message,
-                    'Undid turning off the filter step "value is between 9 and 31".',
-                );
-            });
-            await screen.findByRole("button", { name: `Filter: ${edgesShown}` });
+    it("a saved keep card on an edge value stays read-only, so no edit brings back the nodes it hid", async () => {
+        const { session } = await openWithGraph();
+        await session.visibility.addCondition({
+            id: "heavy",
+            effect: "keep",
+            rule: { kind: "range", attribute: "data.value", min: 9 },
+        });
+        await waitFor(() => {
+            assert.equal(session.visibility.summary.visibleNodes, 5);
+        });
+        const kept = await card(/value/);
+        await userEvent.click(kept.getAllByRole("button")[0] ?? document.body);
+        await waitFor(() => {
+            assert.isNotNull(within(filters()).queryByRole("button", { name: "Delete" }), "its read-only body");
+        });
+        assert.isNull(filters().querySelector(".sel-editor"), "no editor that would write it as an edges selection");
+        assert.equal(session.visibility.summary.visibleNodes, 5);
+    });
 
-            // The chip opens the Data place.
-            store.set({ place: "graph" });
-            await userEvent.click(screen.getByRole("button", { name: `Filter: ${edgesShown}` }));
-            assert.equal(store.get().place, "data");
+    it("a saved Select card that is on reads on; a removing card no editor reads counts what stays", async () => {
+        const { session } = await openWithGraph();
+        await session.visibility.addCondition({
+            id: "busy",
+            effect: "select",
+            rule: { kind: "degree", min: 3 },
+        });
+        await session.visibility.addCondition({
+            id: "out",
+            effect: "exclude",
+            rule: {
+                kind: "union",
+                side: "nodes",
+                within: "graph",
+                branches: [{ start: "none", steps: [{ op: "add", rule: { kind: "degree", min: 3 } }] }],
+            },
+        });
+        // A saved Select card reads in its own words (repolish 2): "Select" and its condition.
+        const selects = await card(/^Select /);
+        assert.isTrue((selects.getByRole("checkbox", { name: /^Use / }) as HTMLInputElement).checked);
+        const matched = session.visibility.conditionCounts().find((each) => each.id === "out")?.nodes?.matched ?? 0;
+        // The card counts the whole graph (a filter's own conditions do), not what the filter leaves.
+        const total = session.data.statistics({ scope: "all" }).nodeCount;
+        assert.isAbove(matched, 0);
+        const removes = [...filters().querySelectorAll<HTMLElement>(":scope > li > [role=group]")][1];
+        await waitFor(() => {
+            assert.include(removes?.textContent ?? "", `${String(total - matched)} of ${String(total)}`);
+        });
+    });
 
-            // The row menu deletes the step.
-            const again = within(filters()).getByRole("treeitem", { name: "value is between 9 and 31" });
-            again.focus();
-            await userEvent.keyboard("{Shift>}{F10}{/Shift}");
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
-            await waitFor(() => {
-                assert.lengthOf(session.visibility.steps, 0);
-            });
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "the toolbar's Filters tool opens an editor whose disabled Add step says what is missing",
-        async () => {
-            const { session, store } = await openWithGraph();
-            store.set({ place: "graph" });
-            await userEvent.click(await screen.findByRole("button", { name: "Filters" }));
-            const add = await screen.findByRole("button", { name: "Add step" });
-            assert.equal(add.getAttribute("aria-disabled"), "true");
-
-            // Hover names the missing attribute; a click adds nothing.
-            await userEvent.hover(add);
-            await screen.findByText("Choose an attribute first", {}, { timeout: 3000 });
-            await userEvent.click(add);
-            assert.lengthOf(session.visibility.steps, 0);
-            await userEvent.unhover(add);
-
-            // With an attribute and no text, focus names the missing value; Enter adds nothing.
-            await userEvent.click(screen.getByRole("combobox", { name: "Attribute" }));
-            await userEvent.click(await screen.findByRole("option", { name: "label" }));
-            await userEvent.click(screen.getByRole("combobox", { name: "label: text to match" }));
-            await userEvent.keyboard("{Enter}");
-            assert.lengthOf(session.visibility.steps, 0);
-            // Past the card's Match case, to Add step.
-            await userEvent.tab();
-            await userEvent.tab();
-            assert.equal(document.activeElement, add);
-            await screen.findByText("Type a value first", {}, { timeout: 3000 });
-
-            // A whole rule enables it, and it adds the step.
-            await userEvent.type(screen.getByRole("combobox", { name: "label: text to match" }), "Cos");
-            assert.isNull(add.getAttribute("aria-disabled"));
-            await userEvent.click(add);
-            await waitFor(() => {
-                assert.lengthOf(session.visibility.steps, 1);
-            });
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "adds a largest-component step from the section's +",
-        async () => {
-            const { session } = await openWithGraph();
-            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-            await userEvent.click(screen.getByRole("combobox", { name: "Keep" }));
-            await userEvent.click(await screen.findByRole("option", { name: "the largest component" }));
-            await userEvent.click(screen.getByRole("button", { name: "Add step" }));
-            await waitFor(() => {
-                assert.deepEqual(session.visibility.steps[0]?.rule, { kind: "member", of: "largest-component" });
-            });
-            await screen.findByRole("treeitem", { name: "in the largest component" });
-        },
-        TIMEOUT_MS,
-    );
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "drops a new step left without Add step, says so, and never writes it",
-        async () => {
-            const { session, store } = await openWithGraph();
-            const attribute = (): HTMLInputElement =>
-                screen.getByRole<HTMLInputElement>("combobox", { name: "Attribute" });
-            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-            await userEvent.click(attribute());
-            await userEvent.click(await screen.findByRole("option", { name: "label" }));
-
-            // Selecting the attribute's row moves the inspector off the editor: the half-made
-            // step adds nothing, the notice says so, and "+" starts again.
-            await userEvent.click(await screen.findByRole("treeitem", { name: "value, edge attribute" }));
-            await waitFor(() => {
-                assert.equal(store.get().inspected?.kind, "attribute");
-            });
-            assert.lengthOf(session.visibility.steps, 0);
-            assert.equal(store.get().notice?.message, "Filter step not added. Press Add step to use a step.");
-            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-            await waitFor(() => {
-                assert.equal(attribute().value, "");
-            });
-
-            // Escape in the editor cancels it and says so once.
-            await userEvent.click(attribute());
-            await userEvent.click(await screen.findByRole("option", { name: "label" }));
-            screen.getByRole("combobox", { name: "Keep" }).focus();
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.isNull(store.get().inspected);
-            });
-            assert.equal(store.get().announcement, "Step not added.");
-
-            // A whole rule is not added when a click leaves the editor either: it is named.
-            await userEvent.click(screen.getByRole("button", { name: "Add filter step" }));
-            await userEvent.click(attribute());
-            await userEvent.click(await screen.findByRole("option", { name: "label" }));
-            await userEvent.type(screen.getByRole("combobox", { name: "label: text to match" }), "Cos");
-            await screen.findByText("8 to 1 nodes");
-            await userEvent.click(screen.getByRole("treeitem", { name: "value, edge attribute" }));
-            await waitFor(() => {
-                assert.equal(
-                    store.get().notice?.message,
-                    'Filter step not added: "label contains Cos". Press Add step to use a step.',
-                );
-            });
-            assert.equal(store.get().inspected?.kind, "attribute");
-            assert.lengthOf(session.visibility.steps, 0);
-            assert.equal(session.visibility.summary.visibleNodes, 8);
-        },
-        TIMEOUT_MS,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, like the tests above, tracked in #1636
-    it(
-        "the text box is named, Enter takes a highlighted value, and a step that matches no node is never added",
-        async () => {
-            const { session, store } = await openWithGraph();
-            const chooseLabel = async (): Promise<HTMLElement> => {
-                await userEvent.click(await screen.findByRole("button", { name: "Add filter step" }));
-                await userEvent.click(await screen.findByRole("combobox", { name: "Attribute" }));
-                await userEvent.click(await screen.findByRole("option", { name: "label" }));
-                return screen.findByRole("combobox", { name: "label: text to match" });
-            };
-
-            // Text no label holds: Enter adds nothing, the step says it matches none, and Add
-            // step waits.
-            const box = await chooseLabel();
-            await userEvent.type(box, "Zzz");
-            await screen.findByText("8 to 0 nodes");
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.equal(store.get().announcement, "No node matches this step");
-            });
-            assert.equal(session.visibility.steps.length, 0);
-            assert.equal(screen.getByRole("button", { name: "Add step" }).getAttribute("aria-disabled"), "true");
-            // Escape in a box holding text keeps the text and the editor; from the editor's other
-            // controls, with no list open, Escape closes the editor.
-            screen.getByRole("combobox", { name: "Keep" }).focus();
-            await userEvent.keyboard("{Escape}");
-            await waitFor(() => {
-                assert.isNull(store.get().inspected);
-            });
-
-            // A value highlighted in the list: Enter takes it, the next adds the step.
-            const again = await chooseLabel();
-            await userEvent.type(again, "Cos");
-            await screen.findByRole("option", { name: "Cosette" });
-            await userEvent.keyboard("{ArrowDown}{Enter}");
-            await waitFor(() => {
-                assert.equal((again as HTMLInputElement).value, "Cosette");
-            });
-            assert.equal(session.visibility.steps.length, 0);
-            await screen.findByText("8 to 1 nodes");
-            await userEvent.keyboard("{Enter}");
-            await waitFor(() => {
-                assert.deepEqual(session.visibility.steps[0]?.rule, {
-                    kind: "text",
-                    reads: "data.label",
-                    mode: "substring",
-                    text: "Cosette",
-                });
-            });
-            assert.equal(session.visibility.summary.visibleNodes, 1);
-        },
-        TIMEOUT_MS,
-    );
+    it("the Filters command opens a new card's value picker", async () => {
+        const { store } = await openWithGraph();
+        store.set({ place: "graph" });
+        await userEvent.keyboard("{Control>}k{/Control}");
+        await userEvent.keyboard("filter");
+        await userEvent.click(await screen.findByRole("option", { name: /^Filters/ }));
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await screen.findByRole("option", { name: "Largest component" });
+    });
 });

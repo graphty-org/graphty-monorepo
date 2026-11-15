@@ -10,6 +10,7 @@
 import type { Graphty } from "@graphty/graphty-element";
 
 export async function openAndSave(el: Graphty, url: string): Promise<string> {
+    // `el` was given features="file-styles" before it first rendered: styles from files are an experiment.
     // Draw the file's own colors, sizes, shapes and labels as style layers.
     await el.loadFromUrl(url, { styles: "file" });
 

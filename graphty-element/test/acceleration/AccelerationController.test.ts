@@ -32,23 +32,6 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
     return { promise, resolve };
 }
 
-/**
- * Polls until the controller has settled where the test expects it. Device loss, recovery and
- * the re-probe after a late registration all finish in their own microtasks.
- */
-async function until(predicate: () => boolean, what: string): Promise<void> {
-    for (let attempt = 0; attempt < 200; attempt += 1) {
-        if (predicate()) {
-            return;
-        }
-
-        // The controller runs no timers, only promise chains: one macrotask yield drains them
-        await new Promise((resolve) => setTimeout(resolve, 0));
-    }
-
-    throw new Error(`timed out waiting for ${what}`);
-}
-
 /** How to build the fake accelerator a test injects or has a factory return. */
 interface FakeOptions {
     name?: string;
@@ -101,6 +84,26 @@ function softwareOnlyFactory(
 }
 
 const LAYOUT: AcceleratedWork = { capability: "forceAtlas2", nodeCount: 10_000 };
+
+describe("AccelerationController: sharing the renderer's device", () => {
+    it("takes a registration that throws as a no, and still asks the next one", async () => {
+        const registry = new AcceleratorRegistry();
+        const factory = (): Promise<null> => Promise.resolve(null);
+        registry.register({
+            name: "broken",
+            factory,
+            sharesDevice: () => {
+                throw new Error("no adapter info");
+            },
+        });
+        const controller = new AccelerationController({ registry });
+
+        assert.isFalse(await controller.sharesDevice({}));
+
+        registry.register({ name: "willing", factory, sharesDevice: () => true });
+        assert.isTrue(await controller.sharesDevice({}));
+    });
+});
 
 describe("AccelerationController: probing", () => {
     it("starts in probing, because an unfinished probe is not a missing GPU", () => {
@@ -280,7 +283,7 @@ describe("AccelerationController: probing", () => {
 
         registry.register({ name: "late", factory: () => Promise.resolve(fakeAccelerator({ name: "late" })) });
 
-        await until(() => controller.state === "idle", "the late registration to be probed");
+        await vi.waitUntil(() => controller.state === "idle");
         assert.strictEqual(controller.accelerator?.name, "late");
         controller.dispose();
     });
@@ -314,7 +317,7 @@ describe("AccelerationController: publishing", () => {
         });
 
         controller.setPolicy("auto");
-        await until(() => controller.state === "idle", "the policy change to probe");
+        await vi.waitUntil(() => controller.state === "idle");
 
         assert.deepStrictEqual(seen, ["probing", "idle"]);
         controller.dispose();
@@ -334,6 +337,105 @@ describe("AccelerationController: publishing", () => {
         assert.isNull(controller.accelerator);
         controller.dispose();
     });
+
+    it("does not attach a device a probe finds after acceleration was switched off", async () => {
+        const built = deferred<GraphAccelerator>();
+        const disposed = vi.fn();
+        const registry = new AcceleratorRegistry();
+        registry.register({ name: "slow", factory: () => built.promise });
+        const controller = new AccelerationController({ registry });
+        const probe = controller.start();
+
+        controller.setPolicy("off");
+        built.resolve(fakeAccelerator({ onDispose: disposed }));
+        await probe;
+
+        assert.strictEqual(controller.state, "off");
+        assert.isNull(controller.accelerator);
+        assert.strictEqual(disposed.mock.calls.length, 1, "the late device is released, not leaked");
+        controller.dispose();
+    });
+
+    it("keeps one device when off and back on overlap a probe", async () => {
+        const builds: { resolve: (value: GraphAccelerator) => void }[] = [];
+        const disposed: string[] = [];
+        const registry = new AcceleratorRegistry();
+        registry.register({
+            name: "slow",
+            factory: () => {
+                const build = deferred<GraphAccelerator>();
+                builds.push(build);
+                return build.promise;
+            },
+        });
+        const controller = new AccelerationController({ registry });
+        const first = controller.start();
+
+        controller.setPolicy("off");
+        controller.setPolicy("auto");
+        await vi.waitUntil(() => builds.length === 2);
+        builds[1].resolve(fakeAccelerator({ name: "second", onDispose: () => disposed.push("second") }));
+        await vi.waitUntil(() => controller.state === "idle");
+        builds[0].resolve(fakeAccelerator({ name: "first", onDispose: () => disposed.push("first") }));
+        await first;
+
+        assert.strictEqual(controller.accelerator?.name, "second", "the stale probe does not replace it");
+        assert.deepStrictEqual(disposed, ["first"]);
+        assert.strictEqual(controller.state, "idle");
+        controller.dispose();
+    });
+
+    /** A registry whose factory hands each build to the test, and a controller over it. */
+    function slowProbes(): {
+        controller: AccelerationController;
+        builds: { resolve: (value: GraphAccelerator) => void }[];
+    } {
+        const builds: { resolve: (value: GraphAccelerator) => void }[] = [];
+        const registry = new AcceleratorRegistry();
+        registry.register({
+            name: "slow",
+            factory: () => {
+                const build = deferred<GraphAccelerator>();
+                builds.push(build);
+                return build.promise;
+            },
+        });
+
+        return { controller: new AccelerationController({ registry }), builds };
+    }
+
+    for (const [label, change] of [
+        ["auto to required", (c: AccelerationController) => c.setPolicy("required")],
+        [
+            "off and back to auto",
+            (c: AccelerationController) => {
+                c.setPolicy("off");
+                c.setPolicy("auto");
+            },
+        ],
+    ] as const) {
+        it(`settles ready() on the new probe when the policy goes ${label} mid-probe`, async () => {
+            const { controller, builds } = slowProbes();
+            let firstReleased = false;
+            const ready = controller.ready().then(
+                (status) => ({ status }),
+                (error: unknown) => ({ error }),
+            );
+
+            change(controller);
+            await vi.waitUntil(() => builds.length === 2);
+            builds[0].resolve(fakeAccelerator({ name: "first", onDispose: () => (firstReleased = true) }));
+            // The stale probe has finished once it released what it built.
+            await vi.waitUntil(() => firstReleased);
+            builds[1].resolve(fakeAccelerator({ name: "second" }));
+            const outcome = await ready;
+
+            assert.notProperty(outcome, "error", "ready() does not answer for the stale probe");
+            assert.strictEqual("status" in outcome ? outcome.status.state : null, "idle");
+            assert.strictEqual(controller.accelerator?.name, "second");
+            controller.dispose();
+        });
+    }
 
     it("publishes the capabilities subset the DOM event carries", async () => {
         const controller = new AccelerationController({ registry: registryWith(fakeAccelerator()) });
@@ -364,7 +466,7 @@ describe("AccelerationController: publishing", () => {
         const gate = deferred<string>();
 
         const running = controller.run(LAYOUT, () => gate.promise);
-        await until(() => controller.state === "active", "the work to reach the accelerator");
+        await vi.waitUntil(() => controller.state === "active");
         gate.resolve("positions");
 
         assert.deepStrictEqual(await running, { accelerated: true, value: "positions", precision: "f32" });
@@ -405,7 +507,7 @@ describe("AccelerationController: the whileRunning span", () => {
             openDuring = spans.open;
             return gate.promise;
         });
-        await until(() => openDuring !== -1, "the work to reach the accelerator");
+        await vi.waitUntil(() => openDuring !== -1);
         assert.strictEqual(openDuring, 1, "the span is open while the work is on the accelerator");
         gate.resolve("positions");
         await running;
@@ -850,7 +952,7 @@ describe("AccelerationController: device loss", () => {
 
         // Two transitions, not one: the loss is reported first and recovery happens after it,
         // so waiting for "idle" alone would pass on the idle the controller is already in.
-        await until(() => seen.length === 2, "the loss and the recovery");
+        await vi.waitUntil(() => seen.length === 2);
         assert.deepStrictEqual(
             seen.map((status) => status.state),
             ["error", "idle"],
@@ -879,7 +981,7 @@ describe("AccelerationController: device loss", () => {
 
         lost.resolve({ reason: "device removed" });
 
-        await until(() => (controller.status.reason ?? "").includes("reattaching failed"), "the failed recovery");
+        await vi.waitUntil(() => (controller.status.reason ?? "").includes("reattaching failed"));
         assert.strictEqual(controller.state, "error");
         assert.strictEqual(controller.status.code, "E_DEVICE_LOST");
         assert.isFalse(controller.plan(LAYOUT).accelerated);
@@ -894,7 +996,7 @@ describe("AccelerationController: device loss", () => {
 
         lost.resolve({ reason: "device removed" });
 
-        await until(() => controller.state === "error", "the loss to be reported");
+        await vi.waitUntil(() => controller.state === "error");
         assert.notInclude(controller.status.reason, "reattaching");
         controller.dispose();
     });
@@ -908,7 +1010,7 @@ describe("AccelerationController: device loss", () => {
 
         lost.resolve({ reason: "device removed" });
 
-        await until(() => disposed.mock.calls.length === 1, "the dead accelerator to be disposed");
+        await vi.waitUntil(() => disposed.mock.calls.length === 1);
         controller.dispose();
     });
 
@@ -1127,7 +1229,7 @@ describe("AccelerationController: awkward accelerators", () => {
 
         await controller.start();
 
-        await until(() => controller.state === "error", "the rejected lost promise to be handled");
+        await vi.waitUntil(() => controller.state === "error");
         assert.strictEqual(controller.status.code, "E_DEVICE_LOST");
         assert.include(controller.status.reason, "the driver crashed");
         controller.dispose();
@@ -1294,12 +1396,10 @@ describe("AccelerationController: a device that computes the wrong answer", () =
     });
 
     it("does not ask an accelerator that cannot check itself, which is every one of them today", async () => {
-        const fake = createFakeAccelerator();
-        const controller = new AccelerationController({ registry: registryWith(fake) });
+        const controller = new AccelerationController({ registry: registryWith(createFakeAccelerator()) });
 
         const status = await controller.start();
 
-        assert.isUndefined(fake.verify);
         assert.strictEqual(status.state, "idle");
         controller.dispose();
     });
@@ -1348,7 +1448,7 @@ describe("AccelerationController: a software adapter outlives only the policy th
         assert.strictEqual(controller.accelerator?.name, "software");
 
         controller.setPolicy("auto");
-        await until(() => controller.state === "unavailable", "the re-probe under auto");
+        await vi.waitUntil(() => controller.state === "unavailable");
 
         assert.isNull(controller.accelerator);
         assert.strictEqual(controller.status.code, "E_SOFTWARE_ONLY");

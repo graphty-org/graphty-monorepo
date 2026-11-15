@@ -14,6 +14,9 @@ import { join } from "node:path";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type ExplainTarget, type GraphSession } from "../../session";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 const CORPUS = join(__dirname, "..", "..", "..", "graph-io", "test", "corpus", "styles");
 
@@ -28,8 +31,8 @@ const FILES = [
     {
         type: "graphml",
         path: "graphml/yed-shapenode/voc__voctomix__schema.graphml",
-        // `y:Arrows target="standard"`.
-        arrows: { "n2::n21->n3::n0": "normal", "n2::n17->n0::n2": "normal" },
+        // `y:Arrows target="standard"`: yEd's standard arrow, a triangle with its back pressed in.
+        arrows: { "n2::n21->n3::n0": "vee", "n2::n17->n0::n2": "vee" },
     },
     {
         type: "json",

@@ -216,7 +216,7 @@ describe("documentation code samples", () => {
 
     // In a child process, which coverage does not instrument (see type-check-samples.mjs), as in algorithms'
     // guide-samples.test.ts: in the coverage worker the instrumented compiler's time grew with machine load.
-    it("type-checks every sample", { timeout: 30_000 }, async () => {
+    it("type-checks every sample", async () => {
         const files = docs.flatMap((d) => d.files);
         const { stdout } = await execFileAsync(process.execPath, [CHECKER, join(PKG, "tsconfig.json"), OUT, ...files]);
         assert.deepEqual(JSON.parse(stdout), []);

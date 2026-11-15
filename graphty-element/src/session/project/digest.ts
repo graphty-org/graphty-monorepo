@@ -17,6 +17,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { DEFERRED_HASH_COLUMN, EDGE_ID_COLUMN, IDENTITY_COLUMNS, identityColumnsOf } from "../../data/edgeIdentity";
 import { stableDigest } from "../runs/runId";
 import { ownRows } from "../styles/tree";
 import type { ProjectState } from "./state";
@@ -29,14 +30,17 @@ interface DigestOptions {
     readonly snapshot?: GraphSnapshot;
 }
 
-/** The columns the positions lane lends every snapshot: coordinates, not rows. */
-const LANE_COLUMNS: ReadonlySet<string> = new Set(["position", "graphty.pinned"]);
+/**
+ * The columns the positions lane lends every snapshot (coordinates, not rows), and the marker a
+ * "batched" freeze writes on a deferred edge hash (bookkeeping, so both render paths digest alike).
+ */
+const LANE_COLUMNS: ReadonlySet<string> = new Set(["position", "graphty.pinned", DEFERRED_HASH_COLUMN]);
 
 /** What a data digest leaves out besides the lane: the edge ids the element assigns per load. */
-const NOT_DATA: ReadonlySet<string> = new Set([...LANE_COLUMNS, "graphty.edgeId"]);
+const NOT_DATA: ReadonlySet<string> = new Set([...LANE_COLUMNS, EDGE_ID_COLUMN]);
 
-/** Nothing left out. */
-const NO_COLUMNS: ReadonlySet<string> = new Set();
+/** Nothing left out but the deferred-hash marker. */
+const NO_COLUMNS: ReadonlySet<string> = new Set([DEFERRED_HASH_COLUMN]);
 
 /**
  * The canonical text of a value.
@@ -150,6 +154,8 @@ export function stateDigest(state: ProjectState, options: DigestOptions = {}): s
         `attributes=${canonical(state.attributes, path)}`,
         // Only when some value is named, so a digest of a state without names is as it was.
         ...(state.valueLabels.size === 0 ? [] : [`valueLabels=${canonical(state.valueLabels, path)}`]),
+        // Likewise for pasted shaders.
+        ...(state.shaders.size === 0 ? [] : [`shaders=${canonical(state.shaders, path)}`]),
     ];
     if (options.snapshot !== undefined) {
         parts.push(
@@ -196,6 +202,28 @@ export function dataDigest(graph: ProjectState["graph"], readSnapshot: () => Gra
 }
 
 /**
+ * Read the hash of every session edge a "batched" freeze marked deferred as the hash it is
+ * computed to on first read, so the digest is the one the "objects" path, which hashes at the
+ * freeze, gives for the same graph.
+ * @param snapshot - The snapshot.
+ * @param values - The edge hash column's values by row, filled in place.
+ */
+function mintedHashesInto(snapshot: GraphSnapshot, values: unknown[]): void {
+    const counter = snapshot.edges.typed(EDGE_ID_COLUMN, "u32");
+    const deferred = snapshot.edges.get(DEFERRED_HASH_COLUMN) ?? null;
+    if (deferred === null || counter === null) {
+        return;
+    }
+
+    const { edgeHash } = identityColumnsOf(snapshot);
+    for (let row = 0; row < values.length; row++) {
+        if (deferred.isSet(row) && counter.isSet(row)) {
+            values[row] = edgeHash.subarray(2 * row, 2 * row + 2);
+        }
+    }
+}
+
+/**
  * The canonical text of a snapshot's rows: row order is meaningful here, so nothing is sorted
  * except the column names.
  * @param snapshot - The snapshot.
@@ -217,6 +245,10 @@ function rowsDigest(snapshot: GraphSnapshot, path: WeakSet<object>, skip: Readon
             .sort()
             .map((name) => {
                 const values = Array.from({ length: columns.rowCount }, (_, row) => columns.value(name, row));
+                if (name === IDENTITY_COLUMNS.edgeHash) {
+                    mintedHashesInto(snapshot, values);
+                }
+
                 return `${table}.${name}=${canonical(values, path)}`;
             })
             .join(";"),

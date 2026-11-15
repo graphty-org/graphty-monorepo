@@ -439,8 +439,9 @@ describe("LayoutManager", () => {
         it("should report settled state from layout engine", async () => {
             await layoutManagerInternals.setLayout(layoutManager, "ngraph", {});
 
-            // ngraph layout might or might not be settled immediately
-            assert.isBoolean(layoutManager.isSettled);
+            const engine = layoutManager.layoutEngine;
+            assert.isDefined(engine);
+            assert.strictEqual(layoutManager.isSettled, engine.isSettled);
         });
 
         it("should report as settled when no layout engine", () => {
@@ -597,7 +598,11 @@ describe("LayoutManager", () => {
 
     describe("catalogue ids", () => {
         it("setLayout accepts every id catalog.layouts() publishes, and engine names still work", async () => {
-            graph.getDataManager().addNodes([{ id: "a" }, { id: "b" }] as Record<string, unknown>[]);
+            // Each node has a location, which the location map reads from its columns.
+            graph.getDataManager().addNodes([
+                { id: "a", latitude: 45.43, longitude: 12.33 },
+                { id: "b", latitude: 45.44, longitude: 12.34 },
+            ] as Record<string, unknown>[]);
             graph.getDataManager().addEdges([{ src: "a", dst: "b" }] as Record<string, unknown>[]);
             // The options each layout requires; everything else runs on its defaults.
             const required: Record<string, object> = {

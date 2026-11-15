@@ -49,7 +49,7 @@
 
 import { Logger } from "@babylonjs/core";
 import { setProjectAnnotations } from "@storybook/web-components-vite";
-import { afterEach, assert } from "vitest";
+import { afterEach, assert, vi } from "vitest";
 
 import type { Graphty } from "../src/graphty-element";
 import {
@@ -58,15 +58,32 @@ import {
     paintOf,
     strandedOnBootstrap,
 } from "../test/helpers/paint-assertions";
-import { click, hover } from "../test/helpers/real-input";
+import { click, doubleClick, hover, press, release } from "../test/helpers/real-input";
 import * as projectAnnotations from "./preview";
 import { operationQueueOf } from "../src/Graph";
+
+// Real input for every play function's `userEvent` (vitest.real-user-event.mjs at the root): Playwright drives
+// the browser, as a reader's mouse and keyboard do. Storybook's own UI and a capture keep its replay.
+vi.mock("storybook/test", async (importOriginal) => {
+    const { withRealUserEvent } = await import("../../vitest.real-user-event.mjs");
+    return withRealUserEvent(await importOriginal(), (await import("vitest/browser")).userEvent);
+});
 
 // Strict state: every session created in these tests checks that project state changes only
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
 // A plain global rather than an import, so this file reaches nothing under src/ at setup time.
 (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
-// The test project brings its own timeout, so the play functions' waits set none of their own
+// Whether the story test also takes the story's screenshot (vitest.setup.visual.ts marks the page as
+// a capture before this file runs): the picture must then be the built Storybook's, so the story runs
+// as it does there.
+const capture = /[?&]chromatic=true/.test(location.search);
+// Draw on demand: a graph that never set `renderOnDemand` stops drawing once its picture is still,
+// instead of redrawing every frame in software (SwiftShader) for the whole test. Not the
+// consumer's default; a test that needs continuous frames sets `renderOnDemand = false`. Not in a
+// capture: the built Storybook draws every frame, and a play that watches frames go by (a label's
+// animation, switched off for the capture) waits for frames a resting graph never draws.
+(globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: boolean }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ = !capture;
+// A runner, not a reader, runs these stories, so a story's endless demo cycle stays off
 // (`isUnderRunner` in stories/helpers.ts).
 (globalThis as { __GRAPHTY_STORY_RUNNER__?: boolean }).__GRAPHTY_STORY_RUNNER__ = true;
 // Its full sweep after each test: no typed array state kept was written in place.
@@ -95,9 +112,6 @@ if (globalThis.window !== undefined) {
         originalWarn.apply(console, args);
     };
 }
-
-/** How often to look again while waiting for the data to arrive. */
-const POLL_MS = 50;
 
 /** The story parameters this hook reads. */
 interface PaintCheckParameters {
@@ -182,7 +196,12 @@ function exemptionOf(story: string, parameters: Record<string, unknown> | undefi
  */
 async function until(done: () => boolean): Promise<void> {
     while (!done()) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        // Once a frame: what is waited for changes as the element draws.
+        await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+                resolve();
+            });
+        });
     }
 }
 
@@ -283,8 +302,14 @@ async function assertStoryDrewWhatItAskedFor(context: StoryContextLike): Promise
 // The hook below is a PROJECT-LEVEL afterEach, which `prepareStory` merges with the meta's and the
 // story's own.
 // Real input for the play functions (stories/helpers.ts, realInput): the browser's own pointer, so a
-// hover or a click is a trusted event with hit testing, as a reader's is.
+// hover or a click is a trusted event with hit testing, as a reader's is. Not when the story test also
+// takes the story's screenshot (vitest.setup.visual.ts, which marks the page as a capture first): the
+// picture must be the built Storybook's, where a play replays its input and no real pointer exists,
+// and the pointer the harness parks before each shot would leave the node a real hover is over.
 setProjectAnnotations([
     projectAnnotations,
-    { afterEach: assertStoryDrewWhatItAskedFor, parameters: { realInput: { click, hover } } },
+    {
+        afterEach: assertStoryDrewWhatItAskedFor,
+        parameters: capture ? {} : { realInput: { click, doubleClick, hover, press, release } },
+    },
 ]);

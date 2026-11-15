@@ -3,20 +3,27 @@ import "./data-page.css";
 import {
     DataTable,
     type DataTableColumn,
+    FileSource,
     PANEL_GRID,
+    pickFiles,
     Popout,
     PopoutManager,
     ResetButton,
     SegmentedControl,
+    TargetTooltip,
+    useFileDrop,
 } from "@graphty/compact-mantine";
 import {
     type DraftRow,
     type DraftTable,
     type GraphSession,
     isGraphtyError,
+    LOAD_ROLES,
     type LoadDraft,
     type LoadReport,
+    type SourceKey,
     type TableMapping,
+    type TimeUnit,
 } from "@graphty/graphty-element/session";
 import {
     ActionIcon,
@@ -33,23 +40,26 @@ import {
     Select,
     Stack,
     Text,
-    Textarea,
-    TextInput,
     Title,
     Tooltip,
 } from "@mantine/core";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
+import { fileStylesOn } from "../features";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
 import { openProjectFile } from "../project/actions";
+import { replaceWith } from "../replace/commands";
 import { writeFileStylesChoice } from "../settings/preferences";
+import { readPasted } from "../start/open";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
+import { showNotices, timelineOn } from "../time/timeActions";
+import { UNIT_CHOICES } from "../time/timeWords";
 import {
     elementRole,
     kindChanged,
@@ -57,15 +67,23 @@ import {
     offersStyles,
     type PageChoices,
     type PageRole,
-    ROLES_BY_KIND,
     rowsAreOf,
     setRole,
     setRowsAre,
+    setTimeUnit,
     setWeightMeaning,
+    timeMarked,
     weightHolder,
 } from "./choices";
-import { canReplace, rememberLoad, replaceSource, takeDataPageRequest, whileDataPageOpen } from "./request";
-import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
+import { takeDataPageRequest, whileDataPageOpen } from "./request";
+import {
+    type LoadDraftState,
+    type PageSource,
+    type RowFilter,
+    sourceInput,
+    sourceName,
+    useLoadDraft,
+} from "./useLoadDraft";
 import {
     addWords,
     baseName,
@@ -85,11 +103,13 @@ import {
     replaceWords,
     roleWords,
     SEPARATORS,
+    SUGGESTED_TIME,
+    TIMELINE_CANDIDATE,
     tooLargeRefusal,
     UNMATCHED_HINTS,
 } from "./words";
 
-/** The URL / Paste entry pop-out's width. */
+/** The From a URL pop-out's width. */
 const ENTRY_WIDTH = 280;
 
 /** The File settings pop-out's width. */
@@ -152,24 +172,24 @@ export function DataPage(): React.JSX.Element {
 }
 
 /**
- * What the graph holds before a replacing load: its size, its first source's name and the
+ * What the graph holds before a replacing load: its size, the replaced load's name and the
  * meaning of its loaded weight.
  * @param session - the graph session.
- * @param replacing - whether the load replaces the graph.
+ * @param replacing - the load the page replaces, or undefined when it replaces none.
  * @returns the graph before the load, or null when the load does not replace one.
  */
 function graphBefore(
     session: GraphSession | null,
-    replacing: boolean,
+    replacing: SourceKey | undefined,
 ): { nodes: number; edges: number; name: string; meaning: LoadedMeaning } | null {
-    if (session === null || !replacing) {
+    if (session === null || replacing === undefined) {
         return null;
     }
     const { nodeCount, edgeCount } = session.data.statistics();
     return {
         nodes: nodeCount,
         edges: edgeCount,
-        name: session.data.sources()[0]?.name ?? "The data",
+        name: session.data.sources().find((each) => each.key === replacing)?.name ?? "The data",
         meaning: session.data.loadedWeight()?.meaning ?? null,
     };
 }
@@ -204,11 +224,18 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     const [initial] = useState<PageSource | null>(() =>
         request.files !== undefined && request.files.length > 0 ? { kind: "files", files: request.files } : null,
     );
-    const page = useLoadDraft(session, request.intent === "add" ? "merge" : "replace", initial, request.choices);
+    // A replace replaces its one load by key; without a key it replaces the graph.
+    const replaces = request.intent === "replace" ? request.replaces : undefined;
+    const page = useLoadDraft(
+        session,
+        request.intent === "add" ? "merge" : "replace",
+        initial,
+        request.choices,
+        replaces,
+    );
     // A read the reader starts on the open page (another file, a file setting) is said; the read
     // the page opens on is not, and its rows are said by the grid once they arrive.
     useAnnounceChange(page.reading && page.source !== null ? `Reading ${sourceName(page.source)}` : null);
-    const fileInput = useRef<HTMLInputElement>(null);
     // The door that opened the page (New from data... on the start screen) goes with the start
     // screen; focus goes to the page's first ask, "Choose a file...", or its first control.
     const pageRef = useRef<HTMLElement>(null);
@@ -219,9 +246,8 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         }
     }, []);
 
-    const replacing = request.intent === "replace";
     // What the graph held before a replacing load, for its before-and-after line and status line.
-    const [was] = useState(() => graphBefore(session, replacing));
+    const [was] = useState(() => graphBefore(session, replaces));
     useCarriedMeaning(page, was?.meaning ?? null);
     // The graph an addition joins, so the summary gives it and the file each their own counts.
     const [joins] = useState(() => {
@@ -278,16 +304,10 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
 
     const load = async (): Promise<void> => {
         const { source } = page;
-        // A refused load stays on the page, its problem block shown and Load disabled (T5).
-        if (!(await page.load())) {
+        // A refused load stays on the page, its problem block shown and Load disabled (T5). A new
+        // graph starts its history; data added to an open graph stays undoable.
+        if (!(await page.load(request.intent === "new" ? "start" : undefined))) {
             return;
-        }
-        // A new graph starts its history; data added to an open graph stays undoable.
-        if (request.intent === "new") {
-            session?.history.clear();
-        }
-        if (session !== null && source?.kind === "files") {
-            rememberLoad(session, { files: source.files, choices: page.choices });
         }
         // A loaded new graph is named after every file it read; inside a project nothing is renamed.
         const named = session === null ? undefined : graphName(session.data.sources());
@@ -305,6 +325,11 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
             return;
         }
         noticeFileStyles(store, session);
+        // A time field marked at import says what its values held, as Set as time does.
+        if (session.time.field !== null) {
+            await session.time.ready;
+            showNotices(session, store, session.time.notices());
+        }
         // The status line, written once the place is showing and the header has its name: the
         // graph as the header names it, its size and the rows the load left out. Nothing reruns
         // by itself after a replace, so that line says how many runs now need it.
@@ -320,9 +345,6 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         }));
     };
 
-    /** Whether the next chosen files join the table on the page (Tables "+") or replace the source. */
-    const joining = useRef(false);
-
     // A table the reader just added is the one the preview shows once the files are read again,
     // not the first table: the view follows the reader's own action.
     const added = useRef<string | null>(null);
@@ -336,8 +358,9 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     }, [draft, setTableId]);
 
     const chooseFiles = (join: boolean): void => {
-        joining.current = join;
-        fileInput.current?.click();
+        void pickFiles({ multiple: true }).then((files) => {
+            addFiles(files, join);
+        });
     };
 
     const addFiles = (files: readonly File[], join: boolean): void => {
@@ -374,6 +397,11 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     useEffect(() => {
         addFilesRef.current = addFiles;
     });
+    // The whole page takes a drop, which joins the table on the page as Tables "+" does.
+    const onDrop = useCallback((files: File[]) => {
+        addFilesRef.current(files, true);
+    }, []);
+    useFileDrop(pageRef, onDrop);
     useEffect(
         () =>
             whileDataPageOpen(store, (next) => {
@@ -389,45 +417,41 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     // An addition whose edges repeat the graph's says so, and offers the source menu's Replace
     // with this file beside Load, when the graph's one source can be replaced. When every edge
     // in the file repeats, Load would only double the graph's edges, so Replace is the primary.
+    // Replace replaces at once, as opening a copy of the source does, with a receipt and Undo:
+    // the page already showed the file, and a load can be undone, so nothing asks again. The file
+    // is read as the page read it, with the reader's file settings and column roles.
     const repeats = request.intent === "add" ? (page.report?.repeated.seen ?? 0) : 0;
     const sources = repeats > 0 && session !== null ? session.data.sources() : [];
     const file = page.source?.kind === "files" && page.source.files.length === 1 ? page.source.files[0] : undefined;
     const replace =
-        file !== undefined && canReplace(sources)
+        // Which load the repeated edges came from is known only when there is one.
+        file !== undefined && sources.length === 1 && sources[0].kind !== "server"
             ? {
                   label: `Replace ${sources[0].name ?? "the data"}`,
                   primary: repeats >= (page.report?.counts.edgeRecords ?? Infinity),
                   run: () => {
-                      replaceSource(store, sources[0], file);
+                      const { draft, source, settings, choices } = page;
+                      if (session === null || draft === null || source === null) {
+                          return;
+                      }
+                      store.set({ page: "panels" });
+                      const incoming = { name: file.name, source: sourceInput(source, settings) };
+                      void replaceWith(
+                          store,
+                          session,
+                          sources[0].key,
+                          incoming,
+                          loadChoices(draft, choices, "merge", fileStylesOn(session)),
+                      ).catch(() => {
+                          store.set({ notice: { message: "Not replaced" } });
+                      });
                   },
               }
             : null;
 
     return (
         <PopoutManager>
-            <section
-                ref={pageRef}
-                className="dp-page"
-                aria-label="Data page"
-                onDragOver={(event) => {
-                    event.preventDefault();
-                }}
-                onDrop={(event) => {
-                    event.preventDefault();
-                    addFiles([...event.dataTransfer.files], true);
-                }}
-            >
-                <input
-                    ref={fileInput}
-                    type="file"
-                    multiple
-                    hidden
-                    data-testid="data-page-file-input"
-                    onChange={(event) => {
-                        addFiles([...(event.currentTarget.files ?? [])], joining.current);
-                        event.currentTarget.value = "";
-                    }}
-                />
+            <section ref={pageRef} className="dp-page" aria-label="Data page">
                 <header className="dp-header">
                     <Title order={1} size="h4">
                         {title}
@@ -451,6 +475,9 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
                             joins={joins}
                             onChooseFiles={() => {
                                 chooseFiles(false);
+                            }}
+                            onFiles={(files) => {
+                                addFiles(files, false);
                             }}
                         />
                     </section>
@@ -516,9 +543,18 @@ interface PartProps {
  * @returns The list
  */
 function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => void }): React.JSX.Element {
-    const [entry, setEntry] = useState<"url" | "paste" | null>(null);
+    const { store } = useWorkspace();
+    const [entry, setEntry] = useState(false);
     const addButton = useRef<HTMLButtonElement>(null);
     const { draft } = page;
+    const paste = async (): Promise<void> => {
+        const pasted = await readPasted();
+        if (pasted === null) {
+            store.set({ notice: { message: "Clipboard empty" } });
+        } else {
+            page.setSource(pasted);
+        }
+    };
     return (
         <section className="dp-tables" aria-label="Tables">
             <Group justify="space-between" wrap="nowrap" className="dp-section-head">
@@ -528,56 +564,57 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                 <Menu position="bottom-start">
                     <Menu.Target>
                         {/* To the left, over empty space: below, it covers the table's "Each row is" label. */}
-                        <Tooltip label="Add a table" position="left">
+                        <TargetTooltip label="Add a table" position="left">
                             <ActionIcon ref={addButton} variant="subtle" size="sm" aria-label="Add a table">
                                 <GLYPHS.add size={14} aria-hidden />
                             </ActionIcon>
-                        </Tooltip>
+                        </TargetTooltip>
                     </Menu.Target>
                     <Menu.Dropdown>
                         <Menu.Item onClick={onChooseFiles}>File...</Menu.Item>
                         <Menu.Item
                             onClick={() => {
-                                setEntry("url");
+                                setEntry(true);
                             }}
                         >
                             From a URL...
                         </Menu.Item>
                         <Menu.Item
                             onClick={() => {
-                                setEntry("paste");
+                                void paste();
                             }}
                         >
-                            Paste...
+                            Paste
                         </Menu.Item>
                     </Menu.Dropdown>
                 </Menu>
                 {/* Opened from the menu, so there is no Popout.Trigger: the panel docks to "+". */}
-                <Popout
-                    opened={entry !== null}
-                    onOpenChange={(open) => {
-                        if (!open) {
-                            setEntry(null);
-                        }
-                    }}
-                >
+                <Popout opened={entry} onOpenChange={setEntry}>
                     <Popout.Panel
                         width={ENTRY_WIDTH}
-                        header={{ variant: "title", title: entry === "paste" ? "Paste" : "From a URL" }}
+                        header={{ variant: "title", title: "From a URL" }}
+                        closeLabel="Close From a URL"
                         anchorX={addButton}
                         anchorY={addButton}
                         placement="right"
                     >
                         <Popout.Content>
-                            {entry === null ? null : (
-                                <EntryForm
-                                    kind={entry}
-                                    onDone={(source) => {
-                                        setEntry(null);
-                                        page.setSource(source);
+                            {entry ? (
+                                <FileSource
+                                    variant="row"
+                                    url
+                                    multiple
+                                    placeholder="Address"
+                                    onUrl={(url) => {
+                                        setEntry(false);
+                                        page.setSource({ kind: "url", url });
+                                    }}
+                                    onFiles={(files) => {
+                                        setEntry(false);
+                                        page.setSource({ kind: "files", files });
                                     }}
                                 />
-                            )}
+                            ) : null}
                         </Popout.Content>
                     </Popout.Panel>
                 </Popout>
@@ -641,14 +678,14 @@ function leftOutRows(page: LoadDraftState): number {
  * @param props.leftOut - How many of its rows the load would leave out
  * @returns The mark
  */
-function ReadyMark({ ready, leftOut = 0 }: Readonly<{ ready: boolean; leftOut?: number }>): React.JSX.Element {
+export function ReadyMark({ ready, leftOut = 0 }: Readonly<{ ready: boolean; leftOut?: number }>): React.JSX.Element {
     if (!ready) {
         return <GLYPHS.empty size={14} role="img" aria-label="Not ready" />;
     }
     if (leftOut > 0) {
         return <GLYPHS.warning size={14} color="var(--cm-text-danger)" role="img" aria-label={leftOutWords(leftOut)} />;
     }
-    return <GLYPHS.ready size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />;
+    return <GLYPHS.ready size={14} color="var(--cm-text-success)" role="img" aria-label="Ready" />;
 }
 
 /**
@@ -679,64 +716,6 @@ function TableRow({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                 page.setFilter("all");
             }}
         />
-    );
-}
-
-/**
- * The URL or paste entry under "+".
- * @param props - Component props
- * @param props.kind - Which entry
- * @param props.onDone - Called with the source
- * @returns The form
- */
-function EntryForm({
-    kind,
-    onDone,
-}: Readonly<{
-    kind: "url" | "paste";
-    onDone: (source: PageSource) => void;
-}>): React.JSX.Element {
-    const [value, setValue] = useState("");
-    return (
-        <form
-            onSubmit={(event) => {
-                event.preventDefault();
-                if (value.trim() !== "") {
-                    onDone(kind === "url" ? { kind: "url", url: value.trim() } : { kind: "text", text: value });
-                }
-            }}
-        >
-            <Stack gap="xs">
-                {kind === "url" ? (
-                    <TextInput
-                        label="Address"
-                        size="sm"
-                        data-autofocus
-                        value={value}
-                        onChange={(event) => {
-                            setValue(event.currentTarget.value);
-                        }}
-                    />
-                ) : (
-                    <Textarea
-                        label="Data"
-                        size="sm"
-                        autosize
-                        minRows={4}
-                        data-autofocus
-                        value={value}
-                        onChange={(event) => {
-                            setValue(event.currentTarget.value);
-                        }}
-                    />
-                )}
-                <Group justify="flex-end">
-                    <Button type="submit" size="sm">
-                        Read
-                    </Button>
-                </Group>
-            </Stack>
-        </form>
     );
 }
 
@@ -775,28 +754,29 @@ type Joins = { readonly name: string; readonly nodes: number; readonly edges: nu
  * @param props.page - The page state
  * @param props.joins - The graph an addition joins, or null
  * @param props.onChooseFiles - Opens the file picker
+ * @param props.onFiles - Reads files dropped or chosen in the empty view
  * @returns The view
  */
 function MainView({
     page,
     joins,
     onChooseFiles,
-}: PartProps & { joins: Joins; onChooseFiles: () => void }): React.JSX.Element {
+    onFiles,
+}: PartProps & { joins: Joins; onChooseFiles: () => void; onFiles: (files: File[]) => void }): React.JSX.Element {
     const { draft, source } = page;
     if (source === null) {
         // The whole page takes a drop; this area says so at the size of the space it fills.
         return (
             <div className="dp-drop">
-                <Stack align="center" gap="xs" className="dp-drop-area">
-                    <GLYPHS.upload size={28} aria-hidden />
-                    <Text fw={600}>Drop a file here</Text>
-                    <Text size="xs" c="dimmed">
-                        The file is read here and never uploaded.
-                    </Text>
-                    <Button size="sm" variant="default" onClick={onChooseFiles}>
-                        Choose a file...
-                    </Button>
-                </Stack>
+                <FileSource
+                    variant="drop"
+                    multiple
+                    url
+                    onFiles={onFiles}
+                    onUrl={(url) => {
+                        page.setSource({ kind: "url", url });
+                    }}
+                />
             </div>
         );
     }
@@ -998,6 +978,7 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                 <Popout.Panel
                     width={SETTINGS_WIDTH}
                     header={{ variant: "title", title: "File settings" }}
+                    closeLabel="Close File settings"
                     placement="bottom"
                 >
                     <Popout.Content>
@@ -1057,6 +1038,33 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
 }
 
 /**
+ * A role option as a column that looks like time shows it: Time carries the mark.
+ * @param option - The option.
+ * @param option.value - Its role.
+ * @param option.label - Its words.
+ * @returns The option, marked when it is Time.
+ */
+function markTimeOption(option: { value: string; label: string }): { value: string; label: string } {
+    return option.value === "time" ? { ...option, label: SUGGESTED_TIME } : option;
+}
+
+/**
+ * The roles a column offers. A column of a table the file sets can only become the time column.
+ * @param options - Every role of the table.
+ * @param fixed - Whether the file sets the table's roles.
+ * @param marked - Whether the column shows the mark.
+ * @returns The options.
+ */
+function roleChoices(
+    options: readonly { value: string; label: string }[],
+    fixed: boolean,
+    marked: boolean,
+): { value: string; label: string }[] {
+    const offered = fixed ? options.filter(({ value }) => value === "time" || value === "attribute") : [...options];
+    return marked ? offered.map(markTimeOption) : offered;
+}
+
+/**
  * Each column's role (section 2.10, item 4). The grid's header cannot hold a menu, so the roles
  * are listed above it, one per column, in the grid's order.
  * @param props - Component props
@@ -1066,10 +1074,17 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
  * @returns The list
  */
 function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table: DraftTable }): React.JSX.Element {
+    const { session } = useWorkspace();
     const kind = rowsAreOf(draft, table, page.choices);
     const changed = kindChanged(draft, table, page.choices);
+    // With the timeline off Time is no choice, but a role the element already reads stays shown.
+    const timeOffered =
+        timelineOn(session) ||
+        table.columns.some((column) => elementRole(draft, table, column.name, page.choices) === "time");
     const options: { value: string; label: string }[] = [
-        ...ROLES_BY_KIND[kind].map((role) => ({ value: role, label: roleWords(role) })),
+        ...LOAD_ROLES[kind].takes
+            .filter((role) => role !== "time" || timeOffered)
+            .map((role) => ({ value: role, label: roleWords(role) })),
         { value: "attribute", label: roleWords("attribute") },
         // After a kind change the element's new reading of each role is not reported (#911).
         ...(changed ? [{ value: "auto", label: "Auto" }] : []),
@@ -1083,16 +1098,33 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
             {table.columns.map((column) => {
                 const own = elementRole(draft, table, column.name, page.choices);
                 const chosen = page.choices.tables[table.id]?.roles[column.name];
+                const current = chosen ?? own ?? "auto";
+                const marked = timeMarked(draft, table, column, page.choices);
+                // A role the file sets is a fact, not a choice: plain words, never a box to open.
+                // Only a column that looks like time stays open, as no file says which is its time.
+                const fileSet = table.fixed && column.looksLike !== "time";
+                if (fileSet) {
+                    return (
+                        <div key={column.name} className="dp-role" data-testid="fixed-role">
+                            <Text size="xs" fw={500}>
+                                {column.name}
+                            </Text>
+                            <Text size="xs">{options.find((option) => option.value === current)?.label}</Text>
+                            <Text size="xs" c="dimmed">
+                                {TYPE_WORDS[column.type] ?? column.type}
+                            </Text>
+                        </div>
+                    );
+                }
                 return (
                     <div key={column.name} className="dp-role">
                         <Group gap={8} wrap="nowrap" align="flex-end">
                             <Select
                                 label={column.name}
                                 aria-label={`Role of ${column.name}`}
-                                value={chosen ?? own ?? "auto"}
-                                data={options}
+                                value={current}
+                                data={roleChoices(options, table.fixed, marked)}
                                 allowDeselect={false}
-                                disabled={table.fixed}
                                 style={{ flex: 1 }}
                                 onChange={(value) => {
                                     choose(column.name, value ?? undefined);
@@ -1101,7 +1133,6 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                             {chosen !== undefined && (
                                 <ResetButton
                                     label={column.name}
-                                    disabled={table.fixed}
                                     onClick={() => {
                                         choose(column.name, undefined);
                                     }}
@@ -1110,13 +1141,33 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                         </Group>
                         <Text size="xs" c="dimmed">
                             {TYPE_WORDS[column.type] ?? column.type}
+                            {marked ? `, ${TIMELINE_CANDIDATE}` : ""}
                         </Text>
+                        {/* A number column holding times says how its numbers read: epoch or years. */}
+                        {timelineOn(session) &&
+                        (chosen ?? own) === "time" &&
+                        (column.type === "number" || column.type === "integer") ? (
+                            <Select
+                                size="xs"
+                                label="Unit"
+                                aria-label={`Unit of ${column.name}`}
+                                value={page.choices.tables[table.id]?.timeUnit ?? "ms"}
+                                data={UNIT_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
+                                allowDeselect={false}
+                                disabled={fileSet}
+                                onChange={(value) => {
+                                    if (value !== null) {
+                                        page.setChoices(setTimeUnit(table, value as TimeUnit, page.choices));
+                                    }
+                                }}
+                            />
+                        ) : null}
                     </div>
                 );
             })}
         </fieldset>
     );
-    // Boxes that cannot change say why where they stand, as "Each row is" does above them.
+    // Roles that cannot change say why where they stand, as "Each row is" does above them.
     return table.fixed ? (
         <Input.Wrapper labelElement="div" label="Column roles" description="Set by the file" size="sm">
             {list}
@@ -1140,27 +1191,51 @@ const COLUMN_MAX = 320;
 
 let measurer: CanvasRenderingContext2D | null = null;
 
+/** How wide a column must be to show its header and every value given, whole, in pixels. */
+type FitWidth = (header: string, values: readonly string[]) => number;
+
 /**
- * How wide a column must be to show its header and every value given, whole.
- * @param header - the column's name.
- * @param values - its shown values.
- * @returns the width in pixels.
+ * Measures with the faces loaded now. Inter swaps in after first paint, so a width measured before
+ * it arrived is the fallback font's; each font load hands out a new one, and the grid measures
+ * again (#6127).
+ * @returns the measure.
  */
-function fitWidth(header: string, values: readonly string[]): number {
-    measurer ??= document.createElement("canvas").getContext("2d");
-    if (measurer === null) {
-        return COLUMN_MIN;
-    }
-    const family = getComputedStyle(document.body).fontFamily;
-    measurer.letterSpacing = CELL_TRACKING;
-    measurer.font = `600 ${CELL_FONT} ${family}`;
-    let widest = measurer.measureText(header).width + HEADER_PAD;
-    measurer.font = `450 ${CELL_FONT} ${family}`;
-    for (const value of values) {
-        widest = Math.max(widest, measurer.measureText(value).width + CELL_PAD);
-    }
-    // One pixel more: the cell lays text out on subpixels and rounds its own box down.
-    return Math.min(COLUMN_MAX, Math.max(COLUMN_MIN, Math.ceil(widest) + 1));
+function makeFitWidth(): FitWidth {
+    return (header, values) => {
+        measurer ??= document.createElement("canvas").getContext("2d");
+        if (measurer === null) {
+            return COLUMN_MIN;
+        }
+        const family = getComputedStyle(document.body).fontFamily;
+        measurer.letterSpacing = CELL_TRACKING;
+        measurer.font = `600 ${CELL_FONT} ${family}`;
+        let widest = measurer.measureText(header).width + HEADER_PAD;
+        measurer.font = `450 ${CELL_FONT} ${family}`;
+        for (const value of values) {
+            widest = Math.max(widest, measurer.measureText(value).width + CELL_PAD);
+        }
+        // One pixel more: the cell lays text out on subpixels and rounds its own box down.
+        return Math.min(COLUMN_MAX, Math.max(COLUMN_MIN, Math.ceil(widest) + 1));
+    };
+}
+
+let fitWidthNow = makeFitWidth();
+// Swapped whether or not a grid is subscribed yet: one that rendered before the load and
+// subscribes after it still sees a new measure.
+document.fonts.addEventListener("loadingdone", () => {
+    fitWidthNow = makeFitWidth();
+});
+
+/**
+ * Follows the page's font loads.
+ * @param onChange - called after each load.
+ * @returns the unsubscribe.
+ */
+function subscribeFonts(onChange: () => void): () => void {
+    document.fonts.addEventListener("loadingdone", onChange);
+    return () => {
+        document.fonts.removeEventListener("loadingdone", onChange);
+    };
 }
 
 /**
@@ -1185,6 +1260,7 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
             row.missingEnds?.some((end) => endColumns?.[end]?.column === name) === true,
         [endColumns],
     );
+    const fitWidth = useSyncExternalStore(subscribeFonts, () => fitWidthNow);
     const columns = useMemo<DataTableColumn<DraftRow>[]>(() => {
         // A yes-or-no reads Yes or No, as it does everywhere else once loaded.
         const types = new Map(table.columns.map((column) => [column.name, column.type]));
@@ -1230,7 +1306,7 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                 };
             }),
         ];
-    }, [table, rows, missingIn]);
+    }, [table, rows, missingIn, fitWidth]);
     const what = page.filter === "unmatched" ? "unmatched row" : "row that could not be read";
     const missingNames = rows.flatMap((row) =>
         (row.missingEnds ?? []).flatMap((end) => {
@@ -1267,6 +1343,9 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                 scrolls when they do not fit, never a box inside it. */}
             <DataTable
                 label={`Rows of ${table.name}`}
+                // The panel list pitch, not the spreadsheet rows DataTable draws by default.
+                rowHeight={PANEL_GRID.ROW_PITCH}
+                headerHeight={PANEL_GRID.ROW_PITCH}
                 columns={columns}
                 data={rows}
                 // The grid says the count it is given when its rows change; a preview of the first
@@ -1477,6 +1556,7 @@ function Footer({
     onCancel: () => void;
     onLoad: () => void;
 }): React.JSX.Element {
+    const { session } = useWorkspace();
     const blocked = loadBlocked(page);
     const loadButton = useRef<HTMLButtonElement>(null);
     const replaceButton = useRef<HTMLButtonElement>(null);
@@ -1536,7 +1616,7 @@ function Footer({
                     });
                 }}
             />
-            {draft !== null && offersStyles(draft) ? (
+            {draft !== null && fileStylesOn(session) && offersStyles(draft) ? (
                 <Checkbox
                     label="Import styles from the file"
                     size="xs"

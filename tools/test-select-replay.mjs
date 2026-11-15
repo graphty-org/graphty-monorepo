@@ -182,7 +182,7 @@ function replayOne(entry, ctx) {
     }
     const changed = changedBetween(base, entry.sha);
     const sel = selectPackages({ changed, ...ctx.selectArgs });
-    const shards = selectShards(ctx.SHARDS, sel.packages, ctx.graphs, ctx.allowed);
+    const shards = selectShards(ctx.SHARDS, sel.packages, ctx.graphs, ctx.allowed, undefined, sel.smoke);
     const failures = [];
     for (const r of entry.gate.ran.filter((x) => !x.ok)) {
         const pkg = packageOfShard(r.shard, ctx.SHARDS);
@@ -415,7 +415,7 @@ async function main(argv) {
     const graphs =
         cache && existsSync(cache)
             ? new Map(Object.entries(JSON.parse(readFileSync(cache, "utf8"))))
-            : buildGraphs(ROOT, [...packages.values()], SHARDS);
+            : await buildGraphs(ROOT, [...packages.values()], SHARDS);
     if (cache && !existsSync(cache)) {
         writeFileSync(cache, JSON.stringify(Object.fromEntries(graphs)));
     }

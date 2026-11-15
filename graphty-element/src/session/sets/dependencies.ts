@@ -8,6 +8,7 @@
  * |---------------------------------------------------------|-------------------------------------|
  * | a `member` leaf `{ set: id }`                            | that set (follows it)               |
  * | a `member` leaf `"visible"`, `"selection"`, `"search"`   | the visibility filter, the selection, the search |
+ * | a `state` leaf                                         | the selection, which it is as live as |
  * | a `member` leaf `"largest-component"`; `component`, `degree`, `neighborhood`, `isolated`, `self-loop`, `repeated-edge` | topology (the snapshot) |
  * | a path `results.<run>.<field>` a query or `threshold` reads | that run (follows its current execution) |
  * | an `item` leaf without `run`                            | that result (follows its current run) |
@@ -191,7 +192,12 @@ class Collector {
             case "isolated":
             case "self-loop":
             case "repeated-edge":
+            case "source":
                 this.add({ kind: "topology" });
+                return;
+            case "state":
+                // Live as the selection is, so whatever cannot follow the one refuses the other.
+                this.add({ kind: "selection" });
                 return;
             case "member":
                 this.scope(node.of);
@@ -200,7 +206,49 @@ class Collector {
                 this.itemRule(node.item);
                 return;
             case "threshold":
+                // Ranked among what is shown, it moves when what is shown does.
+                if (node.within === "visible") {
+                    this.add({ kind: "visible" });
+                }
+
                 this.path(node.path);
+                return;
+            case "by-size":
+                this.path(node.path);
+                return;
+            case "union":
+                if (node.within === "visible") {
+                    this.add({ kind: "visible" });
+                }
+
+                if (Array.isArray(node.branches)) {
+                    for (const branch of node.branches as readonly Loose[]) {
+                        for (const step of Array.isArray(branch.steps) ? (branch.steps as readonly Loose[]) : []) {
+                            this.tree(step.rule);
+                        }
+                    }
+                }
+
+                return;
+            case "hops":
+            case "touching":
+            case "nonempty":
+                this.add({ kind: "topology" });
+                this.reference(node.of);
+                return;
+            case "same-value":
+                this.path(node.path);
+                this.reference(node.as);
+                return;
+            case "measure":
+                // The run a measure reads is found by definition, so the topology stands for it.
+                this.add({ kind: "topology" });
+                if (isObject(node.bind)) {
+                    for (const reference of Object.values(node.bind)) {
+                        this.reference(reference);
+                    }
+                }
+
                 return;
             case "all":
             case "any":
@@ -215,6 +263,19 @@ class Collector {
                 this.tree(node.of);
                 return;
             default:
+        }
+    }
+
+    /**
+     * A step's reference: a scope as any other, the live focus as the selection it falls back to,
+     * and `"so-far"` as nothing beyond the branch it sits in.
+     * @param reference - The reference.
+     */
+    private reference(reference: unknown): void {
+        if (reference === "hovered-or-selected") {
+            this.add({ kind: "selection" });
+        } else if (reference !== "so-far" && reference !== undefined) {
+            this.scope(reference);
         }
     }
 
@@ -319,6 +380,46 @@ export function refuseNotePaths(
 }
 
 /**
+ * Whether a reference can be a step of a chain: a set, or one of the live keywords.
+ * @param dependency - The reference.
+ * @returns True for `set`, `visible`, `selection` and `search`.
+ */
+function isChainLink(
+    dependency: Dependency,
+): dependency is Extract<Dependency, { kind: "set" | "visible" | "selection" | "search" }> {
+    return (
+        dependency.kind === "set" ||
+        dependency.kind === "visible" ||
+        dependency.kind === "selection" ||
+        dependency.kind === "search"
+    );
+}
+
+/**
+ * What a chain walk enters next from one reference: a set's referent, or the visibility filter
+ * when `"visible"` is followed.
+ * @param dependency - The reference.
+ * @param sources - Where references are looked up.
+ * @param throughVisible - Whether `"visible"` leads into the visibility filter.
+ * @returns The value to walk, or null or undefined when the reference leads nowhere.
+ */
+function chainReferent(
+    dependency: Dependency,
+    sources: DependencySources,
+    throughVisible: boolean,
+): SetDefinition | Scope | RuleTree | null | undefined {
+    if (dependency.kind === "set") {
+        return sources.referent(dependency.id);
+    }
+
+    if (dependency.kind === "visible" && throughVisible) {
+        return sources.visibility?.();
+    }
+
+    return undefined;
+}
+
+/**
  * The first chain of references from a value to a dependency the target accepts, depth first.
  * `{ set }` references are followed into what they name; `"visible"` is followed into the
  * visibility filter only when `throughVisible` is set. Each set is entered once, so a ring the walk
@@ -339,12 +440,7 @@ function findChain(
 
     const walk = (value: SetDefinition | Scope | RuleTree, chain: readonly ChainStep[]): ChainStep[] | null => {
         for (const dependency of dependenciesOf(value, sources.pathsOf)) {
-            if (
-                dependency.kind !== "set" &&
-                dependency.kind !== "visible" &&
-                dependency.kind !== "selection" &&
-                dependency.kind !== "search"
-            ) {
+            if (!isChainLink(dependency)) {
                 continue;
             }
 
@@ -359,13 +455,7 @@ function findChain(
             }
 
             entered.add(key);
-            let next: SetDefinition | Scope | RuleTree | null | undefined;
-            if (dependency.kind === "set") {
-                next = sources.referent(dependency.id);
-            } else if (dependency.kind === "visible" && throughVisible) {
-                next = sources.visibility?.();
-            }
-
+            const next = chainReferent(dependency, sources, throughVisible);
             const found = next === undefined || next === null ? null : walk(next, [...chain, step]);
             if (found !== null) {
                 return found;
@@ -444,6 +534,28 @@ export function referentReading(sources: DependencySources): (id: SetId) => stri
 }
 
 /**
+ * The nodes a partition-group search descends into from one node of a definition, scope or rule tree.
+ * @param node - The node.
+ * @returns Its children, in order.
+ */
+function groupWalkChildren(node: Loose): unknown[] {
+    const children: unknown[] = [];
+    if (node.kind === "rule") {
+        children.push(node.where);
+    } else if (node.kind === "all" || node.kind === "any") {
+        children.push(...(Array.isArray(node.of) ? node.of : []));
+    } else if (node.kind === "not") {
+        children.push(node.of);
+    } else if (node.kind === "member") {
+        children.push(node.of);
+    } else if (node.define !== undefined) {
+        children.push(node.define);
+    }
+
+    return children;
+}
+
+/**
  * The first `item` leaf that follows a partition group across re-runs (the `group` field of a
  * `community` result), in the value itself and the definitions it carries inline. A group number
  * means nothing across re-runs, so such an item must hold its execution.
@@ -469,20 +581,7 @@ export function followedGroup(value: SetDefinition | Scope | RuleTree, sources: 
             return isGroup ? (node.item as unknown as ResultItem) : null;
         }
 
-        const children: unknown[] = [];
-        if (node.kind === "rule") {
-            children.push(node.where);
-        } else if (node.kind === "all" || node.kind === "any") {
-            children.push(...(Array.isArray(node.of) ? node.of : []));
-        } else if (node.kind === "not") {
-            children.push(node.of);
-        } else if (node.kind === "member") {
-            children.push(node.of);
-        } else if (node.define !== undefined) {
-            children.push(node.define);
-        }
-
-        for (const child of children) {
+        for (const child of groupWalkChildren(node)) {
             const found = walk(child);
             if (found !== null) {
                 return found;

@@ -182,6 +182,21 @@ export interface CompactMantineLabels {
      */
     treeMoved: (name: string, parent: string | null, position: string, count: string) => string;
 
+    // CardList
+
+    /** CardList: accessible name of a card's grip, which drags it. */
+    moveCard: (title: string) => string;
+    /** CardList: tooltip of a card's grip. */
+    reorderCard: string;
+    /** CardList: accessible name of a folded card's fold button. */
+    expandCard: (title: string) => string;
+    /** CardList: accessible name of an open card's fold button. */
+    collapseCard: (title: string) => string;
+    /** CardList: accessible name of a card's title button and of its rename field. */
+    renameCard: (title: string) => string;
+    /** CardList: accessible name and tooltip of a card's x. */
+    deleteCard: (title: string) => string;
+
     // CompactColorInput
 
     /**
@@ -436,6 +451,26 @@ export interface CompactMantineLabels {
      * @returns The line, such as `No option starts with "cube"`
      */
     listNoMatch?: (typed: string) => string;
+
+    // EntityChip
+
+    /** What a screen reader says before a node chip's count or name. Never drawn: the chip shows a circle. */
+    entityNode: string;
+    /** What a screen reader says before an edge chip's count or name. Never drawn: the chip shows a segment. */
+    entityEdge: string;
+
+    // FileSource
+
+    /** The text of `FileSource`'s button that opens the file picker, and the name of its upload icon button. */
+    fileChoose: string;
+    /** Placeholder and accessible name of `FileSource`'s web address field. */
+    fileUrl: string;
+    /** The text of `FileSource`'s button that opens the folder picker (`folder`). */
+    fileChooseFolder: string;
+    /** The accessible name of `FileSource`'s progress bar (`progress`). */
+    fileLoading: string;
+    /** The text of `FileSource`'s button that stops a load under way (`onCancel`). */
+    fileCancel: string;
 }
 
 /**
@@ -514,7 +549,7 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     colorPanelTitle: "Color",
     colorGenericName: "color",
 
-    colorStops: "Color Stops",
+    colorStops: "Stops",
     addColorStop: "Add color stop",
     colorStopPosition: (position: string): string => `Stop ${position} position`,
     removeColorStop: (position: string): string => `Remove color stop ${position}`,
@@ -540,6 +575,13 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     yes: "Yes",
     no: "No",
 
+    moveCard: (title: string): string => `Move ${title}`,
+    reorderCard: "Drag to reorder",
+    expandCard: (title: string): string => `Expand ${title}`,
+    collapseCard: (title: string): string => `Collapse ${title}`,
+    renameCard: (title: string): string => `Rename ${title}`,
+    deleteCard: (title: string): string => `Delete ${title}`,
+
     closePanel: "Close panel",
     settings: "Settings",
 
@@ -554,6 +596,15 @@ export const defaultLabels: Required<CompactMantineLabels> = {
     listNoMatch: (typed: string): string => `No option starts with "${typed}"`,
 
     passwordReveal: "Show the password",
+
+    entityNode: "Node",
+    entityEdge: "Edge",
+
+    fileChoose: "Choose file",
+    fileUrl: "URL",
+    fileChooseFolder: "Choose folder",
+    fileLoading: "Loading",
+    fileCancel: "Cancel",
 
     // Intl.PluralRules already sorts out English's exceptions: 11, 12 and 13
     // come back as "other" and take "th", while 21, 22 and 23 come back as

@@ -82,7 +82,6 @@ import { Graph } from "../../../index.js";
  */
 import { GraphtyLogger, LogLevel, type LogRecord, type Sink } from "../../../logging";
 import type { GraphSession, LayerSpec } from "../../../session";
-import { operationQueueOf } from "../../../src/Graph";
 
 // ---------------------------------------------------------------------------------------------
 // 1. The palette
@@ -598,30 +597,30 @@ describe("six extensions, one graph", () => {
         // FORMAT: the data arrives by naming the registered reader. Nothing else in this file
         // adds a node, so every assertion below stands on the plugin's parser having worked.
         await graph.addDataFromSource(ATLAS_FORMAT, { data: ROLL_FILE });
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         // LAYOUT: the registered engine decides where those nodes sit.
         await graph.setLayout(ATLAS_LAYOUT, {});
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         // ALGORITHM: the registered algorithm measures them.
         const run = graph.run(ATLAS_ALGORITHM);
         await run;
         runId = run.id;
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         // PALETTE: a layer paints them through the registered palette, on top of whatever the
         // element derived from the run.
         await session.styles.add(SIGNAL_LAYER);
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
 
         // CAMERA: the registered view decides where the viewer stands.
         await graph.applyCameraView("atlas-overhead", { animate: false });
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
     });
 
     afterAll(async () => {
-        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForSettled();
         graph.dispose();
         container.remove();
 
@@ -916,6 +915,14 @@ describe("every registration surface the published entry points carry", () => {
         "extend.registerSnapshotLayout": { suite: "browser/extensions/layout-extension.test.ts" },
         // A network source (graph-io's registry, re-exported): a page registers one and names it in `data-source`.
         "extend.registerSource": { suite: "browser/network-sources.test.ts" },
+        "extend.registerShader": {
+            excluded: "a shader is not one of the six extension points",
+            coveredBy: "shaders/shader-registry.test.ts",
+        },
+        "extend.registerTransition": {
+            excluded: "a layout transition is not one of the six extension points",
+            coveredBy: "browser/transitions/layout-transition.test.ts",
+        },
         "extend.SimpleLayoutConfig": {
             excluded: "a Zod schema: its register method is Zod's metadata registry, not the element's",
         },

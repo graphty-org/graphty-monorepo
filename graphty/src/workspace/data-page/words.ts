@@ -6,7 +6,11 @@
 import { FORMAT_DESCRIPTORS, formatDescriptor } from "@graphty/graphty-element/catalog";
 import { isGraphtyError, type LoadedSource, type TooLargeDetails } from "@graphty/graphty-element/session";
 
+import { formatCount } from "../settings/numberFormat";
 import type { PageRole } from "./choices";
+
+/** Beside a column graphty-element found looks like time, until the reader makes it the time column. */
+export const TIMELINE_CANDIDATE = "timeline candidate";
 
 /** Role menu words, by role and by what a table's rows are (section 2.10, "Sample grid"). */
 const ROLE_WORDS: Readonly<Record<PageRole, string>> = {
@@ -19,8 +23,18 @@ const ROLE_WORDS: Readonly<Record<PageRole, string>> = {
     // Not "Time": beside Weight, a column of minutes read it as its own role (tier 2 pilot, T20).
     time: "Date or time",
     edgeId: "Edge id",
+    kind: "Kind",
+    latitude: "Latitude",
+    longitude: "Longitude",
+    coordinates: "Coordinates",
+    country: "Country",
+    region: "Region",
+    city: "City",
     attribute: "Attribute",
 };
+
+/** The Time option of a column that looks like time. */
+export const SUGGESTED_TIME = `${ROLE_WORDS.time} (suggested)`;
 
 /** Joins names: "a and b", "a, b, and c". */
 const AND = new Intl.ListFormat("en-US", { type: "conjunction" });
@@ -35,12 +49,12 @@ export function roleWords(role: PageRole): string {
 }
 
 /**
- * A count with the reader's digit grouping.
+ * A count in the reader's Number format.
  * @param value - the count.
  * @returns "3,000".
  */
 export function count(value: number): string {
-    return value.toLocaleString("en-US");
+    return formatCount(value);
 }
 
 /**
@@ -304,16 +318,30 @@ export function refusalFor(error: unknown, source: string): Refusal {
                 fixable: true,
             };
         case "E_TOO_LARGE":
-            // Temporary: GraphtyError details are untyped, so this code's details cannot be read
-            // as the element's TooLargeDetails without a cast (#868). Delete the cast with #868.
-            return tooLargeRefusal(details as unknown as TooLargeDetails);
+            if (isGraphtyError(error) && error.code === "E_TOO_LARGE") {
+                const { of, count: total, limit } = error.details;
+                if (total !== undefined && limit !== undefined) {
+                    return tooLargeRefusal({ of, count: total, limit });
+                }
+            }
+
+            return unreadable(source);
         default:
-            return {
-                what: `${source} could not be read.`,
-                todo: "Choose another file.",
-                fixable: false,
-            };
+            return unreadable(source);
     }
+}
+
+/**
+ * The refusal for a file that could not be read, for a reason with no words of its own.
+ * @param source - The file's name, as the reader knows it.
+ * @returns The refusal.
+ */
+function unreadable(source: string): Refusal {
+    return {
+        what: `${source} could not be read.`,
+        todo: "Choose another file.",
+        fixable: false,
+    };
 }
 
 /**
@@ -321,7 +349,7 @@ export function refusalFor(error: unknown, source: string): Refusal {
  * @param details - the report's `tooLarge`.
  * @returns the problem block's words.
  */
-export function tooLargeRefusal(details: TooLargeDetails): Refusal {
+export function tooLargeRefusal(details: Pick<TooLargeDetails, "count" | "limit"> & { readonly of?: string }): Refusal {
     const noun = details.of === "edges" ? "edge" : "node";
     return {
         what: `This load would make ${plural(details.count, noun)}; graphty draws at most ${count(details.limit)}.`,

@@ -25,6 +25,7 @@ import { createRunResult, resultPath, type RunResult } from "../session/results"
 import type { RunExecutionContext, RunOutcome, RunProgressReport } from "../session/runs";
 import { caveat, caveatSentence, noted } from "../session/runs/caveatFacts";
 import { resolutionBehind } from "../session/scope/ScopeApi";
+import { wholeGraph } from "../session/working/graphs";
 import type { AlgorithmSpecificOptions } from "../utils/queue-migration";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
@@ -41,7 +42,7 @@ import type { Manager } from "./interfaces";
  * @returns how many edges the simplification removes; zero for a graph with no parallel edges
  */
 function mergedParallelEdges(data: { getSnapshot(): GraphSnapshot }): number {
-    const declared = data.getSnapshot();
+    const declared = wholeGraph(data);
     if (!declared.flags.multigraph) {
         return 0;
     }
@@ -217,7 +218,7 @@ export class AlgorithmManager implements Manager {
         // The note is appended here rather than in each algorithm because the merge is the
         // element's doing, not any one algorithm's.
         const { caveats } = result.summary();
-        const policy = (algorithm.constructor as typeof Algorithm).parallelEdges ?? "sum";
+        const policy = algorithm.parallelEdgePolicy() ?? "sum";
         const merged = policy === "none" ? 0 : mergedParallelEdges(this.graph.getDataManager());
         const mergedFact = caveat("parallel-edges.merged", { count: merged, policy });
         const stated =
@@ -461,7 +462,7 @@ export class AlgorithmManager implements Manager {
 
         const { reading } = behind;
 
-        return { ...(behind.graph === this.graph.getDataManager().getSnapshot() ? behind : behind.now()), reading };
+        return { ...(behind.graph === wholeGraph(this.graph.getDataManager()) ? behind : behind.now()), reading };
     }
 
     /**

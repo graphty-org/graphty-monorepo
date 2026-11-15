@@ -7,10 +7,13 @@
  *
  * ```js
  * import "@graphty/graphty-element";
- * import "@graphty/graphty-element/webgpu";   // optional: registers now, statically
+ * import "@graphty/graphty-element/webgpu";   // optional: registers now
  * ```
  *
- * It stays the right choice for a toolchain where the root entry's dynamic import of the peer
+ * The peer still loads on first use, not with this entry point (issue #6389): the peer's 1 MB of
+ * kernels arrives while the first frame is being set up instead of before it.
+ *
+ * It stays the right choice for a toolchain where the root entry's optional import of the peer
  * cannot work (webpack before 5.90.2; Vite 8 under Yarn Plug'n'Play while vitejs/vite#21881 is
  * open), for a page that uses only the Node-safe entry points (`./session` and the rest never
  * load the peer on their own), and for anyone who wants registration to happen at a known moment.
@@ -21,14 +24,35 @@
  * loader. Nothing here leaks a GPU type into the element's published API.
  */
 
-import * as root from "@graphty/webgpu-graph-algorithms";
-import * as browser from "@graphty/webgpu-graph-algorithms/browser";
-
 import { registerAccelerator } from "./src/acceleration";
-import { createWebGpuFactory, WEBGPU_ACCELERATOR_NAME } from "./src/acceleration/webgpuFactory";
+import type { AcceleratorFactory } from "./src/acceleration/types";
+import {
+    createWebGpuFactory,
+    createWebGpuSharesDevice,
+    WEBGPU_ACCELERATOR_NAME,
+} from "./src/acceleration/webgpuFactory";
+
+/** The factory and the device-sharing answer, built over the peer once, on first use. */
+let loaded: Promise<{ factory: AcceleratorFactory; sharesDevice: (adapter: unknown) => boolean }> | undefined;
+
+/**
+ * Loads the peer's root and browser entry points, once, and builds over them.
+ * @returns The factory and the device-sharing answer.
+ */
+function load(): NonNullable<typeof loaded> {
+    loaded ??= Promise.all([
+        import("@graphty/webgpu-graph-algorithms"),
+        import("@graphty/webgpu-graph-algorithms/browser"),
+    ]).then(([root, browser]) => ({
+        factory: createWebGpuFactory(root, browser),
+        sharesDevice: createWebGpuSharesDevice(browser),
+    }));
+    return loaded;
+}
 
 registerAccelerator({
     name: WEBGPU_ACCELERATOR_NAME,
     backend: "webgpu",
-    factory: createWebGpuFactory(root, browser),
+    factory: async (options) => (await load()).factory(options),
+    sharesDevice: async (adapter) => (await load()).sharesDevice(adapter),
 });

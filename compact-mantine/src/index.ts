@@ -19,10 +19,12 @@ export {
 } from "./theme";
 
 // Component exports
+export { CardList } from "./components/cards";
 export { CompactColorInput } from "./components/CompactColorInput";
 export { ControlGroup } from "./components/ControlGroup";
 export { ControlSection } from "./components/ControlSection";
 export { DataTable } from "./components/DataTable";
+export { EntityChip } from "./components/EntityChip";
 export { GradientEditor } from "./components/GradientEditor";
 export { InfoCircle } from "./components/InfoCircle";
 export {
@@ -30,30 +32,37 @@ export {
     PopoutButton,
     PopoutManager,
     PopoutRegion,
+    usePopout,
     usePopoutManager,
     usePopoutRegion,
 } from "./components/popout";
 export { RampEditor } from "./components/RampEditor";
 export { ScrollArea, type ScrollAreaProps } from "./components/ScrollArea";
 export { SegmentedControl } from "./components/SegmentedControl";
+export { RangeSlider, Slider } from "./components/Slider";
 export { ToggleWithContent } from "./components/ToggleWithContent";
 
 // Buttons: the toggle icon button and the split button (design/figma-spec.md 4.4, 4.5).
 export { SplitButton, ToggleIconButton } from "./components/buttons";
 
-// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), and focus put on
-// a field by program with its ring drawn.
-export { ComboInput, SearchInput, VariablePill } from "./components/inputs";
-export { focusWithRing } from "./components/inputs/listbox";
+// Inputs: the search field, the combo input and the variable pill (6.2, 6.3, 6.6), the file source
+// with its drop hook and file picker, focus put on a field by program with its ring drawn, and the
+// scrub gesture a number field's handle uses, for a property row whose label scrubs its value, and
+// the check column of a themed list's option, for an option drawn with more than its label.
+export { ComboInput, FileSource, pickFiles, SearchInput, useFileDrop, VariablePill } from "./components/inputs";
+export { FieldCaret, focusWithRing, ListboxCheck } from "./components/inputs/listbox";
+export { type ScrubCallbacks, useScrub } from "./components/inputs/useScrub";
+export { LISTBOX_CLASS_NAMES } from "./theme/components/inputs";
 
 // Overlays: the context menu, the checkable menu row and a row's second line, the modal footer,
-// the toast and the tooltip's shortcut label (8.1-8.6).
+// the toast, the tooltip's shortcut label (8.1-8.6), and the tooltip for a menu's button.
 export {
     ContextMenu,
     MenuCheckItem,
     MenuItemDescription,
     MenuShortcut,
     ModalFooter,
+    TargetTooltip,
     Toast,
     ToastProvider,
     TooltipShortcut,
@@ -90,6 +99,7 @@ export {
     RailButton,
     SecondaryToolbar,
     ShortcutSheet,
+    StatusBar,
     Toolbar,
     ToolButton,
     ToolGroup,
@@ -182,6 +192,7 @@ export { colorWord, isLightColor, mixHex, normalizeHexa } from "./utils/color-ut
 export { isRtl } from "./utils/rtl";
 
 // Type exports
+export type { CardListItem, CardListProps } from "./components/cards";
 export type {
     ActionRowProps,
     ActivationEvent,
@@ -214,6 +225,8 @@ export type {
     DataTableValue,
     Direction,
     DisclosureProps,
+    EntityChipProps,
+    EntityKind,
     FieldGlyphName,
     FieldGlyphProps,
     FieldLetter,
@@ -224,6 +237,8 @@ export type {
     GestureStartHandler,
     GradientEditorProps,
     HistogramBin,
+    HistogramBrushProps,
+    HistogramOverlay,
     HistogramRowProps,
     InfoCircleProps,
     LabelsProviderProps,
@@ -271,13 +286,19 @@ export type {
     ComboInputOption,
     ComboInputProps,
     ComboInputSeparator,
+    FileDropState,
+    FileSourceProps,
+    FileSourceVariant,
+    PickFilesOptions,
     SearchInputProps,
+    UseFileDropOptions,
     VariablePillProps,
 } from "./types";
 export type {
     ContextMenuProps,
     MenuCheckItemProps,
     ModalFooterProps,
+    TargetTooltipProps,
     ToastAction,
     ToastApi,
     ToastOptions,
@@ -323,6 +344,7 @@ export type {
     ShortcutGroup,
     ShortcutSheetProps,
     ShortcutSheetTab,
+    StatusBarProps,
     ToolbarProps,
     ToolButtonProps,
     ToolGroupProps,

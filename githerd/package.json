@@ -1,12 +1,21 @@
 {
     "name": "@graphty/githerd",
     "version": "0.1.19",
-    "private": true,
     "description": "Keeps a GitHub repository's pipeline moving when Claude Code sessions do most of the work: watches the default branch, pull requests and issues, pages the owner, coordinates sessions and starts worker sessions in tmux",
     "author": "Adam Powers <apowers@ato.ms>",
     "type": "module",
     "bin": {
         "githerd": "bin/githerd.mjs"
+    },
+    "files": [
+        "bin/",
+        "lib/",
+        "README.md",
+        "LICENSE"
+    ],
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
     },
     "engines": {
         "node": ">=22.0.0"
@@ -30,5 +39,14 @@
     "dependencies": {
         "@octokit/core": "^7.0.6",
         "tar": "^7.5.22"
-    }
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/graphty-org/graphty-monorepo.git",
+        "directory": "githerd"
+    },
+    "bugs": {
+        "url": "https://github.com/graphty-org/graphty-monorepo/issues"
+    },
+    "homepage": "https://github.com/graphty-org/graphty-monorepo/tree/master/githerd#readme"
 }

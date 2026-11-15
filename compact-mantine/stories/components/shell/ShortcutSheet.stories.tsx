@@ -1,6 +1,6 @@
 import { Group, Kbd, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, fn, userEvent, within } from "@storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { ShortcutSheet } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";

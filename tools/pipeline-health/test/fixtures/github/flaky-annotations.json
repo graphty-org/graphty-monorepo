@@ -1,0 +1,160 @@
+{
+    "_note": "Recorded 2026-10-26 from graphty-org/graphty-monorepo: three ci.yml/release.yml runs and their check suites (FLAKY_SUITE_QUERY), trimmed to the check runs with annotations and to their annotations of interest (test-quarantine lines and one unrelated warning each).",
+    "runs": [
+        {
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZY5hlLQ",
+            "created_at": "2026-10-25T21:01:32Z",
+            "id": 40233504823,
+            "path": ".github/workflows/ci.yml",
+            "run_attempt": 1,
+            "updated_at": "2026-10-25T21:49:39Z"
+        },
+        {
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZZbPA2g",
+            "created_at": "2026-10-25T23:56:48Z",
+            "id": 40246997003,
+            "path": ".github/workflows/ci.yml",
+            "run_attempt": 1,
+            "updated_at": "2026-10-26T01:48:49Z"
+        },
+        {
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZUbZrdg",
+            "created_at": "2026-10-24T18:15:49Z",
+            "id": 40119894804,
+            "path": ".github/workflows/release.yml",
+            "run_attempt": 1,
+            "updated_at": "2026-10-24T19:48:34Z"
+        }
+    ],
+    "suites": {
+        "CS_kwDOQuemQs8AAAAZY5hlLQ": {
+            "checkRuns": {
+                "nodes": [
+                    {
+                        "databaseId": 121291879466,
+                        "name": "Test (graphty-2)",
+                        "completedAt": "2026-10-25T21:19:18Z",
+                        "annotations": {
+                            "nodes": [
+                                {
+                                    "message": "[FLAKY] graphty-2: graphty/src/workspace/layout/__tests__/LayoutSeed.real-element.test.tsx > src/workspace/layout/__tests__/LayoutSeed.real-element.test.tsx failed and passed on the same inputs, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache@v4, actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "databaseId": 121291879393,
+                        "name": "Checks",
+                        "completedAt": "2026-10-25T21:18:14Z",
+                        "annotations": {
+                            "nodes": [
+                                {
+                                    "message": "[QUARANTINED] graphty-1: graphty/src/a.test.tsx > A > opens failed again; it is quarantined, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "[FLAKY] graphty-1: graphty/src/a.test.tsx > A > opens failed and passed on the same inputs, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "[FLAKY] graphty-1: graphty/src/a.test.tsx > A > opens failed and passed on the same inputs, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "[FLAKY] graphty-1: graphty/src/a.test.tsx > A > opens failed and passed on the same inputs, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "databaseId": 121291879388,
+                        "name": "Story tests (graphty)",
+                        "completedAt": "2026-10-25T21:47:19Z",
+                        "annotations": {
+                            "nodes": [
+                                {
+                                    "message": "[FLAKY] graphty-storybook: graphty/src/workspace/graph-place/GraphPlace.stories.tsx > Find No Match failed and passed on the same inputs, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache/restore@v4, actions/cache@v4, actions/checkout@v4, actions/download-artifact@v4, actions/setup-node@v4, actions/upload-artifact@v4, pnpm/action-setup@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "CS_kwDOQuemQs8AAAAZZbPA2g": {
+            "checkRuns": {
+                "nodes": [
+                    {
+                        "databaseId": 121336162707,
+                        "name": "Story tests (graphty)",
+                        "completedAt": "2026-10-26T01:08:24Z",
+                        "annotations": {
+                            "nodes": [
+                                {
+                                    "message": "[FLAKY] graphty-storybook: graphty/src/workspace/graph-place/GraphPlace.stories.tsx > Find No Match failed and passed on the same inputs, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/cache/restore@v4, actions/cache@v4, actions/checkout@v4, actions/download-artifact@v4, actions/setup-node@v4, actions/upload-artifact@v4, pnpm/action-setup@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "databaseId": 121336162659,
+                        "name": "Checks",
+                        "completedAt": "2026-10-26T00:41:44Z",
+                        "annotations": {
+                            "nodes": [
+                                {
+                                    "message": "[QUARANTINED] graphty-1: graphty/src/a.test.tsx > A > opens failed again; it is quarantined, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "[FLAKY] graphty-1: graphty/src/a.test.tsx > A > opens failed and passed on the same inputs, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "[FLAKY] graphty-1: graphty/src/a.test.tsx > A > opens failed and passed on the same inputs, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "[FLAKY] graphty-1: graphty/src/a.test.tsx > A > opens failed and passed on the same inputs, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-node@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        },
+        "CS_kwDOQuemQs8AAAAZUbZrdg": {
+            "checkRuns": {
+                "nodes": [
+                    {
+                        "databaseId": 120961476424,
+                        "name": "CI / Checks",
+                        "completedAt": "2026-10-24T19:18:49Z",
+                        "annotations": {
+                            "nodes": [
+                                {
+                                    "message": "[QUARANTINED] graphty-1: graphty/src/a.test.tsx > A > opens failed again; it is quarantined, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "[FLAKY] graphty-1: graphty/src/a.test.tsx > A > opens failed and passed on the same inputs, so it does not fail the shard"
+                                },
+                                {
+                                    "message": "Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/download-artifact@v4, actions/setup-node@v4, pnpm/action-setup@v4. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/"
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

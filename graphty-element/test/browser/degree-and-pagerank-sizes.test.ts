@@ -32,8 +32,6 @@ const EDGES = [
 ];
 const JSON_DOCUMENT = JSON.stringify({ nodes: NODES, edges: EDGES });
 
-const MOUNT_TIMEOUT_MS = 10000;
-
 /** When the story's two style requests are issued. */
 const ASKED = ["as the PageRank run ends", "after the runs have settled"] as const;
 
@@ -64,12 +62,9 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
-        },
-        { timeout: MOUNT_TIMEOUT_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+    });
 
     return mounted;
 }

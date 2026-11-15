@@ -70,16 +70,16 @@ interface LabelPropagationOptions extends Record<string, unknown> {
  *   always runs on the CPU, and under `acceleration="required"` it is refused.
  */
 export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagationOptions> {
-    static namespace = "graphty";
-    static type = "label-propagation";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "label-propagation";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = labelPropagationOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = labelPropagationOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         maxIterations: {
             type: "integer",
             default: 100,
@@ -128,7 +128,7 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
 
         /* The CPU ports report their iterations and whether they converged; an accelerator's
            result does not. */
-        context.report({ phase: "Spreading labels", total: null });
+        context.report({ phase: "spreading-labels", total: null });
         const { value, precision } = await run((dispatch, s) =>
             synchronous
                 ? dispatch.labelPropagationSynchronous(s, { maxIterations })
@@ -138,7 +138,7 @@ export class LabelPropagationAlgorithm extends DeclaredAlgorithm<LabelPropagatio
         const iterations = "iterations" in value && typeof value.iterations === "number" ? value.iterations : undefined;
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             nodes.push({ id: nodeId, values: { group: value.labels[ids.indexOf(nodeId)] ?? 0 } });
         });
 

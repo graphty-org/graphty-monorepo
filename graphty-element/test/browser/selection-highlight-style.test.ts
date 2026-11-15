@@ -26,8 +26,8 @@ const NODES = [{ id: "alpha" }, { id: "omega" }];
 /** The one edge between them. */
 const EDGES = [{ src: "alpha", dst: "omega" }];
 
-/** The gold every selection has been drawn in. */
-const DEFAULT_HALO = "#FFD700";
+/** The default halo: the selected edge's blue, solid, 3:1 or better on light and dark canvases (#811). */
+const DEFAULT_HALO = "#0077BB";
 
 describe("what a selected node looks like", () => {
     let container: HTMLElement;
@@ -119,11 +119,11 @@ describe("what a selected node looks like", () => {
         }
     }
 
-    it("is gold when nobody has said otherwise", async () => {
+    it("is solid blue when nobody has said otherwise", async () => {
         await graph.select({ nodes: ["alpha"] });
         await frames();
 
-        assert.deepStrictEqual(haloMaterial(), { emissive: DEFAULT_HALO, alpha: 0.4 });
+        assert.deepStrictEqual(haloMaterial(), { emissive: DEFAULT_HALO.toUpperCase(), alpha: 1 });
     });
 
     it("takes the colour the graph configuration asks for", async () => {
@@ -195,7 +195,7 @@ describe("what a selected node looks like", () => {
         assert.deepStrictEqual(graph.styles.config.graph.selection, {
             color: "#00BCD4",
             scale: 1.45,
-            opacity: 0.4,
+            opacity: 1,
             edgeColor: "#0077BB",
             edgeScale: 2.5,
             edgeOpacity: 1,
@@ -206,5 +206,20 @@ describe("what a selected node looks like", () => {
         assert.throws(() => {
             graph.setSelectionStyle({ scale: 0 });
         });
+    });
+
+    // selectNode() rings the node at once; a selection replaced again before any frame drew the
+    // first one (here by an edge) used to leave that ring on a node nothing selects, whenever the
+    // frame took the selection-only pass rather than a walk of every node (issue #6131).
+    it("takes the halo off a node whose selection is replaced before a frame draws it", async () => {
+        await graph.waitForStableFrame();
+        const [edge] = graph.getDataManager().edges.values();
+
+        graph.selectNode("alpha");
+        void graph.select({ nodes: [], edges: [edge.id] });
+        await graph.waitForStableFrame();
+
+        assert.isNull(graph.getSelectedNode(), "the edge replaced the node");
+        assert.isFalse(drawnHalo() !== undefined, "no node is selected, so no node has a halo");
     });
 });

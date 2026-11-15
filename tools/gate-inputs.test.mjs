@@ -17,7 +17,6 @@ import { fileURLToPath } from "node:url";
 import { after, describe, it } from "node:test";
 
 import { isolateGit } from "./isolated-git-env.mjs";
-import { acquireLock } from "./land.mjs";
 import { gateKey, inputKey } from "./prepush-inputs.mjs";
 import { acquire } from "./test-slots.mjs";
 import { logWait } from "./wait-log.mjs";
@@ -30,7 +29,14 @@ const TOOLS = fileURLToPath(new URL(".", import.meta.url));
 const QUEUE = join(TOOLS, "push-queue.sh");
 let made = 0;
 // The environment without the base the gate running these tests may have exported.
-const OUR_ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "PUSH_BASE_REF"));
+// The tests run inside the gate, so drop the gate's own settings (PREPUSH_LIGHT, PREPUSH_ALL, the hook's
+// PUSH_REMOTE_*, ...):
+// a test sets each one it needs.
+const OUR_ENV = Object.fromEntries(
+    Object.entries(process.env).filter(
+        ([k]) => k !== "PUSH_BASE_REF" && !k.startsWith("PREPUSH_") && !k.startsWith("PUSH_REMOTE"),
+    ),
+);
 
 // A checkout with the gate's tools in it: a source file, an ignored dist/ and tmp/, an installed lockfile.
 function repo() {
@@ -132,6 +138,8 @@ describe("the gate key", () => {
         changed("the gate's hook", ...file(".husky/pre-push", "hook 2\n"));
         assert.notEqual(r.key({ GRAPHTY_GPU_REQUIRE: "nvidia" }), base, "a GRAPHTY_ lane");
         assert.notEqual(r.key({ PREPUSH_ALL: "1" }), base, "PREPUSH_ALL");
+        assert.notEqual(r.key({ PREPUSH_LIGHT: "1" }), base, "the light gate is not the full one");
+        assert.equal(r.key({ PREPUSH_LIGHT: "0" }), base, "PREPUSH_LIGHT=0 is the full gate, as unset is");
     });
 
     it("counts the gate's version when the gate is another checkout than the one it checks", () => {
@@ -260,6 +268,7 @@ describe("pass records (prepush-inputs.mjs passed / record)", () => {
             spawnSync(process.execPath, [join(other, "tools/prepush-inputs.mjs"), ...args], {
                 cwd: other,
                 encoding: "utf8",
+                env: OUR_ENV,
             });
         assert.equal(there("passed", "gate").status, 0, "reused on golden's identical tree");
         writeFileSync(join(other, "a.ts"), "changed\n");
@@ -288,7 +297,7 @@ describe("push-queue with a gate that already passed", () => {
         spawnSync("git", ["init", "-q", "--bare", origin]);
         r.git("remote", "add", "origin", origin);
         const q = join(TMP, `queue-${made}`);
-        const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith("PUSH_QUEUE_")));
+        const env = Object.fromEntries(Object.entries(OUR_ENV).filter(([k]) => !k.startsWith("PUSH_QUEUE_")));
         Object.assign(env, {
             PUSH_QUEUE_DIR: join(q, "tickets"),
             PUSH_QUEUE_LOG: join(q, "push-log.jsonl"),
@@ -360,81 +369,6 @@ describe("push-queue with a gate that already passed", () => {
     });
 });
 
-describe("prepush.sh with a gate that already passed", () => {
-    // A checkout whose gate is the real prepush.sh and source checks, with every outside step stubbed:
-    // pnpm answers "no package affected", and the offline link check and the SonarQube step write a
-    // line to a log each time they run (the SonarQube one prints SONAR_OUT).
-    function gateRepo() {
-        const r = repo();
-        for (const f of ["prepush.sh", "prepush-source-checks.sh"])
-            copyFileSync(join(TOOLS, f), join(r.dir, "tools", f));
-        const ran = join(TMP, `steps-${made}.log`);
-        writeFileSync(join(r.dir, "tools/queued-push-guard.mjs"), "");
-        writeFileSync(join(r.dir, "tools/check-committed-images.mjs"), "");
-        writeFileSync(join(r.dir, "tools/check-links.sh"), `#!/bin/sh\necho links >> "${ran}"\n`, { mode: 0o755 });
-        writeFileSync(
-            join(r.dir, "tools/sonar-gate.mjs"),
-            `import { appendFileSync } from "node:fs";\nappendFileSync(${JSON.stringify(ran)}, "sonar\\n");\nconsole.log(process.env.SONAR_OUT ?? "");\n`,
-        );
-        writeFileSync(join(r.dir, "package.json"), '{ "scripts": {} }\n');
-        r.git("add", ".");
-        r.git("commit", "-q", "-m", "gate");
-        const bin = join(TMP, `bin-${made}`);
-        mkdirSync(bin);
-        writeFileSync(
-            join(bin, "pnpm"),
-            '#!/bin/sh\ncase "$*" in --version) echo 10.30.0;; *"show projects"*) echo "[]";; esac\n',
-            { mode: 0o755 },
-        );
-        const env = { ...OUR_ENV, PATH: `${bin}:${process.env.PATH}`, PUSH_BASE_REF: "origin/master" };
-        delete env.PREPUSH_RERUN_ALL;
-        delete env.PREPUSH_EXPECTED_KEY;
-        const gate = (extra = {}) =>
-            spawnSync("bash", [join(r.dir, "tools/prepush.sh")], {
-                cwd: r.dir,
-                encoding: "utf8",
-                env: { ...env, ...extra },
-            });
-        const steps = () => (existsSync(ran) ? readFileSync(ran, "utf8").trim().split("\n") : []);
-        return { ...r, gate, steps };
-    }
-
-    it("records a pass, then skips the whole gate on the same tree, and PREPUSH_RERUN_ALL=1 runs it all", () => {
-        const r = gateRepo();
-        const first = r.gate();
-        assert.equal(first.status, 0, first.stdout + first.stderr);
-        assert.deepEqual(r.steps(), ["links", "sonar"]);
-        assert.equal(r.inputs("passed", "gate").status, 0, "a whole-gate pass is recorded");
-
-        const second = r.gate();
-        assert.equal(second.status, 0, second.stdout + second.stderr);
-        assert.match(second.stdout, /\[SKIP\] The whole gate: it already passed on exactly these inputs/);
-        assert.deepEqual(r.steps(), ["links", "sonar"], "no step ran again");
-
-        const again = r.gate({ PREPUSH_RERUN_ALL: "1" });
-        assert.equal(again.status, 0, again.stdout + again.stderr);
-        assert.deepEqual(r.steps(), ["links", "sonar", "links", "sonar"]);
-    });
-
-    it("records no pass that SonarQube did not check, so the next push of the same files is scanned", () => {
-        const r = gateRepo();
-        const unchecked = r.gate({ SONAR_OUT: "SonarQube did NOT check this push (server unreachable)" });
-        assert.equal(unchecked.status, 0, unchecked.stdout + unchecked.stderr);
-        assert.equal(r.inputs("passed", "source").status, 1);
-        assert.equal(r.inputs("passed", "gate").status, 1);
-        assert.equal(r.gate().status, 0);
-        assert.deepEqual(r.steps(), ["links", "sonar", "links", "sonar"]);
-    });
-
-    it("stops, running nothing, when its inputs are not the ones the push queue found a pass for", () => {
-        const r = gateRepo();
-        const p = r.gate({ PREPUSH_EXPECTED_KEY: "0".repeat(64) });
-        assert.equal(p.status, 1);
-        assert.match(p.stderr, /inputs changed after the push queue found a pass/);
-        assert.deepEqual(r.steps(), []);
-    });
-});
-
 describe("the wait log", () => {
     const read = (file) => readFileSync(file, "utf8").trim().split("\n").map(JSON.parse);
 
@@ -471,38 +405,20 @@ describe("the wait log", () => {
             await waiting;
             release();
             (await taking)();
-            assert.equal(lines.length, 1);
-            assert.equal(lines[0].kind, "test-slot");
-            assert.equal(lines[0].waiter, "the waiter");
-            assert.match(lines[0].heldBy[0], new RegExp(`^pid ${holder.pid} the holder`));
+            // One wait line, for the waiter only; each run's hold is logged when it gives the slot back.
+            assert.deepEqual(
+                lines.map((l) => [l.kind, l.waiter]),
+                [
+                    ["test-slot-held", "the holder"],
+                    ["test-slot", "the waiter"],
+                    ["test-slot-held", "the waiter"],
+                ],
+            );
+            assert.match(lines[1].heldBy[0], new RegExp(`^pid ${holder.pid} the holder`));
         } finally {
             holder.kill();
             waiter.kill();
         }
-    });
-
-    it("records every taking of the landing lock, its holder while waiting, and how long it was held", async () => {
-        const lock = join(TMP, "golden/lock");
-        const lines = [];
-        const opts = { pollMs: 5, waitLog: (l) => lines.push(l), onQueue: () => {} };
-        const first = await acquireLock(lock, { command: "land", branch: "a" }, { ...opts, onWait: () => {} });
-        let told;
-        const waiting = new Promise((resolve) => (told = resolve));
-        const second = acquireLock(lock, { command: "land", branch: "b" }, { ...opts, onWait: told });
-        await waiting;
-        first();
-        (await second)();
-        assert.deepEqual(
-            lines.map((l) => [l.kind, l.waiter]),
-            [
-                ["land-lock", "land a"],
-                ["land-lock-held", "land a"],
-                ["land-lock", "land b"],
-                ["land-lock-held", "land b"],
-            ],
-        );
-        assert.deepEqual(lines[0].heldBy, []);
-        assert.match(lines[2].heldBy[0], new RegExp(`^pid ${process.pid} \\(land a, since `));
     });
 
     it("records a wait for a browser slot with the commands that held the slots", () => {
@@ -528,10 +444,11 @@ wait`,
                 env: {
                     ...process.env,
                     GATE: gate,
+                    // Run under tools/low-priority.sh, the holders would all wait for slot 4 and never start.
+                    BROWSER_SLOT_PRIORITY: "",
                     BROWSER_SLOT_DIR: slots,
                     BROWSER_SLOT_POLL: "0.1",
                     PIPELINE_WAIT_LOG: log,
-                    GRAPHTY_TEST_SLOTS_DIR: join(TMP, "no-gates"), // a gate running on this machine changes nothing here
                 },
             },
         );
@@ -544,23 +461,20 @@ wait`,
         for (const h of fifth.heldBy) assert.match(h, /^\d+ \S+ .* :: sh -c touch held\.\d/);
     });
 
-    it("while a gate runs its test shards, keeps every other browser command to slot 4; the gate's own take any", () => {
-        const dir = join(TMP, "gate-lane");
-        const slotsDir = join(dir, "test-slots");
-        mkdirSync(slotsDir, { recursive: true });
-        // A live gate mark: this test process stands in for the gate.
-        writeFileSync(join(slotsDir, `.gate-${process.pid}`), JSON.stringify({ pid: process.pid, since: Date.now() }));
-        // The holder is outside the gate, so it takes slot 4; the gate's command then takes slot 1 at once,
-        // and another command outside the gate waits for slot 4 although slots 2 and 3 are free.
+    it("keeps a low-priority command (BROWSER_SLOT_PRIORITY=low) to slot 4; an ordinary one takes any", () => {
+        const dir = join(TMP, "low-lane");
+        mkdirSync(dir, { recursive: true });
+        // The low holder takes slot 4; an ordinary command then takes slot 1 at once, and another low
+        // command waits for slot 4 although slots 2 and 3 are free.
         const r = spawnSync(
             "bash",
             [
                 "-c",
                 `set -u
-"$GATE" sh -c "touch held.4; while [ ! -e go ]; do sleep 0.05; done" &
+BROWSER_SLOT_PRIORITY=low "$GATE" sh -c "touch held.4; while [ ! -e go ]; do sleep 0.05; done" &
 until [ -e held.4 ]; do sleep 0.05; done
-TEST_SLOT_GATE=1 "$GATE" sh -c "echo gate > gate"
-"$GATE" sh -c "echo other > other" 2> other.err &
+"$GATE" sh -c "echo gate > gate"
+BROWSER_SLOT_PRIORITY=low "$GATE" sh -c "echo other > other" 2> other.err &
 until grep -q "waiting for one of 4 browser slots" other.err 2>/dev/null; do sleep 0.05; done
 [ ! -e other ] || exit 9
 touch go
@@ -572,15 +486,104 @@ wait`,
                 env: {
                     ...process.env,
                     GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_PRIORITY: "",
                     BROWSER_SLOT_DIR: join(dir, "browser-slots"),
                     BROWSER_SLOT_POLL: "0.1",
                     PIPELINE_WAIT_LOG: "off",
-                    GRAPHTY_TEST_SLOTS_DIR: slotsDir,
                 },
             },
         );
         assert.equal(r.status, 0, r.stdout + r.stderr);
-        assert.equal(readFileSync(join(dir, "gate"), "utf8"), "gate\n", "the gate's command ran beside the holder");
-        assert.equal(readFileSync(join(dir, "other"), "utf8"), "other\n", "the other command ran once slot 4 was free");
+        assert.equal(readFileSync(join(dir, "gate"), "utf8"), "gate\n", "the ordinary command ran beside the holder");
+        assert.equal(
+            readFileSync(join(dir, "other"), "utf8"),
+            "other\n",
+            "the second low command ran once slot 4 was free",
+        );
+    });
+
+    it("serves low-lane waiters in the order they began to wait, however often each one looks", () => {
+        const dir = join(TMP, "low-lane-fifo");
+        mkdirSync(dir, { recursive: true });
+        // A holder keeps slot 4. A and B wait, looking every second; C waits last, looking every 0.02 s. When
+        // the slot frees, A takes it first, then B, then C.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+export BROWSER_SLOT_PRIORITY=low
+"$GATE" sh -c "touch held; while [ ! -e go ]; do sleep 0.05; done" &
+until [ -e held ]; do sleep 0.05; done
+for w in A B; do
+    "$GATE" sh -c "echo $w >> order" 2> $w.err &
+    until grep -q "waiting for one of 4" $w.err 2>/dev/null; do sleep 0.05; done
+done
+BROWSER_SLOT_POLL=0.02 "$GATE" sh -c "echo C >> order" 2> C.err &
+until grep -q "waiting for one of 4" C.err 2>/dev/null; do sleep 0.05; done
+touch go
+wait
+[ "$(tr -d '\\n' < order)" = ABC ] || { echo "order: $(tr '\\n' ' ' < order)"; exit 9; }
+ls -a browser-slots | grep -q '^\\.low-' && { echo "a low ticket was left"; exit 8; }
+exit 0`,
+            ],
+            {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: join(TOOLS, "with-browser.sh"),
+                    BROWSER_SLOT_DIR: join(dir, "browser-slots"),
+                    BROWSER_SLOT_POLL: "1",
+                    PIPELINE_WAIT_LOG: "off",
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+    });
+
+    it("gives the next free slot to the high lane (BROWSER_SLOT_PRIORITY=high), ahead of a command that waited first", () => {
+        const dir = join(TMP, "high-lane");
+        mkdirSync(dir, { recursive: true });
+        // Four holders fill the slots. An ordinary command starts waiting, looking every 0.02 s; then a high one
+        // starts waiting, looking every second. One slot frees: the high one takes it, the other keeps waiting.
+        const r = spawnSync(
+            "bash",
+            [
+                "-c",
+                `set -u
+for i in 1 2 3 4; do "$GATE" sh -c "touch held.$i; while [ ! -e go.$i ]; do sleep 0.05; done" & done
+until [ -e held.1 ] && [ -e held.2 ] && [ -e held.3 ] && [ -e held.4 ]; do sleep 0.05; done
+hold='while [ ! -e done ]; do sleep 0.05; done'
+BROWSER_SLOT_POLL=0.02 "$GATE" sh -c "echo shard >> order; $hold" 2> shard.err &
+until grep -q "waiting for one of 4" shard.err 2>/dev/null; do sleep 0.05; done
+BROWSER_SLOT_PRIORITY=high BROWSER_SLOT_POLL=1 "$GATE" sh -c "echo preview >> order; $hold" 2> preview.err &
+until grep -q "waiting for one of 4" preview.err 2>/dev/null; do sleep 0.05; done
+touch go.1
+until [ -s order ]; do sleep 0.05; done
+first=$(head -1 order)
+touch go.2 go.3 go.4
+until [ "$(wc -l < order)" -eq 2 ]; do sleep 0.05; done
+touch done
+wait
+[ "$first" = preview ] || { echo "first: $first"; exit 9; }
+ls -a browser-slots | grep -q '^\\.high-' && { echo "a high mark was left"; exit 8; }
+exit 0`,
+            ],
+            {
+                cwd: dir,
+                encoding: "utf8",
+                env: {
+                    ...process.env,
+                    GATE: join(TOOLS, "with-browser.sh"),
+                    // the caller's lane (tools/low-priority.sh sets low, which waits for slot 4 only) would
+                    // keep the four holders from filling the slots
+                    BROWSER_SLOT_PRIORITY: "",
+                    BROWSER_SLOT_DIR: join(dir, "browser-slots"),
+                    PIPELINE_WAIT_LOG: "off",
+                },
+            },
+        );
+        assert.equal(r.status, 0, r.stdout + r.stderr);
     });
 });

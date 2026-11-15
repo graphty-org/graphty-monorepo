@@ -1,0 +1,24 @@
+{
+    "sample": "gml-specimen-node-sizes-opacity",
+    "file": "graph-io/test/fidelity/specimens/gml/specimen-node-sizes-opacity.gml",
+    "sha256": "b874284bdcde52d2f76e1e19d4ac9c3606f8da5c12237780c3554a5a50fb1bcb",
+    "program": "Graphviz",
+    "version": "14.1.2 (20260126.1125) (conda-forge graphviz, CLI)",
+    "engine": "neato -n2",
+    "command": "gml2gv <file> | neato -n2 -Nlabel= -Gpad=0.2361 -Tsvg -Gsize=\"12.5,9.375!\"",
+    "standIn": true,
+    "standInReason": "yEd (and Graphlet, for the GML draft's keys) cannot run on this machine; this is Graphviz's own drawing of gml2gv's conversion, pinned at the file's x/y with neato -n2. gml2gv maps fill to the outline color (no style=filled), keeps GML's y-down coordinates in Graphviz's y-up space (mirrored top to bottom), files LabelGraphics fontSize as a font name (so every label is 14 pt), reads Line points as spline control points, copies yEd's style names (line, dashed_dotted) that Graphviz does not know, and reads no arrow, anchor, model, fill2, fontStyle or group key.",
+    "mirrored": true,
+    "warnings": ["Warning: using box for unknown shape text"],
+    "canvas": {
+        "requested": "fit within 1200 x 900 px (size=\"12.5,9.375!\", 96 px per inch)",
+        "widthPt": 900,
+        "heightPt": 675,
+        "widthPx": 1200,
+        "heightPx": 900
+    },
+    "fonts": "FONTCONFIG_FILE=visual-fonts/fonts.conf (the repository's pinned fonts)",
+    "svgPostprocessing": "none: the SVG is Graphviz's output byte for byte",
+    "date": "2026-10-20",
+    "regenerate": "node graph-io/test/fidelity/oracles/tools/graphviz.mjs gml-specimen-node-sizes-opacity && node graph-io/test/fidelity/oracles/tools/rasterize.mjs graph-io/test/fidelity/oracles/stand-ins/gml-specimen-node-sizes-opacity.gml2gv.svg"
+}

@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 /**
  * Checks that a pull request's description names its issue, or says it has none. Run by
- * .github/workflows/pr-issue-link.yml (the "Link PR Issue" check) with the description in PR_BODY.
+ * .github/workflows/pr-issue-link.yml (the "Link PR Issue" check). It reads the description from the
+ * event file GitHub writes (GITHUB_EVENT_PATH), never from an environment variable: the golden pull
+ * request's description lists every landed branch and grew past Linux's 128 KiB limit on one
+ * variable, and the runner could not start the step at all ("Argument list too long",
+ * run 40001752947). PR_BODY, when set, takes its place (the tests).
  *
  * A description passes when it holds a closing keyword (`Fixes #12`, `Closed: #12`,
  * `resolves owner/repo#12`), an explicit reference (`Refs #12`, `Ref: #12`, `Part of #12`), or a
@@ -12,9 +16,10 @@
  * Dependabot's pull requests pass without a link: githerd already handles them. Mergify's
  * merge-queue drafts never reach the script: the workflow skips that job, as pr-title.yml does.
  *
- * Usage: PR_BODY=... PR_AUTHOR=... node tools/pr-issue-link.mjs
+ * Usage: PR_AUTHOR=... node tools/pr-issue-link.mjs   (in Actions; or PR_BODY=... locally)
  * (exit 1 with what to add)
  */
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const KEYWORDS = new Set([
@@ -49,6 +54,17 @@ export function linksIssue(body = "") {
 }
 
 /**
+ * The pull request description to check.
+ * @param env - the environment: PR_BODY, else the pull request event at GITHUB_EVENT_PATH
+ * @returns the description; undefined when there is none
+ */
+export function bodyFrom(env) {
+    if (env.PR_BODY !== undefined) return env.PR_BODY;
+    if (!env.GITHUB_EVENT_PATH) return undefined;
+    return JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")).pull_request?.body ?? undefined;
+}
+
+/**
  * Why a pull request needs no issue link, when it does not.
  * @param pr - the pull request
  * @param pr.author - its author's login
@@ -66,7 +82,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         console.log(`Skipped: ${skip} needs no issue link.`);
         process.exit(0);
     }
-    if (!linksIssue(env.PR_BODY)) {
+    if (!linksIssue(bodyFrom(env))) {
         console.error(`::error title=Link PR Issue::${MESSAGE}`);
         process.exit(1);
     }

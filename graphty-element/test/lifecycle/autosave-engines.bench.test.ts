@@ -13,14 +13,20 @@
  * The `pagehide` write: the page is opened with every write held back (`delay`), so its one edit is
  * written only by a lifecycle event; then the page navigates away, or is closed. Reopened, the
  * edit is either restored (the write on `pagehide` landed) or not.
+ *
+ * Every step of a write-cost test (launch, load, ready, each write) also prints as an
+ * `[autosave-bench-step]` line when it ends, with the machine's available memory, swap in use, load
+ * and the browser's resident memory, so a test that stalls says in which step and in what state
+ * (#4554: a WebKit run at 50,000 nodes spent 8 minutes before its first write in CI).
  */
 
-import { rmSync } from "node:fs";
+import { readFileSync, rmSync } from "node:fs";
+import { loadavg } from "node:os";
 
 import type { BrowserContext, Page } from "playwright";
 import { afterAll, beforeAll, describe, it } from "vitest";
 
-import { ENGINES, launch, profile } from "./engines";
+import { browserProcesses, ENGINES, launch, profile } from "./engines";
 import { type Fixture, type PageCheck, startFixture } from "./fixture";
 
 const SIZES = [10_000, 50_000, 100_000];
@@ -47,6 +53,58 @@ function record(row: Record<string, unknown>): void {
 }
 
 /**
+ * A field of /proc/meminfo in MB, or null off Linux.
+ * @param text - The file.
+ * @param field - The field.
+ * @returns The value.
+ */
+function meminfo(text: string, field: string): number | null {
+    const match = new RegExp(`^${field}:\\s+(\\d+) kB`, "m").exec(text);
+    return match ? Math.round(Number(match[1]) / 1024) : null;
+}
+
+/**
+ * Print that a step of a write-cost test ended, with the machine's state.
+ * @param test - The engine and size.
+ * @param test.engine - The engine.
+ * @param test.nodes - The size.
+ * @param test.dir - The browser's profile, which finds its processes.
+ * @param test.start - When the test started (`Date.now()`).
+ * @param step - The step.
+ */
+function step(test: { engine: string; nodes: number; dir: string; start: number }, step: string): void {
+    let mem = "";
+    try {
+        mem = readFileSync("/proc/meminfo", "utf8");
+    } catch {
+        // Not Linux: no memory figures.
+    }
+
+    let rssPages = 0;
+    for (const proc of browserProcesses(test.dir)) {
+        try {
+            rssPages += Number(readFileSync(`/proc/${proc.pid}/statm`, "utf8").split(" ")[1]);
+        } catch {
+            // Gone.
+        }
+    }
+
+    const swapTotal = meminfo(mem, "SwapTotal");
+    const swapFree = meminfo(mem, "SwapFree");
+    const row = {
+        engine: test.engine,
+        nodes: test.nodes,
+        step,
+        ms: Date.now() - test.start,
+        memAvailableMB: meminfo(mem, "MemAvailable"),
+        swapUsedMB: swapTotal === null || swapFree === null ? null : swapTotal - swapFree,
+        load1: Math.round(loadavg()[0] * 10) / 10,
+        browserRssMB: Math.round((rssPages * 4096) / 1e6),
+    };
+    console.log(`[autosave-bench-step] ${JSON.stringify(row)}`);
+}
+
+/**
  * Open the fixture and wait until it is ready.
  * @param context - The browser.
  * @param params - The fixture's parameters.
@@ -62,9 +120,15 @@ async function open(context: BrowserContext, params: Record<string, string | num
 describe.each(ENGINES)("%s (recorded, never asserted)", (engine) => {
     it.each(SIZES)("write cost at %i nodes", async (n) => {
         const dir = profile(`bench-${engine}`);
+        const test = { engine, nodes: n, dir, start: Date.now() };
         const context = await launch(engine, dir);
+        step(test, "launched");
         try {
-            const page = await open(context, { key: `bench-${n}`, tab: `bench-${engine}-${n}`, n });
+            const page = await context.newPage();
+            await page.goto(fx.url({ key: `bench-${n}`, tab: `bench-${engine}-${n}`, n }));
+            step(test, "loaded");
+            await page.evaluate("fixture.ready()");
+            step(test, "ready");
             for (let run = 1; run <= RUNS; run++) {
                 type Cost = { ms: number; state: string; problem: string | null };
                 const data = await page.evaluate<Cost>('fixture.cost("data")');
@@ -79,6 +143,7 @@ describe.each(ENGINES)("%s (recorded, never asserted)", (engine) => {
                     ordinaryMs: Math.round(ordinary.ms),
                     ordinaryState: ordinary.problem ?? ordinary.state,
                 });
+                step(test, `run ${run}`);
             }
         } finally {
             await context.close();

@@ -60,16 +60,16 @@ interface GirvanNewmanOptions extends Record<string, unknown> {
  *
  */
 export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions> {
-    static namespace = "graphty";
-    static type = "girvan-newman";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "girvan-newman";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "strength" as const;
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = girvanNewmanOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = girvanNewmanOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         maxCommunities: {
             type: "integer",
             default: 0,
@@ -125,7 +125,7 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
         // Undirected: the edge betweenness this splits on is defined over unordered pairs.
         const { snapshot, run } = this.accelerated("girvanNewman", "undirected");
 
-        context.report({ phase: "Cutting bridges", total: null });
+        context.report({ phase: "cutting-bridges", total: null });
 
         // maxCommunities is only passed on when it was set: 0 means "find the best split".
         const { value: dendrogram, precision } = await run((dispatch, s) =>
@@ -167,7 +167,7 @@ export class GirvanNewmanAlgorithm extends DeclaredAlgorithm<GirvanNewmanOptions
         // Every node keeps the community its level put it in, a small one included: a community
         // below `minCommunitySize` only stops counting towards the cap.
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             nodes.push({ id: nodeId, values: { group: best.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
         });
 

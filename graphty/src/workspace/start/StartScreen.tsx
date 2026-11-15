@@ -1,39 +1,34 @@
 import "./start.css";
 
-import {
-    DATASET_DESCRIPTORS,
-    type DatasetMeta,
-    GENERATOR_DESCRIPTORS,
-    type GeneratorDescriptor,
-} from "@graphty/graphty-element/catalog";
+import { useFileDrop } from "@graphty/compact-mantine";
+import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graphty-element/catalog";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { Anchor, Button, Paper, Stack, Text, TextInput, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import React, { type RefObject, useCallback, useEffect, useId, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { ColorSchemeToggle } from "../../components/ColorSchemeToggle";
-import { START_SAMPLES, type StartSample } from "../../data/sampleManifest";
+import { START_SAMPLES } from "../../data/sampleManifest";
+import { onSiteConfig, siteTimeline } from "../../siteConfig";
 import { RecoveredWork } from "../autosave/RecoveredWork";
 import { CommandButton } from "../frame/CommandButton";
-import { focusIsLost } from "../frame/focus";
-import { MainMenu } from "../frame/menus";
-import { NoticeSlot } from "../frame/NoticeSlot";
 import { GLYPHS } from "../glyphs";
-import { ariaKey } from "../keys/keys";
-import { UsageDataCard } from "../privacy/UsageDataCard";
-import { openProjectFile, openRecent } from "../project/actions";
+import { count } from "../inspector/words";
+import { openRecent } from "../project/actions";
 import { type RecentProject, useRecentProjects } from "../project/recent";
 import { RecentProjects } from "../project/RecentProjects";
 import { agoWords } from "../project/words";
-import type { WorkspaceStore } from "../state/store";
+import { NETWORK_DIALOG } from "../server/commands";
+import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import lockupOnDark from "./brand/graphty-lockup-color-on-dark.svg";
 import lockupOnLight from "./brand/graphty-lockup-color-on-light.svg";
 import { HeroGraph, type HeroSample } from "./HeroGraph";
 import { Groups } from "./icons";
-import { countWords, fitsInBrowser, isLarge, megabytes } from "./library";
+import { isLarge } from "./library";
 import { DatasetDialog, GeneratorDialog } from "./LibraryDialogs";
-import { NetworkDataDialog } from "./NetworkDataDialog";
-import { openDataset, openGenerated, openSample, openUrl, pictureOf } from "./open";
+import { openDataset, openFiles, openGenerated, openNetworkSample, openSample, pickFiles } from "./open";
+import { SampleCard } from "./SampleCard";
+import { GENERATED, type LibraryTile, NETWORK_TILES, type NetworkTile, offeredTiles } from "./sampleLibrary";
 
 /** Where the code and the license live. */
 const GITHUB = "https://github.com/graphty-org/graphty-monorepo";
@@ -52,221 +47,6 @@ const HERO: HeroSample = (() => {
     const sample = START_SAMPLES.find((each) => each.id === "les-miserables") ?? START_SAMPLES[0];
     return { url: sample.url, name: sample.name, path: ["Napoleon", "Brujon"] };
 })();
-
-/** The graph-samples dataset each of the app's own four sample files is a copy of, by sample id. */
-const OWN_COPIES: Readonly<Record<string, string>> = {
-    "les-miserables": "les-miserables",
-    karate: "karate",
-    "college-football": "football",
-    florentine: "florentine-families",
-};
-
-/**
- * The field each dataset comes from, for the tag on its tile and the library's field filter: this
- * page's grouping of graph-samples' catalog. A dataset not named here is filed under "Other".
- */
-const FIELDS: Readonly<Record<string, string>> = {
-    karate: "Social",
-    "florentine-families": "Social",
-    "davis-southern-women": "Social",
-    "les-miserables": "Social",
-    football: "Sports",
-    // The app's own copies of football and florentine-families, by their sample ids.
-    "college-football": "Sports",
-    florentine: "Social",
-    "political-books": "Politics",
-    dolphins: "Animals",
-    "contiguous-usa": "Places",
-    "knuth-miles": "Places",
-    "celegans-neural": "Biology",
-    "political-blogs": "Politics",
-    openflights: "Places",
-    "yeast-perturbation": "Biology",
-    "stelzl-interactome": "Biology",
-    "wikipathways-senescence-autophagy": "Biology",
-    "go-slim-generic": "Ontology",
-    "road-ny": "Places",
-    "com-dblp": "Science",
-    "ogbn-arxiv": "Science",
-    "go-basic": "Ontology",
-    "disease-ontology": "Ontology",
-    "bioplex3-hct116": "Biology",
-};
-
-/** The field of every generated graph, for the field filter. */
-const GENERATED = "Generated";
-
-/** A short title that says what each dataset is good for; the dataset's own name is the subline. */
-const HOOKS: Readonly<Record<string, string>> = {
-    karate: "A club that split in two",
-    "florentine-families": "How the Medici brokered power",
-    "davis-southern-women": "Who went to which party, 1930s",
-    "les-miserables": "Who holds the novel together",
-    football: "Conferences fall out of who played whom",
-    "college-football": "Conferences fall out of who played whom",
-    florentine: "How the Medici brokered power",
-    "political-books": "Left, right and the few in between",
-    dolphins: "A pod with two social circles",
-    "contiguous-usa": "Borders as a network",
-    "knuth-miles": "128 cities, every driving distance",
-    "celegans-neural": "The wiring of a whole nervous system",
-    "political-blogs": "The 2004 blogosphere, split by party",
-    openflights: "Every airline route on Earth",
-    "yeast-perturbation": "Cytoscape's classic gene network",
-    "stelzl-interactome": "Human proteins that bind each other",
-    "wikipathways-senescence-autophagy": "A drawn pathway from NDEx",
-    "go-slim-generic": "The Gene Ontology in miniature",
-    "road-ny": "Every road in New York City",
-    "com-dblp": "Who wrote papers with whom",
-    "ogbn-arxiv": "What arXiv papers cite",
-    "go-basic": "The whole Gene Ontology",
-    "disease-ontology": "How human diseases are classified",
-    "bioplex3-hct116": "Human proteins found together",
-};
-
-/** One tile in the sample library. */
-interface SampleTile {
-    readonly id: string;
-    readonly name: string;
-    /** The short title the tile leads with. */
-    readonly hook: string;
-    /** The field it comes from. */
-    readonly field: string;
-    readonly size: string;
-    readonly sentence: string;
-    /** The address of a picture of the graph, when graph-samples publishes one. */
-    readonly picture: string | undefined;
-    /** A word on what opening it takes, for a large dataset. */
-    readonly note: string | undefined;
-    /** What the search box matches against. */
-    readonly words: string;
-    /** What a click does: open it now, or ask first. */
-    readonly open: (library: LibraryActions) => void;
-}
-
-/** What a tile can do when it is clicked. */
-interface LibraryActions {
-    readonly store: WorkspaceStore;
-    /** Shows what a large dataset takes to open, before it downloads. */
-    readonly ask: (dataset: DatasetMeta) => void;
-    /** Shows a generator's parameters. */
-    readonly configure: (generator: GeneratorDescriptor) => void;
-}
-
-/**
- * The note on a large dataset's tile: its download.
- * @param dataset - The dataset.
- * @returns The words, or undefined for one that opens in a moment.
- */
-function noteOf(dataset: DatasetMeta): string | undefined {
-    if (!isLarge(dataset)) {
-        return undefined;
-    }
-    return dataset.bytes === undefined ? "Large: slower to open" : `Large: ${megabytes(dataset.bytes)}, slower to open`;
-}
-
-/**
- * A dataset's size as a tile reads it: "77 nodes, 254 edges".
- * @param dataset - The dataset.
- * @returns The words.
- */
-function sizeWords(dataset: DatasetMeta): string {
-    return `${countWords(dataset.nodes)} nodes, ${countWords(dataset.edges)} edges`;
-}
-
-/**
- * The first sentence of a dataset's description.
- * @param text - The description.
- * @returns Its first sentence.
- */
-function firstSentence(text: string): string {
-    // A full stop after something other than a full stop: "E1 .. E14" does not end it.
-    const end = text.search(/[^.]\.(\s|$)/);
-    return end === -1 ? text : text.slice(0, end + 2);
-}
-
-/**
- * The sample library: the app's four samples first, then every other dataset in graph-samples'
- * catalog that graphty-element can open, in the catalog's order, then every generator. A dataset
- * past the element's published ceilings is left out: its tile could only open an empty graph.
- * @param samples - The app's own samples.
- * @param datasets - graph-samples' catalog.
- * @param generators - graph-samples' generators.
- * @returns The tiles.
- */
-function sampleTiles(
-    samples: readonly StartSample[],
-    datasets: readonly DatasetMeta[],
-    generators: readonly GeneratorDescriptor[],
-): SampleTile[] {
-    return [
-        ...samples.map((sample) => {
-            const dataset = datasets.find((each) => each.name === OWN_COPIES[sample.id]);
-            const field = FIELDS[sample.id] ?? "Other";
-            const hook = HOOKS[sample.id] ?? sample.name;
-            return {
-                id: sample.id,
-                name: sample.name,
-                hook,
-                field,
-                size: dataset === undefined ? sample.size : sizeWords(dataset),
-                sentence: sample.sentence,
-                picture: dataset === undefined ? undefined : pictureOf(dataset),
-                note: undefined,
-                words: `${sample.name} ${hook} ${field} ${sample.sentence}`.toLowerCase(),
-                open: ({ store }: LibraryActions) => {
-                    openSample(store, sample);
-                },
-            };
-        }),
-        ...datasets
-            .filter((dataset) => !Object.values(OWN_COPIES).includes(dataset.name) && fitsInBrowser(dataset))
-            .map((dataset) => ({
-                id: dataset.name,
-                name: dataset.title,
-                hook: HOOKS[dataset.name] ?? dataset.title,
-                field: FIELDS[dataset.name] ?? "Other",
-                size: sizeWords(dataset),
-                sentence: firstSentence(dataset.description),
-                picture: pictureOf(dataset),
-                note: noteOf(dataset),
-                words: `${dataset.title} ${HOOKS[dataset.name] ?? ""} ${FIELDS[dataset.name] ?? "Other"} ${dataset.description}`.toLowerCase(),
-                open: ({ store, ask }: LibraryActions) => {
-                    if (isLarge(dataset)) {
-                        ask(dataset);
-                    } else {
-                        openDataset(store, dataset);
-                    }
-                },
-            })),
-        ...generators.map((generator) => ({
-            id: `generate-${generator.name}`,
-            name: generator.plainName,
-            hook: generator.plainName,
-            field: GENERATED,
-            size:
-                generator.params.length === 0
-                    ? "nothing to set"
-                    : generator.params.map((param) => param.plainName).join(", "),
-            sentence: generator.description,
-            picture: pictureOf(generator),
-            note: undefined,
-            words: `${generator.plainName} ${generator.name} ${GENERATED} ${generator.description}`.toLowerCase(),
-            open: ({ configure }: LibraryActions) => {
-                configure(generator);
-            },
-        })),
-    ];
-}
-
-/** The tiles, worked out once. */
-const SAMPLE_TILES = sampleTiles(START_SAMPLES, DATASET_DESCRIPTORS, GENERATOR_DESCRIPTORS);
-
-/** The fields the tiles come from, in the order they first appear. */
-const SAMPLE_FIELDS = [...new Set(SAMPLE_TILES.map((tile) => tile.field))];
-
-/** How many of the tiles are real networks. */
-const DATASET_COUNT = SAMPLE_TILES.filter((tile) => tile.field !== GENERATED).length;
 
 /**
  * The GitHub mark, in the text color: ink in light mode, white in dark.
@@ -430,61 +210,6 @@ function Headset(): React.JSX.Element {
 }
 
 /**
- * A tile's picture, or a plain stand-in where graph-samples publishes none.
- * @param props - Component props
- * @param props.picture - The picture's address, or undefined
- * @returns The picture
- */
-function TilePicture({ picture }: Readonly<{ picture: string | undefined }>): React.JSX.Element {
-    return picture === undefined ? (
-        <span className="ws-land-sample-pic ws-land-sample-none" aria-hidden>
-            <GLYPHS.noPicture />
-        </span>
-    ) : (
-        <img className="ws-land-sample-pic" src={picture} alt="" loading="lazy" />
-    );
-}
-
-/**
- * One tile of the library.
- * @param props - Component props
- * @param props.tile - The tile
- * @param props.label - What it is called for a screen reader
- * @param props.onClick - What a click does
- * @returns The tile
- */
-function LibraryTile({
-    tile,
-    label,
-    onClick,
-}: Readonly<{ tile: SampleTile; label: string; onClick: () => void }>): React.JSX.Element {
-    const generated = tile.field === GENERATED;
-    // The name is the label; the size line is the description, so a screen reader hears it too.
-    const described = useId();
-    return (
-        <UnstyledButton
-            className="ws-land-sample"
-            data-start-door={`sample:${tile.id}`}
-            aria-label={label}
-            aria-describedby={described}
-            title={tile.sentence}
-            onClick={onClick}
-        >
-            <TilePicture picture={tile.picture} />
-            <span className="ws-land-sample-tag">
-                {generated ? <GLYPHS.generated size={11} aria-hidden /> : null}
-                {tile.field}
-            </span>
-            <span className="ws-land-sample-t">{tile.hook}</span>
-            <span className="ws-land-sample-m" id={described}>
-                {generated ? tile.sentence : `${tile.name} -- ${tile.size}`}
-            </span>
-            {tile.note === undefined ? null : <span className="ws-land-sample-note">{tile.note}</span>}
-        </UnstyledButton>
-    );
-}
-
-/**
  * The sample library: every sample tile and every generator, and a box and a field filter that
  * narrow them.
  * @returns The section
@@ -496,26 +221,70 @@ function SampleLibrary(): React.JSX.Element {
     const [view, setView] = useState<"grid" | "list">("grid");
     const [asking, setAsking] = useState<DatasetMeta | null>(null);
     const [configuring, setConfiguring] = useState<GeneratorDescriptor | null>(null);
-    const actions: LibraryActions = { store: workspace.store, ask: setAsking, configure: setConfiguring };
+    const [reading, setReading] = useState<string | null>(null);
+    const stopRead = useRef<AbortController | null>(null);
+    useEffect(() => () => stopRead.current?.abort(), []);
+    const read = (tile: NetworkTile): void => {
+        if (tile.id === reading) {
+            return;
+        }
+        stopRead.current?.abort();
+        const stop = new AbortController();
+        stopRead.current = stop;
+        setReading(tile.id);
+        void openNetworkSample(workspace.store, tile.name, tile.source, tile.example, stop.signal).finally(() => {
+            if (stopRead.current === stop) {
+                setReading(null);
+            }
+        });
+    };
+    const openTile = ({ source }: LibraryTile): void => {
+        if (source.kind === "sample") {
+            openSample(workspace.store, source.sample);
+        } else if (source.kind === "generator") {
+            setConfiguring(source.generator);
+        } else if (isLarge(source.dataset)) {
+            setAsking(source.dataset);
+        } else {
+            openDataset(workspace.store, source.dataset);
+        }
+    };
     const query = text.trim().toLowerCase();
-    const tiles = SAMPLE_TILES.filter(
-        (tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)),
-    );
+    // The first paint does not wait for the site's configuration.
+    const timeline = useSyncExternalStore(onSiteConfig, siteTimeline);
+    const library = offeredTiles(timeline);
+    // In the order the sections are drawn: samples, network data, then generated.
+    const offered = [
+        ...library.filter((tile) => tile.field !== GENERATED),
+        ...NETWORK_TILES,
+        ...library.filter((tile) => tile.field === GENERATED),
+    ];
+    const fields = [...new Set(offered.map((tile) => tile.field))];
+    const datasetCount = library.filter((tile) => tile.field !== GENERATED).length;
+    const generatorCount = library.length - datasetCount;
+    const shown = <T extends LibraryTile | NetworkTile>(each: readonly T[]): T[] =>
+        each.filter((tile) => (field === "" || tile.field === field) && (query === "" || tile.words.includes(query)));
+    const tiles = shown(library);
     const samples = tiles.filter((tile) => tile.field !== GENERATED);
+    const networkSamples = shown(NETWORK_TILES);
     const generators = tiles.filter((tile) => tile.field === GENERATED);
+    // How many the box and the field filter leave, said as they change; never on arrival.
+    useAnnounceChange(`${count(tiles.length + networkSamples.length, "sample")} shown`);
     return (
         <section className="ws-land-band" id="ws-land-samples" aria-label="Sample library">
-            <h2 className="ws-land-h2">Sample library</h2>
+            <h2 className="ws-land-h2 cm-focus-inside" id="ws-land-samples-title" tabIndex={-1}>
+                Sample library
+            </h2>
             <p className="ws-land-intro">
-                {DATASET_COUNT} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
-                routes, and {GENERATOR_DESCRIPTORS.length} ways to generate one.
+                {datasetCount} real networks to explore, from a novel&apos;s characters to the world&apos;s airline
+                routes, and {generatorCount} ways to generate one.
             </p>
             <div className="ws-land-libhead">
                 <TextInput
                     className="ws-land-search"
                     type="search"
                     aria-label="Search samples"
-                    placeholder={`Search ${String(SAMPLE_TILES.length)} samples: karate, airline, protein, small world...`}
+                    placeholder={`Search ${String(offered.length)} samples: karate, airline, protein, small world...`}
                     leftSection={<GLYPHS.quickActions size={15} aria-hidden />}
                     value={text}
                     onChange={(event) => {
@@ -544,7 +313,7 @@ function SampleLibrary(): React.JSX.Element {
                 </fieldset>
             </div>
             <fieldset className="ws-land-facets" aria-label="Field">
-                {["", ...SAMPLE_FIELDS].map((each) => (
+                {["", ...fields].map((each) => (
                     <UnstyledButton
                         key={each}
                         className="ws-land-facet"
@@ -560,16 +329,38 @@ function SampleLibrary(): React.JSX.Element {
             {samples.length === 0 ? null : (
                 <div className="ws-land-samples" data-view={view}>
                     {samples.map((tile) => (
-                        <LibraryTile
+                        <SampleCard
                             key={tile.id}
-                            tile={tile}
-                            label={`Open the ${tile.name} sample`}
+                            card={tile}
+                            label={`Open the ${tile.name} sample: ${tile.hook}`}
                             onClick={() => {
-                                tile.open(actions);
+                                openTile(tile);
                             }}
                         />
                     ))}
                 </div>
+            )}
+            {networkSamples.length === 0 ? null : (
+                <section aria-label="Load network data">
+                    <h3 className="ws-land-h3">Load network data</h3>
+                    <p className="ws-land-intro">
+                        Read a graph live from a server: a biology repository, a graph database, a linked-data endpoint
+                        or a web API.
+                    </p>
+                    <div className="ws-land-samples" data-view={view}>
+                        {networkSamples.map((tile) => (
+                            <SampleCard
+                                key={tile.id}
+                                card={tile}
+                                label={`Load network data: ${tile.name}`}
+                                busy={tile.id === reading}
+                                onClick={() => {
+                                    read(tile);
+                                }}
+                            />
+                        ))}
+                    </div>
+                </section>
             )}
             {generators.length === 0 ? null : (
                 <section aria-label="Generate a graph">
@@ -580,19 +371,19 @@ function SampleLibrary(): React.JSX.Element {
                     </p>
                     <div className="ws-land-samples" data-view={view}>
                         {generators.map((tile) => (
-                            <LibraryTile
+                            <SampleCard
                                 key={tile.id}
-                                tile={tile}
+                                card={tile}
                                 label={`Generate a graph: ${tile.name}`}
                                 onClick={() => {
-                                    tile.open(actions);
+                                    openTile(tile);
                                 }}
                             />
                         ))}
                     </div>
                 </section>
             )}
-            {tiles.length === 0 ? (
+            {tiles.length + networkSamples.length === 0 ? (
                 <p className="ws-land-empty">
                     No sample matches &quot;{text}&quot;. Try a field, such as biology or places.
                 </p>
@@ -645,7 +436,8 @@ function PageFoot(): React.JSX.Element {
                     Docs
                 </a>{" "}
                 &middot; Put it on your own site: <code>npm i @graphty/graphty-element</code>{" "}
-                <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer">
+                {/* The footer's other "Docs" is the app's; this one names what it documents. */}
+                <a href={ELEMENT_DOCS} target="_blank" rel="noopener noreferrer" aria-label="Docs for graphty-element">
                     Docs
                 </a>
             </span>
@@ -688,31 +480,14 @@ function useScrolledPast(lockup: React.RefObject<HTMLElement | null>): boolean {
  * The start page, shown whenever no project is open: the graphty lockup, the headline and the
  * launcher over a live graph drawn by graphty-element, and a bar of facts at the foot. A first visit
  * gets Open a file, Open network data, Samples and New project; a returning reader gets Resume, their
- * recent projects, Open a file and New project. A file dropped anywhere on it opens, as Open a
- * file opens one.
- * @param props - Component props
- * @param props.openRef - Takes Open a file, the first way in: where focus goes when the page comes
- *     back, once the usage data card is answered and when a notice is closed from inside it
- * @param props.lastDoor - Takes the way in that last had focus (its `data-start-door`), so the
- *     page coming back can hand focus to the control that left it
+ * recent projects, Open a file and New project. A file dropped anywhere on it opens.
  * @returns The start page
  */
-export function StartScreen({
-    openRef,
-    lastDoor,
-}: Readonly<{
-    openRef?: RefObject<HTMLButtonElement | null>;
-    lastDoor?: RefObject<string | null>;
-}>): React.JSX.Element {
+export function StartScreen(): React.JSX.Element {
     const workspace = useWorkspace();
-    const ownOpenRef = useRef<HTMLButtonElement>(null);
-    const firstDoor = openRef ?? ownOpenRef;
     const scheme = useComputedColorScheme("dark");
     const recent = useRecentProjects();
-    const openDoor = useCommand("file.open");
     const newDoor = useCommand("project.new");
-    const [dragging, setDragging] = useState(false);
-    const [network, setNetwork] = useState(false);
     const [session, setSession] = useState<GraphSession | null>(null);
     const onSession = useCallback((next: GraphSession) => {
         setSession(next);
@@ -728,48 +503,27 @@ export function StartScreen({
         };
     }, []);
 
-    // The drop target is the whole window ("drop a file anywhere in this window"), so the
-    // listeners go on globalThis (the window) rather than on an element.
-    useEffect(() => {
-        const over = (event: DragEvent): void => {
-            event.preventDefault();
-            setDragging(true);
-        };
-        const leave = (event: DragEvent): void => {
-            if (event.relatedTarget === null) {
-                setDragging(false);
-            }
-        };
-        const drop = (event: DragEvent): void => {
-            event.preventDefault();
-            setDragging(false);
-            const file = event.dataTransfer?.files.item(0) ?? null;
-            if (file !== null) {
-                void openProjectFile(workspace, file);
-            }
-        };
-        globalThis.addEventListener("dragover", over);
-        globalThis.addEventListener("dragleave", leave);
-        globalThis.addEventListener("drop", drop);
-        return () => {
-            globalThis.removeEventListener("dragover", over);
-            globalThis.removeEventListener("dragleave", leave);
-            globalThis.removeEventListener("drop", drop);
-        };
-    }, [workspace]);
+    // The drop target is the whole window ("drop a file anywhere in this window").
+    const onDrop = useCallback(
+        (files: File[]) => {
+            openFiles(workspace, files);
+        },
+        [workspace],
+    );
+    // Open a file is the drop's Choose: the same files open the same way.
+    const choose = (): void => {
+        void pickFiles().then((files) => {
+            openFiles(workspace, files);
+        });
+    };
+    const { over: dragging } = useFileDrop("window", onDrop);
 
     const returning = recent.length > 0;
     const [latest] = recent;
-    // The last Recent projects row removed takes Your projects, and the launcher's Open a file,
-    // with it: focus goes to the first-visit launcher's Open a file, not the page.
-    const wasReturning = useRef(returning);
-    useEffect(() => {
-        if (wasReturning.current && !returning && focusIsLost()) {
-            firstDoor.current?.focus();
-        }
-        wasReturning.current = returning;
-    }, [returning, firstDoor]);
+    // Focus goes with the scroll, to the library's heading: not editable, so Home, End and the Page
+    // keys still scroll the page, and the next Tab reaches the search.
     const showSamples = (): void => {
+        document.getElementById("ws-land-samples-title")?.focus({ preventScroll: true });
         document.getElementById("ws-land-samples")?.scrollIntoView({ behavior: "smooth" });
     };
     const privacy = (
@@ -777,14 +531,10 @@ export function StartScreen({
             <GLYPHS.private size={13} aria-hidden /> Or drop a file anywhere. It never leaves your computer.
         </Text>
     );
-    const openKey = openDoor?.command.keys?.[0];
     const openButton = (variant: "primary" | "tint"): React.JSX.Element => (
         <Button
-            ref={firstDoor}
-            data-start-door="file.open"
-            aria-keyshortcuts={openKey === undefined ? undefined : ariaKey(openKey)}
             className={variant === "primary" ? "ws-land-go ws-land-xl" : "ws-land-tint"}
-            onClick={openDoor?.run}
+            onClick={choose}
             leftSection={variant === "tint" ? <GLYPHS.openFile size={16} aria-hidden /> : undefined}
         >
             {variant === "primary" ? (
@@ -800,11 +550,22 @@ export function StartScreen({
             )}
         </Button>
     );
+    const networkButton = (
+        <Button
+            className="ws-land-tint"
+            leftSection={<GLYPHS.data size={16} aria-hidden />}
+            aria-haspopup="dialog"
+            onClick={() => {
+                workspace.store.set({ dialog: NETWORK_DIALOG });
+            }}
+        >
+            Open network data
+        </Button>
+    );
     const newButton = (
         <Button
             variant="default"
             className="ws-land-plain"
-            data-start-door="project.new"
             leftSection={<GLYPHS.add size={16} aria-hidden />}
             onClick={newDoor?.run}
         >
@@ -813,18 +574,8 @@ export function StartScreen({
     );
 
     return (
-        <div // NOSONAR(S6848): focus only records which door last held it; the page is not a control
-            className="ws-land"
-            data-scheme={scheme}
-            onFocus={(event) => {
-                if (lastDoor !== undefined && event.target instanceof HTMLElement) {
-                    lastDoor.current =
-                        event.target.closest<HTMLElement>("[data-start-door]")?.dataset.startDoor ?? null;
-                }
-            }}
-        >
+        <div className="ws-land" data-scheme={scheme}>
             <header className="ws-land-top" data-scrolled={scrolled || undefined}>
-                <MainMenu start />
                 <Anchor
                     className="ws-land-toplogo"
                     href="#"
@@ -864,7 +615,6 @@ export function StartScreen({
             </header>
 
             <section className="ws-land-hero" aria-label="Start a project, over a live graph you can turn and explore">
-                <HeroGraph sample={HERO} background={CANVAS[scheme]} scheme={scheme} onSession={onSession} />
                 <div className="ws-land-over">
                     <Lockup className="ws-land-lockup" boxRef={lockup} />
                     <RecoveredWork />
@@ -912,6 +662,7 @@ export function StartScreen({
                                 <div className="ws-land-more">
                                     {openButton("tint")}
                                     {newButton}
+                                    <div className="ws-land-wide">{networkButton}</div>
                                 </div>
                                 {privacy}
                             </Paper>
@@ -927,16 +678,7 @@ export function StartScreen({
                             <Paper className="ws-land-launcher" withBorder>
                                 {openButton("primary")}
                                 <div className="ws-land-more">
-                                    <Button
-                                        className="ws-land-tint"
-                                        leftSection={<GLYPHS.data size={16} aria-hidden />}
-                                        aria-haspopup="dialog"
-                                        onClick={() => {
-                                            setNetwork(true);
-                                        }}
-                                    >
-                                        Open network data
-                                    </Button>
+                                    {networkButton}
                                     <Button
                                         className="ws-land-tint"
                                         leftSection={<GLYPHS.gridView size={16} aria-hidden />}
@@ -951,42 +693,22 @@ export function StartScreen({
                         </>
                     )}
                 </div>
+                {/* After the words in the markup, so Tab reaches "Open a file" before the demo graph and
+                    its buttons; the CSS places each part, so the look is unchanged. */}
+                <HeroGraph sample={HERO} background={CANVAS[scheme]} scheme={scheme} onSession={onSession} />
                 <FactBar session={session} />
             </section>
 
             {returning ? (
                 <section className="ws-land-band" id="ws-land-projects" aria-label="Your projects">
                     <h2 className="ws-land-h2">Your projects</h2>
-                    <RecentProjects emptyFocus={firstDoor} />
+                    <RecentProjects />
                 </section>
             ) : null}
 
             <SampleLibrary />
 
-            <div className="ws-land-usage">
-                <UsageDataCard
-                    onAnswered={() => {
-                        // The card's buttons go; focus goes to the first way in, not the page.
-                        firstDoor.current?.focus();
-                    }}
-                />
-            </div>
-
             <PageFoot />
-
-            <NoticeSlot returnFocus={firstDoor} />
-
-            <NetworkDataDialog
-                opened={network}
-                scheme={scheme}
-                onClose={() => {
-                    setNetwork(false);
-                }}
-                onOpenLink={(url) => {
-                    setNetwork(false);
-                    openUrl(workspace.store, url);
-                }}
-            />
 
             {dragging ? (
                 <div className="ws-start-drop" aria-hidden>

@@ -1,7 +1,7 @@
 import { ActionIcon, Box, Button, DirectionProvider, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import React from "react";
+import { expect, userEvent, within } from "storybook/test";
 
 import { ActionRow, PANEL_GRID, PANEL_INK, UiGlyph } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";

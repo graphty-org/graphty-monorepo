@@ -34,14 +34,6 @@ function ball(): { id: string; position: { x: number; y: number; z: number } }[]
     });
 }
 
-/**
- * Let the element's own render loop draw a few frames.
- */
-async function frames(): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 200));
-}
-
 describe("view insets", () => {
     let container: HTMLDivElement;
     let element: Graphty;
@@ -53,7 +45,7 @@ describe("view insets", () => {
         document.body.appendChild(container);
         element = document.createElement("graphty-element");
         container.appendChild(element);
-        await frames();
+        await element.waitForStableFrame();
     });
 
     afterEach(() => {
@@ -78,7 +70,7 @@ describe("view insets", () => {
                 } else {
                     await element.applyCameraView("fitToGraph");
                 }
-                await frames();
+                await element.waitForStableFrame();
 
                 let leftmost = Infinity;
                 let rightmost = -Infinity;
@@ -111,12 +103,12 @@ describe("view insets", () => {
             await element.setViewMode(mode);
             await element.graph.waitForSettled();
             element.zoomToFit();
-            await frames();
+            await element.waitForStableFrame();
 
             const before = new Map(nodes.map(({ id }) => [id, element.nodeScreenPosition(id)]));
             // A key grows over the top of the canvas, as one does when a new channel is painted.
             element.viewInsets = { top: 150, bottom: 70 };
-            await frames();
+            await element.waitForStableFrame();
             for (const { id } of nodes) {
                 const was = before.get(id);
                 const now = element.nodeScreenPosition(id);
@@ -129,7 +121,7 @@ describe("view insets", () => {
             // The key hides nodes, so the consumer frames again; the fit keeps clear of the margins.
             assert.isNotEmpty(element.nodesInRect({ x: 0, y: 0, width: WIDTH, height: 150 }));
             element.zoomToFit();
-            await frames();
+            await element.waitForStableFrame();
             for (const { id } of nodes) {
                 const at = element.nodeScreenPosition(id);
                 assert.isDefined(at, id);

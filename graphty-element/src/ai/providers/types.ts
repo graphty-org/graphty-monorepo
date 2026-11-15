@@ -1,5 +1,7 @@
 import type { z } from "zod";
 
+import type { AiReasoningEffort } from "../../catalog/ai";
+
 /**
  * Represents a message in a conversation with an LLM.
  */
@@ -12,6 +14,11 @@ export interface Message {
     toolCallId?: string;
     /** Tool calls made by the assistant (for assistant role) */
     toolCalls?: ToolCall[];
+    /**
+     * The reader's own words, on a user message whose `content` also carries facts about the graph
+     * (`toolset: "generated"`). Absent when `content` is the reader's words alone.
+     */
+    readerText?: string;
 }
 
 /**
@@ -24,6 +31,12 @@ export interface ToolCall {
     name: string;
     /** Arguments to pass to the tool */
     arguments: Record<string, unknown>;
+    /**
+     * The model's argument text was not a JSON object (malformed, or not an object): `arguments`
+     * is empty, and the call should be refused as invalid rather than run. Such a call is in the
+     * response's `toolCalls` but is not passed to `StreamCallbacks.onToolCall`.
+     */
+    invalidArguments?: true;
 }
 
 /**
@@ -83,6 +96,22 @@ export interface ProviderOptions {
     maxTokens?: number;
     /** Temperature for response generation (0-1) */
     temperature?: number;
+    /**
+     * How hard the model reasons before it answers: Gemini 3's `thinkingLevel`, OpenAI's reasoning
+     * effort. Absent, the provider's own default. Ignored by Anthropic (see `thinkingBudgetTokens`).
+     */
+    reasoningEffort?: AiReasoningEffort;
+    /**
+     * The tokens Anthropic's extended thinking may spend (at least 1,024). Absent, no extended
+     * thinking, the provider's own default; while it is on, `temperature` is not sent (Anthropic
+     * refuses one beside thinking). Ignored by the other providers.
+     */
+    thinkingBudgetTokens?: number;
+    /**
+     * The fetch the provider sends its HTTP requests with, for a proxy, a request log or a test's
+     * transport. Default: the global fetch.
+     */
+    fetch?: typeof globalThis.fetch;
 }
 
 /**

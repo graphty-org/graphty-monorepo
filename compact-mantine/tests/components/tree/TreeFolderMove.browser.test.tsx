@@ -140,7 +140,8 @@ describe("Tree: moving into and out of folders", () => {
 });
 
 describe("Tree: row action targets", () => {
-    it("draws each row action at least 24 x 24, side by side, none covering another", async () => {
+    // Figma's toggles sit on a 20px pitch and overlap by 4; the AA option sets them side by side.
+    it("AA option: draws each row action at least 24 x 24, side by side, none covering another", async () => {
         const toggle = (label: string, glyph: "lock" | "eye" | "pin"): React.JSX.Element => (
             <ToggleIconButton
                 key={label}
@@ -164,6 +165,7 @@ describe("Tree: row action targets", () => {
                     ]}
                 />
             </div>,
+            { highContrast: true },
         );
         await userEvent.hover(row("Layer"));
         const buttons = ["Lock", "Hide", "Pin"].map((name) => screen.getByRole("button", { name }));

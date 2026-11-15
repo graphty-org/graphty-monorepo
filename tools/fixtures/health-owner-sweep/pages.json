@@ -1,0 +1,267 @@
+{
+    "ci": {
+        "page": "ci",
+        "generated": "2026-10-30T14:08:41.502Z",
+        "sections": [
+            {
+                "kind": "table",
+                "id": "chronic",
+                "rows": [
+                    {
+                        "cells": {
+                            "job": {
+                                "t": "sub",
+                                "main": {
+                                    "t": "name",
+                                    "v": "Story tests (graphty-element)"
+                                },
+                                "sub": {
+                                    "t": "name",
+                                    "v": "ci.yml"
+                                }
+                            },
+                            "failed": {
+                                "t": "num",
+                                "n": 4,
+                                "of": 6
+                            },
+                            "rate": {
+                                "t": "num",
+                                "n": 67,
+                                "unit": "pct"
+                            },
+                            "pass": {
+                                "t": "ago",
+                                "at": "2026-10-27T15:07:30.000Z"
+                            },
+                            "issue": {
+                                "t": "mark",
+                                "state": "bad",
+                                "cell": {
+                                    "t": "fact",
+                                    "fact": {
+                                        "code": "ci.no_issue"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "cells": {
+                            "job": {
+                                "t": "sub",
+                                "main": {
+                                    "t": "name",
+                                    "v": "Performance Benchmarks"
+                                },
+                                "sub": {
+                                    "t": "name",
+                                    "v": "ci.yml"
+                                }
+                            },
+                            "failed": {
+                                "t": "num",
+                                "n": 5,
+                                "of": 9
+                            },
+                            "rate": {
+                                "t": "num",
+                                "n": 56,
+                                "unit": "pct"
+                            },
+                            "pass": {
+                                "t": "ago",
+                                "at": "2026-10-28T19:00:50.000Z"
+                            },
+                            "issue": {
+                                "t": "issue",
+                                "n": 4554
+                            }
+                        }
+                    },
+                    {
+                        "cells": {
+                            "job": {
+                                "t": "sub",
+                                "main": {
+                                    "t": "name",
+                                    "v": "Test (graphty-element-lifecycle)"
+                                },
+                                "sub": {
+                                    "t": "name",
+                                    "v": "ci.yml"
+                                }
+                            },
+                            "failed": {
+                                "t": "num",
+                                "n": 4,
+                                "of": 8
+                            },
+                            "rate": {
+                                "t": "num",
+                                "n": 50,
+                                "unit": "pct"
+                            },
+                            "pass": {
+                                "t": "ago",
+                                "at": "2026-10-27T13:59:52.000Z"
+                            },
+                            "issue": {
+                                "t": "mark",
+                                "state": "bad",
+                                "cell": {
+                                    "t": "fact",
+                                    "fact": {
+                                        "code": "ci.no_issue"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "flaky": {
+        "page": "flaky",
+        "generated": "2026-10-30T14:08:41.502Z",
+        "sections": [
+            {
+                "kind": "empty",
+                "id": "quarantine",
+                "fact": {
+                    "code": "flaky.quarantine.empty"
+                }
+            }
+        ]
+    },
+    "pull-requests": {
+        "page": "pull-requests",
+        "generated": "2026-10-30T14:08:41.502Z",
+        "sections": [
+            {
+                "kind": "table",
+                "id": "owner",
+                "rows": [
+                    {
+                        "cells": {
+                            "pr": {
+                                "t": "list",
+                                "items": [
+                                    {
+                                        "t": "pr",
+                                        "n": 1677
+                                    },
+                                    {
+                                        "t": "name",
+                                        "v": "feat!: one major for bound labels, Web Crypto AI keys, one weight rule and world-unit edges"
+                                    }
+                                ],
+                                "sep": "space"
+                            },
+                            "why": {
+                                "t": "list",
+                                "items": [
+                                    {
+                                        "t": "fact",
+                                        "fact": {
+                                            "code": "owner.breaking"
+                                        }
+                                    },
+                                    {
+                                        "t": "fact",
+                                        "fact": {
+                                            "code": "owner.label",
+                                            "params": {
+                                                "label": "hold"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "sep": "comma"
+                            },
+                            "waiting": {
+                                "t": "dur",
+                                "s": 1854099
+                            }
+                        }
+                    },
+                    {
+                        "cells": {
+                            "pr": {
+                                "t": "list",
+                                "items": [
+                                    {
+                                        "t": "pr",
+                                        "n": 1941
+                                    },
+                                    {
+                                        "t": "name",
+                                        "v": "fix(compact-mantine): fix the two axe exceptions in the all-stories harness"
+                                    }
+                                ],
+                                "sep": "space"
+                            },
+                            "why": {
+                                "t": "list",
+                                "items": [
+                                    {
+                                        "t": "fact",
+                                        "fact": {
+                                            "code": "owner.label",
+                                            "params": {
+                                                "label": "hold"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "sep": "comma"
+                            },
+                            "waiting": {
+                                "t": "dur",
+                                "s": 1707875
+                            }
+                        }
+                    },
+                    {
+                        "cells": {
+                            "pr": {
+                                "t": "list",
+                                "items": [
+                                    {
+                                        "t": "pr",
+                                        "n": 2013
+                                    },
+                                    {
+                                        "t": "name",
+                                        "v": "ci: check the large-graph GPU screenshots on the release train's T4"
+                                    }
+                                ],
+                                "sep": "space"
+                            },
+                            "why": {
+                                "t": "list",
+                                "items": [
+                                    {
+                                        "t": "fact",
+                                        "fact": {
+                                            "code": "owner.label",
+                                            "params": {
+                                                "label": "hold"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "sep": "comma"
+                            },
+                            "waiting": {
+                                "t": "dur",
+                                "s": 1659445
+                            }
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+}

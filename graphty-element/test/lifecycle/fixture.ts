@@ -56,8 +56,10 @@ export interface Fixture {
     /**
      * The fixture page's URL.
      * @param params - `key`, `tab`, `n` (nodes, 30 by default), `rows` (`early`, the default, or `late`),
-     *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), and for a page
-     *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending).
+     *   `delay` (the debounce in ms; a large one leaves a write to the lifecycle events), `list` (`1`: report
+     *   `listAutosaves` before the element mounts, as `listed`), and for a page
+     *   that drives itself, `auto` (edits to make and save) and `tail` (`1`: one more edit, left pending);
+     *   `build` loads one of the `bundles` given to `startFixture` instead of the built ./bundle.
      */
     url(params: Record<string, string | number>): string;
     /** The reports of one tab. */
@@ -146,7 +148,7 @@ IDBDatabase.prototype.transaction = function (stores, mode, ...rest) {
 };
 </script>
 <script type="module">
-import "/bundle.js";
+import { listAutosaves } from "/bundle.js";
 const params = new URLSearchParams(location.search);
 const tab = params.get("tab") ?? "t";
 const n = Number(params.get("n") ?? 30);
@@ -166,6 +168,16 @@ document.addEventListener("resume", () => report("resume"));
 window.addEventListener("pagehide", (e) => report("pagehide", { persisted: e.persisted }));
 window.addEventListener("pageshow", (e) => report("pageshow", { persisted: e.persisted }));
 
+// list=1: before the element exists, read the key's entries and report which one is this tab's own,
+// as a start screen does on load; with the session storage item that names it.
+const listed = async () => (await listAutosaves(params.get("key"))).map((e) => ({ id: e.id, own: e.own, live: e.live }));
+if (params.get("list") === "1") {
+    let item = null;
+    try { item = sessionStorage.getItem("graphty-autosave:own:" + params.get("key")); } catch {}
+    // A listing the browser's database held up is refused: reported with the refusal's code.
+    report("listed", await listed().then((entries) => ({ item, entries }), (e) => ({ item, entries: null, code: e.code })));
+}
+
 const ids = Array.from({ length: n }, (_, i) => "n" + i);
 // On a grid, as a laid-out graph is: with no position every node sits at the origin, and the camera
 // fitted to that one point fills the canvas with n spheres stacked on each other, which a software
@@ -181,7 +193,7 @@ el.layout = "fixed";
 // dataMaxWaitMs (10 s by default); 1 s keeps a test short without changing what is written.
 // delay=<ms> holds every write back, so only a lifecycle event writes an edit.
 const delay = params.has("delay") ? Number(params.get("delay")) : undefined;
-el.autosaveOptions = delay === undefined ? { dataMaxWaitMs: 1000 } : { delayMs: delay, maxWaitMs: delay, dataMaxWaitMs: delay };
+el.autosaveOptions = { ...(delay === undefined ? { dataMaxWaitMs: 1000 } : { delayMs: delay, maxWaitMs: delay, dataMaxWaitMs: delay }), ...(params.get("keepCamera") === "1" ? { keepCamera: true } : {}), ...(params.get("restore") === "manual" ? { restore: "manual" } : {}) };
 let lastSaved = 0;
 el.addEventListener("graphty-autosave-status", (e) => {
     const s = e.detail;
@@ -192,21 +204,40 @@ el.addEventListener("graphty-autosave-status", (e) => {
     }
 });
 el.addEventListener("graphty-autosave-at-risk", (e) => report("at-risk", { params: e.detail.params }));
-el.addEventListener("graphty-autosave-available", (e) => report("available", { reason: e.detail.reason, id: e.detail.entry.id }));
+// Every entry not restored, and why: the ready report carries them, so a test reads the page's
+// whole decision from one report whatever order the reports arrive in.
+const available = [];
+el.addEventListener("graphty-autosave-available", (e) => {
+    available.push({ reason: e.detail.reason, id: e.detail.entry.id });
+    report("available", { reason: e.detail.reason, id: e.detail.entry.id });
+});
 const rows = () => { el.nodeData = nodes; el.edgeData = edges; };
-if (params.get("rows") !== "late") rows();
+// rows=none: the page loads no data of its own, as an app reopening kept work.
+if (params.get("rows") !== "late" && params.get("rows") !== "none") rows();
 document.body.appendChild(el);
 const summary = (r) => r && { revision: r.revision, entry: r.entry.id, wasDiscarded: r.wasDiscarded, copiedFrom: r.copiedFrom, others: r.others };
 // Ready once both halves of the page's load (nodes, then edges) are in, so a test's first edit
-// does not land between them, where the edges load would replace it as a new project.
+// does not land between them, where the edges load would replace it as a new project. The element
+// settles once the restore is decided and every page load held behind it has run; a graph still
+// short of the page's rows then is a broken load, reported as one and never as ready.
 const ready = el.autosaver.ready.then(async (restored) => {
     if (params.get("rows") === "late") rows();
-    for (let f = 0; f < 6000 && (el.session.data.snapshot().nodeCount < n || el.session.data.snapshot().edgeCount < n); f++) await new Promise((r) => setTimeout(r, 10));
+    await el.waitForSettled();
+    const { nodeCount, edgeCount } = el.session.data.snapshot();
+    if (nodeCount < n || edgeCount < n) {
+        report("not-ready", { nodeCount, edgeCount, n });
+        throw new Error("settled with " + nodeCount + " nodes and " + edgeCount + " edges of " + n);
+    }
     const s = el.autosaver.status;
     const probes = [...new Set(Array.from(el.session.data.nodes(), (node) => node.probe ?? null))];
-    report("ready", { restored: summary(restored), probes, state: s.state, revision: s.revision, ephemeral: s.ephemeral, persisted: s.persisted, quota: s.storage?.quota ?? null, problem: s.problem?.code ?? null });
+    // The key's entries as stored, for a page that restored nothing: what the tab that holds the work has.
+    const entries = restored ? null : (await el.autosaver.list()).map((e) => ({ id: e.id, revision: e.revision, live: e.live }));
+    report("ready", { restored: summary(restored), probes, state: s.state, revision: s.revision, ephemeral: s.ephemeral, persisted: s.persisted, quota: s.storage?.quota ?? null, problem: s.problem?.code ?? null, available, entries });
     return restored;
 });
+// setup=1: the page keeps a value of its own with the work before it reopens anything, as an app
+// stashes where the reader is.
+if (params.get("setup") === "1") void ready.then(() => el.autosaver.stash("place", { page: "graph" }));
 let edits = 0;
 window.fixture = {
     el,
@@ -235,7 +266,16 @@ window.fixture = {
         await ready;
         await el.session.runs.start("degree", undefined, { as: "hidden-run", style: false });
     },
+    // restore=manual: reopen a kept entry by hand, as an app does after its own setup.
+    async restore(id) {
+        await ready;
+        await el.autosaver.restore(id, { discard: true });
+        return this.check();
+    },
     status: () => el.autosaver.status,
+    camera: () => el.getCameraState(),
+    placeCamera: (state) => el.setCameraState(state, { animate: false }),
+    listed,
     async check() {
         await ready;
         const probes = new Set();
@@ -298,14 +338,15 @@ window.fixture = {
 };
 report("loaded");
 // Self-driving, for a browser no test can script (the iOS Simulator): auto=<n> makes n edits, waits
-// until they are saved and reports "auto-saved"; tail=1 then makes one more edit and leaves it to the
+// until they are saved and reports "auto-saved" with the entry it wrote (in that one report: separate
+// reports are separate requests and may reach the server in any order); tail=1 then makes one more edit and leaves it to the
 // write schedule or to the page being hidden.
 if (params.has("auto")) {
     (async () => {
         let revision = 0;
         for (let i = 0; i < Number(params.get("auto")); i++) revision = await window.fixture.next();
         await el.autosaver.flush();
-        report("auto-saved", { revision, state: el.autosaver.status.state });
+        report("auto-saved", { revision, state: el.autosaver.status.state, entry: el.autosaver.status.entry });
         if (params.get("tail") === "1") report("auto-tail", { revision: await window.fixture.next() });
     })();
 }
@@ -327,10 +368,15 @@ function bodyOf(request: IncomingMessage): Promise<string> {
 
 /**
  * Start the fixture server on a free loopback port.
+ * @param options - `bundles`: more builds of graphty-element by name (a path to each one's
+ *   `graphty.bundle.js`); the page loads one instead of the built ./bundle with the URL parameter
+ *   `build=<name>`, from the same origin, so it sees the same storage.
+ * @param options.bundles - The builds by name.
  * @returns The fixture.
  */
-export async function startFixture(): Promise<Fixture> {
+export async function startFixture(options: { bundles?: Record<string, string> } = {}): Promise<Fixture> {
     const bundle = readFileSync(BUNDLE);
+    const builds = new Map(Object.entries(options.bundles ?? {}).map(([name, file]) => [name, readFileSync(file)]));
     const log: LogEvent[] = [];
     const waiters = new Set<() => void>();
     const server = createServer((request: IncomingMessage, response: ServerResponse) => {
@@ -364,10 +410,23 @@ export async function startFixture(): Promise<Fixture> {
             return;
         }
 
+        const build = /^\/bundle-(.+)\.js$/.exec(url.pathname)?.[1];
+        if (build !== undefined && builds.has(build)) {
+            response
+                .writeHead(200, { "content-type": "text/javascript", "cache-control": "max-age=3600" })
+                .end(builds.get(build));
+            return;
+        }
+
         if (url.pathname === "/fixture.html") {
+            const named = url.searchParams.get("build");
+            const page =
+                named !== null && builds.has(named)
+                    ? PAGE.replace('import "/bundle.js";', `import "/bundle-${named}.js";`)
+                    : PAGE;
             response
                 .writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" })
-                .end(PAGE);
+                .end(page);
             return;
         }
 
@@ -391,13 +450,19 @@ export async function startFixture(): Promise<Fixture> {
             `${origin}/fixture.html?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)])).toString()}`,
         events: (tab, type) => log.filter((event) => event.tab === tab && (type === undefined || event.type === type)),
         lastSaved: (tab) => Math.max(0, ...fixture.events(tab, "saved").map((event) => event.revision as number)),
+        // A page whose load settled short of its rows never reports ready: every wait fails on its
+        // not-ready report at once, instead of waiting on the hang guard.
         waitFor: (predicate) =>
-            new Promise((resolve) => {
+            new Promise((resolve, reject) => {
                 const check = (): void => {
                     const found = log.find(predicate);
+                    const broken = log.find((event) => event.type === "not-ready");
                     if (found !== undefined) {
                         waiters.delete(check);
                         resolve(found);
+                    } else if (broken !== undefined) {
+                        waiters.delete(check);
+                        reject(new Error(`tab ${broken.tab} is not ready: ${JSON.stringify(broken)}`));
                     }
                 };
                 waiters.add(check);

@@ -1,11 +1,10 @@
 import { Group, Menu, Stack, Text } from "@mantine/core";
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { HelpButton } from "../../../src";
 import { expectStatesApply } from "../../helpers/assert-states";
 import { BOTH_SCHEMES } from "../../helpers/schemes";
-import { storyWaitOptions } from "../../helpers/settled";
 
 /**
  * The floating help button: a round question mark in a corner of the canvas that opens a menu of
@@ -98,7 +97,7 @@ export const MenuOpen: Story = {
         const button = within(canvasElement).getByRole("button", { name: "Help" });
         await userEvent.click(button);
         const id = button.getAttribute("aria-controls") ?? "";
-        await waitFor(() => expect(document.getElementById(id)).toBeVisible(), storyWaitOptions(1000));
+        await waitFor(() => expect(document.getElementById(id)).toBeVisible());
         const menu = document.getElementById(id) as HTMLElement;
         await expect(within(menu).getByRole("menuitem", { name: "Keyboard shortcuts" })).toBeVisible();
     },

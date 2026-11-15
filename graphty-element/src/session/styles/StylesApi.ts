@@ -15,7 +15,10 @@
  * consumer gets wrong once, so it is stated here, on `list`, on `move` and in the design.
  *
  * READING IS SYNCHRONOUS, WRITING IS A COMMAND. `list`, `get`, `validate`, `legend`, `explain`,
- * `agreement` and `toDocument` answer from what the session already holds and cost nothing. `add`, `update`,
+ * `agreement` and `toDocument` answer from what the session already holds, without waiting.
+ * `explain` walks the stack for one element; `agreement` walks it for every element of its scope,
+ * which on a large graph takes a noticeable time, and keeps its answer over the graph or the
+ * selection until the stack, the data, a run or the selection changes. `add`, `update`,
  * `remove`, `move`, `removeBySource`, `encode`, `highlight`, `applyTemplate` and
  * `resolveToStatic` each dispatch a command (`style.patch`, `style.encode`, `style.template`),
  * which is one undoable step in the session's history, and each returns a `Run` that can be
@@ -75,7 +78,10 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import { type GraphSnapshot, maskToIndices } from "@graphty/graph-format";
+
 import { knownPaletteIds, PALETTE_DESCRIPTORS, paletteDescriptor } from "../../catalog/palettes";
+import { isShaderId, type ShaderProblem, type ShaderUse } from "../../catalog/shaders";
 import type {
     AttributeDescriptor,
     Binding,
@@ -95,13 +101,23 @@ import type {
     Scope,
     StaticStyle,
     StyleDocument,
+    UnionLeaf,
 } from "../../catalog/types";
 import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
-import { GraphtyError } from "../../errors";
+import { GraphtyError, isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
+import { GraphtyLogger } from "../../logging/GraphtyLogger";
 import { quoteEach } from "../../utils/quote-each";
 import { resolveColumn } from "../columns";
+import {
+    dropUnusedShaderCopies,
+    loadNamedShaders,
+    namedShaders,
+    settleShaderCopies,
+    shaderIdsIn,
+    withoutShaderUses,
+} from "../commands/shaderCopies";
 import {
     STYLE_DEFINITIONS,
     type StyleCommand,
@@ -129,13 +145,34 @@ import {
     type RunSurroundings,
     type RunTicket,
 } from "../runs";
+import { resolutionBehind } from "../scope/ScopeApi";
 import { sealedSet } from "../sealed";
+import type { Resolution } from "../sets/resolve";
 import type { CodedFact, CodedFactParam, ColumnRef } from "../shared";
 import type { HistoryCause } from "../types";
 import { valueLabelsAt } from "../valueLabels";
+import { inertReason } from "../visibility/union";
+import { type HiddenNotDrawn, hiddenNotDrawn } from "../visibility/VisibilityApi";
 import { beneathAuthored, placementLayers } from "./autoApply";
-import { channelDescriptor, isChannel, readRenamedChannels, toColorValue } from "./channels";
-import { colorsOf, replaceColorPatch, type StyleColor } from "./colors";
+import {
+    channelDescriptor,
+    isChannel,
+    labelStyleFieldChannels,
+    mergeShaderUses,
+    placeOfUse,
+    readRenamedChannels,
+    toColorValue,
+} from "./channels";
+import {
+    colorsOf,
+    DEFAULT_GRAY_THRESHOLD,
+    grayCollisionsOf,
+    grayUsesOf,
+    replaceColorPatch,
+    type StyleColor,
+    type StyleGrayCollision,
+    type StyleGrayCollisionOptions,
+} from "./colors";
 import {
     type BindingPreview,
     type PreparedBinding,
@@ -152,6 +189,7 @@ import {
     type EncodingRun,
     type EncodingSource,
     type EncodingSpec,
+    type ParamEncodingSpec,
     planColumnEncoding,
     planEncoding,
     proposeColumnBinding,
@@ -203,6 +241,7 @@ import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate
 import { stackChange } from "./repaint";
 import {
     assertRouted,
+    isGhostRow,
     partPatch,
     retargetSelector,
     rowOf,
@@ -211,11 +250,10 @@ import {
     type RowSpec,
     type RowTarget,
     type RowWrite,
-    type StartingRow,
-    startingRowOf,
     startingRows,
 } from "./rows";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
+import { selectorStates } from "./selector";
 import {
     arrange,
     documentRows,
@@ -321,6 +359,16 @@ export interface TemplateReport {
      * paint is `update(id, { enabled: true })` once the data is there.
      */
     readonly unbound: readonly UnboundLayer[];
+    /**
+     * What happened to the document's shaders, as codes: `shader.held` with `ids`, the ones that
+     * wait for `session.shaders.approve`; `shader.id-taken` with `id`, one the project already
+     * holds with other text (the project's stays); `shader.unknown` with `layer`, `channel` (a
+     * shader list or an encode key) and `shader`, a use an opening file names whose text it does
+     * not carry or that does not read, dropped while the rest of the layer opens. Absent when the
+     * document carries none and drops none.
+     * @since 3.36.0
+     */
+    readonly shaders?: readonly CodedFact<"shader.held" | "shader.id-taken" | "shader.unknown">[];
 }
 
 /** What applying a style document accepts beyond the document itself. */
@@ -337,6 +385,14 @@ export interface TemplateOptions extends RunOptions {
      * the layers a reader added stay on top of them.
      */
     readonly at?: TemplatePosition;
+    /**
+     * What to do with the shaders the document carries, for this call only: `"hold"` until
+     * `session.shaders.approve`, `"run"` them, or `"refuse"` them (layers naming them draw what
+     * lies beneath). A refused shader is still kept, held, so a save carries it back out. Absent: the element's `shaderSettings.untrusted`, which holds by default.
+     * A `shaderSettings` member in the document itself is ignored.
+     * @since 3.36.0
+     */
+    readonly shaders?: "run" | "hold" | "refuse";
 }
 
 /** Where `applyTemplate` puts a document's layers. */
@@ -349,11 +405,8 @@ export type TemplatePosition = "top" | "aboveBase" | { readonly before: LayerId 
 export interface StyleUpdateOptions extends RunOptions {
     /**
      * Keep the layer when the patch takes its last value away: it stays in its place, painting
-     * nothing until something is written again, as a starting row that writes nothing does. A
-     * panel that removes properties one at a time sets it, so removing the last one does not
-     * remove the layer. Without it (the default), such an update is refused with `E_BAD_LAYER`,
-     * as `add` refuses a layer that writes nothing. A layer that already writes nothing (a row
-     * added with no look yet) may be renamed or given another selector without it.
+     * nothing until something is written again. Every layer may write nothing, so an update does
+     * this with or without the option, which is kept for callers that pass it.
      * @since 3.26.0
      */
     readonly keepEmpty?: boolean;
@@ -374,6 +427,26 @@ export interface LayerReach {
     readonly locked: boolean;
     /** The channels its layers set or encode. */
     readonly sets: readonly Channel[];
+    /**
+     * Every channel its layers write: what {@link LayerReach.sets} lists, and for each label style
+     * value it sets (`node.labelStyle`, `node.tooltipStyle`, `node.xlabelStyle`, an arrow
+     * caption's style), each field it holds as the channel that writes that field on its own: a
+     * `node.labelStyle` of `{ font: "Georgia" }` writes `node.labelFont` too. What a style editor
+     * reads to tell which of its rows a layer fills.
+     * @since 3.40.0
+     */
+    readonly writes: readonly Channel[];
+}
+
+/**
+ * How many drawn elements carry one value of a channel: see {@link StylesApi.drawnValues}.
+ * @since 3.40.0
+ */
+export interface DrawnValue {
+    /** The value, as {@link StylesApi.explain} reports it for one element. */
+    readonly value: unknown;
+    /** How many drawn elements carry it. */
+    readonly count: number;
 }
 
 /**
@@ -399,12 +472,90 @@ export interface UpdateManyResult {
 }
 
 /**
+ * What `styles.showBranches` draws: a selection built from branches, the rest drawn faint or as
+ * the element's base look.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface BranchesView {
+    /** The selection, a `union` leaf. Its branches' colors are filled when absent. */
+    readonly rule: UnionLeaf;
+    /** How what no branch holds is drawn: faint, or at the base look (default `"plain"`). */
+    readonly rest?: "faint" | "plain";
+    /**
+     * A filter condition the reader is editing, by id: what it would remove stays drawn, faint,
+     * while the view is shown (it still decides what is visible). Absent, nothing is held.
+     * While the session's `workingGraph` option is on, nothing outside what is shown is drawn:
+     * the condition is held but its removals are not drawn, and the view's `notDrawn` says so
+     * (`W_HIDDEN_NOT_DRAWN`, `asked: "hold"`).
+     */
+    readonly hold?: string;
+    /**
+     * A branch to mark, by id: its members stay in its color at full strength and every other
+     * branch's are drawn faint, so a reader pointing at a branch sees which elements it holds.
+     * Absent, or naming no branch, nothing is marked.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly mark?: string;
+    /**
+     * What the view is drawn over: `"visible"` (the default) draws what the filter leaves, and
+     * `"full"` lifts every filter condition while the view is shown, so a selection counted on the
+     * full graph is drawn there: what the conditions remove is drawn faint, as ghosts, and a
+     * branch's members are drawn in its color even when a condition removes them. What is visible
+     * does not change, and nothing is recorded. While the session's `workingGraph` option is on,
+     * `"full"` draws as `"visible"` does, and with a `hold` the view's `notDrawn`
+     * says so (`W_HIDDEN_NOT_DRAWN`, `asked: "full"`); with no `hold`, `"full"` lifts nothing.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly base?: "visible" | "full";
+    /**
+     * Whether a node branch also draws the edges between its members in its color (the edges a
+     * filter of those nodes would leave). Absent or false, edges keep the base look.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly edges?: boolean;
+}
+
+/**
  * The style stack, the verbs that change it, and the three questions a reader asks of it.
  *
  * Everything on this surface addresses a layer by its id. Nothing on it takes an index, and
  * nothing on it returns one.
  */
 export interface StylesApi {
+    /**
+     * Draw a selection built from branches while a reader picks: every layer of the stack is
+     * suspended (kept, listed, and not an undo step), each branch's members are drawn in its color
+     * at the base look (the first branch wins), and the rest is drawn faint or plain. The
+     * selection ring and the hover mark stay. One view at a time: a second call replaces the
+     * first, whose `end()` then does nothing. Not a layer, not saved.
+     * Experimental: may change or be removed in a minor release.
+     * @param view - What to draw.
+     * @returns Ends the view, the stack's picture back in the same repaint; and `notDrawn`, what
+     *   the view asked to draw outside what is shown (`hold`, `base: "full"`) that is not drawn
+     *   because the session's `workingGraph` option is on, empty otherwise; read when it is read, so
+     *   it follows the option, and empty once the view has ended (since 3.40.0).
+     * @throws `E_BAD_COMMAND` for a rule that is not a valid union leaf.
+     * @beta
+     */
+    showBranches(view: BranchesView): { end(): void; readonly notDrawn: readonly HiddenNotDrawn[] };
+    /**
+     * Whether a branches view is drawn now; `style:branches-shown-changed` tells each change.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly showingBranches: boolean;
+    /**
+     * The branches view drawn now, as it was given, or null: what a key or a table beside the
+     * canvas describes, whichever caller drew it. `style:branches-shown-changed` tells each change,
+     * a view that replaces another included.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly shownBranches: BranchesView | null;
     /**
      * Every layer in the stack, BOTTOM FIRST.
      *
@@ -457,7 +608,8 @@ export interface StylesApi {
      * The patch is applied over the layer's current specification, one key deep. A key present
      * with `undefined` CLEARS it, so `{ set: undefined }` drops the literal values; a key absent
      * leaves what was there. The merged specification is checked exactly as a new one would be,
-     * so an update cannot leave a layer in a state `add` would have refused.
+     * so an update cannot leave a layer in a state `add` would have refused. A patch that takes
+     * the last value away leaves the layer in place, painting nothing.
      * @param id - The layer to change.
      * @param patch - What to change about it.
      * @param options - A signal to cancel with, a progress handler, and `keepEmpty`.
@@ -562,6 +714,26 @@ export interface StylesApi {
      */
     replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
     /**
+     * The pairs of colours in use that fall on the same gray: what a grayscale print, or a reader
+     * who sees no colour, cannot tell apart. Every colour the shown layers draw is checked, on
+     * every colour channel (fills, outlines, edges, glows, label colours), fixed colours and each
+     * row of a category palette alike; a colour ramp is left out, as its steps are meant to blend.
+     * A row painted over by a layer above, or a layer that paints nothing now, is not in use.
+     *
+     * Lightness is CIE L* (0 black to 100 white, D65), and two colours collide when theirs differ
+     * by less than `threshold` (default 10).
+     *
+     * ```ts
+     * for (const { colors: [a, b], difference } of session.styles.grayCollisions()) {
+     *     console.log(a.color, b.color, difference.toFixed(1));
+     * }
+     * ```
+     * @param options - The threshold.
+     * @returns Each pair once, closest first; empty when every colour in use stands apart.
+     * @since 3.40.0
+     */
+    grayCollisions(options?: StyleGrayCollisionOptions): readonly StyleGrayCollision[];
+    /**
      * The layer rows some rows of the tree reach, folders walked through at every depth: what an
      * edit of "these rows" would write to, and what it would leave alone.
      *
@@ -613,6 +785,18 @@ export interface StylesApi {
      * ```ts
      * await session.styles.encode({ column: { kind: "node", name: "department" }, channel: "node.color" });
      * ```
+     *
+     * `values` names what each category paints, and leaves a category it does not list alone.
+     * That is how each kind of node is drawn as its own model; `node.model` takes asset ids and
+     * URLs, and a URL waits for its host to be allowed (`session.network`) before it is fetched:
+     *
+     * ```ts
+     * await session.styles.encode({
+     *     column: { kind: "node", name: "kind" },
+     *     channel: "node.model",
+     *     values: { server: "asset:server", person: "asset:person" },
+     * });
+     * ```
      * @param spec - The run or the column, the channel and the taste.
      * @param options - A signal to cancel with, and a progress handler.
      * @returns A run that resolves with the layer, and rejects with `E_UNKNOWN_RUN` for a run this
@@ -631,12 +815,17 @@ export interface StylesApi {
      *
      * A refusal is a coded fact whose codes `EncodingRefusalCode` lists; a run spec's refusal carries
      * the code `E_BAD_COMMAND` that `encode()` would reject with.
+     *
+     * `channel` may also be a shader parameter declared `varies`, by its address
+     * (`"node.shaders.uncertainty-aura.intensity"`, since 3.36.0): the binding then maps onto the
+     * parameter's declared range, and is written under that address in a layer's `encode`.
      * @param spec - What `encode()` would be asked.
      * @returns `{ ok: true, binding }` or `{ ok: false, refusal }`.
      * @throws A `GraphtyError` with `E_UNKNOWN_ATTRIBUTE`, `E_UNKNOWN_RUN` or `E_UNKNOWN_CHANNEL`
-     *     for something that does not exist.
+     *     for something that does not exist, `E_UNKNOWN_SHADER` or `E_UNKNOWN_SHADER_PARAM` for an
+     *     address naming no shader or no parameter that varies.
      */
-    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal;
+    proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec | ParamEncodingSpec): EncodingProposal;
     /**
      * Paint the elements a run chose: a route, a chosen set of nodes, a chosen set of edges.
      *
@@ -759,10 +948,13 @@ export interface StylesApi {
      * what a consumer should never have to write against this element. So the element answers the
      * question instead.
      *
-     * Every style edit is queued on the session's own queue, so this is the queue being empty
-     * rather than a per-run promise: after it resolves there is no element-initiated painting
-     * outstanding, whoever started it.
-     * @returns A promise that resolves when nothing the element started is still in flight.
+     * It waits for the runs on the session's queue, the repaint of every style edit written so
+     * far, and the repaint passes asked for by the time those are done, such as the one a
+     * selection or pointer change asks for (`selection.apply`, `hover`, `previewHover`). Passes
+     * asked for later are not waited for, so steady pointer input cannot keep it from resolving.
+     * A layer that selects the members of a live set is waited for too: after the graph changes,
+     * the set's new membership is resolved and painted before it resolves.
+     * @returns A promise that resolves when the work listed above has finished.
      */
     settled(): Promise<void>;
     /**
@@ -783,6 +975,8 @@ export interface StylesApi {
      * over the stack, so it says about each element what an explanation of that element says.
      * Two elements agree on a channel only when they carry the same value AND the same layer
      * decided it. The answer is counts, never lists of ids, and it costs one pass over the scope.
+     * Over `"graph"` or `"selection"` the answer is kept: asked again before the stack, the data, a
+     * run, the selection or an element's state changes, it is returned without another pass.
      * @param scope - The elements to read: the selection, a kept set, a list of node ids, or any
      *     other scope the session resolves.
      * @param channel - One channel to restrict the answer to. Absent, every channel something
@@ -909,11 +1103,39 @@ export interface StylesApi {
      * layer's kind of element. Re-read it when `revision` would change: on `style:changed`, and
      * after a data or run change.
      * @param id - The layer.
+     * @param options - How to count.
+     * @param options.scope - Which elements are counted (since 3.40.0): `"graph"` the whole graph,
+     *     `"visible"` only what the filter and the time window leave shown. Absent, the whole
+     *     graph, or what is shown while the session reads the working graph.
      * @returns What it matches, where it wins each channel, and what it could not paint.
      * @throws A `GraphtyError` with code `E_UNKNOWN_LAYER` when the stack holds no layer with that id.
      * @since 3.16.0
      */
-    counts(id: LayerId): StyleCounts;
+    counts(id: LayerId, options?: { readonly scope?: "graph" | "visible" }): StyleCounts;
+    /**
+     * The values one channel is drawn with across the graph, and how many drawn elements carry
+     * each, most first: what a value picker lists as "in this graph". Elements a filter hides and
+     * elements nothing paints on the channel are left out; one value decided by several layers is
+     * one entry. Read through the same walk as {@link StylesApi.agreement}, so the two never
+     * disagree, and kept until the stack, the data, a run or an element's state changes.
+     *
+     * ```ts
+     * session.styles.drawnValues("node.shape"); // [{ value: "box", count: 40 }, { value: "sphere", count: 2 }]
+     * ```
+     * @param channel - The channel.
+     * @returns One entry per value, most elements first.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` when `channel` names no channel.
+     * @since 3.40.0
+     */
+    drawnValues(channel: Channel): readonly DrawnValue[];
+    /**
+     * How many of the elements a layer's rule matches are drawn now: `counts(id).matched` less those
+     * a filter hides.
+     * @param id - The layer.
+     * @returns The count.
+     * @experimental assistant
+     */
+    drawnCount(id: LayerId): number;
     /**
      * Turn a rule into the fixed value it currently produces, so a person can then edit it.
      *
@@ -1093,6 +1315,10 @@ export interface StylesApi {
      * SYNCHRONOUS. The element's own layers are NOT in it: they come with the element, they cannot
      * be added by a consumer, and a document carrying them would either duplicate them or be
      * refused wherever it was applied. What a document holds is what somebody chose.
+     *
+     * It carries the text of every shader the project holds (`shaders`), so it opens the same on a
+     * build that no longer ships a shader it used. A layer use, an encode key or the background
+     * naming a shader the project does not hold is reported in `problems` as `shader.not-saved`.
      * @returns The document, bottom first.
      */
     toDocument(): StyleDocument;
@@ -1176,16 +1402,14 @@ export interface StylesApi {
      */
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     /**
-     * Add back whichever of the three starting rows the tree lacks: Everything (nodes and edges,
-     * pinned to the bottom, writing nothing), Selected (nodes and edges, pinned to the top,
-     * drawing a near-black node halo with a white glow and a near-black edge band) and Hovered (nodes, pinned to
-     * the top, writing nothing). One undo step; nothing when all three are there. Setting the
-     * project setting `startingRows` to true adds them the same way.
-     * @param options - A signal to cancel with, and a progress handler.
-     * @returns A run that resolves with the rows added, bottom first.
-     * @since 3.26.0
+     * The stack as a style file: {@link StylesApi.toDocument} marked `kind: "graphty-style"`, the
+     * same member a project file holds. It carries the layers (and the palettes they name) and
+     * nothing else -- no data, no ids, no runs -- so it styles another dataset that has the same
+     * columns. Apply one with {@link StylesApi.applyTemplate}.
+     * @returns The style file.
+     * @since 3.30.0
      */
-    restoreStartingRows(options?: RunOptions): Run<readonly RowParts[]>;
+    toFile(): StyleFileDocument;
     /**
      * Choose the palette a colour binding uses when it names none, one per palette kind: a
      * binding on groups takes the categorical default, one on amounts the sequential default, and
@@ -1194,15 +1418,23 @@ export interface StylesApi {
      * RESOLVED WHEN A LAYER IS WRITTEN: a binding that names no palette records the default's id,
      * so a saved document always names a concrete palette. The call therefore belongs before the
      * layers are added. A later call leaves the layers that took the previous default as they are
-     * and writes a warning naming them; with `reapply: true` it re-resolves those layers instead.
+     * and logs a warning naming them; with `reapply: true` it re-resolves those layers instead.
      * A layer that names its palette is never touched.
      * @param palettes - The palette id per kind. Each must name a palette of that kind.
      * @param options - How a late call treats the layers already written.
      * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @returns Settles once every re-resolved layer has been written and painted, at once when
+     *   there is none. Rejects with the first layer update's error; a layer whose update failed
+     *   keeps the previous default and counts as having taken it, so a later call retries it.
      * @throws `E_UNKNOWN_PALETTE` for an id no palette answers to, `E_BAD_COMMAND` for a palette
      *   of the wrong kind or a slot that is not a palette kind.
      */
-    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void;
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): Promise<void>;
+}
+
+/** A style file: the layers alone, as {@link StylesApi.toFile} writes it. */
+export interface StyleFileDocument extends StyleDocument {
+    readonly kind: "graphty-style";
 }
 
 /** The palette a colour binding naming none uses, per palette kind. */
@@ -1228,6 +1460,15 @@ export interface SessionStylesApi extends StylesApi {
      * @returns The compiled layers, bottom first.
      */
     compiled(): readonly CompiledLayer[];
+    /**
+     * Whether the page's own code named this model URL, in a layer it added or updated directly
+     * (`styles.add`, `styles.update`). Only such a URL is fetched without the page allowing its
+     * host; a URL from a project file, a template, an AI command, suggested styles, an encoding or
+     * an expression is not (design/rendering/node-models.md, section 2.6).
+     * @param url - The URL as the layer named it.
+     * @returns True when code named it.
+     */
+    modelUrlFromCode(url: string): boolean;
 }
 
 /**
@@ -1274,6 +1515,23 @@ export interface StyleChange {
     readonly cause: HistoryCause;
 }
 
+/**
+ * Every `style:changed` one repaint published, told once after the last of them.
+ *
+ * One pass can carry many edits -- a grouping run adds a layer per group, a held undo passes
+ * several steps -- and `style:changed` tells each one. A consumer that only re-reads what the
+ * stack draws (`styles.legend()`, `styles.counts()`) listens here instead and reads once.
+ * @since 3.36.0
+ */
+export interface StyleBatchChange {
+    /** How many `style:changed` events this batch closes; at least 1. */
+    readonly edits: number;
+    /** Every layer those edits touched, each once, in the order the edits named them. */
+    readonly layers: readonly LayerId[];
+    /** What moved the stack: the cause of the batch's last edit. */
+    readonly cause: HistoryCause;
+}
+
 /** Everything the style stack is built from. */
 export interface StylesSources {
     /**
@@ -1285,6 +1543,8 @@ export interface StylesSources {
     readonly elements: SelectorSource;
     /** See {@link LayerCheckOptions.admitScope}. */
     readonly admitScope?: LayerCheckOptions["admitScope"];
+    /** See {@link LayerCheckOptions.admitRule}. */
+    readonly admitRule?: LayerCheckOptions["admitRule"];
     /**
      * The element's own layers, seeded at the bottom of the stack in the order given.
      *
@@ -1292,12 +1552,22 @@ export interface StylesSources {
      * layer the element ships is the element's bug and not the caller's.
      */
     readonly base?: readonly ElementLayerSpec[];
+    /**
+     * Element layers painted above the whole stack and never part of it: not listed, saved or
+     * undone, so a passing look (a peek) costs the project nothing. Answer the same array until
+     * they change: each new one is compiled once.
+     */
+    readonly transient?: () => readonly ElementLayerSpec[];
     /** Which paths this session answers. Absent means it cannot say, and none are reported. */
     readonly paths?: PathDirectory;
     /** Whether the graph is directed now, which decides the head an edge draws when no layer sets one. */
     readonly directed?: () => boolean;
+    /** Whether `edge.lift` draws now: a flat layout in the 3D view. See {@link ExplainSources.liftDrawn}. */
+    readonly liftDrawn?: () => boolean;
     /** The scales a binding may name. Absent builds a registry holding the built-ins. */
     readonly scales?: ScaleRegistry;
+    /** Whether the file styles experiment is on, which decides the values a binding spreads over; absent reads on. */
+    readonly fileStyles?: () => boolean;
     /**
      * Where a run is looked up, for the two verbs that take one.
      *
@@ -1381,6 +1651,17 @@ export interface StylesSources {
      */
     readonly repaint?: LayerRepaint;
     /**
+     * Resolves once every repaint pass asked for so far has ended, which `settled()` waits on: a
+     * selection or pointer change starts a pass without awaiting it. Absent, nothing is waited.
+     */
+    readonly idle?: () => Promise<void>;
+    /**
+     * Resolves now every live set queued for re-resolution after a graph change, which `settled()`
+     * calls so the repaint each one asks for is among the passes it waits for. Absent, nothing is
+     * queued.
+     */
+    readonly resolveQueuedSets?: () => void;
+    /**
      * The queue the session's runs take their turn in, which `settled()` waits on because a run
      * paints its suggested layers when it finishes. An edit does not take a turn in it: it is
      * written when it is dispatched.
@@ -1400,6 +1681,12 @@ export interface StylesSources {
      * @returns What it resolves to now.
      */
     readonly resolveScope?: (spec: Scope) => ResolvedScope;
+    /**
+     * Whether the session reads the working graph: a layer's categories and its legend rows are
+     * then counted among what the filter and the time window leave shown. Absent, never.
+     * @returns True while it does.
+     */
+    readonly workingGraph?: () => boolean;
     /** Which versions are doing the work. Defaults to the element's own. */
     readonly engine?: EngineVersions;
     /**
@@ -1408,10 +1695,42 @@ export interface StylesSources {
      */
     readonly onChange?: (change: StyleChange) => void;
     /**
+     * Called when a layer is refused for facts carrying a code, so a host can publish them.
+     * @param refusal - The facts.
+     */
+    readonly onRefused?: (refusal: StyleRefusal) => void;
+    /**
+     * Called when a repaint nobody awaited fails (a branches view's), so a host can publish it.
+     * @param failure - What the repaint was for, and why it failed.
+     */
+    readonly onRepaintFailed?: (failure: StyleRepaintFailure) => void;
+    /**
+     * Called once after the last {@link StylesSources.onChange} of one repaint.
+     * @param batch - The edits that pass told.
+     */
+    readonly onBatch?: (batch: StyleBatchChange) => void;
+    /**
+     * Called when a branches view starts or ends.
+     * @param shown - Whether one is drawn now.
+     */
+    readonly onBranchesShown?: (shown: boolean) => void;
+    /**
+     * Holds a filter condition while a branches view is drawn, or lets it go with null; `all`
+     * lifts every condition (a view drawn over the full graph).
+     */
+    readonly holdCondition?: (id: string | null, all?: boolean) => void;
+    /**
      * A number that moves whenever the data or the run results change, which is half of what
      * {@link StyleCounts.revision} is made of. Absent, only style changes move it.
      */
     readonly inputRevision?: () => number;
+    /**
+     * A number that moves whenever an element enters or leaves a state a `{ match: "state" }`
+     * selector reads (selected, hovered, ghosted, pinned) while a layer reads one. Absent, the
+     * readings of the stack are never kept between calls, because they could not tell when a
+     * state layer's elements moved.
+     */
+    readonly stateRevision?: () => number;
     /**
      * Aborted when the session holding the stack is disposed. Every edit still pending is
      * cancelled with it, so a caller awaiting one gets an `AbortError` rather than waiting for
@@ -1605,12 +1924,46 @@ const FOLDER = "folder:";
 /** The tree a consumer reads, per stack, so the same array comes back until the stack changes. */
 const treeCache = new WeakMap<readonly CompiledLayer[], readonly StyleRow[]>();
 
+/** The same with the timeline off, which leaves the Ghost row out. */
+const treeWithoutGhostCache = new WeakMap<readonly CompiledLayer[], readonly StyleRow[]>();
+
+/**
+ * The row a layer of the stack is a part of.
+ * @param entry - The layer.
+ * @returns The row's id.
+ */
+function rowIdOf(entry: CompiledLayer): StyleRowId {
+    return entry.layer.row ?? entry.layer.id;
+}
+
 /** One layer of a style document, in both the form it was written in and the form it compiled to. */
 interface ImportedLayer {
     /** The specification the document carried, kept so the layer can be re-checked disabled. */
     readonly spec: LayerSpec;
     /** The layer it compiled to, carrying the id it will keep. */
     readonly compiled: CompiledLayer;
+}
+
+/** The dense indices of each resolution's bitmaps, built once for the resolution the cache holds. */
+const indicesOfResolution = new WeakMap<Resolution, AgreementElements>();
+
+/**
+ * The dense indices a resolution's bitmaps hold.
+ * @param resolution - The resolution.
+ * @param graph - The snapshot it covers.
+ * @returns Its nodes and edges, as indices into that snapshot.
+ */
+function indicesBehind(resolution: Resolution, graph: GraphSnapshot): AgreementElements {
+    let elements = indicesOfResolution.get(resolution);
+    if (elements === undefined) {
+        elements = {
+            nodes: maskToIndices(resolution.nodes, graph.nodeCount),
+            edges: maskToIndices(resolution.edges, graph.edgeCount),
+        };
+        indicesOfResolution.set(resolution, elements);
+    }
+
+    return elements;
 }
 
 /**
@@ -1718,6 +2071,57 @@ function unknownRow(id: StyleRowId, rows: Rows): GraphtyError {
 }
 
 /**
+ * A layer refused for what it says about shaders, as `style:refused` publishes it.
+ * @since 3.46.0
+ */
+export interface StyleRefusal {
+    /** Why, as codes the application words; see {@link LayerProblem.fact}. */
+    readonly problems: readonly ShaderProblem[];
+}
+
+/**
+ * What a repaint the element started on its own was for, as `style:repaint-failed` names it:
+ * `selection`, `hover` and `peek` follow the reader's state, `sets` a set whose members changed,
+ * `branches` a branches view, `hidden` nodes hidden or shown (`session.hidden`), and `layer` a
+ * layer a pass could not paint at all.
+ * @since 3.52.0
+ */
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer";
+
+/**
+ * A repaint nobody awaited that failed, or a layer a pass could not paint, as
+ * `style:repaint-failed` publishes it. The picture on screen is stale until the next repaint.
+ * @since 3.52.0
+ */
+export interface StyleRepaintFailure {
+    /** What the repaint was for. */
+    readonly cause: StyleRepaintCause;
+    /** Why, as a code; for `cause: "layer"` its `target` names the layer. */
+    readonly error: GraphtyError;
+}
+
+/**
+ * The failure a repaint nobody awaited publishes.
+ * @param cause - What the repaint was for.
+ * @param error - What it threw.
+ * @returns The failure, its error coded `E_INTERNAL` when what was thrown carried no code.
+ */
+export function repaintFailure(cause: StyleRepaintCause, error: unknown): StyleRepaintFailure {
+    return {
+        cause,
+        error: isGraphtyError(error)
+            ? error
+            : new GraphtyError({
+                  code: "E_INTERNAL",
+                  message: `A ${cause} repaint failed.`,
+                  source: "style",
+                  details: { cause },
+                  cause: error,
+              }),
+    };
+}
+
+/**
  * The refusal a specification the check rejected gets.
  *
  * The code is the FIRST problem's, so a consumer switching on it sees the reason a person would
@@ -1788,6 +2192,58 @@ function documentRowKeys(specs: readonly LayerSpec[], ids: readonly LayerId[]): 
     return keys;
 }
 
+/** The most pasted shaders one style document carries. */
+const DOCUMENT_SHADER_LIMIT = 64;
+
+/**
+ * The most shader text one style document carries, in characters: 1 MiB, room for every preset
+ * (about 220 KB) and the reader's own.
+ */
+const DOCUMENT_SHADER_TEXT_LIMIT = 1_048_576;
+
+/**
+ * Check a document's shader list: at most 64 entries, each an id and its text, at most 1 MiB of
+ * text in all. The text itself is checked when the shader is added to the project.
+ * @param shaders - The list, as the document carries it.
+ * @throws A `GraphtyError` with `E_BAD_COMMAND`, whose `details.code` is `shader.too-many`,
+ *   `shader.too-large` or `shader.id-invalid`.
+ */
+function checkDocumentShaders(shaders: StyleDocument["shaders"]): void {
+    if (shaders === undefined) {
+        return;
+    }
+
+    if (!Array.isArray(shaders) || shaders.length > DOCUMENT_SHADER_LIMIT) {
+        const count = Array.isArray(shaders) ? shaders.length : 0;
+        throw badCommand(`A style document carries at most ${String(DOCUMENT_SHADER_LIMIT)} shaders.`, {
+            code: "shader.too-many",
+            count,
+            limit: DOCUMENT_SHADER_LIMIT,
+        });
+    }
+
+    let bytes = 0;
+    for (const entry of shaders as readonly unknown[]) {
+        const { id, text } = (entry ?? {}) as { id?: unknown; text?: unknown };
+        if (!isShaderId(id) || typeof text !== "string") {
+            throw badCommand("Each shader in a style document is { id, text }.", {
+                code: "shader.id-invalid",
+                id: String(id),
+            });
+        }
+
+        bytes += text.length;
+    }
+
+    if (bytes > DOCUMENT_SHADER_TEXT_LIMIT) {
+        throw badCommand("A style document carries at most 1 MiB of shader text.", {
+            code: "shader.too-large",
+            bytes,
+            limit: DOCUMENT_SHADER_TEXT_LIMIT,
+        });
+    }
+}
+
 /**
  * Check a style document is one this element can read at all.
  *
@@ -1812,6 +2268,8 @@ function checkDocument(document: StyleDocument): void {
             { version },
         );
     }
+
+    checkDocumentShaders(document.shaders);
 
     const missing = (document.palettes ?? [])
         .filter((palette) => paletteDescriptor(palette.id) === undefined)
@@ -1882,6 +2340,45 @@ function carriedPalettes(specs: readonly LayerSpec[]): readonly PaletteDescripto
  */
 function retargetsRowPart(layer: Layer, patch: Partial<LayerSpec>): boolean {
     return layer.row !== undefined && patch.target !== undefined && patch.target !== layer.target;
+}
+
+/**
+ * Refuse a defaults argument that names a kind other than the three palette kinds, a palette that
+ * does not exist, or a palette of a different kind.
+ * @param palettes - The defaults to set.
+ * @throws `E_BAD_COMMAND` for a wrong kind; `E_UNKNOWN_PALETTE` for an unknown palette.
+ */
+function assertDefaultPalettes(palettes: DefaultPalettes): void {
+    for (const [kind, id] of Object.entries(palettes)) {
+        if (kind !== "categorical" && kind !== "sequential" && kind !== "diverging") {
+            throw badCommand(
+                `setDefaultPalettes takes a palette for "categorical", "sequential" or "diverging", not "${kind}".`,
+                { field: kind },
+            );
+        }
+
+        if (id === undefined) {
+            continue;
+        }
+
+        const palette = paletteDescriptor(String(id));
+        if (palette === undefined) {
+            const available = knownPaletteIds();
+            throw new GraphtyError({
+                code: "E_UNKNOWN_PALETTE",
+                message: `There is no palette named "${String(id)}". Define it before making it a default.`,
+                source: "style",
+                details: { palette: id, available, candidates: available },
+            });
+        }
+
+        if (palette.kind !== kind) {
+            throw badCommand(`The palette "${palette.id}" is ${palette.kind}, so it cannot be the ${kind} default.`, {
+                field: kind,
+                palette: palette.id,
+            });
+        }
+    }
 }
 
 /**
@@ -2216,10 +2713,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /** Edits written since the last pass, told once it has repainted them. */
     const announcements: Announcement[] = [];
     /** What the last pass changed and painted, which an undo, a redo or a rollback reports. */
-    let lastPass: { reason: RepaintReason; layers: readonly LayerId[]; painted: RepaintReport | null } = {
+    let lastPass: {
+        reason: RepaintReason;
+        layers: readonly LayerId[];
+        painted: RepaintReport | null;
+        failed: boolean;
+    } = {
         reason: "update",
         layers: [],
         painted: null,
+        failed: false,
     };
 
     /**
@@ -2234,24 +2737,284 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns True when the element's own base layers paint nothing.
      */
     const editableBase = (): boolean => dispatcher.state.config.get("editableBase") === true;
+    /**
+     * Whether a stack entry is one of the element's own base layers.
+     * @param entry - The entry.
+     * @returns True for a base layer.
+     */
+    const isBaseEntry = (entry: CompiledLayer): boolean => entry.layer.kind === "base";
+
+    /**
+     * Everything a reading of the whole stack (`agreement`) depends on besides its own
+     * arguments: the stack, a branches view, the repaints that landed, the data and runs, the
+     * element states, and the settings the walk reads. Equal tokens give equal answers.
+     * @returns The token, or null when the session cannot say when element states move.
+     */
+    const readingToken = (): readonly unknown[] | null =>
+        sources.stateRevision === undefined
+            ? null
+            : [
+                  current(),
+                  branchesShown,
+                  viewPending,
+                  styleRevision,
+                  sources.inputRevision?.() ?? 0,
+                  sources.stateRevision(),
+                  dispatcher.state.config.get("editableBase"),
+                  sources.liftDrawn?.() ?? false,
+              ];
+    /** The readings answered under one token, by question; dropped when the token moves. */
+    let readings: { token: readonly unknown[]; answers: Map<string, unknown> } | null = null;
+    /**
+     * A reading of the stack, kept while nothing it reads changes: on 50,000 nodes one agreement
+     * walk takes most of a second, and a panel re-renders it on every keystroke around it.
+     * @param key - The question, spelled uniquely.
+     * @param read - Reads the answer.
+     * @returns The kept answer, or a fresh one.
+     */
+    const kept = <T>(key: string, read: () => T): T => {
+        const token = readingToken();
+        if (token === null) {
+            return read();
+        }
+        if (readings?.token.length !== token.length || readings.token.some((part, at) => !Object.is(part, token[at]))) {
+            readings = { token, answers: new Map() };
+        }
+        if (readings.answers.has(key)) {
+            return readings.answers.get(key) as T;
+        }
+        const answer = read();
+        readings.answers.set(key, answer);
+        return answer;
+    };
 
     /** One disabled stand-in per element base layer, so a repaint sees the same object each time. */
     const baseStandIns = new WeakMap<CompiledLayer, CompiledLayer>();
 
     /**
      * The stack as it paints: a hidden row's layers read as disabled, and so do the element's own
-     * base layers while the Everything row holds the base look.
+     * base layers while the Everything row holds the base look. A branches view suspends the
+     * Everything row with every other layer, so under one the base layers paint the base look
+     * again: without it every node would be drawn unstyled, a new mesh for each of them, and again
+     * for each when the view ends.
      * @param stack - The stack.
      * @returns The stack the repaint and every reading of it use.
      */
     const painting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
+        const shown =
+            branchesShown === null ? basePainting(stack) : previewStack(paintedStack(stack), branchesShown.layers);
+        const specs = sources.transient?.() ?? [];
+        return specs.length === 0 ? shown : [...shown, ...transientLayers(specs)];
+    };
+
+    /** The transient layers last compiled, by the array that named them. */
+    let compiledTransient: { specs: readonly ElementLayerSpec[]; layers: readonly CompiledLayer[] } | undefined;
+    /**
+     * The transient layers, compiled.
+     * @param specs - The layers.
+     * @returns Them, bottom first.
+     */
+    const transientLayers = (specs: readonly ElementLayerSpec[]): readonly CompiledLayer[] => {
+        if (compiledTransient?.specs !== specs) {
+            compiledTransient = { specs, layers: compileElementLayers(specs, minter()) };
+        }
+
+        return compiledTransient.layers;
+    };
+
+    /** The branches view drawn now, and the layers it draws. */
+    let branchesShown: { readonly layers: readonly CompiledLayer[]; readonly view: BranchesView } | null = null;
+    /** One suspended stand-in per layer, so a repaint sees the same object each time. */
+    const suspended = new WeakMap<CompiledLayer, CompiledLayer>();
+
+    /**
+     * Whether a layer draws the selection ring or the hover mark: a layer reading the state
+     * `"selected"` or `"hovered"`, whoever made it.
+     * @param entry - A layer in the stack.
+     * @returns True for one.
+     */
+    const isStateMark = (entry: CompiledLayer): boolean => {
+        return selectorStates(entry.layer.selector).some((state) => state === "selected" || state === "hovered");
+    };
+
+    /**
+     * The stack a branches view paints: the element's base layers as they are, every other layer
+     * suspended in its place, the view's layers on top, and the selection ring and hover mark
+     * above them, so a reader still sees what is selected and what the pointer is on.
+     * @param stack - The stack as it paints without the view.
+     * @param layers - The view's layers.
+     * @returns The stack.
+     */
+    const previewStack = (
+        stack: readonly CompiledLayer[],
+        layers: readonly CompiledLayer[],
+    ): readonly CompiledLayer[] => {
+        const marks = stack.filter((entry) => !isBaseEntry(entry) && entry.layer.enabled && isStateMark(entry));
+        const rest = stack
+            .filter((entry) => !marks.includes(entry))
+            .map((entry) => {
+                if (isBaseEntry(entry) || !entry.layer.enabled) {
+                    return entry;
+                }
+
+                let standIn = suspended.get(entry);
+                if (standIn === undefined) {
+                    standIn = Object.freeze({ ...entry, layer: Object.freeze({ ...entry.layer, enabled: false }) });
+                    suspended.set(entry, standIn);
+                }
+
+                return standIn;
+            });
+
+        return [...rest, ...layers, ...marks];
+    };
+
+    /**
+     * Repaint from one picture of the stack to another, outside any edit.
+     * @param before - What is drawn.
+     * @param after - What to draw.
+     */
+    const repaintBetween = (before: readonly CompiledLayer[], after: readonly CompiledLayer[]): void => {
+        const request = stackChange(before, after);
+        const { repaint } = sources;
+        if (repaint === undefined || request.edits.length === 0) {
+            return;
+        }
+
+        // In order, so an end never lands before the view it ends; `settled()` waits on the chain.
+        viewPending++;
+        viewPasses = viewPasses
+            .then(() => repaint(request, PASS_CONTEXT))
+            .then(
+                () => undefined,
+                (error: unknown) => {
+                    sources.onRepaintFailed?.(repaintFailure("branches", error));
+                },
+            )
+            .finally(() => {
+                viewPending--;
+            });
+    };
+    /** The branches view's repaints, chained. */
+    let viewPasses: Promise<void> = Promise.resolve();
+    /** How many of {@link viewPasses} have not landed yet. */
+    let viewPending = 0;
+
+    /**
+     * The layers a branches view draws, bottom first: the rest faint, then each branch from the
+     * last to the first, so the first branch wins, except that a marked branch is drawn on top.
+     * @param view - The view.
+     * @returns The layers.
+     */
+    const branchLayers = (view: BranchesView): { layers: CompiledLayer[]; keys: string[] } => {
+        const rule = (sources.admitRule?.(view.rule) ?? view.rule) as UnionLeaf;
+        if (typeof rule !== "object" || (rule as { kind?: unknown }).kind !== "union") {
+            throw badCommand("showBranches draws a union leaf.", { rule: view.rule });
+        }
+
+        const target: SelectorTarget = rule.side === "nodes" ? "node" : "edge";
+        const specs: LayerSpec[] = [];
+        if (view.rest === "faint") {
+            specs.push(
+                { name: "Rest", target: "node", selector: { match: "everything" }, set: { "node.opacity": 0.2 } },
+                { name: "Rest", target: "edge", selector: { match: "everything" }, set: { "edge.opacity": 0.15 } },
+            );
+        }
+
+        // A marked view draws every branch but the marked one faint, and the marked one last, so
+        // a member it shares with an earlier branch shows in its color at full strength.
+        const marked = view.mark !== undefined && rule.branches.some((each) => each.id === view.mark);
+        const order = [...rule.branches].reverse();
+        if (marked) {
+            order.sort((a, b) => Number(a.id === view.mark) - Number(b.id === view.mark));
+        }
+
+        for (const branch of order) {
+            if (branch.on === false || branch.color === undefined) {
+                continue;
+            }
+
+            const faint = marked && branch.id !== view.mark;
+            const faintOpacity = target === "node" ? 0.2 : 0.15;
+            // What the branch holds, with the steps that change nothing (off, or no test yet) left
+            // out: a step added with no test, or a name, leaves the layer the same, and the view
+            // the same picture with no repaint.
+            const { name: _name, color: _color, ...held } = branch;
+            const steps = branch.steps.filter((step) => step.on !== false && inertReason(step.rule) === null);
+            const selector = { match: "rule" as const, where: { ...rule, branches: [{ ...held, steps }] } };
+            specs.push({
+                name: branch.name ?? branch.id ?? "Branch",
+                target,
+                selector,
+                set: {
+                    [`${target}.color`]: branch.color,
+                    [`${target}.opacity`]: faint ? faintOpacity : 1,
+                },
+            });
+            // A node branch also draws the edges between its members in its color: the rule's
+            // edge half is read `clipped`, the edges a filter of those nodes would leave.
+            if (target === "node" && view.edges === true) {
+                specs.push({
+                    name: branch.name ?? branch.id ?? "Branch",
+                    target: "edge",
+                    selector,
+                    set: { "edge.color": branch.color, "edge.opacity": faint ? 0.15 : 1 },
+                });
+            }
+        }
+
+        // A ghost (what a held condition would remove, or what lies outside the time window) is
+        // drawn faint, a member keeping its branch's color. Over the full graph a ghost that a
+        // branch holds is a member like any other, so the branches are drawn over the ghosts.
+        const restLayers = view.rest === "faint" ? 2 : 0;
+        const ghostAt = view.base === "full" ? restLayers : specs.length;
+        specs.splice(
+            ghostAt,
+            0,
+            {
+                name: "Held",
+                target: "node",
+                selector: { match: "state", state: "ghosted" },
+                set: { "node.opacity": 0.2 },
+            },
+            {
+                name: "Held",
+                target: "edge",
+                selector: { match: "state", state: "ghosted" },
+                set: { "edge.opacity": 0.15 },
+            },
+        );
+
+        const layers = specs.map((spec, at) => {
+            const checked = check(spec, `graphty-branches-${String(at)}`);
+            if (checked.layer === null) {
+                throw badCommand("showBranches could not draw this selection.", { errors: checked.result.errors });
+            }
+
+            return checked.layer;
+        });
+        // What each layer draws, by which it is the same layer as the one a view drew before.
+        const keys = specs.map(({ name: _name, ...drawn }) => JSON.stringify(drawn));
+        return { layers, keys };
+    };
+
+    /** What each layer of the view drawn now draws (see `branchLayers`). */
+    let shownKeys: readonly string[] = [];
+
+    /**
+     * The stack as it paints without a branches view: a hidden row's layers read as disabled, and
+     * so do the element's own base layers while the Everything row holds the base look.
+     * @param stack - The stack.
+     * @returns The stack.
+     */
+    const basePainting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
         const painted = paintedStack(stack);
-        if (!editableBase() || !painted.some((entry) => entry.layer.kind === "base" && entry.layer.enabled)) {
+        if (!editableBase() || !painted.some((entry) => isBaseEntry(entry) && entry.layer.enabled)) {
             return painted;
         }
 
         return painted.map((entry) => {
-            if (entry.layer.kind !== "base" || !entry.layer.enabled) {
+            if (!isBaseEntry(entry) || !entry.layer.enabled) {
                 return entry;
             }
 
@@ -2312,6 +3075,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const listLayers = (): readonly Layer[] => listed().layers;
 
     /**
+     * The first version of each edited layer, by every later version of it. An edit compiles a new
+     * layer object under the same id, and so does a removal followed by an add of the same name,
+     * which recycles the id: only an edit continues the layer, so only an edit is linked here.
+     */
+    const firstVersion = new WeakMap<CompiledLayer, CompiledLayer>();
+    const versionsOf = (entry: CompiledLayer): CompiledLayer => firstVersion.get(entry) ?? entry;
+
+    /** The last bindings each layer was painted with, by its first version, for {@link steadyEncodingOf}. */
+    const lastPainted = new WeakMap<CompiledLayer, readonly PreparedBinding[]>();
+
+    /**
      * The bindings one layer was painted from, by the id its readers know it by.
      *
      * The translation between the two ways a layer is addressed, in the one place that holds
@@ -2323,13 +3097,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @returns Its prepared bindings, fixed values first and rules second.
      */
     const encodingOf: EncodingLookup = (layerId) => {
-        const entry = byId().get(layerId);
-
-        return entry === undefined || sources.encoding === undefined ? NO_BINDINGS : sources.encoding(entry);
+        // A branches view's layers are drawn and explained, though the stack does not hold them.
+        const own = byId().get(layerId);
+        const entry = own ?? branchesShown?.layers.find((each) => each.layer.id === layerId);
+        const prepared = entry === undefined || sources.encoding === undefined ? NO_BINDINGS : sources.encoding(entry);
+        if (own === undefined) {
+            return prepared;
+        }
+        if (prepared.length > 0) {
+            lastPainted.set(versionsOf(own), prepared);
+            return prepared;
+        }
+        // A layer edited while a branches view suspends it is not painted until the view ends and
+        // its repaint lands, so until then the stack's readings (counts, agreement, the legend)
+        // read what it last painted, never "nothing" -- which would read it as covered by a layer
+        // below on every element it matches.
+        return branchesShown === null && viewPending === 0 ? prepared : (lastPainted.get(versionsOf(own)) ?? prepared);
     };
-
-    /** The last bindings each layer was painted with, kept for {@link steadyEncodingOf}. */
-    const lastPainted = new Map<LayerId, readonly PreparedBinding[]>();
 
     /**
      * What a layer was last painted with, for the group reads: between an edit of a layer and the
@@ -2337,22 +3121,22 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * would answer "none" for that moment -- a group editor reading them on the edit's change
      * event would close and reopen. They read the layer's last paint instead; `categoriesOf`
      * matches each binding by its path, so a binding that now reads another value is not answered
-     * from the old one.
+     * from the old one. A layer added under a departed layer's id is not that layer and has no
+     * last paint, so it is never answered from the departed layer's.
      * @param layerId - The layer.
      * @returns Its prepared bindings, or the last ones while a repaint is pending.
      */
     const steadyEncodingOf: EncodingLookup = (layerId) => {
         const prepared = encodingOf(layerId);
-        if (prepared.length > 0) {
-            lastPainted.set(layerId, prepared);
-            return prepared;
-        }
-        if (!byId().has(layerId)) {
-            lastPainted.delete(layerId);
-            return prepared;
-        }
-        return lastPainted.get(layerId) ?? prepared;
+        const entry = byId().get(layerId);
+        return entry === undefined || prepared.length > 0 ? prepared : (lastPainted.get(versionsOf(entry)) ?? prepared);
     };
+
+    /**
+     * What a layer's counts are read from: the stack's own layers, never a branches view's.
+     * @returns The sources.
+     */
+    const countSources = (): ExplainSources => ({ ...explainSources, stack: () => basePainting(current()) });
 
     /** What an explanation, an unbound report and a resolved rule are read from. */
     const explainSources: ExplainSources = {
@@ -2363,6 +3147,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         edgeIndex: sources.edgeIndex ?? NO_INDEX,
         ...(sources.paths === undefined ? {} : { paths: sources.paths }),
         ...(sources.directed === undefined ? {} : { directed: sources.directed }),
+        ...(sources.liftDrawn === undefined ? {} : { liftDrawn: sources.liftDrawn }),
     };
 
     /**
@@ -2372,11 +3157,64 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      */
     const elementsOf = (scope: Scope): AgreementElements => {
         const resolved = sources.resolveScope?.(scope) ?? emptyScope();
+        // The bitmaps behind the scope are already in dense index order: read them, rather than
+        // spell every element as an id and look each id up again. A legend reads this once per
+        // layer on every style change, and on the airline routes (36,906 edges, 31 layers) the
+        // id round trip held the page for a minute after a Louvain run.
+        const behind = resolutionBehind(resolved);
+        if (behind !== undefined) {
+            return indicesBehind(behind.resolution, behind.graph);
+        }
 
         return {
             nodes: indicesOf(resolved.nodes, (id) => explainSources.nodeIndex(id)),
             edges: indicesOf(resolved.edges, (id) => explainSources.edgeIndex(id)),
         };
+    };
+
+    /**
+     * How many of the elements in a scope one layer selects carry each value of a path.
+     * @param id - The layer.
+     * @param path - The category path.
+     * @param scope - The elements counted.
+     * @returns The count by value, spelled as a category is.
+     */
+    const categoryCounts = (id: LayerId, path: Path, scope: Scope): Map<string, number> => {
+        const { selector, layer } = require(id);
+        const { nodes, edges } = elementsOf(scope);
+        const onNodes = layer.target === "node";
+        const read = onNodes ? sources.elements.nodeValue : sources.elements.edgeValue;
+        const held = new Map<string, number>();
+        for (const index of onNodes ? nodes : edges) {
+            if (selector.test === null || selector.test(index)) {
+                const key = String(read(index, path));
+                held.set(key, (held.get(key) ?? 0) + 1);
+            }
+        }
+
+        return held;
+    };
+
+    /**
+     * What a layer selects among the elements no filter step hides, and how many of its kind those
+     * are: the style selector's base (`StyleCounts.visible`, a legend block's `scope`).
+     * @param id - The layer.
+     * @returns The two counts.
+     */
+    const amongDrawn = (id: LayerId): { readonly matched: number; readonly of: number } => {
+        const compiled = byId().get(id);
+        const edges = compiled?.layer.target === "edge";
+        const drawn = elementsOf(DRAWN);
+        const test = compiled?.selector.test ?? null;
+        let matched = 0;
+        let of = 0;
+        for (const index of edges ? drawn.edges : drawn.nodes) {
+            of++;
+            if (test === null || test(index)) {
+                matched++;
+            }
+        }
+        return { matched, of };
     };
 
     /**
@@ -2437,15 +3275,38 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
         walk(rows);
 
-        const painted = painting(current());
+        // The stack's own layers: a branches view drawn for picking is not what a row lies on.
+        const painted = basePainting(current());
         const cut = painted.findIndex((entry) => !entry.layer.locked && !beneath.has(rowKeyOf(entry)));
 
         return cut === -1 ? painted : painted.slice(0, cut);
     };
 
+    /**
+     * What a layer selects among the elements drawn: a filter step that hides some of them takes
+     * them out of the count, so a key never counts nodes the drawing does not show.
+     * @param id - The layer.
+     * @returns How many, and out of how many of its kind.
+     */
+    const selectsAmongDrawn = (id: LayerId): { count: number; of: number } => {
+        const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
+        const compiled = byId().get(id);
+        const edges = compiled?.layer.target === "edge";
+        const drawn = elementsOf(DRAWN);
+        const test = compiled?.selector.test ?? null;
+        let count = 0;
+        for (const index of edges ? drawn.edges : drawn.nodes) {
+            if (test === null || test(index)) {
+                count++;
+            }
+        }
+        return { count, of: edges ? whole.edgeCount : whole.nodeCount };
+    };
+
     /** What a legend is read from. */
     const legendSources: LegendSources = {
-        layers: () => painting(current()).map((entry) => entry.layer),
+        // The stack's own layers: a branches view's stand-ins are not layers and never reach a key.
+        layers: () => basePainting(current()).map((entry) => entry.layer),
         holdsBase: (layer) =>
             editableBase() &&
             layer.source.by === "template" &&
@@ -2455,24 +3316,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         ...(sources.field === undefined ? {} : { field: sources.field }),
         ...(sources.groupRanks === undefined ? {} : { groupRanks: sources.groupRanks }),
         valueLabels: (path) => valueLabelsAt(dispatcher.state.valueLabels, path),
-        painted: (id) => api.counts(id).painted,
+        // The whole graph's: the legend's painted count takes no `within` (working graph design, decision 18).
+        painted: (id) => api.counts(id, { scope: "graph" }).painted,
         // What the layer selects among the elements drawn: a filter step that hides some of them
         // takes them out of the count, so a key never counts nodes the drawing does not show.
         selects: (id) => {
             const whole = sources.resolveScope?.(WHOLE_GRAPH) ?? emptyScope();
-            const compiled = byId().get(id);
-            const edges = compiled?.layer.target === "edge";
-            const drawn = elementsOf(DRAWN);
-            const test = compiled?.selector.test ?? null;
-            let count = 0;
-            for (const index of edges ? drawn.edges : drawn.nodes) {
-                if (test === null || test(index)) {
-                    count++;
-                }
-            }
-            return { count, of: edges ? whole.edgeCount : whole.nodeCount };
+            const edges = byId().get(id)?.layer.target === "edge";
+            const { matched, of } = amongDrawn(id);
+            return { count: matched, of: edges ? whole.edgeCount : whole.nodeCount, visible: of };
         },
-        reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), explainSources),
+        reach: (id, channel) => valueReach(id, channel, elementsOf(WHOLE_GRAPH), countSources()),
+        // With the working graph on, a row is a category some shown element of the layer carries.
+        shown: (id, channel) => {
+            const binding = byId().get(id)?.layer.encode?.[channel];
+            if (sources.workingGraph?.() !== true || binding === undefined || !("by" in binding)) {
+                return undefined;
+            }
+
+            const held = categoryCounts(id, binding.by, DRAWN);
+            return new Set([...held].filter(([, count]) => count > 0).map(([key]) => key));
+        },
         reached: (id, channel) => {
             const binding = byId().get(id)?.layer.encode?.[channel];
             if (binding === undefined || !("by" in binding)) {
@@ -2520,10 +3384,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     let defaultPalettes: DefaultPalettes = {};
     /**
      * The bindings, as "layer id / channel", whose palette was filled in from a default rather
-     * than named by the author. Only ever read against the live stack, so an entry for a layer
-     * that is gone answers for nothing.
+     * than named by the author, and the palette written. Only ever read against the live stack,
+     * so an entry for a layer that is gone answers for nothing.
      */
-    const defaulted = new Set<string>();
+    const defaulted = new Map<string, string>();
 
     /**
      * The palette kind a colour binding's default comes from, or null when it reads no palette.
@@ -2583,11 +3447,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             if (palette !== undefined) {
                 encode ??= { ...(spec.encode as Record<string, Binding>) };
                 encode[channel] = { ...binding, palette };
-                defaulted.add(`${id}/${channel}`);
+                defaulted.set(`${id}/${channel}`, palette);
             }
         }
 
         return encode === undefined ? spec : { ...spec, encode };
+    };
+
+    /**
+     * The refusal of a specification, told to whoever watches as well: a run nobody awaited
+     * rejects with no trace, so a layer refused for its shaders went unseen (issue #5972).
+     * @param name - What the layer was called.
+     * @param result - The verdict.
+     * @returns The error to reject with.
+     */
+    const refused = (name: string, result: ValidationResult): GraphtyError => {
+        const problems = result.errors.flatMap((problem) => (problem.fact === undefined ? [] : [problem.fact]));
+        if (problems.length > 0) {
+            sources.onRefused?.({ problems: Object.freeze(problems) });
+        }
+
+        return refusedSpec(name, result);
     };
 
     const check = (given: LayerSpec, id: LayerId, admit = true, mayBeEmpty = false): LayerCheck => {
@@ -2600,6 +3480,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // A document's layer may name a set of the session it was saved in: kept, and reported
             // detached, rather than refused.
             ...(sources.admitScope === undefined || !admit ? {} : { admitScope: sources.admitScope }),
+            ...(sources.admitRule === undefined || !admit ? {} : { admitRule: sources.admitRule }),
+            // A document's layer may name a shader this page has not registered: kept, and
+            // reported as drawing nothing (`styles.counts`), rather than refused.
+            ...(admit ? {} : { shaders: "report" as const }),
         };
 
         return checkLayerSpec(withDefaultPalettes(given, id), options);
@@ -2694,6 +3578,27 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
      * @param options - A signal, and a progress handler.
      * @returns The run.
      */
+    /**
+     * The model URLs the page's code named in a layer it added or updated itself.
+     *
+     * ponytail: grows for the life of the session, so a URL code once named stays fetchable after
+     * its layer is gone; track it per layer id if a page ever needs to withdraw that.
+     */
+    const codeModelUrls = new Set<string>();
+
+    /**
+     * Record the model URL a direct add or update from code names. A layer that says it came from
+     * anything but the user (an AI command, a run, a template, a plugin) is not code's own.
+     * @param spec - The specification or patch as the caller handed it.
+     */
+    const noteCodeModel = (spec: Partial<LayerSpec>): void => {
+        for (const named of [spec.set?.["node.model"], spec.set?.["node.texture"]]) {
+            if (typeof named === "string" && !named.startsWith("asset:") && (spec.source?.by ?? "user") === "user") {
+                codeModelUrls.add(named);
+            }
+        }
+    };
+
     const edit = <T>(
         verb: StyleVerb,
         label: string,
@@ -2749,22 +3654,32 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     // Several layers written as one step: a transaction, joining the caller's own
                     // when there is one, since the dispatcher routes it there.
                     const members = command.batch();
+                    const loading = loadNamedShaders(members);
                     // Dispatched together, not one after another: each member writes its draft as it is
                     // dispatched, and awaiting each in turn would let a repaint pass run between them.
-                    const outcomes = await dispatcher.transaction(
-                        label,
-                        async (scope) =>
-                            (await Promise.all(
-                                members.map((member) => scope.dispatch(member)),
-                            )) as EditOutcome<unknown>[],
-                    );
+                    const transact = (): Promise<EditOutcome<unknown>[]> =>
+                        dispatcher.transaction(
+                            label,
+                            async (scope) =>
+                                (await Promise.all(
+                                    members.map((member) => scope.dispatch(member)),
+                                )) as EditOutcome<unknown>[],
+                        );
+                    // A shader body still loading holds the write off the queue: counted as owed
+                    // meanwhile, so a settle wait does not find the queue idle and end without it.
+                    const outcomes = await (loading === undefined
+                        ? transact()
+                        : dispatcher.ahead(loading.then(transact)));
                     await Promise.all(outcomes.map((outcome) => outcome.painted));
                     const results = outcomes.map((outcome) => outcome.result);
 
                     return { result: (command.result === undefined ? results : command.result(results)) as T };
                 }
 
-                const outcome = (await dispatcher.dispatch(command)) as EditOutcome<T>;
+                const loading = loadNamedShaders(command);
+                const outcome = (await (loading === undefined
+                    ? dispatcher.dispatch(command)
+                    : dispatcher.ahead(loading.then(() => dispatcher.dispatch(command))))) as EditOutcome<T>;
                 await outcome.painted;
 
                 return { result: outcome.result };
@@ -2912,7 +3827,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const checked = check(spec, id);
 
         if (checked.layer === null) {
-            throw refusedSpec(spec.name, checked.result);
+            throw refused(spec.name, checked.result);
         }
 
         const next = [...current()];
@@ -2973,7 +3888,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const checked = check(merged, id, true, keepEmpty || alreadyEmpty);
 
         if (checked.layer === null) {
-            throw refusedSpec(merged.name, checked.result);
+            throw refused(merged.name, checked.result);
         }
 
         const next = [...base];
@@ -3130,7 +4045,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         const checked = check(planned, id);
 
         if (checked.layer === null) {
-            throw refusedSpec(planned.name, checked.result);
+            throw refused(planned.name, checked.result);
         }
 
         const next = [...stack];
@@ -3190,7 +4105,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const checked = check(layerSpec, ids[index]);
 
             if (checked.layer === null) {
-                throw refusedSpec(layerSpec.name, checked.result);
+                throw refused(layerSpec.name, checked.result);
             }
 
             for (const unanswered of checked.result.unresolvedPaths) {
@@ -3224,6 +4139,56 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             unresolvedPaths: Object.freeze([...unresolved]),
             reason: "add",
         };
+    };
+
+    /**
+     * What a document's shaders do to the project: the ones it adds, and the facts to report.
+     * @param document - The document.
+     * @param asked - The trust the call asked for, if any.
+     * @returns The entries to write and the facts.
+     */
+    const documentShaders = (
+        document: StyleDocument,
+        asked: ShaderTrustMode | undefined,
+    ): {
+        readonly mode: ShaderTrustMode;
+        readonly writes: readonly { readonly id: string; readonly text: string }[];
+        readonly facts: readonly CodedFact<"shader.held" | "shader.id-taken">[];
+    } => {
+        const trust = SHADER_TRUST.get(api);
+        const mode = asked ?? trust?.mode() ?? "hold";
+        const writes: { id: string; text: string }[] = [];
+        const facts: CodedFact<"shader.held" | "shader.id-taken">[] = [];
+        const held: string[] = [];
+        for (const { id, text } of document.shaders ?? []) {
+            // Text that does not read is not written: an opening file drops the uses naming it.
+            if (trust?.readable(id, text) === false) {
+                continue;
+            }
+
+            // Trust is the entry's content hash, read as the project stores it; never its id.
+            const trusted = trust?.trusted(id, text, mode === "refuse") === true;
+            const existing = dispatcher.state.shaders.get(id);
+            if (existing !== undefined) {
+                // The first loaded wins; a second text under the id is reported, not swapped in.
+                if (existing.text !== text) {
+                    facts.push({ code: "shader.id-taken", params: { id } });
+                }
+
+                continue;
+            }
+
+            writes.push({ id, text });
+            if (mode !== "run" && !trusted) {
+                held.push(id);
+            }
+        }
+
+        if (held.length > 0) {
+            facts.push({ code: "shader.held", params: { ids: held } });
+        }
+
+        return { mode, writes, facts };
     };
 
     /**
@@ -3266,7 +4231,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const checked = check(authored, ids[index], false);
 
             if (checked.layer === null) {
-                throw refusedSpec(authored.name, checked.result);
+                throw refused(authored.name, checked.result);
             }
 
             for (const unanswered of checked.result.unresolvedPaths) {
@@ -3293,7 +4258,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const off = check({ ...entry.spec, enabled: false }, entry.compiled.layer.id, false);
 
             if (off.layer === null) {
-                throw refusedSpec(entry.spec.name, off.result);
+                throw refused(entry.spec.name, off.result);
             }
 
             return off.layer;
@@ -3375,7 +4340,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             // A row may start empty, whichever kinds it paints: its first write gives it a value.
             const checked = check(layerSpec, ids[index], true, true);
             if (checked.layer === null) {
-                throw refusedSpec(spec.name, checked.result);
+                throw refused(spec.name, checked.result);
             }
 
             checked.result.unresolvedPaths.forEach((path) => unresolved.add(path));
@@ -3406,91 +4371,35 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         asked === true && dispatcher.services.config?.().runPlacement === "top" ? false : asked;
 
     /**
-     * The stack with an empty Everything row's parts given the base look.
-     * @param parts - The row's parts.
-     * @param stack - The stack.
-     * @param layers - Collects the layers rewritten.
-     * @returns The stack.
+     * The plan that writes the default rows once, as plain data: Everything at the very bottom of
+     * the reader's rows, the rest at the top. It adds every one of them; it never looks for a row
+     * already there, so a row a reader deleted or changed stays as the reader left it.
+     * @returns The plan.
      */
-    const fillBaseLook = (
-        parts: readonly CompiledLayer[],
-        stack: readonly CompiledLayer[],
-        layers: LayerId[],
-    ): readonly CompiledLayer[] => {
-        let next = stack;
-        for (const part of parts) {
-            ({ stack: next } = planUpdate(part.layer.id, { set: baseValues(part.layer.target) }, next));
-            layers.push(part.layer.id);
-        }
-
-        return next;
-    };
-
-    /**
-     * Where a missing starting row goes, and the spec it is added with.
-     * @param stack - The stack it goes into.
-     * @param starting - The starting row.
-     * @param base - Whether `editableBase` is on, so Everything carries the base look.
-     * @returns The index to insert at and the row's spec.
-     */
-    const startingPlacement = (
-        stack: readonly CompiledLayer[],
-        starting: StartingRow,
-        base: boolean,
-    ): { index: number; spec: RowSpec } => {
-        const firstOwn = stack.findIndex((entry) => !entry.layer.locked);
-        const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-        // Everything at the very bottom of the reader's rows; Selected just below Hovered.
-        const below = starting.pin === "bottom" ? firstOwn : hovered;
-        const index = below === -1 ? stack.length : below;
-        const spec =
-            base && starting.templateId === "graphty:starting-everything"
-                ? { ...starting.spec, set: { ...baseValues("node"), ...baseValues("edge") } }
-                : starting.spec;
-
-        return { index, spec };
-    };
-
-    /**
-     * The plan that adds back whichever starting rows the stack lacks, each pinned where it
-     * belongs: Everything at the very bottom of the reader's rows, Selected just below Hovered.
-     * @returns The plan; the stack unchanged when every starting row is there.
-     */
-    const planStartingRows = (): EditPlan<readonly RowParts[]> => {
-        const look = dispatcher.services.config?.().selectionStyle ?? DEFAULT_SELECTION_STYLE;
+    const planDefaultRows = (): EditPlan<readonly RowParts[]> => {
+        const config = dispatcher.services.config?.();
+        const rowsToAdd = startingRows({
+            selection: config?.selectionStyle ?? DEFAULT_SELECTION_STYLE,
+            ...(editableBase() ? { everything: { ...baseValues("node"), ...baseValues("edge") } } : {}),
+            ...(config?.pinnedStyle === undefined ? {} : { pinned: config.pinnedStyle }),
+            ghost: dispatcher.services.timeline?.() === true,
+        });
         let stack = current();
-        let rows = rowsOf(stack);
         const added: RowParts[] = [];
         const layers: LayerId[] = [];
         const pins: [LayerId, "top" | "bottom"][] = [];
-
-        const base = editableBase();
-
-        for (const starting of startingRows(look)) {
-            const parts = stack.filter((entry) => startingRowOf(entry) === starting.templateId);
-            if (parts.length > 0) {
-                // An Everything row that writes nothing takes the base look, so turning
-                // `editableBase` on never leaves the graph unpainted.
-                const empty = parts.every((entry) => entry.layer.set === undefined && entry.layer.encode === undefined);
-                if (base && starting.templateId === "graphty:starting-everything" && empty) {
-                    stack = fillBaseLook(parts, stack, layers);
-                    rows = reconcile(rows, stack);
-                }
-
-                continue;
-            }
-
-            const { index, spec } = startingPlacement(stack, starting, base);
+        for (const { pin, spec } of rowsToAdd) {
+            const firstOwn = stack.findIndex((entry) => !entry.layer.locked);
+            const index = pin === "bottom" && firstOwn !== -1 ? firstOwn : stack.length;
             const plan = planAddRow(spec, undefined, { stack, index });
             ({ stack } = plan);
-            rows = reconcile(rows, stack);
-            pins.push([plan.result.id, starting.pin]);
+            pins.push([plan.result.id, pin]);
             added.push(plan.result);
             layers.push(...plan.layers);
         }
 
-        // Pinned once every row is placed: a pin taken earlier would band a row before the next
-        // one is placed by its stack neighbors, and Hovered would land below Selected.
+        // Pinned once every row is placed, so each top row lands above the one added before it.
+        let rows = reconcile(rowsOf(current()), stack);
         for (const [id, pin] of pins) {
             rows = mapRow(rows, id, (row) => ({ ...row, pin }));
         }
@@ -3551,7 +4460,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
             const checked = check(spec, layerId);
             if (checked.layer === null) {
-                throw refusedSpec(spec.name, checked.result);
+                throw refused(spec.name, checked.result);
             }
 
             return checked.layer;
@@ -3816,7 +4725,38 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         }
 
         if (command.op === "style.template") {
-            return planTemplate(command.document, command.templateId, command.at);
+            const { facts } = documentShaders(command.document, command.shaders);
+            // A document resolves a use only against the shaders it carries and those the project
+            // holds, never the catalog by id: any other use is dropped and reported, and the rest
+            // of it applies. Whether opening a file or applying a saved document, the same rule.
+            const dropped: { channel: string; shader: string }[][] = [];
+            let { document } = command;
+            // A carried entry keeps its uses when its text reads, whether or not trust lets it
+            // run: refused text draws nothing, but the author's uses survive a save.
+            const readable = SHADER_TRUST.get(api)?.readable;
+            const carried = new Set(
+                (command.document.shaders ?? [])
+                    .filter((entry) => readable?.(entry.id, entry.text) !== false)
+                    .map((entry) => entry.id),
+            );
+            const keep = (id: string): boolean => carried.has(id) || dispatcher.services.shaderReadable?.(id) === true;
+            const layers = document.layers.map((spec, at) => {
+                dropped[at] = [];
+                return withoutShaderUses(spec, keep, dropped[at]);
+            });
+            document = layers.every((spec, at) => spec === document.layers[at]) ? document : { ...document, layers };
+
+            const plan = planTemplate(document, command.templateId, command.at);
+            const unknown = dropped.flatMap((uses, at) =>
+                uses.map((use): CodedFact<"shader.unknown"> => ({
+                    code: "shader.unknown",
+                    params: { layer: plan.layers[at] ?? "", channel: use.channel, shader: use.shader },
+                })),
+            );
+            const all = [...facts, ...unknown];
+            return all.length === 0 && command.document.shaders === undefined
+                ? plan
+                : { ...plan, result: Object.freeze({ ...plan.result, shaders: Object.freeze(all) }) };
         }
 
         switch (command.action) {
@@ -3847,8 +4787,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 return planUpdate(command.id, command.patch, current(), command.keepEmpty === true);
             case "addRow":
                 return planAddRow(command.spec, command.at);
-            case "restoreStartingRows":
-                return planStartingRows();
+            case "addDefaultRows":
+                return planDefaultRows();
             case "addFolder":
             case "renameRow":
             case "moveRow":
@@ -3910,6 +4850,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             binding: filled,
             column,
             scales,
+            fileStyles: sources.fileStyles?.() !== false,
             asWritten: binding,
             ...(options.bins === undefined ? {} : { bins: options.bins }),
             ...(options.span === undefined ? {} : { span: options.span }),
@@ -3921,12 +4862,45 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     dispatcher.services.styles = {
         previewColumn: (binding, channel, column) => previewColumn(binding, channel, column),
         execute(command, draft) {
+            // Every style write reaches here, run commits and suggested styles included: one that
+            // names a catalog shader the project does not hold copies its text in, in this step. A
+            // document copies nothing: it carries its shaders.
+            const named = namedShaders(dispatcher.state);
+            if (command.op !== "style.template") {
+                settleShaderCopies(shaderIdsIn(command), draft, dispatcher.services);
+            }
+
             const planned = planOf(command);
+            if (command.op === "style.template") {
+                // The layers are planned first, so a refused document writes no shader either.
+                const { mode, writes } = documentShaders(command.document, command.shaders);
+                if (mode === "run") {
+                    SHADER_TRUST.get(api)?.trust(writes);
+                } else if (mode === "refuse") {
+                    SHADER_TRUST.get(api)?.refuse(writes);
+                }
+
+                for (const { id, text } of writes) {
+                    draft.shaders.set(id, Object.freeze({ text }));
+                }
+            }
+
             const stack = current();
             // The tree follows the stack another verb planned, or is the one a tree verb planned;
             // the stack then takes the tree's order.
             const rows = reconcile(planned.rows ?? rowsOf(stack), planned.stack, planned.moved);
             const next = arrange(planned.stack, rows);
+            // A layer this command compiled anew under an id the stack already holds is that
+            // layer edited, and keeps its first version; one added under a freed id has its own.
+            const held = byId();
+            for (const entry of next) {
+                const was = held.get(entry.layer.id);
+                if (was !== undefined && was !== entry) {
+                    // What the old version painted is read before the edit hides it (see encodingOf).
+                    encodingOf(was.layer.id);
+                    firstVersion.set(entry, versionsOf(was));
+                }
+            }
             if (
                 rows === rowsOf(stack) &&
                 next.length === stack.length &&
@@ -3936,6 +4910,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 dispatcher.lane.touch("styles", "");
             } else {
                 draft.styles = next;
+                dropUnusedShaderCopies(named, dispatcher.state, draft, dispatcher.services);
             }
 
             let settle: (painted: RepaintReport | null) => void = () => undefined;
@@ -3944,7 +4919,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 settle = resolve;
                 refuse = reject;
             });
-            // Nobody may be awaiting it: a failed repaint is also reported where hooks report.
+            // Nobody may be awaiting it: the run's rejection is how a failed repaint is told.
             painted.catch(() => undefined);
             announcements.push({
                 change: {
@@ -3961,6 +4936,21 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return { result: planned.result, painted } satisfies EditOutcome<unknown>;
         },
         validate: (spec) => check(spec, mint(spec.name)).result,
+    };
+
+    // What one pass told, closed by a single `onBatch`.
+    let batch: StyleChange[] = [];
+    const flushBatch = (): void => {
+        const told = batch;
+        batch = [];
+        const last = told.at(-1);
+        if (last !== undefined) {
+            sources.onBatch?.({
+                edits: told.length,
+                layers: [...new Set(told.flatMap((each) => each.layers))],
+                cause: last.cause,
+            });
+        }
     };
 
     // The `styles` hook: the repaint follows the stack, whatever moved it -- an edit, an undo, a
@@ -3984,6 +4974,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             reason: request.reason,
             layers: request.edits.map((each) => (each.next ?? each.previous)?.layer.id ?? ""),
             painted,
+            failed: failure !== null,
         };
 
         let edit: Announcement[] = [];
@@ -4002,8 +4993,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             }
 
             styleRevision++;
-            sources.onChange?.({ ...joined(edit), painted, cause: "command" });
+            const change: StyleChange = { ...joined(edit), painted, cause: "command" };
+            batch.push(change);
+            sources.onChange?.(change);
             edit = [];
+        }
+        flushBatch();
+
+        // An undo, a redo, a restore or a rollback has no run to reject: the lane reports it.
+        if (failure !== null && told.length === 0) {
+            throw failure instanceof Error ? failure : new Error("The repaint failed", { cause: failure });
         }
     });
 
@@ -4012,44 +5011,192 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const previousDerived = dispatcher.events.derived;
     dispatcher.events.derived = (change) => {
         previousDerived?.(change);
-        if (change.cause !== "command" && change.slices.includes("styles")) {
+        // A failed repaint is not a change painted: the lane has reported it instead.
+        if (change.cause !== "command" && change.slices.includes("styles") && !lastPass.failed) {
             styleRevision++;
-            sources.onChange?.({
+            const told: StyleChange = {
                 reason: lastPass.reason,
                 layers: lastPass.layers,
                 painted: lastPass.painted,
                 unresolvedPaths: NO_PATHS,
                 warnings: NO_WARNINGS,
                 cause: change.cause,
-            });
+            };
+            // The steps of one undo, redo or restore are told one after another in the same task.
+            if (batch.length === 0) {
+                queueMicrotask(flushBatch);
+            }
+            batch.push(told);
+            sources.onChange?.(told);
         }
     };
 
+    /**
+     * Check the element's own layers.
+     * @param specs - The layers.
+     * @param id - Mints each one's id.
+     * @returns The compiled layers.
+     * @throws A `GraphtyError` coded `E_INTERNAL` for a malformed one: it is the element's bug.
+     */
+    function compileElementLayers(
+        specs: readonly ElementLayerSpec[],
+        id: (name: string) => LayerId,
+    ): readonly CompiledLayer[] {
+        return specs.map((spec) => {
+            const checked = check(spec, id(spec.name));
+
+            if (checked.layer === null) {
+                throw new GraphtyError({
+                    code: "E_INTERNAL",
+                    message: `The element's own style layer "${spec.name}" is malformed.`,
+                    source: "style",
+                    details: { errors: checked.result.errors },
+                });
+            }
+
+            return checked.layer;
+        });
+    }
+
     // The element's own layers are the baseline: seeded once, and never a step.
-    const seedId = minter();
-    const seeded = (sources.base ?? []).map((spec) => {
-        const checked = check(spec, seedId(spec.name));
-
-        if (checked.layer === null) {
-            throw new GraphtyError({
-                code: "E_INTERNAL",
-                message: `The element's own style layer "${spec.name}" is malformed.`,
-                source: "style",
-                details: { errors: checked.result.errors },
-            });
-        }
-
-        return checked.layer;
-    });
+    const seeded = compileElementLayers(sources.base ?? [], minter());
     if (seeded.length > 0) {
         dispatcher.seed((draft) => {
             draft.styles = Object.freeze([...current(), ...seeded]);
         });
     }
 
+    /**
+     * What `agreement` answers, read fresh; see {@link StylesApi.agreement}.
+     * @param scope - The elements to read.
+     * @param channel - One channel, or every channel.
+     * @param options - The row to read beneath, and the row to read over.
+     * @returns The answer.
+     */
+    const agreementOf = (scope: Scope, channel: Channel | undefined, options: AgreementOptions): StyleAgreement => {
+        const { below, over } = options;
+        // Read through the stack's own layers, never a branches view's: which layer decides a
+        // value does not change while a selection is being picked.
+        const read = below === undefined ? countSources() : { ...explainSources, stack: () => stackBelow(below) };
+        if (over === undefined) {
+            return styleAgreement(elementsOf(scope), read, channel);
+        }
+
+        // The row's elements: those of the scope some layer of the row matches, hidden or not.
+        const parts = layersOfRows([over]).flatMap((layer) => byId().get(layer.id) ?? []);
+        const scoped = elementsOf(scope);
+        const nodes = [...scoped.nodes];
+        const edges = [...scoped.edges];
+        const within = (target: "node" | "edge", indices: readonly number[]): number[] =>
+            indices.filter((index) =>
+                parts.some(
+                    ({ layer, selector }) =>
+                        layer.target === target && (selector.test === null || selector.test(index)),
+                ),
+            );
+        const matched = { nodes: within("node", nodes), edges: within("edge", edges) };
+        if (matched.nodes.length + matched.edges.length > 0) {
+            const own = new Set(parts.map(({ layer }) => layer.id));
+            return { ...styleAgreement(matched, read, channel, own), readOver: "row" };
+        }
+
+        // It matches nothing: read the row's kinds through the layers that match every element.
+        const kinds = new Set(parts.map(({ layer }) => layer.target));
+        const floor = { ...read, stack: () => read.stack().filter((entry) => entry.selector.test === null) };
+        const every = {
+            nodes: kinds.has("node") ? nodes : [],
+            edges: kinds.has("edge") ? edges : [],
+        };
+
+        return { ...styleAgreement(every, floor, channel), readOver: "everyElement" };
+    };
+
+    /**
+     * Count what one layer covers and where it wins: {@link StylesApi.counts}, read fresh.
+     * @param id - The layer.
+     * @param scope - Over the whole graph, or over what is shown.
+     * @returns The counts.
+     */
+    const countsOf = (id: LayerId, scope: "graph" | "visible"): StyleCounts => {
+        const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+        const shown = elementsOf(DRAWN);
+
+        // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
+        const counts = {
+            ...styleCounts(id, scope === "graph" ? elementsOf(WHOLE_GRAPH) : shown, countSources(), revision, shown),
+            visible: amongDrawn(id),
+        };
+        // Groups past the outline cap draw nothing; said here, never dropped silently.
+        const left = groupOutlinesOf(api)
+            .filter((each) => each.layer === id)
+            .reduce((sum, each) => sum + each.left, 0);
+        return left === 0
+            ? counts
+            : {
+                  ...counts,
+                  undrawn: Object.freeze([
+                      ...counts.undrawn,
+                      { code: "shader.group-cap" as const, params: { left, limit: GROUP_OUTLINE_CAP } },
+                  ]),
+              };
+    };
+
     const api: SessionStylesApi = {
         list(): readonly Layer[] {
             return listLayers();
+        },
+
+        showBranches(view: BranchesView): { end(): void; readonly notDrawn: readonly HiddenNotDrawn[] } {
+            const made = branchLayers(view);
+            // A layer that draws what the view drawn now draws is kept, the same object, so a view
+            // that changes nothing on the canvas repaints nothing (a step with no test, the same
+            // rule handed again).
+            const kept = branchesShown?.layers ?? [];
+            const layers = made.layers.map((layer, at) =>
+                kept[at] !== undefined && shownKeys[at] === made.keys[at] ? kept[at] : layer,
+            );
+            shownKeys = made.keys;
+            const before = painting(current());
+            const shown = { layers, view: Object.freeze({ ...view }) };
+            branchesShown = shown;
+            sources.holdCondition?.(view.hold ?? null, view.base === "full");
+            repaintBetween(before, painting(current()));
+            // A view that replaces another is a change too: a reader of `shownBranches` hears it.
+            sources.onBranchesShown?.(true);
+
+            return {
+                // The working graph draws only the view: what of this one it does not draw, now.
+                get notDrawn(): readonly HiddenNotDrawn[] {
+                    if (branchesShown !== shown || sources.workingGraph?.() !== true || shown.view.hold === undefined) {
+                        return Object.freeze([]);
+                    }
+
+                    // With no hold, "full" lifts nothing, so it keeps nothing from drawing.
+                    return Object.freeze([
+                        hiddenNotDrawn("hold"),
+                        ...(shown.view.base === "full" ? [hiddenNotDrawn("full")] : []),
+                    ]);
+                },
+                end(): void {
+                    if (branchesShown !== shown) {
+                        return;
+                    }
+
+                    const drawn = painting(current());
+                    branchesShown = null;
+                    sources.holdCondition?.(null);
+                    repaintBetween(drawn, painting(current()));
+                    sources.onBranchesShown?.(false);
+                },
+            };
+        },
+
+        get showingBranches(): boolean {
+            return branchesShown !== null;
+        },
+
+        get shownBranches(): BranchesView | null {
+            return branchesShown?.view ?? null;
         },
 
         compiled(): readonly CompiledLayer[] {
@@ -4059,10 +5206,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
         tree(): readonly StyleRow[] {
             const stack = current();
-            let rows = treeCache.get(stack);
+            // With the timeline off a saved Ghost row stays in the stack, so it saves, and is no row.
+            const timelineOff = dispatcher.services.timeline?.() === false;
+            const cache = timelineOff ? treeWithoutGhostCache : treeCache;
+            let rows = cache.get(stack);
             if (rows === undefined) {
-                rows = publicRows(rowsOf(stack), namesIn(stack));
-                treeCache.set(stack, rows);
+                const ghosts = new Set(timelineOff ? stack.filter(isGhostRow).map(rowIdOf) : []);
+                rows = publicRows(
+                    rowsOf(stack).filter((row) => !ghosts.has(row.id)),
+                    namesIn(stack),
+                );
+                cache.set(stack, rows);
             }
 
             return rows;
@@ -4112,15 +5266,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        restoreStartingRows(options: RunOptions = {}): Run<readonly RowParts[]> {
-            return edit<readonly RowParts[]>(
-                "add",
-                "Restore the starting rows",
-                { op: "style.patch", action: "restoreStartingRows" },
-                options,
-            );
-        },
-
         deleteRow(id: StyleRowId, options: RunOptions = {}): Run<readonly LayerId[]> {
             return edit<readonly LayerId[]>(
                 "remove",
@@ -4128,6 +5273,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 { op: "style.patch", action: "deleteRow", id },
                 options,
             );
+        },
+
+        modelUrlFromCode(url: string): boolean {
+            return codeModelUrls.has(url);
         },
 
         get(id: LayerId): Layer | undefined {
@@ -4139,6 +5288,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         add(spec: LayerSpec, at?: LayerPosition, options: RunOptions = {}): Run<Layer> {
+            noteCodeModel(spec);
             return edit<Layer>(
                 "add",
                 `Add layer "${spec.name}"`,
@@ -4148,6 +5298,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         update(id: LayerId, patch: Partial<LayerSpec>, options: StyleUpdateOptions = {}): Run<Layer> {
+            noteCodeModel(patch);
             const { keepEmpty, ...run } = options;
             return edit<Layer>(
                 "update",
@@ -4236,6 +5387,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return edit<readonly Layer[]>("update", `Replace ${from} with ${to}`, { batch }, options);
         },
 
+        grayCollisions(options: StyleGrayCollisionOptions = {}): readonly StyleGrayCollision[] {
+            const uses = legendSources
+                .layers()
+                .flatMap((layer) => (buildLayerLegend(legendSources, layer.id) ?? []).flatMap(grayUsesOf));
+            return grayCollisionsOf(uses, options.threshold ?? DEFAULT_GRAY_THRESHOLD);
+        },
+
         layersUnder(rowIds: readonly StyleRowId[]): readonly LayerReach[] {
             const stack = current();
             const rows = rowsOf(stack);
@@ -4274,11 +5432,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                             ...(Object.keys(layer.encode ?? {}) as Channel[]),
                         ]),
                     );
+                    const writes = new Set<Channel>(sets);
+                    for (const layer of parts) {
+                        for (const [channel, value] of Object.entries(layer.set ?? {})) {
+                            for (const field of labelStyleFieldChannels(channel as Channel, value)) {
+                                writes.add(field);
+                            }
+                        }
+                    }
                     return Object.freeze({
                         row: key,
                         layers: Object.freeze(parts.map((layer) => layer.id)),
                         ...(reached.get(key) as { hidden: boolean; locked: boolean }),
                         sets: Object.freeze([...sets]),
+                        writes: Object.freeze([...writes]),
                     });
                 }),
             );
@@ -4343,7 +5510,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        proposeEncoding(spec: EncodingSpec | ColumnEncodingSpec): EncodingProposal {
+        proposeEncoding(asked: EncodingSpec | ColumnEncodingSpec | ParamEncodingSpec): EncodingProposal {
+            // An address is read through its parameter's descriptor where a channel's is read.
+            const spec = asked as EncodingSpec | ColumnEncodingSpec;
             if ("column" in spec) {
                 const { column, declaration } = columnOf(spec);
                 return proposeColumnBinding(spec, column, declaration, scales);
@@ -4461,8 +5630,23 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 );
             }
 
-            return categoriesOf(entry.layer, channel, steadyEncodingOf(id), (path) =>
+            const categories = categoriesOf(entry.layer, channel, steadyEncodingOf(id), (path) =>
                 valueLabelsAt(dispatcher.state.valueLabels, path),
+            );
+            const binding = entry.layer.encode?.[channel];
+            if (
+                categories.length === 0 ||
+                sources.workingGraph?.() !== true ||
+                binding === undefined ||
+                !("by" in binding)
+            ) {
+                return categories;
+            }
+
+            // Counted among what is shown, as every reader of the working graph counts.
+            const held = categoryCounts(id, binding.by, DRAWN);
+            return categories.map((category) =>
+                Object.freeze({ ...category, count: held.get(String(category.value)) ?? 0 }),
             );
         },
 
@@ -4478,22 +5662,14 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             const groups = groupsOf(entry.layer, path, steadyEncodingOf(id), (at) =>
                 valueLabelsAt(dispatcher.state.valueLabels, at),
             );
-            if (groups.length === 0 || entry.layer.selector.match === "everything") {
+            const working = sources.workingGraph?.() === true;
+            if (groups.length === 0 || (entry.layer.selector.match === "everything" && !working)) {
                 return groups;
             }
             // The prepared binding reads the whole graph, so its scale is the whole graph's; a group's
-            // count is how many of THIS layer's elements carry it, as `ValueGroup.count` says.
-            const { selector } = require(id);
-            const { nodes, edges } = elementsOf(WHOLE_GRAPH);
-            const onNodes = entry.layer.target === "node";
-            const read = onNodes ? sources.elements.nodeValue : sources.elements.edgeValue;
-            const held = new Map<string, number>();
-            for (const index of onNodes ? nodes : edges) {
-                if (selector.test === null || selector.test(index)) {
-                    const key = String(read(index, path));
-                    held.set(key, (held.get(key) ?? 0) + 1);
-                }
-            }
+            // count is how many of THIS layer's elements carry it, as `ValueGroup.count` says --
+            // among what is shown, with the working graph on.
+            const held = categoryCounts(id, path, working ? DRAWN : WHOLE_GRAPH);
             return groups.map((group) => Object.freeze({ ...group, count: held.get(String(group.value)) ?? 0 }));
         },
 
@@ -4557,7 +5733,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         },
 
-        applyTemplate(document: StyleDocument, options: TemplateOptions = {}): Run<TemplateReport> {
+        applyTemplate(given: StyleDocument, options: TemplateOptions = {}): Run<TemplateReport> {
+            // Trust is the reader's and the page's, never the file's: a document that carries
+            // shader settings has them dropped before anything reads it.
+            const { shaderSettings: _ignored, ...document } = given as StyleDocument & { shaderSettings?: unknown };
             return edit<TemplateReport>(
                 "template",
                 "Apply a style document",
@@ -4566,6 +5745,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     document,
                     ...(options.templateId === undefined ? {} : { templateId: options.templateId }),
                     ...(options.at === undefined ? {} : { at: options.at }),
+                    ...(options.shaders === undefined ? {} : { shaders: options.shaders }),
                 },
                 options,
             );
@@ -4594,8 +5774,18 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         async settled(): Promise<void> {
             // What the element starts for itself (a run's suggested layers) waits on the queue;
             // the repaint of every edit written so far waits on the derivation lane.
+            // The passes nobody awaits (a selection or pointer change asks for one), read before and
+            // again after the queue and lane: a finishing run may ask for one. Each read is bounded
+            // by the passes asked for by then, so steady pointer input cannot extend the wait.
+            // A live set a graph change queued for a later frame is resolved now, and the repaint
+            // its new membership asks for is one of the passes read next.
+            const passes = sources.idle?.();
             await sources.queue?.settled();
             await dispatcher.lane.settled();
+            sources.resolveQueuedSets?.();
+            await passes;
+            await viewPasses;
+            await sources.idle?.();
         },
 
         explain(target: ExplainTarget): StyleExplanation {
@@ -4603,38 +5793,15 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         agreement(scope: Scope, channel?: Channel, options: AgreementOptions = {}): StyleAgreement {
+            // The graph and the selection resolve from what the token covers; any other scope is
+            // read fresh.
+            if (scope !== "graph" && scope !== "selection") {
+                return agreementOf(scope, channel, options);
+            }
             const { below, over } = options;
-            const read = below === undefined ? explainSources : { ...explainSources, stack: () => stackBelow(below) };
-            if (over === undefined) {
-                return styleAgreement(elementsOf(scope), read, channel);
-            }
-
-            // The row's elements: those of the scope some layer of the row matches, hidden or not.
-            const parts = layersOfRows([over]).flatMap((layer) => byId().get(layer.id) ?? []);
-            const scoped = elementsOf(scope);
-            const nodes = [...scoped.nodes];
-            const edges = [...scoped.edges];
-            const within = (target: "node" | "edge", indices: readonly number[]): number[] =>
-                indices.filter((index) =>
-                    parts.some(
-                        ({ layer, selector }) =>
-                            layer.target === target && (selector.test === null || selector.test(index)),
-                    ),
-                );
-            const matched = { nodes: within("node", nodes), edges: within("edge", edges) };
-            if (matched.nodes.length + matched.edges.length > 0) {
-                return { ...styleAgreement(matched, read, channel), readOver: "row" };
-            }
-
-            // It matches nothing: read the row's kinds through the layers that match every element.
-            const kinds = new Set(parts.map(({ layer }) => layer.target));
-            const floor = { ...read, stack: () => read.stack().filter((entry) => entry.selector.test === null) };
-            const every = {
-                nodes: kinds.has("node") ? nodes : [],
-                edges: kinds.has("edge") ? edges : [],
-            };
-
-            return { ...styleAgreement(every, floor, channel), readOver: "everyElement" };
+            return kept(JSON.stringify(["agreement", scope, channel ?? null, below ?? null, over ?? null]), () =>
+                agreementOf(scope, channel, options),
+            );
         },
 
         preview(
@@ -4698,6 +5865,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 binding: palette === undefined ? rule : { ...rule, palette },
                 count: options.count,
                 scales,
+                fileStyles: sources.fileStyles?.() !== false,
             });
         },
 
@@ -4760,43 +5928,59 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             });
         },
 
-        counts(id: LayerId): StyleCounts {
-            const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
-
-            return styleCounts(id, elementsOf(WHOLE_GRAPH), explainSources, revision);
+        counts(id: LayerId, options: { readonly scope?: "graph" | "visible" } = {}): StyleCounts {
+            const scope = options.scope ?? (sources.workingGraph?.() === true ? "visible" : "graph");
+            if (scope !== "graph" && scope !== "visible") {
+                throw new GraphtyError({
+                    code: "E_OPTION_RANGE",
+                    message: `styles.counts scope must be "graph" or "visible", not ${JSON.stringify(scope)}`,
+                    source: "data",
+                });
+            }
+            // Kept while nothing it reads moves, as `agreement` is: a read walks the layer's kind of
+            // element, and the graphty app's panels read the same layer several times a render
+            // (issue #7966).
+            return kept(JSON.stringify(["counts", id, scope]), () => countsOf(id, scope));
         },
 
-        setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {
-            for (const [kind, id] of Object.entries(palettes)) {
-                if (kind !== "categorical" && kind !== "sequential" && kind !== "diverging") {
-                    throw badCommand(
-                        `setDefaultPalettes takes a palette for "categorical", "sequential" or "diverging", not "${kind}".`,
-                        { field: kind },
-                    );
-                }
+        drawnCount(id: LayerId): number {
+            return selectsAmongDrawn(id).count;
+        },
 
-                if (id === undefined) {
-                    continue;
+        drawnValues(channel: Channel): readonly DrawnValue[] {
+            requireChannel(channel);
+            return kept(JSON.stringify(["drawnValues", channel]), () => {
+                const drawn = elementsOf(DRAWN);
+                // Only the channel's own kind: the walk over the other kind would paint nothing on it.
+                const own = [...(channel.startsWith("node.") ? drawn.nodes : drawn.edges)];
+                const elements = channel.startsWith("node.") ? { nodes: own, edges: [] } : { nodes: [], edges: own };
+                const answer = styleAgreement(elements, countSources(), channel).channels[0];
+                if (answer === undefined) {
+                    return Object.freeze([]);
                 }
+                const shares =
+                    answer.state === "agree"
+                        ? [{ value: answer.value, count: own.length - answer.unpainted }]
+                        : answer.breakdown;
+                const byValue = new Map<string, { value: unknown; count: number }>();
+                for (const { value, count } of shares) {
+                    const key = JSON.stringify([typeof value, value]);
+                    const held = byValue.get(key);
+                    if (held === undefined) {
+                        byValue.set(key, { value, count });
+                    } else {
+                        held.count += count;
+                    }
+                }
+                // A stable sort: equal counts keep the order the walk met them in.
+                return Object.freeze(
+                    [...byValue.values()].sort((a, b) => b.count - a.count).map((entry) => Object.freeze(entry)),
+                );
+            });
+        },
 
-                const palette = paletteDescriptor(String(id));
-                if (palette === undefined) {
-                    const available = knownPaletteIds();
-                    throw new GraphtyError({
-                        code: "E_UNKNOWN_PALETTE",
-                        message: `There is no palette named "${String(id)}". Define it before making it a default.`,
-                        source: "style",
-                        details: { palette: id, available, candidates: available },
-                    });
-                }
-
-                if (palette.kind !== kind) {
-                    throw badCommand(
-                        `The palette "${palette.id}" is ${palette.kind}, so it cannot be the ${kind} default.`,
-                        { field: kind, palette: palette.id },
-                    );
-                }
-            }
+        setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): Promise<void> {
+            assertDefaultPalettes(palettes);
 
             // The layers that took the default a kind is about to lose: a binding naming no palette
             // took the element's own choice, and one this session filled in took the old default.
@@ -4812,18 +5996,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                         binding === undefined || channelDescriptor(channel)?.accepts !== "color"
                             ? null
                             : paletteKindOf(binding);
-                    if (
-                        kind === null ||
-                        !("by" in binding) ||
-                        palettes[kind] === undefined ||
-                        palettes[kind] === previous[kind]
-                    ) {
+                    if (kind === null || !("by" in binding) || palettes[kind] === undefined) {
                         return [];
                     }
 
+                    // A binding still on the palette a default wrote took it, whichever default
+                    // that was: one whose reapply failed is stale until a call lands it.
                     const took =
-                        binding.palette === undefined ||
-                        (binding.palette === previous[kind] && defaulted.has(`${layer.id}/${channel}`));
+                        binding.palette === undefined
+                            ? palettes[kind] !== previous[kind]
+                            : binding.palette !== palettes[kind] &&
+                              defaulted.get(`${layer.id}/${channel}`) === binding.palette;
                     return took ? [{ channel, kind }] : [];
                 });
                 if (channels.length > 0) {
@@ -4834,35 +6017,56 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             defaultPalettes = { ...previous, ...palettes };
 
             if (stale.length === 0) {
-                return;
+                return Promise.resolve();
             }
 
             if (options.reapply !== true) {
-                const named = stale.map(({ layer }) => `"${layer.name}" (${layer.id})`).join(", ");
-                console.warn(
-                    `[graphty] setDefaultPalettes: ${named} took the previous default palette and keep it. ` +
-                        "Call setDefaultPalettes before adding layers, or pass { reapply: true } to repaint them.",
+                GraphtyLogger.getLogger(["graphty", "style"]).warn(
+                    "setDefaultPalettes: layers that took the previous default palette keep it; pass reapply",
+                    { layerIds: stale.map(({ layer }) => layer.id) },
                 );
-                return;
+                return Promise.resolve();
             }
 
-            for (const { layer, channels } of stale) {
-                const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
-                for (const { channel, kind } of channels) {
-                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] };
-                    defaulted.add(`${layer.id}/${channel}`);
-                }
+            // A layer counts as having taken the new default only once its update lands, so a
+            // failed one still reads as stale to the next call.
+            return Promise.all(
+                stale.map(async ({ layer, channels }) => {
+                    const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
+                    for (const { channel, kind } of channels) {
+                        encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] };
+                    }
 
-                api.update(layer.id, { encode }).then(undefined, (error: unknown) => {
-                    console.error(`[graphty] setDefaultPalettes could not reapply the layer "${layer.name}".`, error);
-                });
-            }
+                    // Read before the update is awaited: a later call may change the defaults meanwhile.
+                    const written = channels.map(({ channel, kind }) => [channel, defaultPalettes[kind]] as const);
+                    await api.update(layer.id, { encode });
+                    for (const [channel, palette] of written) {
+                        if (palette !== undefined) {
+                            defaulted.set(`${layer.id}/${channel}`, palette);
+                        }
+                    }
+                }),
+            ).then(() => undefined);
         },
 
         toDocument(): StyleDocument {
             const mine = current().filter((entry) => !entry.layer.locked);
             const layers = mine.map((entry) => specOf(entry.layer));
             const carried = carriedPalettes(layers);
+            // The project's shaders travel with its look, verbatim, beside the palettes. A write
+            // that names a catalog shader copies it into the project, so this is every shader used.
+            const shaders = [...dispatcher.state.shaders].map(([id, entry]) => Object.freeze({ id, text: entry.text }));
+            // Every id a layer, an encode key or the background names must be one the document
+            // carries. One that is not is an element bug, reported rather than written silently.
+            const background = dispatcher.state.config.get("background") as { shader?: { id?: unknown } } | undefined;
+            const named = shaderIdsIn(layers);
+            if (typeof background?.shader?.id === "string") {
+                named.add(background.shader.id);
+            }
+
+            const problems = [...named]
+                .filter((id) => !dispatcher.state.shaders.has(id))
+                .map((id): ShaderProblem => Object.freeze({ code: "shader.not-saved", params: { id } }));
             // Saved by place, since an opened document mints new layer ids.
             const tree = documentRows(rowsOf(current()), (key) => mine.findIndex((entry) => entry.layer.id === key));
 
@@ -4872,13 +6076,176 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 // Written only when there is something to write, so a look that uses nothing but
                 // the element's own palettes saves byte for byte what it saved before.
                 ...(carried.length === 0 ? {} : { palettes: Object.freeze(carried) }),
+                ...(shaders.length === 0 ? {} : { shaders: Object.freeze(shaders) }),
                 ...(tree === undefined ? {} : { tree }),
+                ...(problems.length === 0 ? {} : { problems: Object.freeze(problems) }),
             });
+        },
+
+        toFile(): StyleFileDocument {
+            return Object.freeze({ kind: "graphty-style", ...api.toDocument() });
         },
     };
 
     PAINTING.set(api, painting);
+    OUTLINES.set(api, () => groupOutlineSets(painting(current()), sources, (id) => explainSources.nodeIndex(id)));
     return api;
+}
+
+/**
+ * The most group outlines one graph draws, across every layer (`shader.group-cap`): the field
+ * targets hold as many (eight targets of four groups), so no group drawn from a field is ever left
+ * out by them.
+ */
+export const GROUP_OUTLINE_CAP = 32;
+
+/** A group's key: its `groupBy` value, or null for a use drawing one outline. */
+export type GroupKey = string | number | boolean | null;
+
+/**
+ * One use at the place `group` as it draws: its groups and their members, bottom first. A node is a
+ * member when it still carries the use after the stack is resolved.
+ */
+export interface GroupOutlineSet {
+    /** The layer the use is on. */
+    readonly layer: LayerId;
+    /** The use. */
+    readonly use: ShaderUse;
+    /** Its groups, in the order their values were first seen. */
+    readonly groups: readonly { readonly key: GroupKey; readonly members: readonly NodeId[] }[];
+    /** How many groups the cap left out. */
+    readonly left: number;
+}
+
+/** Each stack's outline reader, by the API that owns it; see {@link groupOutlinesOf}. */
+const OUTLINES = new WeakMap<SessionStylesApi, () => readonly GroupOutlineSet[]>();
+
+/**
+ * The group outlines a stack draws now: one per (layer, use at `group`, `groupBy` value), around
+ * the nodes that carry that use once the stack's `node.shaders` lists are resolved. A node without
+ * a `groupBy` value is in no group. At most {@link GROUP_OUTLINE_CAP} groups across the whole
+ * stack, lowest layers first.
+ * @param api - A stack {@link createStylesApi} built (anything else draws none).
+ * @returns The outlines, bottom first.
+ */
+export function groupOutlinesOf(api: object): readonly GroupOutlineSet[] {
+    return OUTLINES.get(api as SessionStylesApi)?.() ?? [];
+}
+
+/**
+ * A group key from a read value: primitives as they are, anything else as text.
+ * @param value - The value.
+ * @returns The key, or undefined for no value.
+ */
+function groupKeyOf(value: unknown): GroupKey | undefined {
+    if (value === undefined || value === null) {
+        return undefined;
+    }
+
+    return typeof value === "string" || typeof value === "number" || typeof value === "boolean"
+        ? value
+        : JSON.stringify(value);
+}
+
+/**
+ * The shader uses a node carries once a stack's `node.shaders` lists are merged.
+ * @param layers - The stack's enabled node layers that list shaders, bottom first.
+ * @param index - The node's index.
+ * @returns The merged uses.
+ */
+function shaderUsesAt(layers: readonly CompiledLayer[], index: number): readonly ShaderUse[] {
+    let uses: readonly ShaderUse[] = [];
+    for (const { layer, selector } of layers) {
+        if (selector.test === null || selector.test(index)) {
+            uses = mergeShaderUses(uses, layer.set?.["node.shaders"]);
+        }
+    }
+
+    return uses;
+}
+
+/**
+ * Adds a node to the group of each of its uses that draws at `group`.
+ * @param members - Per use, its members by group.
+ * @param uses - The node's shader uses.
+ * @param id - The node's id.
+ * @param index - The node's index.
+ * @param sources - The stack's sources, for the node's values.
+ */
+function addToGroups(
+    members: Map<ShaderUse, Map<GroupKey, NodeId[]>>,
+    uses: readonly ShaderUse[],
+    id: NodeId,
+    index: number,
+    sources: StylesSources,
+): void {
+    for (const use of uses) {
+        const groups = members.get(use);
+        const key = use.groupBy === undefined ? null : groupKeyOf(sources.elements.nodeValue(index, use.groupBy));
+        if (groups === undefined || key === undefined) {
+            continue;
+        }
+
+        const list = groups.get(key) ?? [];
+        list.push(id);
+        groups.set(key, list);
+    }
+}
+
+/**
+ * The group outlines of a painting stack.
+ * @param stack - The stack as it paints, bottom first.
+ * @param sources - The stack's sources, for the graph's nodes and their values.
+ * @param nodeIndex - A node's index by id.
+ * @returns The outlines.
+ */
+function groupOutlineSets(
+    stack: readonly CompiledLayer[],
+    sources: StylesSources,
+    nodeIndex: (id: NodeId) => number | undefined,
+): readonly GroupOutlineSet[] {
+    const layers = stack.filter(
+        (entry) =>
+            entry.layer.enabled &&
+            entry.layer.target === "node" &&
+            Array.isArray(entry.layer.set?.["node.shaders"]) &&
+            (entry.layer.set["node.shaders"] as readonly ShaderUse[]).length > 0,
+    );
+    const owner = new Map<ShaderUse, LayerId>();
+    for (const { layer } of layers) {
+        for (const use of layer.set?.["node.shaders"] as readonly ShaderUse[]) {
+            owner.set(use, layer.id);
+        }
+    }
+
+    const grouped = [...owner.keys()].filter((use) => use.off !== true && placeOfUse(use) === "group");
+    if (grouped.length === 0) {
+        return [];
+    }
+
+    // Per use, its members by group, in the order the nodes are met.
+    const members = new Map<ShaderUse, Map<GroupKey, NodeId[]>>(grouped.map((use) => [use, new Map()]));
+    for (const id of sources.resolveScope?.(WHOLE_GRAPH).nodes ?? []) {
+        const index = nodeIndex(id);
+        if (index === undefined) {
+            continue;
+        }
+
+        addToGroups(members, shaderUsesAt(layers, index), id, index, sources);
+    }
+
+    let room = GROUP_OUTLINE_CAP;
+    return grouped.map((use) => {
+        const all = [...(members.get(use) ?? [])];
+        const kept = all.slice(0, room);
+        room -= kept.length;
+        return Object.freeze({
+            layer: owner.get(use) as LayerId,
+            use,
+            groups: Object.freeze(kept.map(([key, list]) => ({ key, members: list }))),
+            left: all.length - kept.length,
+        });
+    });
 }
 
 /** Each stack's {@link paintingOf} view, by the API that owns it. */
@@ -4894,4 +6261,37 @@ const PAINTING = new WeakMap<SessionStylesApi, (stack: readonly CompiledLayer[])
  */
 export function paintingOf(api: SessionStylesApi, stack: readonly CompiledLayer[]): readonly CompiledLayer[] {
     return PAINTING.get(api)?.(stack) ?? stack;
+}
+
+/** What a document's shaders do: run, wait for approval, or draw nothing. */
+type ShaderTrustMode = "run" | "hold" | "refuse";
+
+/** What a session's shaders tell its style stack about trust; see {@link setShaderTrust}. */
+interface ShaderTrust {
+    /** The trust a document gets when its call names none. */
+    readonly mode: () => ShaderTrustMode;
+    /**
+     * Whether a document's entry may run without asking, by its content hash as the project stores it.
+     * A refusing call leaves out the settings' `untrusted: "run"`.
+     */
+    readonly trusted: (id: string, text: string, refusing?: boolean) => boolean;
+    /** Whether a document's entry reads as a shader under its id; one that does not is never written. */
+    readonly readable: (id: string, text: string) => boolean;
+    /** Approve documents' entries for this session. */
+    readonly trust: (entries: readonly { readonly id: string; readonly text: string }[]) => void;
+    /** Hold documents' entries a call refused, until the reader approves one, whatever the settings. */
+    readonly refuse: (entries: readonly { readonly id: string; readonly text: string }[]) => void;
+}
+
+/** Each stack's shader trust, by the API that owns it. */
+const SHADER_TRUST = new WeakMap<SessionStylesApi, ShaderTrust>();
+
+/**
+ * Tell a style stack how its session trusts shader text, so a document it applies reports which
+ * shaders it holds.
+ * @param api - The stack.
+ * @param trust - The session's trust.
+ */
+export function setShaderTrust(api: SessionStylesApi, trust: ShaderTrust): void {
+    SHADER_TRUST.set(api, trust);
 }

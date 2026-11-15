@@ -4,10 +4,18 @@
  */
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
-const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
-vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry }));
+import {
+    answerUsageData,
+    forgetUsageAnswer,
+    readUsageAnswer,
+    setUsageSenderForTests,
+    startUsageDataIfShared,
+} from "../usageData";
 
-import { answerUsageData, forgetUsageAnswer, readUsageAnswer, startUsageDataIfShared } from "../usageData";
+/** Where Sentry would start and stop. */
+const initSentry = vi.fn();
+const stopSentry = vi.fn();
+setUsageSenderForTests({ start: initSentry, stop: stopSentry });
 
 describe("the usage data gate", () => {
     beforeEach(() => {

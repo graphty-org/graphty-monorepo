@@ -1,34 +1,42 @@
 import { channelsFor, PALETTE_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { GraphtyError } from "@graphty/graphty-element/session";
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
+import { modelChip } from "../modelWords";
 import {
     bindLabel,
     cellOfLocation,
     channelWord,
+    clockWords,
     colorName,
+    CUSTOM_MODEL,
     enumWords,
     failureWords,
-    labelStatement,
+    hiddenByWords,
     locationOfCell,
+    logUnexpected,
     madeWords,
     matchesWordStart,
+    modelWords,
     paletteWord,
+    placeWords,
     positionWord,
     refusalWords,
     SECTIONS,
+    shaderMatches,
     takesBinding,
+    usesWords,
 } from "../words";
 
 describe("the Style tab's words and arrangement", () => {
     it("draws Nodes and Edges in their fixed sections", () => {
         assert.deepEqual(
             SECTIONS.node.map((section) => section.title),
-            ["Shape", "Visibility", "Text", "Fill", "Effects", "Rendering"],
+            ["Shape", "Visibility", "Text", "Fill", "Shaders"],
         );
         assert.deepEqual(
             SECTIONS.edge.map((section) => section.title),
-            ["Visibility", "Text", "Line", "Arrowheads", "Effects"],
+            ["Visibility", "Text", "Line", "Arrowheads", "Shaders"],
         );
     });
 
@@ -98,12 +106,6 @@ describe("the Style tab's words and arrangement", () => {
         );
     });
 
-    it("states the label line's result from the counts, the hidden part only while the overlap rule is on", () => {
-        assert.equal(labelStatement({ labeled: 77, hiddenByOverlap: 64 }, true), "77 labels, 64 hidden");
-        assert.equal(labelStatement({ labeled: 77, hiddenByOverlap: 0 }, false), "77 labels");
-        assert.equal(labelStatement({ labeled: 1, hiddenByOverlap: 0 }, false), "1 label");
-    });
-
     it("maps the position grid to the element's label locations and back", () => {
         assert.equal(locationOfCell("top-center"), "top");
         assert.equal(locationOfCell("bottom-center"), "bottom");
@@ -149,6 +151,26 @@ describe("failure notices", () => {
     });
 });
 
+describe("an error a quiet catch answers", () => {
+    const coded = (code: "E_UNKNOWN_LAYER" | "E_INTERNAL" | "E_DISPOSED" | "E_BAD_COMMAND"): GraphtyError =>
+        new GraphtyError({ code, message: code, source: "style" });
+
+    it("is logged when it is a bug, never when it is a refusal the caller answers", () => {
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        try {
+            assert.isTrue(logUnexpected("a", new TypeError("x")));
+            assert.isTrue(logUnexpected("a", coded("E_INTERNAL")));
+            assert.isFalse(logUnexpected("a", coded("E_BAD_COMMAND")));
+            assert.isFalse(logUnexpected("a", coded("E_UNKNOWN_LAYER"), ["E_UNKNOWN_LAYER"]));
+            assert.isTrue(logUnexpected("a", coded("E_BAD_COMMAND"), ["E_UNKNOWN_LAYER"]));
+            assert.isFalse(logUnexpected("a", coded("E_DISPOSED"), ["E_UNKNOWN_LAYER"]));
+            assert.equal(logged.mock.calls.length, 3);
+        } finally {
+            logged.mockRestore();
+        }
+    });
+});
+
 describe("the notice after styling a selection", () => {
     it("does not say a layer named by its count twice", () => {
         assert.equal(madeWords("8 nodes", 8, 0), "Made a layer for the 8 selected nodes");
@@ -158,5 +180,138 @@ describe("the notice after styling a selection", () => {
 
     it("names a layer that has a name of its own", () => {
         assert.equal(madeWords("v09", 1, 0), "Made layer v09 for 1 node");
+    });
+});
+
+describe("shader words", () => {
+    it("finds a shader by a word of its name, a category or a tag", () => {
+        assert.isTrue(shaderMatches({ plainName: "Pearl", categories: ["Iridescent"] }, "irid"));
+        assert.isTrue(shaderMatches({ plainName: "Glass marble" }, "mar"));
+        assert.isTrue(shaderMatches({ plainName: "Liquid metal", tags: ["metal", "shiny"] }, "shiny"));
+        assert.isFalse(shaderMatches({ plainName: "Pearl", categories: ["Iridescent"], tags: ["shiny"] }, "metal"));
+    });
+
+    it("says what a shader uses, as values", () => {
+        assert.equal(usesWords(["color", "size"]), "Color, size");
+        assert.equal(usesWords([]), "Nothing");
+    });
+
+    it("shows paint and over both as On the node, and an edge's paint as On the line", () => {
+        assert.equal(placeWords("paint"), "On the node");
+        assert.equal(placeWords("over"), "On the node");
+        assert.equal(placeWords("paint", "edge"), "On the line");
+        assert.equal(placeWords("replace"), "Instead of the node");
+    });
+
+    it("writes a clock binding and the hidden caption as words", () => {
+        assert.equal(
+            clockWords({ by: "since.matched", domain: [0, 0.3] }),
+            "Starts: When this layer starts applying, over 0.3 s",
+        );
+        assert.equal(hiddenByWords("Sticker"), "Hidden: Sticker draws instead of the node");
+    });
+});
+
+describe("model variant words", () => {
+    it("names each model's variant under its preview", () => {
+        assert.equal(
+            CUSTOM_MODEL.variantLine({ format: "ply", encoding: "binary", geometry: "points" }),
+            "PLY, binary, point cloud",
+        );
+        assert.equal(
+            CUSTOM_MODEL.variantLine({ format: "ply", encoding: "binaryBigEndian", geometry: "mesh" }),
+            "PLY, big-endian binary",
+        );
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "glb", compression: ["draco"] }), "GLB, Draco");
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "gltf", gltfVersion: "1.0" }), "glTF, glTF 1.0");
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "spz", geometry: "splats" }), "SPZ, Gaussian splats");
+        assert.equal(CUSTOM_MODEL.variantLine({ format: "stl", encoding: "ascii" }), "STL, ASCII");
+    });
+
+    it("lists a model's details as table rows, leaving out what the file does not have", () => {
+        const rows = CUSTOM_MODEL.detailRows(
+            {
+                format: "ply",
+                points: 216,
+                triangles: 1728,
+                meshes: 1,
+                materials: [],
+                textures: 0,
+                textureBytes: 0,
+                upAxis: "unknown",
+                animations: [],
+                skinned: false,
+                morphTargets: 0,
+                transparent: false,
+                extensionsRequired: [],
+                vertexColors: true,
+                bounds: { min: [0, 0, 0], max: [2, 1, 0.5] },
+            },
+            12_400_000,
+        );
+        assert.deepEqual(
+            rows.map((row) => [row.name, row.value]),
+            [
+                ["Format", "PLY"],
+                ["File size", "12.4 MB"],
+                ["Points", "216"],
+                ["Meshes", "1"],
+                ["Materials", "0"],
+                ["Vertex colors", "Yes"],
+                ["Up axis", "Not stated"],
+                ["Size", "2 x 1 x 0.5"],
+            ],
+        );
+    });
+
+    it("lists clips with their lengths, and the extensions drawn without", () => {
+        const rows = CUSTOM_MODEL.detailRows(
+            {
+                format: "gltf",
+                triangles: 12,
+                meshes: 2,
+                materials: ["Glass", ""],
+                textures: 3,
+                textureBytes: 2_000_000,
+                upAxis: "y",
+                animations: [{ name: "Walk", seconds: 2 }],
+                skinned: true,
+                morphTargets: 0,
+                transparent: true,
+                extensionsRequired: ["KHR_materials_transmission"],
+            },
+            undefined,
+            ["KHR_materials_transmission"],
+        );
+        const value = (name: string): string | undefined => rows.find((row) => row.name === name)?.value;
+        assert.equal(value("Animations"), "Walk, 2.0 s");
+        assert.equal(value("Textures"), "3, 2.0 MB");
+        assert.equal(rows.find((row) => row.name === "Materials")?.tip, "Glass");
+        assert.equal(value("Extensions ignored"), "KHR_materials_transmission");
+        assert.equal(value("Skinned"), "Yes");
+        assert.isUndefined(value("File size"));
+    });
+
+    it("says how much of a load has come", () => {
+        assert.equal(CUSTOM_MODEL.bytes(3_200_000, 12_400_000), "3.2 of 12.4 MB");
+        assert.equal(CUSTOM_MODEL.bytes(640_000, null), "640 KB");
+    });
+
+    it("says why a decoder failed by its reason, and calls approximated points a chip", () => {
+        const fact = (reason: string): Parameters<typeof modelChip>[0] => ({
+            code: "E_MODEL_DECODER_UNAVAILABLE",
+            params: { reason, extension: "KHR_texture_basisu" },
+        });
+        assert.equal(modelChip(fact("missing")).tip, "no decoder on this page");
+        assert.equal(modelChip(fact("load")).tip, "decoder did not load");
+        assert.equal(modelChip(fact("decode")).tip, "compressed data damaged");
+        assert.match(modelWords(fact("missing")), /cannot read this model's compression/);
+        assert.match(modelWords(fact("load")), /Try again/);
+        assert.deepEqual(modelChip({ code: "W_MODEL_POINTS_APPROXIMATED", params: { points: 216, drawn: 216 } }), {
+            word: "Approximated",
+            tip: "points are drawn as small solids",
+        });
+        assert.equal(modelChip({ code: "E_MODEL_STRUCTURE", params: { rule: "ply" } }).tip, "PLY data damaged");
+        assert.match(modelWords({ code: "E_MODEL_STRUCTURE", params: { rule: "delayLoad" } }), /other files/);
     });
 });

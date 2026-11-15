@@ -20,6 +20,9 @@ export { groupsById, type Partition, pathIds, scoresById } from "./indexed/by-id
  */
 export * as indexed from "./indexed/index.js";
 
+// The seeded generator every seeded algorithm draws from, for a caller that wants the same sequence.
+export { mulberry32 } from "./utils/math-utilities.js";
+
 // Errors the algorithms throw.
 export { type AlgorithmErrorCode, ConvergenceError, PathCountOverflowError, PathWalkError } from "./errors.js";
 

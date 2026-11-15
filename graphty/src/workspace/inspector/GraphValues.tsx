@@ -1,4 +1,5 @@
 import {
+    ActionRow,
     ControlSection,
     DataRow,
     DataRowHeader,
@@ -7,17 +8,19 @@ import {
     SegmentedControl,
 } from "@graphty/compact-mantine";
 import type { GraphStatistics, Histogram, ScopeInput, ValueCounts } from "@graphty/graphty-element/session";
-import { Text, Tooltip } from "@mantine/core";
+import { Button, Text, Tooltip } from "@mantine/core";
 import React, { useState } from "react";
 
 import { weightName } from "../analyze/words";
 import { useVisibilityVersion } from "../data-place/useVisibilityVersion";
 import { TEXT_WORD, YES_NO_WORD } from "../data-place/words";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { designate, timelineOn } from "../time/timeActions";
 import { DistributionRows } from "./Distribution";
 import { settingsNotInEffect } from "./settingsInEffect";
 import {
     count,
+    degreeLabel,
     directionNote,
     directionWords,
     formatNumber,
@@ -39,9 +42,13 @@ const DEGREE_NOTE =
  * A directed graph offers All, In and Out. Transitivity follows when the element measured it.
  * @param props - Component props
  * @param props.statistics - the element's statistics
+ * @param props.label - the section's name: "Degree showing" while something is hidden
  * @returns The section
  */
-function DegreeSection({ statistics }: Readonly<{ statistics: GraphStatistics }>): React.JSX.Element {
+function DegreeSection({
+    statistics,
+    label,
+}: Readonly<{ statistics: GraphStatistics; label: string }>): React.JSX.Element {
     const [kind, setKind] = useState<DegreeKind>("all");
     const directed = statistics.inDegreeHistogram !== undefined && statistics.outDegreeHistogram !== undefined;
     const histograms: Record<DegreeKind, Histogram | undefined> = {
@@ -59,7 +66,7 @@ function DegreeSection({ statistics }: Readonly<{ statistics: GraphStatistics }>
     const name = { all: "Degree", in: "In-degree", out: "Out-degree" }[shown];
     const last = histogram?.bins.at(-1);
     return (
-        <ControlSection label="Degree" collapsible={false} headingLevel={3} info={DEGREE_NOTE}>
+        <ControlSection label={label} collapsible={false} headingLevel={3} info={DEGREE_NOTE}>
             {directed && (
                 <SegmentedControl
                     fullWidth
@@ -113,12 +120,41 @@ function ofWords(part: number, whole: number): string {
  * @returns The Overview
  */
 export function Overview(): React.JSX.Element | null {
-    const { session } = useWorkspace();
+    const { session, store } = useWorkspace();
     useVisibilityVersion(session);
     if (session === null) {
         return null;
     }
-    const statistics = session.data.statistics();
+    // The whole graph's, named: shown whole when nothing is hidden, and under "Full graph" when
+    // something is.
+    const statistics = session.data.statistics({ scope: "all" });
+    // With no time field yet, the column the element reads as time is offered once: a door to its
+    // home, Data > Fields, with the Time entry added and that column chosen.
+    const found = timelineOn(session) && session.time.field === null ? session.time.candidates().at(0) : undefined;
+    const timeFound =
+        found === undefined ? null : (
+            <ActionRow
+                state={`Time: ${found.column}`}
+                reveal="always"
+                actions={
+                    <Button
+                        size="compact-xs"
+                        variant="default"
+                        onClick={() => {
+                            const source =
+                                found.unit === undefined
+                                    ? { start: found.column }
+                                    : { start: found.column, unit: found.unit };
+                            const side = found.kind === "edge" ? "edges" : "nodes";
+                            designate(session, store, { [side]: source });
+                            store.set({ page: "panels", place: "data", fieldsEntry: `${side}:time` });
+                        }}
+                    >
+                        Set in Data
+                    </Button>
+                }
+            />
+        );
     if (statistics.nodeCount === 0) {
         return (
             <Text size="xs" c="dimmed" p="md">
@@ -127,10 +163,12 @@ export function Overview(): React.JSX.Element | null {
         );
     }
     const select = (scope: ScopeInput) => () => {
-        void session.selection.apply({ scope });
+        void session.selection.apply({ scope }, "replace", { cause: "user" });
     };
     const weight = session.data.loadedWeight();
-    const filtered = session.visibility.steps.some((step) => step.on);
+    // A time window limits what is showing exactly as a filter card does.
+    const filtered =
+        session.visibility.conditions.some((c) => c.on && c.effect !== "select") || session.visibility.window !== null;
     const showing = session.visibility.summary;
 
     const whole = (
@@ -173,7 +211,8 @@ export function Overview(): React.JSX.Element | null {
     const otherView = settingsNotInEffect(session).length;
     const tail = (
         <>
-            <DegreeSection statistics={statistics} />
+            {/* Over what is showing (the working graph): its degrees are the legend's. */}
+            <DegreeSection statistics={session.data.statistics()} label={degreeLabel(session)} />
             {otherView > 0 && (
                 <Text size="xs" c="dimmed" px="md" data-testid="settings-other-view">
                     {`${count(otherView, "graph setting")} ${otherView === 1 ? "applies" : "apply"} only in another view`}
@@ -185,6 +224,7 @@ export function Overview(): React.JSX.Element | null {
         return (
             <>
                 <ControlSection label="Overview" collapsible={false} headingLevel={3}>
+                    {timeFound}
                     {whole}
                 </ControlSection>
                 {tail}
@@ -194,6 +234,7 @@ export function Overview(): React.JSX.Element | null {
     return (
         <>
             <ControlSection label="Overview" collapsible={false} headingLevel={3}>
+                {timeFound}
                 <DataRow stat name="Nodes showing" value={ofWords(showing.visibleNodes, showing.totalNodes)} />
                 <DataRow stat name="Edges showing" value={ofWords(showing.visibleEdges, showing.totalEdges)} />
             </ControlSection>
@@ -226,7 +267,7 @@ export function AttributeValues({ path }: Readonly<{ path: string }>): React.JSX
     // A column of free text (the element reads it as text: too many values to be groups) is text.
     const text =
         !yesNo &&
-        column.measurement !== undefined &&
+        column.measurement === "categorical" &&
         session?.data.readableValues().find((value) => value.on === column.kind && value.path === path)?.kind ===
             "text";
     let measurement = column.measurement === undefined ? undefined : measurementWord(column.measurement);

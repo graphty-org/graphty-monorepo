@@ -1,0 +1,18 @@
+[
+    {
+        "source": "ndex",
+        "example": "ndex-wp5483"
+    },
+    {
+        "source": "neo4j",
+        "example": "neo4j-movies"
+    },
+    {
+        "source": "sparql",
+        "example": "uniprot-tp53"
+    },
+    {
+        "source": "rest",
+        "example": "deps-dev-webpack"
+    }
+]

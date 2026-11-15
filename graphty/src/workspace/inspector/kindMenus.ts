@@ -7,7 +7,16 @@ import type { InspectedKindId } from "./inspected";
  */
 export const MENUS: Partial<Readonly<Record<InspectedKindId, readonly string[]>>> = {
     graph: ["layout.rerun", "layout.reshuffle", "notes.add"],
-    node: ["selection.neighborhood", "analyze.path", "view.frame-selection", "style.layer-from-selection", "notes.add"],
+    node: [
+        "selection.neighborhood",
+        "analyze.path",
+        "view.frame-selection",
+        "style.layer-from-selection",
+        "notes.add",
+        // A node a server load brought: fetch its neighbors, or take them away again.
+        "node.expand",
+        "node.collapse",
+    ],
     edge: ["selection.endpoints", "view.frame-selection", "style.layer-from-selection", "notes.add"],
     several: [
         "selection.neighborhood",

@@ -248,6 +248,8 @@ interface Page {
     intro(every: boolean, key?: string, a?: TileArgs): string;
     tile(key: string, a: TileArgs): Tile;
     controls(key: string): Partial<TileArgs>;
+    /** Whether the page's Overview draws this tile too; every tile when absent. */
+    inOverview?(key: string): boolean;
 }
 
 /**
@@ -451,6 +453,9 @@ const generators: Page = {
 };
 
 /** Every small dataset, laid out and colored to show what it holds; a one-tile story names its source and license. */
+/** The largest dataset the Datasets Overview draws. */
+const OVERVIEW_MAX_NODES = 1_000;
+
 const datasets: Page = {
     summary: `Every bundled dataset of \`cy.graphtyDataset(name)\`, laid out and colored to show what it holds. ${CONTROLS.replace("pick another network and size, the seed, the backend and more options", "change the seed of the layout")}`,
     about: (name) => {
@@ -464,10 +469,14 @@ const datasets: Page = {
             .join(" ");
     },
     controls: () => pick("seed", "roundTrip"),
+    // A settled ForceAtlas2 run on the CPU costs O(n^2) per iteration: political-blogs, stelzl-interactome and the
+    // openflights drawing take most of a minute together in a CI browser, past the story test's 30 s wait (#3846).
+    // Each still has its own story.
+    inOverview: (name) => (DATASETS.find((d) => d.name === name)?.nodes ?? 0) <= OVERVIEW_MAX_NODES,
     intro: (every, key) => {
         const info = DATASETS.find((d) => d.name === key);
         return every || info === undefined
-            ? "Every bundled dataset of cy.graphtyDataset, laid out and colored to show what it holds."
+            ? `Every bundled dataset of cy.graphtyDataset up to ${OVERVIEW_MAX_NODES.toLocaleString("en-US")} nodes, laid out and colored to show what it holds; the larger ones have a story each.`
             : info.title;
     },
     tile: (name, a) => ({
@@ -567,7 +576,9 @@ export function overview(page: GalleryPage): Story {
         render: () =>
             renderGallery(
                 p.intro(true),
-                GALLERY_PAGES[page].map((key) => p.tile(key, { ...DEFAULTS, ...p.controls(key) })),
+                GALLERY_PAGES[page]
+                    .filter((key) => p.inOverview?.(key) ?? true)
+                    .map((key) => p.tile(key, { ...DEFAULTS, ...p.controls(key) })),
             ),
     };
 }

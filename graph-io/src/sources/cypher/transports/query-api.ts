@@ -5,6 +5,7 @@
  * so it works from a page on https.
  */
 
+import { itemAt } from "../../../common/text.js";
 import { originOf } from "../../credentials.js";
 import { failOn } from "../../fail.js";
 import { type QueryResult } from "../flatten.js";
@@ -61,6 +62,7 @@ export function queryApiTransport(input: TransportInput): Transport {
         if (response.status === 404) {
             // no Query API here: a Neo4j before 5.26 answers 404, and speaks only Bolt
             failOn(ctx.report, "E_SOURCE_NOT_FOUND", `${origin} has no Query API at ${path}`, {
+                origin,
                 what: "url",
                 value: `${origin}/${path}`,
             });
@@ -73,6 +75,7 @@ export function queryApiTransport(input: TransportInput): Transport {
         }
         if (body?.data === undefined) {
             failOn(ctx.report, "E_SOURCE_RESPONSE", "the Query API answer has no data", {
+                origin,
                 expected: "json",
                 contentType: response.headers.get("content-type"),
             });
@@ -90,7 +93,7 @@ export function queryApiTransport(input: TransportInput): Transport {
                 "CALL dbms.components() YIELD name, versions, edition RETURN name, versions, edition",
                 {},
             );
-            const kernel = res.rows.find((r) => r[0] === "Neo4j Kernel") ?? res.rows[0];
+            const kernel = res.rows.find((r) => r[0] === "Neo4j Kernel") ?? itemAt(res.rows, 0);
             const versions = kernel?.[1];
             const version = Array.isArray(versions) && typeof versions[0] === "string" ? versions[0] : null;
             return neo4jProfile(version);

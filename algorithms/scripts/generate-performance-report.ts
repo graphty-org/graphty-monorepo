@@ -3,12 +3,13 @@
 // Script to generate HTML performance report from benchmark JSON data
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { BenchmarkSession } from "../benchmarks/benchmark-result";
+import type { BenchmarkSession } from "../benchmarks/benchmark-result";
 import { loadBenchmarkSessions } from "../benchmarks/utils/benchmark-result";
 
 // HTML template for the performance report
-function generateHTML(sessions: BenchmarkSession[]): string {
+export function generateHTML(sessions: BenchmarkSession[]): string {
     // Get the latest session for summary
     const latestSession = sessions[sessions.length - 1];
     const allResults = sessions.flatMap((s) => s.results);
@@ -28,9 +29,7 @@ function generateHTML(sessions: BenchmarkSession[]): string {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Graph Algorithm Performance Report</title>
     <link rel="stylesheet" href="../shared/design-system.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.6.1/dist/chart.umd.min.js" integrity="sha384-Emf5ZVIUiarAdhkgtqK+5/Z5qIvM6QoVrS+qAVtfyZVuD5lIHrac0me485+Antp0" crossorigin="anonymous"></script>
     <style>
         /* Page-specific styles */
         .nav {
@@ -502,5 +501,7 @@ async function main() {
     console.log("📊 Benchmark results and report saved to ./benchmark-results/");
 }
 
-// Run the script
-main().catch(console.error);
+// Run the script, unless a test imported generateHTML
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+    main().catch(console.error); // NOSONAR(S7785): module ES2020 (tsconfig.base.json) has no top-level await
+}

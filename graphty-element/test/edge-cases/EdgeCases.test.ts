@@ -2,21 +2,30 @@
  * Edge Case Handling Tests
  *
  * Tests for edge conditions in edge rendering:
- * - Very short edges (< 1 unit)
- * - Very long edges (> 100 units)
+ * - Very short edges (< 1 unit) and very long edges (> 100 units), placed by Edge.update()
  * - Zero-width lines
  * - Opacity edge cases (0.0, 1.0)
  * - Self-loops with all arrow types
  * - Overlapping nodes
- * - Patterns on very short edges
  */
 
 import { AbstractMesh, type Mesh, NullEngine, Scene, Vector3 } from "@babylonjs/core";
+import { cloneDeep } from "lodash";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
+import { Edge } from "../../src/Edge";
+import { SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
+import { DataManager, dataManagerInternals } from "../../src/managers/DataManager";
+import { EventManager } from "../../src/managers/EventManager";
+import { DefaultGraphContext } from "../../src/managers/GraphContext";
+import { LayoutManager, layoutManagerInternals } from "../../src/managers/LayoutManager";
+import { StatsManager } from "../../src/managers/StatsManager";
+import { bootstrapEdgePaint, bootstrapNodePaint } from "../../src/managers/StylePainter";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { MeshCache } from "../../src/meshes/MeshCache";
+import { Node } from "../../src/Node";
+import { Styles } from "../../src/Styles";
 import { isDisposed } from "../helpers/testSetup";
 
 describe("Edge Case Handling", () => {
@@ -47,35 +56,6 @@ describe("Edge Case Handling", () => {
     }
 
     describe("Very Short Edges", () => {
-        test("creates solid line mesh for edge < 1 unit", () => {
-            const style: EdgeStyleConfig = {
-                line: { width: 0.5, color: "#FF0000" },
-            };
-
-            // A line's batch is built with unit geometry; each edge's slot places it later
-            const mesh = lineMesh(
-                { styleId: "short-solid", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
-                style,
-            );
-
-            assert.exists(mesh, "Solid line mesh should be created for short edge");
-            assert.isFalse(isDisposed(mesh), "Mesh should not be disposed");
-        });
-
-        test("creates bezier mesh for edge < 1 unit", () => {
-            const style: EdgeStyleConfig = {
-                line: { width: 0.5, color: "#FF0000", bezier: true },
-            };
-
-            const mesh = lineMesh(
-                { styleId: "short-bezier", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
-                style,
-            );
-
-            assert.exists(mesh, "Bezier mesh should be created for short edge");
-            assert.isFalse(isDisposed(mesh), "Mesh should not be disposed");
-        });
-
         test("bezier curve generation handles very short distance", () => {
             const src = new Vector3(0, 0, 0);
             const dst = new Vector3(0.1, 0, 0);
@@ -92,51 +72,9 @@ describe("Edge Case Handling", () => {
             assert.closeTo(curvePoints[0], src.x, 0.01);
             assert.closeTo(curvePoints[curvePoints.length - 3], dst.x, 0.01);
         });
-
-        test("patterned line handles edge < 1 unit", () => {
-            const style: EdgeStyleConfig = {
-                line: { width: 0.5, color: "#FF0000", type: "dash" },
-            };
-
-            const mesh = EdgeMesh.createPatternedLine(
-                { styleId: "short-patterned", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
-                style,
-                scene,
-            );
-
-            assert.exists(mesh, "Patterned line mesh should be created for short edge");
-        });
     });
 
     describe("Very Long Edges", () => {
-        test("creates solid line mesh for edge > 100 units", () => {
-            const style: EdgeStyleConfig = {
-                line: { width: 0.5, color: "#00FF00" },
-            };
-
-            const mesh = lineMesh(
-                { styleId: "long-solid", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
-                style,
-            );
-
-            assert.exists(mesh, "Solid line mesh should be created for long edge");
-            assert.isFalse(isDisposed(mesh), "Mesh should not be disposed");
-        });
-
-        test("creates bezier mesh for edge > 100 units", () => {
-            const style: EdgeStyleConfig = {
-                line: { width: 0.5, color: "#00FF00", bezier: true },
-            };
-
-            const mesh = lineMesh(
-                { styleId: "long-bezier", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
-                style,
-            );
-
-            assert.exists(mesh, "Bezier mesh should be created for long edge");
-            assert.isFalse(isDisposed(mesh), "Mesh should not be disposed");
-        });
-
         test("bezier curve point density scales with edge length", () => {
             const src = new Vector3(0, 0, 0);
             const dst = new Vector3(200, 0, 0);
@@ -147,20 +85,134 @@ describe("Edge Case Handling", () => {
             const pointCount = curvePoints.length / 3;
             assert.isTrue(pointCount > 50, `Long edge should have many points, got ${pointCount}`);
         });
+    });
 
-        test("patterned line handles edge > 100 units", () => {
-            const style: EdgeStyleConfig = {
-                line: { width: 0.5, color: "#00FF00", type: "diamond" },
-            };
+    /**
+     * Real edges placed by `Edge.update()` between two nodes a given distance apart (issue #6965): the
+     * line and its pattern are laid where the edge actually runs, not at the placeholder ends a
+     * patterned line is built with.
+     */
+    describe("Edges placed at a very short and a very long length", () => {
+        const DISTANCES = [0.1, 200] as const;
+        // dash, dot and diamond draw in a joined line's shader; dash-dot and the waves as pattern elements
+        const LINE_TYPES = ["solid", "dash", "dot", "diamond", "dash-dot", "sinewave", "zigzag"] as const;
 
-            const mesh = EdgeMesh.createPatternedLine(
-                { styleId: "long-patterned", width: style.line?.width ?? 0.25, color: style.line?.color ?? "#FFFFFF" },
-                style,
+        class TwoNodeLayout extends SimpleLayoutEngine {
+            static override type = "fixed-test-edge-lengths";
+            override scalingFactor = 1;
+            constructor(distance: number) {
+                super();
+                this.positions = { src: [0, 0, 0], dst: [distance, 0, 0] };
+            }
+
+            doLayout(): void {
+                this.stale = false;
+            }
+        }
+
+        /**
+         * An edge of one line type, placed by `Edge.update()` between nodes `distance` apart along x. The
+         * nodes are small enough (0.02) that even the 0.1 gap leaves a line between their surfaces, and the
+         * edge has no arrow head, so the line itself is what is measured.
+         * @param distance - How far apart the two nodes' centres are.
+         * @param type - The line type.
+         * @returns The placed edge.
+         */
+        function placedEdge(distance: number, type: (typeof LINE_TYPES)[number]): Edge {
+            const styles = Styles.default();
+            const eventManager = new EventManager();
+            const dataManager = new DataManager(eventManager, styles);
+            const layoutManager = new LayoutManager(eventManager, dataManager, styles);
+            const layout = new TwoNodeLayout(distance);
+            layoutManagerInternals.setEngine(layoutManager, layout);
+            const context = new DefaultGraphContext(
+                () => styles,
+                dataManager,
+                layoutManager,
+                meshCache,
                 scene,
+                new StatsManager(eventManager),
+                {},
             );
+            const nodePaint = { ...cloneDeep(bootstrapNodePaint()), meshKey: "tiny-node" };
+            nodePaint.style.shape = { ...nodePaint.style.shape, size: 0.02 };
+            for (const id of ["src", "dst"]) {
+                const node = new Node(context, id, nodePaint, { id });
+                dataManagerInternals.adoptNode(dataManager, node);
+                dataManager.nodeCache.set(id, node);
+                layout.addNode(node);
+                node.update();
+            }
 
-            assert.exists(mesh, "Patterned line mesh should be created for long edge");
-        });
+            const style = cloneDeep(bootstrapEdgePaint(false).style);
+            style.line = { ...style.line, type };
+            const edge = new Edge(context, "src", "dst", 0, { meshKey: `length-${type}`, style }, {});
+            dataManagerInternals.adoptEdge(dataManager, edge);
+            layout.addEdge(edge);
+            edge.update();
+            return edge;
+        }
+
+        /**
+         * Asserts a point is finite and lies on the segment between the two node centres, near the x axis
+         * (a wave swings off it by its amplitude, within the line's width). A point left at the placeholder
+         * ends a patterned line is built with, (0, 0, -0.5) and (0, 0, 0.5), fails this on the short edge.
+         * @param p - The point.
+         * @param distance - The segment's length along x.
+         * @param what - What the point is, for the message.
+         */
+        function assertOnSegment(p: Vector3, distance: number, what: string): void {
+            const slack = Math.min(1, distance / 2);
+            for (const v of p.asArray()) {
+                assert.isTrue(Number.isFinite(v), `${what} is not finite: ${p.toString()}`);
+            }
+
+            assert.isAtLeast(p.x, -1e-6, `${what} lies before the source: ${p.toString()}`);
+            assert.isAtMost(p.x, distance + 1e-6, `${what} lies past the target: ${p.toString()}`);
+            assert.isBelow(Math.hypot(p.y, p.z), slack, `${what} is off the segment: ${p.toString()}`);
+        }
+
+        for (const distance of DISTANCES) {
+            for (const type of LINE_TYPES) {
+                test(`a ${type} edge ${distance} units long is placed between its nodes with no NaN`, () => {
+                    const edge = placedEdge(distance, type);
+                    const line = edge.drawnLine;
+                    const pattern = edge.drawnPattern;
+
+                    if (EdgeMesh.drawsAsPattern({ line: { type } })) {
+                        assert.isNull(line, `a ${type} line is drawn as pattern elements`);
+                        assert.isAtLeast(pattern.length, 1, `a ${type} line lays at least one element`);
+                        if (distance > 100) {
+                            assert.isAbove(pattern.length, 10, `a long ${type} line lays many elements`);
+                        }
+
+                        for (const [i, element] of pattern.entries()) {
+                            assertOnSegment(element.position, distance, `${type} element ${i}`);
+                            for (const v of element.transform.asArray()) {
+                                assert.isTrue(Number.isFinite(v), `${type} element ${i}'s matrix holds ${v}`);
+                            }
+                        }
+
+                        if (pattern.length > 1) {
+                            assert.isBelow(
+                                pattern[0].position.x,
+                                pattern[pattern.length - 1].position.x,
+                                "elements run from the source to the target",
+                            );
+                        }
+                    } else {
+                        assert.isNotNull(line, `a ${type} line is drawn by a line batch`);
+                        assert.lengthOf(pattern, 0);
+                        assert.isTrue(Number.isFinite(line.length), `its length is ${line.length}`);
+                        assert.isAtMost(line.length, distance + 1e-6, "no longer than the gap between centres");
+                        assertOnSegment(line.centre, distance, `${type} line's centre`);
+                        if (distance > 100) {
+                            assert.isAbove(line.length, distance - 10, "a long line runs nearly centre to centre");
+                        }
+                    }
+                });
+            }
+        }
     });
 
     describe("Opacity Edge Cases", () => {
@@ -383,31 +435,6 @@ describe("Edge Case Handling", () => {
             // Line should end at surface minus arrow length
             const expectedX = surfacePoint.x - arrowLength;
             assert.closeTo(lineEndpoint.x, expectedX, 0.001);
-        });
-    });
-
-    describe("Patterns on Very Short Edges", () => {
-        const patternTypes = ["dot", "dash", "diamond", "dash-dot", "sinewave", "zigzag"] as const;
-
-        patternTypes.forEach((pattern) => {
-            test(`${pattern} pattern handles very short edge (< 1 unit)`, () => {
-                const style: EdgeStyleConfig = {
-                    line: { width: 0.5, color: "#FF0000", type: pattern },
-                };
-
-                // Pattern lines are created with placeholder positions
-                const mesh = EdgeMesh.createPatternedLine(
-                    {
-                        styleId: `short-${pattern}`,
-                        width: style.line?.width ?? 0.25,
-                        color: style.line?.color ?? "#FFFFFF",
-                    },
-                    style,
-                    scene,
-                );
-
-                assert.exists(mesh, `${pattern} pattern mesh should be created for short edge`);
-            });
         });
     });
 

@@ -1,5 +1,5 @@
 /**
- * `@graphty/graph-io/sources/cypher`: the Cypher source and its `neo4j` and `neptune` presets
+ * `@graphty/graph-io/sources/cypher`: the Cypher source and its `neo4j`, `neptune` and `memgraph` presets
  * (design sections 10, 11, 12.2 and 12.4). One query builder, one result flattener and one type
  * mapper over four transports: Neo4j's Query API, Bolt (through the optional peer neo4j-driver),
  * Neptune Database over HTTPS and Neptune Analytics. The presets fix the transports and the server
@@ -13,6 +13,7 @@ import { throwIfAborted } from "../../common/input.js";
 import { type ImportReportBuilder } from "../../common/report.js";
 import { ImportError, type ImportReport } from "../../types.js";
 import { SOURCE_ISSUE } from "../codes.js";
+import { isLoopback } from "../context.js";
 import { defineSource } from "../define.js";
 import { failOn } from "../fail.js";
 import { CYPHER_SOURCE_ID, NEO4J_SOURCE_ID, NEPTUNE_SOURCE_ID } from "../ids.js";
@@ -25,10 +26,11 @@ import {
     type SourceDescriptor,
     type SourceFreshness,
     type SourceProbe,
+    type SourceTotal,
     type SourceValidators,
 } from "../types.js";
-import { CYPHER_DESCRIPTOR, NEO4J_DESCRIPTOR, NEPTUNE_DESCRIPTOR } from "./descriptor.js";
-import { canonicalRows, Collector, compareText, requireGraph, writeCollected } from "./flatten.js";
+import { CYPHER_DESCRIPTOR, MEMGRAPH_DESCRIPTOR, NEO4J_DESCRIPTOR, NEPTUNE_DESCRIPTOR } from "./descriptor.js";
+import { canonicalRows, Collector, compareText, type QueryResult, requireGraph, writeCollected } from "./flatten.js";
 import { type CypherParams } from "./params.js";
 import { type CypherProfile, neo4jProfile, neptuneProfile, serverFacts } from "./profiles.js";
 import {
@@ -36,12 +38,14 @@ import {
     counts,
     DEFAULT_PAGE_SIZE,
     edgePage,
+    edgesAmong,
     MAX_DEPTH,
     MAX_PAGE_SIZE,
     neighborhood,
     nodePage,
     type QueryFilters,
     quoted,
+    storeCount,
 } from "./query-builder.js";
 import { boltTransport } from "./transports/bolt.js";
 import { neptuneAnalyticsTransport } from "./transports/neptune-analytics.js";
@@ -49,7 +53,7 @@ import { neptuneHttpsTransport } from "./transports/neptune-https.js";
 import { queryApiTransport } from "./transports/query-api.js";
 import { type Transport, type TransportInput } from "./transports/transport.js";
 
-export { CYPHER_DESCRIPTOR, NEO4J_DESCRIPTOR, NEPTUNE_DESCRIPTOR } from "./descriptor.js";
+export { CYPHER_DESCRIPTOR, MEMGRAPH_DESCRIPTOR, NEO4J_DESCRIPTOR, NEPTUNE_DESCRIPTOR } from "./descriptor.js";
 export { type CypherParams } from "./params.js";
 export { cypherIdentifier } from "./query-builder.js";
 
@@ -64,6 +68,8 @@ interface Preset {
     readonly descriptor: SourceDescriptor;
     /** The transport used when neither the params nor the endpoint's scheme picks one. */
     readonly transport: TransportName;
+    /** Only an endpoint on this machine (localhost, 127.0.0.0/8, ::1) is accepted. */
+    readonly loopbackOnly?: boolean;
 }
 
 /** One page a read produced. */
@@ -76,6 +82,20 @@ interface Page {
 
 /** The directions an expansion may follow. */
 const DIRECTIONS: ReadonlySet<string> = new Set(["out", "in", "both"]);
+
+/**
+ * A query without the semicolons it ends with, so it can sit inside `CALL { }`. A loop, not
+ * `/;+$/`, which backtracks over every run of semicolons that is not at the end.
+ * @param query - the trimmed query
+ * @returns the query
+ */
+function withoutTrailingSemicolons(query: string): string {
+    let end = query.length;
+    while (end > 0 && query[end - 1] === ";") {
+        end--;
+    }
+    return query.slice(0, end);
+}
 
 /**
  * A list parameter: an array, or one value. A string is one item, never split, since an id or a
@@ -119,11 +139,32 @@ function transportName(params: CypherParams, ctx: SourceContext, preset: Preset)
     return preset.transport;
 }
 
+/**
+ * Seed ids as the server compares them. A server keyed by `id(n)` (Neo4j before 5, Memgraph) has
+ * integer ids, which a snapshot holds as text ("12"), and `id(n) IN ["12"]` matches nothing, so a
+ * decimal integer is sent as a number. Ids keyed by a property, `elementId` or Neptune's `~id`
+ * string are sent as given.
+ * @param ids - the seeds
+ * @param profile - the server's profile
+ * @param filters - the filters (the id property)
+ * @returns the seeds to send
+ */
+function seedIds(ids: readonly NodeId[], profile: CypherProfile, filters: QueryFilters): readonly NodeId[] {
+    if (profile.elementIds || profile.name === "neptune" || filters.idProperty !== null) {
+        return ids;
+    }
+    return ids.map((id) =>
+        typeof id === "string" && /^-?\d+$/.test(id) && Number.isSafeInteger(Number(id)) ? Number(id) : id,
+    );
+}
+
 /** One load's connection, filters and profile. */
 class Reader {
     private known: CypherProfile | null = null;
     private degree = true;
     readonly filters: QueryFilters;
+    /** What the source holds for this load, when a count ran. */
+    counted: SourceTotal | undefined;
     /** The raw id property, for the node ids. */
     readonly idProperty: string | null;
 
@@ -195,9 +236,10 @@ class Reader {
     /**
      * The pages of a read, as `mode` asks.
      * @param cursor - where to resume
+     * @param counting - whether a first page of mode "all" may count what the source holds
      * @yields one page at a time
      */
-    async *pages(cursor: SourceCursor | null): AsyncGenerator<Page> {
+    async *pages(cursor: SourceCursor | null, counting = true): AsyncGenerator<Page> {
         const { params, ctx } = this;
         const { report } = ctx;
         const mode = params.mode ?? (typeof params.query === "string" && params.query !== "" ? "query" : "all");
@@ -205,11 +247,7 @@ class Reader {
             if (typeof params.query !== "string" || params.query.trim() === "") {
                 failOn(report, "E_SOURCE_PARAM", "mode query needs a query", { name: "query", reason: "required" });
             }
-            const result = await this.transport.run(params.query, params.parameters ?? {});
-            const collected = new Collector();
-            collected.add(result, false);
-            requireGraph(result, collected, report);
-            yield { collected, next: null };
+            yield await this.userQuery(params.query, cursor);
             return;
         }
         const profile = await this.profile();
@@ -226,11 +264,56 @@ class Reader {
                         ? null
                         : checkedInteger(ctx.limits.maxNodes, "maxNodes", 1, Number.MAX_SAFE_INTEGER, report),
             };
-            const { collected } = await this.generated((d) => neighborhood(profile, this.filters, shape, d), { ids });
+            const { collected } = await this.generated((d) => neighborhood(profile, this.filters, shape, d), {
+                ids: seedIds(ids, profile, this.filters),
+            });
             yield { collected, next: null };
             return;
         }
-        yield* this.everything(profile, cursor);
+        yield* this.everything(profile, cursor, counting);
+    }
+
+    /**
+     * Mode "query": the reader's own query, as written. With a node cap (or a cursor from a capped
+     * run) the server returns at most that many rows (`CALL { query } RETURN * LIMIT n`), and a full
+     * result hands back a cursor that runs the query again with twice the rows, for the caller to
+     * merge. A server that refuses the wrapper fails the load with `E_SOURCE_PARAM` (`name:
+     * "maxNodes"`, `reason: "uncappable"`): the query is never run past the cap the caller set.
+     * @param query - the query
+     * @param cursor - where to resume: `{ rows }` from an earlier capped run
+     * @returns the one page
+     */
+    private async userQuery(query: string, cursor: SourceCursor | null): Promise<Page> {
+        const { params, ctx } = this;
+        const parameters = params.parameters ?? {};
+        // the cursor is the caller's, so its rows can be anything
+        const asked: unknown = cursor?.rows ?? ctx.limits.maxNodes;
+        const rows =
+            asked === undefined || asked === null
+                ? null
+                : Number(checkedInteger(asked, "maxNodes", 1, Number.MAX_SAFE_INTEGER, ctx.report));
+        let result: QueryResult;
+        try {
+            result = await this.transport.run(
+                rows === null
+                    ? query
+                    : `CALL {\n${withoutTrailingSemicolons(query.trim())}\n}\nRETURN * LIMIT ${String(rows)}`,
+                parameters,
+            );
+        } catch (err) {
+            if (rows === null || !(err instanceof ImportError) || err.issue?.code !== SOURCE_ISSUE.E_SOURCE_QUERY) {
+                throw err;
+            }
+            return failOn(ctx.report, "E_SOURCE_PARAM", "the server cannot cap this query; load it without maxNodes", {
+                name: "maxNodes",
+                reason: "uncappable",
+            });
+        }
+        const collected = new Collector();
+        collected.add(result, false);
+        requireGraph(result, collected, ctx.report);
+        const full = rows !== null && result.rows.length >= rows;
+        return { collected, next: full ? { rows: rows * 2 } : null };
     }
 
     /**
@@ -238,14 +321,33 @@ class Reader {
      * id expression (never SKIP), so a page is stable under unrelated writes.
      * @param profile - the server's profile
      * @param cursor - where to resume
+     * @param counting - whether a first page may count what the source holds
      * @yields one page at a time
      */
-    private async *everything(profile: CypherProfile, cursor: SourceCursor | null): AsyncGenerator<Page> {
+    private async *everything(
+        profile: CypherProfile,
+        cursor: SourceCursor | null,
+        counting: boolean,
+    ): AsyncGenerator<Page> {
         const { params, ctx } = this;
         const size = checkedInteger(params.pageSize ?? DEFAULT_PAGE_SIZE, "pageSize", 1, MAX_PAGE_SIZE, ctx.report);
+        if (cursor === null && counting) {
+            this.counted = await this.count(profile);
+        }
+        const cap = ctx.limits.maxNodes;
+        if (cap !== undefined && cursor?.phase !== "edges") {
+            const capped = Number(checkedInteger(cap, "maxNodes", 1, Number.MAX_SAFE_INTEGER, ctx.report));
+            yield* this.cappedNodes(profile, cursor, Math.min(Number(size), capped));
+            return;
+        }
+
         let phase: "nodes" | "edges" = cursor?.phase === "edges" ? "edges" : "nodes";
         let after: string | number | boolean | null = cursor?.after ?? null;
-        const total = params.countFirst === true && cursor === null ? await this.total() : undefined;
+        const { counted } = this;
+        const total =
+            params.countFirst === true && counted !== undefined
+                ? (counted.nodes ?? 0) + (counted.edges ?? 0)
+                : undefined;
         for (;;) {
             const nodes = phase === "nodes";
             const { collected, rows, fields } = await this.generated(
@@ -268,13 +370,66 @@ class Reader {
     }
 
     /**
-     * How many nodes and relationships the filters match, for progress.
-     * @returns the count
+     * Mode "all" under a node cap: pages of at most the cap's nodes, each with the relationships
+     * among the nodes loaded so far, so a capped load stops at its cap with its edges, and its
+     * next page (`data.more`) continues by key.
+     * @param profile - the server's profile
+     * @param cursor - where to resume
+     * @param size - the page size
+     * @yields one page at a time
      */
-    private async total(): Promise<number> {
-        const [n, r] = counts(this.filters);
-        const [a, b] = await Promise.all([this.transport.run(n, {}), this.transport.run(r, {})]);
-        return Number(a.rows[0]?.[0] ?? 0) + Number(b.rows[0]?.[0] ?? 0);
+    private async *cappedNodes(
+        profile: CypherProfile,
+        cursor: SourceCursor | null,
+        size: number,
+    ): AsyncGenerator<Page> {
+        let after: string | number | boolean | null = cursor?.after ?? null;
+        for (;;) {
+            const { collected, rows, fields } = await this.generated(
+                (d) => nodePage(profile, this.filters, String(size), after !== null, d),
+                after === null ? {} : { after },
+            );
+            const at = fields.indexOf("key");
+            const last = rows.at(-1)?.[at];
+            const key = typeof last === "string" || typeof last === "number" ? last : null;
+            if (key !== null) {
+                const keys = rows.map((row) => row[at]);
+                const among = await this.transport.run(edgesAmong(profile, this.filters), { keys, last: key });
+                collected.add(among, false);
+            }
+            const next = rows.length >= size && key !== null ? { phase: "nodes", after: key } : null;
+            yield { collected, next };
+            if (next === null) {
+                return;
+            }
+            after = key;
+        }
+    }
+
+    /**
+     * What a first page of mode "all" counts: with `countFirst`, the nodes and relationships the
+     * filters match (for progress too); else, on Neo4j with at most one label and the server's
+     * ids, the nodes from the count store; else nothing.
+     * @param profile - the server's profile
+     * @returns the count, or undefined
+     */
+    private async count(profile: CypherProfile): Promise<SourceTotal | undefined> {
+        // A count is a non-negative integer; anything else a server answers is no count.
+        const first = async (statement: string): Promise<number | undefined> => {
+            const c = Number((await this.transport.run(statement, {})).rows[0]?.[0]);
+            return Number.isSafeInteger(c) && c >= 0 ? c : undefined;
+        };
+        const { labels, idProperty } = this.filters;
+        if (this.params.countFirst === true) {
+            const [n, r] = counts(this.filters);
+            const [nodes, edges] = await Promise.all([first(n), first(r)]);
+            return { ...(nodes === undefined ? {} : { nodes }), ...(edges === undefined ? {} : { edges }) };
+        }
+        if (profile.name !== "neo4j" || labels.length > 1 || idProperty !== null) {
+            return undefined;
+        }
+        const nodes = await first(storeCount(labels[0]));
+        return nodes === undefined ? undefined : { nodes };
     }
 
     /**
@@ -324,6 +479,12 @@ function nextCursor(
  */
 async function open(params: CypherParams, ctx: SourceContext, preset: Preset): Promise<Reader> {
     throwIfAborted(ctx.signal);
+    if (preset.loopbackOnly === true && !isLoopback(ctx.endpoint?.hostname ?? "")) {
+        failOn(ctx.report, "E_SOURCE_PARAM", `the ${preset.id} source reads only a server on this machine`, {
+            name: "endpoint",
+            reason: "not-loopback",
+        });
+    }
     const input: TransportInput = { ctx, params, m: { long: params.long ?? "f64", report: ctx.report } };
     const name = transportName(params, ctx, preset);
     let transport: Transport;
@@ -392,7 +553,8 @@ function cypher(preset: Preset): GraphSource<CypherParams> {
                         break;
                     }
                 }
-                return ctx.finish({ next, ...(await reader.facts(lines)) });
+                const total = reader.counted === undefined ? {} : { total: reader.counted };
+                return ctx.finish({ next, ...total, ...(await reader.facts(lines)) });
             }),
         expand: (request, sink, ctx) =>
             withReader(request.params, ctx, preset, (reader) => expand(reader, request, sink)),
@@ -404,7 +566,7 @@ function cypher(preset: Preset): GraphSource<CypherParams> {
         validate: (params, seen, ctx) =>
             withReader(params, ctx, preset, async (reader): Promise<SourceFreshness> => {
                 const lines: string[] = [];
-                for await (const page of reader.pages(null)) {
+                for await (const page of reader.pages(null, false)) {
                     lines.push(...canonicalRows(page.collected, reader.idProperty));
                 }
                 const { validators } = await reader.facts(lines);
@@ -451,21 +613,26 @@ async function expand(reader: Reader, request: ExpandRequest<CypherParams>, sink
               };
     const profile = await reader.profile();
     const { collected, rows, fields } = await reader.generated((d) => neighborhood(profile, filters, shape, d), {
-        ids: request.ids,
+        ids: seedIds(request.ids, profile, filters),
         ...(after === null ? {} : { after }),
+        ...(after === null || filters.idProperty === null ? {} : { afterByServer: ctx.cursor?.byServer === true }),
     });
     writeCollected(collected, sink, reader.idProperty, report, ctx.signal);
     const { server } = await reader.facts([]);
     // A full page may have more behind it: hand back where the next one starts.
-    const last = rows.at(-1)?.[fields.indexOf("key")];
+    const lastRow = rows.at(-1);
+    const last = lastRow?.[fields.indexOf("key")];
     const full = shape.limit !== null && rows.length >= Number(shape.limit);
-    const next = full && (typeof last === "string" || typeof last === "number") ? { after: last } : null;
+    // Keyed by an id property, the cursor also says which kind of key it stopped in.
+    const at = fields.indexOf("byServer");
+    const kind: SourceCursor = at < 0 ? {} : { byServer: lastRow?.[at] === true };
+    const next = full && (typeof last === "string" || typeof last === "number") ? { after: last, ...kind } : null;
     return ctx.finish({ server, next });
 }
 
 /**
  * The generic Cypher source, for any openCypher server: Neo4j over its Query API or Bolt, Neptune
- * over HTTPS. The transport comes from `params.transport`, else the endpoint (`bolt+s://` is Bolt,
+ * over HTTPS. The transport comes from `params.transport`, else the endpoint (`bolt+s://` or `neo4j+s://` is Bolt,
  * a `neptune-graph` host is Neptune Analytics), else the Query API. Experimental.
  * @category Network sources
  */
@@ -476,8 +643,9 @@ export const cypherSource: GraphSource<CypherParams> = cypher({
 });
 
 /**
- * The Neo4j preset: the Query API (Neo4j 5.26 and later, Aura), or Bolt for a `bolt:` or
- * `bolt+s:` endpoint (any Neo4j; needs the optional peer neo4j-driver). Experimental.
+ * The Neo4j preset: the Query API (Neo4j 5.26 and later, Aura), or Bolt for a `bolt:`, `bolt+s:`,
+ * `neo4j:` or `neo4j+s:` endpoint, connected directly to the named host (any Neo4j; needs the
+ * optional peer neo4j-driver). Experimental.
  * @category Network sources
  */
 export const neo4jSource: GraphSource<CypherParams> = cypher({
@@ -495,4 +663,19 @@ export const neptuneSource: GraphSource<CypherParams> = cypher({
     id: NEPTUNE_SOURCE_ID,
     descriptor: NEPTUNE_DESCRIPTOR,
     transport: "neptune-https",
+});
+
+/**
+ * The Memgraph preset, for a Memgraph on this machine (`bolt://localhost:7687` unless you name
+ * another loopback endpoint): Bolt with encryption off, through the optional peer neo4j-driver.
+ * Works from Node, from an `http:` page and, after the reader allows the browser's one-time local
+ * network prompt, from an `https:` page. Not in the default registry: pass it to `loadFromSource`
+ * as the source, or `registerSource` it. Experimental.
+ * @category Network sources
+ */
+export const memgraphSource: GraphSource<CypherParams> = cypher({
+    id: "memgraph",
+    descriptor: MEMGRAPH_DESCRIPTOR,
+    transport: "bolt",
+    loopbackOnly: true,
 });

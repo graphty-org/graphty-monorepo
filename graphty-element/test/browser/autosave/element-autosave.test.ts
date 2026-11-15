@@ -14,8 +14,10 @@ import "../../../src/graphty-element";
 import { afterEach, assert, describe, it } from "vitest";
 
 import type { AutosaveAtRisk, AutosaveAvailable, AutosaveRestored, AutosaveStatus, Graphty } from "../../../index.js";
+import { listAutosaves } from "../../../src/autosave/elementAutosave";
 import { memoryAutosaveStore } from "../../../src/autosave/memoryStore";
 import type { AutosaveStore } from "../../../src/autosave/types";
+import { write } from "../../autosave/store-contract";
 
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }];
 const EDGES = [
@@ -100,7 +102,7 @@ async function until(element: Graphty, condition: (status: AutosaveStatus) => bo
  */
 async function loaded(element: Graphty): Promise<void> {
     await element.autosaver.ready;
-    for (let frame = 0; frame < 600 && element.session.data.snapshot().edgeCount < EDGES.length; frame++) {
+    while (element.session.data.snapshot().edgeCount < EDGES.length) {
         await new Promise<void>((resolve) => {
             requestAnimationFrame(() => resolve());
         });
@@ -366,5 +368,117 @@ describe("events", () => {
         assert.strictEqual(restored[0]?.entry.id, back?.entry.id);
         assert.strictEqual(restored[0]?.revision, 1);
         assert.deepStrictEqual(statuses, [], "a restore at connect fires no status event");
+    });
+
+    it("tell the page about work written while the element was still starting", async () => {
+        // The element's start waits at its listing until the test lets it through; a change made
+        // meanwhile is written at once, as a page's setup right after connect is on a slow disk.
+        const memory = memoryAutosaveStore();
+        let changed = false;
+        let letListingThrough = (): void => undefined;
+        const listingOpen = new Promise<void>((resolve) => {
+            letListingThrough = resolve;
+        });
+        let listingAsked = (): void => undefined;
+        const asked = new Promise<void>((resolve) => {
+            listingAsked = resolve;
+        });
+        const store: AutosaveStore = {
+            list: async (key) => {
+                if (!changed) {
+                    listingAsked();
+                    await listingOpen;
+                }
+                return memory.list(key);
+            },
+            read: (id) => memory.read(id),
+            remove: (id) => memory.remove(id),
+            commit: (writes, options) => memory.commit(writes, options),
+        };
+        const statuses: AutosaveStatus[] = [];
+        const element = mount(keyFor("starting"), (each) => {
+            each.autosaveOptions = { store, restore: "manual" };
+            each.addEventListener("graphty-autosave-status", (event) => statuses.push(event.detail));
+        });
+
+        await asked;
+        changed = true;
+        await element.session.config.set({ name: "Set up at connect" });
+        await element.autosaver.flush();
+        const { entry, savedAt } = element.autosaver.status;
+        assert.isNotNull(entry, "the change was written before the start finished");
+
+        letListingThrough();
+        await element.autosaver.ready;
+        const told = statuses.at(-1);
+        assert.strictEqual(told?.entry, entry, "the page heard which entry holds the work");
+        assert.strictEqual(told?.savedAt, savedAt);
+    });
+});
+
+describe("this tab's own entry", () => {
+    it("two lookups at once both report the entry this tab's session storage names as its own", async () => {
+        const key = keyFor("own-twice");
+        const store = memoryAutosaveStore();
+        await store.commit([write("mine", key, 0, { rest: "mine" }, { dirty: true })]);
+        sessionStorage.setItem(`graphty-autosave:own:${key}`, "mine");
+        cleanups.push(() => {
+            sessionStorage.removeItem(`graphty-autosave:own:${key}`);
+        });
+
+        // A React effect that runs twice on mount lists twice before either has finished.
+        const [first, second] = await Promise.all([listAutosaves(key, { store }), listAutosaves(key, { store })]);
+        for (const listed of [first, second]) {
+            assert.deepEqual(
+                listed.map(({ id, own, live }) => ({ id, own, live })),
+                [{ id: "mine", own: true, live: false }],
+            );
+        }
+    });
+});
+
+describe("waiting for the picture", () => {
+    it("waitForStableFrame and waitForSettled wait for the page's rows held behind the restore", async () => {
+        // The restore's listing waits until the test lets it through, as a slow IndexedDB would.
+        const memory = memoryAutosaveStore();
+        let letListingThrough = (): void => undefined;
+        const listingOpen = new Promise<void>((resolve) => {
+            letListingThrough = resolve;
+        });
+        const store: AutosaveStore = {
+            list: async (key) => {
+                await listingOpen;
+                return memory.list(key);
+            },
+            read: (id) => memory.read(id),
+            remove: (id) => memory.remove(id),
+            commit: (writes, options) => memory.commit(writes, options),
+        };
+        const element = mount(keyFor("stable"), (each) => {
+            each.autosaveOptions = { store };
+        });
+
+        const nodesAt: { stable?: number; settled?: number } = {};
+        const waits = Promise.all([
+            element.waitForStableFrame().then(() => {
+                nodesAt.stable = element.session.data.snapshot().nodeCount;
+            }),
+            element.waitForSettled().then(() => {
+                nodesAt.settled = element.session.data.snapshot().nodeCount;
+            }),
+        ]);
+
+        // The empty canvas is drawn and stable while the restore is still undecided.
+        while (!element.isFrameStable) {
+            await new Promise<void>((resolve) => {
+                requestAnimationFrame(() => resolve());
+            });
+        }
+        assert.isTrue(element.isFrameStable, "the empty canvas reached a stable frame");
+        assert.isTrue(element.autosaver.status.state !== "off", "autosave is on");
+
+        letListingThrough();
+        await waits;
+        assert.deepStrictEqual(nodesAt, { stable: NODES.length, settled: NODES.length }, "the waits saw the rows");
     });
 });

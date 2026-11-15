@@ -14,6 +14,7 @@ import { checkCapabilities, LOSS } from "./export.js";
 import { formatNumber } from "./format.js";
 import { PLACEHOLDER_COLUMN } from "./ontology.js";
 import { type ResolvedExportOptions } from "./options.js";
+import { jsonText } from "./text.js";
 
 /**
  * A note recorder.
@@ -110,7 +111,7 @@ export function textOf(value: unknown, dtype: string): string {
                 dtype === "f32" || dtype === "i32" || dtype === "u32" || dtype === "u8" ? dtype : "f64",
             );
         default:
-            return JSON.stringify(value) ?? "null";
+            return jsonText(value) ?? "null";
     }
 }
 

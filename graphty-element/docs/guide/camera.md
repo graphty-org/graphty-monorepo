@@ -68,6 +68,28 @@ element.autoFrame = true; // back to framing each load (the default)
 records no undo step and is not saved in a project file. It is independent of
 `startingCameraDistance`, which also stops automatic framing but places the camera at a distance.
 
+### How the graph is framed
+
+By default zoom-to-fit frames every node whole, with its labels, inside a small margin. The
+project setting `framing` changes that: `extent: "centers"` fits the node centers alone, so a big
+node at the edge may run past the canvas, and `padding` keeps that many CSS pixels clear at each
+end of the canvas's shorter side (the longer side keeps the same share), as sigma.js frames a graph.
+
+```typescript
+await element.session.config.set({ framing: { extent: "centers", padding: 30 } });
+await element.session.config.set({ framing: undefined }); // back to framing every node whole
+```
+
+A file load can set it to how the file's own program frames it, with the file style option
+`framing: "file"`: a sigma.js (graphology) file is then framed as sigma.js draws it.
+
+```typescript
+await element.session.data.import(source, { styles: "file", styleOptions: { framing: "file" } });
+```
+
+The setting is saved in a project file and undone like any other project setting. A load with
+`styles: "file"` needs the `file-styles` experiment; see [Styles from Files](./file-styles).
+
 ### Zoom In and Out
 
 Move the camera one step nearer or further, the way a zoom button does. The same call works on
@@ -119,6 +141,19 @@ names a node the camera stays where it is:
 ```typescript
 await graph.zoomToNodes(["alice", "bob"], { animate: true });
 ```
+
+By default each node counts as its centre, so a big node at the edge of the frame can be cut off,
+and one node is framed in a fixed-size box around its centre. Pass `extent: "drawn"` to measure each
+node by the box it is drawn in instead, so every framed node is whole on screen:
+
+```typescript
+await graph.zoomToNodes("hub", { extent: "drawn" });
+await graph.applyCameraView("isometric", { scope: "selection", extent: "drawn" });
+const state = graph.resolveCameraPreset("topView", { extent: "drawn" });
+```
+
+`extent` works the same for a camera view a third party registered: the box handed to its
+`compute` is measured either way.
 
 `zoomToSelection()` turns the camera to look at the middle of the selection, keeping where it
 stands. A selected edge counts by its two ends, so selecting only an edge frames that edge. With
@@ -204,6 +239,36 @@ function nextView() {
 }
 ```
 
+### Tours that stop and hold
+
+`playTour` flies through a list of stops and stays at each one, in 2D and in 3D. A stop names a
+view -- one you saved, or a camera view such as `"fitToGraph"` -- or gives a camera state.
+`duration` is the flight to the stop and `hold` the time spent there, both in milliseconds.
+
+```typescript
+const el = document.querySelector("graphty-element");
+
+// Save the views the tour visits
+await el.session.views.save([{ name: "cluster-a", camera: el.getCameraState() }]);
+
+const tour = [
+    { view: "fitToGraph", hold: 2000 },
+    { view: "cluster-a", duration: 1500, hold: 3000 },
+    { view: "fitToGraph", duration: 1500 },
+];
+
+await el.playTour(tour); // settles after the last stop
+el.cancelCameraAnimation(); // ends a tour that is still playing
+
+// Record the same tour: its length is the sum of its durations and holds
+const video = await el.captureAnimation({ cameraMode: "animated", cameraPath: tour, duration: 8000 });
+```
+
+Every stop is checked before the camera moves: a view name nothing answers to is refused with
+`E_UNKNOWN_CAMERA`, and a stop with nothing the current mode can use (a 2D view in 3D) with
+`E_UNSUPPORTED`. When `cameraTransitionDuration` is set -- for example to 0 for a reader who prefers
+reduced motion -- it replaces each flight's duration, so the tour jumps between stops and still holds.
+
 ## 2D vs 3D Camera
 
 ### 3D Mode (Default)
@@ -277,6 +342,64 @@ graph.on("camera-state-changed", ({ state }) => {
     console.log("Camera moved:", state);
 });
 ```
+
+## Minimap
+
+Turn on the `minimap` attribute and the element draws a minimap in its bottom-right corner: every
+node seen from where the camera looks, and a rectangle for what the view shows. Click it to centre
+the view there, drag across it to scrub, or focus it and press the arrow keys to step the view.
+None of this is an undo step. Above 5,000 nodes it draws a density heatmap instead of points.
+
+```html
+<graphty-element minimap minimap-label="Overview"></graphty-element>
+<style>
+    graphty-element::part(minimap) {
+        left: 12px;
+        right: auto;
+        width: 200px;
+        height: 120px;
+        color: #0a6; /* the points and the view rectangle */
+        background: #fff;
+    }
+</style>
+```
+
+The minimap is a canvas exposed as `::part(minimap)`: its size, place, border and background are
+yours to set, and its `color` is what it draws with. `minimap-label` (property `minimapLabel`) is
+the name a screen reader announces, `"minimap"` unless you set one.
+
+### Drawing your own minimap
+
+To draw a minimap yourself, read the data the built-in one draws from. `element.getOverview()`
+returns every node seen along the current view, laid flat in a square frame where x and y run from
+0 to 1 (y down), and `viewport`, the rectangle of that frame the camera shows. Redraw on
+`overview-changed`, which fires at most once per frame when the camera or a node moves.
+`element.centerOnOverview({ x, y })` moves the camera, keeping its zoom and direction, so the view
+is centred on a frame point: call it on click to centre, and on each pointer move to scrub.
+
+```ts
+const element = document.querySelector("graphty-element")!;
+const canvas = document.querySelector<HTMLCanvasElement>("#minimap")!; // 150 x 150
+const ctx = canvas.getContext("2d")!;
+
+element.addEventListener("overview-changed", () => {
+    const { points, viewport } = element.getOverview();
+    ctx.clearRect(0, 0, 150, 150);
+    for (let i = 0; i < points.length; i += 2) ctx.fillRect(points[i] * 150, points[i + 1] * 150, 2, 2);
+    ctx.strokeRect(viewport.x * 150, viewport.y * 150, viewport.width * 150, viewport.height * 150);
+});
+canvas.addEventListener("pointerdown", (e) => {
+    void element.centerOnOverview({ x: e.offsetX / 150, y: e.offsetY / 150 });
+});
+```
+
+Above 5,000 nodes `kind` is `"density"`: `points` is empty and `density.counts` holds how many
+nodes fall in each cell of a `density.size` by `density.size` grid (64 by default), row by row from
+the top, so the result stays small however big the graph is. Choose the limit and the grid with
+`getOverview({ maxPoints, gridSize })`. In 3D the frame turns with the camera, since it shows the
+graph as seen from where the camera looks. The viewport can reach past 0 to 1 when the view shows
+more than the graph. Reading the overview costs one pass over the nodes after a node or the view
+direction moved, and nothing more while only the viewport moved.
 
 ## Focus on Node
 

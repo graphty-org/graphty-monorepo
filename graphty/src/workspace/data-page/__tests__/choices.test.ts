@@ -10,7 +10,16 @@ import {
 } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it } from "vitest";
 
-import { INITIAL_CHOICES, loadChoices, roleOf, setRole, setRowsAre, setWeightMeaning } from "../choices";
+import {
+    carriedChoices,
+    INITIAL_CHOICES,
+    initialChoices,
+    loadChoices,
+    roleOf,
+    setRole,
+    setRowsAre,
+    setWeightMeaning,
+} from "../choices";
 
 const PEOPLE = "id,name,team\na,Ann,red\nb,Bo,blue\nc,Cy,red\n";
 const TIES = "source,target,weight\na,b,2\nb,c,5\nc,z,1\n";
@@ -55,10 +64,31 @@ describe("the Data page's choices", () => {
             edgeFile: new File([TIES], "ties.csv"),
         });
 
-        const choices = loadChoices(draft, INITIAL_CHOICES, "replace");
-        assert.deepEqual(choices, { mode: "replace", unmatched: "leave-out", directed: "auto", styles: "file" });
+        const choices = loadChoices(draft, INITIAL_CHOICES, "replace", true);
+        assert.deepEqual(choices, {
+            mode: "replace",
+            unmatched: "leave-out",
+            directed: "auto",
+            styles: "file",
+            styleOptions: { lengths: "spacing", framing: "file" },
+        });
         const report = await draft.report(choices);
         assert.deepEqual(report.unmatched, { rows: 1, values: 1 });
+    });
+
+    it("asks for no styles, and starts with none, while the element's file styles experiment is off", async () => {
+        const draft = await prepare({
+            nodeFile: new File([PEOPLE], "people.csv"),
+            edgeFile: new File([TIES], "ties.csv"),
+        });
+
+        assert.deepEqual(loadChoices(draft, INITIAL_CHOICES, "replace", false), {
+            mode: "replace",
+            unmatched: "leave-out",
+            directed: "auto",
+        });
+        assert.strictEqual(initialChoices(false).styles, "none");
+        assert.strictEqual(initialChoices(true).styles, "file");
     });
 
     it("moves a role to the chosen column and gives the old holder no role", async () => {
@@ -91,6 +121,26 @@ describe("the Data page's choices", () => {
         assert.isNull(mapping.tables.edges.weight);
         const report = await draft.report(choices);
         assert.equal(report.weights.resolvedFrom, "none");
+    });
+
+    it("reads a load's own choices back as the page's, and sends the same mapping again", async () => {
+        const draft = await prepare({ file: new File([TRIPS], "trips.csv") });
+        const [table] = draft.tables;
+        const carried = {
+            unmatched: "add" as const,
+            mapping: {
+                rowsAre: "edges" as const,
+                source: "from_station",
+                target: { column: "to_station" },
+                weight: null,
+            },
+        };
+        const choices = carriedChoices(draft, carried);
+        assert.equal(choices.unmatched, "add");
+        assert.equal(roleOf(draft, table, "from_station", choices), "source");
+        assert.equal(roleOf(draft, table, "to_station", choices), "target");
+        assert.notEqual(roleOf(draft, table, "trips", choices), "weight");
+        assert.equal((await draft.report(loadChoices(draft, choices, "replace"))).counts.edgeRecords, 3);
     });
 
     it("loads an edge list whose linking columns the reader names", async () => {

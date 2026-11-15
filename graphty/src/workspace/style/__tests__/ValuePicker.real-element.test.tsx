@@ -15,12 +15,14 @@ import { assert, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { findValuePicker, queryValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Renders the workspace on the Everything row and loads the nodes.
@@ -30,14 +32,11 @@ const TIMEOUT_MS = 90_000;
 async function openEverything(nodes: readonly Record<string, unknown>[]): Promise<GraphSession> {
     const store = createWorkspaceStore({ project: { name: "Picker", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -69,7 +68,7 @@ function refusedForSize(session: GraphSession): number {
  * @returns the picker.
  */
 async function openBySize(): Promise<HTMLElement> {
-    const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+    const tab = await screen.findByTestId("style-tab", {});
     if (tab.querySelector('.ws-row[data-line="node.size"]') === null) {
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
@@ -183,11 +182,11 @@ describe("the value picker on the real element", () => {
         await session.styles.settled();
         assert.strictEqual(session.data.statistics().directedness, "undirected");
 
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByTestId("style-tab", {});
         // Size is a row once Shape's "+" adds it; its vary glyph opens the picker.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        const button = await screen.findByRole("button", { name: "Node size by attribute" }, { timeout: TIMEOUT_MS });
+        const button = await screen.findByRole("button", { name: "Node size by attribute" });
         await userEvent.click(button);
         const picker = await findValuePicker();
         assert.equal(picker.getAttribute("aria-label"), "Node size by attribute", "named by its pop-out's title");

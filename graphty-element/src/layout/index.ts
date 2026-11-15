@@ -9,6 +9,7 @@ import { GRAPHVIZ_LAYOUTS } from "./GraphvizLayoutEngine";
 import { GridLayout } from "./GridLayoutEngine";
 import { KamadaKawaiLayout } from "./KamadaKawaiLayoutEngine";
 import { LayoutEngine } from "./LayoutEngine";
+import { LocationMapLayout } from "./LocationMapLayoutEngine";
 import { MultipartiteLayout } from "./MultipartiteLayoutEngine";
 import { NGraphEngine } from "./NGraphLayoutEngine";
 import { PlanarLayout } from "./PlanarLayoutEngine";
@@ -39,6 +40,7 @@ LayoutEngine.register(MultipartiteLayout);
 LayoutEngine.register(FixedLayout);
 LayoutEngine.register(GridLayout);
 LayoutEngine.register(RadialLayout);
+LayoutEngine.register(LocationMapLayout);
 
 for (const layout of Object.values(GRAPHVIZ_LAYOUTS)) {
     LayoutEngine.register(layout);

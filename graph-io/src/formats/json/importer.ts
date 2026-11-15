@@ -127,7 +127,7 @@ import {
     SUFFIX,
 } from "./dialect.js";
 import { importObographs } from "./obographs.js";
-import { jsonPositions } from "./positions.js";
+import { jsonPositions, SIGMA_FIT } from "./positions.js";
 import { jsonStyles, type JsonStyleSource, SIGMA_DEFAULT_SETTINGS, type SigmaSettings } from "./styles.js";
 
 /**
@@ -293,8 +293,18 @@ export const JSON_ISSUE = Object.freeze({
     HYPEREDGE_SHAPE: "E_HYPEREDGE_SHAPE",
     /** The nodes have no id key at all; array positions became the ids. */
     POSITIONAL_NODES: "W_POSITIONAL_NODES",
-    /** A node-link / d3 top-level key the importer does not read (the other of edges / links, an unknown key); it is dropped. */
+    /**
+     * A node-link / d3 top-level key the importer does not read (an unknown key, or `links` beside `edges` when the
+     * `edgesKey` option names one of them); it is dropped.
+     */
     UNREAD_KEY: "W_JSON_UNREAD_KEY",
+    /**
+     * An edge's weight is the `NaN` literal (NetworkX writes one for a NaN weight), which is not a weight; the edge is
+     * kept without one.
+     */
+    NAN_WEIGHT: "W_JSON_NAN_WEIGHT",
+    /** A node id or endpoint is a JSON array (NetworkX writes a tuple id as one); it is read as its JSON text, `[0,1]`. */
+    ARRAY_ID: "W_JSON_ARRAY_ID",
     /**
      * You read into your own graph builder, which was created with a different `addMissingNodes`, `duplicateEdges`,
      * `selfLoops` or `weightDtype` than the option you passed; the builder's setting applies.
@@ -491,11 +501,12 @@ function resolveJsonOptions(options: (JsonImportOptions & CommonImportOptions) |
     if (!Number.isInteger(graphIndex) || graphIndex < 0) {
         throw unsupportedOption("graphIndex", graphIndex, ["a non-negative integer"]);
     }
-    const oboIds = o.oboIds ?? "curie";
+    // a JavaScript caller can pass any value
+    const oboIds: unknown = o.oboIds ?? "curie";
     if (oboIds !== "curie" && oboIds !== "iri") {
         throw unsupportedOption("oboIds", oboIds, ["curie", "iri"]);
     }
-    const typedefs = o.typedefs ?? "metadata";
+    const typedefs: unknown = o.typedefs ?? "metadata";
     if (typedefs !== "metadata" && typedefs !== "nodes") {
         throw unsupportedOption("typedefs", typedefs, ["metadata", "nodes"]);
     }
@@ -1035,15 +1046,16 @@ export class ImportContext {
      * Coerce a node id value per the `ids` option, reporting what cannot be an id. A JSON boolean or
      * null is `unsupported` unless `ids` is "string" (design section 8.5); anything the rule rejects
      * is recorded through the per-element catch.
-     * @param raw - the JSON value; undefined when the record has no id key
+     * @param given - the JSON value; undefined when the record has no id key (an array is read as its JSON text)
      * @param element - the element name for the issue
      * @returns the id, or null when the value was reported and the element must be skipped
      */
-    coerceId(raw: unknown, element: string): NodeId | null {
-        if (raw === undefined) {
+    coerceId(given: unknown, element: string): NodeId | null {
+        if (given === undefined) {
             this.report.error("missing-value", JSON_ISSUE.MISSING_ID, `${element} has no id`, { element });
             return null;
         }
+        const raw = Array.isArray(given) ? this.arrayId(given, element) : given;
         if ((typeof raw === "boolean" || raw === null) && this.options.ids !== "string") {
             const kind = raw === null ? "null" : "boolean";
             this.report.error(
@@ -1071,6 +1083,23 @@ export class ImportContext {
             );
         }
         return id;
+    }
+
+    /**
+     * The id of a JSON array (a NetworkX tuple): its compact JSON text, reported once.
+     * @param value - the array
+     * @param element - the element name for the issue
+     * @returns the text
+     */
+    private arrayId(value: readonly unknown[], element: string): string {
+        const text = JSON.stringify(value);
+        this.report.warnOnce(
+            "coercion",
+            JSON_ISSUE.ARRAY_ID,
+            `${element}: a JSON array id (a NetworkX tuple) is read as its text ${text}; later ones too`,
+            { element },
+        );
+        return text;
     }
 
     /**
@@ -1354,7 +1383,17 @@ export class ImportContext {
         if (weightFrom === null || !hasKey(record, weightFrom)) {
             return undefined;
         }
-        return weightFromValue(record[weightFrom]);
+        const value = record[weightFrom];
+        if (typeof value === "number" && Number.isNaN(value)) {
+            // only the NaN literal parses to NaN; NetworkX writes it, and reads the edge back
+            this.report.warnOnce(
+                "validation-error",
+                JSON_ISSUE.NAN_WEIGHT,
+                "edge weights: NaN is not a weight; each such edge is kept without one",
+            );
+            return undefined;
+        }
+        return weightFromValue(value);
     }
 
     /**
@@ -1547,34 +1586,60 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
     }
     let root: unknown;
     let syntaxError: string | null = null;
-    // the text the syntax error was found in: the rewrite's when it parsed further than the original
-    let errorText = text;
     try {
         root = JSON.parse(text) as unknown;
     } catch (err) {
-        syntaxError = err instanceof Error ? err.message : String(err);
+        syntaxError = errorMessage(err);
     }
     // the fast path: strict JSON without a digit run long enough to be an unsafe integer
     if (syntaxError === null && !MAYBE_UNSAFE_INTEGER.test(text) && !MAYBE_INEXACT_EXPONENT.test(text)) {
         reportDuplicateKeys(text, report);
         return root;
     }
-    let scan: ReturnType<typeof rewriteNumbers>;
+    const parsed = rewriteAndReparse(text, report, { root, syntaxError, errorText: text });
+    if (parsed.syntaxError !== null) {
+        return report.fail(JSON_ISSUE.SYNTAX, syntaxMessage(text, parsed.syntaxError), {
+            line: syntaxLine(parsed.errorText, parsed.syntaxError),
+        });
+    }
+    reportDuplicateKeys(text, report);
+    reportRewrites(parsed.scan, report);
+    return parsed.root;
+}
+
+/** A parse of the document: its value, or the syntax error and the text it was found in. */
+interface ParseAttempt {
+    root: unknown;
+    syntaxError: string | null;
+    /** The text the syntax error was found in: the rewrite's when it parsed further than the original. */
+    errorText: string;
+}
+
+/**
+ * The message of a thrown value.
+ * @param err - the thrown value
+ * @returns its message
+ */
+function errorMessage(err: unknown): string {
+    return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Rewrite the document's non-standard and big numbers and parse the rewrite when it changed
+ * anything; a rewrite longer than one string can hold aborts the import.
+ * @param text - the decoded text
+ * @param report - the report
+ * @param first - the parse of the original text
+ * @returns the scan and the parse that stands
+ */
+function rewriteAndReparse(
+    text: string,
+    report: ImportReportBuilder,
+    first: ParseAttempt,
+): ParseAttempt & { scan: ReturnType<typeof rewriteNumbers> } {
     try {
-        scan = rewriteNumbers(text);
-        if (scan.tokens.size > 0 || scan.bigIntegers.length > 0) {
-            try {
-                root = JSON.parse(scan.text, scan.tokens.size > 0 ? scan.revive : undefined) as unknown;
-                syntaxError = null;
-            } catch (err) {
-                if (err instanceof RangeError) {
-                    throw err;
-                }
-                // the rewrite read past the non-standard tokens: its error is the real one
-                syntaxError = err instanceof Error ? err.message : String(err);
-                errorText = scan.text;
-            }
-        }
+        const scan = rewriteNumbers(text);
+        return { ...reparse(scan, first), scan };
     } catch (err) {
         if (!(err instanceof RangeError)) {
             throw err;
@@ -1584,12 +1649,37 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
         report.error("unsupported", JSON_ISSUE.TOO_LARGE, message);
         throw report.abort(message, { code: JSON_ISSUE.TOO_LARGE });
     }
-    if (syntaxError !== null) {
-        return report.fail(JSON_ISSUE.SYNTAX, syntaxMessage(text, syntaxError), {
-            line: syntaxLine(errorText, syntaxError),
-        });
+}
+
+/**
+ * Parse the rewritten text when the rewrite changed anything.
+ * @param scan - the rewrite
+ * @param first - the parse of the original text
+ * @returns the parse that stands
+ */
+function reparse(scan: ReturnType<typeof rewriteNumbers>, first: ParseAttempt): ParseAttempt {
+    if (scan.tokens.size === 0 && scan.bigIntegers.length === 0) {
+        return first;
     }
-    reportDuplicateKeys(text, report);
+    try {
+        const root = JSON.parse(scan.text, scan.tokens.size > 0 ? scan.revive : undefined) as unknown;
+        return { root, syntaxError: null, errorText: first.errorText };
+    } catch (err) {
+        if (err instanceof RangeError) {
+            throw err;
+        }
+        // the rewrite read past the non-standard tokens: its error is the real one
+        return { root: first.root, syntaxError: errorMessage(err), errorText: scan.text };
+    }
+}
+
+/**
+ * Report what the rewrite changed: non-standard tokens read as numbers, big integers kept as
+ * text, and literals no double holds exactly.
+ * @param scan - the rewrite
+ * @param report - the report
+ */
+function reportRewrites(scan: ReturnType<typeof rewriteNumbers>, report: ImportReportBuilder): void {
     if (scan.tokens.size > 0) {
         report.warning(
             "coercion",
@@ -1611,7 +1701,6 @@ function parseDocument(text: string, report: ImportReportBuilder): unknown {
             `${scan.inexact.length} number literal${plural(scan.inexact.length)} no double holds exactly, read as the nearest double (an infinity beyond the range, 0 below it): ${listed(scan.inexact)}`,
         );
     }
-    return root;
 }
 
 /**
@@ -1923,12 +2012,20 @@ function isIndexBelow(value: unknown, bound: number): boolean {
 function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-link" | "d3"): void {
     const { report, json } = ctx;
     const edgesKey = json.edgesKey ?? (hasKey(root, "edges") || !hasKey(root, "links") ? "edges" : "links");
-    const { nodeList, edgeList } = nodeLinkSections(ctx, root, edgesKey);
+    const { nodeList, edgeList: firstList } = nodeLinkSections(ctx, root, edgesKey);
+    // a document with both `edges` and `links` (NetworkX 3.6 renamed one to the other) keeps both
+    const linksToo = json.edgesKey === null && edgesKey === "edges" && hasKey(root, "links");
+    const sections = [{ key: edgesKey, list: firstList }];
+    if (linksToo) {
+        sections.push({ key: "links", list: arraySection(root.links, "links", report) ?? [] });
+    }
+    const edgeList = sections.flatMap((section) => section.list);
     const directed = flagOf(root.directed, "directed", ctx.defaultDirected(dialect), report);
     const multigraph = hasKey(root, "multigraph") ? flagOf(root.multigraph, "multigraph", false, report) : null;
     ctx.setHeader(directed);
     ctx.writeGraphDict(root.graph, "graph");
-    reportUnreadKeys(ctx, root, new Set(["nodes", edgesKey, "directed", "multigraph", "graph", STYLE_BLOCK_NAME]), "");
+    const read = ["nodes", "directed", "multigraph", "graph", STYLE_BLOCK_NAME, ...sections.map((x) => x.key)];
+    reportUnreadKeys(ctx, root, new Set(read), "");
     // NetworkX's node_link_data writes all three keys; its drawing defaults then apply
     const networkx = hasKey(root, "directed") && hasKey(root, "multigraph") && hasKey(root, "graph");
     ctx.styleSource = { dialect, block: blockOf(root), networkx };
@@ -1949,7 +2046,7 @@ function importNodeLink(ctx: ImportContext, root: JsonRecord, dialect: "node-lin
     }
     const positionIds = importNodeLinkNodes(ctx, nodeList, nodeIdKey, indexLinks);
     throwIfAborted(ctx.options.signal);
-    const endpointKeys = importNodeLinkEdges(ctx, edgeList, edgesKey, positionIds, multigraph);
+    const endpointKeys = importNodeLinkEdges(ctx, sections, positionIds, multigraph);
     ctx.setMeta(
         {
             dialect,
@@ -2096,16 +2193,14 @@ function pushNodeLinkNode(ctx: ImportContext, record: JsonRecord, i: number, nod
  * Read the node-link / d3 edge records: endpoints by id or array position, the weight, the other
  * keys as attributes.
  * @param ctx - the context
- * @param edgeList - the edge records
- * @param edgesKey - the top-level key they came from, for issues
+ * @param sections - the edge records, by the top-level key they came from (`edges`, then `links` when both are there)
  * @param positionIds - the ids by array position under index links, or null
  * @param multigraph - the declared multigraph flag, or null when the document has none
  * @returns the source and target keys the first well-formed edge used (null when none did)
  */
 function importNodeLinkEdges(
     ctx: ImportContext,
-    edgeList: readonly unknown[],
-    edgesKey: string,
+    sections: readonly { readonly key: string; readonly list: readonly unknown[] }[],
     positionIds: readonly (NodeId | null)[] | null,
     multigraph: boolean | null,
 ): { source: string | null; target: string | null } {
@@ -2118,9 +2213,9 @@ function importNodeLinkEdges(
     // ponytail: one string per edge whenever the flag is declared; a hash of the index pair if it shows in profiles
     const pairs = multigraph === null ? null : new Set<string>();
     let parallels = 0;
-    for (let i = 0; i < edgeList.length; i++) {
-        const element = `${edgesKey}[${i}]`;
-        const record = edgeList[i];
+    // ponytail: one small object per edge; index the sections in place if it shows in profiles
+    const items = sections.flatMap(({ key, list }) => list.map((record, i) => ({ record, element: `${key}[${i}]` })));
+    for (const { record, element } of items) {
         if (!isJsonObject(record)) {
             ctx.badElement("edge", element);
             continue;
@@ -2142,33 +2237,31 @@ function importNodeLinkEdges(
             }
             const weight = ctx.weightOf(record);
             if (pairs !== null) {
-                const pair = pairKey(u, v, kind === "directed");
-                if (multigraph === false) {
-                    parallels += pairs.has(pair) ? 1 : 0;
-                    pairs.add(pair);
-                } else if (hasKey(record, "key")) {
-                    const triple = `${pair} ${JSON.stringify(record.key)}`;
-                    if (pairs.has(triple)) {
-                        throw new GraphFormatError(
-                            JSON_ISSUE.DUPLICATE_EDGE_ID,
-                            `${element}: key ${JSON.stringify(record.key)} is repeated for the same pair; NetworkX reads it as the same edge, so it is skipped`,
-                            { id: String(record.key) },
-                        );
-                    }
-                    pairs.add(triple);
-                }
+                parallels += trackNodeLinkPair(
+                    pairs,
+                    multigraph === false,
+                    pairKey(u, v, kind === "directed"),
+                    record,
+                    element,
+                );
             }
             const edge = ctx.pushEdge(u, v, kind, weight, element);
-            const { weightFrom } = ctx.options;
-            for (const key of Object.keys(record)) {
-                if (key !== source.key && key !== target.key && key !== weightFrom) {
-                    ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
-                }
-            }
+            writeEdgeRest(ctx, edge, record, element, [source.key, target.key]);
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
     }
+    reportParallelLinks(ctx, parallels, sections[0].key);
+    return { source: sourceKey, target: targetKey };
+}
+
+/**
+ * Warn when a document that declares multigraph false repeats the endpoints of a link.
+ * @param ctx - the context
+ * @param parallels - the links that repeat an earlier one's endpoints
+ * @param edgesKey - the top-level key the links came from
+ */
+function reportParallelLinks(ctx: ImportContext, parallels: number, edgesKey: string): void {
     if (parallels > 0) {
         ctx.report.warning(
             "validation-error",
@@ -2177,7 +2270,67 @@ function importNodeLinkEdges(
             { element: edgesKey },
         );
     }
-    return { source: sourceKey, target: targetKey };
+}
+
+/**
+ * Record a node-link edge's endpoint pair. Under multigraph false a repeated pair counts as a
+ * parallel link; otherwise a repeated (pair, key) triple is the same NetworkX edge and is refused.
+ * @param pairs - the pairs (or triples) seen so far
+ * @param simple - whether the document declares multigraph false
+ * @param pair - this edge's pair key
+ * @param record - the edge record
+ * @param element - the element name, for issues
+ * @returns 1 when the pair repeats under multigraph false, else 0
+ */
+function trackNodeLinkPair(
+    pairs: Set<string>,
+    simple: boolean,
+    pair: string,
+    record: JsonRecord,
+    element: string,
+): number {
+    if (simple) {
+        const repeated = pairs.has(pair) ? 1 : 0;
+        pairs.add(pair);
+        return repeated;
+    }
+    if (!hasKey(record, "key")) {
+        return 0;
+    }
+    const triple = `${pair} ${JSON.stringify(record.key)}`;
+    if (pairs.has(triple)) {
+        throw new GraphFormatError(
+            JSON_ISSUE.DUPLICATE_EDGE_ID,
+            `${element}: key ${JSON.stringify(record.key)} is repeated for the same pair; NetworkX reads it as the same edge, so it is skipped`,
+            { id: String(record.key) },
+        );
+    }
+    pairs.add(triple);
+    return 0;
+}
+
+/**
+ * Write an edge record's remaining keys as attributes: every own key except the excluded ones and
+ * the weightFrom key.
+ * @param ctx - the context
+ * @param edge - the edge index
+ * @param record - the edge record
+ * @param element - the element name, for issues
+ * @param excluded - the keys already read (endpoints, id)
+ */
+function writeEdgeRest(
+    ctx: ImportContext,
+    edge: number,
+    record: JsonRecord,
+    element: string,
+    excluded: readonly string[],
+): void {
+    const { weightFrom } = ctx.options;
+    for (const key of Object.keys(record)) {
+        if (!excluded.includes(key) && key !== weightFrom) {
+            ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
+        }
+    }
 }
 
 /**
@@ -2355,6 +2508,27 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
     ctx.sink.reserve(nodes.length, edges.length);
     const nodeIdKey = json.nodeIdKey ?? "id";
     ctx.reportNodeIdFrom("vis", `the ${JSON.stringify(nodeIdKey)} key`);
+    importVisNodes(ctx, nodes, nodeIdKey);
+    throwIfAborted(ctx.options.signal);
+    const ids = ctx.declareEdgeIds(edges, (edge) => edge.id, "id", true);
+    const kind = ctx.uniformKind();
+    const { source: sourceKey, target: targetKey } = importVisEdges(ctx, edges, ids, kind);
+    reportVisArrows(ctx, edges, kind);
+    ctx.styleSource = { dialect: "vis", block: blockOf(root), options: root.options, groups: root.groups };
+    ctx.setMeta(
+        { dialect: "vis", nodeIdKey, sourceKey: sourceKey ?? undefined, targetKey: targetKey ?? undefined },
+        ctx.weightOriginPatch(),
+    );
+}
+
+/**
+ * Read the vis.js node records: the id from the node id key, the other keys as attributes.
+ * @param ctx - the context
+ * @param nodes - the node records
+ * @param nodeIdKey - the node id key
+ */
+function importVisNodes(ctx: ImportContext, nodes: readonly unknown[], nodeIdKey: string): void {
+    const position = declareXYPosition(ctx, nodes, (record) => record, "vis");
     for (let i = 0; i < nodes.length; i++) {
         const element = `nodes[${i}]`;
         const record = nodes[i];
@@ -2368,13 +2542,34 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
             continue;
         }
         const index = ctx.pushNode(id, element);
-        if (index >= 0) {
-            writeFlat(ctx.nodes, index, record, id, (key) => key !== nodeIdKey);
+        if (index < 0) {
+            continue;
+        }
+        const xy = position === INVALID_INDEX ? null : planarXY(record);
+        writeFlat(ctx.nodes, index, xy === null ? record : withoutXY(record), id, (key) => key !== nodeIdKey);
+        if (xy !== null) {
+            // vis-network's y grows downward; positions are stored y up and the exporter flips back
+            ctx.nodes.set(position, index, [xy[0], flipY(xy[1]), 0]);
         }
     }
-    throwIfAborted(ctx.options.signal);
-    const ids = ctx.declareEdgeIds(edges, (edge) => edge.id, "id", true);
-    const kind = ctx.uniformKind();
+}
+
+/**
+ * Read the vis.js edge records: `from` / `to` endpoints, the optional `id`, the weight, the other
+ * keys as attributes.
+ * @param ctx - the context
+ * @param edges - the edge records
+ * @param ids - the edge id column, or null
+ * @param kind - the edge kind
+ * @returns the source and target keys the first well-formed edge used (null when none did)
+ */
+function importVisEdges(
+    ctx: ImportContext,
+    edges: readonly unknown[],
+    ids: EdgeIdColumn | null,
+    kind: EdgeKind,
+): { source: string | null; target: string | null } {
+    const { json } = ctx;
     let sourceKey: string | null = null;
     let targetKey: string | null = null;
     for (let i = 0; i < edges.length; i++) {
@@ -2393,45 +2588,74 @@ function importVis(ctx: ImportContext, root: JsonRecord): void {
         sourceKey ??= source.key;
         targetKey ??= target.key;
         try {
-            const u = ctx.coerceId(source.value, `${element}.from`);
-            const v = ctx.coerceId(target.value, `${element}.to`);
-            if (u === null || v === null) {
-                ctx.countSkipped("edge");
-                continue;
-            }
-            const idValue = ctx.edgeIdValue(ids, record.id);
-            const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(record), element);
-            ctx.setEdgeId(ids, edge, idValue);
-            const { weightFrom } = ctx.options;
-            for (const key of Object.keys(record)) {
-                if (key !== source.key && key !== target.key && key !== "id" && key !== weightFrom) {
-                    ctx.edges.write(edge, key, record[key], SUFFIX.data, element);
-                }
-            }
+            pushVisEdge(ctx, record, ids, kind, element, {
+                from: source.value,
+                to: target.value,
+                read: [source.key, target.key, "id"],
+            });
         } catch (err) {
             ctx.skip(err, "edge", element);
         }
     }
-    // vis.js draws arrows from the `arrows` edge option; the file declares no graph direction, so the
-    // arrows stay an attribute and the graph is read as the dialect's default
-    const arrows =
-        kind === "undirected"
-            ? edges.filter((e) => isJsonObject(e) && e.arrows !== undefined && e.arrows !== null && e.arrows !== "")
-                  .length
-            : 0;
+    return { source: sourceKey, target: targetKey };
+}
+
+/**
+ * Push one vis.js edge whose endpoint keys were found; an endpoint without a usable id skips it.
+ * @param ctx - the context
+ * @param record - the edge record
+ * @param ids - the edge id column, or null
+ * @param kind - the edge kind
+ * @param element - the element name
+ * @param ends - the endpoints and the keys already read
+ * @param ends.from - the raw source value
+ * @param ends.to - the raw target value
+ * @param ends.read - the keys already read (endpoints, id), not written as attributes
+ */
+function pushVisEdge(
+    ctx: ImportContext,
+    record: JsonRecord,
+    ids: EdgeIdColumn | null,
+    kind: EdgeKind,
+    element: string,
+    ends: { readonly from: unknown; readonly to: unknown; readonly read: readonly string[] },
+): void {
+    const { from, to, read } = ends;
+    const u = ctx.coerceId(from, `${element}.from`);
+    const v = ctx.coerceId(to, `${element}.to`);
+    if (u === null || v === null) {
+        ctx.countSkipped("edge");
+        return;
+    }
+    const idValue = ctx.edgeIdValue(ids, record.id);
+    const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(record), element);
+    ctx.setEdgeId(ids, edge, idValue);
+    writeEdgeRest(ctx, edge, record, element, read);
+}
+
+/**
+ * Warn when an undirected vis.js graph carries arrows. vis.js draws arrows from the `arrows` edge
+ * option; the file declares no graph direction, so the arrows stay an attribute and the graph is
+ * read as the dialect's default.
+ * @param ctx - the context
+ * @param edges - the edge records
+ * @param kind - the edge kind
+ */
+function reportVisArrows(ctx: ImportContext, edges: readonly unknown[], kind: EdgeKind): void {
+    if (kind !== "undirected") {
+        return;
+    }
+    const arrows = edges.filter(
+        (e) => isJsonObject(e) && e.arrows !== undefined && e.arrows !== null && e.arrows !== "",
+    ).length;
     if (arrows > 0) {
-        report.warning(
+        ctx.report.warning(
             "validation-error",
             JSON_ISSUE.INCONSISTENT,
             `${arrows} edge${plural(arrows)} ${agree(arrows, "carries", "carry")} vis.js arrows but the graph is read undirected; the arrows are kept as an attribute (pass defaultDirected: true to read the edges as directed)`,
             { element: "arrows" },
         );
     }
-    ctx.styleSource = { dialect: "vis", block: blockOf(root), options: root.options, groups: root.groups };
-    ctx.setMeta(
-        { dialect: "vis", nodeIdKey, sourceKey: sourceKey ?? undefined, targetKey: targetKey ?? undefined },
-        ctx.weightOriginPatch(),
-    );
 }
 
 // ============================================================ NetworkX adjacency_data / tree_data
@@ -2781,21 +3005,7 @@ function importTree(ctx: ImportContext, root: JsonRecord): void {
             ctx.badElement("node", element);
             continue;
         }
-        let id = ctx.coerceId(hasKey(record, idKey) ? record[idKey] : undefined, element);
-        if (id === null) {
-            ctx.countSkipped("node");
-        } else if (ctx.pushNode(id, element) < 0) {
-            id = null;
-        } else {
-            writeFlat(ctx.nodes, ctx.sink.indexOf(id), record, id, (key) => key !== idKey && key !== "children");
-            if (parent !== null) {
-                try {
-                    ctx.pushEdge(parent, id, kind, undefined, element);
-                } catch (err) {
-                    ctx.skip(err, "edge", element);
-                }
-            }
-        }
+        const id = pushTreeNode(ctx, record, element, parent, idKey, kind);
         const { children } = record;
         if (Array.isArray(children)) {
             for (let k = children.length - 1; k >= 0; k--) {
@@ -2811,6 +3021,43 @@ function importTree(ctx: ImportContext, root: JsonRecord): void {
         }
     }
     ctx.setMeta({});
+}
+
+/**
+ * Push one tree_data record as a node with its flat attributes, and the edge from its parent.
+ * @param ctx - the context
+ * @param record - the record
+ * @param element - the element name
+ * @param parent - the parent's id, or null for a root (or a child of a skipped record)
+ * @param idKey - the node id key
+ * @param kind - the edge kind
+ * @returns the node id, or null when the record has no usable id or the node was refused
+ */
+function pushTreeNode(
+    ctx: ImportContext,
+    record: JsonRecord,
+    element: string,
+    parent: NodeId | null,
+    idKey: string,
+    kind: EdgeKind,
+): NodeId | null {
+    const id = ctx.coerceId(hasKey(record, idKey) ? record[idKey] : undefined, element);
+    if (id === null) {
+        ctx.countSkipped("node");
+        return null;
+    }
+    if (ctx.pushNode(id, element) < 0) {
+        return null;
+    }
+    writeFlat(ctx.nodes, ctx.sink.indexOf(id), record, id, (key) => key !== idKey && key !== "children");
+    if (parent !== null) {
+        try {
+            ctx.pushEdge(parent, id, kind, undefined, element);
+        } catch (err) {
+            ctx.skip(err, "edge", element);
+        }
+    }
+    return id;
 }
 
 // ============================================================ graphology
@@ -2896,6 +3143,9 @@ function mostlyDirected(ctx: ImportContext, edges: readonly unknown[]): boolean 
  */
 function importGraphologyNodes(ctx: ImportContext, nodes: readonly unknown[], gephi: boolean): void {
     const nodeKey = gephi ? "id" : "key";
+    // sigma.js reads a node's place from its attributes; Gephi's export puts it beside them
+    const placeOf = (record: JsonRecord): unknown => (gephi ? record : record.attributes);
+    const position = declareXYPosition(ctx, nodes, placeOf, "graphology");
     for (let i = 0; i < nodes.length; i++) {
         const element = `nodes[${i}]`;
         const record = nodes[i];
@@ -2908,8 +3158,90 @@ function importGraphologyNodes(ctx: ImportContext, nodes: readonly unknown[], ge
             ctx.countSkipped("node");
             continue;
         }
-        pushNestedNode(ctx, id, record, "attributes", gephi ? GEPHI_NODE_KEYS : GRAPHOLOGY_NODE_KEYS, element, gephi);
+        const xy = position === INVALID_INDEX ? null : planarXY(placeOf(record));
+        const keys = gephi ? GEPHI_NODE_KEYS : GRAPHOLOGY_NODE_KEYS;
+        const index = pushNestedNode(ctx, id, placedRest(record, xy, gephi), "attributes", keys, element, gephi);
+        if (xy !== null && index >= 0) {
+            ctx.nodes.set(position, index, [xy[0], xy[1], 0]);
+        }
     }
+}
+
+/**
+ * A graphology node record without the x / y that became its position: Gephi's beside the attributes, sigma.js's
+ * inside them.
+ * @param record - the node record
+ * @param xy - the position, or null when it has none
+ * @param gephi - whether Gephi wrote the record
+ * @returns the record whose keys are still read as attributes
+ */
+function placedRest(record: JsonRecord, xy: readonly [number, number] | null, gephi: boolean): JsonRecord {
+    if (xy === null) {
+        return record;
+    }
+    return gephi ? withoutXY(record) : { ...record, attributes: withoutXY(record.attributes as JsonRecord) };
+}
+
+/** How the role-`position` column of a vis or graphology file's `x` / `y` is spelled (see jsonPositions()). */
+const XY_POSITION_EXTRA = {
+    // vis-network draws x / y straight onto its canvas, y down; the importer flips y to up
+    vis: { sourceDims: 2, units: "px" },
+    // sigma.js draws y up and fits the positions' bounding box into its canvas
+    graphology: { sourceDims: 2, units: "file", viewerFit: SIGMA_FIT },
+} as const;
+
+/**
+ * Declare the role-`position` column of a vis or graphology file whose nodes carry `x` and `y` numbers. A file
+ * with a `z` keeps its plain x / y / z columns (a 3D drawing, see jsonPositions()).
+ * @param ctx - the context
+ * @param nodes - the node records
+ * @param placeOf - where a node record keeps its x / y
+ * @param namespace - the dialect
+ * @returns the column, or INVALID_INDEX when no node is placed
+ */
+function declareXYPosition(
+    ctx: ImportContext,
+    nodes: readonly unknown[],
+    placeOf: (record: JsonRecord) => unknown,
+    namespace: "vis" | "graphology",
+): ColumnHandle {
+    const places = nodes.filter((n) => isJsonObject(n)).map(placeOf);
+    // ponytail: a 3D file keeps plain columns; map z too if a 3D vis or sigma drawing turns up
+    const planar = places.some((p) => planarXY(p) !== null) && !places.some((p) => isJsonObject(p) && hasKey(p, "z"));
+    return ctx.nodes.declareIf(
+        {
+            name: POSITION_COLUMN,
+            dtype: "f64",
+            components: 3,
+            role: "position",
+            mutable: true,
+            nullable: true,
+            extra: XY_POSITION_EXTRA[namespace],
+            origin: { format: "json", namespace },
+        },
+        planar,
+    );
+}
+
+/**
+ * A node's place, when its `x` and `y` are both finite numbers.
+ * @param place - the record holding x / y
+ * @returns x and y, or null
+ */
+function planarXY(place: unknown): readonly [number, number] | null {
+    return isJsonObject(place) && isCoordinate(place.x) && isCoordinate(place.y) ? [place.x, place.y] : null;
+}
+
+/**
+ * A record without its `x` and `y`, once they are the node's position.
+ * @param record - the record
+ * @returns a copy without x / y
+ */
+function withoutXY(record: JsonRecord): JsonRecord {
+    const copy = { ...record };
+    delete copy.x;
+    delete copy.y;
+    return copy;
 }
 
 /** What a graphology document declares about its edges. */
@@ -2944,7 +3276,7 @@ function importGraphologyEdges(
     declared: GraphologyEdgeOptions,
 ): GraphologyViolations {
     const { gephi } = declared;
-    const ids = ctx.declareEdgeIds(edges, (edge) => (gephi && !hasKey(edge, "key") ? edge.id : edge.key), "key", true);
+    const ids = ctx.declareEdgeIds(edges, (edge) => graphologyEdgeKey(edge, gephi), "key", true);
     const violations: GraphologyViolations = { selfLoops: 0, parallels: 0, flags: 0 };
     const pairs = declared.multi === false ? new Set<string>() : null;
     for (let i = 0; i < edges.length; i++) {
@@ -2964,6 +3296,16 @@ function importGraphologyEdges(
         }
     }
     return violations;
+}
+
+/**
+ * A graphology edge's key; Gephi names its edges by `id`.
+ * @param record - the edge record
+ * @param gephi - whether Gephi wrote it
+ * @returns the raw key
+ */
+function graphologyEdgeKey(record: JsonRecord, gephi: boolean): unknown {
+    return gephi && !hasKey(record, "key") ? record.id : record.key;
 }
 
 /**
@@ -3030,7 +3372,7 @@ function pushGraphologyEdge(
         );
     }
     const attributes = isJsonObject(rawAttributes) ? rawAttributes : {};
-    const idValue = ctx.edgeIdValue(ids, record.key);
+    const idValue = ctx.edgeIdValue(ids, graphologyEdgeKey(record, gephi));
     const edge = ctx.pushEdge(u, v, kind, ctx.weightOf(attributes), element);
     ctx.setEdgeId(ids, edge, idValue);
     ctx.writeNested(ctx.edges, edge, record, attributes, gephi ? GEPHI_EDGE_KEYS : GRAPHOLOGY_EDGE_KEYS, element, {
@@ -3563,64 +3905,12 @@ function importHyperedges(
     ctx: ImportContext,
     hyperedges: readonly unknown[],
     directed: boolean,
-    push: (
-        record: JsonRecord,
-        u: NodeId,
-        v: NodeId,
-        kind: EdgeKind,
-        element: string,
-        structural: ReadonlySet<string>,
-    ) => void,
+    push: HyperedgePush,
 ): void {
-    if (hyperedges.length === 0) {
+    if (hyperedges.length === 0 || refuseOrSkipHyperedges(ctx, hyperedges.length)) {
         return;
     }
-    const { report } = ctx;
-    const policy = ctx.options.hyperedges;
-    if (policy === "error") {
-        report.error(
-            "unsupported",
-            JSON_ISSUE.HYPEREDGE,
-            `${hyperedges.length} hyperedge${plural(hyperedges.length)} (hyperedges: "error")`,
-            {
-                element: "hyperedges",
-            },
-        );
-        throw report.abort("hyperedges refused", { code: JSON_ISSUE.HYPEREDGE, count: hyperedges.length });
-    }
-    if (policy === "skip") {
-        report.warning(
-            "unsupported",
-            JSON_ISSUE.HYPEREDGES_SKIPPED,
-            `${hyperedges.length} hyperedge${plural(hyperedges.length)} skipped`,
-            {
-                element: "hyperedges",
-            },
-        );
-        report.loss(
-            JSON_ISSUE.HYPEREDGES_SKIPPED,
-            `${hyperedges.length} hyperedge${plural(hyperedges.length)} ${agree(hyperedges.length, "was", "were")} not imported`,
-            null,
-            hyperedges.length,
-        );
-        return;
-    }
-    // each expanded edge is pushed on its own, so one the sink refuses is reported and counted
-    // while the others stay
-    const expand = (
-        record: JsonRecord,
-        pairs: readonly (readonly [NodeId, NodeId])[],
-        kind: EdgeKind,
-        element: string,
-    ): void => {
-        for (const [u, v] of pairs) {
-            try {
-                push(record, u, v, kind, element, JGF_HYPEREDGE_KEYS);
-            } catch (err) {
-                ctx.skip(err, "edge", element);
-            }
-        }
-    };
+    const star = ctx.options.hyperedges === "star";
     // the edges expanded so far: the cap is on the whole import, so many hyperedges just under it
     // cannot amplify without bound either
     const budget = { used: 0 };
@@ -3632,68 +3922,179 @@ function importHyperedges(
             continue;
         }
         try {
-            if (Array.isArray(record.nodes)) {
-                const members = distinctMembers(
-                    ctx,
-                    record.nodes.map((raw) => ctx.requireId(raw, element)),
-                    element,
-                );
-                if (members.length < 2) {
-                    throw new GraphFormatError(
-                        "E_INVALID_ID",
-                        `${element}: an undirected hyperedge needs two or more nodes`,
-                        { reason: "hyperedge shape" },
-                    );
-                }
-                const n = members.length;
-                checkExpansion(policy === "star" ? n - 1 : (n * (n - 1)) / 2, budget, element);
-                const pairs: [NodeId, NodeId][] = [];
-                if (policy === "star") {
-                    for (let k = 1; k < n; k++) {
-                        pairs.push([members[0], members[k]]);
-                    }
-                } else {
-                    for (let a = 0; a < n; a++) {
-                        for (let b = a + 1; b < n; b++) {
-                            pairs.push([members[a], members[b]]);
-                        }
-                    }
-                }
-                expand(record, pairs, directed ? "directed" : "undirected", element);
-            } else if (Array.isArray(record.source) && Array.isArray(record.target)) {
-                const sources = record.source.map((raw) => ctx.requireId(raw, element));
-                const targets = record.target.map((raw) => ctx.requireId(raw, element));
-                if (sources.length === 0 || targets.length === 0) {
-                    throw new GraphFormatError(
-                        "E_INVALID_ID",
-                        `${element}: a directed hyperedge needs sources and targets`,
-                        { reason: "hyperedge shape" },
-                    );
-                }
-                checkExpansion(sources.length * targets.length, budget, element);
-                expand(
-                    record,
-                    sources.flatMap((s) => targets.map((t) => [s, t] as const)),
-                    "directed",
-                    element,
-                );
-            } else {
-                report.error(
-                    "validation-error",
-                    JSON_ISSUE.HYPEREDGE_SHAPE,
-                    `${element} has neither a nodes array nor source / target arrays`,
-                    { element },
-                );
-                ctx.countSkipped("edge");
-            }
+            importHyperedge(ctx, record, element, { star, directed, budget, push });
         } catch (err) {
             if (err instanceof ExpansionRefused) {
                 // one hyperedge over the cap is skipped; the shared E_TOO_LARGE rule would stop the import
-                report.error("unsupported", err.code, err.message, { element });
+                ctx.report.error("unsupported", err.code, err.message, { element });
                 ctx.countSkipped("edge");
             } else {
                 ctx.skip(err, "edge", element);
             }
+        }
+    }
+}
+
+/** The edge writer of the JGF reader, as importHyperedges calls it. */
+type HyperedgePush = (
+    record: JsonRecord,
+    u: NodeId,
+    v: NodeId,
+    kind: EdgeKind,
+    element: string,
+    structural: ReadonlySet<string>,
+) => void;
+
+/**
+ * Apply the "error" and "skip" hyperedge policies: "error" reports and aborts, "skip" records a
+ * warning and a loss note.
+ * @param ctx - the context
+ * @param count - the number of hyperedges (more than zero)
+ * @returns true when the hyperedges were skipped, false when they are to be expanded
+ */
+function refuseOrSkipHyperedges(ctx: ImportContext, count: number): boolean {
+    const { report } = ctx;
+    const policy = ctx.options.hyperedges;
+    if (policy === "error") {
+        report.error("unsupported", JSON_ISSUE.HYPEREDGE, `${count} hyperedge${plural(count)} (hyperedges: "error")`, {
+            element: "hyperedges",
+        });
+        throw report.abort("hyperedges refused", { code: JSON_ISSUE.HYPEREDGE, count });
+    }
+    if (policy !== "skip") {
+        return false;
+    }
+    report.warning("unsupported", JSON_ISSUE.HYPEREDGES_SKIPPED, `${count} hyperedge${plural(count)} skipped`, {
+        element: "hyperedges",
+    });
+    report.loss(
+        JSON_ISSUE.HYPEREDGES_SKIPPED,
+        `${count} hyperedge${plural(count)} ${agree(count, "was", "were")} not imported`,
+        null,
+        count,
+    );
+    return true;
+}
+
+/**
+ * Expand one hyperedge record: an undirected `{ nodes }` one by the star or clique policy, a
+ * directed `{ source, target }` one into every source -> target edge; any other shape is reported
+ * and counted as skipped.
+ * @param ctx - the context
+ * @param record - the hyperedge record
+ * @param element - the element name
+ * @param how - the policy (star or clique), the graph's direction, the shared expansion budget and the edge writer
+ * @param how.star - true for the star policy, false for clique
+ * @param how.directed - the graph's direction
+ * @param how.budget - the edges expanded so far in this import
+ * @param how.budget.used - that count, updated
+ * @param how.push - the edge writer of the JGF reader
+ */
+function importHyperedge(
+    ctx: ImportContext,
+    record: JsonRecord,
+    element: string,
+    how: { star: boolean; directed: boolean; budget: { used: number }; push: HyperedgePush },
+): void {
+    if (Array.isArray(record.nodes)) {
+        const pairs = undirectedHyperedgePairs(ctx, record.nodes, element, how.star, how.budget);
+        expandHyperedge(ctx, how.push, record, pairs, how.directed ? "directed" : "undirected", element);
+    } else if (Array.isArray(record.source) && Array.isArray(record.target)) {
+        const sources = record.source.map((raw) => ctx.requireId(raw, element));
+        const targets = record.target.map((raw) => ctx.requireId(raw, element));
+        if (sources.length === 0 || targets.length === 0) {
+            throw new GraphFormatError("E_INVALID_ID", `${element}: a directed hyperedge needs sources and targets`, {
+                reason: "hyperedge shape",
+            });
+        }
+        checkExpansion(sources.length * targets.length, how.budget, element);
+        expandHyperedge(
+            ctx,
+            how.push,
+            record,
+            sources.flatMap((s) => targets.map((t) => [s, t] as const)),
+            "directed",
+            element,
+        );
+    } else {
+        ctx.report.error(
+            "validation-error",
+            JSON_ISSUE.HYPEREDGE_SHAPE,
+            `${element} has neither a nodes array nor source / target arrays`,
+            { element },
+        );
+        ctx.countSkipped("edge");
+    }
+}
+
+/**
+ * The node pairs of an undirected hyperedge: from its first member to each other one (star), or
+ * between every pair of members (clique); the expansion is checked against the budget first.
+ * @param ctx - the context
+ * @param nodes - the raw member ids
+ * @param element - the element name
+ * @param star - true for the star policy, false for clique
+ * @param budget - the edges expanded so far in this import
+ * @param budget.used - that count, updated
+ * @returns the pairs
+ */
+function undirectedHyperedgePairs(
+    ctx: ImportContext,
+    nodes: readonly unknown[],
+    element: string,
+    star: boolean,
+    budget: { used: number },
+): [NodeId, NodeId][] {
+    const members = distinctMembers(
+        ctx,
+        nodes.map((raw) => ctx.requireId(raw, element)),
+        element,
+    );
+    if (members.length < 2) {
+        throw new GraphFormatError("E_INVALID_ID", `${element}: an undirected hyperedge needs two or more nodes`, {
+            reason: "hyperedge shape",
+        });
+    }
+    const n = members.length;
+    checkExpansion(star ? n - 1 : (n * (n - 1)) / 2, budget, element);
+    const pairs: [NodeId, NodeId][] = [];
+    if (star) {
+        for (let k = 1; k < n; k++) {
+            pairs.push([members[0], members[k]]);
+        }
+        return pairs;
+    }
+    for (let a = 0; a < n; a++) {
+        for (let b = a + 1; b < n; b++) {
+            pairs.push([members[a], members[b]]);
+        }
+    }
+    return pairs;
+}
+
+/**
+ * Push the expanded edges of one hyperedge. Each is pushed on its own, so one the sink refuses is
+ * reported and counted while the others stay.
+ * @param ctx - the context
+ * @param push - the edge writer of the JGF reader
+ * @param record - the hyperedge record
+ * @param pairs - the endpoint pairs
+ * @param kind - the edge kind
+ * @param element - the element name
+ */
+function expandHyperedge(
+    ctx: ImportContext,
+    push: HyperedgePush,
+    record: JsonRecord,
+    pairs: readonly (readonly [NodeId, NodeId])[],
+    kind: EdgeKind,
+    element: string,
+): void {
+    for (const [u, v] of pairs) {
+        try {
+            push(record, u, v, kind, element, JGF_HYPEREDGE_KEYS);
+        } catch (err) {
+            ctx.skip(err, "edge", element);
         }
     }
 }
@@ -3768,7 +4169,9 @@ function importCytoscape(ctx: ImportContext, root: unknown): void {
         generatedBy: isJsonObject(root) && typeof root.generated_by === "string" ? root.generated_by : null,
         generatedIds,
     };
-    ctx.setHeader(ctx.defaultDirected("cytoscape"));
+    // NetworkX's cytoscape_data writes `directed`; Cytoscape.js itself has no such key
+    const declared = isJsonObject(root) ? root.directed : undefined;
+    ctx.setHeader(flagOf(declared, "directed", ctx.defaultDirected("cytoscape"), ctx.report));
     ctx.reportNodeIdFrom("cytoscape", "data.id");
     ctx.sink.reserve(nodes.length, edges.length);
 
@@ -3828,14 +4231,19 @@ function cytoscapeRoot(ctx: ImportContext, root: unknown): { elements: unknown; 
         );
     }
     const object = root as JsonRecord;
-    ctx.writeGraphDict(object.data, "data");
+    // NetworkX's cytoscape_data writes the graph dict as a list of [key, value] pairs
+    ctx.writeGraphDict(isPairList(object.data) ? Object.fromEntries(object.data) : object.data, "data");
+    // Cytoscape desktop and Cytoscape.js also write the element sections at the top level (gal.json)
+    const topLevel = !hasKey(object, "elements") && (hasKey(object, "nodes") || hasKey(object, "edges"));
+    const elements = topLevel ? { nodes: object.nodes, edges: object.edges } : object.elements;
     const rest: Record<string, unknown> = {};
     for (const key of Object.keys(object)) {
-        if (key !== "elements" && key !== "data" && key !== STYLE_BLOCK_NAME) {
+        const section = topLevel && (key === "nodes" || key === "edges");
+        if (!section && key !== "elements" && key !== "data" && key !== STYLE_BLOCK_NAME) {
             rest[key] = object[key];
         }
     }
-    return Object.keys(rest).length > 0 ? { elements: object.elements, extra: rest } : { elements: object.elements };
+    return Object.keys(rest).length > 0 ? { elements, extra: rest } : { elements };
 }
 
 /**

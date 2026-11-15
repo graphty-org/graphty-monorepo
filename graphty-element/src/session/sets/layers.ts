@@ -283,39 +283,65 @@ class Entry implements LiveScope {
         if (this.#carried?.graph !== graph) {
             const from = held.graph;
             const resolution = held.resolution as Resolution;
-            const node = makeMask(graph.nodeCount);
-            for (const index of maskToIndices(resolution.nodes, from.nodeCount)) {
-                const row = graph.ids.indexOf(from.ids.idOf(index));
-                if (row !== INVALID_INDEX) {
-                    maskSet(node, row, true);
-                }
-            }
-
-            // Edges by their counters: one pass over each edge-id column, never graph-format's
-            // EdgeIdIndex (design 6.3), which would hold a map entry per edge of the graph.
-            const edge = makeMask(graph.edgeCount);
-            const before = from.edges.typed(EDGE_ID_COLUMN, "u32");
-            const after = graph.edges.typed(EDGE_ID_COLUMN, "u32");
-            if (before !== null && after !== null) {
-                const counters = new Set<number>();
-                for (const index of maskToIndices(resolution.edges, from.edgeCount)) {
-                    if (before.isSet(index)) {
-                        counters.add(before.data[index]);
-                    }
-                }
-
-                for (let row = 0; counters.size > 0 && row < graph.edgeCount; row++) {
-                    if (after.isSet(row) && counters.has(after.data[row])) {
-                        maskSet(edge, row, true);
-                    }
-                }
-            }
-
+            const node = carryNodes(resolution.nodes, from, graph);
+            const edge = carryEdges(resolution.edges, from, graph);
             this.#carried = { graph, node, edge };
         }
 
         return this.#carried;
     }
+}
+
+/**
+ * Carry a node bitmap by id from one snapshot's rows to another's.
+ * @param nodes - The bitmap over `from`'s node rows.
+ * @param from - The snapshot the bitmap indexes.
+ * @param graph - The snapshot to carry it to.
+ * @returns The bitmap over `graph`'s node rows.
+ */
+function carryNodes(nodes: U32, from: GraphSnapshot, graph: GraphSnapshot): U32 {
+    const node = makeMask(graph.nodeCount);
+    for (const index of maskToIndices(nodes, from.nodeCount)) {
+        const row = graph.ids.indexOf(from.ids.idOf(index));
+        if (row !== INVALID_INDEX) {
+            maskSet(node, row, true);
+        }
+    }
+
+    return node;
+}
+
+/**
+ * Carry an edge bitmap from one snapshot's rows to another's by the edges' counters: one pass
+ * over each edge-id column, never graph-format's EdgeIdIndex (design 6.3), which would hold a map
+ * entry per edge of the graph.
+ * @param edges - The bitmap over `from`'s edge rows.
+ * @param from - The snapshot the bitmap indexes.
+ * @param graph - The snapshot to carry it to.
+ * @returns The bitmap over `graph`'s edge rows; empty when either snapshot has no edge-id column.
+ */
+function carryEdges(edges: U32, from: GraphSnapshot, graph: GraphSnapshot): U32 {
+    const edge = makeMask(graph.edgeCount);
+    const before = from.edges.typed(EDGE_ID_COLUMN, "u32");
+    const after = graph.edges.typed(EDGE_ID_COLUMN, "u32");
+    if (before === null || after === null) {
+        return edge;
+    }
+
+    const counters = new Set<number>();
+    for (const index of maskToIndices(edges, from.edgeCount)) {
+        if (before.isSet(index)) {
+            counters.add(before.data[index]);
+        }
+    }
+
+    for (let row = 0; counters.size > 0 && row < graph.edgeCount; row++) {
+        if (after.isSet(row) && counters.has(after.data[row])) {
+            maskSet(edge, row, true);
+        }
+    }
+
+    return edge;
 }
 
 /** The live scopes of one session's style layers. */

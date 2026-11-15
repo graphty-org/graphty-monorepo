@@ -1,10 +1,11 @@
-import type { ColumnRef, GraphSession } from "@graphty/graphty-element/session";
+import { type ColumnRef, type GraphSession, isGraphtyError } from "@graphty/graphty-element/session";
 
 import type { WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace } from "../state/WorkspaceContext";
 import { labelLine } from "../style/commands";
-import { NEW, openStepEditor } from "./filterSteps";
-import { labelRefusalWords } from "./words";
+import { designate, panelsInView, timelineOn } from "../time/timeActions";
+import { openFilterDraft } from "./filterCards";
+import { GONE_WORD, labelRefusalWords } from "./words";
 
 /** One verb on an attribute: its words, why it cannot run now (or null), and what it does. */
 export interface AttributeAction {
@@ -19,20 +20,23 @@ export interface AttributeAction {
  * @param column - the node attribute.
  * @returns the reason, or null.
  */
-function labelRefusalFor(session: GraphSession, column: ColumnRef): string | null {
+export function labelRefusalFor(session: GraphSession, column: ColumnRef): string | null {
     try {
         const proposal = session.styles.proposeEncoding({ column, channel: "node.label" });
         return proposal.ok ? null : labelRefusalWords(proposal.refusal);
-    } catch {
-        // The attribute went away under the open menu.
-        return "No longer in the data";
+    } catch (error) {
+        // The attribute went away under the open menu; anything else is the element's to report.
+        if (isGraphtyError(error) && error.code === "E_UNKNOWN_ATTRIBUTE") {
+            return GONE_WORD;
+        }
+        throw error;
     }
 }
 
 /**
  * The verbs on one attribute, the same wherever it is picked (the Data place's row menu and the
  * attribute inspector's "..."): Add label line on a node attribute, Filter to... on a number or
- * category attribute, and Show in table once the table dock is built.
+ * category attribute, Set in Data (the time), and Show in table once the table dock is built.
  * @param column - the attribute.
  * @param session - the element's session, or null.
  * @param store - the chrome store.
@@ -63,7 +67,7 @@ function attributeActions(
             },
         });
     }
-    // A number or a category column can be filtered on; the editor opens with it filled.
+    // A number or a category column can be filtered on: a new filter card opens on it.
     const descriptor = session?.data.attributes().find((a) => a.kind === column.kind && a.name === column.name);
     if (
         descriptor !== undefined &&
@@ -73,7 +77,23 @@ function attributeActions(
             label: "Filter to...",
             disabledReason: null,
             run: () => {
-                openStepEditor(store, `${NEW}:${descriptor.kind}:${descriptor.path}`);
+                openFilterDraft(store, `${descriptor.kind}:${descriptor.path}`);
+            },
+        });
+    }
+    // Any column can be the time field; the Time section sets its unit and how the window moves.
+    if (descriptor !== undefined && descriptor.origin !== "result" && session !== null && timelineOn(session)) {
+        const source = { start: descriptor.name };
+        const isTime =
+            (column.kind === "edge" ? session.time.field?.edges : session.time.field?.nodes)?.start === descriptor.name;
+        actions.push({
+            // A door to the time's home, Data > Fields, with the Time entry set to this column (R10).
+            label: "Set in Data",
+            disabledReason: isTime ? "Already the time field" : null,
+            run: () => {
+                const side = column.kind === "edge" ? "edges" : "nodes";
+                designate(session, store, { [side]: source });
+                store.set({ page: "panels", place: "data", fieldsEntry: `${side}:time`, ...panelsInView() });
             },
         });
     }

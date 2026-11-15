@@ -1,19 +1,28 @@
 import { ControlSection, DataRow, DataRowHeader, HistogramRow } from "@graphty/compact-mantine";
-import type { Channel, GraphSession, Layer, NodeId, Path, Run, ScopeInput } from "@graphty/graphty-element/session";
+import {
+    type Channel,
+    type GraphSession,
+    type Layer,
+    type NodeId,
+    type Path,
+    type Run,
+    type ScopeInput,
+    selectorStates,
+} from "@graphty/graphty-element/session";
 import { Button, ColorSwatch, Text } from "@mantine/core";
 import React, { useState } from "react";
 
 import { findTreeRow } from "../graph-place/rows";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { everythingRow, sourceName, startingEverything } from "../style/row";
+import { everythingRow, sourceName, wholeGraphRow } from "../style/row";
 import { useStyleVersion } from "../style/useStyleVersion";
 import { channelWord, groupRank, hexOf, valueName } from "../style/words";
 import { DistributionRows } from "./Distribution";
 import { useAsyncValue, useSessionVersion } from "./hooks";
 import { nodeKey } from "./inspected";
-import { focusValuesNext, selectNode } from "./reads";
+import { focusValuesNext, hidden, selectNode } from "./reads";
 import { PathValues } from "./RunValues";
-import { count, formatNumber } from "./words";
+import { count, formatNumber, nodeName } from "./words";
 
 /** How many members, groups or top entries show before "N more". */
 const FIRST = 8;
@@ -56,7 +65,10 @@ function stateWords(run: Run | undefined): string {
         return "Data";
     }
     if (run.status === "succeeded") {
-        return run.stale === null ? "Current" : "Out of date";
+        if (run.stale === null) {
+            return "Current";
+        }
+        return run.stale.reason === "window-moved" ? "Out of date: window moved" : "Out of date";
     }
     const words: Readonly<Record<Exclude<Run["status"], "succeeded">, string>> = {
         queued: "Queued",
@@ -148,7 +160,8 @@ function NumberValues({
                         preview: session.styles.preview(binding, { channel: channel as Channel }),
                     },
                 ];
-            } catch {
+            } catch (error) {
+                hidden("styles.preview", error);
                 return [];
             }
         }),
@@ -280,7 +293,11 @@ function CategoryValues({
                                 ) : undefined
                             }
                             onClick={() => {
-                                void session.selection.apply({ scope: valueScope(layer, read.path, category.value) });
+                                void session.selection.apply(
+                                    { scope: valueScope(layer, read.path, category.value) },
+                                    "replace",
+                                    { cause: "user" },
+                                );
                             }}
                         />
                     );
@@ -323,7 +340,7 @@ function TopValues({ session, layer }: Readonly<{ session: GraphSession; layer: 
             {top.entries.map((entry) => (
                 <DataRow
                     key={nodeKey(entry.id)}
-                    name={String(entry.id)}
+                    name={nodeName(session, entry.id)}
                     value={formatNumber(entry.value)}
                     onClick={() => {
                         // The row goes with the view it sat in; focus goes to the node's view.
@@ -385,7 +402,7 @@ function MemberValues({
                 rows={nodes.map((id) => (
                     <DataRow
                         key={nodeKey(id)}
-                        name={String(id)}
+                        name={nodeName(session, id)}
                         onClick={() => {
                             // The row goes with the view it sat in; focus goes to the node's view.
                             focusValuesNext();
@@ -397,6 +414,14 @@ function MemberValues({
         </ControlSection>
     );
 }
+
+/** What a state layer's rule reads, by the state it follows. */
+const STATE_NAMES = {
+    selected: "Is selected",
+    hovered: "Is hovered",
+    ghosted: "Is outside the time window",
+    pinned: "Is pinned",
+} as const;
 
 /**
  * Selected's and Hovered's current elements.
@@ -437,7 +462,7 @@ function StateValues({
                         rows={nodes.map((id) => (
                             <DataRow
                                 key={nodeKey(id)}
-                                name={String(id)}
+                                name={nodeName(session, id)}
                                 onClick={() => {
                                     // The row goes with the view it sat in; focus goes to the node's view.
                                     focusValuesNext();
@@ -498,7 +523,9 @@ function WhereItShows({
                                 name={`Covered by ${session.styles.get(cover.layerId)?.name ?? "a layer"}`}
                                 value={count(cover.count, noun)}
                                 onClick={() => {
-                                    void session.selection.apply({ layer: cover.layerId });
+                                    void session.selection.apply({ layer: cover.layerId }, "replace", {
+                                        cause: "user",
+                                    });
                                 }}
                             />
                         ))}
@@ -572,7 +599,7 @@ export function LayerValues({
     const counted = layers.map((layer) => ({ layer, counts: session.styles.counts(layer.id) }));
     const paths = [...new Set(counted.flatMap(({ counts }) => counts.reads))];
     const reads = paths.map((path) => valueRead(session, path));
-    const states = layers.flatMap((layer) => (layer.selector.match === "state" ? [layer.selector.state] : []));
+    const states = layers.flatMap((layer) => selectorStates(layer.selector));
     const readers = (path: Path): Layer[] =>
         counted.filter(({ counts }) => counts.reads.includes(path)).map(({ layer }) => layer);
     const version = `${String(styleVersion)}:${String(sessionVersion)}`;
@@ -597,18 +624,15 @@ export function LayerValues({
                         <DataRow key={read.path} stat name={read.name} value={stateWords(read.run)} />
                     ))}
                     {[...new Set(states)].map((state) => (
-                        <DataRow
-                            key={state}
-                            stat
-                            name={state === "selected" ? "Is selected" : "Is hovered"}
-                            value="This view only"
-                        />
+                        <DataRow key={state} stat name={STATE_NAMES[state]} value="This view only" />
                     ))}
                 </ControlSection>
             )}
-            {[...new Set(states)].map((state) => (
-                <StateValues key={state} session={session} state={state} />
-            ))}
+            {[...new Set(states)].map((state) =>
+                state === "ghosted" || state === "pinned" ? null : (
+                    <StateValues key={state} session={session} state={state} />
+                ),
+            )}
             {reads.map((read) =>
                 read.run?.shape === "path" ? (
                     <PathValues key={read.path} session={session} run={read.run} summaryLabel="Route" />
@@ -634,8 +658,8 @@ export function LayerValues({
 }
 
 /**
- * The Everything row's Values tab: the same structure as every other layer's, read from the
- * starting Everything row (or the reader's own layer that paints everything).
+ * The Everything row's Values tab: the same structure as every other layer's, read from the row
+ * that paints the whole graph.
  * @returns the tab
  */
 export function EverythingRowValues(): React.JSX.Element | null {
@@ -643,7 +667,7 @@ export function EverythingRowValues(): React.JSX.Element | null {
     if (session === null) {
         return null;
     }
-    const id = startingEverything(session);
+    const id = wholeGraphRow(session);
     return id === undefined ? <LayerValues id="" layerIds={everythingRow(session)} /> : <LayerValues id={id} />;
 }
 

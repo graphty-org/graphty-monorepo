@@ -71,8 +71,9 @@ await graph.loadFromUrl("https://example.com/proteins.cx2", { styles: "file" });
 
 `loadFromFile`, the element's `dataSourceConfig` (`{ url, styles: "file" }`) and
 `session.data.import(source, { styles: "file" })` take the same choice. Without it, the default
-`"none"`, a load reads the data alone. See [Styles from Files](./file-styles) for what the layers
-look like, the choices that shape them and how to save them back into a file.
+`"none"`, a load reads the data alone. Styles from files are the `file-styles` experiment, off
+unless the page switches it on. See [Styles from Files](./file-styles) for what the layers look
+like, the choices that shape them and how to save them back into a file.
 
 ## Text or Bytes
 
@@ -160,7 +161,9 @@ With nothing loaded, `renameSource` rejects with `E_BAD_COMMAND` and `details.re
 an empty name rejects with `"empty-name"`.
 
 `source()` describes the last load. When loads are added together with `{ mode: "merge" }`,
-`sources()` lists every load still in the graph, oldest first, with the tables each read and how
+`sources()` lists every load still in the graph, oldest first, when it was last read (`loadedAt`,
+absent in a project saved before it was kept), where from (`url`, without credentials, for a URL
+or a network load), the file it came from (`fileName`), with the tables each read and how
 many nodes and edges each added. A replacing load starts the list again; undo, redo and the
 project file keep it with the graph, and `renameSource` renames the last entry:
 
@@ -175,12 +178,84 @@ A load that left out edge rows naming a node no node row held (`unmatched: "leav
 that count on its entry as `leftOut: { rows, values }`: the rows left out, and how many distinct
 names they gave. The field is there only when at least one row was left out.
 
+### Loads that overlap
+
+Loads land in the order you ask for them, whichever finishes reading first. Every door that loads
+into the graph takes its place in one line when you call it: `session.data.import`, `generate`,
+`loadDataset`, `loadExample`, `more`, `expand`, `runPendingSourceLoad`, a prepared draft's
+`load()`, the element's `addDataFromSource`, `loadFromFile` and `loadFromUrl`, its `data-source`
+attributes and its `nodeData` and `edgeData` properties. That holds for a load that adds to the
+graph as much as for one that replaces it. So a dataset you pick while another is still downloading
+replaces it, and undo goes back to the first one.
+
+A load waits for the loads ahead of it to finish reading. A download that never finishes holds
+back every load asked for after it. Pass a `signal` and abort it to let the next load through:
+
+```typescript
+const baseUrl = DEFAULT_DATASET_BASE_URL; // from @graphty/graph-samples, or your own copy
+let download = new AbortController();
+void session.data.loadDataset("karate", { baseUrl, signal: download.signal });
+
+// The reader picked another graph: stop the old download so the new one is not held behind it.
+download.abort();
+download = new AbortController();
+await session.data.loadDataset("dolphins", { baseUrl, signal: download.signal });
+```
+
+A load aborted before its turn comes rejects and changes nothing, even when its download had
+already finished. A replacing `addDataFromSource`, `loadFromFile` or `loadFromUrl`
+does not wait for the element's own earlier loads: those reject with `E_SUPERSEDED`.
+
+## Sample Datasets and Generated Graphs
+
+graphty-element lists every sample dataset and every graph generator that `@graphty/graph-samples`
+ships, and loads any of them by name. The lists come from the `@graphty/graphty-element/catalog`
+entry, which loads no Babylon.js, Lit or DOM code, so a page can draw a picker before any element
+exists; a session gives the same lists as `session.catalog.datasets()` and
+`session.catalog.generators()`. A dataset or generator added to graph-samples shows up in both
+with no change to your code.
+
+```typescript
+import { DATASET_DESCRIPTORS, DEFAULT_DATASET_BASE_URL, GENERATOR_DESCRIPTORS } from "@graphty/graphty-element/catalog";
+
+// Each dataset: name, title, description, citation, source, license, nodes, edges, and `bytes`
+// (its download size) when it is known.
+for (const dataset of DATASET_DESCRIPTORS) {
+    console.log(dataset.title, dataset.nodes, dataset.edges);
+}
+// Each generator: name, plainName, description, and its params, each with a type ("integer",
+// "number", "boolean" or "choice"), a default, and min, max or choices.
+for (const generator of GENERATOR_DESCRIPTORS) {
+    console.log(
+        generator.plainName,
+        generator.params.map((param) => `${param.name}=${param.default}`),
+    );
+}
+
+const session = document.querySelector("graphty-element")!.session;
+// Downloads it from where the dataset files are published: graph-samples' address or your copy.
+await session.data.loadDataset("karate", { baseUrl: DEFAULT_DATASET_BASE_URL });
+// Builds it in the page. A parameter left out takes its default, so `generate("cycle")` works too.
+await session.data.generate("watts-strogatz", { n: 24 });
+```
+
+Each is one undoable step, like any other load. `generate` rejects an unknown name with
+`E_UNKNOWN_GENERATOR`, an unknown parameter with `E_UNKNOWN_OPTION` and a value outside the
+parameter's range with `E_OPTION_RANGE`.
+
 ## Preview a Load Before Loading It
 
 `session.data.prepare(source)` reads a file once and holds it, so a reader can see its tables and
 columns, choose which column is the node id, the edge endpoints or the weight, and see the counts
 the load would produce before anything is added to the graph. See
 [Previewing a Load](./load-preview).
+
+## Joining a Table Onto the Graph
+
+A table that describes the graph already loaded -- values per gene, door entries naming a person
+and a building, the phones each account used -- can be joined onto it instead of loaded on its
+own: its rows become values on the nodes they name, new edges, or links between nodes that share a
+value. See [Joining Data](./joins).
 
 ## Replacing the Graph
 
@@ -208,7 +283,8 @@ naming the format and, when the parser knows it, the line. A graphty project or 
 `session.project.save` writes) is not graph data: it fails with `E_PROJECT_FILE_AS_DATA`, whose
 `details.use` names `project.open`, the verb that opens it. A replacing load that stops at
 the source's `errorLimit` has read only part of the file, so it fails with `E_PARSE_FAILED` and
-keeps the current graph.
+keeps the current graph; its `details` carry `format`, `rowErrors` and `limit`. A JSON or CSV
+reader that reaches the limit stops the load with the same code, whether or not it was replacing.
 
 GML, DOT and Pajek files are read by `@graphty/graph-io`. A file of one of those formats that
 cannot be read at all -- a GML list or DOT brace still open when the text ends, a Pajek file with
@@ -909,6 +985,29 @@ words for it:
 
 `lossNotes`, the same losses with an English `message`, is deprecated and goes in the next major
 release.
+
+### Exporting part of the graph
+
+Without a `scope`, an export writes the whole graph. With one, it writes only the nodes the scope
+names, and only the edges whose two ends are both written:
+
+```typescript
+// What the visibility filter and the time window leave showing
+const shown = await element.exportGraph("graphml", { scope: "shown" });
+// The selected nodes and the edges between them
+const picked = await element.exportGraph("csv", { scope: "selection" });
+// A kept set's members
+const members = await element.exportGraph("gexf", { scope: { set: "core-team" } });
+// These nodes, by id
+const pair = await element.exportGraph("json", { scope: { nodes: ["alice", "bob"] } });
+// A rule, read as the visibility filter reads it
+const busy = await element.exportGraph("csv", {
+    scope: { kind: "range", attribute: "data.degree", min: 10 },
+});
+```
+
+Each node keeps its own position, values and styles. `columns` (a list of column names) narrows
+which attribute columns are written in the same way.
 
 ### Exporting styles
 

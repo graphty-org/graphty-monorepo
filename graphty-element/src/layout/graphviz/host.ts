@@ -100,11 +100,21 @@ let availability: Promise<boolean> | null = null;
 
 /**
  * Whether Graphviz layouts can run here: a Worker loads the package once and says.
+ *
+ * The answer is kept for the life of the page, but a timeout is not an answer: a Worker that was
+ * too slow to load the package on a busy machine says nothing about whether it is there, so that
+ * probe reports false and the next ask probes again.
  * @returns true when the package is installed and loads in a Worker
  */
 export function probeGraphviz(): Promise<boolean> {
     availability ??= runGraphviz({ kind: "probe" }, { timeoutMs: 30_000 }).then(
-        (reply) => reply.ok,
+        (reply) => {
+            if (!reply.ok && reply.code === "graphviz.timeout") {
+                availability = null;
+            }
+
+            return reply.ok;
+        },
         () => false,
     );
     return availability;

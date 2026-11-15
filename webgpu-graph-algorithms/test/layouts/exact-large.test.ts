@@ -21,7 +21,6 @@ import { SE_BASE_OPTIONS, SE_TUNING, seStages, withSeSim } from "../helpers/se-p
 import { acquire, requireGpu } from "../setup/gpu.js";
 
 const N = 70_000;
-const CASE_TIMEOUT = 300_000;
 /** Correct sums measured 1e-6 to 7e-6 (NVIDIA and lavapipe below the cutoff); the truncated sum was 7e-2 at 70k. */
 const TOLERANCE = 1e-4;
 /** Both sides of the old lavapipe cutoff (j < 65,027) plus the ends. */
@@ -87,51 +86,46 @@ describe("the exact tier sums every node at any n (issue #87)", () => {
     });
 
     for (const model of ["fa2", "fr", "se"] as const) {
-        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 126 s on the Windows WARP host lane, 54 s on CI's lavapipe, 18 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
-        it(
-            `${model}: K3 at n=${N} matches the f64 all-pairs sum on both sides of j = 65,027`,
-            async (t) => {
-                requireGpu(t);
-                const s = snapshotOf([], { nodeCount: N, arena: false });
-                try {
-                    // A line before each K3: this file runs alone (node-gpu-alone), where one K3 pass can outlast
-                    // the node shard wrapper's 90 s silence limit on a software adapter (scripts/run-node-shard.js).
-                    console.warn(`[exact-large] ${model}: K3 run 1 of 2`);
-                    const first = await runK3(ctx, model, s);
-                    console.warn(`[exact-large] ${model}: K3 run 2 of 2`);
-                    const { force, pos } = await runK3(ctx, model, s);
-                    expectBitwiseEqual(first.pos, pos, `${model}: positions, run 1 vs run 2`);
-                    expectBitwiseEqual(first.force, force, `${model}: K3 force, run 1 vs run 2`);
-                    const law = LAWS[model];
-                    let checked = 0;
-                    for (const i of SAMPLES) {
-                        const ref = [0, 0, 0];
-                        let coincident = false;
-                        for (let j = 0; j < N && !coincident; j++) {
-                            if (j === i) {
-                                continue;
-                            }
-                            const d = [0, 1, 2].map((a) => pos[4 * i + a] - pos[4 * j + a]);
-                            const d2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
-                            coincident = d2 < FA2_COINCIDENT_SQ; // the hashed kick is not modelled here: skip the node
-                            const k = law(d2, pos[4 * i + 3], pos[4 * j + 3]);
-                            for (let a = 0; a < 3; a++) {
-                                ref[a] += d[a] * k;
-                            }
-                        }
-                        if (coincident) {
+        it(`${model}: K3 at n=${N} matches the f64 all-pairs sum on both sides of j = 65,027`, async (t) => {
+            requireGpu(t);
+            const s = snapshotOf([], { nodeCount: N, arena: false });
+            try {
+                // A line before each K3: this file runs alone (node-gpu-alone), where one K3 pass can outlast
+                // the node shard wrapper's 90 s silence limit on a software adapter (scripts/run-node-shard.js).
+                console.warn(`[exact-large] ${model}: K3 run 1 of 2`);
+                const first = await runK3(ctx, model, s);
+                console.warn(`[exact-large] ${model}: K3 run 2 of 2`);
+                const { force, pos } = await runK3(ctx, model, s);
+                expectBitwiseEqual(first.pos, pos, `${model}: positions, run 1 vs run 2`);
+                expectBitwiseEqual(first.force, force, `${model}: K3 force, run 1 vs run 2`);
+                const law = LAWS[model];
+                let checked = 0;
+                for (const i of SAMPLES) {
+                    const ref = [0, 0, 0];
+                    let coincident = false;
+                    for (let j = 0; j < N && !coincident; j++) {
+                        if (j === i) {
                             continue;
                         }
-                        const err = Math.hypot(...[0, 1, 2].map((a) => force[3 * i + a] - ref[a])) / Math.hypot(...ref);
-                        expect(err, `${model}: node ${i} relative error`).toBeLessThan(TOLERANCE);
-                        checked++;
+                        const d = [0, 1, 2].map((a) => pos[4 * i + a] - pos[4 * j + a]);
+                        const d2 = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+                        coincident = d2 < FA2_COINCIDENT_SQ; // the hashed kick is not modelled here: skip the node
+                        const k = law(d2, pos[4 * i + 3], pos[4 * j + 3]);
+                        for (let a = 0; a < 3; a++) {
+                            ref[a] += d[a] * k;
+                        }
                     }
-                    expect(checked, "sampled nodes checked").toBeGreaterThan(SAMPLES.length / 2);
-                } finally {
-                    ctx.release(s);
+                    if (coincident) {
+                        continue;
+                    }
+                    const err = Math.hypot(...[0, 1, 2].map((a) => force[3 * i + a] - ref[a])) / Math.hypot(...ref);
+                    expect(err, `${model}: node ${i} relative error`).toBeLessThan(TOLERANCE);
+                    checked++;
                 }
-            },
-            CASE_TIMEOUT,
-        );
+                expect(checked, "sampled nodes checked").toBeGreaterThan(SAMPLES.length / 2);
+            } finally {
+                ctx.release(s);
+            }
+        });
     }
 });

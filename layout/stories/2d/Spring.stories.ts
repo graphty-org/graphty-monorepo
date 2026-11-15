@@ -1,7 +1,8 @@
 /**
  * Spring Layout Algorithm Story (Fruchterman-Reingold)
  *
- * Demonstrates spring layout using force-directed Fruchterman-Reingold algorithm.
+ * Demonstrates spring layout using force-directed Fruchterman-Reingold algorithm, on 100 nodes in 4 planted
+ * groups: the forces pull each group together and push the groups apart.
  * Shows animation from random initial positions to final optimized positions.
  *
  * IMPORTANT: This story uses the actual fruchtermanReingold implementation
@@ -12,8 +13,9 @@ import { fruchtermanReingold, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
+import { generateRandomPositions, PLANTED_GROUPS, plantedGroups, toSnapshot } from "../utils/graph-generators.js";
 import {
+    colorGroups,
     createAnimationControls,
     createInfoPanel,
     createStatusPanel,
@@ -23,14 +25,11 @@ import {
     updatePositions,
     updateStatus,
 } from "../utils/visualization.js";
-import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
  */
 interface SpringArgs {
-    nodeCount: number;
-    graphType: GraphType;
     iterations: number;
     scale: number;
     seed: number;
@@ -40,10 +39,10 @@ interface SpringArgs {
  * Create the Spring layout visualization story.
  */
 function createSpringStory(args: SpringArgs): HTMLElement {
-    const { nodeCount, graphType, iterations, scale, seed } = args;
+    const { iterations, scale, seed } = args;
 
     // Generate graph
-    const generatedGraph = generateGraph(graphType, nodeCount, seed);
+    const { graph: generatedGraph, groups } = plantedGroups(seed);
     const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
@@ -59,12 +58,16 @@ function createSpringStory(args: SpringArgs): HTMLElement {
     const { container, svg } = createStoryContainer();
 
     // Render graph with random initial positions
-    renderGraph(svg, generatedGraph, randomPositions, 20, 1, 0, 0);
+    renderGraph(svg, generatedGraph, randomPositions, 6, 1, 0, 0);
+    colorGroups(svg, groups);
 
     // Create info panel
     const infoPanel = createInfoPanel("Spring Layout (Fruchterman-Reingold)");
     container.appendChild(infoPanel);
-    updateInfoPanel(infoPanel, `Force-directed layout with ${iterations} iterations and scale ${scale}.`);
+    updateInfoPanel(
+        infoPanel,
+        `${PLANTED_GROUPS} Look for: the forces pull each color together and push the colors apart (${iterations} iterations).`,
+    );
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -96,7 +99,8 @@ function createSpringStory(args: SpringArgs): HTMLElement {
         isApplied = false;
 
         // Reset to random positions
-        renderGraph(svg, generatedGraph, randomPositions, 20, 1, 0, 0);
+        renderGraph(svg, generatedGraph, randomPositions, 6, 1, 0, 0);
+        colorGroups(svg, groups);
         updateStatus(statusPanel, "Reset to random positions. Click 'Apply Layout' to see optimized arrangement.");
     }
 
@@ -110,15 +114,6 @@ function createSpringStory(args: SpringArgs): HTMLElement {
 const meta: Meta<SpringArgs> = {
     title: "Layout2D",
     argTypes: {
-        nodeCount: {
-            control: { type: "range", min: 4, max: 20, step: 1 },
-            description: "Number of nodes in the graph",
-        },
-        graphType: {
-            control: { type: "select" },
-            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
-            description: "Type of graph to generate",
-        },
         iterations: {
             control: { type: "range", min: 10, max: 200, step: 10 },
             description: "Number of iterations for force simulation",
@@ -133,8 +128,6 @@ const meta: Meta<SpringArgs> = {
         },
     },
     args: {
-        nodeCount: 10,
-        graphType: "random",
         iterations: 50,
         scale: 1,
         seed: 42,
@@ -164,6 +157,6 @@ export const Spring: Story = {
         await waitFor(async () => {
             const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
             await expect(statusText).toContain("applied");
-        }, storyWaitOptions(5000));
+        });
     },
 };

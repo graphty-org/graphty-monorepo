@@ -246,3 +246,20 @@ describe("vis-network arrowheads", () => {
         expect(toolDefaults("vis-network")?.arrowhead?.shapes?.circle).toEqual({ length: 0.8, aspect: 1 });
     });
 });
+
+describe("vis-network's edge width floor", () => {
+    it("draws no edge thinner than 0.3 screen pixels, as EdgeBase.getLineWidth does (json-vis-siblings, #4268)", async () => {
+        // vis-network draws a line max(width, 0.3 / view.scale) wide: zoomed out to fit 200 nodes, json-vis-siblings'
+        // width-1 lines are 0.3 px on screen, not width x scale; a width-0 line is drawn 0.3 px too
+        const r = await load({
+            nodes: [{ id: "a" }, { id: "b" }],
+            edges: [
+                { from: "a", to: "b" },
+                { from: "b", to: "a", width: 0 },
+            ],
+        });
+        expect(value(r, "edge", "minScreenWidth", 0)).toBe(0.3);
+        expect(value(r, "edge", "minScreenWidth", 1)).toBe(0.3);
+        expect(value(r, "edge", "width", 0)).toBe(1);
+    });
+});

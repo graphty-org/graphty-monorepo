@@ -41,6 +41,8 @@ const PICKED_FILES = ["got-edges.csv", "got-nodes.csv"];
 const EXPORT_FILE = "simple.graphml";
 /** What www.ndexbio.org answered on 2026-10-17: the NDEx examples run against the successful ones. */
 const NDEX_RECORDINGS = fileURLToPath(new URL("sources/ndex/recordings/", import.meta.url));
+/** What query.wikidata.org answered on 2026-10-20: the SPARQL example runs against it. */
+const WIKIDATA_RECORDING = fileURLToPath(new URL("sources/sparql/recordings/wikidata-advisors.json", import.meta.url));
 
 /**
  * Every file under a directory, recursively.
@@ -55,6 +57,25 @@ function walk(dir: string): string[] {
 
 /** A listener as the stand-in elements keep it, so the test can await what it returns. */
 type Listener = (event: Event) => unknown;
+
+/**
+ * What api.github.com answers the GitHub example: a repository whose default branch's tree holds the
+ * sample files under graph-io/docs/samples/.
+ * @param path - the request's path
+ * @returns the answer, or null for a contents request (answered from the files by name)
+ */
+function githubAnswer(path: string): Response | null {
+    if (/^\/repos\/[^/]+\/[^/]+$/.test(path)) {
+        return Response.json({ default_branch: "master" });
+    }
+    if (path.includes("/git/trees/")) {
+        const tree = readdirSync(SAMPLES)
+            .sort()
+            .map((f) => ({ path: `graph-io/docs/samples/${f}`, type: "blob" }));
+        return Response.json({ truncated: false, tree });
+    }
+    return null;
+}
 
 /** The stand-in for an element an example looks up or creates. */
 class FakeElement {
@@ -139,11 +160,23 @@ function installGlobals(dir: string, run: Run): Map<string, FakeElement> {
         ),
         { secretQuery: ["accesskey"] },
     );
+    const wikidata = replayFetch(JSON.parse(readFileSync(WIKIDATA_RECORDING, "utf8")) as Recording[]);
     vi.stubGlobal("fetch", (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
         // a network source's ctx.fetch passes a Request
         const url = input instanceof Request ? input.url : String(input);
-        if (new URL(url, "https://example.com/").host === "www.ndexbio.org") {
+        const { host } = new URL(url, "https://example.com/");
+        if (host === "www.ndexbio.org") {
             return ndex(input, init);
+        }
+        if (host === "query.wikidata.org") {
+            return wikidata(input, init);
+        }
+        if (host === "api.github.com") {
+            const github = githubAnswer(new URL(url).pathname);
+            if (github !== null) {
+                return Promise.resolve(github);
+            }
+            // a contents request falls through: it is answered from the sample files by its file name
         }
         const method = init?.method ?? (input instanceof Request ? input.method : "GET");
         const last = basename(new URL(url, "https://example.com/").pathname);

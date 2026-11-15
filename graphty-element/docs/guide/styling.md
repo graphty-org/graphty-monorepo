@@ -159,24 +159,39 @@ selection never disagree about which elements are the top `n`.
 
 An expression is a declared **subset of JMESPath**, compiled once when the layer is added and
 then run as a closure. It supports paths, comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`), `&&`,
-`||`, `!` and parentheses.
+`||`, `!`, arithmetic (`+`, `-`, `*`, `/` and a leading minus) and parentheses.
 
 It supports **no functions at all** -- no `starts_with`, no `length`, no projections, slices,
 pipes, multi-selects or wildcards. Everything outside the subset is refused where it was typed,
-by name, with the offset. A selector that is accepted means exactly what JMESPath means by it.
+by name, with the offset. A selector that is accepted means exactly what JMESPath means by it,
+but for one convenience below: a lone `true`, `false` or `null` is that value.
 
 Two spelling rules catch everyone once:
 
 - **A record's own fields live under `data.`** So a node imported as `{id: "n1", type: "server"}`
   is selected with `data.type == 'server'`, not `type == 'server'`.
 - **A number or a boolean goes between backticks**, as JMESPath requires: `` data.weight > `0.5` ``
-  and `` data.active == `true` ``. A bare `5` is refused with a message saying so. A string
-  literal takes single quotes: `'server'`.
+  and `` data.active == `true` ``. A bare `5` is refused with a message saying so. A lone `true`,
+  `false` or `null` also reads as that value, so `data.active == true` works too, while
+  `data.false` still names a column. A string literal takes single quotes: `'server'`.
 
 **An edge's endpoints are `data.source` and `data.target`**, the ids of the nodes it leaves and
 reaches, whatever keys the edge record used for them (`src`/`dst` by default). So
 `data.source == 'A'` selects the edges leaving `A`, and `{ match: "has", path: "data.target" }`
 matches every edge.
+
+**Arithmetic** is the one addition to JMESPath. It binds tighter than the comparisons, `*` and `/`
+tighter than `+` and `-`, each left to right, so `` data.in / data.out >= `2` `` compares the
+ratio, and parentheses group as usual. A leading minus takes the whole path after it:
+`-data.change` is minus `data.change`.
+
+- It works on **numbers only**, with no conversion: if either side is not a number (a string such
+  as `'3'`, `true`, a list, or no value at all), the answer is `null`.
+- **Dividing by zero gives `null`**, as does any answer that is not a finite number. `null` is no
+  value: a selector does not match the element, and a computed column leaves it without one.
+- A `-` written between two names with no space (`results.min-cut.x`) is refused with
+  `reason: "minus-needs-spaces"` rather than read as a subtraction: quote a hyphenated name
+  (`results."min-cut".x`, which `quotePath` writes for you) or put spaces round the minus.
 
 The same expression works outside a style layer, and matches the same elements there:
 `session.scope.count({ where })`, `session.selection.apply({ where })` and a visibility filter
@@ -244,12 +259,16 @@ A channel is one visual property with one name. These are all of them:
 | `node.gradientColors`         | CSS colours separated by spaces: every colour the gradient runs through, start to end, in place of the two above                                 |
 | `node.gradientStops`          | fractions 0 to 1 separated by spaces, one per gradient colour: where each sits (otherwise evenly spaced)                                         |
 | `node.gradientKind`           | `linear` (the default) or `radial`: out from the node's middle to its edge                                                                       |
+| `node.gradientCenterX`        | a radial gradient's middle across the node, 0 (left) to 1 (right); 0.5 by default                                                                |
+| `node.gradientCenterY`        | a radial gradient's middle down the node, 0 (top) to 1 (bottom); 0.5 by default                                                                  |
+| `node.gradientRadius`         | how far a radial gradient reaches from its middle, in halves of the node's side; 1 (its edge) by default                                         |
 | `node.size`                   | 0 or more; what it measures is `node.sizeMode`'s                                                                                                 |
 | `node.sizeMode`               | `scale` (the default), `diameter` or `uniform`: what `node.size` measures                                                                        |
 | `node.shape`                  | `sphere`, `box`, `icosphere`, ..., or a flat `rectangle`, `ellipse`, ...                                                                         |
 | `node.width`                  | 0 or more: the width, in the units of `node.size`                                                                                                |
 | `node.height`                 | 0 or more: the height, in the units of `node.size`                                                                                               |
 | `node.depth`                  | 0 or more: the depth (3D), in the units of `node.size`                                                                                           |
+| `node.relativeExtents`        | true or false: read width, height and depth as multiples of `node.size`, so a size change keeps the stretch                                      |
 | `node.planar`                 | true or false: draw the node thin, as a flat shape, even in 3D                                                                                   |
 | `node.zIndex`                 | -1000 to 0: in 2D, below 0 draws the node behind edges and higher nodes                                                                          |
 | `node.drawOrder`              | 0 to 100: in 2D, which of two overlapping nodes is drawn on top                                                                                  |
@@ -261,6 +280,8 @@ A channel is one visual property with one name. These are all of them:
 | `node.shapeParts`             | further pieces of the node's body: polygons as `node.shapePoints` writes them, separated by `;`, filled and outlined as the node is              |
 | `node.shapeLines`             | lines over the node in its border's color: polylines as `node.shapeParts` writes polygons; one that ends where it starts is closed               |
 | `node.shapeLineWidth`         | 0 or more: how wide `node.shapeLines` are, in the units of `node.borderWidth`; unset, the border's width                                         |
+| `node.shapeLineHaloColor`     | a color: of a wider line drawn under each of `node.shapeLines`, down the same path                                                               |
+| `node.shapeLineHaloWidth`     | 0 or more: how wide that line under `node.shapeLines` is, in the units of `node.borderWidth`; unset or 0, none                                   |
 | `node.label`                  | the words to draw                                                                                                                                |
 | `node.labelStyle`             | `{font, sizePx, weight, color, background, outline, padding, ...}`                                                                               |
 | `node.labelColor`             | any CSS colour: the label's colour                                                                                                               |
@@ -283,65 +304,70 @@ A channel is one visual property with one name. These are all of them:
 | `node.tooltipStyle`           | as `node.labelStyle`, for the tooltip                                                                                                            |
 | `node.opacity`                | 0 to 1                                                                                                                                           |
 | `node.outline`                | a colour                                                                                                                                         |
+| `node.outlineWidth`           | 0 to 10: the outline's width, a multiple of its own (1); unset, `layoutBehavior.node.outlineWidth`; alone it draws none                          |
 | `node.glow`                   | a colour                                                                                                                                         |
 | `node.glowStrength`           | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                                                                                 |
 | `node.halo`                   | true or false: the selection highlight around the node, in its own shape                                                                         |
-| `node.haloColor`              | a colour; the selection highlight's when unset (gold)                                                                                            |
+| `node.haloColor`              | a colour; the selection highlight's when unset (blue, `#0077BB`)                                                                                 |
 | `node.haloScale`              | above 0: how many times the node's size the halo is drawn at (1.45)                                                                              |
-| `node.haloOpacity`            | 0 to 1 (0.4)                                                                                                                                     |
+| `node.haloOpacity`            | 0 to 1 (1)                                                                                                                                       |
 | `node.wireframe`              | true or false                                                                                                                                    |
 | `node.flat`                   | true or false: one normal per face, so a sphere looks faceted (3D)                                                                               |
 | `node.unlit`                  | true or false: drawn in its own color with no light, as a flat dot (3D)                                                                          |
 
-| Edge channel                  | Takes                                                                                                        |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `edge.color`                  | any CSS colour                                                                                               |
-| `edge.width`                  | 0 or more; 0 draws no line (the caps and label still draw)                                                   |
-| `edge.opacity`                | 0 to 1                                                                                                       |
-| `edge.style`                  | `solid`, `dash`, `dot`, `zigzag`, `double`, `forward-slash`, `separate-arrow`, ... (`EdgeLineTypes.options`) |
-| `edge.patternCount`           | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it)                                   |
-| `edge.curvature`              | true or false (a bezier)                                                                                     |
-| `edge.bends`                  | points the line runs through, `"along,across ..."` from source to target                                     |
-| `edge.fanSpacing`             | 0 or more: how far apart curved parallel edges are at their middle                                           |
-| `edge.fanned`                 | false draws a curved edge as its own curve, ignoring the edges beside it                                     |
-| `edge.arrowHead`              | `normal`, `inverted`, `diamond`, `none`, ...                                                                 |
-| `edge.arrowHeadSize`          | 0 or more, 1 being the element's own size; 0 draws no head                                                   |
-| `edge.arrowHeadPosition`      | 0 to 1: how far back along the line the head sits; 0 at the node, 0.5 mid                                    |
-| `edge.arrowHeadColor`         | a colour                                                                                                     |
-| `edge.arrowHeadOpacity`       | 0 to 1                                                                                                       |
-| `edge.arrowHeadText`          | words drawn beside the head cap                                                                              |
-| `edge.arrowHeadTextStyle`     | as `node.labelStyle`                                                                                         |
-| `edge.arrowHeadTextRotation`  | degrees clockwise the head's caption is turned about its middle                                              |
-| `edge.arrowHeadTextOffsetX`   | how far right the head's caption is moved, in scene units on screen                                          |
-| `edge.arrowHeadTextOffsetY`   | how far down the head's caption is moved, in scene units on screen                                           |
-| `edge.arrowTail`              | the same arrows                                                                                              |
-| `edge.arrowTailSize`          | 0 or more; 0 draws no tail                                                                                   |
-| `edge.arrowTailPosition`      | 0 to 1: how far along the line from the source the tail sits                                                 |
-| `edge.arrowTailColor`         | a colour                                                                                                     |
-| `edge.arrowTailOpacity`       | 0 to 1                                                                                                       |
-| `edge.arrowTailText`          | words drawn beside the tail cap                                                                              |
-| `edge.arrowTailTextStyle`     | as `node.labelStyle`                                                                                         |
-| `edge.arrowTailTextRotation`  | as `edge.arrowHeadTextRotation`                                                                              |
-| `edge.arrowTailTextOffsetX`   | as `edge.arrowHeadTextOffsetX`                                                                               |
-| `edge.arrowTailTextOffsetY`   | as `edge.arrowHeadTextOffsetY`                                                                               |
-| `edge.animationSpeed`         | a number                                                                                                     |
-| `edge.label`                  | the words to draw                                                                                            |
-| `edge.labelStyle`             | as `node.labelStyle`                                                                                         |
-| `edge.labelColor`             | as `node.labelColor`                                                                                         |
-| `edge.labelSize`              | as `node.labelSize`                                                                                          |
-| `edge.labelLetterSize`        | as `node.labelLetterSize`                                                                                    |
-| `edge.labelFont`              | as `node.labelFont`                                                                                          |
-| `edge.labelWeight`            | as `node.labelWeight`                                                                                        |
-| `edge.labelItalic`            | as `node.labelItalic`                                                                                        |
-| `edge.labelWrapWidth`         | as `node.labelWrapWidth`                                                                                     |
-| `edge.labelWrapTrailingSpace` | as `node.labelWrapTrailingSpace`                                                                             |
-| `edge.labelWrapEllipsis`      | as `node.labelWrapEllipsis`                                                                                  |
-| `edge.labelWrapAnywhere`      | as `node.labelWrapAnywhere`                                                                                  |
-| `edge.labelWrapSpaceCount`    | as `node.labelWrapSpaceCount`                                                                                |
-| `edge.labelRunAlign`          | as `node.labelRunAlign`                                                                                      |
-| `edge.labelMinScreenSize`     | as `node.labelMinScreenSize`                                                                                 |
-| `edge.labelOnTop`             | as `node.labelOnTop`                                                                                         |
-| `edge.labelRotation`          | as `node.labelRotation`                                                                                      |
+| Edge channel                  | Takes                                                                                                            |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `edge.color`                  | any CSS colour                                                                                                   |
+| `edge.width`                  | 0 or more; 0 draws no line (the caps and label still draw)                                                       |
+| `edge.opacity`                | 0 to 1                                                                                                           |
+| `edge.fadeEnd`                | CSS pixels: a line this long on screen or longer draws at `edge.fadeOpacity` times its opacity; unset, no fade   |
+| `edge.fadeStart`              | CSS pixels: a line this long on screen or shorter does not fade (0)                                              |
+| `edge.fadeOpacity`            | 0 to 1: what the fade multiplies the longest lines' opacity by (0.25)                                            |
+| `edge.blending`               | false draws the line without alpha blending, at full strength; `edge.opacity` and the fade have no effect (true) |
+| `edge.style`                  | `solid`, `dash`, `dot`, `zigzag`, `double`, `forward-slash`, `separate-arrow`, ... (`EdgeLineTypes.options`)     |
+| `edge.patternCount`           | how many dots or dashes to draw, 2 or more (zigzag and sinewave ignore it)                                       |
+| `edge.curvature`              | true or false (a bezier)                                                                                         |
+| `edge.bends`                  | points the line runs through, `"along,across ..."` from source to target                                         |
+| `edge.fanSpacing`             | 0 or more: how far apart curved parallel edges are at their middle                                               |
+| `edge.fanned`                 | false draws a curved edge as its own curve, ignoring the edges beside it                                         |
+| `edge.arrowHead`              | `normal`, `inverted`, `diamond`, `none`, ...                                                                     |
+| `edge.arrowHeadSize`          | 0 or more, 1 being the element's own size; 0 draws no head                                                       |
+| `edge.arrowHeadPosition`      | 0 to 1: how far back along the line the head sits; 0 at the node, 0.5 mid                                        |
+| `edge.arrowHeadColor`         | a colour                                                                                                         |
+| `edge.arrowHeadOpacity`       | 0 to 1                                                                                                           |
+| `edge.arrowHeadText`          | words drawn beside the head cap                                                                                  |
+| `edge.arrowHeadTextStyle`     | as `node.labelStyle`                                                                                             |
+| `edge.arrowHeadTextRotation`  | degrees clockwise the head's caption is turned about its middle                                                  |
+| `edge.arrowHeadTextOffsetX`   | how far right the head's caption is moved, in scene units on screen                                              |
+| `edge.arrowHeadTextOffsetY`   | how far down the head's caption is moved, in scene units on screen                                               |
+| `edge.arrowTail`              | the same arrows                                                                                                  |
+| `edge.arrowTailSize`          | 0 or more; 0 draws no tail                                                                                       |
+| `edge.arrowTailPosition`      | 0 to 1: how far along the line from the source the tail sits                                                     |
+| `edge.arrowTailColor`         | a colour                                                                                                         |
+| `edge.arrowTailOpacity`       | 0 to 1                                                                                                           |
+| `edge.arrowTailText`          | words drawn beside the tail cap                                                                                  |
+| `edge.arrowTailTextStyle`     | as `node.labelStyle`                                                                                             |
+| `edge.arrowTailTextRotation`  | as `edge.arrowHeadTextRotation`                                                                                  |
+| `edge.arrowTailTextOffsetX`   | as `edge.arrowHeadTextOffsetX`                                                                                   |
+| `edge.arrowTailTextOffsetY`   | as `edge.arrowHeadTextOffsetY`                                                                                   |
+| `edge.animationSpeed`         | a number                                                                                                         |
+| `edge.label`                  | the words to draw                                                                                                |
+| `edge.labelStyle`             | as `node.labelStyle`                                                                                             |
+| `edge.labelColor`             | as `node.labelColor`                                                                                             |
+| `edge.labelSize`              | as `node.labelSize`                                                                                              |
+| `edge.labelLetterSize`        | as `node.labelLetterSize`                                                                                        |
+| `edge.labelFont`              | as `node.labelFont`                                                                                              |
+| `edge.labelWeight`            | as `node.labelWeight`                                                                                            |
+| `edge.labelItalic`            | as `node.labelItalic`                                                                                            |
+| `edge.labelWrapWidth`         | as `node.labelWrapWidth`                                                                                         |
+| `edge.labelWrapTrailingSpace` | as `node.labelWrapTrailingSpace`                                                                                 |
+| `edge.labelWrapEllipsis`      | as `node.labelWrapEllipsis`                                                                                      |
+| `edge.labelWrapAnywhere`      | as `node.labelWrapAnywhere`                                                                                      |
+| `edge.labelWrapSpaceCount`    | as `node.labelWrapSpaceCount`                                                                                    |
+| `edge.labelRunAlign`          | as `node.labelRunAlign`                                                                                          |
+| `edge.labelMinScreenSize`     | as `node.labelMinScreenSize`                                                                                     |
+| `edge.labelOnTop`             | as `node.labelOnTop`                                                                                             |
+| `edge.labelRotation`          | as `node.labelRotation`                                                                                          |
 
 A color may carry an alpha (`#ff000080`, `rgba(255, 0, 0, 0.5)`). On `node.color`,
 `edge.color` and the two arrow colors the alpha multiplies the matching opacity channel, so
@@ -350,6 +376,31 @@ color, alpha included. On `node.glow` it fades the glow. An outline cannot be dr
 `node.outline` draws the color opaque, and `styles.validate()` and the `style:changed` change
 report it as a `W_ALPHA_IGNORED` warning, with `params.channel` and `params.path`. The selection
 halo's color (`setSelectionStyle`) works the same way, multiplied with its `opacity`.
+
+On a dense graph, long edges cross the whole drawing and hide its structure. Two line options help,
+and both are off until you set them. Each is an ordinary channel, so a layer can give them to some
+edges and not others:
+
+```js
+await element.session.styles.add({
+    name: "Dense graph",
+    target: "edge",
+    selector: { match: "everything" },
+    set: { "edge.fadeStart": 50, "edge.fadeEnd": 150, "edge.fadeOpacity": 0.25 },
+});
+```
+
+Here a line 50 CSS pixels long on screen or shorter draws at its own opacity, one 150 or longer at a
+quarter of it, and one between them at a value between. The fade follows the length on screen, so
+zooming in fades more lines and zooming out fewer. A curved or bent edge fades by its whole length.
+A faded line does not animate. The line alone fades, not its arrowheads or its outline, underlay and
+overlay bands, and a line drawn as separate pattern elements (a straight dash, dot, star, diamond,
+box, dash-dot, zigzag or sinewave) or as a gradient does not fade.
+
+`"edge.blending": false` draws the line without alpha blending, which costs less fill rate on a
+graph with many overlapping lines and keeps them from muddying. The line is drawn at its color's
+full strength, so `edge.opacity` and the fade have no effect on it, and a line under a pixel wide is
+not drawn fainter.
 
 Writing `node.label` or `edge.label` is what switches a label on. To switch node labels on
 without choosing the words, write `{ enabled: true }` to `node.labelStyle`: each node is labelled
@@ -409,7 +460,9 @@ await element.session.styles.add({
 box, an octahedron, a diamond -- is drawn 1.5 units wide (the default icosphere's width), so a
 diamond and a sphere of one size look one size. `node.width`, `node.height` and `node.depth` set
 the extent along one axis in the same units, so a node of width 4 is as wide as a node of size 4;
-an axis left unset keeps the shape's own proportions at `node.size`.
+an axis left unset keeps the shape's own proportions at `node.size`. With `node.relativeExtents` on, the
+three are multiples of `node.size` instead, so changing the size keeps the stretch: a node of width
+2 and height 1 at size 1 is drawn 4 wide and 2 tall at size 2.
 
 The flat shapes -- `rectangle`, `round-rectangle`, `ellipse`, `diamond`, `triangle`, `pentagon`,
 `hexagon`, `octagon`, `parallelogram`, `trapezoid`, `star`, `vee`, and Pajek's `cross`, `house`,
@@ -433,6 +486,17 @@ every node without one; a node without one is drawn as before. Loading a file wi
 as the program that wrote it draws it. Each distinct value is its own source mesh, so use a few
 levels on a large graph. A 3D view draws by real depth and ignores it.
 
+The numbers behind the default look -- the default edge width
+(`EDGE_CONSTANTS.DEFAULT_LINE_WIDTH`), arrow sizes, line pattern spacing and node shape
+proportions (`SHAPE_CONSTANTS`) -- are exported from `@graphty/graphty-element/schema`, which loads
+no 3D engine, so a settings panel, a test or a Node script can read them:
+
+```typescript
+import { EDGE_CONSTANTS } from "@graphty/graphty-element/schema";
+
+const defaultEdgeWidth = EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+```
+
 A border is a ring drawn outside the node's outline, so it never covers the fill, and an edge
 ends at its outer edge. Its width is in the units of `node.size`, so it scales with the node:
 
@@ -452,7 +516,7 @@ await element.session.styles.add({
 });
 ```
 
-A border is not `node.outline`: an outline is a screen-space glow of one fixed width, drawn for
+A border is not `node.outline`: an outline is a ring around the node, drawn for
 emphasis, while a border is part of the node's shape. Each distinct border is one more mesh,
 shared by every node drawn with it.
 
@@ -520,16 +584,16 @@ for (const channel of channelsFor("edge")) {
 }
 ```
 
-| Field               | What it holds                                                                                                                      |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `plainName`         | the full name, "Arrow Head Size"                                                                                                   |
-| `shortName`         | the name once the target is already said, in sentence case: "Head size"                                                            |
-| `group`             | `shape`, `color`, `effects` or `text` for a node; `line`, `arrows` or `text` for an edge                                           |
-| `accepts`           | the kind of control: `color`, `number`, `text`, `boolean`, `enum`, `labelStyle`, `nothing`                                         |
-| `values`            | every choice, for an `enum`                                                                                                        |
-| `min`, `max`        | the bounds, for a `number`                                                                                                         |
-| `default`           | what the element draws when no layer sets the channel (absent when that is nothing); an unset arrow cap color follows `edge.color` |
-| `unsupportedReason` | why the channel cannot be set, for a disabled control; present only when it cannot                                                 |
+| Field         | What it holds                                                                                                                      |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `plainName`   | the full name, "Arrow Head Size"                                                                                                   |
+| `shortName`   | the name once the target is already said, in sentence case: "Head size"                                                            |
+| `group`       | `shape`, `color`, `effects` or `text` for a node; `line`, `arrows` or `text` for an edge                                           |
+| `accepts`     | the kind of control: `color`, `number`, `text`, `boolean`, `enum`, `labelStyle`, `nothing`                                         |
+| `values`      | every choice, for an `enum`                                                                                                        |
+| `min`, `max`  | the bounds, for a `number`                                                                                                         |
+| `default`     | what the element draws when no layer sets the channel (absent when that is nothing); an unset arrow cap color follows `edge.color` |
+| `unsupported` | why the channel cannot be set, as a code (`channel.not-drawn`) for a disabled control; present only when it cannot                 |
 
 ### Labels that would overlap
 
@@ -669,9 +733,17 @@ no value exactly as the layers underneath painted it. `overflow` (`"other"`, `"s
 `"pattern"` or `"extend"`) says what a categorical colour does with more groups than its palette has colours;
 `encode()` writes `"other"` by default -- see [Algorithms](./algorithms#more-groups-than-colours).
 
+When every value in the column is the same (a regular graph where every node has degree 3), a
+numeric scale has no spread to place anything in, so it paints the **middle** of its range or
+palette rather than either end, and the binding's legend block carries the fact
+`{ code: "legend.no-spread", params: { value } }` so a legend can say there is no spread. The
+legend's swatch shows the same middle colour the canvas paints.
+
 ### A table of values, and what it leaves alone
 
-`map` gives a value per key. With `scale: "passthrough"`, a key the table does not hold goes on
+`map` gives a value per key. A binding with a `map` and no `scale` reads through `"passthrough"`
+on every channel, and its legend block is categorical: one row per value it paints. With
+`scale: "passthrough"`, a key the table does not hold goes on
 through the scale as before, so an unmapped `"green"` is painted green. Add `unmapped: "skip"` and
 an element whose key the table does not hold is left exactly as the layers beneath paint it:
 
@@ -722,7 +794,12 @@ await element.session.styles.add({
 `stops` takes the place of `scale`, `domain`, `range` and `palette` (leave `scale` out or set it to
 `"linear"`); the others are refused beside it, because the points already say what each would. It
 is how a Cytoscape continuous mapping is drawn when a file's styles are loaded (see
-[Styles from Files](./file-styles)).
+[Styles from Files](./file-styles), the `file-styles` experiment).
+
+The channels and values added to draw other programs' files (flat node shapes, borders, widths and
+heights, more arrowheads and line patterns, and the rest) are part of the `file-styles` experiment:
+with it off, `session.catalog.channels(target)` leaves them out, and a layer that writes one is
+still drawn. See [Experiments](./experiments).
 
 A number outside what a channel can draw (a negative size, an opacity above 1) is still clamped,
 and a node color with alpha is still drawn opaque; `styles.counts(id)` reports both per layer, as
@@ -814,6 +891,29 @@ element.session.styles.counts(layerId); // how many elements one layer covers an
 ```
 
 See [Counting What a Layer Paints](./layer-counts) for `counts()`.
+
+### A legend on the graph
+
+The `legend` attribute draws `styles.legend()` over the graph: a color chip per value for a
+categorical encoding, a ramp between the domain's ends for a continuous one. It follows every
+change to the layers and the data, and hides while no layer binds a value. It is off by default.
+
+```html
+<graphty-element legend legend-position="bottom-left" legend-label="Leyenda"></graphty-element>
+<style>
+    graphty-element::part(legend) {
+        font-size: 14px; /* sizes are in em, so this scales the whole key */
+        max-width: 240px;
+    }
+</style>
+```
+
+`legend-position` is `top-left` (the default), `top-right`, `bottom-left` or `bottom-right`;
+`legend-label` is the name a screen reader announces, in your page's language; unset, the
+legend has no name of its own and each field in it is named by the field's name. The overlay is HTML,
+so a screen reader reads each field's name and each value. Its words are the data's: the field's
+name, the values, and the names readers gave them. A screenshot draws the same key with
+`captureScreenshot({ legend: { position: element.legendPosition } })`.
 
 `explain()` answers the question a screenshot cannot: which layer decided each channel of one
 element, and what the layers under it had said before it did.

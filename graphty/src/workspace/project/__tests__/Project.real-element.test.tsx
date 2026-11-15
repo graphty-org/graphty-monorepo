@@ -14,13 +14,12 @@ import { browserProjects, type GraphSession } from "@graphty/graphty-element/ses
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { openBy } from "../../../test/open";
+import { pickSample } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { clearRecent } from "../recent";
-
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /**
  * The notice after a reopen. Issue #909: graphty-element reopens an undirected graph as directed
@@ -79,17 +78,14 @@ function snapshot(session: GraphSession): Snapshot {
  */
 async function elementSession(previous?: GraphSession): Promise<GraphSession> {
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            // The project's element, not the start page's graph behind a closed project.
-            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            )?.session;
-            assert.isDefined(session);
-            assert.notStrictEqual(session, previous);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        // The project's element, not the start page's graph behind a closed project.
+        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        )?.session;
+        assert.isDefined(session);
+        assert.notStrictEqual(session, previous);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -105,14 +101,7 @@ async function elementSession(previous?: GraphSession): Promise<GraphSession> {
  */
 async function buildProject(store: WorkspaceStore): Promise<{ session: GraphSession; before: Snapshot }> {
     render(<Workspace store={store} />);
-    await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
-    const session = await elementSession();
-    await waitFor(
-        () => {
-            assert.equal(session.data.statistics().nodeCount, 15);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await openBy(store, () => pickSample("Florentine families"));
     await session.runs.start("degree");
     await session.styles.add({
         name: "All in orange",
@@ -154,12 +143,9 @@ async function saveAs(name: string, current = "Florentine families"): Promise<vo
     });
     assert.equal(field.value.slice(field.selectionStart ?? 0, field.selectionEnd ?? 0), current);
     await userEvent.keyboard(`${name}{Enter}`);
-    await waitFor(
-        () => {
-            assert.isNull(screen.queryByRole("dialog"));
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.isNull(screen.queryByRole("dialog"));
+    });
     // The closed dialog hands focus back to its opener a moment later (Mantine's focus return). A
     // rename field opened before that would lose focus to it, and a field that loses focus closes.
     await waitFor(() => {
@@ -257,12 +243,9 @@ describe("T14: save and reopen, on the real element", () => {
 
         await userEvent.click(recent);
         const reopened = await elementSession(session);
-        await waitFor(
-            () => {
-                assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
+        });
         assert.deepEqual(snapshot(reopened), saved);
         assert.include(saved.runs, before.runs[0]);
         assert.deepEqual(saved.selection, before.selection);
@@ -296,12 +279,9 @@ describe("T14: save and reopen, on the real element", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Florentine, my copy/ }));
         const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
         await userEvent.click(within(ask).getByRole("button", { name: "Discard" }));
-        await waitFor(
-            () => {
-                assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.match(store.get().notice?.message ?? "", OPENED("Florentine, my copy"));
+        });
         assert.notDeepEqual(snapshot(reopened).styles, kept.styles);
     });
 
@@ -352,6 +332,35 @@ describe("T14: save and reopen, on the real element", () => {
         await closeFromMenu();
         const ask = await screen.findByRole("dialog", { name: "Discard unsaved changes?" });
         await userEvent.click(within(ask).getByRole("button", { name: "Cancel" }));
+    });
+
+    it("shows the name the element holds after a refused rename and after an Undo of a rename", async () => {
+        const store = createWorkspaceStore();
+        const { session } = await buildProject(store);
+        assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine families" }));
+
+        // A name past the element's 256 characters is refused: the header keeps the name the
+        // project holds, and says the rename did not happen.
+        const long = "x".repeat(257);
+        await userEvent.keyboard("{F2}");
+        await userEvent.fill(await screen.findByRole("textbox", { name: "Project name" }), long);
+        await userEvent.keyboard("{Enter}");
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, `The project could not be renamed ${long}.`);
+        });
+        assert.equal(session.project.name, "Florentine families");
+        assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine families" }));
+
+        await userEvent.keyboard("{F2}");
+        const field = await screen.findByRole("textbox", { name: "Project name" });
+        await userEvent.clear(field);
+        await userEvent.type(field, "Florentine B{Enter}");
+        assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine B" }));
+        assert.equal(session.project.name, "Florentine B");
+
+        await userEvent.keyboard("{Control>}z{/Control}");
+        assert.isNotNull(await screen.findByRole("button", { name: "Project: Florentine families" }));
+        assert.equal(session.project.name, "Florentine families");
     });
 
     it("keeps the old name and still asks before Close when the browser cannot keep the project", async () => {
@@ -452,17 +461,10 @@ function drawnBounds(): number[] {
 }
 
 /**
- * Waits for the element's picture to be final, and for the legend card to have reserved its box.
- * @param store - the workspace store.
+ * Waits for the legend card to come up and for the element's picture to be final.
  */
-async function framedWithLegend(store: WorkspaceStore): Promise<void> {
-    await screen.findByRole("region", { name: "Legend" }, { timeout: TIMEOUT_MS });
-    await waitFor(
-        () => {
-            assert.notDeepEqual(store.get().viewInsets, {});
-        },
-        { timeout: TIMEOUT_MS },
-    );
+async function framedWithLegend(): Promise<void> {
+    await screen.findByRole("region", { name: "Legend" });
     await document
         .querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element:not([data-start-page])")
         ?.waitForStableFrame();
@@ -477,9 +479,10 @@ describe("a reopened project's framing, on the real element", () => {
     // keeps every fit clear of the legend card: the reopened picture is not the saved one pixel for
     // pixel. Whether project files should save the camera, so a reopened graph is framed exactly as
     // saved, is an open decision for the owner (#3260, "Decide: save the camera in project files
-    // so a reopened graph is framed exactly as saved"). Until it is made, this checks what tier 3
-    // promises: the reopened graph is fitted with no node under the legend card.
-    it("fits a reopened graph clear of the legend card, which comes up with the graph", async () => {
+    // so a reopened graph is framed exactly as saved"). Until it is made, this checks that the
+    // reopened graph is fitted to the canvas. The legend card is an overlay: it floats over the
+    // drawing and has no part in the framing (owner, 2026-10-24, #3372).
+    it("fits a reopened graph to the canvas, with the legend card floating over it", async () => {
         const store = createWorkspaceStore({ project: { name: "Friends", id: 1 } });
         render(<Workspace store={store} />);
         const session = await elementSession();
@@ -497,34 +500,23 @@ describe("a reopened project's framing, on the real element", () => {
         // PageRank paints color, so the legend card comes up after the graph was framed.
         await session.runs.start("pagerank");
         await session.styles.settled();
-        await framedWithLegend(store);
+        await framedWithLegend();
 
         await saveAs("Friends framed", "Friends");
         await closeFromMenu();
         await userEvent.click(await screen.findByRole("gridcell", { name: /^Friends framed/ }));
         const reopened = await elementSession(session);
-        await waitFor(
-            () => {
-                assert.match(store.get().notice?.message ?? "", OPENED("Friends framed"));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.match(store.get().notice?.message ?? "", OPENED("Friends framed"));
+        });
         assert.isAbove(reopened.runs.list().length, 0);
-        await framedWithLegend(store);
+        await framedWithLegend();
         const element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
             "graphty-element:not([data-start-page])",
         );
         assert.isNotNull(element);
-        const legend = (await screen.findByRole("region", { name: "Legend" })).getBoundingClientRect();
         const canvas = element?.getBoundingClientRect();
         assert.isDefined(canvas);
-        const card = {
-            x: legend.left - (canvas?.left ?? 0),
-            y: legend.top - (canvas?.top ?? 0),
-            width: legend.width,
-            height: legend.height,
-        };
-        assert.deepEqual(element?.nodesInRect(card), [], `nodes under the legend card at ${JSON.stringify(card)}`);
         const [left, right, top, bottom] = drawnBounds();
         assert.isAtLeast(left, 0);
         assert.isAtMost(right, canvas?.width ?? 0);
@@ -574,14 +566,11 @@ describe("focus after Save", () => {
         await userEvent.keyboard("{Control>}s{/Control}");
         let dialog = await screen.findByRole("dialog", { name: "Save Florentine families as" });
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-        await waitFor(
-            () => {
-                assert.isNull(screen.queryByRole("dialog"));
-                // Back on the note it was opened from, not on the page.
-                assert.equal(document.activeElement?.tagName, "LI", focusedWords());
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
+            // Back on the note it was opened from, not on the page.
+            assert.equal(document.activeElement?.tagName, "LI", focusedWords());
+        });
         await showsMarkOnNextKey();
 
         // The menu, by pointer: Save as... closed by its Save button.
@@ -589,17 +578,14 @@ describe("focus after Save", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Save as/ }));
         dialog = await screen.findByRole("dialog");
         await userEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-        await waitFor(
-            () => {
-                assert.isNull(screen.queryByRole("dialog"));
-                assert.strictEqual(
-                    document.activeElement,
-                    screen.getByRole("button", { name: "Main menu" }),
-                    focusedWords(),
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog"));
+            assert.strictEqual(
+                document.activeElement,
+                screen.getByRole("button", { name: "Main menu" }),
+                focusedWords(),
+            );
+        });
         await showsMarkOnNextKey();
     });
 });
@@ -627,14 +613,7 @@ describe("a saved sample opened again with Open a file, on the real element", ()
         try {
             const store = createWorkspaceStore();
             render(<Workspace store={store} />);
-            await userEvent.click(screen.getByRole("button", { name: "Open the Books about US politics sample" }));
-            const session = await elementSession();
-            await waitFor(
-                () => {
-                    assert.equal(session.data.statistics().nodeCount, 105);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            const session = await openBy(store, () => pickSample("Books about US politics"));
             const counts = { nodes: session.data.nodes().length, edges: session.data.edges().length };
             assert.deepEqual(counts, { nodes: 105, edges: 441 });
 
@@ -651,12 +630,9 @@ describe("a saved sample opened again with Open a file, on the real element", ()
             await commands.chooseNextFile("Books about US politics.graphty.json", "application/json", text);
             await userEvent.click(await screen.findByRole("button", { name: /^Open a file/ }));
             const reopened = await elementSession(session);
-            await waitFor(
-                () => {
-                    assert.match(store.get().notice?.message ?? "", /^Opened /);
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            await waitFor(() => {
+                assert.match(store.get().notice?.message ?? "", /^Opened /);
+            });
             assert.deepEqual({ nodes: reopened.data.nodes().length, edges: reopened.data.edges().length }, counts);
         } finally {
             vi.unstubAllGlobals();

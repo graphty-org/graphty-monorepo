@@ -15,8 +15,13 @@ import { join } from "node:path";
 // git hook does not see what ~/.bashrc exports when the push comes from a non-login shell).
 const KEYS = ["SONAR_HOST_URL", "SONAR_PROJECT_KEY", "SONAR_SCAN_TOKEN", "SONAR_TOKEN", "SONAR_SCANNER_JAVA_EXE_PATH"];
 
-// Read one KEY=value from .env text, without running or exporting anything else in it.
-function parseEnvFile(text, key) {
+/**
+ * One KEY=value from .env text, without running or exporting anything else in it.
+ * @param text the file's text
+ * @param key the key
+ * @returns the value, or undefined
+ */
+export function parseEnvFile(text, key) {
     for (const raw of text.split("\n")) {
         const eq = raw.indexOf("=");
         if (

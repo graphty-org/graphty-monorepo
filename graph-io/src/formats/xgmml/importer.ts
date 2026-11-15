@@ -29,6 +29,7 @@ import { agree, elementCount } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
 import {
     isWhitespace,
+    sniffXmlText,
     tokenizeXml,
     xmlDeclaredEncoding,
     XmlNestingError,
@@ -130,7 +131,8 @@ const XGMML_DOCTYPE = /<!DOCTYPE\s+graph\s[^<>]*xgmml\.dtd/i;
  * @category Plugin helpers
  */
 export function resolveSettings(options: XgmmlImportOptions | undefined, cytoscape: boolean): XgmmlSettings {
-    const zAs = options?.zAs ?? "column";
+    // a JavaScript caller can pass any value
+    const zAs: unknown = options?.zAs ?? "column";
     if (zAs !== "column" && zAs !== "position") {
         throw new GraphFormatError(
             "E_UNSUPPORTED",
@@ -445,7 +447,8 @@ async function listXgmmlGraphs(
  * @returns the name, or null
  */
 function graphName(graph: GraphRec, doc: XgmmlDocument): string | null {
-    return graph.label ?? (graph === doc.root ? (doc.rdf.title ?? null) : null) ?? graph.id ?? null;
+    const metadata: Partial<Record<string, string>> = doc.rdf;
+    return graph.label ?? (graph === doc.root ? (metadata.title ?? null) : null) ?? graph.id ?? null;
 }
 
 /**
@@ -456,27 +459,21 @@ function graphName(graph: GraphRec, doc: XgmmlDocument): string | null {
  * @returns the confidence
  */
 function sniffXgmml(head: Uint8Array): number {
-    let encoding = "utf-8";
-    if ((head[0] === 0xff && head[1] === 0xfe) || (head[0] === 0x3c && head[1] === 0 && head[2] === 0x3f)) {
-        encoding = "utf-16le";
-    } else if ((head[0] === 0xfe && head[1] === 0xff) || (head[0] === 0 && head[1] === 0x3c && head[2] === 0)) {
-        encoding = "utf-16be";
-    }
-    const text = new TextDecoder(encoding, { fatal: false }).decode(head);
+    const text = sniffXmlText(head);
     if (!/^\uFEFF?\s*</.test(text)) {
         return 0;
     }
     if (XGMML_DOCTYPE.test(text)) {
         return 0.95;
     }
-    const root = /<(?![?!])([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(
-        text.replaceAll(/<!--[\s\S]*?(-->|$)/g, ""),
-    );
+    // search and slice the same comment-free text, so the root's offset stays valid
+    const body = text.replaceAll(/<!--[\s\S]*?(-->|$)/g, "");
+    const root = /<(?![?!])([A-Za-z_][\w.-]*:)?([A-Za-z_][\w.-]*)[\s/>]/.exec(body);
     if (root?.[2] !== "graph") {
         return 0;
     }
-    const tagEnd = text.indexOf(">", root.index);
-    const tag = text.slice(root.index, tagEnd < 0 ? undefined : tagEnd);
+    const tagEnd = body.indexOf(">", root.index);
+    const tag = body.slice(root.index, tagEnd < 0 ? undefined : tagEnd);
     // the XGMML namespace declared on the root, as a whole attribute value
     const namespaces = [...tag.matchAll(/\bxmlns(?::[\w.-]+)?\s*=\s*(["'])([^"']*)\1/g)].map((m) => m[2]);
     return namespaces.includes(XGMML_NAMESPACE) ? 0.95 : 0.5;

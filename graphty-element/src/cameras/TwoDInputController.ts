@@ -1,9 +1,11 @@
 // TwoDInputController.ts
-import { type Observer, PointerEventTypes, type PointerInfo, type PointerInfoPre } from "@babylonjs/core";
+import type { Observer, PointerInfoPre } from "@babylonjs/core";
+import { PointerEventTypes, type PointerInfo } from "@babylonjs/core/Events/pointerEvents.js";
 import Hammer from "hammerjs";
 
 import { type CanvasKeyAction, canvasKeyAction } from "../catalog/canvasKeys";
 import { firstSight } from "../input/first-sight";
+import { wheelZoomFactor } from "./InputUtils";
 import { TwoDCameraController, TwoDCameraControlsConfigType } from "./TwoDCameraController";
 
 interface GestureSession {
@@ -143,7 +145,8 @@ export class InputController {
         this.prePointerObserverHandle = this.cam.scene.onPrePointerObservable.add((pi) => {
             const e = pi.event as WheelEvent;
             if (pi.type === PointerEventTypes.POINTERWHEEL && newWheel(e)) {
-                const delta = e.deltaY > 0 ? this.config.mouseWheelZoomSpeed : 1 / this.config.mouseWheelZoomSpeed;
+                // In proportion to the delta, so a trackpad zooms no faster than a mouse wheel
+                const delta = wheelZoomFactor(e, this.config.mouseWheelZoomSpeed);
                 if (this.zoomToPointer) {
                     const rect = this.canvas.getBoundingClientRect();
                     this.cam.zoomAt(
@@ -182,7 +185,7 @@ export class InputController {
                     bottom: this.cam.camera.orthoBottom ?? 1,
                 },
                 scale: ev.scale || 1,
-                rotation: this.cam.parent.rotation.z,
+                rotation: this.cam.camera.rotation.z,
                 startRotDeg: ev.rotation || 0,
             };
         });
@@ -206,8 +209,12 @@ export class InputController {
             const dx = ev.center.x - this.gestureSession.panX;
             const dy = ev.center.y - this.gestureSession.panY;
 
-            this.cam.camera.position.x = this.gestureSession.panStartX - dx * scaleX * this.config.touchPanScale;
-            this.cam.camera.position.y = this.gestureSession.panStartY + dy * scaleY * this.config.touchPanScale;
+            this.cam.panFrom(
+                this.gestureSession.panStartX,
+                this.gestureSession.panStartY,
+                -dx * scaleX * this.config.touchPanScale,
+                dy * scaleY * this.config.touchPanScale,
+            );
 
             const pinch = (ev.scale || 1) / this.gestureSession.scale;
             this.cam.camera.orthoLeft = this.gestureSession.ortho.left / pinch;
@@ -215,8 +222,10 @@ export class InputController {
             this.cam.camera.orthoTop = this.gestureSession.ortho.top / pinch;
             this.cam.camera.orthoBottom = this.gestureSession.ortho.bottom / pinch;
 
-            const rotRad = (-(ev.rotation - this.gestureSession.startRotDeg) * Math.PI) / 180;
-            this.cam.parent.rotation.z = this.gestureSession.rotation + rotRad;
+            // Hammer's rotation is clockwise on screen, and a larger roll turns the drawing
+            // clockwise: the drawing turns with the fingers.
+            const rotRad = ((ev.rotation - this.gestureSession.startRotDeg) * Math.PI) / 180;
+            this.cam.camera.rotation.z = this.gestureSession.rotation + rotRad;
             this.cam.onReaderMove?.();
         });
 

@@ -1,0 +1,124 @@
+[
+    {
+        "flow": "open-file",
+        "title": "Open my own file and get a right drawing",
+        "screens": [
+            {
+                "file": "open-file-1-clean-receipt.html",
+                "caption": "A clean file is drawn at once, with a receipt on the canvas stating the mapping in one sentence, a peek at the rows, and Change and Undo."
+            },
+            {
+                "file": "open-file-2-unclear-file.html",
+                "caption": "An unclear file opens the Data page with only the name column and the weight column open for a choice, each with its type and how many values fit."
+            },
+            {
+                "file": "open-file-3-drawn-with-names.html",
+                "caption": "After Load the graph is drawn with gene names on the nodes, the receipt repeats the choices made, and the Data panel lists the load as its first step."
+            }
+        ]
+    },
+    {
+        "flow": "check-load",
+        "title": "Check that it loaded right",
+        "screens": [
+            {
+                "file": "check-load-1-load-report.html",
+                "caption": "The fraud file is drawn with one warning on its receipt; the report beside it lists only the four problems found, each with a count, a row and a fix."
+            },
+            {
+                "file": "check-load-2-what-loaded.html",
+                "caption": "The Data panel opens with one summary sentence, the load as a step with its warning, and every column with its type in words, how full it is and where it came from."
+            }
+        ]
+    },
+    {
+        "flow": "find-filter",
+        "title": "Find, then show only what matters",
+        "screens": [
+            {
+                "file": "find-filter-1-typing-condition.html",
+                "caption": "Typing padj < 0.05 in the toolbar's find box offers the matching condition, counted 60 of 318, ahead of any name match."
+            },
+            {
+                "file": "find-filter-2-condition-card.html",
+                "caption": "Enter grows the find box into the condition card in place, counting 60 of 318 with Select and Hide the rest."
+            },
+            {
+                "file": "find-filter-3-showing-60.html",
+                "caption": "The drawing shows the 60 nodes with padj under 0.05, and the header chip says a filter is on and how much it shows."
+            }
+        ]
+    },
+    {
+        "flow": "replace",
+        "title": "Bring in a newer copy, keep my work",
+        "screens": [
+            {
+                "file": "replace-1-drop-newer-copy.html",
+                "caption": "Dropping suppliers-oct.csv on the graph shows a small canvas card with Replace already chosen, last month's mapping carried, and Add warning that every supplier would repeat."
+            },
+            {
+                "file": "replace-2-receipt.html",
+                "caption": "The replace receipt reads +12 / -3 / 40 changed, tints what changed on the canvas, names the one style that no longer binds with its fix, and offers Undo."
+            }
+        ]
+    },
+    {
+        "flow": "second-file",
+        "title": "Add a second file to this graph",
+        "screens": [
+            {
+                "file": "second-file-1-three-choices.html",
+                "caption": "Dropping expression.tsv on the graph shows a canvas card with the three choices, Add columns to nodes chosen, and the match line with 19 more matching ignoring case and Use."
+            },
+            {
+                "file": "second-file-2-columns-added.html",
+                "caption": "The receipt names the 4 new columns and the 6 unmeasured nodes (gray and ringed on the canvas), and the Data panel lists the join as a step and expression.tsv as each new column's source."
+            }
+        ]
+    },
+    {
+        "flow": "export",
+        "title": "Take the numbers out",
+        "screens": [
+            {
+                "file": "export-1-from-table.html",
+                "caption": "Export on the table dock opens on the node table as CSV, scoped to what is shown (60 of 318), with one line naming what a CSV leaves out."
+            }
+        ]
+    },
+    {
+        "flow": "fix-column",
+        "title": "Fix a column: its type, its role, its name",
+        "screens": [
+            {
+                "file": "fix-column-1-column-menu.html",
+                "caption": "Clicking amount in the Data panel opens its menu: its type with 1 value that is not a number among 500, role, rename and hide, and each other type says how many values will not convert."
+            }
+        ]
+    },
+    {
+        "flow": "server",
+        "title": "Load from a server, expand, load more",
+        "screens": [
+            {
+                "file": "server-1-neo4j-form.html",
+                "caption": "Open network data, beside Open, shows the Neo4j form; Test has run and says the query matches 40,000 links before anything loads."
+            },
+            {
+                "file": "server-2-capped-and-expand.html",
+                "caption": "A capped load says 5,000 of 40,000 on its receipt with Load more, and the selected account acct-4471 offers Expand for its 37 links on the server, up to 50."
+            }
+        ]
+    },
+    {
+        "flow": "cleanup",
+        "title": "Clean up what the load report found",
+        "screens": [
+            {
+                "file": "cleanup-1-offers-on-report.html",
+                "caption": "Cleanup offers sit on the report lines that found them: the repeated pairs are combined (612 links become 607) and listed as a step with Undo, self-loops wait on Keep or Drop, and missing amounts on Fill."
+            }
+        ]
+    }
+]

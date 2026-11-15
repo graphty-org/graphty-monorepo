@@ -6,8 +6,15 @@
  * annotation sits just behind the graph; a foreground one is drawn on top of it.
  */
 
-import { Color3, DynamicTexture, type Mesh, MeshBuilder, type Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import type {
+    AnnotationBeside,
     AnnotationPoint,
     ArrowAnnotation,
     ImageAnnotation,
@@ -17,6 +24,7 @@ import type {
 
 import { type DrawnAnnotation, drawnAnnotationsOf } from "../session/styles/fileStyles/annotations";
 import { PREMULTIPLIED_ALPHA_MODE, uploadPremultiplied } from "./LabelBatch";
+import { fontFamilies, noteLabelFont } from "./labelFonts";
 
 /** What a drawn annotation mesh carries in its `metadata`. */
 export interface AnnotationMeshMetadata {
@@ -26,6 +34,13 @@ export interface AnnotationMeshMetadata {
         readonly text?: string;
         /** The drawn geometry's box in world units (not the padded plane's). */
         readonly box: { readonly x0: number; readonly y0: number; readonly x1: number; readonly y1: number };
+        /** An arrow's heads, each one's box in world units: a reader sees each as a shape of its own. */
+        readonly heads?: readonly {
+            readonly x0: number;
+            readonly y0: number;
+            readonly x1: number;
+            readonly y1: number;
+        }[];
     };
 }
 
@@ -45,19 +60,132 @@ const BEHIND = 0.05;
 
 let measureContext: CanvasRenderingContext2D | null = null;
 
+/** A drawn node, as an arrow that ends at it needs it: where it is and how far it reaches, in scene units. */
+export interface AnnotationNode {
+    /** Its center. */
+    getPosition(): { readonly x: number; readonly y: number };
+    /** How far its surface reaches from its center along each axis. */
+    readonly drawnHalfExtents: { readonly x: number; readonly y: number };
+    /** How far its border reaches past its surface. */
+    readonly borderReach: number;
+}
+
+/**
+ * A text placed against a side of the drawing (`TextAnnotation.beside`): its mesh, drawn about the region's center at
+ * the origin, where that put it, its metadata there, and how far it is moved now (null before it is placed).
+ */
+interface BesideText {
+    readonly mesh: Mesh;
+    readonly beside: AnnotationBeside;
+    readonly home: { readonly x: number; readonly y: number };
+    readonly metadata: AnnotationMeshMetadata;
+    offset: { x: number; y: number } | null;
+}
+
+/** An arrow that ends at a node, the mesh drawing it, and how far short of the node's center it stops. */
+interface NodeArrow {
+    readonly arrow: ArrowAnnotation;
+    mesh: Mesh | null;
+    reach: number | null;
+}
+
 /** Draws a graph's annotations and replaces them when the graph value changes. */
 export class AnnotationMeshes {
     /** The scene drawn into. */
     readonly scene: Scene;
     private meshes: Mesh[] = [];
     private drawn: unknown = undefined;
+    /** The pictures still loading, which the frame on screen does not show yet. */
+    private readonly loading = new Set<HTMLImageElement>();
+    private readonly onPicture: () => void;
+    private readonly nodes: () => Iterable<AnnotationNode>;
+    /** The drawn arrows that end at a node, which {@link AnnotationMeshes.refit} keeps at its outline. */
+    private nodeArrows: NodeArrow[] = [];
+    private scale = 1;
+    /** The drawn texts placed against a side of the drawing, which {@link AnnotationMeshes.refit} keeps there. */
+    private besides: BesideText[] = [];
 
     /**
      * Draw nothing yet.
      * @param scene - The scene to draw into.
+     * @param onPicture - Called when a picture that was loading has been painted, or failed to load, so the frame
+     *     that shows it is drawn.
+     * @param nodes - The graph's drawn nodes, which an arrow that ends at a node stops at the outline of.
      */
-    constructor(scene: Scene) {
+    constructor(
+        scene: Scene,
+        onPicture: () => void = () => undefined,
+        nodes: () => Iterable<AnnotationNode> = () => [],
+    ) {
         this.scene = scene;
+        this.onPicture = onPicture;
+        this.nodes = nodes;
+    }
+
+    /**
+     * Stop each arrow that ends at a node at that node's outline as it is drawn now, redrawing an arrow whose node has
+     * changed size, or has come to or left the arrow's end, since it was drawn. Cheap when nothing changed.
+     */
+    refit(): void {
+        this.placeBesides();
+        for (const entry of this.nodeArrows) {
+            const reach = this.reachAt(entry.arrow);
+            if (
+                reach === entry.reach ||
+                (reach !== null && entry.reach !== null && Math.abs(reach - entry.reach) < 1e-9)
+            ) {
+                continue;
+            }
+
+            entry.reach = reach;
+            if (entry.mesh !== null) {
+                this.meshes = this.meshes.filter((m) => m !== entry.mesh);
+                disposeMesh(entry.mesh);
+            }
+
+            entry.mesh = this.draw(stopShort(entry.arrow, reach), this.scale);
+            if (entry.mesh !== null) {
+                this.meshes.push(entry.mesh);
+            }
+        }
+    }
+
+    /**
+     * How far short of an arrow's end its line stops: the outline of the node drawn at its end, along the line, in
+     * file units. Cytoscape stops a line at the node's outline, its border's middle (`specimen-images-charts-p6`: a
+     * node 11 wide with a border of 1 stops the line 6 short of its center).
+     * @param a - The arrow, its end a node's center.
+     * @returns The distance, or null when no node is drawn there.
+     */
+    private reachAt(a: ArrowAnnotation): number | null {
+        const k = this.scale;
+        const [dx, dy] = [a.from.x - a.to.x, a.from.y - a.to.y];
+        const length = Math.hypot(dx, dy);
+        if (length === 0 || k === 0) {
+            return null;
+        }
+
+        // ponytail: one pass over every node per arrow that ends at a node; index nodes by place if a file has many
+        for (const node of this.nodes()) {
+            const p = node.getPosition();
+            const h = node.drawnHalfExtents;
+            // the node drawn at the end: its center within half its size of where the file saved it
+            if (Math.abs(p.x - a.to.x * k) <= h.x / 2 && Math.abs(p.y - a.to.y * k) <= h.y / 2 && h.x > 0 && h.y > 0) {
+                // where the line meets the ellipse of its half extents, then the border past it
+                const surface = 1 / Math.hypot(dx / length / h.x, dy / length / h.y);
+                return (surface + node.borderReach) / k;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether a picture annotation is still loading, so the picture on screen is not the finished one (issue #3383).
+     * @returns True while any picture has neither loaded nor failed.
+     */
+    get isLoading(): boolean {
+        return this.loading.size > 0;
     }
 
     /**
@@ -77,12 +205,69 @@ export class AnnotationMeshes {
             return;
         }
 
+        this.scale = read.scale;
         for (const a of read.annotations) {
-            const mesh = this.draw(a, read.scale);
+            noteTextFont(this.scene, a);
+            if (a.kind === "arrow" && a.toNode === true) {
+                this.nodeArrows.push({ arrow: leaveText(a, read.annotations), mesh: null, reach: null });
+                continue;
+            }
+
+            const mesh = this.draw(a.kind === "arrow" ? leaveText(a, read.annotations) : a, read.scale);
             if (mesh !== null) {
                 this.meshes.push(mesh);
+                this.noteBeside(a, mesh);
             }
         }
+
+        this.placeBesides();
+        // drawn to the node's center until a node is found there
+        for (const entry of this.nodeArrows) {
+            entry.reach = this.reachAt(entry.arrow);
+            entry.mesh = this.draw(stopShort(entry.arrow, entry.reach), read.scale);
+            if (entry.mesh !== null) {
+                this.meshes.push(entry.mesh);
+            }
+        }
+    }
+
+    /**
+     * Keep a text annotation drawn beside a node, to be placed there once the nodes are drawn.
+     * @param a - The annotation.
+     * @param mesh - Its mesh.
+     */
+    private noteBeside(a: DrawnAnnotation, mesh: Mesh): void {
+        if (a.kind !== "text" || a.beside === undefined) {
+            return;
+        }
+
+        this.besides.push({
+            mesh,
+            beside: a.beside,
+            home: { x: mesh.position.x, y: mesh.position.y },
+            metadata: mesh.metadata as AnnotationMeshMetadata,
+            offset: null,
+        });
+    }
+
+    /**
+     * Draw the annotations again when a font a text annotation is drawn in has just loaded (issue
+     * #5140): drawn while it loaded, its width and texture are the fallback face's.
+     * @param families - The families that loaded, as `fontFamilies` gives them.
+     * @returns True when anything was drawn again.
+     */
+    refreshFonts(families: ReadonlySet<string>): boolean {
+        const value = this.drawn;
+        const uses = drawnAnnotationsOf(value)?.annotations.some(
+            (a) => a.kind === "text" && fontFamilies(a.fontFamily).some((family) => families.has(family)),
+        );
+        if (uses !== true) {
+            return false;
+        }
+
+        this.drawn = undefined;
+        this.update(value);
+        return true;
     }
 
     /** Remove every drawn annotation. */
@@ -92,15 +277,69 @@ export class AnnotationMeshes {
     }
 
     private clear(): void {
+        // a picture of a disposed texture paints nothing and is waited for by nothing
+        for (const image of this.loading) {
+            image.onload = null;
+            image.onerror = null;
+        }
+
+        this.loading.clear();
         for (const mesh of this.meshes) {
-            mesh.material?.getActiveTextures().forEach((t) => {
-                t.dispose();
-            });
-            mesh.material?.dispose();
-            mesh.dispose();
+            disposeMesh(mesh);
         }
 
         this.meshes = [];
+        this.nodeArrows = [];
+        this.besides = [];
+    }
+
+    /**
+     * Move each text placed against a side of the drawing to that side of the box the drawn nodes cover now, as
+     * Graphviz places a graph's own label (`place_root_label`): its region just outside the box, at the box's left
+     * end, middle or right end. Cheap when nothing moved; left where it was drawn while no node is drawn.
+     */
+    private placeBesides(): void {
+        if (this.besides.length === 0) {
+            return;
+        }
+
+        // ponytail: one pass over every node per pass while a graph has such a text; keep a box if a graph is huge
+        const box = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
+        for (const node of this.nodes()) {
+            const p = node.getPosition();
+            const h = node.drawnHalfExtents;
+            box.x0 = Math.min(box.x0, p.x - h.x);
+            box.x1 = Math.max(box.x1, p.x + h.x);
+            box.y0 = Math.min(box.y0, p.y - h.y);
+            box.y1 = Math.max(box.y1, p.y + h.y);
+        }
+        if (!(box.x1 >= box.x0 && box.y1 >= box.y0)) {
+            return;
+        }
+
+        const k = this.scale;
+        for (const entry of this.besides) {
+            const { side, align, width, height } = entry.beside;
+            const [w, h] = [width * k, height * k];
+            const middles = { left: box.x0 + w / 2, center: (box.x0 + box.x1) / 2, right: box.x1 - w / 2 };
+            const offset = { x: middles[align], y: side === "top" ? box.y1 + h / 2 : box.y0 - h / 2 };
+            if (entry.offset?.x === offset.x && entry.offset.y === offset.y) {
+                continue;
+            }
+
+            entry.offset = offset;
+            entry.mesh.position.x = entry.home.x + offset.x;
+            entry.mesh.position.y = entry.home.y + offset.y;
+            const { annotation } = entry.metadata;
+            const b = annotation.box;
+            const moved: AnnotationMeshMetadata = {
+                annotation: {
+                    ...annotation,
+                    box: { x0: b.x0 + offset.x, y0: b.y0 + offset.y, x1: b.x1 + offset.x, y1: b.y1 + offset.y },
+                },
+            };
+            entry.mesh.metadata = moved;
+        }
     }
 
     /**
@@ -138,7 +377,11 @@ export class AnnotationMeshes {
         paint(ctx, a);
         uploadPremultiplied(texture);
         if (a.kind === "image") {
-            paintImage(texture, ctx, a);
+            const image = paintImage(texture, ctx, a, () => {
+                this.loading.delete(image);
+                this.onPicture();
+            });
+            this.loading.add(image);
         }
 
         const material = new StandardMaterial(`annotation_${a.id}`, this.scene);
@@ -184,11 +427,80 @@ export class AnnotationMeshes {
                     x1: (cx + hw) * scale,
                     y1: (cy + hh) * scale,
                 },
+                ...(a.kind === "arrow"
+                    ? {
+                          heads: headBoxes(a).map((b) => ({
+                              x0: b.x0 * scale,
+                              y0: b.y0 * scale,
+                              x1: b.x1 * scale,
+                              y1: b.y1 * scale,
+                          })),
+                      }
+                    : {}),
             },
         };
         mesh.metadata = metadata;
         return mesh;
     }
+}
+
+/**
+ * Dispose a drawn annotation's mesh, its material and its texture.
+ * @param mesh - The mesh.
+ */
+function disposeMesh(mesh: Mesh): void {
+    mesh.material?.getActiveTextures().forEach((t) => {
+        t.dispose();
+    });
+    mesh.material?.dispose();
+    mesh.dispose();
+}
+
+/**
+ * An arrow that leaves a text, started where Cytoscape starts it: where a line from the center of the text's measured
+ * box toward the arrow's end crosses the box, an X there pushed out by half its length as the file's reader does.
+ * @param a - The arrow.
+ * @param all - Every annotation drawn with it.
+ * @returns The arrow, its start moved; unchanged when it leaves no text that is drawn.
+ */
+function leaveText(a: ArrowAnnotation, all: readonly DrawnAnnotation[]): ArrowAnnotation {
+    const text = a.sourceText === undefined ? undefined : all.find((t) => t.kind === "text" && t.id === a.sourceText);
+    if (text?.kind !== "text") {
+        return a;
+    }
+
+    // ponytail: a turned text's box is taken unturned; turn it when a file arrows from a turned text
+    const box = boxOf(text);
+    const c = { x: (box.x0 + box.x1) / 2, y: (box.y0 + box.y1) / 2 };
+    const [dx, dy] = [a.to.x - c.x, a.to.y - c.y];
+    const length = Math.hypot(dx, dy);
+    if (length === 0) {
+        return a;
+    }
+
+    const t = Math.min(
+        dx === 0 ? Infinity : (box.x1 - box.x0) / 2 / Math.abs(dx),
+        dy === 0 ? Infinity : (box.y1 - box.y0) / 2 / Math.abs(dy),
+    );
+    const out = a.sourceArrow === "other:x" ? headSize(a, "source").length / 2 / length : 0;
+    return { ...a, from: { x: c.x + dx * (t + out), y: c.y + dy * (t + out) } };
+}
+
+/**
+ * An arrow stopped short of its end along its line.
+ * @param a - The arrow.
+ * @param reach - How far short, in file units, or null for not at all.
+ * @returns The arrow, its end moved; unchanged when it would stop before it starts.
+ */
+function stopShort(a: ArrowAnnotation, reach: number | null): ArrowAnnotation {
+    const [dx, dy] = [a.to.x - a.from.x, a.to.y - a.from.y];
+    const length = Math.hypot(dx, dy);
+    if (reach === null || reach <= 0 || reach >= length) {
+        return a;
+    }
+
+    const k = (length - reach) / length;
+    return { ...a, to: { x: a.from.x + dx * k, y: a.from.y + dy * k } };
 }
 
 /**
@@ -244,6 +556,18 @@ function padOf(a: DrawnAnnotation): number {
 }
 
 /**
+ * Note the font a text annotation is drawn in: a web font still loading draws in its fallback, so
+ * it is loaded and the annotations are drawn again when it lands (`AnnotationMeshes.refreshFonts`).
+ * @param scene - The scene it is drawn in.
+ * @param a - The annotation; anything but a text has no font.
+ */
+function noteTextFont(scene: Scene, a: DrawnAnnotation): void {
+    if (a.kind === "text") {
+        noteLabelFont(scene, `${a.italic ? "italic" : "normal"} ${a.bold ? "bold" : "normal"}`, a.fontFamily);
+    }
+}
+
+/**
  * The canvas font of a text annotation, in file units.
  * @param a - The text.
  * @returns The CSS font.
@@ -279,6 +603,39 @@ function headSize(a: ArrowAnnotation, end: "source" | "target"): { length: numbe
     const length = end === "source" ? a.sourceHeadLength : a.targetHeadLength;
     const width = end === "source" ? a.sourceHeadWidth : a.targetHeadWidth;
     return { length: length ?? own, width: width ?? own };
+}
+
+/**
+ * The box each drawn head of an arrow covers, in file units, y up: its length back along the line from the line's end
+ * (a cross is centered on the end, a bar lies across it) and its width across, turned with the line.
+ * @param a - The arrow.
+ * @returns One box per head drawn, target first.
+ */
+function headBoxes(a: ArrowAnnotation): Box[] {
+    const ends = [
+        { tip: a.to, tail: a.from, shape: a.targetArrow, size: headSize(a, "target") },
+        { tip: a.from, tail: a.to, shape: a.sourceArrow, size: headSize(a, "source") },
+    ];
+    return ends.flatMap(({ tip, tail, shape, size }) => {
+        if (shape === "none") {
+            return [];
+        }
+        const half = size.width / 2;
+        let along: [number, number] = [-size.length, 0];
+        if (shape === "tee") {
+            along = [0, 0];
+        } else if (shape === "other:x") {
+            along = [-size.length / 2, size.length / 2];
+        }
+        const angle = Math.atan2(tip.y - tail.y, tip.x - tail.x);
+        const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
+        const corners = along.flatMap((u) =>
+            [-half, half].map((v) => [tip.x + u * cos - v * sin, tip.y + u * sin + v * cos]),
+        );
+        const xs = corners.map((c) => c[0]);
+        const ys = corners.map((c) => c[1]);
+        return [{ x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) }];
+    });
 }
 
 /**
@@ -373,8 +730,15 @@ function paintShape(ctx: CanvasRenderingContext2D, a: ShapeAnnotation): void {
  * @param texture - The texture the context paints.
  * @param ctx - The canvas context, in file units with y up.
  * @param a - The picture.
+ * @param settled - Called once the picture is painted, or has failed to load.
+ * @returns The picture, loading.
  */
-function paintImage(texture: DynamicTexture, ctx: CanvasRenderingContext2D, a: ImageAnnotation): void {
+function paintImage(
+    texture: DynamicTexture,
+    ctx: CanvasRenderingContext2D,
+    a: ImageAnnotation,
+    settled: () => void,
+): HTMLImageElement {
     const box = boxOf(a);
     const outline = (): void => {
         if (a.borderWidth > 0 && a.borderOpacity > 0) {
@@ -398,8 +762,11 @@ function paintImage(texture: DynamicTexture, ctx: CanvasRenderingContext2D, a: I
         ctx.drawImage(image, 0, 0, a.width, a.height);
         ctx.restore();
         outline();
+        settled();
     };
+    image.onerror = settled;
     image.src = a.url;
+    return image;
 }
 
 /**

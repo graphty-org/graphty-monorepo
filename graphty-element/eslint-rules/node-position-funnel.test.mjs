@@ -54,6 +54,7 @@ tester.run("node-position-funnel", rule, {
     ],
     invalid: [
         // Every write form, on every receiver spelling.
+        { code: "node.drawnPosition.set(1, 2, 3);", errors: [write] },
         { code: "node.mesh.position.set(1, 2, 3);", errors: [write] },
         { code: "n.mesh.position.set(1, 2, 3);", errors: [write] },
         { code: "this.node.mesh.position.copyFrom(p);", errors: [write] },

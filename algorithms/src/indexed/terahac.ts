@@ -100,6 +100,231 @@ function hopCountsFrom(s: GraphSnapshot, source: number, d: Float64Array, queue:
     }
 }
 
+/** The state of one TeraHAC run, built once per call. Slot i holds one active cluster. */
+interface TeraHacState {
+    readonly n: number;
+    readonly ward: boolean;
+    /** Per ordered slot pair: the min, max, or sum of (squared) member distances. */
+    readonly agg: Float64Array;
+    readonly extreme: ((a: number, b: number) => number) | null;
+    /** Each slot's dendrogram id. */
+    readonly clusterId: Uint32Array;
+    readonly members: Uint32Array;
+    readonly active: Uint8Array;
+    /** Each slot's closest partner (-1 for none), its distance and its tie-break order. */
+    readonly best: Int32Array;
+    readonly bestDistance: Float64Array;
+    readonly bestOrder: Float64Array;
+    readonly left: U32;
+    readonly right: U32;
+    readonly distance: F64;
+    readonly size: U32;
+    merges: number;
+    remaining: number;
+}
+
+/**
+ * true when x is the pair's first cluster: the lower id of two originals, else the newer one.
+ * @param st - The run state, updated in place
+ * @param x - The first slot
+ * @param y - The second slot
+ * @returns Whether x comes first
+ */
+function orient(st: TeraHacState, x: number, y: number): boolean {
+    const a = st.clusterId[x];
+    const b = st.clusterId[y];
+    return a < st.n && b < st.n ? a < b : a > b;
+}
+
+/**
+ * The linkage distance of slots x and y, read in the orientation legacy reads it.
+ * @param st - The run state, updated in place
+ * @param x - The first slot
+ * @param y - The second slot
+ * @returns The distance
+ */
+function pairDistance(st: TeraHacState, x: number, y: number): number {
+    const { n, clusterId, members } = st;
+    const first = orient(st, x, y);
+    const p = first ? x : y;
+    const q = first ? y : x;
+    let value = st.agg[p * n + q];
+    if (clusterId[p] < n && clusterId[q] < n) {
+        // Legacy reads two original nodes' distance straight from the matrix, unsquared even for ward.
+        value = st.ward ? Math.sqrt(value) : value;
+    } else if (!st.extreme) {
+        value /= members[p] * members[q];
+    }
+    return value === Infinity ? UNREACHABLE : value;
+}
+
+/**
+ * The tie-break rank of a pair: two originals first, then by the newer cluster's id.
+ * @param st - The run state, updated in place
+ * @param x - The first slot
+ * @param y - The second slot
+ * @returns The rank
+ */
+function pairOrder(st: TeraHacState, x: number, y: number): number {
+    const { n } = st;
+    const a = st.clusterId[x];
+    const b = st.clusterId[y];
+    const lo = Math.min(a, b);
+    const hi = Math.max(a, b);
+    return hi < n ? lo * n + hi : n * n + hi * 2 * n + lo;
+}
+
+/**
+ * Makes y x's closest partner if it beats the current one.
+ * @param st - The run state, updated in place
+ * @param x - The first slot
+ * @param y - The second slot
+ */
+function offer(st: TeraHacState, x: number, y: number): void {
+    const { best, bestDistance, bestOrder } = st;
+    const d = pairDistance(st, x, y);
+    const o = pairOrder(st, x, y);
+    if (best[x] === -1 || d < bestDistance[x] || (d === bestDistance[x] && o < bestOrder[x])) {
+        best[x] = y;
+        bestDistance[x] = d;
+        bestOrder[x] = o;
+    }
+}
+
+/**
+ * Finds x's closest partner among all active slots.
+ * @param st - The run state, updated in place
+ * @param x - The first slot
+ */
+function rescan(st: TeraHacState, x: number): void {
+    st.best[x] = -1;
+    for (let y = 0; y < st.n; y++) {
+        if (st.active[y] && y !== x) {
+            offer(st, x, y);
+        }
+    }
+}
+
+/**
+ * The active slot whose closest pair is the closest, the lowest tie-break order on a tie.
+ * @param st - The run state, updated in place
+ * @returns The slot
+ */
+function closestSlot(st: TeraHacState): number {
+    const { active, bestDistance, bestOrder } = st;
+    let x = -1;
+    for (let i = 0; i < st.n; i++) {
+        if (!active[i]) {
+            continue;
+        }
+        if (
+            x === -1 ||
+            bestDistance[i] < bestDistance[x] ||
+            (bestDistance[i] === bestDistance[x] && bestOrder[i] < bestOrder[x])
+        ) {
+            x = i;
+        }
+    }
+    return x;
+}
+
+/**
+ * Folds `drop`'s aggregates into `keep`'s, in both orientations, for every other active slot.
+ * @param st - The run state, updated in place
+ * @param keep - The slot that stays
+ * @param drop - The slot merged away
+ */
+function foldAggregates(st: TeraHacState, keep: number, drop: number): void {
+    const { n, agg, extreme, active } = st;
+    for (let c = 0; c < n; c++) {
+        if (active[c] && c !== keep && c !== drop) {
+            const kc = keep * n + c;
+            const dc = drop * n + c;
+            const ck = c * n + keep;
+            const cd = c * n + drop;
+            agg[kc] = extreme ? extreme(agg[kc], agg[dc]) : agg[kc] + agg[dc];
+            agg[ck] = extreme ? extreme(agg[ck], agg[cd]) : agg[ck] + agg[cd];
+        }
+    }
+}
+
+/**
+ * Updates every closest partner after `drop` merged into `keep`.
+ * @param st - The run state, updated in place
+ * @param keep - The slot that stays
+ * @param drop - The slot merged away
+ */
+function refreshPartners(st: TeraHacState, keep: number, drop: number): void {
+    rescan(st, keep);
+    for (let c = 0; c < st.n; c++) {
+        if (!st.active[c] || c === keep) {
+            continue;
+        }
+        if (st.best[c] === keep || st.best[c] === drop) {
+            rescan(st, c);
+        } else {
+            offer(st, c, keep);
+        }
+    }
+}
+
+/**
+ * Merges slot x with its closest partner at distance d, recording the join.
+ * @param st - The run state, updated in place
+ * @param x - The first slot
+ * @param d - The pair's linkage distance
+ */
+function mergeClosest(st: TeraHacState, x: number, d: number): void {
+    const { n, clusterId, members, size } = st;
+    const partner = st.best[x];
+    const first = orient(st, x, partner);
+    const keep = first ? x : partner;
+    const drop = first ? partner : x;
+    const j = st.merges;
+    st.left[j] = clusterId[keep];
+    st.right[j] = clusterId[drop];
+    st.distance[j] = d;
+    size[j] = members[keep] + members[drop];
+    foldAggregates(st, keep, drop);
+    clusterId[keep] = n + j;
+    members[keep] = size[j];
+    st.active[drop] = 0;
+    st.merges++;
+    st.remaining--;
+    refreshPartners(st, keep, drop);
+}
+
+/**
+ * Ties what is left under one root, in ascending cluster id, as legacy does.
+ * @returns The root
+ * @param st - The run state, updated in place
+ */
+function tieRemaining(st: TeraHacState): number {
+    const { n, left, right, distance, size, merges } = st;
+    const rest = Array.from(st.clusterId.filter((_, i) => st.active[i] === 1)).sort((a, b) => a - b);
+    let root = rest[0];
+    const sizeOf = (c: number): number => (c < n ? 1 : size[c - n]);
+    for (let k = 1; k < rest.length; k++) {
+        const j = merges + k - 1;
+        left[j] = root;
+        right[j] = rest[k];
+        distance[j] = Infinity;
+        size[j] = sizeOf(root) + sizeOf(rest[k]);
+        root = n + j;
+    }
+    return root;
+}
+
+/**
+ * Whether another merge is wanted: more than one cluster, and more than `numClusters`.
+ * @param st - The run state, updated in place
+ * @param numClusters - The cluster count asked for, if any
+ * @returns Whether to merge again
+ */
+function wantsMerge(st: TeraHacState, numClusters: number | undefined): boolean {
+    return st.remaining > 1 && (numClusters === undefined || st.remaining > numClusters);
+}
+
 /**
  * TeraHAC over a snapshot: agglomerative clustering that repeatedly merges the closest pair of
  * clusters, with the same distances, merge order and tie-breaks as the legacy `teraHAC` -- but
@@ -138,133 +363,39 @@ export function teraHAC(s: GraphSnapshot, options: TeraHacOptions = {}): TeraHac
         }
     }
     const extremes = { single: Math.min, complete: Math.max, average: null, ward: null };
-    const extreme = extremes[linkage];
-
     const joins = Math.max(0, n - 1);
-    const left = new Uint32Array(joins);
-    const right = new Uint32Array(joins);
-    const distance = new Float64Array(joins);
-    const size = new Uint32Array(joins);
-
-    // Slot i holds one active cluster: its dendrogram id, its size, and its closest partner.
-    const clusterId = new Uint32Array(n);
-    const members = new Uint32Array(n).fill(1);
-    const active = new Uint8Array(n).fill(1);
-    for (let i = 0; i < n; i++) {
-        clusterId[i] = i;
-    }
-    const orient = (x: number, y: number): boolean => {
-        // true when x is the pair's first cluster: the lower id of two originals, else the newer one
-        const a = clusterId[x];
-        const b = clusterId[y];
-        return a < n && b < n ? a < b : a > b;
-    };
-    const pairDistance = (x: number, y: number): number => {
-        const [p, q] = orient(x, y) ? [x, y] : [y, x];
-        let value = agg[p * n + q];
-        if (clusterId[p] < n && clusterId[q] < n) {
-            // Legacy reads two original nodes' distance straight from the matrix, unsquared even for ward.
-            value = linkage === "ward" ? Math.sqrt(value) : value;
-        } else if (!extreme) {
-            value /= members[p] * members[q];
-        }
-        return value === Infinity ? UNREACHABLE : value;
-    };
-    const pairOrder = (x: number, y: number): number => {
-        const a = clusterId[x];
-        const b = clusterId[y];
-        const lo = Math.min(a, b);
-        const hi = Math.max(a, b);
-        return hi < n ? lo * n + hi : n * n + hi * 2 * n + lo;
-    };
-    const best = new Int32Array(n).fill(-1);
-    const bestDistance = new Float64Array(n);
-    const bestOrder = new Float64Array(n);
-    const offer = (x: number, y: number): void => {
-        const d = pairDistance(x, y);
-        const o = pairOrder(x, y);
-        if (best[x] === -1 || d < bestDistance[x] || (d === bestDistance[x] && o < bestOrder[x])) {
-            best[x] = y;
-            bestDistance[x] = d;
-            bestOrder[x] = o;
-        }
-    };
-    const rescan = (x: number): void => {
-        best[x] = -1;
-        for (let y = 0; y < n; y++) {
-            if (active[y] && y !== x) {
-                offer(x, y);
-            }
-        }
+    const st: TeraHacState = {
+        n,
+        ward: linkage === "ward",
+        agg,
+        extreme: extremes[linkage],
+        clusterId: Uint32Array.from({ length: n }, (_, i) => i),
+        members: new Uint32Array(n).fill(1),
+        active: new Uint8Array(n).fill(1),
+        best: new Int32Array(n).fill(-1),
+        bestDistance: new Float64Array(n),
+        bestOrder: new Float64Array(n),
+        left: new Uint32Array(joins),
+        right: new Uint32Array(joins),
+        distance: new Float64Array(joins),
+        size: new Uint32Array(joins),
+        merges: 0,
+        remaining: n,
     };
     for (let x = 0; x < n; x++) {
-        rescan(x);
+        rescan(st, x);
     }
-
-    let remaining = n;
-    let merges = 0;
-    while (remaining > 1 && (numClusters === undefined || remaining > numClusters)) {
-        let x = -1;
-        for (let i = 0; i < n; i++) {
-            if (
-                active[i] &&
-                (x === -1 ||
-                    bestDistance[i] < bestDistance[x] ||
-                    (bestDistance[i] === bestDistance[x] && bestOrder[i] < bestOrder[x]))
-            ) {
-                x = i;
-            }
-        }
-        const d = bestDistance[x];
+    while (wantsMerge(st, numClusters)) {
+        const x = closestSlot(st);
+        const d = st.bestDistance[x];
         if (distanceThreshold !== undefined && d > distanceThreshold) {
             break;
         }
-        const [keep, drop] = orient(x, best[x]) ? [x, best[x]] : [best[x], x];
-        left[merges] = clusterId[keep];
-        right[merges] = clusterId[drop];
-        distance[merges] = d;
-        size[merges] = members[keep] + members[drop];
-        for (let c = 0; c < n; c++) {
-            if (active[c] && c !== keep && c !== drop) {
-                const kc = keep * n + c;
-                const dc = drop * n + c;
-                const ck = c * n + keep;
-                const cd = c * n + drop;
-                agg[kc] = extreme ? extreme(agg[kc], agg[dc]) : agg[kc] + agg[dc];
-                agg[ck] = extreme ? extreme(agg[ck], agg[cd]) : agg[ck] + agg[cd];
-            }
-        }
-        clusterId[keep] = n + merges;
-        members[keep] = size[merges];
-        active[drop] = 0;
-        merges++;
-        remaining--;
-        rescan(keep);
-        for (let c = 0; c < n; c++) {
-            if (active[c] && c !== keep) {
-                if (best[c] === keep || best[c] === drop) {
-                    rescan(c);
-                } else {
-                    offer(c, keep);
-                }
-            }
-        }
+        mergeClosest(st, x, d);
     }
-
-    // Tie what is left under one root, in ascending cluster id, as legacy does.
-    const rest = Array.from(clusterId.filter((_, i) => active[i] === 1)).sort((a, b) => a - b);
-    let root = rest[0];
-    const sizeOf = (c: number): number => (c < n ? 1 : size[c - n]);
-    for (let k = 1; k < rest.length; k++) {
-        const j = merges + k - 1;
-        left[j] = root;
-        right[j] = rest[k];
-        distance[j] = Infinity;
-        size[j] = sizeOf(root) + sizeOf(rest[k]);
-        root = n + j;
-    }
-
-    const cut = cutDendrogram(n, left, right, root, numClusters ?? remaining);
+    const root = tieRemaining(st);
+    const { left, right, distance, size, merges } = st;
+    const cut = cutDendrogram(n, left, right, root, numClusters ?? st.remaining);
     const { labels, count } = renumberPartition(cut);
     return { ...withGroups(labels, count), left, right, distance, size, merges, root };
 }

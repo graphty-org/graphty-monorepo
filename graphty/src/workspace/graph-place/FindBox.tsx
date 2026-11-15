@@ -1,12 +1,6 @@
 import { ResultRow, SearchInput } from "@graphty/compact-mantine";
 import type { FindHit, FindResult, FindValueRow } from "@graphty/graphty-element";
-import {
-    type GraphSession,
-    isGraphtyError,
-    renamePaths,
-    type RuleCheck,
-    rulePath,
-} from "@graphty/graphty-element/session";
+import { type GraphSession, isGraphtyError, type RuleCheck, rulePath } from "@graphty/graphty-element/session";
 import { ScrollArea, Text, VisuallyHidden } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -16,7 +10,7 @@ import { focusValuesNext, takeValuesFocus } from "../inspector/reads";
 import { edgeJoiner, edgeName, selectedNameWords, sizeWords, valueWord, yesNoWord } from "../inspector/words";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { selectorName } from "../style/cards";
-import { attributeName, readableName } from "../style/words";
+import { attributeName, plainRule, readableName, shownName, shownRule } from "../style/words";
 import { useSessionVersion } from "./useSessionVersion";
 
 /** The find box's id, which `find.focus` ("/") moves focus to. */
@@ -92,53 +86,6 @@ function exampleRule(session: GraphSession): string | null {
         }
     }
     return null;
-}
-
-/**
- * A rule as the reader reads and types it: its numbers without the backticks the element writes
- * around them. Only numbers: a backticked text or `true` means something else bare.
- * @param rule - the rule, without "=".
- * @returns the rule.
- */
-function plainRule(rule: string): string {
-    return rule.replaceAll(/`(-?\d+(?:\.\d+)?)`/g, "$1");
-}
-
-/**
- * The name the panels show a column a rule reads by: a run's value under its run's name, a node's
- * structure under its own (Degree, never graphty.degree).
- * @param session - the element's session.
- * @param path - the path as the rule names it: a bare column name or a dotted path.
- * @returns the name, or undefined for a path no value answers.
- */
-function shownName(session: GraphSession, path: string): string | undefined {
-    const value = session.data
-        .readableValues()
-        .find((each) => each.end === undefined && (each.path === path || rulePath(each.path) === path));
-    if (value !== undefined) {
-        return readableName(session, value).name;
-    }
-    const structure = session.data.structureValues().find((each) => each.path === path);
-    if (structure !== undefined) {
-        return structure.plainName;
-    }
-    const named = attributeName(session, path);
-    return named === path ? undefined : named;
-}
-
-/**
- * A rule as the find box shows it: each column under the name the panels give it, numbers bare.
- * It is shown, never typed back: a rule reads columns by their paths.
- * @param session - the element's session.
- * @param rule - the rule, without "=".
- * @returns the words.
- */
-function shownRule(session: GraphSession, rule: string): string {
-    try {
-        return plainRule(renamePaths(rule, (path) => shownName(session, path)));
-    } catch {
-        return plainRule(rule);
-    }
 }
 
 /**
@@ -714,7 +661,7 @@ async function runTypedRule(
             setRefusal(unknown);
             return;
         }
-        await current.selection.apply({ text: rule });
+        await current.selection.apply({ text: rule }, "replace", { cause: "user" });
     } catch (error) {
         const refused = ruleRefusal(error);
         if (refused === null) {
@@ -750,7 +697,9 @@ async function addPick(
     session: GraphSession,
     option: Extract<Option, { type: "value" | "hit" }>,
 ): Promise<void> {
-    await session.selection.apply(option.type === "hit" ? option.hit.target : valueTarget(option), "add");
+    await session.selection.apply(option.type === "hit" ? option.hit.target : valueTarget(option), "add", {
+        cause: "user",
+    });
     ctx.shiftPicked.current = true;
     if (option.type === "value") {
         ctx.setPickedValues((before) => new Set(before).add(valueKey(option)));
@@ -767,7 +716,7 @@ async function addPick(
 async function pickHit(ctx: PickContext, session: GraphSession, hit: FindHit): Promise<void> {
     // The keyboard follows the pick into the node's or the edge's values, out of the box (task T12).
     focusValuesNext();
-    await session.selection.apply(hit.target);
+    await session.selection.apply(hit.target, "replace", { cause: "user" });
     // The inspector shows what is selected once no row is open.
     ctx.store.set({ inspected: null });
     // On the Style tab no values view takes the request: the title does, so Enter leaves the
@@ -817,7 +766,7 @@ async function pickOption(ctx: PickContext, option: Option, adding: boolean): Pr
     ctx.setText("");
     ctx.setActive(-1);
     if (option.type === "value") {
-        await session.selection.apply(valueTarget(option));
+        await session.selection.apply(valueTarget(option), "replace", { cause: "user" });
         return;
     }
     await pickHit(ctx, session, option.hit);

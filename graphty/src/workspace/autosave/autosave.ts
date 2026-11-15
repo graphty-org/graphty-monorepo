@@ -5,11 +5,14 @@
  */
 
 import type { AutosaveEntry } from "@graphty/graphty-element";
-import { listAutosaves, removeAutosave } from "@graphty/graphty-element/session";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
+import { type GraphSession, listAutosaves, removeAutosave } from "@graphty/graphty-element/session";
 
 import type { CommandContext } from "../commands/registry";
-import { newProjectId, type WorkspaceStore } from "../state/store";
-import { reopenedSentence } from "./words";
+import { baseName } from "../data-page/words";
+import { focusMainHeading } from "../frame/focus";
+import { keptName, keptPlace, newProjectId, startOpening, stashedPlace, type WorkspaceStore } from "../state/store";
+import { reopenedSentence, reopenedTabSentence } from "./words";
 
 /** The key graphty-element keeps the workspace's work under. */
 export const WORKSPACE_AUTOSAVE_KEY = "app.graphty.workspace";
@@ -18,25 +21,56 @@ export const WORKSPACE_AUTOSAVE_KEY = "app.graphty.workspace";
  * The element's autosave options: ask the browser to keep the site's storage, and reopen nothing
  * by itself, because the start screen asks the reader first.
  */
-export const WORKSPACE_AUTOSAVE_OPTIONS = { persist: true, restore: "manual" } as const;
+export const WORKSPACE_AUTOSAVE_OPTIONS = { persist: true, restore: "manual", keepCamera: true } as const;
 
-/**
- * The work to offer on the start screen: the newest entry that holds changes never saved to a
- * file, that no tab is writing and that was not replaced by another project.
- * @returns the entry, or null when there is nothing to offer.
- */
-export async function findRecovered(): Promise<AutosaveEntry | null> {
-    const entries = await listAutosaves(WORKSPACE_AUTOSAVE_KEY);
-    return [...entries].reverse().find((entry) => entry.dirty && !entry.live && entry.ended === undefined) ?? null;
+/** The workspace's facts about opening and reopening projects: ids and counts, never data. */
+const logger = GraphtyLogger.getLogger(["graphty", "workspace"]);
+
+/** What graphty-element keeps for the workspace, as the start of a visit needs it. */
+interface KeptWork {
+    /** This tab's own entry (a reload, or a tab the browser discarded and loaded again), or null. */
+    readonly own: AutosaveEntry | null;
+    /**
+     * The work to offer on the start screen: the newest entry no tab is writing and no project
+     * replaced that holds changes never saved to a file; or null.
+     */
+    readonly recovered: AutosaveEntry | null;
+    /** Every kept entry's id. */
+    readonly ids: readonly string[];
 }
 
 /**
- * Restore: opens a project whose element reopens the entry once it has come up.
+ * What graphty-element keeps for the workspace: this tab's own entry, which reopens by itself,
+ * and other work to offer. graphty-element decides which entry is this tab's (`own`), so a
+ * duplicated tab never writes the same entry as its original.
+ * @returns this tab's entry and the work to offer.
+ */
+export async function findKept(): Promise<KeptWork> {
+    const entries = await listAutosaves(WORKSPACE_AUTOSAVE_KEY);
+    const own = entries.find((entry) => entry.own === true && entry.ended === undefined) ?? null;
+    // The newest work holding changes: a newer visit that changed nothing does not hide it.
+    const newest = [...entries].reverse().find((entry) => !entry.live && entry.ended === undefined && entry.dirty);
+    return { own, recovered: newest ?? null, ids: entries.map((entry) => entry.id) };
+}
+
+/**
+ * Opens a project whose element reopens an entry once it has come up.
  * @param store - the workspace store.
  * @param entry - the entry.
+ * @param after - what to do once it is open, with the project's name.
+ * @param focus - where focus goes once it is open; the opened graph's heading by default.
+ * @param shown - the name this tab's header showed for it, for this tab's own work.
  */
-export function restoreRecovered(store: WorkspaceStore, entry: AutosaveEntry): void {
-    const name = entry.name === "" ? "Recovered work" : entry.name;
+function reopen(
+    store: WorkspaceStore,
+    entry: AutosaveEntry,
+    after: (name: string, place: ReturnType<typeof stashedPlace>) => void,
+    focus?: () => void,
+    shown?: string,
+): void {
+    // An entry the reader never renamed has no name of its own: until the restore says what the
+    // data is, the header keeps the new-project name.
+    const name = entry.name === "" ? (shown ?? "Untitled") : entry.name;
     store.set((state) => ({
         recovered: null,
         project: { name, id: newProjectId(state) },
@@ -44,17 +78,79 @@ export function restoreRecovered(store: WorkspaceStore, entry: AutosaveEntry): v
         place: "graph",
         inspected: null,
         dialog: null,
-        opening: {
+        ...startOpening({
             name,
-            load: async (_session, element) => {
+            load: async (session, element) => {
                 const report = await element.autosaver.restore(entry.id, { discard: true });
-                store.set((now) => ({
-                    project: now.project && { ...now.project, name: report.name ?? name },
-                    notice: { message: reopenedSentence(entry) },
-                }));
+                // Read before the store changes again, which stashes the place shown now.
+                const place = stashedPlace(element);
+                // This tab's own work keeps the name its header showed; other work is named by its data.
+                const opened = report.name ?? (shown === undefined ? dataName(session) : null) ?? name;
+                store.set((now) => ({ project: now.project && { ...now.project, name: opened } }));
+                after(opened, place);
             },
-        },
+            ...(focus === undefined ? {} : { focus }),
+        }),
     }));
+}
+
+/**
+ * Restore: opens work kept from an earlier visit, and says so.
+ * @param store - the workspace store.
+ * @param entry - the entry.
+ */
+export function restoreRecovered(store: WorkspaceStore, entry: AutosaveEntry): void {
+    logger.info("restore pressed", { entry: entry.id, nodes: entry.nodes, edges: entry.edges });
+    reopen(store, entry, (_name, place) => {
+        store.set({ ...place, notice: { message: reopenedSentence(entry) } });
+    });
+}
+
+/**
+ * Reopens this tab's own work after a reload or a discarded tab came back: straight into the
+ * workspace, at the page, place, tab and row the reader left, with no offer and no notice; the
+ * status line says what reopened.
+ * @param store - the workspace store.
+ * @param entry - this tab's entry.
+ */
+export function reopenOwn(store: WorkspaceStore, entry: AutosaveEntry): void {
+    // Read before the project opens: opening it writes the Graph place over what was kept.
+    const { inspected: row, ...where } = keptPlace();
+    reopen(
+        store,
+        entry,
+        (name) => {
+            // The row is put back once the data is in, so it exists; a reader who went somewhere
+            // meanwhile (a rail click while the work reopened) stays there.
+            const { page, place, inspected } = store.get();
+            const stayed = page === where.page && place === where.place && inspected === null;
+            store.set({
+                ...(stayed && row !== undefined ? { inspected: row } : {}),
+                announcement: reopenedTabSentence(name),
+            });
+        },
+        focusMainHeading,
+        keptName() ?? undefined,
+    );
+    // The page, place and tabs need no data: they are back at once, so the frame never shows the
+    // Graph place first and a place the reader left open (the Assistant) is open from the start,
+    // never flipped on under a click that meant to open it.
+    store.set(where);
+}
+
+/**
+ * The name a new project takes from its data, as the data page names one: a file's name without
+ * its extension, or a sample's or server's own name.
+ * @param session - the restored session.
+ * @returns the name, or null when the data has none.
+ */
+function dataName(session: GraphSession): string | null {
+    const source = session.data.source();
+    if (source?.name === undefined || source.name === "") {
+        return null;
+    }
+    // `size` is set only when a file was read.
+    return source.size === undefined ? source.name : baseName(source.name);
 }
 
 /**

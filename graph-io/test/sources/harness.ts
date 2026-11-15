@@ -10,6 +10,7 @@ import { inspect } from "node:util";
 
 import { describe, expect, it, vi } from "vitest";
 
+import { jsonText } from "../../src/common/text.js";
 import {
     type Credential,
     credentials,
@@ -50,7 +51,7 @@ interface ConformanceCase {
 function serialized(value: unknown): string {
     let json = "";
     try {
-        json = JSON.stringify(value) ?? "";
+        json = jsonText(value) ?? "";
     } catch {
         // a cycle; inspect still sees everything
     }

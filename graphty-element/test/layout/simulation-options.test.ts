@@ -17,7 +17,7 @@ import type { ForceAtlas2Options, FruchtermanReingoldOptions, SpringElectricalOp
 import { assert, describe, it } from "vitest";
 
 import { ForceAtlas2Layout } from "../../src/layout/ForceAtlas2LayoutEngine";
-import { iterationsPerStepFor, resolveNodeMass } from "../../src/layout/SimulationLayoutEngine";
+import { iterationsPerStepFor, packedRadius, resolveNodeMass } from "../../src/layout/SimulationLayoutEngine";
 import { resolveSimulationOptions } from "../../src/managers/LayoutManager";
 
 /** `behavior.layout` as the element resolves it, with everything at its default. */
@@ -182,6 +182,39 @@ describe("the force layouts' option mapping", () => {
 
         assert.strictEqual(model({}).maxIter, null, "no cap: the run ends when it settles");
         assert.strictEqual(model({ maxIter: 250 }).maxIter, 250);
+    });
+
+    it("hands the bridge clusterBy and keeps it out of the simulation's own options", () => {
+        for (const type of ["forceatlas2", "spring", "spring-electrical"] as const) {
+            const resolved = resolveSimulationOptions(type, { clusterBy: "data.group", clusterStrength: 2 }, BEHAVIOR);
+            assert.strictEqual(resolved.clusterBy, "data.group");
+            assert.strictEqual(resolved.clusterStrength, 2);
+            assert.notProperty(resolved.model, "clusterBy");
+            assert.isNull(resolveSimulationOptions(type, {}, BEHAVIOR).clusterBy, "off by default");
+        }
+    });
+
+    it("hands the bridge nodeGap and keeps it out of the simulation's own options", () => {
+        for (const type of ["forceatlas2", "spring", "spring-electrical"] as const) {
+            const resolved = resolveSimulationOptions(type, { nodeGap: 3, nodeGapFront: true }, BEHAVIOR);
+            assert.strictEqual(resolved.nodeGap, 3);
+            assert.isTrue(resolved.nodeGapFront);
+            assert.notProperty(resolved.model, "nodeGap");
+            assert.isNull(resolveSimulationOptions(type, {}, BEHAVIOR).nodeGap, "off by default");
+        }
+    });
+
+    it("caps a spring-electrical run with nodeGap, whose springs would otherwise pull against it for ever", () => {
+        const model = (options: Record<string, unknown>): SpringElectricalOptions =>
+            resolveSimulationOptions("spring-electrical", options, BEHAVIOR).model;
+        assert.strictEqual(model({ nodeGap: 1 }).maxIter, 1000);
+        assert.strictEqual(model({ nodeGap: 1, maxIter: 40 }).maxIter, 40);
+        assert.isNull(model({}).maxIter);
+    });
+
+    it("sizes the radius nodes need at half of a disc or a ball", () => {
+        assert.closeTo(packedRadius(new Float32Array(50).fill(2), 2), 20, 1e-6);
+        assert.closeTo(packedRadius(new Float32Array(4).fill(1), 3), 2, 1e-6);
     });
 
     it("resolves a node-mass record by node id, not by insertion order", () => {

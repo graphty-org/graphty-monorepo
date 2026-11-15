@@ -7,8 +7,9 @@
  *   fails puts every part it carried back.
  * - **Schedule.** While visible, a 500 ms trailing debounce, at most 2000 ms after the first
  *   unwritten change. A write that carries the `data` part waits for an idle moment, at most
- *   `dataMaxWaitMs`; other changes join it. A finished run is written at once, and so is
- *   everything when `flush()` is called. One write at a time.
+ *   `dataMaxWaitMs`; other changes join it. While hidden (`hidden`), every change is written at
+ *   once, since the browser throttles or stops timers then. A finished run is written at once,
+ *   and so is everything when `flush()` is called. One write at a time.
  * - **Boundaries.** When the project is about to be replaced, what this entry has not committed is
  *   built at once and written, and the entry is marked `ended: "replaced"` in the same commit as
  *   the new entry's first write, so a kill in between leaves the old entry restorable.
@@ -21,12 +22,15 @@
 
 import type { RunId } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
 import { dispatcherOf } from "../session/GraphSession";
+import { loadLineOf, type LoadTurn, supersededError } from "../session/loadLine";
 import { onProjectBoundary } from "../session/project/boundary";
-import { markProjectUnsaved } from "../session/projectFile";
+import { markProjectUnsaved, onSourceRecords } from "../session/projectFile";
 import { ENGINE_VERSIONS } from "../session/runs";
 import type { CodedFact } from "../session/shared";
 import type { GraphSession, ProjectSlice } from "../session/types";
+import { wholeGraph } from "../session/working/graphs";
 import { buildParts, EVERY_PART, type PartTag, PartTooLarge, reassemble, stashOf } from "./parts";
 import {
     canRead,
@@ -53,11 +57,15 @@ import {
     isAutosaveConflict,
 } from "./types";
 
-/** The entry format this code writes. */
+/**
+ * The entry format this code writes. Exported, and so tagged public, because
+ * tools/channel/nightly.mjs reads this declaration from the source text as written here.
+ * @public
+ */
 export const AUTOSAVE_FORMAT_VERSION = 1;
 
 /** How long a write may go without completing or failing before it is aborted. */
-export const WATCHDOG_MS = 10_000;
+const WATCHDOG_MS = 10_000;
 
 /** The history steps a page-supplied load makes; any other step made during one is the reader's. */
 const PAGE_LOAD_CODES: ReadonlySet<string> = new Set([
@@ -73,8 +81,48 @@ const DEADLINE_LATE_MS = 1_000;
 /** How long the listing at the start may take before the page loads without a restore. */
 export const LIST_TIMEOUT_MS = 3000;
 
+/** The store step that did not finish in time: the listing, a read of an entry, or a commit. */
+type AutosaveStallStep = "list" | "read" | "restore";
+
+/**
+ * The error a store step that did not finish in time rejects with.
+ * @param step - Which step.
+ * @param afterMs - The deadline it missed.
+ * @returns `E_AUTOSAVE_STALLED`, `details: { afterMs, step }`.
+ */
+function stalledError(step: AutosaveStallStep, afterMs: number): GraphtyError {
+    return new GraphtyError({
+        code: "E_AUTOSAVE_STALLED",
+        message: `Autosave's ${step} did not finish within ${String(afterMs)} ms.`,
+        source: "data",
+        details: { afterMs, step },
+    });
+}
+
+/**
+ * Whether an error is a stalled store step's.
+ * @param error - What was thrown.
+ * @returns True for `E_AUTOSAVE_STALLED`.
+ */
+function isStalled(error: unknown): error is GraphtyError {
+    return isGraphtyError(error) && error.code === "E_AUTOSAVE_STALLED";
+}
+
+/**
+ * A stall's facts, as a problem's parameters.
+ * @param error - The stall.
+ * @returns `{ afterMs, step }`.
+ */
+function stallParams(error: GraphtyError): { afterMs: number; step: AutosaveStallStep } {
+    const { afterMs, step } = error.details as { afterMs: number; step: AutosaveStallStep };
+    return { afterMs, step };
+}
+
+/** Facts about each entry and write, for a reader of the logs: ids, counts and booleans, never data. */
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "autosave"]);
+
 /** Automatic restores started and never confirmed, after which an entry is no longer restored automatically. */
-export const RESTORE_ATTEMPTS = 2;
+const RESTORE_ATTEMPTS = 2;
 
 /** Time, timers and idle callbacks: the real ones, or a test's. */
 export interface AutosaveClock {
@@ -150,12 +198,18 @@ export interface AutosaverOptions {
     readonly keep?: number;
     readonly clock?: AutosaveClock;
     readonly locks?: AutosaveLocks;
+    /** Whether the page is hidden now: a change made then is written at once, with no timer. */
+    readonly hidden?: () => boolean;
+    /** Told an entry's id when its first change is made, before anything is written. */
+    readonly onEntryStart?: (id: string) => void;
 }
 
 /** What the restore at the start is told. */
 export interface RecoverOptions {
     /** This tab's own previous entry, which comes first; null or absent when the tab has none. */
     readonly own?: string | null;
+    /** The entry this tab named before `own`, for when `own` was never written or was replaced. */
+    readonly ownBefore?: string | null;
     /** `"manual"` restores nothing and only reports the newest entry; `"auto"` by default. */
     readonly restore?: "auto" | "manual";
     /** Every setting the page made, by name, as it is now. */
@@ -173,7 +227,11 @@ interface EntryState {
     unwritten: Set<PartTag>;
     /** The run entries in the store, by id. */
     readonly runs: Map<RunId, unknown>;
+    /** The digests of the embedded models whose `asset:` parts the store holds. */
+    assets: Set<string>;
     release: (() => void) | null;
+    /** A claim of its lock in flight, which every other claim of it shares (`#claim`). */
+    claiming: Promise<(() => void) | null> | null;
     /** The size of each part the store holds for it, as far as this writer knows. */
     sizes: Map<string, number>;
 }
@@ -296,6 +354,7 @@ function tagsOf(slices: readonly ProjectSlice[]): PartTag[] {
             case "views":
             case "notes":
             case "attributes":
+            case "shaders":
                 tags.push("rest");
                 break;
             default:
@@ -326,6 +385,24 @@ interface WriteRetries {
  */
 function errorName(error: unknown): string {
     return error instanceof Error ? error.name : "Error";
+}
+
+/**
+ * This tab's own entry among the listed ones: the one it named before, while that is open, else
+ * the one it names. A reload that comes while a page is reopening the tab's work finds the tab
+ * naming the entry that page started for its own setup, and the work as the one named before.
+ * @param metas - Every entry of the key.
+ * @param own - The entry this tab names, if any.
+ * @param before - The entry it named before, if any.
+ * @returns The entry id.
+ */
+export function ownAmong(
+    metas: readonly AutosaveEntryMeta[],
+    own: string | null,
+    before: string | null,
+): string | null {
+    const open = before !== null && metas.some((meta) => meta.id === before && meta.ended !== "replaced");
+    return open ? before : own;
 }
 
 /**
@@ -377,6 +454,8 @@ export class Autosaver {
     readonly #delayMs: number;
     readonly #maxWaitMs: number;
     readonly #dataMaxWaitMs: number;
+    readonly #hidden: () => boolean;
+    readonly #onEntryStart: ((id: string) => void) | undefined;
     readonly #keep: number;
     readonly #clock: AutosaveClock;
     readonly #locks: AutosaveLocks;
@@ -389,6 +468,8 @@ export class Autosaver {
     #endings: Ending[] = [];
     /** Committed project changes seen so far: the revision a write built now contains. */
     #changes = 0;
+    /** {@link unsavedChanges} as the status listeners were last told it. */
+    #toldUnsaved = false;
     #saved: { at: string; revision: number } | null = null;
     #problem: CodedFact<AutosaveCode> | null = null;
     /** What the write in flight carries, so a boundary rewrites it too. */
@@ -402,8 +483,10 @@ export class Autosaver {
     #maxWait: (() => void) | null = null;
     #idle: (() => void) | null = null;
     #told = "";
-    /** A restore is opening an entry: its changes and its boundary are not new work. */
-    #restoring = false;
+    /** A restore is opening an entry, or a discard reloads: see {@link #restoring}. */
+    #restoringFlag = false;
+    /** The restore's place in the session's load line, once its turn has come. */
+    #restoreTurn: LoadTurn | null = null;
     /** A page-supplied load is running: its changes do not start an entry. */
     #quiet = 0;
     /** Changes made during a page load, and the parts they touched, until the load says whose they were. */
@@ -426,6 +509,8 @@ export class Autosaver {
     };
     /** The page's settings, digested, as written with every meta. */
     #pageConfig: Record<string, string> = {};
+    /** An entry an open read with losses, kept as it was until the reader saves the project. */
+    #kept: string | null = null;
     /** The restored entry, until the first change or the first page load after the restore. */
     #absorb: AutosaveEntryMeta | null = null;
     #restored: AutosaveRestored | null = null;
@@ -441,6 +526,8 @@ export class Autosaver {
         this.#delayMs = options.delayMs ?? 500;
         this.#maxWaitMs = options.maxWaitMs ?? 2000;
         this.#dataMaxWaitMs = options.dataMaxWaitMs ?? 10_000;
+        this.#hidden = options.hidden ?? (() => false);
+        this.#onEntryStart = options.onEntryStart;
         this.#keep = options.keep ?? 10;
         this.#clock = options.clock ?? realClock;
         this.#locks = options.locks ?? noLocks;
@@ -472,6 +559,25 @@ export class Autosaver {
             }),
             session.on("project:status", () => {
                 this.#tell();
+            }),
+            // A model a layer named by URL settled after the layer was written: embed it now.
+            session.on("model:changed", ({ state }) => {
+                if (state === "accepted" && this.#entry.started) {
+                    this.#mark(["rest"], false, false);
+                }
+            }),
+            onSourceRecords(session, () => {
+                // A record can change with no row (a refresh that found nothing new, a next page
+                // already held), and the sources part is written with the data part. A change
+                // before the entry starts is a project being opened, which writes nothing here.
+                if (this.#entry.started) {
+                    this.#mark(["data"], false, false);
+                }
+            }),
+            session.on("time:pause", () => {
+                if (this.#entry.unwritten.size > 0 && !this.#stopped) {
+                    this.#schedule();
+                }
             }),
             onProjectBoundary(session, () => {
                 this.#boundary();
@@ -534,6 +640,15 @@ export class Autosaver {
      */
     get started(): boolean {
         return this.#entry.started;
+    }
+
+    /**
+     * Whether a change counted in the revision (one the reader or a load made) is not yet
+     * committed; a write of layout positions alone holds none.
+     * @returns True while one is outstanding.
+     */
+    get unsavedChanges(): boolean {
+        return this.#changes > (this.#saved?.revision ?? 0) || this.#heldReaderWork();
     }
 
     /**
@@ -698,7 +813,11 @@ export class Autosaver {
         }
 
         // This tab's own entry, and never an unrelated one when it has one; else the newest first.
-        const own = metas.find((meta) => meta.id === options.own);
+        const ownId = ownAmong(metas, options.own ?? null, options.ownBefore ?? null);
+        const own = metas.find((meta) => meta.id === ownId);
+        // The first candidate another tab claimed after the listing: two pages opened on one key
+        // at once both list it unheld, and only one claim succeeds (#4148).
+        let taken: AutosaveEntryMeta | null = null;
         for (const meta of restoreCandidates(open, own)) {
             const problem = unrestorable(meta);
             if (problem !== null) {
@@ -711,13 +830,39 @@ export class Autosaver {
                 return null;
             }
 
-            const restored = await this.#restoreFrom(meta, meta === own && live(meta), metas, live);
-            if (restored !== "next") {
+            const restored = await this.#restoreCandidate(meta, meta === own, metas, live);
+            if (restored === "taken") {
+                taken ??= meta;
+            } else if (restored !== "next") {
                 return restored;
             }
         }
 
+        // A page that lost every claim is told, as when the listing already showed the entry held.
+        if (taken !== null) {
+            this.#available(taken, true, "held-by-other-tab", null);
+        }
+
         return null;
+    }
+
+    /**
+     * Restore one candidate at the start. This tab's own entry that another tab claimed after the
+     * listing is copied, as it is when the listing shows it held.
+     * @param meta - The candidate, as listed.
+     * @param isOwn - It is this tab's own entry.
+     * @param metas - Every entry of the key, as listed.
+     * @param live - Whether a tab held an entry at the listing.
+     * @returns What `#restoreFrom` returns.
+     */
+    async #restoreCandidate(
+        meta: AutosaveEntryMeta,
+        isOwn: boolean,
+        metas: readonly AutosaveEntryMeta[],
+        live: (meta: AutosaveEntryMeta) => boolean,
+    ): Promise<AutosaveRestored | null | "next" | "taken"> {
+        const restored = await this.#restoreFrom(meta, isOwn && live(meta), metas, live, true);
+        return restored === "taken" && isOwn ? this.#restoreFrom(meta, true, metas, live, true) : restored;
     }
 
     /**
@@ -924,19 +1069,44 @@ export class Autosaver {
             return;
         }
 
-        const release = await this.#locks.claim(lockName(this.#key, entry.id));
+        const release = await this.#claim(entry);
         if (entry !== this.#entry) {
             release?.();
+            entry.release = null;
             return;
         }
 
-        if (release !== null) {
-            entry.release = release;
-            return;
+        if (release === null) {
+            this.#conflict(entry.id);
+            this.#kick();
+        }
+    }
+
+    /**
+     * Take an entry's lock, sharing a claim of it already in flight. Two claims of one lock from
+     * this page would see each other as another tab: after the back/forward cache, a write that
+     * claims the released lock and `reclaim` race for it, and the loser moved the work to a new
+     * entry (#4037).
+     * @param entry - The entry.
+     * @returns The lock's release, also kept as `entry.release`; null when it is held elsewhere.
+     */
+    #claim(entry: EntryState): Promise<(() => void) | null> {
+        if (entry.release !== null) {
+            return Promise.resolve(entry.release);
         }
 
-        this.#conflict(entry.id);
-        this.#kick();
+        entry.claiming ??= this.#locks.claim(lockName(this.#key, entry.id)).then(
+            (release) => {
+                entry.claiming = null;
+                entry.release = release;
+                return release;
+            },
+            (error: unknown) => {
+                entry.claiming = null;
+                throw error;
+            },
+        );
+        return entry.claiming;
     }
 
     /**
@@ -974,7 +1144,7 @@ export class Autosaver {
         metas: readonly AutosaveEntryMeta[];
         live: (meta: AutosaveEntryMeta) => boolean;
     }> {
-        const metas = await this.#store.list(this.#key);
+        const metas = await this.#within(this.#store.list(this.#key), "list", LIST_TIMEOUT_MS);
         const meta = metas.find((each) => each.id === id);
         if (meta === undefined) {
             throw entryError("E_AUTOSAVE_UNKNOWN_ENTRY", id);
@@ -1019,7 +1189,10 @@ export class Autosaver {
      * @param discard - Open it over changes never saved to a file.
      * @returns The project-open report.
      * @throws {GraphtyError} `E_UNSAVED_CHANGES`, `E_AUTOSAVE_UNKNOWN_ENTRY`,
-     *     `E_AUTOSAVE_ENTRY_TAKEN`, or the code the entry could not be opened with.
+     *     `E_AUTOSAVE_ENTRY_TAKEN`, `E_SUPERSEDED` when a clear asked for while the restore waited
+     *     cancelled it (the entry is left as it was), `E_AUTOSAVE_STALLED` when the browser's
+     *     database did not answer in time (the entry is left as it was, its lock released), or the
+     *     code the entry could not be opened with.
      */
     async restore(id: string, discard = false): Promise<AutosaveRestored["report"]> {
         if (!discard && this.#session.project.dirty) {
@@ -1036,7 +1209,7 @@ export class Autosaver {
             ({ problem } = available);
         });
         this.#boundary();
-        let restored: Awaited<ReturnType<Autosaver["recover"]>> | "next";
+        let restored: Awaited<ReturnType<Autosaver["recover"]>> | "next" | "taken";
         try {
             restored = await this.#restoreFrom(meta, false, metas, live);
         } finally {
@@ -1044,9 +1217,20 @@ export class Autosaver {
         }
 
         const failed = problem as AutosaveAvailable["problem"];
-        if (restored === "next" && failed === null) {
+        if (restored === "next" && failed?.code === "E_AUTOSAVE_STALLED") {
+            // The browser's database did not answer: the entry is as it was, and its lock is free.
+            const { afterMs, step } = failed.params as { afterMs: number; step: AutosaveStallStep };
+            throw stalledError(step, afterMs);
+        }
+
+        if (restored === "taken" || (restored === "next" && failed === null)) {
             // Another tab claimed it between the listing and the claim.
             throw entryError("E_AUTOSAVE_ENTRY_TAKEN", id);
+        }
+
+        if (restored === null && failed === null) {
+            // A clear cancelled the open: the entry is intact, and nothing failed.
+            throw supersededError();
         }
 
         if (restored === "next" || restored === null) {
@@ -1082,11 +1266,11 @@ export class Autosaver {
 
         entry.release?.();
         entry.release = null;
-        this.#restoring = true;
+        this.#restoringFlag = true;
         try {
             await reload();
         } finally {
-            this.#restoring = false;
+            this.#restoringFlag = false;
             this.#tell();
         }
     }
@@ -1123,33 +1307,76 @@ export class Autosaver {
     }
 
     /**
+     * A store step under a deadline: what it resolves, or `E_AUTOSAVE_STALLED` once `ms` passed
+     * without an answer (another tab holds the database, or the browser's database stalled). A
+     * read or a listing changes nothing, so one left behind finishes harmlessly later.
+     * @param work - The step.
+     * @param step - Which step, for the error.
+     * @param ms - The deadline.
+     * @returns What the step resolves.
+     */
+    #within<T>(work: Promise<T>, step: AutosaveStallStep, ms: number): Promise<T> {
+        return new Promise<T>((resolve, reject) => {
+            const cancel = this.#deadline(() => {
+                reject(stalledError(step, ms));
+            }, ms);
+            work.then(
+                (value) => {
+                    cancel();
+                    resolve(value);
+                },
+                (error: unknown) => {
+                    cancel();
+                    reject(error);
+                },
+            );
+        });
+    }
+
+    /**
+     * Commit under the watchdog: a commit with no progress for {@link WATCHDOG_MS} is aborted, so
+     * it writes nothing, and rejects with `E_AUTOSAVE_STALLED`. Stalled after WATCHDOG_MS with no
+     * progress, not after WATCHDOG_MS in all: on a page whose main thread is busy (a large graph
+     * drawn in software), each step of a write waits behind a long frame, and a deadline on the
+     * whole write aborted every write there, for ever (found by the lifecycle tests at 1,000 nodes).
+     * @param writes - The writes.
+     * @param step - Which step, for the error.
+     */
+    async #commitWithin(writes: readonly AutosaveWrite[], step: AutosaveStallStep): Promise<void> {
+        const controller = new AbortController();
+        let stalled = false;
+        let cancelTimer = (): void => undefined;
+        const arm = (): void => {
+            cancelTimer();
+            cancelTimer = this.#deadline(() => {
+                stalled = true;
+                controller.abort();
+            }, WATCHDOG_MS);
+        };
+        arm();
+        try {
+            await this.#store.commit(writes, { signal: controller.signal, onProgress: arm });
+        } catch (error) {
+            throw stalled ? stalledError(step, WATCHDOG_MS) : error;
+        } finally {
+            cancelTimer();
+        }
+    }
+
+    /**
      * The key's entries, or null when the listing did not return in time or failed (the status
      * says why).
      * @returns The entries, oldest first, or null.
      */
     async #listWithin(): Promise<readonly AutosaveEntryMeta[] | null> {
         try {
-            const metas = await new Promise<readonly AutosaveEntryMeta[] | null>((resolve, reject) => {
-                const cancel = this.#deadline(() => {
-                    resolve(null);
-                }, LIST_TIMEOUT_MS);
-                this.#store.list(this.#key).then(
-                    (listed) => {
-                        cancel();
-                        resolve(listed);
-                    },
-                    (error: unknown) => {
-                        cancel();
-                        reject(error);
-                    },
-                );
-            });
-            if (metas === null) {
+            return await this.#within(this.#store.list(this.#key), "list", LIST_TIMEOUT_MS);
+        } catch (error) {
+            if (isStalled(error)) {
                 this.#setProblem({ code: "E_AUTOSAVE_STALLED", params: { afterMs: LIST_TIMEOUT_MS, step: "list" } });
+                return null;
             }
 
-            return metas;
-        } catch (error) {
             this.#setProblem({
                 code: "E_AUTOSAVE_FAILED",
                 params: { name: errorName(error) },
@@ -1192,6 +1419,67 @@ export class Autosaver {
     }
 
     /**
+     * Report a restore whose open failed. One a clear cancelled (`E_SUPERSEDED`, asked for while
+     * the restore waited) left the work intact: its attempt is taken back and nothing is reported.
+     * @param current - The entry, with the attempt recorded.
+     * @param untried - The entry as it was before the attempt.
+     * @param error - Why the open failed.
+     * @param copied - Whether `current` is a copy this restore made, which a cancelled one removes.
+     */
+    async #restoreFailed(
+        current: AutosaveEntryMeta,
+        untried: AutosaveEntryMeta,
+        error: unknown,
+        copied: boolean,
+    ): Promise<void> {
+        if (!isGraphtyError(error) || error.code !== "E_SUPERSEDED") {
+            this.#available(current, true, "restore-failed", {
+                code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
+                params: { name: errorName(error) },
+            });
+            return;
+        }
+        // The reader cleared the page on purpose: nothing failed, so nothing is announced.
+        await this.#takeBack(current, untried, copied);
+    }
+
+    /**
+     * Whether the graph already holds data, or a load or an edit waits in the session's line,
+     * that this autosave did not bring: the page asked for it before the restore could open.
+     * @returns True when it does.
+     */
+    #graphTaken(): boolean {
+        try {
+            const snapshot = wholeGraph(this.#session.data.store);
+            return snapshot.nodeCount > 0 || snapshot.edgeCount > 0 || loadLineOf(dispatcherOf(this.#session)).size > 0;
+        } catch {
+            // A session disposed meanwhile (the element left): the open reports that, releases the
+            // lock and settles the attempt, as it always did.
+            return false;
+        }
+    }
+
+    /**
+     * Take back a restore attempt that did not open: the entry is written back as it was before
+     * the attempt, to be offered on the next load. A copy this restore made is removed instead:
+     * the entry it copied is still there.
+     * @param current - The entry, with the attempt recorded.
+     * @param untried - The entry as it was before the attempt.
+     * @param copied - Whether `current` is a copy this restore made.
+     */
+    async #takeBack(current: AutosaveEntryMeta, untried: AutosaveEntryMeta, copied: boolean): Promise<void> {
+        if (copied) {
+            await this.#store.remove(current.id).catch(() => undefined);
+            return;
+        }
+        // ponytail: a commit that loses to another tab leaves the attempt counted; it only costs one.
+        await this.#commitWithin(
+            [{ id: untried.id, expectedGen: current.gen, meta: { ...untried, gen: current.gen }, parts: {} }],
+            "restore",
+        ).catch(() => undefined);
+    }
+
+    /**
      * Copy an entry another tab holds into a new entry of this tab's, claimed.
      * @param meta - The entry.
      * @param parts - Its parts.
@@ -1212,7 +1500,13 @@ export class Autosaver {
             copiedFrom: meta.id,
             createdAt: new Date(this.#clock.now()).toISOString(),
         };
-        await this.#store.commit([{ id, expectedGen: 0, meta: copied, parts }]);
+        try {
+            await this.#commitWithin([{ id, expectedGen: 0, meta: copied, parts }], "restore");
+        } catch (error) {
+            release?.();
+            throw error;
+        }
+
         return { meta: { ...copied, gen: 1 }, release };
     }
 
@@ -1227,7 +1521,7 @@ export class Autosaver {
             ...(Object.fromEntries(Object.entries(meta).filter(([field]) => field !== "ended")) as AutosaveEntryMeta),
             restoreAttempts: Number(meta.restoreAttempts ?? 0) + 1,
         };
-        await this.#store.commit([{ id: current.id, expectedGen: current.gen, meta: current, parts: {} }]);
+        await this.#commitWithin([{ id: current.id, expectedGen: current.gen, meta: current, parts: {} }], "restore");
         return { ...current, gen: current.gen + 1 };
     }
 
@@ -1238,20 +1532,24 @@ export class Autosaver {
      * @param copy - Copy it into a new entry instead of claiming it.
      * @param metas - Every entry of the key, as listed.
      * @param live - Whether a tab holds an entry.
-     * @returns What was restored; null when opening failed; `"next"` to try the next candidate.
+     * @param startup - The automatic restore at the start, which gives way to a graph the page
+     *     already asked for; a restore the reader picks opens over it.
+     * @returns What was restored; null when opening failed; `"next"` to try the next candidate;
+     *   `"taken"` when another tab holds its lock.
      */
     async #restoreFrom(
         meta: AutosaveEntryMeta,
         copy: boolean,
         metas: readonly AutosaveEntryMeta[],
         live: (meta: AutosaveEntryMeta) => boolean,
-    ): Promise<AutosaveRestored | null | "next"> {
+        startup = false,
+    ): Promise<AutosaveRestored | null | "next" | "taken"> {
         let release: (() => void) | null = null;
         if (!copy) {
-            // Atomic: of two tabs loading at once, one gets it and the other tries the next.
+            // Atomic: of two tabs loading at once, one gets it and the other is told.
             release = await this.#locks.claim(lockName(this.#key, meta.id));
             if (release === null) {
-                return "next";
+                return "taken";
             }
         }
 
@@ -1265,11 +1563,14 @@ export class Autosaver {
         };
 
         let current: AutosaveEntryMeta;
+        // The entry as it was before this attempt was recorded, which a cancelled restore puts back.
+        let untried: AutosaveEntryMeta;
         let text: string;
         let stash: Map<string, unknown>;
         let sizes: Map<string, number>;
         try {
-            const entry = await this.#store.read(meta.id);
+            // A whole entry, so the write watchdog's allowance rather than the listing's.
+            const entry = await this.#within(this.#store.read(meta.id), "read", WATCHDOG_MS);
             if (entry === undefined) {
                 return giveUp(null);
             }
@@ -1288,27 +1589,50 @@ export class Autosaver {
                 ({ meta: current, release } = await this.#copyEntry(current, entry.parts));
             }
 
+            untried = current;
             current = await this.#recordAttempt(current);
         } catch (error) {
-            return giveUp({
-                code: "E_AUTOSAVE_FAILED",
-                params: { name: errorName(error) },
-            });
+            return giveUp(
+                isStalled(error)
+                    ? { code: "E_AUTOSAVE_STALLED", params: stallParams(error) }
+                    : { code: "E_AUTOSAVE_FAILED", params: { name: errorName(error) } },
+            );
+        }
+
+        // The page asked the graph for data of its own while the entry was read (a sample, a file,
+        // rows): that newer load wins. The open would queue behind it and replace it, so the work
+        // is offered instead, as when the page's own data replaces a restore (issue #3313).
+        if (startup && this.#graphTaken()) {
+            await this.#takeBack(current, untried, copy);
+            release?.();
+            this.#available(meta, live(meta), "page-data-changed", null);
+            return null;
         }
 
         let report: AutosaveRestored["report"];
-        this.#restoring = true;
+        // The open's place in line, taken now. The restore counts as writing only once its turn
+        // has come and until a clear cancels it: a change made while it waits behind a load, or
+        // right after a clear cancelled it, is the reader's (issue #3674).
+        const line = loadLineOf(dispatcherOf(this.#session));
+        const turn = line.join();
         try {
-            report = await this.#session.project.open(text, { discard: true, limits: { fileBytes: Infinity } });
+            await turn.wait();
+            this.#restoreTurn = turn;
+            this.#restoringFlag = true;
+            // The reader's own work coming back: a network load they ran stays live.
+            report = await line.within(turn, () =>
+                this.#session.project.open(text, { discard: true, ownWork: true, limits: { fileBytes: Infinity } }),
+            );
         } catch (error) {
+            this.#restoringFlag = false;
+            turn.leave();
+            // Before the lock goes, so no other tab commits over the entry meanwhile.
+            await this.#restoreFailed(current, untried, error, copy);
             release?.();
-            this.#available(current, true, "restore-failed", {
-                code: isGraphtyError(error) ? error.code : "E_AUTOSAVE_FAILED",
-                params: { name: errorName(error) },
-            });
             return null;
         } finally {
-            this.#restoring = false;
+            this.#restoringFlag = false;
+            this.#restoreTurn = null;
         }
 
         // The work comes back as it was: unsaved to a file if it was, and at its revision.
@@ -1327,14 +1651,21 @@ export class Autosaver {
         entry.sizes = sizes;
         try {
             current = { ...current, restoreAttempts: 0 };
-            await this.#store.commit([{ id: entry.id, expectedGen: entry.gen, meta: current, parts: {} }]);
+            await this.#commitWithin([{ id: entry.id, expectedGen: entry.gen, meta: current, parts: {} }], "restore");
             entry.gen += 1;
         } catch {
             // ponytail: the restore worked; an attempt left raised only costs a restore-failed report later.
         }
 
         this.#absorb = current;
-        if (Number(current.formatVersion) < AUTOSAVE_FORMAT_VERSION) {
+        if (report.problems.some((problem) => problem.code === "shader.unknown")) {
+            // The open dropped shader uses the entry could not resolve. The entry stays as it was
+            // read, until the reader saves, and the work goes to a new entry, so a lossy open is
+            // never written over the only copy.
+            this.#kept = current.id;
+            this.#conflict(entry.id);
+            this.#kick();
+        } else if (Number(current.formatVersion) < AUTOSAVE_FORMAT_VERSION) {
             // Rewritten whole in the current format, flushed to disk.
             this.#strict = true;
             EVERY_PART.forEach((tag) => entry.unwritten.add(tag));
@@ -1375,7 +1706,9 @@ export class Autosaver {
             started: false,
             unwritten: new Set(),
             runs: new Map(),
+            assets: new Set(),
             release: null,
+            claiming: null,
             sizes: new Map(),
         };
     }
@@ -1439,6 +1772,15 @@ export class Autosaver {
     }
 
     /**
+     * Whether the changes now are a restore's or a discard's reload, not new work: a restore's
+     * open only from when its turn in the load line came, and never once a clear cancelled it.
+     * @returns True while they are.
+     */
+    get #restoring(): boolean {
+        return this.#restoringFlag && this.#restoreTurn?.superseded !== true;
+    }
+
+    /**
      * Mark parts unwritten and schedule their write.
      * @param tags - The parts.
      * @param now - Write at once (a run finished).
@@ -1467,11 +1809,16 @@ export class Autosaver {
         if (!entry.started) {
             // A new entry holds nothing yet, so its first write carries everything.
             entry.started = true;
+            logger.info("entry started", { entry: entry.id });
+            this.#onEntryStart?.(entry.id);
             EVERY_PART.forEach((tag) => entry.unwritten.add(tag));
         }
 
         tags.forEach((tag) => entry.unwritten.add(tag));
-        if (now) {
+        // Hidden, a timer may fire late or never (issue #3485): write it right after the write in
+        // flight instead. Not left to the status listener, which hears nothing when the change
+        // leaves the status as it was, as a change made during a write does.
+        if (now || this.#hidden()) {
             this.#kick();
         } else {
             this.#schedule();
@@ -1485,6 +1832,11 @@ export class Autosaver {
         const fire = (): void => {
             this.#kick();
         };
+        // Playback moves the window every step: the write waits for the pause, then happens once.
+        if (this.#session.features.enabled.includes("timeline") && this.#session.time.playing) {
+            return;
+        }
+
         if (this.#entry.unwritten.has("data")) {
             this.#debounce?.();
             this.#maxWait?.();
@@ -1552,7 +1904,7 @@ export class Autosaver {
 
         let parts: Record<string, string | null> = {};
         try {
-            ({ parts } = buildParts(this.#session, tags, entry.runs, this.#stash));
+            ({ parts } = buildParts(this.#session, tags, entry.runs, this.#stash, entry.assets));
         } catch (error) {
             this.#failed(error);
         }
@@ -1571,7 +1923,7 @@ export class Autosaver {
      */
     #metaOf(entry: EntryState, sizes: ReadonlyMap<string, number>): AutosaveEntryMeta {
         const session = this.#session;
-        const snapshot = session.data.snapshot();
+        const snapshot = wholeGraph(session.data.store);
         return {
             id: entry.id,
             key: this.#key,
@@ -1605,7 +1957,7 @@ export class Autosaver {
         const writesEntry = entry.started && entry.unwritten.size > 0;
         if (writesEntry) {
             const carried = entry.unwritten;
-            const built = buildParts(this.#session, carried, entry.runs, this.#stash);
+            const built = buildParts(this.#session, carried, entry.runs, this.#stash, entry.assets);
             const sizes = sizesAfter(entry.sizes, built.parts);
             const meta = this.#metaOf(entry, sizes);
             entry.unwritten = new Set();
@@ -1617,9 +1969,20 @@ export class Autosaver {
                 job.claim.push(entry);
             }
 
+            const began = this.#clock.now();
             job.done.push(() => {
                 entry.gen += 1;
+                logger.info("entry committed", {
+                    entry: entry.id,
+                    gen: entry.gen,
+                    revision: meta.revision,
+                    dirty: meta.dirty,
+                    tookMs: this.#clock.now() - began,
+                });
                 entry.sizes = sizes;
+                if (built.assets !== undefined) {
+                    entry.assets = new Set(built.assets);
+                }
                 if (job.strict) {
                     this.#strict = false;
                 }
@@ -1634,6 +1997,13 @@ export class Autosaver {
 
                 if (entry === this.#entry) {
                     this.#saved = { at: meta.savedAt as string, revision: meta.revision as number };
+                }
+
+                const kept = this.#kept;
+                if (kept !== null && meta.dirty === false) {
+                    // The reader saved the project: what the lossy open left out is theirs to drop.
+                    this.#kept = null;
+                    this.#store.remove(kept).catch(() => undefined);
                 }
             });
             job.undo.push(() => {
@@ -1768,7 +2138,7 @@ export class Autosaver {
         arm();
         try {
             for (const entry of job.claim) {
-                entry.release = await this.#locks.claim(lockName(this.#key, entry.id));
+                await this.#claim(entry);
                 // ponytail: a fresh random id is never held elsewhere; a refused claim is not retried.
             }
 
@@ -1944,8 +2314,12 @@ export class Autosaver {
     #tell(): void {
         const { status } = this;
         const told = JSON.stringify(status);
-        if (told !== this.#told) {
+        // A change made while a write of positions alone is pending leaves the status as it was,
+        // and still arms the element's unload guard.
+        const unsaved = this.unsavedChanges;
+        if (told !== this.#told || unsaved !== this.#toldUnsaved) {
             this.#told = told;
+            this.#toldUnsaved = unsaved;
             for (const listener of this.#listeners) {
                 listener(status);
             }

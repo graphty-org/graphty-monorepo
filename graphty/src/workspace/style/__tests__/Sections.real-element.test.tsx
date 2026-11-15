@@ -17,14 +17,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { SECTIONS } from "../words";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** The scene: the session, the chrome store, and the Degree run's row name when it ran. */
 interface Scene {
@@ -44,14 +46,11 @@ async function openScene({ degree = false }: { degree?: boolean } = {}): Promise
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -92,7 +91,7 @@ function escape(name: string): string {
  * @returns the Style tab.
  */
 async function openStyle(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escape(name)}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
@@ -183,7 +182,13 @@ describe("the Style tab's sections", () => {
             [],
             "no empty control shows a value",
         );
-        assert.isNull(tab.querySelector('[data-beneath], [data-is-default="true"]'), "no line from beneath");
+        // The color's opacity box shows the full opacity it draws at while the layer sets none.
+        assert.isNull(
+            tab.querySelector(
+                '[data-beneath], [data-is-default="true"]:not([data-testid="compact-color-input-opacity"])',
+            ),
+            "no line from beneath",
+        );
 
         tab = await openStyle("Hovered");
         assert.isNull(tab.querySelector(".ws-row"), "Hovered sets nothing");
@@ -192,15 +197,21 @@ describe("the Style tab's sections", () => {
         }
 
         await openStyle("Selected");
-        const effects = section("node", "effects");
-        assert.isNotNull(effects.querySelector('.ws-row[data-line="node.haloColor"]'), "a Halo row");
-        assert.isNotNull(effects.querySelector('.ws-row[data-line="node.glow"]'), "a Glow row");
-        assert.isTrue(isEmpty(section("node", "shape")), "Selected writes no shape");
+        const shape = section("node", "shape");
+        assert.isNotNull(shape.querySelector('.ws-row[data-line="node.haloColor"]'), "a Halo row");
+        assert.isNull(shape.querySelector('.ws-row[data-line="node.glow"]'), "Selected writes no glow");
+        assert.isNull(shape.querySelector('.ws-row[data-line="node.shape"]'), "Selected writes no shape");
     });
 
     it.each(
         (["node", "edge"] as const).flatMap((kind) =>
-            SECTIONS[kind].filter((spec) => spec.id !== "text").map((spec) => [kind, spec.id, spec.title] as const),
+            // Shaders' "+" opens the gallery: its add and remove are ShaderRows.real-element.test.tsx's.
+            SECTIONS[kind]
+                // Les Miserables is undirected, so Arrowheads add nothing there (tested on its own).
+                .filter(
+                    (spec) => spec.id !== "text" && spec.shaders !== true && !(kind === "edge" && spec.id === "ends"),
+                )
+                .map((spec) => [kind, spec.id, spec.title] as const),
         ),
     )("adds and removes a property in %s %s, with focus and an announcement each way", async (kind, id, title) => {
         const { session, store } = await openScene();
@@ -316,28 +327,55 @@ describe("the Style tab's sections", () => {
         assert.isAbove(store.get().announced, again, "this Undo is announced too");
     });
 
-    it("starts an added arrowhead at what an undirected graph draws there: none", async () => {
+    it("says arrowheads are not available on an undirected graph, with '+' disabled and a set one removable", async () => {
         const { session } = await openScene();
         await openStyle("Everything");
         await showKind("edge");
-        // On an undirected graph the section says what arrowheads follow.
-        assert.include(within(section("edge", "ends")).getByTestId("edge-ends-note").textContent, "first-listed node");
-        await userEvent.click(within(section("edge", "ends")).getByRole("button", { name: "Add to edge arrowheads" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Target end" }));
-        await waitFor(() => {
-            const line = section("edge", "ends").querySelector<HTMLElement>('[data-line="edge.arrowHead"]');
-            assert.isNotNull(line);
-            within(line).getByRole("combobox", { name: /, default None$/ });
+        const note = within(section("edge", "ends")).getByTestId("edge-ends-note");
+        assert.equal(note.textContent, "Not available: undirected graph");
+        const plus = within(section("edge", "ends")).getByRole("button", { name: "Add to edge arrowheads" });
+        assert.equal(plus.getAttribute("aria-disabled"), "true");
+        assert.equal(plus.getAttribute("aria-description"), "Not available: undirected graph");
+        assert.strictEqual(plus.getAttribute("tabindex"), "-1", "a disabled '+' is no Tab stop");
+        // An arrowhead a layer already sets stays, and can be removed.
+        const everything = session.styles
+            .list()
+            .find((layer) => layer.name === "Everything" && layer.target === "edge");
+        if (everything === undefined) {
+            throw new Error("no Everything edge layer");
+        }
+        await session.styles.update(everything.id, { set: { ...everything.set, "edge.arrowHead": "normal" } });
+        const line = await waitFor(() => {
+            const found = section("edge", "ends").querySelector<HTMLElement>('[data-line="edge.arrowHead"]');
+            assert.isNotNull(found);
+            return found;
         });
-        assert.isUndefined(written(session, "Everything", "edge.arrowHead"), "nothing written before a pick");
+        if (line === null) {
+            throw new Error("no arrowhead line");
+        }
+        await userEvent.hover(line);
+        await userEvent.click(within(line).getByRole("button", { name: "Remove edge target end" }));
+        await waitFor(() => {
+            assert.isUndefined(written(session, "Everything", "edge.arrowHead"));
+        });
     });
 
     it("starts an added pattern count at 10 marks, not the floor of 2 that reads as no line", async () => {
         const { session } = await openScene();
         await openStyle("Everything");
         await showKind("edge");
-        await userEvent.click(within(section("edge", "line")).getByRole("button", { name: "Add to edge line" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Pattern count" }));
+        // A dashed line: the count is the pattern's own setting, so its row's "+" adds it.
+        const everything = session.styles
+            .list()
+            .find((layer) => layer.name === "Everything" && layer.target === "edge");
+        if (everything === undefined) {
+            throw new Error("no Everything edge layer");
+        }
+        await session.styles.update(everything.id, { set: { ...everything.set, "edge.style": "dash" } });
+        // The count is the only setting the pattern has: its row's "+" adds it at once.
+        await userEvent.click(
+            await within(section("edge", "line")).findByRole("button", { name: "Add to edge pattern" }),
+        );
         await waitFor(() => {
             const box = section("edge", "line").querySelector<HTMLInputElement>(
                 '[data-line="edge.patternCount"] input',
@@ -345,6 +383,104 @@ describe("the Style tab's sections", () => {
             assert.strictEqual(box?.value, "10");
         });
         assert.isUndefined(written(session, "Everything", "edge.patternCount"), "nothing written before a value");
+    });
+
+    it("lists styles, not their settings, in '+': Halo's and Glow's settings are added from their own rows", async () => {
+        const { session } = await openScene();
+        await openStyle("Key people");
+        const shape = (): HTMLElement => section("node", "shape");
+        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node shape" }));
+        const items = (await screen.findAllByRole("menuitem")).map((item) => item.textContent);
+        assert.includeMembers(items, ["Glow", "Halo"], "one entry per style");
+        for (const setting of ["Glow strength", "Halo size", "Halo opacity"]) {
+            assert.notInclude(items, setting, `${setting} is a setting of its style, not a menu entry`);
+        }
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Halo" }));
+        // Halo's row has its own "+", which lists its settings by their own names.
+        await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node halo" }));
+        assert.deepEqual(
+            (await screen.findAllByRole("menuitem")).map((item) => item.textContent),
+            ["Size", "Opacity"],
+        );
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
+        await waitFor(() => {
+            const rows = [...shape().querySelectorAll<HTMLElement>(".ws-row")];
+            assert.deepEqual(
+                rows.map((row) => row.dataset.line),
+                ["node.haloColor", "node.haloScale"],
+                "the size sits under its halo",
+            );
+            assert.equal(rows[1]?.querySelector(".ws-field-name")?.textContent, "Size");
+            assert.isDefined(rows[1]?.dataset.setting, "drawn as the halo's setting");
+        });
+
+        // Removing the halo takes its settings with it, in one step.
+        const people = session.styles.list().find((layer) => layer.name === "Key people");
+        if (people === undefined) {
+            throw new Error("no Key people layer");
+        }
+        await session.styles.update(people.id, {
+            set: { ...people.set, "node.haloColor": "#FF0000", "node.haloScale": 2, "node.glow": "#00B4FF" },
+        });
+        const halo = await waitFor(() => {
+            const found = shape().querySelector<HTMLElement>('.ws-row[data-line="node.haloColor"]');
+            assert.isNotNull(found);
+            return found;
+        });
+        if (halo === null) {
+            throw new Error("no halo row");
+        }
+        await userEvent.click(within(halo).getByRole("button", { name: "Remove node halo" }));
+        await waitFor(() => {
+            assert.isUndefined(written(session, "Key people", "node.haloColor"));
+            assert.isUndefined(written(session, "Key people", "node.haloScale"), "the size goes with its halo");
+        });
+        assert.isDefined(written(session, "Key people", "node.glow"), "another style stays");
+        // Glow's strength is added from the Glow row, the only setting it has.
+        await userEvent.click(within(shape()).getByRole("button", { name: "Add to node glow" }));
+        await waitFor(() => {
+            const strength = shape().querySelector<HTMLElement>('.ws-row[data-line="node.glowStrength"]');
+            assert.equal(strength?.querySelector(".ws-field-name")?.textContent, "Strength");
+        });
+    });
+
+    it("sets an outline's width per layer from the Outline row, leaving another layer's outline as it was", async () => {
+        const { session } = await openScene();
+        const idOf = (name: string): string => String(session.data.nodes().find((n) => n.name === name)?.id);
+        const people = session.styles.list().find((layer) => layer.name === "Key people");
+        if (people === undefined) {
+            throw new Error("no Key people layer");
+        }
+        await session.styles.update(people.id, { set: { ...people.set, "node.outline": "#FF0000" } });
+        await session.styles.add({
+            name: "Bishop",
+            target: "node",
+            selector: { match: "ids", nodes: [idOf("Myriel")] },
+            set: { "node.outline": "#0000FF" },
+        });
+        await session.styles.settled();
+        await openStyle("Key people");
+        const shape = (): HTMLElement => section("node", "shape");
+        // The width is the outline's only setting: the Outline row's "+" adds it at once.
+        await userEvent.click(await within(shape()).findByRole("button", { name: "Add to node outline" }));
+        const width = await waitFor(() => {
+            const row = shape().querySelector<HTMLElement>('.ws-row[data-line="node.outlineWidth"]');
+            assert.equal(row?.querySelector(".ws-field-name")?.textContent, "Width");
+            const box = row?.querySelector<HTMLInputElement>("input");
+            assert.isDefined(box ?? undefined);
+            return box as HTMLInputElement;
+        });
+        await userEvent.clear(width);
+        await userEvent.type(width, "3{Enter}");
+        await waitFor(() => {
+            assert.strictEqual(written(session, "Key people", "node.outlineWidth"), 3);
+        });
+        await session.styles.settled();
+        assert.strictEqual(session.styles.explain({ node: idOf("Valjean") }).merged["node.outlineWidth"], 3);
+        assert.isUndefined(
+            session.styles.explain({ node: idOf("Myriel") }).merged["node.outlineWidth"],
+            "the other layer's outline keeps the graph's width",
+        );
     });
 
     it("an end label on an undirected graph's edges says why it is not drawn", async () => {
@@ -443,6 +579,16 @@ describe("the Style tab's sections", () => {
         await session.styles.settled();
         await openStyle("Over degree");
         await userEvent.click(within(section("node", "fill")).getByRole("button", { name: "Add to node fill" }));
+        // Fill offers Color alone and adds it at once, or Color and Picture in a menu with the node
+        // models experiment on.
+        const color = await waitFor(() => {
+            const item = screen.queryByRole("menuitem", { name: "Color" });
+            assert.isTrue(item !== null || section("node", "fill").querySelector('[data-line="node.color"]') !== null);
+            return item;
+        });
+        if (color !== null) {
+            await userEvent.click(color);
+        }
         await waitFor(() => {
             assert.isNotNull(section("node", "fill").querySelector('[data-line="node.color"]'));
         });
@@ -521,7 +667,7 @@ describe("the Style tab's sections", () => {
             set: { "node.size": 3 },
         });
         await session.styles.settled();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         const user = userEvent.setup();
         await user.click(within(tree).getByRole("treeitem", { name: /^Key people, / }));
         await user.keyboard("{Control>}");
@@ -543,9 +689,9 @@ describe("the Style tab's sections", () => {
         });
     });
 
-    it("shows every eye at rest, names a hidden row's eye 'Show', and keeps Everything in place", async () => {
+    it("shows every eye at rest, names a hidden row's eye 'Show', and deletes Everything like any row", async () => {
         const { session } = await openScene();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.unhover(tree);
         const eyes = within(tree).getAllByRole("button", { name: /^(Hide|Show) / });
         assert.isAbove(eyes.length, 3);
@@ -559,9 +705,9 @@ describe("the Style tab's sections", () => {
         await userEvent.click(within(tree).getByRole("treeitem", { name: /^Everything, / }));
         await userEvent.keyboard("{Delete}");
         await session.styles.settled();
-        assert.isDefined(
+        assert.isUndefined(
             session.styles.tree().find((row) => row.name === "Everything"),
-            "Delete leaves Everything in place",
+            "Delete takes Everything away",
         );
     });
 });

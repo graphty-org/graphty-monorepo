@@ -1,12 +1,17 @@
 /**
- * The Export dialog's choices and what they turn into: the presets, the options handed to
- * graphty-element's `captureScreenshot` and `exportGraph`, and the file names. Plain data, no
- * React, so the rules are tested on their own.
+ * The Export dialog's choices and what they turn into: the options handed to graphty-element's
+ * `captureScreenshot`, `captureAnimation` and `exportGraph`, and the file names. The screenshot
+ * presets are the element's (`SCREENSHOT_PRESET_DESCRIPTORS`); only their names are the app's.
+ * No React, so the rules are tested on their own.
  */
 
-import type { ExportResult, ScreenshotErrorCode, ScreenshotOptions } from "@graphty/graphty-element";
-import type { FormatDescriptor, OptionDescriptor } from "@graphty/graphty-element/catalog";
-import type { GraphtyErrorCode } from "@graphty/graphty-element/session";
+import type { AnimationOptions, ExportResult, ExportScope, ScreenshotOptions } from "@graphty/graphty-element";
+import {
+    type FormatDescriptor,
+    type OptionDescriptor,
+    SCREENSHOT_PRESET_DESCRIPTORS,
+} from "@graphty/graphty-element/catalog";
+import type { GraphtyErrorCode, ScreenshotPreset } from "@graphty/graphty-element/session";
 
 /** An image format `captureScreenshot` writes. */
 export type ImageFormat = NonNullable<ScreenshotOptions["format"]>;
@@ -26,6 +31,12 @@ export interface ImageChoices {
     readonly view: string;
 }
 
+/**
+ * Which records a data export writes: everything, or one of the element's export scopes (a kept
+ * set by id, a loaded source by key).
+ */
+export type DataScope = "all" | "shown" | "selection" | `set:${string}` | `source:${string}`;
+
 /** The Data output's choices. */
 export interface DataChoices {
     /** A format id from `session.catalog.formats()` that can be written. */
@@ -34,10 +45,28 @@ export interface DataChoices {
     readonly variant?: string;
     /** The key options' values, by option name; a row reads only its own options from here. */
     readonly values: Readonly<Record<string, unknown>>;
+    readonly scope: DataScope;
+    /** The columns written, by name or result path; undefined writes every column not hidden. */
+    readonly columns?: readonly string[];
 }
 
-/** The project file, Graphty JSON; every other row starts on its options' own defaults. */
-export const DEFAULT_DATA: DataChoices = { format: "graphty", values: {} };
+/** The node table as CSV; every other row starts on its options' own defaults. */
+export const DEFAULT_DATA: DataChoices = { format: "csv", variant: "csv", values: { table: "nodes" }, scope: "all" };
+
+/**
+ * The element's export scope for a scope choice.
+ * @param scope - the choice.
+ * @returns the scope.
+ */
+export function exportScope(scope: DataScope): ExportScope {
+    if (scope === "all") {
+        return "all";
+    }
+    if (scope.startsWith("source:")) {
+        return { kind: "source", sources: [scope.slice(7)] };
+    }
+    return scope.startsWith("set:") ? { set: scope.slice(4) } : (scope as "shown" | "selection");
+}
 
 /** One row of the Data output's Format list: a format, or one of its export variants. */
 interface FormatRow {
@@ -54,8 +83,20 @@ interface FormatRow {
 }
 
 /**
+ * Whether a format's files hold no styles at all (`styles.write` "none", as CSV's): there the
+ * `styles` option writes nothing -- a CSV is the same file with it on or off -- so its row leaves
+ * the option out (tier 4, R14) and the export reports the layers as not written.
+ * @param format - the format.
+ * @returns true when its writer keeps no styles.
+ */
+export function writesNoStyles(format: FormatDescriptor | undefined): boolean {
+    return (format?.styles?.write ?? "none") === "none";
+}
+
+/**
  * The Format list: one row per file type the element writes -- each format's export variants
- * when it has them, else the format -- Graphty JSON first, then catalog order.
+ * when it has them, else the format -- Graphty JSON first, then catalog order. A format that
+ * writes no styles offers no Include styles.
  * @param formats - `session.catalog.formats()`.
  * @returns the rows.
  */
@@ -63,8 +104,10 @@ export function formatRows(formats: readonly FormatDescriptor[]): FormatRow[] {
     return formats
         .filter((format) => format.canExport)
         .sort((a, b) => Number(b.id === "graphty") - Number(a.id === "graphty"))
-        .flatMap((format) =>
-            format.exportVariants === undefined
+        .flatMap((format) => {
+            const own = (options: readonly OptionDescriptor[]): readonly OptionDescriptor[] =>
+                writesNoStyles(format) ? options.filter((option) => option.name !== "styles") : options;
+            return format.exportVariants === undefined
                 ? [
                       {
                           id: format.id,
@@ -72,7 +115,7 @@ export function formatRows(formats: readonly FormatDescriptor[]): FormatRow[] {
                           plainName: format.plainName,
                           extensions: format.extensions,
                           preset: {},
-                          options: format.writerOptions ?? [],
+                          options: own(format.writerOptions ?? []),
                       },
                   ]
                 : format.exportVariants.map((variant) => ({
@@ -82,9 +125,9 @@ export function formatRows(formats: readonly FormatDescriptor[]): FormatRow[] {
                       plainName: variant.plainName,
                       extensions: variant.extensions,
                       preset: variant.preset,
-                      options: variant.options,
-                  })),
-        );
+                      options: own(variant.options),
+                  }));
+        });
 }
 
 /**
@@ -132,6 +175,32 @@ export function writerOptions(row: FormatRow, values: DataChoices["values"]): Re
 /** The app's own writer defaults, each sent only to a row that declares it (see writerOptions). */
 const APP_DEFAULTS: Readonly<Record<string, unknown>> = { styles: true, sanitizeIds: "mangle", groupRanks: true };
 
+/**
+ * The options for one data export, for the preview and the save alike: the row's writer options
+ * (see writerOptions), then the scope and the columns written. The project file (Graphty JSON) is
+ * the whole project, so it takes neither.
+ * @param row - the format row.
+ * @param choices - the data choices.
+ * @param columns - the columns to write; every one when undefined.
+ * @returns the `exportGraph` / `downloadGraph` options.
+ */
+export function dataExportOptions(
+    row: FormatRow,
+    choices: DataChoices,
+    columns: readonly string[] | undefined = choices.columns,
+): Record<string, unknown> {
+    const options = writerOptions(row, choices.values);
+    const scope = exportScope(choices.scope);
+    if (row.format === "graphty") {
+        return options;
+    }
+    return {
+        ...options,
+        scope,
+        ...(columns === undefined ? {} : { columns }),
+    };
+}
+
 /** The preview stops at this many lines or this many characters, whichever comes first. */
 const PREVIEW_LINES = 6;
 const PREVIEW_CHARS = 4096;
@@ -153,8 +222,11 @@ export async function previewOf(result: ExportResult): Promise<string> {
     return text.slice(0, PREVIEW_CHARS).split("\n").slice(0, PREVIEW_LINES).join("\n");
 }
 
-/** What went wrong, in the app's words, for the codes an export or a capture fails with. */
-const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${ScreenshotErrorCode}`, string>>> = {
+/**
+ * What went wrong, in the app's words, for the codes an export or a capture fails with. A key
+ * `code/reason` words one `details.reason` of a code and wins over the code's own words.
+ */
+const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${GraphtyErrorCode}/${string}`, string>>> = {
     E_OUT_OF_MEMORY: "The browser ran out of memory.",
     E_TOO_LARGE: "The graph is too large for this format.",
     E_CAP_EXCEEDED: "The graph is too large for this format.",
@@ -164,88 +236,102 @@ const FAILURE_WORDS: Partial<Readonly<Record<GraphtyErrorCode | `${ScreenshotErr
     E_UNSUPPORTED: "This browser cannot do this.",
     E_DISPOSED: "The graph was closed.",
     E_UNKNOWN_CAMERA: "This view is not available.",
-    DIMENSION_TOO_LARGE: "The image is too large for this browser.",
-    RESOLUTION_TOO_HIGH: "The image is too large for this browser.",
-    CANVAS_ALLOCATION_FAILED: "The browser ran out of memory for an image this size.",
-    INVALID_DIMENSIONS: "The image size is not valid.",
-    UNSUPPORTED_FORMAT: "This browser cannot write this image format.",
-    TRANSPARENT_REQUIRES_PNG: "Only PNG keeps a transparent background.",
-    SCREENSHOT_CAPTURE_FAILED: "The drawing could not be captured.",
-    ENGINE_NOT_CONFIGURED: "The drawing is not ready yet.",
+    "E_UNSUPPORTED/format": "This browser cannot write this image format.",
+    "E_UNSUPPORTED/preserve-drawing-buffer": "The drawing is not ready yet.",
+    E_CAPTURE_FAILED: "The drawing could not be captured.",
+};
+
+/** The words for the codes a screenshot shares with other failures but means something else by. */
+const IMAGE_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
+    E_TOO_LARGE: "The image is too large for this browser.",
+    E_OUT_OF_MEMORY: "The browser ran out of memory for an image this size.",
+    E_OPTION_RANGE: "The image size is not valid.",
+    E_BAD_COMMAND: "Only PNG keeps a transparent background.",
 };
 
 /**
- * What went wrong, worded by the error's code; a code the app has no words for shows as itself.
+ * What went wrong, worded by the error's code (and its `details.reason`); a code the app has no
+ * words for shows as itself.
  * @param error - what the element threw.
+ * @param image - whether it came from a screenshot, which words some codes as being about the image.
  * @returns the sentence.
  */
-export function failureWords(error: unknown): string {
-    const code =
-        typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
-            ? error.code
-            : undefined;
-    if (code === undefined) {
+export function failureWords(error: unknown, image = false): string {
+    const { code, details } =
+        typeof error === "object" && error !== null
+            ? (error as { code?: unknown; details?: { reason?: unknown } })
+            : {};
+    if (typeof code !== "string") {
         return "Something went wrong.";
     }
     const words: Readonly<Record<string, string | undefined>> = FAILURE_WORDS;
-    return words[code] ?? `Something went wrong (${code}).`;
-}
-
-/** One image preset (tier1-design.md section T13). */
-interface ImagePreset {
-    readonly id: string;
-    readonly label: string;
-    readonly choices: Omit<ImageChoices, "view">;
-    /** Supersampling, for print. */
-    readonly enhance?: boolean;
-    /** JPEG quality. */
-    readonly quality?: number;
+    const imageWords: Readonly<Record<string, string | undefined>> = image ? IMAGE_WORDS : {};
+    const reason = typeof details?.reason === "string" ? words[`${code}/${details.reason}`] : undefined;
+    return reason ?? imageWords[code] ?? words[code] ?? `Something went wrong (${code}).`;
 }
 
 /**
- * The presets. TEMPORARY copy of graphty-element's `SCREENSHOT_PRESETS`
- * (graphty-element/src/screenshot/presets.ts): the element does not publish its presets'
- * settings, so a dialog cannot show what a preset sets without copying them. Delete this table
- * once the element lists its presets (the gap is recorded with the Export dialog package).
+ * Why a size cannot be captured, in a phrase that follows the size: the browser's limit on an
+ * image, or the capture's own failure words.
+ * @param reason - `canCaptureScreenshot`'s coded reason.
+ * @param reason.code - the code a capture with those options would fail with.
+ * @param reason.params - that failure's details.
+ * @returns the phrase.
  */
-export const IMAGE_PRESETS: readonly ImagePreset[] = [
-    { id: "web-share", label: "To share -- PNG, 2x", choices: { format: "png", size: "2x", background: "canvas" } },
-    {
-        id: "print",
-        label: "For print -- PNG, 4x, sharper",
-        choices: { format: "png", size: "4x", background: "canvas" },
-        enhance: true,
-    },
-    {
-        id: "thumbnail",
-        label: "Thumbnail -- JPEG, 400 x 300",
-        choices: { format: "jpeg", size: "400x300", background: "canvas" },
-        quality: 0.85,
-    },
-    {
-        id: "documentation",
-        label: "For documentation -- PNG, 2x, transparent",
-        choices: { format: "png", size: "2x", background: "transparent" },
-    },
-];
+export function refusalWords(reason: { code: string; params: Readonly<Record<string, unknown>> }): string {
+    if (reason.code === "E_TOO_LARGE") {
+        return "this browser cannot make an image this size";
+    }
+    const words = failureWords({ code: reason.code, details: reason.params }, true).replace(/\.$/, "");
+    return words.charAt(0).toLowerCase() + words.slice(1);
+}
+
+/** The id of one of graphty-element's screenshot presets. */
+type PresetId = ScreenshotPreset["id"];
+
+/** The app's words for the element's screenshot presets; the settings are the element's. */
+export const PRESET_LABELS: Readonly<Record<PresetId, string>> = {
+    "web-share": "To share",
+    print: "For print",
+    thumbnail: "Thumbnail",
+    documentation: "For documentation",
+};
+
+/**
+ * The image choices a screenshot preset sets.
+ * @param preset - one of `SCREENSHOT_PRESET_DESCRIPTORS`.
+ * @returns its format, size and background.
+ */
+export function presetChoices(preset: ScreenshotPreset): Omit<ImageChoices, "view"> {
+    return {
+        format: preset.format,
+        size: (preset.multiplier === undefined
+            ? `${String(preset.width)}x${String(preset.height)}`
+            : `${String(preset.multiplier)}x`) as ImageSize,
+        background: preset.transparentBackground === true ? "transparent" : "canvas",
+    };
+}
 
 /** The label of the preset list's entry after any edit. */
 export const CUSTOM = "Custom";
 
-export const DEFAULT_IMAGE: ImageChoices = { ...IMAGE_PRESETS[0].choices, view: "current" };
+export const DEFAULT_IMAGE: ImageChoices = {
+    ...presetChoices(SCREENSHOT_PRESET_DESCRIPTORS[0]),
+    view: "current",
+};
 
 /**
- * The preset these choices match.
+ * The element's preset these choices match.
  * @param choices - the image choices.
  * @returns the preset, or undefined for Custom.
  */
-export function presetOf(choices: ImageChoices): ImagePreset | undefined {
-    return IMAGE_PRESETS.find(
-        ({ choices: preset }) =>
-            preset.format === choices.format &&
-            preset.size === choices.size &&
-            preset.background === choices.background,
-    );
+export function presetOf(choices: ImageChoices): ScreenshotPreset | undefined {
+    return SCREENSHOT_PRESET_DESCRIPTORS.find((entry) => {
+        const preset = presetChoices(entry);
+        return (
+            preset.format === choices.format && preset.size === choices.size && preset.background === choices.background
+        );
+    });
 }
 
 /**
@@ -287,7 +373,7 @@ export function screenshotOptions(
         transparentBackground: choices.background === "transparent",
         // A picture shows the data, not what the reader happened to click.
         showSelection: false,
-        ...(preset?.enhance === true ? { enhanceQuality: true } : {}),
+        ...(preset?.enhanceQuality === true ? { enhanceQuality: true } : {}),
         ...(preset?.quality === undefined ? {} : { quality: preset.quality }),
         ...(choices.view === "current" ? {} : { camera: cameraOf(choices.view) }),
         destination,
@@ -319,8 +405,58 @@ export function fileName(project: string, what: string, extension: string): stri
     return `${slug(project)}_${slug(what)}.${extension}`;
 }
 
-/** The note every output's footer carries. */
-export const SAVED_LOCALLY = "Saved to this computer only; nothing is uploaded.";
-
 /** The extension of each image format. */
 export const IMAGE_EXTENSIONS: Readonly<Record<ImageFormat, string>> = { png: "png", jpeg: "jpg", webp: "webp" };
+
+/** The Video output's choices. */
+export interface VideoChoices {
+    /** Still: the reader's camera; tour: the camera flies through `stops`. */
+    readonly camera: "still" | "tour";
+    /** The views a tour visits, in order: camera view ids or saved view names. */
+    readonly stops: readonly string[];
+    /** Length in seconds. */
+    readonly seconds: number;
+    readonly fps: 30 | 60;
+}
+
+export const DEFAULT_VIDEO: VideoChoices = { camera: "tour", stops: [], seconds: 5, fps: 30 };
+
+/**
+ * The options for one recording.
+ * @param choices - the video choices.
+ * @param downloadFilename - the file name, for a download; none keeps the video as a blob.
+ * @returns the `captureAnimation` options.
+ */
+export function animationOptions(choices: VideoChoices, downloadFilename?: string): AnimationOptions {
+    return {
+        duration: choices.seconds * 1000,
+        fps: choices.fps,
+        format: "auto",
+        ...(choices.camera === "tour" ? { cameraMode: "animated", tour: choices.stops } : { cameraMode: "stationary" }),
+        ...(downloadFilename === undefined ? {} : { download: true, downloadFilename }),
+    };
+}
+
+/**
+ * Hands the reader a file the page made (a data table, a style file, a recipe).
+ * @param blob - the file's contents.
+ * @param name - its name.
+ */
+export function saveBlob(blob: Blob, name: string): void {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = name;
+    anchor.click();
+    URL.revokeObjectURL(url);
+}
+
+/** The outputs, in the dialog's list order. */
+export type OutputId = "image" | "video" | "data" | "styles" | "recipe" | "project";
+
+/** One file exported in this visit, which Recent lists and opens again with its choices. */
+export interface RecentExport {
+    readonly output: OutputId;
+    readonly name: string;
+    readonly choices?: ImageChoices | VideoChoices | DataChoices;
+}

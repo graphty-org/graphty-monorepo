@@ -8,6 +8,8 @@
  * right angles.
  */
 
+import { itemAt } from "../../common/text.js";
+
 /** A point in the file's own coordinates. */
 export type BendPoint = readonly [x: number, y: number];
 
@@ -69,8 +71,9 @@ export function bendsToPoints(source: BendPoint, target: BendPoint, value: strin
     const dy = (target[1] - source[1]) * flip;
     const out: BendPoint[] = [];
     for (const pair of value.trim().split(/\s+/)) {
-        const [a, c, extra] = pair.split(",").map(Number);
-        if (extra !== undefined || !Number.isFinite(a) || !Number.isFinite(c)) {
+        const numbers = pair.split(",").map(Number);
+        const [a, c] = numbers;
+        if (itemAt(numbers, 2) !== undefined || !Number.isFinite(a) || !Number.isFinite(c)) {
             return null;
         }
         const x = source[0] + a * dx - c * dy;
@@ -165,10 +168,11 @@ export function nodeOffsetsToPoints(
     const flip = yDown ? -1 : 1;
     const out: BendPoint[] = [];
     for (const pair of value.trim().split(/\s+/)) {
-        const [a, b, extra] = pair.split(",").map(Number);
+        const numbers = pair.split(",").map(Number);
+        const [a, b] = numbers;
         const x = center[0] + (a * size[0]) / 2;
         const y = center[1] + (b * size[1] * flip) / 2;
-        if (extra !== undefined || !Number.isFinite(x) || !Number.isFinite(y)) {
+        if (itemAt(numbers, 2) !== undefined || !Number.isFinite(x) || !Number.isFinite(y)) {
             return null;
         }
         out.push([x, y]);
@@ -179,16 +183,23 @@ export function nodeOffsetsToPoints(
 /**
  * The points a quadratic spline passes through, as yEd draws a quad curve edge: its first and last control points are
  * the ends, every control point between them pulls the curve without lying on it, and the curve runs from the middle
- * of the leg before such a point to the middle of the leg after it (from the end itself on the first and last legs).
+ * of the leg before such a point to the middle of the leg after it (from the end itself on the first and last legs,
+ * unless `midEnds`: then from the middle of those legs too, straight from the end, as yEd 3.25 draws a QuadCurveEdge).
  * `straightness` (0..1) keeps that share of every leg straight, so each curved piece covers only the part of its two
  * legs nearest its control point: 0 is the smooth spline, 1 the control polygon.
  * @param controls - the control points, ends included
  * @param straightness - how straight the legs stay, 0..1
  * @param steps - how many points each curved piece is sampled at
+ * @param midEnds - whether the first and last legs join at their middles too
  * @returns the points, ends included; the controls themselves with fewer than three
  * @category Styles
  */
-export function flattenQuadSpline(controls: readonly BendPoint[], straightness: number, steps = 8): BendPoint[] {
+export function flattenQuadSpline(
+    controls: readonly BendPoint[],
+    straightness: number,
+    steps = 8,
+    midEnds = false,
+): BendPoint[] {
     if (controls.length < 3) {
         return [...controls];
     }
@@ -202,8 +213,8 @@ export function flattenQuadSpline(controls: readonly BendPoint[], straightness: 
     for (let i = 1; i < last; i++) {
         const c = controls[i];
         // the joins either side: the middle of each leg, or the end itself on the first and last
-        const before = i === 1 ? controls[0] : lerp(controls[i - 1], c, 0.5);
-        const after = i === last - 1 ? controls[last] : lerp(c, controls[i + 1], 0.5);
+        const before = i === 1 && !midEnds ? controls[0] : lerp(controls[i - 1], c, 0.5);
+        const after = i === last - 1 && !midEnds ? controls[last] : lerp(c, controls[i + 1], 0.5);
         const from = lerp(c, before, 1 - s);
         const to = lerp(c, after, 1 - s);
         for (let k = 0; k <= steps; k++) {

@@ -1,4 +1,4 @@
-import type { AutosaveEntry, AutosaveRestored, AutosaveStatus } from "@graphty/graphty-element";
+import type { AutosaveEntry, AutosaveStatus } from "@graphty/graphty-element";
 import { assert, describe, it } from "vitest";
 
 import {
@@ -7,7 +7,6 @@ import {
     formatAutosaveChip,
     recoveredSentence,
     reopenedSentence,
-    restoredSentence,
 } from "../words";
 
 const STATUS: AutosaveStatus = {
@@ -34,26 +33,6 @@ const ENTRY: AutosaveEntry = {
     dirty: true,
     live: true,
 };
-
-/**
- * A restore of ENTRY saved at `savedAt`, with `others` other unsaved entries.
- * @param savedAt - when it was saved.
- * @param others - the other unsaved entries.
- * @returns the restore.
- */
-function restore(savedAt: string, others: number): AutosaveRestored {
-    return {
-        entry: ENTRY,
-        savedAt,
-        revision: 3,
-        report: { opened: "project", name: null, restored: [], problems: [], extensions: {} },
-        wasDiscarded: null,
-        navigationType: "reload",
-        others,
-        copiedFrom: null,
-        pageOverrides: [],
-    } as unknown as AutosaveRestored;
-}
 
 describe("formatAutosave", () => {
     it("words each state, and draws nothing while autosave is off with nothing to say", () => {
@@ -92,23 +71,6 @@ describe("formatAutosave", () => {
         );
     });
 
-    it("says when the work was saved, and what else the browser holds", () => {
-        const now = Date.parse("2026-10-13T10:02:30.000Z");
-        assert.strictEqual(
-            restoredSentence(restore("2026-10-13T10:02:20.000Z", 0), [ENTRY], now),
-            "Restored your work from a moment ago.",
-        );
-        assert.strictEqual(
-            restoredSentence(
-                restore("2026-10-13T10:00:00.000Z", 2),
-                [ENTRY, { ...ENTRY, id: "e2", ended: "replaced" }],
-                now,
-            ),
-            "Restored your work from 2 minutes ago. 2 other unsaved copies of your work are in this browser. " +
-                "1 earlier graph you replaced is kept too.",
-        );
-    });
-
     it("words the entries it did not reopen", () => {
         const reasons = ["held-by-other-tab", "page-data-changed", "restore-failed", "manual"] as const;
         assert.strictEqual(
@@ -123,6 +85,10 @@ describe("formatAutosave", () => {
             }),
             "newer version",
         );
+        // Short facts, not sentences: no sentence ends in a period.
+        for (const reason of reasons) {
+            assert.notMatch(availableSentence({ entry: ENTRY, reason, problem: null }), /\.$/);
+        }
     });
 
     it("words the start screen's offer and the notice once it is restored", () => {
@@ -135,6 +101,6 @@ describe("formatAutosave", () => {
             recoveredSentence({ ...ENTRY, name: "Org chart", nodes: 1 }, now),
             "Org chart (1 node), changed 5 minutes ago, was never saved to a file.",
         );
-        assert.strictEqual(reopenedSentence(ENTRY, now), "Restored your work from 5 minutes ago.");
+        assert.strictEqual(reopenedSentence(ENTRY, now), "Restored: 5 minutes ago");
     });
 });

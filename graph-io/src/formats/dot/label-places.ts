@@ -13,12 +13,31 @@ import type { GraphSnapshot } from "@graphty/graph-format";
 import { type BendPoint, flattenCubic } from "../../styles/canon/bends.js";
 import { num6 } from "../../styles/canon/number.js";
 import type { StyleValue } from "../../styles/types.js";
+import { fontWidths, textWidth } from "./record.js";
 
 /** Graphviz's `PORT_LABEL_DISTANCE`, in points. */
 const PORT_LABEL_DISTANCE = 10;
 
 /** Graphviz's `PORT_LABEL_ANGLE`, in degrees. */
 const PORT_LABEL_ANGLE = -25;
+
+/** Graphviz's `ARROW_LENGTH`, in points. */
+const ARROW_LENGTH = 10;
+
+/** How long each of Graphviz's arrow shapes is, as a share of `ARROW_LENGTH` (arrows.c `Arrowtypes`). */
+const ARROW_LENGTH_FACTOR: Readonly<Record<string, number>> = {
+    normal: 1,
+    inv: 1,
+    crow: 1,
+    vee: 1,
+    box: 1,
+    curve: 1,
+    icurve: 1,
+    tee: 0.5,
+    diamond: 1.2,
+    dot: 0.8,
+    none: 0,
+};
 
 /** Graphviz's default node size, in inches. */
 const DEFAULT_SIZE = { w: 0.75, h: 0.5 } as const;
@@ -35,6 +54,13 @@ export interface LabelPlaceContext {
     readonly center: (n: number) => BendPoint | null;
     /** A node's attribute. */
     readonly node: (n: number, name: string) => string | null;
+    /**
+     * Whether the layout engine places an edge label it was not given as an external label (every engine but `dot`,
+     * which ranks a label as a node of its own): lib/common/postproc.c `addXLabels` takes each unplaced edge label as
+     * an xlabel of the edge's middle, and lib/label/xlabels.c puts it, where nothing else is drawn, up and to the left
+     * of that point, its box's lower right corner on it.
+     */
+    readonly external: boolean;
 }
 
 /**
@@ -44,16 +70,33 @@ export interface LabelPlaceContext {
  * @param e - the edge
  * @param get - the edge's attributes
  * @param put - receives the values
+ * @param directed - whether the edge is directed, so its default arrow is at its head
  */
-export function readLabelPlaces(snapshot: GraphSnapshot, cx: LabelPlaceContext, e: number, get: Attr, put: Put): void {
+export function readLabelPlaces(
+    snapshot: GraphSnapshot,
+    cx: LabelPlaceContext,
+    e: number,
+    get: Attr,
+    put: Put,
+    directed = false,
+): void {
     const s = snapshot.edgeSource(e);
     const t = snapshot.edgeTarget(e);
     const [source, target] = [cx.center(s), cx.center(t)];
-    if (source === null || target === null || s === t) {
+    const route = source === null || target === null ? null : edgeRoute(source, target, get("pos"));
+    const lp = (route?.start ?? null) === null ? null : point(get("lp"));
+    if (lp === null && cx.external && s !== t && (get("label") ?? get("xlabel")) !== null) {
+        // ponytail: the first place xlabels.c tries; one that would cover another label or node moves elsewhere
+        put("labelPosition", "center");
+        put("labelShiftX", -0.5);
+        put("labelShiftY", -0.5);
+        if (source !== null && target !== null && get("pos") === null) {
+            readExternalLabelMiddle(cx, { s, t, source, target }, get, put, directed);
+        }
+    }
+    if (route === null || source === null || target === null || s === t) {
         return;
     }
-    const route = edgeRoute(source, target, get("pos"));
-    const lp = route.start === null ? null : point(get("lp"));
     if (lp !== null && get("label") !== null) {
         const mid = routeMiddle(route.points);
         put("labelOffsetX", num6(lp[0] - mid[0]));
@@ -61,6 +104,68 @@ export function readLabelPlaces(snapshot: GraphSnapshot, cx: LabelPlaceContext, 
     }
     readEndLabel(cx, route, { node: t, at: target, other: source }, "head", get, put);
     readEndLabel(cx, route, { node: s, at: source, other: target }, "tail", get, put);
+}
+
+/** An edge's two nodes and their centers. */
+interface EdgeEnds {
+    readonly s: number;
+    readonly t: number;
+    readonly source: BendPoint;
+    readonly target: BendPoint;
+}
+
+/**
+ * Reads where Graphviz hangs an external edge label from, for an edge it routes itself (no stored `pos`): the middle
+ * of the line it draws (postproc.c `addXLabels`, `edgeMidpoint`), which runs from one node's outline to the other's
+ * and stops short of each arrowhead by the arrow's length (arrows.c `arrow_length`), as an offset from the middle of
+ * the two centers, where graphty hangs a straight edge's label.
+ * ponytail: the line taken as straight, between the nodes' ellipses, as neato draws an edge without `splines`
+ * @param cx - the graph's label place context
+ * @param ends - the edge's nodes and their centers
+ * @param get - the edge's attributes
+ * @param put - receives the values
+ * @param directed - whether the edge is directed, so its default arrow is at its head
+ */
+function readExternalLabelMiddle(cx: LabelPlaceContext, ends: EdgeEnds, get: Attr, put: Put, directed: boolean): void {
+    const { s, t, source, target } = ends;
+    const dir = get("dir")?.trim().toLowerCase() || (directed ? "forward" : "none");
+    const size = finite(get("arrowsize"), 1, 0);
+    const head = dir === "forward" || dir === "both" ? arrowLength(get("arrowhead"), size) : 0;
+    const tail = dir === "back" || dir === "both" ? arrowLength(get("arrowtail"), size) : 0;
+    const from = boundary(cx, s, source, target);
+    const to = boundary(cx, t, target, source);
+    const length = Math.hypot(to[0] - from[0], to[1] - from[1]);
+    if (length === 0) {
+        return;
+    }
+    // the line's middle moves half of each arrow's length away from that arrow
+    const k = (tail - head) / 2 / length;
+    const mid: BendPoint = [
+        (from[0] + to[0]) / 2 + (to[0] - from[0]) * k,
+        (from[1] + to[1]) / 2 + (to[1] - from[1]) * k,
+    ];
+    const centers: BendPoint = [(source[0] + target[0]) / 2, (source[1] + target[1]) / 2];
+    const [x, y] = [mid[0] - centers[0], centers[1] - mid[1]];
+    if (Math.hypot(x, y) > 1e-6) {
+        put("labelOffsetX", num6(x));
+        put("labelOffsetY", num6(y));
+    }
+}
+
+/**
+ * How long Graphviz draws an arrow, in points: each of its shapes' share of `ARROW_LENGTH`, summed, times the edge's
+ * `arrowsize`.
+ * @param raw - the arrow's name (`arrowhead` or `arrowtail`), or null for the default
+ * @param size - the edge's `arrowsize`
+ * @returns the length
+ */
+function arrowLength(raw: string | null, size: number): number {
+    const shapes = (raw?.trim().toLowerCase() || "normal").match(
+        /(normal|inv|crow|vee|box|icurve|curve|tee|diamond|dot|none)/g,
+    );
+    return (
+        (shapes ?? ["normal"]).reduce((sum, shape) => sum + (ARROW_LENGTH_FACTOR[shape] ?? 1), 0) * ARROW_LENGTH * size
+    );
 }
 
 /** One end of an edge: its node, that node's center and the other end's center. */
@@ -225,4 +330,155 @@ function boundary(cx: LabelPlaceContext, n: number, center: BendPoint, toward: B
     }
     const r = 1 / Math.hypot(dx / len / rx, dy / len / ry);
     return [center[0] + (dx / len) * r, center[1] + (dy / len) * r];
+}
+
+/** Graphviz's default font size, in points. */
+const DEFAULT_FONT_SIZE = 14;
+
+/** Graphviz's line height as a multiple of the font size. */
+const LINE_SPACING = 1.2;
+
+/**
+ * The nodes whose external label (`xlabel`) Graphviz leaves out: with the graph's `forcelabels=false` it drops an
+ * xlabel that would cover another node (lib/label/xlabels.c), and leaves that node's `xlp` out of its output. A file
+ * Graphviz laid out with its xlabels (some node stores an `xlp`) says so by that absence. A file that places every node
+ * but stores no `xlp` (drawn as it is, by graphty) is measured as graphty draws it: the label's box against the node's
+ * top left corner, outside it, must cover no other node's box. Elsewhere the layout decides (a Graphviz layout leaves
+ * out an `xlp` the same way), so nothing is left out here.
+ * @param forcelabels - the graph's `forcelabels`, null when unset (true)
+ * @param count - how many nodes the graph has
+ * @param cx - the graph's label place context
+ * @param cluster - whether a node is a cluster's container (never a node that is drawn)
+ * @returns the nodes whose xlabel is left out
+ */
+export function leftOutXlabels(
+    forcelabels: string | null,
+    count: number,
+    cx: LabelPlaceContext,
+    cluster: (n: number) => boolean,
+): ReadonlySet<number> {
+    const out = new Set<number>();
+    if (!mayLeaveOut(forcelabels)) {
+        return out;
+    }
+    const nodes = Array.from({ length: count }, (_, n) => n).filter((n) => !cluster(n));
+    const unplaced = nodes.filter((n) => cx.node(n, "xlabel") !== null && cx.node(n, "xlp") === null);
+    if (unplaced.length === 0) {
+        return out;
+    }
+    if (nodes.some((n) => cx.node(n, "xlp") !== null)) {
+        // Graphviz placed the xlabels it had room for
+        return new Set(unplaced);
+    }
+    const boxes = nodes.map((n) => [n, nodeBox(cx, n)] as const);
+    if (boxes.some(([, b]) => b === null)) {
+        return out;
+    }
+    const at = new Map(boxes);
+    // ponytail: every unplaced xlabel against every node, O(labels x nodes); a grid when a large file needs it
+    for (const n of unplaced) {
+        const [x0, , , y1] = at.get(n) ?? [0, 0, 0, 0];
+        const size = Number(cx.node(n, "fontsize") ?? Number.NaN);
+        const font = Number.isFinite(size) && size > 0 ? size : DEFAULT_FONT_SIZE;
+        const lines = (cx.node(n, "xlabel") ?? "").split(/\\[nlr]|\n/);
+        const widths = fontWidths(cx.node(n, "fontname"));
+        const w = Math.max(...lines.map((l) => textWidth(l, font, widths)));
+        const label: Box = [x0 - w, y1, x0, y1 + lines.length * LINE_SPACING * font];
+        if (boxes.some(([m, b]) => m !== n && b !== null && overlaps(label, b))) {
+            out.add(n);
+        }
+    }
+    return out;
+}
+
+/**
+ * Whether the graph's `forcelabels` lets Graphviz leave out a label it has no room for: `false` (unset is true).
+ * @param forcelabels - the graph's `forcelabels`, null when unset
+ * @returns true when labels may be left out
+ */
+function mayLeaveOut(forcelabels: string | null): boolean {
+    return /^(false|no|0+)$/i.test((forcelabels ?? "").trim());
+}
+
+/** An edge label's attribute and the xdot attribute that draws it (`-Txdot` output). */
+const EDGE_LABEL_DRAWS = [
+    ["label", "_ldraw_"],
+    ["headlabel", "_hldraw_"],
+    ["taillabel", "_tldraw_"],
+] as const;
+
+/**
+ * The labels Graphviz leaves out of each edge: with the graph's `forcelabels=false` it drops an edge's `xlabel`, a head
+ * or tail label it places as an external label, and, in every engine but dot, its `label`, where each would cover a
+ * node or another label (lib/common/postproc.c `addXLabels`). Its output says so for an `xlabel` by leaving out the
+ * edge's `xlp`, read once the file shows Graphviz placed its external labels (`placed`). For the others it still
+ * writes an `lp`, `head_lp` or `tail_lp`, at no place it drew, so only an xdot file (`-Txdot`, the edge has a
+ * `_draw_`) says so: by leaving out the label's `_ldraw_`, `_hldraw_` or `_tldraw_`.
+ * @param forcelabels - the graph's `forcelabels`, null when unset (true)
+ * @param count - how many edges the graph has
+ * @param edge - an edge's attribute
+ * @param placed - whether some node or edge stores an `xlp`
+ * @returns the attributes of the labels left out, by edge; absent for an edge with none left out
+ */
+export function leftOutEdgeLabels(
+    forcelabels: string | null,
+    count: number,
+    edge: (e: number, name: string) => string | null,
+    placed: boolean,
+): ReadonlyMap<number, ReadonlySet<string>> {
+    const out = new Map<number, ReadonlySet<string>>();
+    if (!mayLeaveOut(forcelabels)) {
+        return out;
+    }
+    for (let e = 0; e < count; e++) {
+        const has = (name: string): boolean => (edge(e, name) ?? "") !== "";
+        const xdot = edge(e, "_draw_") !== null;
+        const gone = new Set<string>();
+        if ((placed || xdot) && has("xlabel") && edge(e, "xlp") === null) {
+            gone.add("xlabel");
+        }
+        // ponytail: an edge's label and xlabel share one `_ldraw_`, so a label left out beside a kept xlabel is kept
+        for (const [name, draw] of xdot ? EDGE_LABEL_DRAWS : []) {
+            if (has(name) && !has(draw)) {
+                gone.add(name);
+            }
+        }
+        if (gone.size > 0) {
+            out.set(e, gone);
+        }
+    }
+    return out;
+}
+
+/** A box in points, y up: low x, low y, high x, high y. */
+type Box = readonly [number, number, number, number];
+
+/**
+ * A node's box from its stored center and its `width` and `height`.
+ * @param cx - the label place context
+ * @param n - the node
+ * @returns the box, or null when the node has no stored position
+ */
+function nodeBox(cx: LabelPlaceContext, n: number): Box | null {
+    // ponytail: a node Graphviz grows to fit its label is taken at its least size (`width`, `height`)
+    const c = cx.center(n);
+    if (c === null) {
+        return null;
+    }
+    const inch = (name: "width" | "height", fallback: number): number => {
+        const v = Number(cx.node(n, name) ?? Number.NaN);
+        return (Number.isFinite(v) && v >= 0 ? v : fallback) * 72;
+    };
+    const [hw, hh] = [inch("width", DEFAULT_SIZE.w) / 2, inch("height", DEFAULT_SIZE.h) / 2];
+    return [c[0] - hw, c[1] - hh, c[0] + hw, c[1] + hh];
+}
+
+/**
+ * Whether two boxes share some area (touching edges do not).
+ * @param a - one box
+ * @param b - the other
+ * @returns true when they overlap
+ */
+function overlaps(a: Box, b: Box): boolean {
+    return a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 }

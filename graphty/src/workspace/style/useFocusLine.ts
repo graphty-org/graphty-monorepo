@@ -1,4 +1,5 @@
 import type { Channel } from "@graphty/graphty-element/schema";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
 /** What can take keyboard focus inside a line. */
@@ -28,11 +29,41 @@ export function lineTarget(line: Element | null | undefined): HTMLElement | null
     return keystrokeTarget(all(`.ws-field-control :is(${CONTROL})`)) ?? keystrokeTarget(all(CONTROL)) ?? null;
 }
 
-/** The line waiting for focus, as a selector; module state, so it outlives a remount of the tab. */
-let pending: string | null = null;
+/** A line waiting for focus: its selector, and the session whose Style tab draws it. */
+interface Ask {
+    readonly selector: string;
+    readonly session: WeakRef<GraphSession>;
+}
 
-/** The lines each section of the last drawn tab listed, and which row the tab was; outlives a remount. */
-let drawn: { readonly panel: string; readonly lines: ReadonlyMap<string, readonly string[]> } | null = null;
+/**
+ * The line waiting for focus; module state, so it outlives a remount of the tab. Only a tab of the
+ * session that asked answers it: row ids and lines repeat in another session (a project opened
+ * since, a story rendered again), whose tab must never take focus for an ask it did not make.
+ * Held weakly, so an ask left by a closed project does not keep its session alive.
+ */
+let pending: Ask | null = null;
+
+/**
+ * Records an ask, or withdraws it.
+ * @param session - the session whose tab answers it.
+ * @param selector - the line, or null to withdraw.
+ */
+function ask(session: GraphSession, selector: string | null): void {
+    pending = selector === null ? null : { selector, session: new WeakRef(session) };
+}
+
+/**
+ * The lines each section of the last drawn tab listed, and which row of which session the tab was;
+ * outlives a remount. A row's id is only unique within its session: another session (a project
+ * opened again, a story rendered again in the same page) numbers its rows from the start, and its
+ * new layer's tab must not be read as the old one's lines going away. Held weakly, so a closed
+ * project's session is not kept alive by the last tab it drew.
+ */
+let drawn: {
+    readonly session: WeakRef<GraphSession>;
+    readonly panel: string;
+    readonly lines: ReadonlyMap<string, readonly string[]>;
+} | null = null;
 
 /**
  * The lines each section of a tab lists.
@@ -91,34 +122,38 @@ function controlForChange(
  * trigger ("+" with nothing left to add, the bind icon of a now-bound line), so focus would fall
  * to the page body (WCAG 2.4.3). The line appears only after the element applies the write, and
  * the first line a row sets makes a new layer, which remounts the tab.
+ * @param session - the element's session the line is written in; only its Style tab answers.
  * @param channel - the line's channel, or null to withdraw the ask (the write failed).
  * @param bound - wait until the line is bound (its pill drawn, not its old value), or with
  *   "fixed" until it holds one value again (a detach).
  */
-export function focusLineNext(channel: Channel | null, bound: boolean | "fixed" = false): void {
+export function focusLineNext(session: GraphSession, channel: Channel | null, bound: boolean | "fixed" = false): void {
     let state = "";
     if (bound === "fixed") {
         state = ":not([data-bound])";
     } else if (bound) {
         state = "[data-bound]";
     }
-    pending = channel === null ? null : `[data-line="${channel}"]${state}`;
+    ask(session, channel === null ? null : `[data-line="${channel}"]${state}`);
 }
 
 /**
  * Asks for keyboard focus on a section's "+" once a line removed from it is gone. The line's own
  * Remove button goes with it, so focus would fall to the page body (WCAG 2.4.3); never onto the
  * line that slides into its place, whose Remove a second Enter would press. Withdrawn with
- * `focusLineNext(null)`.
+ * `focusLineNext(session, null)`.
+ * @param session - the element's session the line is removed in; only its Style tab answers.
  * @param from - the Remove button, inside the section.
  * @param channel - the removed line's channel.
  */
-export function focusSectionNext(from: Element, channel: Channel): void {
+export function focusSectionNext(session: GraphSession, from: Element, channel: Channel): void {
     const section = from.closest<HTMLElement>("[data-section]")?.dataset.section;
-    pending =
+    ask(
+        session,
         section === null || section === undefined
             ? null
-            : `[data-section="${section}"]:not(:has([data-line="${channel}"] [aria-label^="Remove"])) [data-plus]`;
+            : `[data-section="${section}"]:not(:has([data-line="${channel}"] [aria-label^="Remove"])) [data-plus]`,
+    );
 }
 
 /**
@@ -129,12 +164,13 @@ export function focusSectionNext(from: Element, channel: Channel): void {
  * A line that comes or goes with nobody asking (an Undo or Redo) while focus is in the tab or has
  * fallen to the page takes focus itself: a line that came back, in its field; a line taken away, at
  * its section's "+".
+ * @param session - the element's session the row belongs to.
  * @param panel - which row the tab shows, so a change of row is never read as lines coming or going.
  * @returns the ref for the element that holds the lines.
  */
-export function useFocusLine<T extends HTMLElement>(panel: string): RefObject<T | null> {
+export function useFocusLine<T extends HTMLElement>(session: GraphSession, panel: string): RefObject<T | null> {
     const scope = useRef<T>(null);
-    const handed = useRef<string | null>(null);
+    const handed = useRef<Ask | null>(null);
     // No dependency list: the line appears on whatever render the element's change causes.
     useEffect(() => {
         const node = scope.current;
@@ -143,21 +179,23 @@ export function useFocusLine<T extends HTMLElement>(panel: string): RefObject<T 
         }
         const was = drawn;
         const now = linesOf(node);
-        drawn = { panel, lines: now };
+        drawn = { session: new WeakRef(session), panel, lines: now };
         // Focus fell to the page, or stays in the tab (on a "+" an Undo did not take away).
         const active = document.activeElement;
         const free = active === null || active === document.body || node.contains(active);
-        if (pending === null && free && was?.panel === panel) {
+        // Another session's ask is not this tab's to answer.
+        const asked = pending?.session.deref() === session ? pending : null;
+        if (asked === null && free && was?.session.deref() === session && was.panel === panel) {
             controlForChange(node, was.lines, now)?.focus();
         }
-        if (pending === null) {
+        if (asked === null) {
             return;
         }
-        const target = scope.current?.querySelector<HTMLElement>(pending);
+        const target = scope.current?.querySelector<HTMLElement>(asked.selector);
         // The ask names a line, or a control itself (a section's "+").
         const control = target?.matches(CONTROL) === true ? target : lineTarget(target);
         if (control !== null) {
-            handed.current = pending;
+            handed.current = asked;
             pending = null;
             // The line already holds focus (its own copy took it back, on the control a Tab was
             // going to): the ask is answered.
@@ -175,9 +213,10 @@ export function useFocusLine<T extends HTMLElement>(panel: string): RefObject<T 
     useLayoutEffect(() => {
         const node = scope.current;
         return () => {
-            const line = handed.current === null ? null : node?.querySelector(handed.current);
+            const asked = handed.current;
+            const line = asked === null ? null : node?.querySelector(asked.selector);
             if (pending === null && line?.contains(document.activeElement) === true) {
-                const asked = handed.current;
+                // Asked again for the same session.
                 pending = asked;
                 // The ask is for the tab that replaces this one now; one nothing takes (the row
                 // itself went, as an Undo of its first line does) must not steal focus later.
@@ -214,4 +253,13 @@ export function openListNext(channel: Channel | null): void {
  */
 export function listOpensNext(channel: Channel): boolean {
     return listNext === channel;
+}
+
+/**
+ * The bottom of the app header, so a tall pop-out beside the panel starts below it and never
+ * covers it.
+ * @returns its bottom in viewport pixels, or 0 when there is no header.
+ */
+export function headerBottom(): number {
+    return document.querySelector(".ws-header")?.getBoundingClientRect().bottom ?? 0;
 }

@@ -2,6 +2,7 @@
 import Hammer from "hammerjs";
 
 import { type CanvasKeyAction, canvasKeyAction } from "../catalog/canvasKeys";
+import { wheelZoomFactor } from "./InputUtils";
 import { OrbitCameraController, OrbitConfig } from "./OrbitCameraController";
 
 /**
@@ -19,14 +20,21 @@ const OPPOSITE_ACTION: Readonly<Partial<Record<CanvasKeyAction, CanvasKeyAction>
     "turn-down": "turn-up",
     "roll-left": "roll-right",
     "roll-right": "roll-left",
+    "zoom-in": "zoom-out",
+    "zoom-out": "zoom-in",
 };
 
 /**
- * The factor one wheel notch, or one press of W or S, changes the camera's distance by. About
- * what the first TAP_FRAMES frames of a held W or S zoom (0.985 ** 8 = 0.886), so a hold carries
- * on from the press without a jump.
+ * The factor one wheel notch changes the camera's distance by: about what a tap of W or S zooms
+ * over its TAP_FRAMES frames (0.985 ** 8 = 0.886).
  */
 const NOTCH_ZOOM = 1.1;
+
+/** The mouse buttons whose drag pans the view (`PointerEvent.button`): the middle and the right. */
+const PAN_BUTTONS: ReadonlySet<number> = new Set([1, 2]);
+
+/** CSS pixels a right-button drag must move before its release opens no context menu. */
+const PAN_CLICK_SLOP = 3;
 
 /**
  * One axis from a pair of opposing keys: 1, -1, or 0 when neither or both are on.
@@ -46,6 +54,10 @@ export class OrbitInputController {
     private readonly canvas: HTMLCanvasElement;
     private readonly controller: OrbitCameraController;
     private isPointerDown = false;
+    /** Whether the button held down pans rather than turns. */
+    private isPanning = false;
+    /** CSS pixels the current or last pan drag moved, to tell a right-click from a right-drag. */
+    private panTravel = 0;
     private lastX = 0;
     private lastY = 0;
     private isMultiTouch = false;
@@ -69,8 +81,15 @@ export class OrbitInputController {
 
     // Store handlers for attach/detach
     private readonly pointerDownHandler = (evt: PointerEvent): void => {
-        if (evt.button === 0 && !this.isMultiTouch) {
+        const pans = PAN_BUTTONS.has(evt.button);
+        if ((evt.button === 0 || pans) && !this.isMultiTouch) {
             this.isPointerDown = true;
+            this.isPanning = pans;
+            this.panTravel = 0;
+            if (evt.button === 1) {
+                // Not the browser's middle-click autoscroll
+                evt.preventDefault();
+            }
             this.lastX = evt.clientX;
             this.lastY = evt.clientY;
             // Take keyboard focus on a click, without scrolling the host page
@@ -80,6 +99,7 @@ export class OrbitInputController {
 
     private readonly pointerUpHandler = (): void => {
         this.isPointerDown = false;
+        this.isPanning = false;
     };
 
     private readonly pointerMoveHandler = (evt: PointerEvent): void => {
@@ -89,9 +109,20 @@ export class OrbitInputController {
 
         const dx = evt.clientX - this.lastX;
         const dy = evt.clientY - this.lastY;
+        const rect = this.canvas.getBoundingClientRect();
+        const from = { x: this.lastX - rect.left, y: this.lastY - rect.top };
         this.lastX = evt.clientX;
         this.lastY = evt.clientY;
-        this.controller.rotate(dx, dy);
+        if (this.isPanning) {
+            this.panTravel += Math.hypot(dx, dy);
+            this.controller.pan(dx, dy);
+            return;
+        }
+
+        // On a globe the grabbed point stays under the pointer; elsewhere the drag turns the view.
+        if (!this.controller.dragOnSphere(from, { x: evt.clientX - rect.left, y: evt.clientY - rect.top })) {
+            this.controller.rotate(dx, dy);
+        }
     };
 
     private readonly keyDownHandler = (evt: KeyboardEvent): void => {
@@ -102,20 +133,10 @@ export class OrbitInputController {
             return;
         }
 
-        // A zoom key zooms one wheel notch on the press itself, so a tap between two frames is
-        // never lost. Held past TAP_FRAMES frames it keeps zooming every frame (update), and the
+        // The zoom keys too: a press owes frames of motion, a hold moves every frame, and the
         // auto-repeats add nothing: they start late, follow the OS settings, and on macOS (press
-        // and hold shows the accent menu) a held letter often repeats not at all.
-        if (action === "zoom-in" || action === "zoom-out") {
-            this.held.add(action);
-            if (!evt.repeat) {
-                this.zoomBy(action === "zoom-in" ? -1 : 1);
-                this.owed.set(action, TAP_FRAMES);
-            }
-
-            return;
-        }
-
+        // and hold shows the accent menu) a held letter often repeats not at all. A zoom key
+        // must not jump on the press: the first frame zooms as far as every frame after it.
         this.held.add(action);
         if (!evt.repeat) {
             // Added, not set: presses quicker than TAP_FRAMES apart each turn the full step.
@@ -143,21 +164,29 @@ export class OrbitInputController {
         }
     };
 
-    // One mouse wheel notch (deltaY 100) changes the camera's distance by NOTCH_ZOOM;
-    // a trackpad's many small deltas add up to the same. The clamp keeps a line- or page-mode
-    // delta from jumping the camera.
+    // A right-button drag that panned is not a right-click: on Windows its release would open
+    // the context menu. Where the menu opens on the press (macOS, Linux) it opens as before.
+    private readonly contextMenuHandler = (evt: MouseEvent): void => {
+        if (this.panTravel >= PAN_CLICK_SLOP) {
+            evt.preventDefault();
+            evt.stopPropagation();
+        }
+    };
+
+    // One mouse wheel notch changes the camera's distance by NOTCH_ZOOM; a trackpad's many small
+    // deltas add up to the same, and a pinch follows the fingers. See wheelZoomFactor.
     private readonly wheelHandler = (evt: WheelEvent): void => {
         evt.preventDefault();
-        const notches = Math.max(-1, Math.min(1, evt.deltaY / 100));
+        const distance = this.controller.zoomDelta(wheelZoomFactor(evt, NOTCH_ZOOM));
         if (this.zoomToPointer) {
             const rect = this.canvas.getBoundingClientRect();
             const x = ((evt.clientX - rect.left) / Math.max(1, rect.width)) * 2 - 1;
             const y = 1 - ((evt.clientY - rect.top) / Math.max(1, rect.height)) * 2;
-            this.controller.zoomToward(this.notchDistance(notches), x, y);
+            this.controller.zoomToward(distance, x, y);
             return;
         }
 
-        this.zoomBy(notches);
+        this.controller.zoom(distance);
     };
 
     // The canvas never sees the keyup of a key released after it lost focus
@@ -165,27 +194,6 @@ export class OrbitInputController {
         this.held.clear();
         this.owed.clear();
     };
-
-    /**
-     * How far some wheel notches move the camera: each notch out multiplies its distance by
-     * NOTCH_ZOOM and each notch in divides it by the same, so a turn out undoes a
-     * turn in. Adding the same share of the distance either way zoomed in 1/0.9 a notch and out
-     * only 1/1.1, and three turns out did not undo three turns in.
-     * @param notches - Notches; negative zooms in.
-     * @returns The distance delta.
-     */
-    private notchDistance(notches: number): number {
-        const distance = this.controller.cameraDistance;
-        return distance * NOTCH_ZOOM ** notches - distance;
-    }
-
-    /**
-     * Zoom toward the view's center by some wheel notches.
-     * @param notches - Notches; negative zooms in.
-     */
-    private zoomBy(notches: number): void {
-        this.controller.zoom(this.notchDistance(notches));
-    }
 
     /**
      * Creates a new OrbitInputController instance.
@@ -219,6 +227,14 @@ export class OrbitInputController {
 
         this.hammer.on("pinchend rotateend", () => {
             this.isMultiTouch = false;
+        });
+
+        // Touches the browser cancels never end the gesture, and a gesture left open blocks every
+        // later drag. A cancel for another reason (a third pointer joining) leaves the fingers down.
+        this.hammer.on("pinchcancel rotatecancel", (ev: HammerInput) => {
+            if (ev.eventType === Hammer.INPUT_CANCEL) {
+                this.isMultiTouch = false;
+            }
         });
 
         this.hammer.on("pinchmove rotatemove", (ev: HammerInput) => {
@@ -262,6 +278,7 @@ export class OrbitInputController {
         this.canvas.addEventListener("pointerup", this.pointerUpHandler);
         this.canvas.addEventListener("pointermove", this.pointerMoveHandler);
         this.canvas.addEventListener("wheel", this.wheelHandler, { passive: false });
+        this.canvas.addEventListener("contextmenu", this.contextMenuHandler);
 
         this.canvas.addEventListener("keydown", this.keyDownHandler);
         this.canvas.addEventListener("keyup", this.keyUpHandler);
@@ -288,6 +305,7 @@ export class OrbitInputController {
         this.canvas.removeEventListener("pointerup", this.pointerUpHandler);
         this.canvas.removeEventListener("pointermove", this.pointerMoveHandler);
         this.canvas.removeEventListener("wheel", this.wheelHandler);
+        this.canvas.removeEventListener("contextmenu", this.contextMenuHandler);
 
         this.canvas.removeEventListener("keydown", this.keyDownHandler);
         this.canvas.removeEventListener("keyup", this.keyUpHandler);
@@ -332,13 +350,10 @@ export class OrbitInputController {
             cam.spin(-this.config.keyboardYawSpeed);
         }
 
-        // A zoom key held past its tap's frames multiplies the distance by 1 - keyboardZoomSpeed
-        // every frame, so it zooms as fast far out as close in; W and S are exact inverses, and
+        // A zoom key multiplies the distance by 1 - keyboardZoomSpeed every frame it is on, from
+        // the first, so it zooms as fast far out as close in; W and S are exact inverses, and
         // held together they cancel, as two arrows do.
-        const { held } = this;
-        const zooming = (action: CanvasKeyAction): boolean => held.has(action) && (owed.get(action) ?? 0) === 0;
-        const both = held.has("zoom-in") && held.has("zoom-out");
-        const zoom = both ? 0 : axisOf(zooming("zoom-out"), zooming("zoom-in"));
+        const zoom = axisOf(on("zoom-out"), on("zoom-in"));
         if (zoom !== 0) {
             cam.zoomBy((1 - this.config.keyboardZoomSpeed) ** -zoom);
         }

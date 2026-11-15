@@ -53,7 +53,7 @@ const P1_IDS: readonly KernelId[] = ["degree", "reduce", "fill", "fa2-repulsion-
 const ALL_IDS = Object.keys(KERNELS) as KernelId[];
 
 /** Snippet texts that let a body with marker slots compose with its defaults (only VALUE exists in P0-P3). */
-const DEFAULT_SNIPPETS: Readonly<Record<string, string>> = { VALUE: "v = 1.0;" };
+const DEFAULT_SNIPPETS: Readonly<Partial<Record<string, string>>> = { VALUE: "v = 1.0;" };
 
 function defaultSnippets(entry: KernelEntry): Readonly<Record<string, string>> | undefined {
     if (entry.snippetSlots.length === 0) {

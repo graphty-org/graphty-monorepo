@@ -4,14 +4,8 @@ import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { seedSchema } from "./seedOption";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
-
-/**
- * The seed used when none is given. The element recommends this layout for large graphs as "the
- * same every time", and a consumer applies it by name alone, so the default must be fixed rather
- * than drawn from `Math.random()` on every load.
- */
-const DEFAULT_SEED = 1;
 
 /**
  * Zod-based options schema for Random Layout
@@ -32,7 +26,7 @@ const randomLayoutOptionsSchema = defineOptions({
         },
     },
     seed: {
-        schema: z.number().positive().nullable().default(DEFAULT_SEED),
+        schema: seedSchema,
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible random positions",
@@ -46,7 +40,7 @@ const RandomLayoutConfig = z.strictObject({
     scalingFactor: z.number().default(100),
     center: z.array(z.number()).min(2).max(3).or(z.null()).default(null),
     dim: z.number().default(2),
-    seed: z.number().positive().or(z.null()).default(DEFAULT_SEED),
+    seed: seedSchema,
 });
 type RandomLayoutConfigType = z.infer<typeof RandomLayoutConfig>;
 type RandomLayoutOpts = Partial<RandomLayoutConfigType>;
@@ -55,9 +49,9 @@ type RandomLayoutOpts = Partial<RandomLayoutConfigType>;
  * Random layout engine that places nodes at random positions
  */
 export class RandomLayout extends SnapshotLayoutEngine {
-    static type = "random";
-    static maxDimensions = 3;
-    static zodOptionsSchema: OptionsSchema = randomLayoutOptionsSchema;
+    static readonly type: string = "random";
+    static readonly maxDimensions: number = 3;
+    static readonly zodOptionsSchema: OptionsSchema = randomLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: RandomLayoutConfigType;
 

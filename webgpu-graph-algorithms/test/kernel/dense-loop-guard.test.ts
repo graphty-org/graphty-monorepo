@@ -67,7 +67,9 @@ describe("dense-row loops (G-ENV ENV-F8)", () => {
             .split("Dumped SPIRV disassembly")
             .slice(1)
             .map((m) =>
-                [...m.matchAll(/OpEntryPoint GLCompute %(\w+)|OpName %\S+ "(row_\w+)"/g)].map((x) => x[1] ?? x[2]),
+                [...m.matchAll(/OpEntryPoint GLCompute %(\w+)|OpName %\S+ "(row_\w+)"/g)].map(
+                    (x) => (x[1] as string | undefined) ?? x[2],
+                ),
             );
         const seen = `${census.length} SPIR-V modules, ${dump.length} bytes: ${census.map((m) => m.join("+")).join(", ")}; stderr: ${proc.stderr.slice(0, 500)}`;
         for (const name of ["row_sum_dense", "row_fold_dense", "row_force_dense"]) {

@@ -21,9 +21,6 @@ import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** Two rings of six joined by one bridge; each node labeled, each edge weighted. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}`, label: `Node ${String(i)}` }));
 const ring = (from: number): { source: string; target: string; weight: number }[] =>
@@ -42,13 +39,10 @@ async function openWorkspace(): Promise<{ session: GraphSession; store: Workspac
     const store = createWorkspaceStore({ project: { name: "Two rings", id: 1 } });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -145,12 +139,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
     it("T6: the graph's Overview shows the element's counts for karate", async () => {
         const { session } = await openWorkspace();
         await session.data.import({ config: { url: "/samples/karate.gml" } });
-        await waitFor(
-            () => {
-                assert.equal(session.data.statistics().nodeCount, 34);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        assert.equal(session.data.statistics().nodeCount, 34);
         const statistics = session.data.statistics();
 
         await waitFor(() => {
@@ -210,8 +199,8 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             .focus();
         await userEvent.keyboard("{Enter}");
         const list = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
-        // Focus lands on the checked Hops choice, not a neighbor row and not the whole list.
-        assert.equal(document.activeElement, within(list).getByRole("radio", { name: "1" }));
+        // Focus lands on the Hops field, not a neighbor row and not the whole list.
+        assert.equal(document.activeElement, within(list).getByRole("spinbutton", { name: "Hops" }));
 
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -225,7 +214,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         const again = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
         const first = rowButtons(again)[0];
         await waitFor(() => {
-            assert.equal(document.activeElement, within(again).getByRole("radio", { name: "1" }));
+            assert.equal(document.activeElement, within(again).getByRole("spinbutton", { name: "Hops" }));
         });
         // Enter on a name picks that node.
         first.focus();
@@ -257,8 +246,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             assert.equal(within(now).getByRole("radio", { checked: true }).getAttribute("value"), "in");
             assert.equal(document.activeElement, within(now).getByRole("radio", { checked: true }));
         });
-        const hops = inspector().getByRole("radiogroup", { name: "Hops" });
-        assert.equal(within(hops).getByRole("radio", { checked: true }).getAttribute("value"), "1");
+        assert.equal(inspector().getByRole("spinbutton", { name: "Hops" }).getAttribute("aria-valuenow"), "1");
     });
 
     it("T12 from the find box: a pick moves focus to the inspector's title, not a value row", async () => {
@@ -275,11 +263,12 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         await waitFor(() => {
             assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
         });
-        // A heading with no focus mark: a box reads as an editable name, an underline as a link.
-        const title = inspector().getByRole("heading", { level: 2, name: "n0" });
+        // A heading, not a link: no underline. It draws the shared focus ring, so a keyboard reader
+        // sees where the next key goes (WCAG 2.4.7; FocusRings.real-element.test.tsx measures it).
+        const title = inspector().getByRole("heading", { level: 2, name: "Node 0" });
         assert.equal(title, document.activeElement);
         assert.equal(getComputedStyle(title).textDecorationLine, "none");
-        assert.equal(getComputedStyle(title).outlineStyle, "none");
+        assert.equal(getComputedStyle(title).outlineStyle, "solid");
         await userEvent.keyboard("{Enter}");
         assert.isNull(inspector().queryByRole("group", { name: "Node 0 and 3 connections" }));
     });
@@ -369,15 +358,12 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         });
         await userEvent.click(inspector().getByRole("button", { name: "Rerun" }));
 
-        await waitFor(
-            () => {
-                const runs = session.runs.list().filter((run) => run.algorithm === "pagerank");
-                assert.lengthOf(runs, 1);
-                assert.equal(runs[0].status, "succeeded");
-                assert.include(Object.values(runs[0].params), 0.5);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const runs = session.runs.list().filter((run) => run.algorithm === "pagerank");
+            assert.lengthOf(runs, 1);
+            assert.equal(runs[0].status, "succeeded");
+            assert.include(Object.values(runs[0].params), 0.5);
+        });
         assert.equal(runBar().textContent, "");
         // The bar and its Rerun are gone; focus is on the inspector's title, not the page.
         assert.equal(document.activeElement, document.getElementById(INSPECTOR_TITLE_ID));
@@ -466,7 +452,8 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         const covers = await inspector().findByRole("group", { name: "Covers" });
         assert.include(within(covers).getByRole("group", { name: "Matched nodes" }).textContent, "12");
 
-        // A group row: its members are the nodes Louvain put in that group.
+        // A group row: its members are the nodes Louvain put in that group, each called by its
+        // label ("Node 0"), not its id ("n0").
         const group = session.runs.get(id)?.result?.summary().groups?.[0];
         if (group === undefined) {
             throw new Error("Louvain found no groups");
@@ -483,8 +470,15 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         const louvain = session.runs.get(id);
         const field = louvain === undefined ? null : RESULT_SHAPE_CONTRACTS[louvain.shape].primaryField;
         assert.isNotNull(field);
+        const inGroup = new Set(
+            session.data
+                .nodes()
+                .filter((node) => louvain?.result?.node(node.id)?.[field ?? ""] === group.group)
+                .map((node) => session.data.name(node.id)),
+        );
         for (const name of names) {
-            assert.equal(louvain?.result?.node(name)?.[field ?? ""], group.group);
+            assert.match(name ?? "", /^Node \d+$/);
+            assert.isTrue(inGroup.has(name ?? ""), `${name ?? ""} is in the group`);
         }
         assert.deepEqual(controlNames(), [...new Set(controlNames())]);
 

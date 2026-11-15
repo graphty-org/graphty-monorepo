@@ -13,6 +13,7 @@ import type { Caveats, CostEstimate, GraphSession, Run, WeightMeaning } from "@g
 
 import { findTreeRow } from "../graph-place/rows";
 import { count, formatNumber } from "../inspector/words";
+import { formatCount } from "../settings/numberFormat";
 
 /** One heading of the list, and the result shapes it gathers. */
 export interface Heading {
@@ -202,6 +203,65 @@ const WORDS: Readonly<Record<string, AlgorithmWords>> = {
 };
 
 /**
+ * The line under an algorithm in the Find list, keyed by the element's `descriptionId`. An
+ * algorithm a third party registered has no line here, so it shows none.
+ */
+export const ALGORITHM_DESCRIPTIONS: Readonly<Record<string, string>> = {
+    "algorithm.degree": "Counts how many edges each node has, incoming, outgoing and in total.",
+    "algorithm.betweenness":
+        "Scores a node by how many of the shortest paths between other nodes run through it, which is what finds the bridges.",
+    "algorithm.edge-betweenness":
+        "Scores an edge by how many of the shortest paths between pairs of nodes cross it, which is what finds the edges that hold the graph together.",
+    "algorithm.closeness":
+        "Scores a node by how short its paths to the rest of the graph are, which is what finds the nodes that reach everything quickly.",
+    "algorithm.pagerank": "Ranks a node by the influence that flows into it from the nodes that point at it.",
+    "algorithm.eigenvector":
+        "Scores a node by how influential its neighbors are, so a few important connections count for more than many unimportant ones.",
+    "algorithm.katz": "Scores a node by every path that reaches it, with a longer path counting for less.",
+    "algorithm.hits":
+        "Scores every node twice: as a hub that points at good sources, and as an authority that good hubs point at.",
+    "algorithm.louvain":
+        "Groups nodes into communities by repeatedly merging the groups whose merger tightens the partition the most.",
+    "algorithm.leiden":
+        "Groups nodes into communities the way Louvain does, with a refinement pass that rules out groups held together by a single node.",
+    "algorithm.label-propagation":
+        "Groups nodes into communities by letting every node repeatedly take whichever label most of its neighbors carry.",
+    "algorithm.girvan-newman":
+        "Groups nodes into communities by repeatedly cutting the edge that the most shortest paths run through, until the graph falls apart.",
+    "algorithm.markov-clustering":
+        "Groups nodes into clusters by letting flow spread along the edges and concentrate where it gets trapped, round after round.",
+    "algorithm.spectral-clustering":
+        "Splits the nodes into a chosen number of clusters, placing each node by the graph's eigenvectors and grouping the nodes that land close together.",
+    "algorithm.hierarchical-clustering":
+        "Starts with every node on its own and keeps merging the two closest clusters, by steps apart, until a chosen number remain.",
+    "algorithm.components":
+        "Finds the separate pieces of the graph: two nodes belong to the same piece when a path joins them.",
+    "algorithm.shortest-path":
+        "Finds the cheapest route from one node to another, and how far every reachable node is from the source.",
+    "algorithm.astar":
+        "Finds a route from one node to another, optionally steered by how far apart the nodes are drawn. Without that steering it finds the cheapest route.",
+    "algorithm.all-pairs-distance":
+        "Measures the distance between every pair of nodes, and gives each node the distance to the furthest node it can reach.",
+    "algorithm.bfs": "Walks outwards from one node a level at a time, recording how many steps away each node is.",
+    "algorithm.dfs":
+        "Walks as deep as it can from one node before backtracking, recording the order in which it reached each node.",
+    "algorithm.kruskal":
+        "Finds the cheapest set of edges that still joins every node, by taking the cheapest edge that does not close a loop.",
+    "algorithm.prim":
+        "Finds the cheapest set of edges that still joins every node, by growing outwards from one starting node.",
+    "algorithm.bipartite-matching":
+        "Pairs up the two sides of a two-sided graph so that as many nodes as possible end up with a partner.",
+    "algorithm.max-flow": "Finds the most that can flow from a source to a sink when every edge has a capacity.",
+    "algorithm.min-cut": "Finds the cheapest set of edges to remove to split the graph into two pieces.",
+    "algorithm.k-core":
+        "Peels the graph layer by layer and gives each node the depth of the most tightly knit core it belongs to: a node of depth k has at least k neighbors inside that core.",
+    "algorithm.clustering-coefficient":
+        "Scores a node by how many of its neighbors are also neighbors of each other, and counts the triangles that makes.",
+    "algorithm.link-prediction":
+        "Scores the pairs of nodes that are not yet joined by the neighbors they share, and lists the pairs most likely to be joined next.",
+};
+
+/**
  * The words for one algorithm. An algorithm a third party registered has no words of the app's,
  * so it reads under its technical name, which is the element's fact about it.
  * @param descriptor - the element's descriptor.
@@ -342,7 +402,7 @@ interface OptionWords {
 const SAMPLE_SIZE: OptionWords = { label: "Sample size", empty: "Every node" };
 
 /**
- * The app's words for the key options (the ones drawn outside the Advanced fold), by
+ * The app's words for the key options (the ones not marked advanced), by
  * `<algorithm key>.<option name>` (a test holds that every key option the element ships has
  * words here).
  */
@@ -372,6 +432,33 @@ const OPTION_WORDS: Readonly<Record<string, OptionWords>> = {
     "shortest-path.target": { label: "To" },
     "shortest-path.method": { label: "Method", empty: "Chosen automatically" },
     "shortest-path.direction": { label: "Follow", choices: { out: "Out", in: "In", all: "All" } },
+    // The location map's options; an empty location column is found from the data.
+    "location-map.location": { label: "Location", empty: "Automatic" },
+    "location-map.latitude": { label: "Latitude", empty: "Automatic" },
+    "location-map.longitude": { label: "Longitude", empty: "Automatic" },
+    "location-map.extent": { label: "Fit", choices: { data: "Data", world: "World" } },
+    "location-map.format": {
+        label: "Format",
+        choices: {
+            auto: "Automatic",
+            decimal: "Latitude, longitude",
+            "lon-lat": "Longitude, latitude",
+            geojson: "GeoJSON",
+            wkt: "WKT",
+            iso6709: "ISO 6709",
+            dms: "Degrees, minutes, seconds",
+            geohash: "Geohash",
+            "plus-code": "Plus code",
+            mgrs: "MGRS",
+            utm: "UTM",
+        },
+    },
+    "location-map.nodeScale": { label: "Node size", choices: { scene: "Scales with zoom", screen: "Fixed on screen" } },
+    "location-map.size": { label: "Size" },
+    "location-map.mapScale": { label: "Map size" },
+    "location-map.flatNodeScale": { label: "Flat map node size" },
+    "location-map.unplaced": { label: "Unplaced", choices: { tray: "Tray", leave: "Leave in place" } },
+    "location-map.overlap": { label: "Same place", choices: { spread: "Spread", stack: "Stack" } },
     "closeness.k": SAMPLE_SIZE,
     "betweenness.k": SAMPLE_SIZE,
     "edge-betweenness.k": SAMPLE_SIZE,
@@ -428,11 +515,11 @@ export function isPathFollow(algorithm: string, option: string): boolean {
 export function optionWords(
     algorithm: string,
     option: OptionDescriptor,
-): { label: string; choice: (value: string) => string; empty: string } {
+): { label: string; choice: (value: string) => string; empty?: string } {
     const words = OPTION_WORDS[`${algorithm}.${option.name}`];
     return {
         label: words?.label ?? SHARED_OPTION_WORDS[option.name] ?? option.plainName,
-        empty: words?.empty ?? "Not set",
+        empty: words?.empty,
         choice: (value) =>
             words?.choices?.[value] ?? option.values?.find((choice) => choice.value === value)?.label ?? value,
     };
@@ -442,7 +529,7 @@ export function optionWords(
 export type Meaning = WeightMeaning["meaning"] | null;
 
 /** What each meaning reads as on screen (tier2-design.md section 5); the element's "strength" is "closer". */
-const MEANING_WORDS: Readonly<Record<WeightMeaning["meaning"], string>> = {
+export const MEANING_WORDS: Readonly<Record<WeightMeaning["meaning"], string>> = {
     strength: "closer",
     distance: "farther",
     capacity: "capacity",
@@ -571,7 +658,7 @@ function hopWords(hops: number): string {
  * @param run - the path run.
  * @returns the words, or undefined.
  */
-export function pathLengthWords(run: Pick<Run, "result" | "caveats">): string | undefined {
+function pathLengthWords(run: Pick<Run, "result" | "caveats">): string | undefined {
     const { hops, cost } = run.result?.graph ?? {};
     const { weight } = run.caveats;
     if (weight?.meaning === "distance" && typeof cost === "number") {
@@ -594,7 +681,7 @@ export function pathWords(session: GraphSession, run: Run): { from: string; to: 
         return null;
     }
     const name = (id: unknown): string =>
-        typeof id === "string" || typeof id === "number" ? (session.data.name(id) ?? String(id)) : "";
+        typeof id === "string" || typeof id === "number" ? session.data.nodeName(id).name : "";
     return {
         from: name(run.params.source),
         to: name(run.params.target),
@@ -621,6 +708,22 @@ export function pathAnnouncement(session: GraphSession, run: Run): string | null
 }
 
 /**
+ * The status line for a finished ranking run, naming who ranks first from the element's summary:
+ * "Degree finished: Valjean ranks first, 36". Null for a run whose summary ranks nothing.
+ * @param session - the element's session.
+ * @param run - the run.
+ * @param name - the run's name in words.
+ * @returns the line, or null.
+ */
+export function topAnnouncement(session: GraphSession, run: Run, name: string): string | null {
+    const top = run.result?.summary().top[0];
+    if (top === undefined) {
+        return null;
+    }
+    return `${name} finished: ${session.data.name(top.id) ?? top.label} ranks first, ${formatNumber(top.value)}`;
+}
+
+/**
  * The status line for a finished grouping run, from its result and the layers it made: "Louvain
  * finished: 6 groups, each a layer in the Louvain folder of Style layers" (or "...: 6 groups"
  * when no folder holds its layers).
@@ -630,13 +733,13 @@ export function pathAnnouncement(session: GraphSession, run: Run): string | null
  * @returns the line, or null for a run whose result has no groups.
  */
 export function groupsAnnouncement(session: GraphSession, run: Run, name: string): string | null {
-    const groups = run.result?.summary().groups;
-    if (groups === undefined) {
+    const groupCount = run.result?.summary().groupCount;
+    if (groupCount === undefined) {
         return null;
     }
     const layer = session.runs.layers(run.id)?.present[0];
     const folder = layer === undefined ? undefined : findTreeRow(session.styles.tree(), layer)?.folders.at(-1);
-    const found = `${name} finished: ${count(groups.length, "group")}`;
+    const found = `${name} finished: ${count(groupCount, "group")}`;
     return folder === undefined ? found : `${found}, each a layer in the ${folder.name} folder of Style layers`;
 }
 
@@ -656,7 +759,7 @@ export function runRefusalWords(estimate: CostEstimate): string {
             return "Needs edge weights";
         case "algorithm.needs-connected":
             return typeof params.pieces === "number"
-                ? `Needs a connected graph; this one is in ${params.pieces.toLocaleString("en-US")} pieces`
+                ? `Needs a connected graph; this one is in ${formatCount(params.pieces)} pieces`
                 : "Needs a connected graph";
         case "algorithm.needs-accelerator":
             return "Needs a graphics card this browser does not offer";

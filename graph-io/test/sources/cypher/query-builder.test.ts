@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { credentials, loadFromSource, replayFetch } from "../../../src/index.js";
 import { cypherIdentifier } from "../../../src/sources/cypher/index.js";
 import { neo4jProfile, neptuneProfile } from "../../../src/sources/cypher/profiles.js";
-import { edgePage, neighborhood, nodePage } from "../../../src/sources/cypher/query-builder.js";
+import { edgePage, edgesAmong, neighborhood, nodePage } from "../../../src/sources/cypher/query-builder.js";
 import { rejection } from "../helpers.js";
 
 const ENDPOINT = "https://db.example.com";
@@ -45,7 +45,7 @@ describe("cypherIdentifier", () => {
                     issue: expect.objectContaining({
                         code: "E_SOURCE_PARAM",
                         params: { name: "identifier", reason: "identifier" },
-                    }),
+                    }) as unknown,
                 }),
             );
         }
@@ -67,13 +67,14 @@ describe("generated queries", () => {
         );
     });
 
-    it("follow the direction asked and key on the id property when given", () => {
+    it("follow the direction asked and key on the id property when given, keeping neighbors without it", () => {
         const byUuid = { ...filters, idProperty: "`uuid`" };
         const out = neighborhood(neo4jProfile(null), byUuid, { depth: "2", direction: "out", limit: "50" }, false);
         expect(out).toBe(
-            "MATCH (s) WHERE s.`uuid` IN $ids OPTIONAL MATCH p = (s)-[:`KNOWS`|`LIKES`*1..2]->(x) WHERE (x:`Person`) AND x.`uuid` IS NOT NULL WITH s, p, x.`uuid` AS key WITH s, p, key ORDER BY key LIMIT 50 RETURN s, p, key",
+            "MATCH (s) WHERE s.`uuid` IN $ids OPTIONAL MATCH p = (s)-[:`KNOWS`|`LIKES`*1..2]->(x) WHERE (x:`Person`) WITH s, p, CASE WHEN x IS NOT NULL THEN x.`uuid` IS NULL END AS byServer, coalesce(x.`uuid`, elementId(x)) AS key WITH s, p, byServer, key ORDER BY byServer, key LIMIT 50 RETURN s, p, byServer, key",
         );
-        // A capped expansion's next page starts after the last neighbor key it returned.
+        // A capped expansion's next page starts after the last (byServer, key) pair it returned, so
+        // property keys and server ids never interleave (#6236).
         expect(
             neighborhood(
                 neo4jProfile(null),
@@ -81,7 +82,13 @@ describe("generated queries", () => {
                 { depth: "1", direction: "both", limit: "50", after: true },
                 false,
             ),
-        ).toContain("WITH s, p, x.`uuid` AS key WHERE key > $after WITH s, p, key ORDER BY key LIMIT 50");
+        ).toContain(
+            "WHERE (byServer = $afterByServer AND key > $after) OR (byServer AND NOT $afterByServer) WITH s, p, byServer, key ORDER BY byServer, key LIMIT 50",
+        );
+        // The degree hint keys a neighbor the way the flattener does: the property, else the server's id.
+        expect(neighborhood(neptuneProfile(), byUuid, { depth: "1", direction: "both", limit: null }, true)).toContain(
+            "[coalesce(m.`uuid`, id(m)), size([(m)--() | 1])]",
+        );
         expect(neighborhood(neo4jProfile(null), byUuid, { depth: "1", direction: "in", limit: null }, false)).toContain(
             "<-[:`KNOWS`|`LIKES`*1..1]-",
         );
@@ -154,5 +161,22 @@ describe("injection", () => {
             name: "ids",
             reason: "required",
         });
+    });
+});
+
+describe("edgesAmong", () => {
+    it("starts every match from the node page's own keys, never from every relationship", () => {
+        const filters = { labels: ["`Gene`"], idProperty: null, relationshipTypes: [] };
+        const statement = edgesAmong(neo4jProfile("5.24.0"), filters);
+        const branches = statement.split(" UNION ALL ");
+        expect(branches).toHaveLength(2);
+        for (const branch of branches) {
+            // each branch anchors one end on $keys before anything else is read
+            expect(branch).toMatch(/^MATCH \(a\)-\[r\]->\(b\) WHERE (?:elementId|id)\([ab]\) IN \$keys AND /);
+            expect(branch).toContain("(a:`Gene`)");
+            expect(branch).toContain("(b:`Gene`)");
+        }
+        // a relationship with both ends on the page arrives once
+        expect(branches[1]).toMatch(/NOT (elementId|id)\(a\) IN \$keys/);
     });
 });

@@ -1,0 +1,514 @@
+/**
+ * @file `columns`, `sources` and `issues`: what the loaded data's columns are called and mean, the
+ * loads the graph came from, and the problems found in them. Every write is one undoable step of
+ * the session's own; fetching from a network source is held for the reader's approval, as an import
+ * from a URL the reader did not give is.
+ */
+
+import type { GeneratorParams } from "@graphty/graph-samples/generators";
+import { z } from "zod";
+
+import type { GroupValue } from "../../../session/groups";
+import type { FixCode, IssueId } from "../../../session/issues";
+import type { ColumnRef } from "../../../session/shared";
+import type { ColumnRole, GroupSummary, TransactionScope, ValueType } from "../../../session/types";
+import { MAX_ITEMS, MAX_STRING, recordField, resolveNode, text } from "../fields";
+import {
+    type ActionResult,
+    type ActionSpec,
+    gated,
+    GateHold,
+    type MessageState,
+    type ToolDefinition,
+    ToolRefusal,
+} from "../types";
+import { coded, codedNow, list, ok } from "./common";
+
+const column = z.string().max(200).describe("The column's name.");
+const on = z.enum(["node", "edge"]).optional().describe("Default node.");
+const value = z.union([z.string().max(MAX_STRING), z.number(), z.boolean()]).describe("One value of the column.");
+const types = z.enum(["text", "number", "boolean", "date", "category"]);
+
+/**
+ * The column a call names.
+ * @param args - The call.
+ * @returns The reference.
+ */
+function columnOf(args: Record<string, unknown>): ColumnRef {
+    return { kind: args.on === "edge" ? "edge" : "node", name: text(args.column).replace(/^data\./, "") };
+}
+
+/**
+ * The path a call's column is read at.
+ * @param args - The call.
+ * @returns The path.
+ */
+function pathOf(args: Record<string, unknown>): string {
+    return `data.${columnOf(args).name}`;
+}
+
+/** The `columns` tool. */
+export const columnsTool: ToolDefinition = {
+    name: "columns",
+    plainName: "Columns",
+    core: false,
+    description:
+        "What the data's columns are: their names, types and roles, which are hidden, and what their values are called.",
+    example: { action: "rename", column: "lbl", name: "label" },
+    actions: [
+        {
+            name: "list",
+            summary: "every readable value and every hidden column",
+            fields: {},
+            effect: "read",
+            reaches: [
+                { door: "SessionDataApi.readableValues" },
+                { door: "SessionDataApi.structureValues" },
+                { door: "SessionDataApi.hiddenColumns" },
+                { door: "SessionDataApi.loadedWeight" },
+                { door: "SessionDataApi.derivedColumns" },
+            ],
+            run: ({ tx }) =>
+                Promise.resolve(
+                    ok({
+                        readable: list(tx.data.readableValues()),
+                        structure: list(tx.data.structureValues()),
+                        hidden: list(tx.data.hiddenColumns()),
+                        weight: tx.data.loadedWeight(),
+                        computed: list(tx.data.derivedColumns()),
+                    }),
+                ),
+        },
+        {
+            name: "values",
+            summary: "one column's values, their counts and names",
+            fields: { column, on },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.valueCounts" }, { door: "SessionDataApi.valueLabels" }],
+            run: ({ tx }, args) => {
+                const path = pathOf(args);
+                const counts = tx.data.valueCounts(path, { kind: columnOf(args).kind });
+                return Promise.resolve(ok({ counts, labels: Object.fromEntries(tx.data.valueLabels(path)) }));
+            },
+        },
+        {
+            name: "over_represented",
+            summary: "per group of the column, the node values more frequent than chance",
+            fields: {
+                column: z
+                    .string()
+                    .max(200)
+                    .describe("The column or path holding each node's group, e.g. team or a run's path."),
+            },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.overRepresented" }],
+            run: ({ tx }, args) => {
+                const group = text(args.column);
+                return Promise.resolve(ok(tx.data.overRepresented(group.includes(".") ? group : `data.${group}`)));
+            },
+        },
+        {
+            name: "group_table",
+            summary: "one row per group of the column: its size and summaries of numeric columns",
+            fields: {
+                column: z
+                    .string()
+                    .max(200)
+                    .describe("The column or path holding each node's group, e.g. team or a run's path."),
+                summaries: z
+                    .record(
+                        z.string().max(200),
+                        z.array(z.enum(["count", "sum", "min", "max", "mean", "median"])).max(6),
+                    )
+                    .optional()
+                    .describe('Per numeric column path, the summaries, e.g. {"data.age": ["mean", "max"]}.'),
+            },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.groupTable" }],
+            run: ({ tx }, args) => {
+                const group = text(args.column);
+                const summaries = args.summaries as Record<string, GroupSummary[]> | undefined;
+                const path = group.includes(".") ? group : `data.${group}`;
+                return Promise.resolve(ok(codedNow(() => tx.data.groupTable(path, { summaries }))));
+            },
+        },
+        {
+            name: "collapse_group",
+            summary: "one group of the column (a community, a team) to one node; expand_group undoes it",
+            fields: {
+                column: z
+                    .string()
+                    .max(200)
+                    .describe("The column or path holding each node's group, e.g. team or a run's path."),
+                group: z.union([z.string().max(MAX_STRING), z.number(), z.boolean()]).describe("The group's value."),
+            },
+            effect: "write",
+            reaches: [{ door: "GroupsApi.collapse" }],
+            run: async ({ tx }, args) => {
+                const column = text(args.column);
+                const groupBy = column.includes(".") ? column : `data.${column}`;
+                const node = await coded(() => tx.groups.collapse({ groupBy, group: args.group as GroupValue }));
+                return { ...ok(undefined, { node }), affectedNodes: [String(node)] };
+            },
+        },
+        {
+            name: "expand_group",
+            summary: "a collapsed group back to its members",
+            fields: {
+                column: z.string().max(200).describe("The column or path the group was collapsed by."),
+                group: z.union([z.string().max(MAX_STRING), z.number(), z.boolean()]).describe("The group's value."),
+            },
+            effect: "write",
+            reaches: [{ door: "GroupsApi.expand" }],
+            run: async ({ tx }, args) => {
+                const column = text(args.column);
+                const groupBy = column.includes(".") ? column : `data.${column}`;
+                await coded(() => tx.groups.expand({ groupBy, group: args.group as GroupValue }));
+                return ok();
+            },
+        },
+        {
+            name: "collapsed_groups",
+            summary: "the groups collapsed now, each with the node standing in for it",
+            fields: {},
+            effect: "read",
+            reaches: [{ door: "GroupsApi.list" }],
+            run: ({ tx }) => Promise.resolve(ok(tx.groups.list())),
+        },
+        {
+            name: "preview_type",
+            summary: "what a type change would do",
+            fields: { column, on, type: types.describe("The type.") },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.previewType" }],
+            run: ({ tx }, args) => Promise.resolve(ok(tx.data.previewType(columnOf(args), args.type as ValueType))),
+        },
+        {
+            name: "rename",
+            summary: "",
+            fields: { column, on, name: z.string().max(200).describe("The new name.") },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.renameColumn" }],
+            run: async ({ tx }, args) => {
+                await coded(() => tx.data.renameColumn(columnOf(args), text(args.name)));
+                return ok(undefined, { name: text(args.name) });
+            },
+        },
+        {
+            name: "set_type",
+            summary: "",
+            fields: { column, on, type: types.describe("The type.") },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.setType" }],
+            run: async ({ tx }, args) => {
+                await coded(() => tx.data.setType(columnOf(args), args.type as ValueType));
+                return ok(undefined, { type: text(args.type) });
+            },
+        },
+        {
+            name: "set_role",
+            summary: "the node label, the edge weight...; none clears it",
+            fields: {
+                column,
+                on,
+                role: z
+                    .string()
+                    .max(100)
+                    .optional()
+                    .describe("key, label, source, target, weight, time, edgeId, kind or a location kind."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.setRole" }],
+            run: async ({ tx }, args) => {
+                await coded(() => tx.data.setRole(columnOf(args), (args.role ?? null) as ColumnRole | null));
+                return ok(undefined, { role: (args.role ?? null) as string | null });
+            },
+        },
+        {
+            name: "compute",
+            summary: "a column whose values an expression reads from other columns and results",
+            fields: {
+                column,
+                on,
+                expression: z
+                    .string()
+                    .max(MAX_STRING)
+                    .describe("A selector expression, such as data.nickname || data.name."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.derive" }, { op: "data.derive" }],
+            run: async ({ tx }, args) => {
+                const { kind, name } = columnOf(args);
+                await coded(() => tx.data.derive(name, text(args.expression), { kind }));
+                return ok(undefined, { column: name });
+            },
+        },
+        {
+            name: "hide",
+            summary: "leave columns out of what a reader is shown",
+            fields: {
+                columns: z.array(column).max(MAX_ITEMS).describe("The columns."),
+                on,
+                hidden: z.boolean().optional().describe("false shows them again."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.setHidden" }, { op: "data.columns" }],
+            run: async ({ tx }, args) => {
+                const refs = (args.columns as string[]).map((each) => columnOf({ column: each, on: args.on }));
+                await coded(() => tx.data.setHidden(refs, args.hidden !== false));
+                return ok(undefined, { columns: refs.length });
+            },
+        },
+        {
+            name: "label_value",
+            summary: "name one value; none takes its name away",
+            fields: {
+                column,
+                on,
+                value,
+                label: z.string().max(MAX_STRING).optional().describe("What to call it."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.setValueLabel" }, { op: "data.label" }],
+            run: async ({ tx }, args) => {
+                const label = (args.label ?? null) as string | null;
+                await coded(() => tx.data.setValueLabel(pathOf(args), args.value as string, label));
+                return ok(undefined, { label });
+            },
+        },
+    ] satisfies ActionSpec[],
+};
+
+/**
+ * Hold a fetch from a network source for the reader's approval.
+ * @param message - The message.
+ * @param what - What it would fetch.
+ * @throws {GateHold} While the gate is on and the reader has not approved.
+ */
+function holdFetch(message: MessageState, what: string): void {
+    if (gated(message, "network")) {
+        throw new GateHold("network", { source: what });
+    }
+}
+
+const sourceKey = z.string().max(200).describe("The load's key, from list.");
+const node = z.string().max(MAX_STRING).describe("Node id or label.");
+
+/**
+ * What a load changed, for a result.
+ * @param tx - The session.
+ * @param network - What was fetched.
+ * @returns The result.
+ */
+function loaded(tx: TransactionScope, network?: string): ActionResult {
+    const { nodes, edges } = tx.status.counts;
+    return { ...ok(undefined, { nodes, edges }), ...(network === undefined ? {} : { measure: { network } }) };
+}
+
+/** The `sources` tool. */
+export const sourcesTool: ToolDefinition = {
+    name: "sources",
+    plainName: "Data sources",
+    core: false,
+    description:
+        "The loads the graph came from: list them, take one out, generate a graph, or download a sample dataset or fetch from a network source (held for approval).",
+    example: { action: "generate", name: "path", params: { n: 10 } },
+    actions: [
+        {
+            name: "list",
+            summary: "every load, joined table and waiting source load",
+            fields: {},
+            effect: "read",
+            reaches: [
+                { door: "SessionDataApi.sources" },
+                { door: "SessionDataApi.loads" },
+                { door: "SessionDataApi.joins" },
+                { door: "SessionDataApi.pendingSourceLoads" },
+            ],
+            run: ({ tx }) =>
+                Promise.resolve(
+                    ok({
+                        sources: list(tx.data.sources()),
+                        loads: list(tx.data.loads()),
+                        joins: list(tx.data.joins()),
+                        pending: list(tx.data.pendingSourceLoads()),
+                    }),
+                ),
+        },
+        {
+            name: "of",
+            summary: "the loads a node came from",
+            fields: { node },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.sourcesOf" }, { door: "SessionDataApi.nodeSource" }],
+            run: ({ tx }, args) => {
+                const id = resolveNode(tx, text(args.node));
+                return Promise.resolve(ok({ loads: list(tx.data.sourcesOf(id)), source: tx.data.nodeSource(id) }));
+            },
+        },
+        {
+            name: "remove",
+            summary: "take one load out",
+            fields: { key: sourceKey },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.removeSource" }],
+            run: async ({ tx }, args) => {
+                const { removed, kept } = await coded(() => tx.data.removeSource(text(args.key)));
+                return {
+                    ...ok({ removed, kept }),
+                    measure: { removeNodes: removed.nodes, removeEdges: removed.edges },
+                };
+            },
+        },
+        {
+            name: "generate",
+            summary: "add a generated graph",
+            fields: {
+                name: z.string().max(200).describe("The generator."),
+                params: z.record(z.string(), z.unknown()).optional().describe("Its parameters."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.generate" }, { op: "data.import" }],
+            run: async ({ tx }, args) => {
+                await coded(() =>
+                    tx.data.generate(text(args.name), args.params as GeneratorParams | undefined, { mode: "merge" }),
+                );
+                return loaded(tx);
+            },
+        },
+        {
+            name: "load_dataset",
+            summary: "download a sample dataset (Karate Club, Les Miserables, ...), added to the graph",
+            fields: {
+                name: z.string().max(200).describe('The dataset\'s name, such as "karate" or "les-miserables".'),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.loadDataset" }, { op: "data.import" }],
+            run: async ({ tx, message, host }, args) => {
+                const name = text(args.name);
+                holdFetch(message, name);
+                await coded(() => tx.data.loadDataset(name, { mode: "merge", baseUrl: host.datasetBaseUrl }));
+                return loaded(tx, name);
+            },
+        },
+        {
+            name: "load_example",
+            summary: "fetch a network source's public example, added to the graph",
+            fields: {
+                source: z.string().max(200).describe("The source's id."),
+                id: z.string().max(200).describe("The example's id."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.loadExample" }, { op: "data.import-source" }],
+            run: async ({ tx, message }, args) => {
+                const source = text(args.source);
+                const id = text(args.id);
+                holdFetch(message, id);
+                await coded(() => tx.data.loadExample(source, id, { mode: "merge" }));
+                return loaded(tx, id);
+            },
+        },
+        {
+            name: "expand",
+            summary: "fetch nodes' neighbors from the source that loaded them",
+            fields: { ids: z.array(node).max(50).describe("Ids or labels.") },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.expand" }, { op: "data.source-expand" }],
+            run: async ({ tx, message }, args) => {
+                const ids = (args.ids as string[]).map((each) => resolveNode(tx, each));
+                holdFetch(message, ids.join(","));
+                await coded(() => tx.data.expand(ids));
+                return loaded(tx, ids.join(","));
+            },
+        },
+        {
+            name: "collapse",
+            summary: "remove what a node's expansions alone brought",
+            fields: { node },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.collapse" }, { op: "data.collapse" }],
+            run: async ({ tx }, args) => {
+                const id = resolveNode(tx, text(args.node));
+                return ok(await coded(() => tx.data.collapse(id)));
+            },
+        },
+    ] satisfies ActionSpec[],
+};
+
+const issue = z.string().max(200).describe("The issue's id, from list.");
+
+/** The `issues` tool. */
+export const issuesTool: ToolDefinition = {
+    name: "issues",
+    plainName: "Data issues",
+    core: false,
+    description: "Problems found in the loaded data, each with the fixes that would change it.",
+    example: { action: "fix", id: "issue-1", fix: "trim" },
+    actions: [
+        {
+            name: "list",
+            summary: "",
+            fields: { all: z.boolean().optional().describe("Also the ignored and the fixed.") },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.issues" }],
+            run: ({ tx }, args) => {
+                const all = args.all === true;
+                return Promise.resolve(ok(list(tx.data.issues({ includeIgnored: all, includeFixed: all }))));
+            },
+        },
+        {
+            name: "fix",
+            summary: "apply one of an issue's fixes",
+            fields: { id: issue, fix: z.string().max(100).describe("One of the issue's fixes.") },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.fix" }],
+            run: async ({ tx }, args) => ok(await coded(() => tx.data.fix(text(args.id), text(args.fix) as FixCode))),
+        },
+        {
+            name: "ignore",
+            summary: "stop listing issues, or list them again",
+            fields: {
+                ids: z.array(issue).max(MAX_ITEMS).describe("The issues."),
+                ignored: z.boolean().optional().describe("false lists them again."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.ignoreIssues" }, { op: "data.issues" }],
+            run: async ({ tx }, args) => {
+                const ids = args.ids as IssueId[];
+                await coded(() => tx.data.ignoreIssues(ids, args.ignored !== false));
+                return ok(undefined, { issues: ids.length });
+            },
+        },
+        {
+            name: "merge_nodes",
+            summary: "duplicates into one: the first id, or into, kept",
+            fields: {
+                ids: z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS).describe("The nodes to merge."),
+                into: z.string().max(MAX_STRING).optional().describe("The node kept; the first id when absent."),
+                values: recordField.optional().describe("Values set on the kept node."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.mergeNodes" }],
+            run: async ({ tx }, args) => {
+                const ids = ((args.ids as string[] | undefined) ?? []).map((id) => resolveNode(tx, id));
+                if (ids.length < 2) {
+                    throw new ToolRefusal("AI_ARG_INVALID", { path: "ids", expected: "two or more nodes" });
+                }
+
+                const into = typeof args.into === "string" ? resolveNode(tx, args.into) : undefined;
+                const nodesBefore = tx.status.counts.nodes;
+                await coded(() =>
+                    tx.data.mergeNodes(ids, {
+                        ...(into === undefined ? {} : { into }),
+                        ...(args.values === undefined ? {} : { values: args.values as Record<string, unknown> }),
+                    }),
+                );
+                const merged = nodesBefore - tx.status.counts.nodes;
+                return {
+                    ...ok(undefined, { merged }),
+                    affectedNodes: [into ?? ids[0]],
+                };
+            },
+        },
+    ] satisfies ActionSpec[],
+};

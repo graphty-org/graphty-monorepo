@@ -1,6 +1,8 @@
 import type { GraphSession, LayerId, RowSpec, StyleRow, StyleRowPlace } from "@graphty/graphty-element/session";
 
+import { errorWords } from "../project/words";
 import type { Notice, WorkspaceState, WorkspaceStore } from "../state/store";
+import { panelsInView } from "../time/timeActions";
 import { findTreeRow, paintingParts } from "./rows";
 
 /**
@@ -14,8 +16,7 @@ export async function orNotice(store: WorkspaceStore, what: string, work: Promis
     try {
         await work;
     } catch (error) {
-        const why = error instanceof Error ? ` ${error.message}` : "";
-        store.set({ notice: { message: `Could not ${what}.${why}`, error: true } });
+        store.set({ notice: { message: errorWords(`Could not ${what}`, error), error: true } });
     }
 }
 
@@ -108,7 +109,7 @@ export async function addLayer(session: GraphSession, store: WorkspaceStore, aft
             focusAddButton();
         }
     });
-    store.set({ page: "panels", place: "graph", inspected: { kind: "layer-row", id } });
+    store.set({ page: "panels", place: "graph", inspected: { kind: "layer-row", id }, ...panelsInView() });
     setTimeout(() => {
         // Focus the row first: the name field hands focus back to what held it when it opened,
         // so naming ends on the new row.
@@ -229,7 +230,7 @@ export async function selectWhatItPaints(
         return { nodes: 0, edges: 0 };
     }
     for (const [at, layer] of layers.entries()) {
-        await session.selection.apply({ layer }, at === 0 ? "replace" : "add");
+        await session.selection.apply({ layer }, at === 0 ? "replace" : "add", { cause: "user" });
     }
     return { nodes: session.selection.nodes.length, edges: session.selection.edges.length };
 }

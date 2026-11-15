@@ -48,7 +48,7 @@
 <!-- cap&#45;default -->
 <g id="node7" class="node">
 <title>cap&#45;default</title>
-<text xml:space="preserve" text-anchor="middle" x="209.67" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">default</text>
+<text xml:space="preserve" text-anchor="middle" x="209.67" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">default</text>
 </g>
 <!-- strict&#45;repeated&#45;edge&#45;s -->
 <g id="node8" class="node">
@@ -69,7 +69,7 @@
 <!-- cap&#45;strict&#45;repeated&#45;edge -->
 <g id="node10" class="node">
 <title>cap&#45;strict&#45;repeated&#45;edge</title>
-<text xml:space="preserve" text-anchor="middle" x="583" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">strict: a&#45;&gt;b red, a&#45;&gt;b penwidth=3</text>
+<text xml:space="preserve" text-anchor="middle" x="583" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">strict: a&#45;&gt;b red, a&#45;&gt;b penwidth=3</text>
 </g>
 <!-- strict&#45;antiparallel&#45;s -->
 <g id="node11" class="node">
@@ -96,7 +96,7 @@
 <!-- cap&#45;strict&#45;antiparallel -->
 <g id="node13" class="node">
 <title>cap&#45;strict&#45;antiparallel</title>
-<text xml:space="preserve" text-anchor="middle" x="956.33" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">strict: a&#45;&gt;b and b&#45;&gt;a</text>
+<text xml:space="preserve" text-anchor="middle" x="956.33" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">strict: a&#45;&gt;b and b&#45;&gt;a</text>
 </g>
 </g>
 </svg>

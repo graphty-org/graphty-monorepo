@@ -1,0 +1,29 @@
+{
+ "commit": "3b2a7f06496ee3f3b5a6d36b0a681bfd20c840df",
+ "toolCommit": "ca45faacaae6aea29afb82c5c016970966322e52",
+ "uncommittedChanges": false,
+ "buildStamp": "3b2a7f06496e graphty@0.8.92",
+ "url": "/?next",
+ "screenReaderMode": true,
+ "keyboardOnlyMode": false,
+ "viewport": {
+  "width": 900,
+  "height": 700
+ },
+ "renderer": "ANGLE (NVIDIA, Vulkan 1.4.312 (NVIDIA NVIDIA GeForce RTX 4070 SUPER (0x00002783)), NVIDIA)",
+ "started": "2026-11-06T04:29:27.705Z",
+ "setup": [
+  "--click Open a file",
+  "--upload /home/apowers/Projects/graphty-monorepo/.worktrees/feat-tanstack-ai/design/ui/studio/tool/files/volunteers.graphml",
+  "--click Assistant",
+  "--click AI provider...",
+  "--expect API key",
+  "--click API key",
+  "--type study-access-4471",
+  "--click Save",
+  "--expect-not Get a key from Google",
+  "--click role=button:Graph"
+ ],
+ "task": null,
+ "followUp": "none"
+}

@@ -33,10 +33,16 @@ export const COMMANDS: Readonly<{
     readonly "algo.move": {
         readonly undo: "undoable";
     };
+    readonly "algo.rename": {
+        readonly undo: "undoable";
+    };
     readonly batch: {
         readonly undo: "undoable";
     };
     readonly "data.apply": {
+        readonly undo: "undoable";
+    };
+    readonly "data.issues": {
         readonly undo: "undoable";
     };
     readonly "data.import": {
@@ -66,6 +72,12 @@ export const COMMANDS: Readonly<{
     readonly "data.setFileStyles": {
         readonly undo: "undoable";
     };
+    readonly "data.columns": {
+        readonly undo: "undoable";
+    };
+    readonly "data.derive": {
+        readonly undo: "undoable";
+    };
     readonly "style.patch": {
         readonly undo: "undoable";
     };
@@ -73,6 +85,9 @@ export const COMMANDS: Readonly<{
         readonly undo: "undoable";
     };
     readonly "style.template": {
+        readonly undo: "undoable";
+    };
+    readonly "shader.set": {
         readonly undo: "undoable";
     };
     readonly "visibility.set": {
@@ -85,6 +100,15 @@ export const COMMANDS: Readonly<{
         readonly undo: "undoable";
     };
     readonly "visibility.steps": {
+        readonly undo: "undoable";
+    };
+    readonly "visibility.conditions": {
+        readonly undo: "undoable";
+    };
+    readonly "visibility.playback": {
+        readonly undo: "undoable";
+    };
+    readonly "visibility.hide": {
         readonly undo: "undoable";
     };
     readonly "set.create": {
@@ -139,6 +163,9 @@ export const COMMANDS: Readonly<{
     readonly "layout.set": {
         readonly undo: "undoable";
     };
+    readonly "layout.rerun": {
+        readonly undo: "undoable";
+    };
     readonly "layout.scope": {
         readonly undo: "undoable";
     };
@@ -159,7 +186,7 @@ export const COMMANDS: Readonly<{
 export function isSessionCommand(value: unknown): value is SessionCommand;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | DataCommand | SourceExpandOpCommand | StyleCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // (No @packageDocumentation comment for this package)
 

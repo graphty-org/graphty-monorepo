@@ -1,0 +1,14 @@
+{
+    "madeBy": "@graphty/graphty-element 3.31.0 (source at dff9b04575)",
+    "problems": [
+        {
+            "code": "E_BAD_COMMAND",
+            "params": {
+                "slice": "visibility"
+            }
+        }
+    ],
+    "steps": [],
+    "nodes": ["a", "b", "c", "d", "e", "f", "z"],
+    "edges": ["0", "1", "2", "3", "4", "5"]
+}

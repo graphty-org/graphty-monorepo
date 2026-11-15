@@ -1,7 +1,7 @@
 /**
  * What the inspector opens, on the REAL graphty-element: a "Why this look" link opens the layer
  * that paints the node, a group's Style is its layer's, a row an undo removed gives way to the
- * selection, a click on the node already selected brings it back, a node a filter hides says so,
+ * selection, a click on the node already selected brings it back, a node a filter hides leaves it,
  * and every column of the node's kind shows, an empty one as "No value".
  */
 
@@ -9,16 +9,12 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent as realInput } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
 
 /** Two rings of six joined by one bridge; every node but the last carries a phone. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({
@@ -41,13 +37,10 @@ async function openRings(): Promise<{ session: GraphSession; store: WorkspaceSto
     const store = createWorkspaceStore({ project: { name: "Two rings", id: 1 } });
     render(<Workspace store={store} />);
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector("graphty-element")?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector("graphty-element")?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -260,22 +253,19 @@ describe("what the inspector opens, on the real element", () => {
         // The node's center once the layout has settled, and the drawing answers n3 there.
         await element.waitForStableFrame();
         let point: { x: number; y: number } | undefined;
-        await waitFor(
-            () => {
-                const at = element.nodeScreenPosition("n3");
-                point = at?.visible === true ? { x: at.x, y: at.y } : undefined;
-                assert.equal(point === undefined ? undefined : element.elementAt(point)?.id, "n3");
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        await realInput.click(element, { position: point });
+        await waitFor(() => {
+            const at = element.nodeScreenPosition("n3");
+            point = at?.visible === true ? { x: at.x, y: at.y } : undefined;
+            assert.equal(point === undefined ? undefined : element.elementAt(point)?.id, "n3");
+        });
+        await userEvent.click(element, { position: point });
         await waitFor(() => {
             assert.equal(drawn(), "node");
         });
         assert.deepEqual([...session.selection.nodes], ["n3"]);
     });
 
-    it("a node a filter hides says so, and every column shows, an empty one as No value", async () => {
+    it("every column shows, an empty one as No value, and a filter that hides the node takes it off the inspector", async () => {
         const { session } = await openRings();
         await pick(session, "n11");
         // Every column of the node's kind, as the table lists them.
@@ -286,9 +276,13 @@ describe("what the inspector opens, on the real element", () => {
         await act(async () => {
             await session.visibility.set({ kind: "categories", attribute: "data.label", values: ["Node 0"] });
         });
+        // The app reads the working graph, so a filter drops a node it hides from the selection
+        // (the owner's decision, 2026-11-06), and the inspector, which shows the selection, lets
+        // it go.
         await waitFor(() => {
             assert.isFalse(session.visibility.isVisible("n11"));
-            assert.isNotNull(inspector().getByText("Node, hidden by a filter"));
+            assert.deepEqual([...session.selection.nodes], []);
+            assert.isNull(inspector().queryByRole("group", { name: "phone" }));
         });
     });
 });

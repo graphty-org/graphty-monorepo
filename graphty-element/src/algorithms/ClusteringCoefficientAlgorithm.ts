@@ -27,10 +27,10 @@ import {
  * `clustering`, `average_clustering` and `transitivity`.
  */
 export class ClusteringCoefficientAlgorithm extends DeclaredAlgorithm {
-    static namespace = "graphty";
-    static type = "clustering-coefficient";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "clustering-coefficient";
     /** Counts over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Count every node's triangles and publish its clustering coefficient.
@@ -47,11 +47,11 @@ export class ClusteringCoefficientAlgorithm extends DeclaredAlgorithm {
         const { snapshot, run } = this.accelerated("triangleCount", "undirected");
         const { ids } = snapshot;
 
-        context.report({ phase: "Counting triangles", total: null });
+        context.report({ phase: "counting-triangles", total: null });
         const { value, precision } = await run((dispatch, s) => dispatch.triangleCount(s));
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Reading coefficients", nodeIds, (nodeId) => {
+        await forEachChunked(context, "reading-coefficients", nodeIds, (nodeId) => {
             const index = ids.indexOf(nodeId);
             nodes.push({
                 id: nodeId,

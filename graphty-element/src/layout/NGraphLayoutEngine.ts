@@ -1,14 +1,27 @@
-import { detCos, detSin, type NodeMask } from "@graphty/graph-format";
-import ngraphCreateLayout, { Layout as NGraphLayout } from "ngraph.forcelayout";
+import { detCos, detSin, INVALID_INDEX, type NodeMask } from "@graphty/graph-format";
+import ngraphCreateLayout, { Body, Layout as NGraphLayout } from "ngraph.forcelayout";
 import createGraph, { Graph as NGraph, Link as NGraphLink, Node as NGraphNode } from "ngraph.graph";
 import random from "ngraph.random";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { getDefaults } from "../config/OptionsSchema";
+import { NGRAPH_SPRING_LENGTH } from "../constants/layoutConstants";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
-import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import { wholeGraph } from "../session/working/graphs";
+import {
+    clusterByOption,
+    clusterCentroids,
+    type ClusterPoint,
+    clusterStrengthOption,
+    readCommunities,
+    sameCommunities,
+} from "./clusterForce";
+import type { D3RowSource } from "./D3GraphLayoutEngine";
+import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
+import { seedSchema } from "./seedOption";
 
 /**
  * Zod-based options schema for NGraph Force Layout. The defaults are ngraph.forcelayout's own,
@@ -17,6 +30,8 @@ import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./Layout
  * for 80 got eight times the spring length and a drawing that never formed groups.
  */
 const ngraphLayoutOptionsSchema = defineOptions({
+    clusterBy: clusterByOption,
+    clusterStrength: clusterStrengthOption,
     dim: {
         schema: z.number().int().min(2).max(3).default(3),
         meta: {
@@ -25,7 +40,7 @@ const ngraphLayoutOptionsSchema = defineOptions({
         },
     },
     springLength: {
-        schema: z.number().positive().default(10),
+        schema: z.number().positive().default(NGRAPH_SPRING_LENGTH),
         meta: {
             label: "Spring Length",
             description: "Ideal spring length between connected nodes",
@@ -75,29 +90,10 @@ const ngraphLayoutOptionsSchema = defineOptions({
             advanced: true,
         },
     },
-    nodeGap: {
-        schema: z.number().min(0).nullable().default(null),
-        meta: {
-            label: "Node Gap",
-            description:
-                "Keep at least this much space between two nodes' drawn surfaces, measured from each " +
-                "node's drawn size. Unset (null), nodes may be drawn over each other",
-            step: 0.5,
-            advanced: true,
-        },
-    },
-    nodeGapFront: {
-        schema: z.boolean().default(false),
-        meta: {
-            label: "Node Gap From the Front",
-            description:
-                "In 3D, measure Node Gap as seen from the front (across x and y, not depth), so no node " +
-                "is drawn over another in the starting view even when one is behind the other",
-            advanced: true,
-        },
-    },
+    nodeGap: nodeGapOption,
+    nodeGapFront: nodeGapFrontOption,
     seed: {
-        schema: z.number().int().positive().nullable().default(null),
+        schema: seedSchema,
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible layout",
@@ -105,6 +101,15 @@ const ngraphLayoutOptionsSchema = defineOptions({
         },
     },
 });
+
+/** Steps the mean movement may go without falling below {@link STALL_PROGRESS} of its least before the time step shortens. */
+const STALL_STEPS = 50;
+/** The share of its least that the mean movement must fall below to count as settling. */
+const STALL_PROGRESS = 0.9;
+/** A stalled window whose bodies end less than this share of the path they walked from where they began is swinging in place. */
+const STALL_WANDER = 0.6;
+/** What a stalled simulation's time step is multiplied by. */
+const STALL_COOLING = 0.8;
 
 /** How many extra sweeps a forced stop may spend pushing overlapping nodes apart. */
 const MAX_FINAL_SWEEPS = 100;
@@ -131,14 +136,34 @@ function cellKey(x: number, y: number, z: number): number {
 }
 
 /**
+ * What this engine keeps on each ngraph link: every edge between its pair, `Edge` or edge row
+ * (by edge id), and the pair's key.
+ */
+interface PairData {
+    edges: Set<Edge>;
+    rows: Set<string>;
+    row: Map<NodeIdType, NGraphLink>;
+    key: NodeIdType;
+}
+
+/**
+ * The data a link carries.
+ * @param link - an ngraph link this engine made
+ * @returns its edges and where it is filed in `pairLinks`
+ */
+function pairOf(link: NGraphLink): PairData {
+    return link.data as PairData;
+}
+
+/**
  * NGraph force-directed layout engine using ngraph.forcelayout
  */
 export class NGraphEngine extends LayoutEngine {
-    static type = "ngraph";
-    static maxDimensions = 3;
-    static zodOptionsSchema: OptionsSchema = ngraphLayoutOptionsSchema;
+    static readonly type: string = "ngraph";
+    static readonly maxDimensions: number = 3;
+    static readonly zodOptionsSchema: OptionsSchema = ngraphLayoutOptionsSchema;
     /** Accepts a scope: a held node is a pinned body in ngraph's own simulation. */
-    static override scoped = true;
+    static override readonly scoped: boolean = true;
     ngraph: NGraph;
     ngraphLayout: NGraphLayout<NGraph>;
 
@@ -151,10 +176,30 @@ export class NGraphEngine extends LayoutEngine {
         return { dim: dimension };
     }
     nodeMapping = new Map<Node, NGraphNode>();
+    /**
+     * The bodies of rows drawn with no `Node`, under renderPath "batched", keyed by node id: a freeze
+     * renumbers rows, an id stays. See {@link NGraphEngine.addRows}.
+     */
+    private readonly rowNodes = new Map<NodeIdType, NGraphNode>();
+    /** Where a row body finds its row and publishes, once rows were added. */
+    private rowSource: D3RowSource | null = null;
     edgeMapping = new Map<Edge, NGraphLink>();
+    /** The link carrying each edge stored with no `Edge`, by edge id. See {@link NGraphEngine.addEdgeRows}. */
+    private readonly rowLinks = new Map<string, NGraphLink>();
+    /** The one link between two nodes, keyed by both ids in the order the first edge gave them. */
+    private readonly pairLinks = new Map<NodeIdType, Map<NodeIdType, NGraphLink>>();
     _settled = true;
     _stepCount = 0;
     _lastMoves: number[] = [];
+    /** The configured time step, which {@link NGraphEngine.coolWhenStalled} shortens and a restart restores. */
+    private readonly timeStep: number;
+    /** The least mean movement since the stall window began, the most ever, and the steps since it fell. */
+    private leastMovement = Infinity;
+    private mostMovement = 0;
+    private stalledSteps = 0;
+    /** How far the bodies walked since the stall window began, and where each one began it. */
+    private stallPath = 0;
+    private readonly stallStart = new Map<Body, { x: number; y: number; z: number }>();
     /** The least space between two drawn surfaces, or null to let nodes overlap. */
     private readonly nodeGap: number | null = null;
     /** Whether `nodeGap` ignores depth: see the option. */
@@ -168,6 +213,17 @@ export class NGraphEngine extends LayoutEngine {
     private round = new Uint8Array(0);
     private movable = new Uint8Array(0);
     private readonly cells = new Map<number, number[]>();
+    /** What `clusterBy` names, or null for no pull. */
+    private readonly clusterBy: string | null = null;
+    private readonly clusterStrength: number = 1;
+    /** The last read of `clusterBy`, and each member's body and community, in the same order. */
+    private communities = new Map<Node, number>();
+    private clusterBodies: Body[] = [];
+    private clusterPoints: ClusterPoint[] = [];
+    private clusterOf: number[] = [];
+    private clusterCount = 0;
+    /** The nodes changed since `clusterBy` was read. */
+    private clustersStale = true;
     /** Places each new node when `seed` is set; null leaves placement to ngraph. */
     private readonly seededPlacement: { rng: ReturnType<typeof random>; dim: number } | null = null;
 
@@ -177,10 +233,9 @@ export class NGraphEngine extends LayoutEngine {
      */
     constructor(config: object = {}) {
         super();
-        // A multigraph: each element edge is its own ngraph link. ngraph's default names a link by
-        // its endpoints' strings, so two parallel edges -- or `"1" -> 1` beside `1 -> 1` -- came
-        // back as ONE shared link, and removing either took the other's spring with it: its
-        // position was then undefined and redrawing it threw.
+        // A multigraph, so ngraph never merges links by its own string key: `"1" -> 1` beside
+        // `1 -> 1` are different pairs. Parallel edges between one pair share ONE link (see
+        // addEdge), which this engine counts itself in `pairLinks`.
         this.ngraph = createGraph({ multigraph: true });
 
         // The declared defaults first, so what the catalog publishes is what the simulation runs.
@@ -234,7 +289,15 @@ export class NGraphEngine extends LayoutEngine {
 
         this.nodeGapFront = typedConfig.nodeGapFront === true;
 
+        this.timeStep = typedConfig.timeStep as number;
         this.ngraphLayout = ngraphCreateLayout(this.ngraph, ngraphConfig);
+        if (typeof typedConfig.clusterBy === "string") {
+            this.clusterBy = typedConfig.clusterBy;
+            this.clusterStrength = typedConfig.clusterStrength as number;
+            this.ngraphLayout.simulator.addForce("cluster", () => {
+                this.pullClusters();
+            });
+        }
     }
 
     /**
@@ -251,9 +314,13 @@ export class NGraphEngine extends LayoutEngine {
      * Advance the NGraph simulation by one step
      */
     step(): void {
+        if (this.clustersStale && this.clusterBy !== null) {
+            this.readClusters();
+        }
+
         const ngraphSettled = this.ngraphLayout.step();
         const { lastMove } = this.ngraphLayout;
-        const nodeCount = this.nodeMapping.size;
+        const nodeCount = this.nodeMapping.size + this.rowNodes.size;
         const ratio = nodeCount > 0 ? lastMove / nodeCount : 0;
 
         this._stepCount++;
@@ -275,6 +342,10 @@ export class NGraphEngine extends LayoutEngine {
         // With `nodeGap` set the simulation is not at rest while two nodes still overlap; the last
         // step before a forced stop pushes them apart until none do.
         const resting = ngraphSettled || avgMovement <= customThreshold;
+        if (!resting) {
+            this.coolWhenStalled(avgMovement);
+        }
+
         const overlaps = this.separate(!resting);
         this._settled = (resting && overlaps === 0) || this._stepCount >= maxSteps;
         if (this._settled && overlaps > 0) {
@@ -359,14 +430,14 @@ export class NGraphEngine extends LayoutEngine {
             const i = bodies.length;
             const b = this.ngraphLayout.getNodePosition(ngraphNode.id);
             bodies.push(b);
-            radii[i] = node.drawnRadius + gap / 2;
+            radii[i] = node.layoutRadius + gap / 2;
             // A round node is a sphere; anything else (a box, a tall cylinder, a torus) is kept
             // apart by its bounding box, which one radius over- or under-states (#2668).
             round[i] = node.roundRadius === null ? 0 : 1;
             const half = round[i] === 1 ? null : node.drawnHalfExtents;
-            reaches[3 * i] = (half?.x ?? node.drawnRadius) + gap / 2;
-            reaches[3 * i + 1] = (half?.y ?? node.drawnRadius) + gap / 2;
-            reaches[3 * i + 2] = (half?.z ?? node.drawnRadius) + gap / 2;
+            reaches[3 * i] = (half?.x ?? node.layoutRadius) + gap / 2;
+            reaches[3 * i + 1] = (half?.y ?? node.layoutRadius) + gap / 2;
+            reaches[3 * i + 2] = (half?.z ?? node.layoutRadius) + gap / 2;
             movable[i] = this.ngraphLayout.isNodePinned(ngraphNode) ? 0 : 1;
             // A group following its members encloses them: it is not kept apart from them.
             if (this.isFollower(node.index)) {
@@ -541,19 +612,78 @@ export class NGraphEngine extends LayoutEngine {
     }
 
     /**
+     * Whether `nodeGap` is set.
+     * @returns True when the engine spaces nodes by their drawn size.
+     * @internal
+     */
+    override get spacesBySize(): boolean {
+        return this.nodeGap !== null;
+    }
+
+    /**
      * Start the simulation again because a node's drawn size changed, when `nodeGap` keeps nodes
      * apart by that size: a node that grew after the layout came to rest may now cover another.
      * @returns True when the simulation was woken.
      */
-    wakeForResize(): boolean {
+    override wakeForResize(): boolean {
         if (this.nodeGap === null || !this._settled) {
             return false;
         }
 
-        this._settled = false;
-        this._stepCount = 0;
-        this._lastMoves = [];
+        this.unsettle();
         return true;
+    }
+
+    /**
+     * Read `clusterBy` again and start the simulation when the communities changed.
+     * @returns True when the simulation was woken.
+     */
+    override wakeForClusters(): boolean {
+        if (this.clusterBy === null || !this.readClusters()) {
+            return false;
+        }
+
+        this.unsettle();
+        return true;
+    }
+
+    /**
+     * Read `clusterBy` and note each member's body.
+     * @returns True when the communities changed.
+     */
+    private readClusters(): boolean {
+        this.clustersStale = false;
+        const read = readCommunities(this.clusterBy as string, this.nodeMapping.keys(), this.clusterColumn, (row) =>
+            this.isFollower(row),
+        );
+        const same = sameCommunities(read, this.communities);
+        this.communities = read;
+        this.clusterBodies = [...read.keys()].map((node) => this.ngraphLayout.getBody(node.id) as Body);
+        this.clusterPoints = this.clusterBodies.map((body) => body.pos);
+        this.clusterOf = [...read.values()];
+        this.clusterCount = new Set(this.clusterOf).size;
+        return !same;
+    }
+
+    /** The cluster force, ngraph's spring of rest length 0 to the centroid: spring-electrical's law on the accelerator. */
+    private pullClusters(): void {
+        const { clusterBodies: bodies, clusterOf, clusterStrength } = this;
+        const centroids = clusterCentroids(
+            this.clusterPoints,
+            clusterOf,
+            this.clusterCount,
+            (member) => bodies[member].mass,
+        );
+        const coefficient = clusterStrength * this.ngraphLayout.simulator.settings.springCoefficient;
+        bodies.forEach(({ force, mass, pos }, member) => {
+            const at = 3 * clusterOf[member];
+            const pull = coefficient * mass;
+            force.x += pull * (centroids[at] - pos.x);
+            force.y += pull * (centroids[at + 1] - pos.y);
+            if (pos.z !== undefined && force.z !== undefined) {
+                force.z += pull * (centroids[at + 2] - pos.z);
+            }
+        });
     }
 
     /**
@@ -565,9 +695,85 @@ export class NGraphEngine extends LayoutEngine {
      * z at all, and the row is published flat rather than left unplaced.
      */
     override publishPositions(): void {
+        const { rows, coords } = this.publishScratch(this.nodeMapping.size + this.rowNodes.size);
+        let count = 0;
+        let first: Node | undefined;
         for (const [node, ngraphNode] of this.nodeMapping) {
-            const pos = this.ngraphLayout.getNodePosition(ngraphNode.id);
-            this.writeNodePosition(node, pos.x, pos.y, pos.z ?? 0);
+            first ??= node;
+            this.copyBody(ngraphNode.id, node.index, count++, rows, coords);
+        }
+
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
+        for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
+            const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
+            if (row !== INVALID_INDEX) {
+                this.copyBody(id, row, count++, rows, coords);
+            }
+        }
+
+        this.publishColumn(first ?? this.rowSource?.positions, rows, coords, count);
+    }
+
+    /**
+     * The box the last publish left the rows in: one {@link LayoutEngine.publishColumn} per publish.
+     * @returns The box, or null.
+     * @internal
+     */
+    override publishedBounds(): Readonly<Float64Array> | null {
+        return this.lastPublishedBox();
+    }
+
+    /**
+     * Copy one body's position into the publish scratch, flat when ngraph carries no z.
+     * @param id - The body's ngraph id.
+     * @param row - Its row.
+     * @param at - Its entry in the scratch.
+     * @param rows - The scratch's rows.
+     * @param coords - The scratch's coordinates.
+     */
+    private copyBody(id: NodeIdType, row: number, at: number, rows: Float64Array, coords: Float64Array): void {
+        const pos = this.ngraphLayout.getNodePosition(id);
+        rows[at] = row;
+        coords[3 * at] = pos.x;
+        coords[3 * at + 1] = pos.y;
+        coords[3 * at + 2] = pos.z ?? 0;
+    }
+
+    /**
+     * Under renderPath "batched", give the simulation a body for each row drawn with no `Node`.
+     * Such a row is unsized (no `nodeGap` push), in no `clusterBy` community and never pinned,
+     * since each of those is read from a `Node`; a hold reaches it by its row. A third party's
+     * engine is handed `Node`s only.
+     * @param ids - The rows' node ids.
+     * @param source - Where a body finds its row at publish, and the element's array it publishes into.
+     * @internal
+     */
+    addRows(ids: readonly NodeIdType[], source: D3RowSource): void {
+        this.rowSource = source;
+        for (const id of ids) {
+            // An edge added first may already have made this body, placed by ngraph's own
+            // unseeded generator; nothing has stepped yet, so the seed places it here either way.
+            this.rowNodes.set(id, this.ngraph.addNode(id));
+            this.place(id);
+        }
+
+        this.holdRowBodies();
+        if (ids.length > 0) {
+            this.unsettle();
+        }
+    }
+
+    /**
+     * Pin each held row body and free the rest, and weigh each by whether its row follows.
+     */
+    private holdRowBodies(): void {
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
+        for (const [id, ngraphNode] of snapshot === undefined ? [] : this.rowNodes) {
+            const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
+            if (row !== INVALID_INDEX) {
+                this.ngraphLayout.pinNode(ngraphNode, this.isHeld(row));
+                this.weigh(row, id);
+            }
         }
     }
 
@@ -586,6 +792,30 @@ export class NGraphEngine extends LayoutEngine {
     addNode(n: Node): void {
         const ngraphNode: NGraphNode = this.ngraph.addNode(n.id, { parentNode: n });
         this.nodeMapping.set(n, ngraphNode);
+        this.clustersStale = true;
+        // A row's `Node` built late takes over the row's body, where it already is: the
+        // simulation is unchanged, so a settled one stays settled.
+        const tookOver = this.rowNodes.delete(n.id);
+        if (!tookOver) {
+            this.place(n.id);
+        }
+
+        // A node that arrived after a scoped layout started is not one of its members.
+        if (this.isHeld(n.index)) {
+            this.ngraphLayout.pinNode(ngraphNode, true);
+            this.weigh(n.index, n.id);
+        }
+
+        if (!tookOver) {
+            this.unsettle();
+        }
+    }
+
+    /**
+     * Place a new body from the seed, when `seed` is set; otherwise ngraph places it.
+     * @param id - The body's ngraph id.
+     */
+    private place(id: NodeIdType): void {
         if (this.seededPlacement) {
             // THE RULE NGRAPH ITSELF USES for a node with no placed neighbour -- within half a
             // spring length of the origin -- only drawn from the seed. A wider start is a graph
@@ -596,18 +826,8 @@ export class NGraphEngine extends LayoutEngine {
             const coord = (): number => (rng.nextDouble() - 0.5) * springLength;
             const x = coord();
             const y = coord();
-            this.ngraphLayout.setNodePosition(n.id, x, y, dim === 3 ? coord() : 0);
+            this.ngraphLayout.setNodePosition(id, x, y, dim === 3 ? coord() : 0);
         }
-
-        // A node that arrived after a scoped layout started is not one of its members.
-        if (this.isHeld(n.index)) {
-            this.ngraphLayout.pinNode(ngraphNode, true);
-            this.weigh(n, n.id);
-        }
-
-        this._settled = false;
-        this._stepCount = 0;
-        this._lastMoves = [];
     }
 
     /**
@@ -615,14 +835,173 @@ export class NGraphEngine extends LayoutEngine {
      * @param e - The edge to add
      */
     addEdge(e: Edge): void {
-        // `parentEdge: e`, not `this`. It used to hand ngraph the ENGINE under a key named for an
-        // edge; nothing read it, which is why it survived, and anything that started carrying
-        // per-link data would have landed in that slot and found the wrong object.
-        const ngraphEdge = this.ngraph.addLink(e.srcId, e.dstId, { parentEdge: e });
-        this.edgeMapping.set(e, ngraphEdge);
+        const link = this.pairLink(e.srcId, e.dstId);
+        pairOf(link).edges.add(e);
+        this.edgeMapping.set(e, link);
+        this.unsettle();
+    }
+
+    /**
+     * Under renderPath "batched", put each edge stored with no `Edge` on its pair's link. A third
+     * party's engine is handed `Edge`s only.
+     * @param rows - The edges.
+     * @internal
+     */
+    addEdgeRows(rows: readonly EdgeRow[]): void {
+        for (const { key, source, target } of rows) {
+            const link = this.pairLink(source, target);
+            pairOf(link).rows.add(key);
+            this.rowLinks.set(key, link);
+        }
+
+        if (rows.length > 0) {
+            this.unsettle();
+        }
+    }
+
+    /**
+     * Hand an `Edge` built late for an edge stored with no `Edge` the link its row is already on, so
+     * the simulation keeps its springs and does not unsettle for an edge it already pulls on.
+     * @param key - The edge's id.
+     * @param e - Its `Edge`.
+     * @returns False when no link carries that id, and the `Edge` must be added instead.
+     * @internal
+     */
+    adoptEdgeRow(key: string, e: Edge): boolean {
+        const link = this.rowLinks.get(key);
+        if (link === undefined) {
+            return false;
+        }
+
+        this.rowLinks.delete(key);
+        pairOf(link).rows.delete(key);
+        pairOf(link).edges.add(e);
+        this.edgeMapping.set(e, link);
+        return true;
+    }
+
+    /**
+     * Take edges that leave the graph with no `Edge` off their links, and drop a link left carrying none.
+     * @param keys - The edges' ids; one on no link is skipped.
+     * @internal
+     */
+    removeEdgeRows(keys: Iterable<string>): void {
+        for (const key of keys) {
+            const link = this.rowLinks.get(key);
+            if (link !== undefined) {
+                this.rowLinks.delete(key);
+                pairOf(link).rows.delete(key);
+                this.dropIfEmpty(link);
+            }
+        }
+    }
+
+    /**
+     * The one link, and so one spring, between two nodes, made when they have none. A link per
+     * edge made thirteen parallel emails thirteen springs while ngraph's damping stayed the same,
+     * and a dense multigraph oscillated until the step budget stopped it.
+     * @param source - One node's id.
+     * @param target - The other's.
+     * @returns The link.
+     */
+    private pairLink(source: NodeIdType, target: NodeIdType): NGraphLink {
+        let link = this.pairLinks.get(source)?.get(target) ?? this.pairLinks.get(target)?.get(source);
+        if (link === undefined) {
+            let row = this.pairLinks.get(source);
+            if (row === undefined) {
+                row = new Map();
+                this.pairLinks.set(source, row);
+            }
+
+            const data: PairData = { edges: new Set(), rows: new Set(), row, key: target };
+            link = this.ngraph.addLink(source, target, data);
+            row.set(target, link);
+        }
+
+        return link;
+    }
+
+    /** Step again from the start. */
+    private unsettle(): void {
         this._settled = false;
         this._stepCount = 0;
         this._lastMoves = [];
+        this.ngraphLayout.simulator.settings.timeStep = this.timeStep;
+        this.leastMovement = Infinity;
+        this.mostMovement = 0;
+        this.stalledSteps = 0;
+        this.stallPath = 0;
+        this.stallStart.clear();
+    }
+
+    /**
+     * Shorten the time step when the simulation is swinging in place instead of coming to rest:
+     * its movement has stopped falling AND the nodes end up close to where they started. ngraph
+     * weighs each node by its degree and multiplies the push between two nodes by both weights,
+     * so on a dense graph (Knuth's miles is complete: every node has 127 links and weighs 43)
+     * the forces are so stiff that a step of the configured length overshoots, and the nodes
+     * swing back and forth for good. A graph still coming to rest never stalls this long, and one
+     * slowly unfolding (a long transit line) travels while it stalls; both run as configured.
+     * @param avgMovement - The mean movement per node over the last steps.
+     */
+    private coolWhenStalled(avgMovement: number): void {
+        const { settings } = this.ngraphLayout.simulator;
+        // Each body moved `timeStep * velocity` this step: see ngraph's integrator.
+        this.ngraphLayout.forEachBody((body) => {
+            const { x, y, z = 0 } = body.velocity;
+            this.stallPath += settings.timeStep * Math.hypot(x, y, z);
+        });
+
+        if (avgMovement > this.mostMovement || avgMovement < this.leastMovement * STALL_PROGRESS) {
+            this.mostMovement = Math.max(this.mostMovement, avgMovement);
+            this.restartStallWindow(avgMovement);
+            return;
+        }
+
+        this.stalledSteps++;
+        if (this.stalledSteps < STALL_STEPS) {
+            return;
+        }
+
+        let travelled = 0;
+        this.ngraphLayout.forEachBody((body) => {
+            const start = this.stallStart.get(body);
+            if (start !== undefined) {
+                travelled += Math.hypot(body.pos.x - start.x, body.pos.y - start.y, (body.pos.z ?? 0) - start.z);
+            }
+        });
+        if (travelled < this.stallPath * STALL_WANDER) {
+            settings.timeStep *= STALL_COOLING;
+        }
+
+        this.restartStallWindow(avgMovement);
+    }
+
+    /**
+     * Start watching for a stall from here: the least movement, the path walked and where each body is.
+     * @param avgMovement - The mean movement per node over the last steps.
+     */
+    private restartStallWindow(avgMovement: number): void {
+        this.leastMovement = avgMovement;
+        this.stalledSteps = 0;
+        this.stallPath = 0;
+        this.stallStart.clear();
+        this.ngraphLayout.forEachBody((body) => {
+            this.stallStart.set(body, { x: body.pos.x, y: body.pos.y, z: body.pos.z ?? 0 });
+        });
+    }
+
+    /**
+     * Drop a link that carries no edge any more.
+     * @param link - The link.
+     */
+    private dropIfEmpty(link: NGraphLink): void {
+        const { edges, rows, row, key } = pairOf(link);
+        if (edges.size === 0 && rows.size === 0) {
+            this.ngraph.removeLink(link);
+            row.delete(key);
+            this._settled = false;
+        }
     }
 
     /**
@@ -638,6 +1017,24 @@ export class NGraphEngine extends LayoutEngine {
         // which is the object ngraph itself mutates -- see setNodePosition, which writes straight
         // into it.
         return this.publishOnRead(n, pos.x, pos.y, pos.z ?? 0) ?? pos;
+    }
+
+    /**
+     * Take the position array as this engine's own: each `Node`'s body, and each row's with no
+     * `Node`, which a `Node` built later takes where it is.
+     */
+    override loadArrangement(): void {
+        super.loadArrangement();
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
+        const at = { x: 0, y: 0, z: 0 };
+        for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
+            if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
+                const pos = this.ngraphLayout.getNodePosition(id);
+                pos.x = at.x;
+                pos.y = at.y;
+                pos.z = at.z;
+            }
+        }
     }
 
     /**
@@ -664,19 +1061,13 @@ export class NGraphEngine extends LayoutEngine {
      * @returns The edge's source and destination positions
      */
     getEdgePosition(e: Edge): EdgePosition {
-        const ngraphEdge = this._getMappedEdge(e);
-        const pos = this.ngraphLayout.getLinkPosition(ngraphEdge.id);
+        // From the edge's own endpoints: the link it shares may run the other way.
+        this._getMappedEdge(e);
+        const from = this.ngraphLayout.getNodePosition(e.srcId);
+        const to = this.ngraphLayout.getNodePosition(e.dstId);
         return {
-            src: {
-                x: pos.from.x,
-                y: pos.from.y,
-                z: pos.from.z,
-            },
-            dst: {
-                x: pos.to.x,
-                y: pos.to.y,
-                z: pos.to.z,
-            },
+            src: { x: from.x, y: from.y, z: from.z },
+            dst: { x: to.x, y: to.y, z: to.z },
         };
     }
 
@@ -721,16 +1112,16 @@ export class NGraphEngine extends LayoutEngine {
      * repulsion is proportional to both bodies' masses, so a mass this small is no force at all.
      * Zero would divide by zero in its quadtree's centre of mass. A body that stops following
      * gets ngraph's own mass back.
-     * @param node - The node.
+     * @param row - The body's row.
      * @param id - Its ngraph id.
      */
-    private weigh(node: Node, id: NodeIdType): void {
+    private weigh(row: number, id: NodeIdType): void {
         const body = this.ngraphLayout.getBody(id);
         if (body === undefined) {
             return;
         }
 
-        if (this.isFollower(node.index)) {
+        if (this.isFollower(row)) {
             body.mass = FOLLOWER_MASS;
         } else if (body.mass === FOLLOWER_MASS) {
             body.mass = 1 + (this.ngraph.getLinks(id)?.size ?? 0) / 3;
@@ -747,8 +1138,10 @@ export class NGraphEngine extends LayoutEngine {
         super.setHoldMask(mask, rows);
         for (const [node, ngraphNode] of this.nodeMapping) {
             this.ngraphLayout.pinNode(ngraphNode, this.isHeld(node.index) || node.isPinned());
-            this.weigh(node, ngraphNode.id);
+            this.weigh(node.index, ngraphNode.id);
         }
+
+        this.holdRowBodies();
     }
 
     /**
@@ -765,13 +1158,48 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
-        // The node's own links, not every link: each carries the edge it was added for.
+        this.dropBody(ngraphNode);
+        this.nodeMapping.delete(n);
+    }
+
+    /**
+     * Under renderPath "batched", take out the bodies of rows that leave the graph with no `Node`;
+     * otherwise each would stay in the simulation and keep pushing the others.
+     * @param ids - The rows' node ids; an id with no row body is skipped.
+     * @internal
+     */
+    removeRows(ids: Iterable<NodeIdType>): void {
+        for (const id of ids) {
+            const ngraphNode = this.rowNodes.get(id);
+            if (ngraphNode !== undefined) {
+                this.rowNodes.delete(id);
+                this.dropBody(ngraphNode);
+            }
+        }
+    }
+
+    /**
+     * Take a body and its links out of ngraph.
+     * @param ngraphNode - The body.
+     */
+    private dropBody(ngraphNode: NGraphNode): void {
+        this.clustersStale = true;
+
+        // The node's own links, not every link: each carries the edges between its pair.
         for (const link of ngraphNode.links ?? []) {
-            this.edgeMapping.delete((link.data as { parentEdge: Edge }).parentEdge);
+            const { edges, rows, row, key } = pairOf(link);
+            for (const edge of edges) {
+                this.edgeMapping.delete(edge);
+            }
+
+            for (const edgeRow of rows) {
+                this.rowLinks.delete(edgeRow);
+            }
+
+            row.delete(key);
         }
 
         this.ngraph.removeNode(ngraphNode.id);
-        this.nodeMapping.delete(n);
         this._settled = false;
     }
 
@@ -785,28 +1213,32 @@ export class NGraphEngine extends LayoutEngine {
             return;
         }
 
-        this.ngraph.removeLink(link);
         this.edgeMapping.delete(e);
-        this._settled = false;
+        pairOf(link).edges.delete(e);
+        this.dropIfEmpty(link);
     }
 
     /**
-     * Strict state: {@link LayoutEngine.edgeProblems}, and each edge its own link, which ngraph
-     * still holds.
+     * Strict state: {@link LayoutEngine.edgeProblems}, and each edge on a link that carries it,
+     * which ngraph still holds.
      * @param drawn - The edges the element draws.
      * @returns One sentence per problem.
      */
     protected override edgeProblems(drawn: ReadonlyMap<string, Edge>): string[] {
         const problems = heldEdgeProblems(this.edgeMapping.keys(), drawn);
-        const links = new Set<NGraphLink>();
         for (const [edge, link] of this.edgeMapping) {
-            if (links.has(link)) {
-                problems.push(`edge ${edge.id} shares a link with another edge`);
+            if (!pairOf(link).edges.has(edge)) {
+                problems.push(`edge ${edge.id} maps to a link that does not carry it`);
             }
 
-            links.add(link);
             if (this.ngraph.getLinkById(link.id) !== link) {
                 problems.push(`edge ${edge.id} maps to a link its graph no longer holds`);
+            }
+        }
+
+        for (const [key, link] of this.rowLinks) {
+            if (!pairOf(link).rows.has(key) || this.ngraph.getLinkById(link.id) !== link) {
+                problems.push(`edge row ${key} maps to a link that does not carry it`);
             }
         }
 

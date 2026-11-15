@@ -3,19 +3,30 @@ import {
     CompactColorInput,
     ControlSection,
     FieldRow,
-    PanelField,
-    PanelLabelsProvider,
-    ResetButton,
-    SegmentedControl,
+    FileSource,
+    TargetTooltip,
 } from "@graphty/compact-mantine";
-import { DEFAULT_BACKGROUND_COLOR, type Lighting, LIGHTING_VALUES } from "@graphty/graphty-element/schema";
-import type { GraphSettingKey } from "@graphty/graphty-element/session";
-import { Input, Select, Stack, Switch, Text, TextInput } from "@mantine/core";
-import React, { useLayoutEffect, useRef, useState } from "react";
+import {
+    DEFAULT_BACKGROUND_COLOR,
+    type GraphBackgroundConfig,
+    type Lighting,
+    LIGHTING_VALUES,
+} from "@graphty/graphty-element/schema";
+import {
+    type GraphSession,
+    type GraphSettingKey,
+    prepareBackgroundImage,
+    type TransactionScope,
+} from "@graphty/graphty-element/session";
+import { ActionIcon, Box, Menu, Select, Stack, Switch, Text, Tooltip } from "@mantine/core";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 import { useSizeBound } from "../frame/useSizeBound";
+import { GLYPHS } from "../glyphs";
+import { BackgroundShader, ShaderSection } from "../settings/ShaderSettings";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { BACKGROUND_SECTION_WORDS, BACKGROUND_WORDS } from "../style/words";
 import { settingsNotInEffect, SHOWN_SETTINGS } from "./settingsInEffect";
 
 const LIGHTING_WORDS: Readonly<Record<Lighting, string>> = {
@@ -24,6 +35,36 @@ const LIGHTING_WORDS: Readonly<Record<Lighting, string>> = {
     matte: "Matte",
     flat: "Flat",
 };
+
+/**
+ * The settings that change nothing in the current view, held in state and re-read on every
+ * project change (the view is project state). Read during render instead, the answer changed only
+ * when something else happened to re-render the panel: a render React threw away because its
+ * state had not changed still recorded the new keys, so the focus keeper's effect never ran for
+ * them and focus fell to the panel's last row.
+ * @param session - the element's session, or null.
+ * @returns the hidden settings' keys.
+ */
+function useNotInEffect(session: GraphSession | null): readonly GraphSettingKey[] {
+    const [hidden, setHidden] = useState(() => notInEffectKey(session));
+    useEffect(() => {
+        const update = (): void => {
+            setHidden(notInEffectKey(session));
+        };
+        update();
+        return session?.on("project:changed", update);
+    }, [session]);
+    return hidden === "" ? [] : (hidden.split(",") as GraphSettingKey[]);
+}
+
+/**
+ * The hidden settings as one string, so an unchanged answer is an unchanged state.
+ * @param session - the element's session, or null.
+ * @returns the keys, comma-separated.
+ */
+function notInEffectKey(session: GraphSession | null): string {
+    return session === null ? "" : settingsNotInEffect(session).join(",");
+}
 
 /**
  * Keeps focus in the panel when the row holding it is hidden because its setting stopped
@@ -66,8 +107,9 @@ function useFocusPastHidden(
 
 /**
  * Graph settings, the right panel with no row selected (tier 3 design section 2.5): Background
- * (color or image), Lighting, Same size at any depth, Outline width, and the label rules. The view
- * (2D or 3D) and the layout live only in the toolbar. A setting is shown only while the element
+ * (a color, an image and a shader, stacked), Lighting, Same size at any depth, the
+ * Map while the layout draws one, and the label rules. The view (2D or 3D) and the layout live only
+ * in the toolbar. A setting is shown only while the element
  * says it changes the drawing in this view. The background is the project's and goes through the
  * session; the rest are the reader's view preferences, kept in the chrome store and handed to the
  * element on its tag (`frame/ElementHost.tsx`), so none records an undo step.
@@ -81,192 +123,330 @@ export function GraphSettings(): React.JSX.Element | null {
     const sameSizeChosen = useWorkspaceState((state) => state.sameSizeAtAnyDepth);
     const sameSize = sameSizeChosen ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
-    const outlineWidth = useWorkspaceState((state) => state.outlineWidth);
-    // Image is chosen before its address is typed: an empty skybox is refused, so the choice
-    // waits here until the address is written.
-    const [imagePicked, setImagePicked] = useState(false);
-    const hidden = session === null ? [] : settingsNotInEffect(session);
+    const hidden = useNotInEffect(session);
     const { ref, onFocus } = useFocusPastHidden(hidden, store);
     if (session === null) {
         return null;
     }
-    const { background } = session.config;
-    const showsImage = background.backgroundType === "skybox" || imagePicked;
     const shows = (key: GraphSettingKey): boolean => !hidden.includes(key);
 
     return (
         <>
-            <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
-                <Stack gap={6} ref={ref} onFocus={onFocus}>
-                    {/* A field label, as Lighting's and the colors' are: one caption size in the panel. */}
-                    <Input.Wrapper size="xs" label="Background">
-                        <SegmentedControl
-                            fullWidth
-                            value={showsImage ? "image" : "color"}
-                            data={[
-                                { value: "color", label: "Color" },
-                                { value: "image", label: "Image" },
-                            ]}
-                            onChange={(picked) => {
-                                setImagePicked(picked === "image");
-                                if (picked === "color" && background.backgroundType !== "color") {
-                                    void session.config.set({
-                                        background: { backgroundType: "color", color: DEFAULT_BACKGROUND_COLOR },
-                                    });
-                                }
-                            }}
-                        />
-                    </Input.Wrapper>
-                    {showsImage ? (
-                        <BackgroundImage
-                            value={background.backgroundType === "skybox" ? background.data : ""}
-                            onCommit={(data) => {
-                                void session.config.set({ background: { backgroundType: "skybox", data } });
-                            }}
-                        />
-                    ) : (
-                        <CompactColorInput
-                            label="Background color"
-                            valueText={colorWord(
-                                (background.backgroundType === "color" ? background.color : undefined) ??
-                                    DEFAULT_BACKGROUND_COLOR,
-                            )}
-                            color={background.backgroundType === "color" ? background.color : undefined}
-                            defaultColor={DEFAULT_BACKGROUND_COLOR}
-                            showOpacity={false}
-                            onChangeEnd={(next) => {
-                                // Once per gesture, so a drag is one step. The reset reports
-                                // undefined, which returns the background to the element's default.
-                                void session.config.set({
-                                    background:
-                                        next === undefined ? undefined : { backgroundType: "color", color: next },
-                                });
-                            }}
-                        />
-                    )}
-                    {shows("lighting") && (
-                        <div data-setting="lighting">
-                            <Select
-                                label="Lighting"
-                                size="xs"
-                                allowDeselect={false}
-                                value={lighting}
-                                data={LIGHTING_VALUES.map((value) => ({ value, label: LIGHTING_WORDS[value] }))}
-                                onChange={(picked) => {
-                                    const next = LIGHTING_VALUES.find((value) => value === picked);
-                                    if (next !== undefined) {
-                                        store.set({ lighting: next });
-                                    }
-                                }}
-                            />
-                        </div>
-                    )}
-                    {shows("node.depthIndependentSize") && (
-                        <div data-setting="node.depthIndependentSize">
-                            <Switch
-                                size="xs"
-                                label="Same size at any depth"
-                                // Until the reader sets it, it follows the size binding: say why it
-                                // turned on, so the change is never a surprise.
-                                description={
-                                    sameSizeChosen === null && sizeBound ? "On while node size follows data" : undefined
-                                }
-                                checked={sameSize}
-                                onChange={(event) => {
-                                    store.set({ sameSizeAtAnyDepth: event.currentTarget.checked });
-                                }}
-                            />
-                        </div>
-                    )}
-                    {shows("node.outlineWidth") && (
-                        <div data-setting="node.outlineWidth">
-                            <PanelLabelsProvider showLabels>
-                                <FieldRow
-                                    trailing={
-                                        outlineWidth !== null &&
-                                        outlineWidth !== undefined && (
-                                            <ResetButton
-                                                label="Outline width"
-                                                onClick={() => {
-                                                    store.set({ outlineWidth: null });
-                                                }}
-                                            />
-                                        )
-                                    }
-                                >
-                                    <PanelField
-                                        label="Outline width"
-                                        kind="number"
-                                        value={outlineWidth ?? 1}
-                                        min={0.1}
-                                        max={10}
-                                        step={0.1}
-                                        decimalScale={1}
-                                        onChange={(next) => {
-                                            store.set({ outlineWidth: Number(next) });
+            <BackgroundSection session={session} />
+            {/* One container for both sections' rows, so focus on a row hidden in this view moves
+                on to the next row shown, in Labels when Canvas has none left (2D). */}
+            <Box ref={ref} onFocus={onFocus} display="contents">
+                {(shows("lighting") || shows("node.depthIndependentSize")) && (
+                    <ControlSection label="Canvas" collapsible={false} headingLevel={3}>
+                        <Stack gap={6}>
+                            {shows("lighting") && (
+                                <div data-setting="lighting">
+                                    <Select
+                                        label="Lighting"
+                                        size="xs"
+                                        allowDeselect={false}
+                                        value={lighting}
+                                        data={LIGHTING_VALUES.map((value) => ({ value, label: LIGHTING_WORDS[value] }))}
+                                        onChange={(picked) => {
+                                            const next = LIGHTING_VALUES.find((value) => value === picked);
+                                            if (next !== undefined) {
+                                                store.set({ lighting: next });
+                                            }
                                         }}
                                     />
-                                </FieldRow>
-                            </PanelLabelsProvider>
-                            <Text size="xs" c="dimmed">
-                                Every outline is drawn at this width. For a ring whose width a layer sets, use Halo.
-                            </Text>
+                                </div>
+                            )}
+                            {shows("node.depthIndependentSize") && (
+                                <div data-setting="node.depthIndependentSize">
+                                    <Switch
+                                        size="xs"
+                                        label="Same size at any depth"
+                                        // Until the reader sets it, it follows the size binding: say why it
+                                        // turned on, so the change is never a surprise.
+                                        description={
+                                            sameSizeChosen === null && sizeBound
+                                                ? "On while node size follows data"
+                                                : undefined
+                                        }
+                                        checked={sameSize}
+                                        onChange={(event) => {
+                                            store.set({ sameSizeAtAnyDepth: event.currentTarget.checked });
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </Stack>
+                    </ControlSection>
+                )}
+                <ControlSection label="Labels" collapsible={false} headingLevel={3}>
+                    <Stack gap={6}>
+                        <div data-setting="labels.declutter">
+                            <Switch
+                                size="xs"
+                                label="Hide overlapping labels"
+                                checked={!allLabelsShown}
+                                onChange={(event) => {
+                                    store.set({ allLabelsShown: !event.currentTarget.checked });
+                                }}
+                            />
                         </div>
-                    )}
-                </Stack>
-            </ControlSection>
-            <ControlSection label="Labels" collapsible={false} headingLevel={3}>
-                <Stack gap={6}>
-                    <Switch
-                        size="xs"
-                        label="Hide overlapping labels"
-                        checked={!allLabelsShown}
-                        onChange={(event) => {
-                            store.set({ allLabelsShown: !event.currentTarget.checked });
-                        }}
-                    />
-                    <Switch
-                        size="xs"
-                        label="Move labels off nodes and edges"
-                        checked={labelsAvoid}
-                        onChange={(event) => {
-                            store.set({ labelsAvoid: event.currentTarget.checked });
-                        }}
-                    />
-                </Stack>
-            </ControlSection>
+                        <div data-setting="labels.avoidNodesAndEdges">
+                            <Switch
+                                size="xs"
+                                label="Move labels off nodes and edges"
+                                checked={labelsAvoid}
+                                onChange={(event) => {
+                                    store.set({ labelsAvoid: event.currentTarget.checked });
+                                }}
+                            />
+                        </div>
+                    </Stack>
+                </ControlSection>
+            </Box>
+            <ShaderSection />
         </>
     );
 }
 
+/** A Background row's kind, in the order they are drawn, bottom to top. */
+type BackgroundKind = "color" | "image" | "shader";
+const BACKGROUND_KINDS: readonly BackgroundKind[] = ["color", "image", "shader"];
+
+/** What the Background section's rows hold; undefined is a row that is not there. */
+interface BackgroundParts {
+    readonly color: string | undefined;
+    readonly image: string | undefined;
+    readonly shader: GraphBackgroundConfig["shader"];
+}
+
 /**
- * The background image's address, written when the field is left or Enter is pressed.
+ * The background a set of rows writes: a skybox when there is an image, else a color, each
+ * carrying only the color and the shader its rows hold.
+ * @param parts - the rows
+ * @param parts.color - the Color row's color
+ * @param parts.image - the Image row's address
+ * @param parts.shader - the Shader row's shader
+ * @returns the background
+ */
+function backgroundOf({ color, image, shader }: BackgroundParts): GraphBackgroundConfig {
+    const rest = { ...(color === undefined ? {} : { color }), ...(shader === undefined ? {} : { shader }) };
+    return image === undefined
+        ? { backgroundType: "color", ...rest }
+        : { backgroundType: "skybox", data: image, ...rest };
+}
+
+/**
+ * The Background section (shader studio decisions 5.7): its "+" adds a Color, an Image and a
+ * Shader, one of each, a kind already there shown disabled with its reason. The rows read top to
+ * bottom as the layers are stacked, Shader over Image over Color, each with a minus. Removing
+ * Color leaves the element to draw its default color, which the section then names in a caption.
+ * An Image waits for its address, and a Shader for its pick, before anything is written.
  * @param props - Component props
- * @param props.value - the address in effect
+ * @param props.session - the element's session
+ * @returns The section
+ */
+function BackgroundSection({ session }: Readonly<{ session: GraphSession }>): React.JSX.Element {
+    const { store } = useWorkspace();
+    const plusId = useId();
+    const [waiting, setWaiting] = useState<readonly BackgroundKind[]>([]);
+    const { background, backgroundColor } = session.config;
+    const parts: BackgroundParts = {
+        color: background.color,
+        image: background.backgroundType === "skybox" ? background.data : undefined,
+        shader: background.shader,
+    };
+    const present = (kind: BackgroundKind): boolean => parts[kind] !== undefined || waiting.includes(kind);
+    const settle = (kind: BackgroundKind): void => {
+        setWaiting((now) => now.filter((each) => each !== kind));
+    };
+    const write = (next: Partial<BackgroundParts>, scope: TransactionScope = session): Promise<void> =>
+        scope.config.set({ background: backgroundOf({ ...parts, ...next }) });
+    const add = (kind: BackgroundKind): void => {
+        if (kind === "color") {
+            void write({ color: backgroundColor });
+        } else {
+            setWaiting((now) => [...now, kind]);
+        }
+    };
+    const remove = (kind: BackgroundKind): void => {
+        settle(kind);
+        if (parts[kind] !== undefined) {
+            void write({ [kind]: undefined });
+        }
+    };
+    const minus = (kind: BackgroundKind): React.JSX.Element => {
+        const name = BACKGROUND_SECTION_WORDS.remove(BACKGROUND_WORDS[kind]);
+        return (
+            <Tooltip label={name} position="top">
+                <ActionIcon
+                    variant="subtle"
+                    size="sm"
+                    aria-label={name}
+                    onClick={() => {
+                        remove(kind);
+                    }}
+                >
+                    <GLYPHS.remove size={14} aria-hidden />
+                </ActionIcon>
+            </Tooltip>
+        );
+    };
+    const row = (kind: BackgroundKind): React.JSX.Element => {
+        switch (kind) {
+            case "color":
+                return (
+                    <FieldRow trailing={minus("color")}>
+                        <CompactColorInput
+                            label="Background color"
+                            valueText={colorWord(backgroundColor)}
+                            color={parts.color}
+                            defaultColor={DEFAULT_BACKGROUND_COLOR}
+                            showOpacity={false}
+                            onChangeEnd={(next) => {
+                                // Once per gesture, so a drag is one step. The reset reports undefined:
+                                // alone, the background returns to the element's default; under an image
+                                // or a shader, the color does.
+                                if (next === undefined && parts.image === undefined && parts.shader === undefined) {
+                                    void session.config.set({ background: undefined });
+                                } else {
+                                    void write({ color: next ?? DEFAULT_BACKGROUND_COLOR });
+                                }
+                            }}
+                        />
+                    </FieldRow>
+                );
+            case "image":
+                return (
+                    <FieldRow trailing={minus("image")}>
+                        <BackgroundImage
+                            address={parts.image !== undefined && !parts.image.startsWith("data:") ? parts.image : ""}
+                            onCommit={(data) => {
+                                settle("image");
+                                void write({ image: data });
+                            }}
+                        />
+                    </FieldRow>
+                );
+            default:
+                return (
+                    <FieldRow trailing={minus("shader")}>
+                        <BackgroundShader
+                            session={session}
+                            shader={parts.shader?.id}
+                            params={parts.shader?.params ?? {}}
+                            startOpen={parts.shader === undefined}
+                            onWrite={async (id, params, scope = session) => {
+                                // Settled once written: a row neither waiting nor in the config unmounts,
+                                // and the settings its pick opens would go with it.
+                                await write({ shader: { id, params } }, scope);
+                                settle("shader");
+                            }}
+                        />
+                    </FieldRow>
+                );
+        }
+    };
+    // Show in Style on a notice about a background shader asks for this "+".
+    const shaderNext = useWorkspaceState((state) => state.shaderNext);
+    useEffect(() => {
+        if (shaderNext === "background") {
+            store.set({ shaderNext: null });
+            document.getElementById(plusId)?.focus();
+        }
+    }, [shaderNext, plusId, store]);
+    const addButton = (
+        <Menu position="bottom-end">
+            <Menu.Target>
+                <TargetTooltip label={BACKGROUND_SECTION_WORDS.add}>
+                    <ActionIcon
+                        variant="subtle"
+                        size="sm"
+                        className="cm-section-add"
+                        aria-label={BACKGROUND_SECTION_WORDS.add}
+                        id={plusId}
+                        data-plus
+                    >
+                        <GLYPHS.add size={14} aria-hidden />
+                    </ActionIcon>
+                </TargetTooltip>
+            </Menu.Target>
+            <Menu.Dropdown>
+                {BACKGROUND_KINDS.map((kind) => {
+                    const there = present(kind);
+                    const reason = BACKGROUND_SECTION_WORDS.present(BACKGROUND_WORDS[kind]);
+                    return (
+                        <Menu.Item
+                            key={kind}
+                            disabled={there}
+                            aria-description={there ? reason : undefined}
+                            onClick={() => {
+                                add(kind);
+                            }}
+                        >
+                            {BACKGROUND_WORDS[kind]}
+                            {there && (
+                                <Text size="xs" c="dimmed" aria-hidden>
+                                    {reason}
+                                </Text>
+                            )}
+                        </Menu.Item>
+                    );
+                })}
+            </Menu.Dropdown>
+        </Menu>
+    );
+    return (
+        <ControlSection label={BACKGROUND_SECTION_WORDS.title} collapsible={false} headingLevel={3} actions={addButton}>
+            <Stack gap={6}>
+                {parts.color === undefined && (
+                    <Text size="xs" c="dimmed" data-background-caption="">
+                        {BACKGROUND_SECTION_WORDS.drawnIn(colorWord(backgroundColor), backgroundColor)}
+                    </Text>
+                )}
+                {[...BACKGROUND_KINDS]
+                    .reverse()
+                    .filter(present)
+                    .map((kind) => (
+                        <React.Fragment key={kind}>{row(kind)}</React.Fragment>
+                    ))}
+            </Stack>
+        </ControlSection>
+    );
+}
+
+/**
+ * The background image: an address typed in (Enter), or an image from this computer, chosen or
+ * dropped on the row, prepared by graphty-element and kept in the project as a `data:` address.
+ * @param props - Component props
+ * @param props.address - the image address in effect, or "" for none or an uploaded image
  * @param props.onCommit - writes a new address
  * @returns The field
  */
 function BackgroundImage({
-    value,
+    address,
     onCommit,
-}: Readonly<{ value: string; onCommit: (data: string) => void }>): React.JSX.Element {
-    const commit = (event: React.SyntheticEvent<HTMLInputElement>): void => {
-        const next = event.currentTarget.value.trim();
-        if (next !== "" && next !== value) {
-            onCommit(next);
-        }
-    };
+}: Readonly<{ address: string; onCommit: (data: string) => void }>): React.JSX.Element {
+    const { store } = useWorkspace();
     return (
-        <TextInput
-            key={value}
-            size="xs"
-            label="Image address"
-            defaultValue={value}
-            onBlur={commit}
-            onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                    commit(event);
-                }
+        <FileSource
+            variant="row"
+            defaultValue={address}
+            url
+            accept="image/*"
+            placeholder="Image address"
+            label="Upload image"
+            onUrl={onCommit}
+            onFiles={([file]) => {
+                // graphty-element decodes, turns and scales it; one it cannot use is a failure notice.
+                void prepareBackgroundImage(file).then((prepared) => {
+                    if (prepared.ok) {
+                        onCommit(prepared.data);
+                    } else {
+                        store.set({
+                            notice: { message: BACKGROUND_SECTION_WORDS.notDrawn(prepared.problem), error: true },
+                        });
+                    }
+                });
             }}
         />
     );

@@ -22,9 +22,6 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { Graphty } from "../../src/graphty-element";
 
-/** How long the element may take to build its renderer. */
-const MOUNT_TIMEOUT_MS = 15000;
-
 /** Where the element is mounted, kept so the test can take it down again. */
 let container: HTMLDivElement | null = null;
 
@@ -47,12 +44,9 @@ async function mount(): Promise<Graphty> {
     mounted.style.display = "block";
     container.appendChild(mounted);
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(mounted.graph.initialized, "the element finished initialising");
-        },
-        { timeout: MOUNT_TIMEOUT_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(mounted.graph.initialized, "the element finished initialising");
+    });
 
     return mounted;
 }
@@ -95,7 +89,7 @@ describe("a frame drawn while a style pass is painting", () => {
 
         const { graph, session } = element;
         // The frame's own style step, driven by hand so the test chooses when a frame lands.
-        const frame = (graph as unknown as { updateManager: { syncStyles: () => void } }).updateManager;
+        const frame = graph.getUpdateManager();
         const painter = graph.getStylePainter();
 
         graph.engine.stopRenderLoop();

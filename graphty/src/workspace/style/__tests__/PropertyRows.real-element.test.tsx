@@ -16,14 +16,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { historyTip } from "../../frame/historyWords";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** The scene's run rows, by the name the tree draws for each. */
 interface Scene {
@@ -39,14 +41,11 @@ interface Scene {
 async function openScene(): Promise<Scene> {
     await page.viewport(1440, 900);
     render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -85,7 +84,7 @@ async function openScene(): Promise<Scene> {
  * @returns the Style tab.
  */
 async function openStyle(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
@@ -154,13 +153,26 @@ describe("the Style tab's property rows", () => {
         assert.equal(historyTip(session, true), "Undo removing node size from Key people");
     });
 
+    it("names the Everything row in Undo after a removal, and keeps the row", async () => {
+        const { session } = await openScene();
+        const tab = await openStyle("Everything");
+        field(tab, "node.color");
+        await userEvent.click(within(tab).getByRole("button", { name: "Remove node color" }));
+        await waitFor(() => {
+            assert.isNull(tab.querySelector('.ws-row[data-line="node.color"]'));
+        });
+        // Every layer is named by its row, the Everything row like any other (issue #6973).
+        assert.equal(historyTip(session, true), "Undo removing node color from Everything");
+        const tree = screen.getByRole("tree", { name: "Style layers" });
+        assert.isNotNull(within(tree).queryByRole("treeitem", { name: /^Everything, / }), "the row stays");
+    });
+
     it("draws the vary glyph at rest on Shape, Color, Size, Width and Glow, and '=' in Size opens it", async () => {
         const { runs } = await openScene();
         let tab = await openStyle("Key people");
-        await add(tab, "Add to node effects", "Glow");
+        await add(tab, "Add to node shape", "Glow");
         await add(tab, "Add to node shape", "Shape");
-        // Size is the one property Shape has left, so its "+" adds it with no menu.
-        await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+        await add(tab, "Add to node shape", "Size");
         await waitFor(() => {
             field(tab, "node.glow");
             field(tab, "node.shape");
@@ -213,14 +225,11 @@ describe("the Style tab's property rows", () => {
     it("gives a varied field its second line: a community's chits and the scale it is read on", async () => {
         const { session, runs } = await openScene();
         const louvain = await openStyle(runs.louvain);
-        await waitFor(
-            () => {
-                const chits = louvain.querySelectorAll("[data-varied-line] .ws-varied-chit");
-                assert.isAbove(chits.length, 0, "the groups' colors");
-                assert.isAtMost(chits.length, 8, "at most 8, then +N");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const chits = louvain.querySelectorAll("[data-varied-line] .ws-varied-chit");
+            assert.isAbove(chits.length, 0, "the groups' colors");
+            assert.isAtMost(chits.length, 8, "at most 8, then +N");
+        });
 
         const degree = session.styles.list().find((l) => l.name === runs.degree);
         const bound = Object.entries(degree?.encode ?? {}).find(([, b]) => "by" in b);
@@ -231,7 +240,7 @@ describe("the Style tab's property rows", () => {
         });
         await session.styles.settled();
         const tab = await openStyle(runs.degree);
-        await within(tab).findByText("Logarithmic scale", {}, { timeout: TIMEOUT_MS });
+        await within(tab).findByText("Logarithmic scale", {});
     });
 
     it("shows the Which picker on every layer, run or not, and draws no reset 'x' in the fields", async () => {

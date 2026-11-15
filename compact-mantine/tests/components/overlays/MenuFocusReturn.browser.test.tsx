@@ -6,12 +6,20 @@
 import { Button, Menu, Modal, Tooltip } from "@mantine/core";
 import { screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { renderThemed, resetHarness } from "../../harness/measure";
 
-afterEach(resetHarness);
+// Every timer runs on a fake setTimeout that keeps pace with the real clock, so the page behaves as
+// usual and settle() can run whatever is still pending at once.
+beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"], shouldAdvanceTime: true });
+});
+afterEach(async () => {
+    vi.useRealTimers();
+    await resetHarness();
+});
 
 function MenuWithDialog({ tooltip = false }: Readonly<{ tooltip?: boolean }>): React.JSX.Element {
     const [opened, setOpened] = useState(false);
@@ -51,10 +59,9 @@ function MenuWithDialog({ tooltip = false }: Readonly<{ tooltip?: boolean }>): R
     );
 }
 
-/** Wait past Mantine's 10 ms focus return, so a late refocus would have happened. */
+/** Run every pending timer now, Mantine's 10 ms focus return among them, so a late refocus has happened. */
 async function settle(): Promise<void> {
-    // eslint-disable-next-line local/no-test-timing -- fixed sleep, to become a wait on the condition it stands in for, tracked in #1636
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await vi.runOnlyPendingTimersAsync();
 }
 
 describe("Menu focus return", () => {

@@ -19,6 +19,7 @@
  * renderer's manager to talk to it.
  */
 
+import { askedWeight } from "../../algorithms/input/weight";
 import { paletteDescriptor } from "../../catalog/palettes";
 import { registeredAlgorithmByKey } from "../../catalog/registry";
 import {
@@ -36,7 +37,13 @@ import {
     type SuggestedName,
 } from "../../catalog/types";
 import { GraphtyError, isGraphtyError } from "../../errors";
-import { ALGO_DEFINITIONS, type AlgoMoveCommand, type AlgoRemoveCommand, type RunService } from "../commands/algo";
+import {
+    ALGO_DEFINITIONS,
+    type AlgoMoveCommand,
+    type AlgoRemoveCommand,
+    type AlgoRenameCommand,
+    type RunService,
+} from "../commands/algo";
 import type { AlgorithmRunCommand } from "../planning";
 import {
     cancelReasonOf,
@@ -86,10 +93,11 @@ import {
     type ResultIdentity,
     type RunIdentity,
 } from "./runId";
-import { type RunName, suggestRunName } from "./suggestedName";
+import { type RunName, suggestRunName, sweepRunId } from "./suggestedName";
 import {
     type BatchResult,
     type BatchStep,
+    type BatchStepFailure,
     type Caveats,
     type EngineVersions,
     isTerminalRunStatus,
@@ -102,6 +110,8 @@ import {
     type RunOptions,
     type RunPainting,
     type RunPhase,
+    type RunReader,
+    type RunRecord,
     type RunRemoval,
     type RunsApi,
     type RunScopeFacts,
@@ -110,6 +120,9 @@ import {
     type StaleNote,
     type StartOptions,
     type SuggestionOutcome,
+    type SweepOptions,
+    type SweepResult,
+    type SweepRow,
 } from "./types";
 
 // ---------------------------------------------------------------------------------------------
@@ -190,6 +203,12 @@ interface RunLayerBindings {
      * @param layerIds - The layers to remove.
      */
     remove?(layerIds: readonly LayerId[]): void;
+    /**
+     * The selections that read a run's values in a step.
+     * @param runId - The run.
+     * @returns The readers.
+     */
+    readers?(runId: RunId): readonly RunReader[];
 }
 
 /** Everything the runs API is built from. */
@@ -216,6 +235,34 @@ export interface RunsApiOptions {
      * Absent compares scopes only.
      */
     readonly dataDigest?: () => string;
+    /**
+     * The weight a run reads when its `weight` option names none (the column given the weight
+     * role and its meaning), as a key. A run that reads it re-executes when it changed since the
+     * run started. Absent, it is not compared.
+     */
+    readonly defaultWeight?: () => string;
+    /**
+     * A scope digest a run counts as current besides the one it ran on: what a time window move
+     * under `results: "keep"` accepted. Absent, only the digest it ran on is current.
+     * @param id - The run.
+     * @param ranOn - The digest it ran on.
+     * @returns The accepted digest, or undefined.
+     */
+    readonly acceptedDigest?: (id: RunId, ranOn: string) => string | undefined;
+    /**
+     * The time window in force now (attribute and bounds), compared with the one a run over the
+     * visible graph recorded. Absent, windows are not compared.
+     */
+    readonly windowNow?: () => { readonly attribute: string; readonly from: number; readonly to: number } | null;
+    /**
+     * The window a `results: "keep"` window move accepted a run as current in, besides the one it
+     * ran in.
+     * @param id - The run.
+     * @returns The accepted window key, or undefined.
+     */
+    readonly acceptedWindow?: (id: RunId) => string | undefined;
+    /** Whether the timeline experiment is on; absent reads on. */
+    readonly timeline?: () => boolean;
     /**
      * The name of a kept set, for a run label.
      * @param id - The set.
@@ -299,6 +346,19 @@ export interface SessionRunsApi extends RunsApi {
      */
     isDerivedId(id: RunId): boolean;
     /**
+     * Mark a run a project open brought back under its saved id as one whose id the element
+     * minted, as it was when saved.
+     * @param id - The run id.
+     */
+    restoreDerived(id: RunId): void;
+    /**
+     * How many elements a run over a scope would hold if it started now: what a project open
+     * compares with a saved run's, to restore the run over the elements it ran on.
+     * @param spec - The scope; absent, the default run scope.
+     * @returns The counts, or null when the scope does not resolve.
+     */
+    scopeCountOf(spec?: Scope): { readonly nodes: number; readonly edges: number } | null;
+    /**
      * Start one algorithm through a dispatch of the caller's: a transaction's, so the run joins
      * its step, or the one a command hands its deferred members.
      * @param dispatch - Where the run's command is dispatched.
@@ -319,6 +379,29 @@ export interface SessionRunsApi extends RunsApi {
      * @returns The captures; empty for a run this session does not hold.
      */
     heldOf(id: RunId): HeldCaptures;
+    /**
+     * Start one algorithm as `start()` does, except that a listed run of other settings is never
+     * re-run in place: a run of these settings is reused, or a new one is started under the next
+     * free id (`louvain_2`). What a selection step reads, so changing a step's settings never
+     * changes a run the reader made or another step reads.
+     * @param algorithm - Which algorithm to run.
+     * @param params - Its parameters.
+     * @param options - The scope, the seed and the rest; `as` is not read.
+     * @returns The run.
+     */
+    startOwn(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options?: StartOptions): Run;
+    /**
+     * The finished run `startOwn()` would hand back without computing, or undefined.
+     * @param algorithm - Which algorithm.
+     * @param params - Its parameters.
+     * @param options - As `startOwn()` takes them.
+     * @returns The run, or undefined.
+     */
+    answeredOwn(
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options?: StartOptions,
+    ): Run | undefined;
     /** Cancel everything still running and forget every run this session held. */
     dispose(): void;
 }
@@ -326,6 +409,9 @@ export interface SessionRunsApi extends RunsApi {
 // ---------------------------------------------------------------------------------------------
 // Defaults and small helpers
 // ---------------------------------------------------------------------------------------------
+
+/** The longest name a reader may give a run, as a note's or a project's name is capped. */
+const MAX_RUN_NAME = 1024;
 
 /** What a run's numbers are qualified by before the work has said anything about them. */
 /** What a run with no captures keeps. */
@@ -699,12 +785,26 @@ function withoutSuggested(command: AlgorithmRunCommand): AlgorithmRunCommand {
     return applySuggestedStyles === undefined && restoreLayer === undefined ? command : rest;
 }
 
+/**
+ * A time window as one comparable string.
+ * @param window - Its attribute and bounds.
+ * @param window.attribute - The attribute it reads.
+ * @param window.from - Its start.
+ * @param window.to - Its end.
+ * @returns The key.
+ */
+export function windowKey(window: { readonly attribute: string; readonly from: number; readonly to: number }): string {
+    return `${window.attribute}|${String(window.from)}|${String(window.to)}`;
+}
+
 /** What a run is and what it answers to, worked out from what the caller asked for. */
 interface ResolvedRun {
     readonly descriptor: AlgorithmDescriptor;
     readonly identity: RunIdentity;
     /** The canonical identity of the result it answers: what an id may be reused for. */
     readonly result: string;
+    /** The same identity with every live scope keyword left as it is spelled. */
+    readonly spelled: string;
     readonly spec: Scope;
     readonly id: RunId;
     readonly derived: boolean;
@@ -746,6 +846,12 @@ class Runs implements SessionRunsApi {
      */
     private readonly identities = new Map<RunId, string>();
 
+    /**
+     * Each run's identity with its live scope keywords as spelled: the same spelling under another
+     * filter or window is the same question asked of what is showing now, which a re-run answers.
+     */
+    private readonly spellings = new Map<RunId, string>();
+
     /** The ids the element minted, which are the ones a saved document may not reference. */
     private readonly derivedIds = new Set<RunId>();
 
@@ -765,6 +871,8 @@ class Runs implements SessionRunsApi {
     private readonly holds = new Map<RunId, PaintHold>();
     /** The style of each run first started with `groups: "layers"`, kept for its re-runs and restores. */
     private readonly groupStyles = new Map<RunId, Exclude<RunStyle, boolean>>();
+    /** The default weight key in force when each run last started (see `defaultWeight`). */
+    private readonly weightKeys = new Map<RunId, string>();
 
     /**
      * What a batch decided for its members when it released their hold. Kept beside the runs
@@ -783,7 +891,7 @@ class Runs implements SessionRunsApi {
     private readonly dropped = new Set<RunId>();
 
     /** The batches, which are not algorithm runs and therefore not in `list()`. */
-    private readonly batches = new Set<ManagedRun<BatchResult>>();
+    private readonly batches = new Set<{ cancel(reason?: string): void }>();
 
     /** Where runs are dispatched and recorded. */
     private readonly dispatcher: Dispatcher;
@@ -873,6 +981,18 @@ class Runs implements SessionRunsApi {
         return this.startRun(via, algorithm, params, options, undefined);
     }
 
+    startOwn(algorithm: AlgorithmKey, params?: Readonly<Record<string, unknown>>, options: StartOptions = {}): Run {
+        return this.startRun(this.dispatch, algorithm, params, options, undefined, true);
+    }
+
+    answeredOwn(
+        algorithm: AlgorithmKey,
+        params?: Readonly<Record<string, unknown>>,
+        options: StartOptions = {},
+    ): Run | undefined {
+        return this.answer(algorithm, params, options, true);
+    }
+
     /**
      * Start several algorithms as one piece of work, with one progress stream and one cancel.
      *
@@ -885,8 +1005,88 @@ class Runs implements SessionRunsApi {
      * @returns A run over the batch, resolving to how each member turned out.
      */
     batch(specs: readonly RunSpec[], options: RunOptions & { readonly label?: string } = {}): Run<BatchResult> {
+        return this.batchRun(specs, options, (result) => result);
+    }
+
+    /**
+     * Run one algorithm once per value of one of its options, as one batch, and report what each
+     * value found.
+     * @param algorithm - Which algorithm.
+     * @param option - The option to vary, as the algorithm's catalog `options` name it.
+     * @param values - The values to try, in order.
+     * @param options - The other parameters, the scope, the seed, the style, the label and the
+     *   ordinary run options.
+     * @returns A run over the batch, resolving to one row per value.
+     */
+    sweep(
+        algorithm: AlgorithmKey,
+        option: string,
+        values: readonly unknown[],
+        options: SweepOptions = {},
+    ): Run<SweepResult> {
+        const { params, scope, seed, style, ...batchOptions } = options;
+        const taken = new Set<string>();
+        const specs = values.map((value, index): RunSpec => {
+            const named = sweepRunId(algorithm, option, value);
+            // Two values that spell the same id (0.5 and "0.5") still get a run each.
+            const id = taken.has(named) ? `${named}_${String(index + 1)}` : named;
+            taken.add(id);
+
+            return {
+                algorithm,
+                params: { ...params, [option]: value },
+                as: assertRunId(id),
+                ...(scope === undefined ? {} : { scope }),
+                ...(seed === undefined ? {} : { seed }),
+                // Off unless asked: a sweep is read as a table, and its runs painting over each
+                // other would show only the last.
+                style: style ?? false,
+            };
+        });
+
+        return this.batchRun(specs, batchOptions, (result) =>
+            Object.freeze({
+                ...result,
+                option,
+                rows: Object.freeze(result.steps.map((step) => this.sweepRow(step, values[step.index]))),
+            }),
+        );
+    }
+
+    /**
+     * One row of a sweep: the value, how its member turned out and what it found.
+     * @param step - How the member turned out.
+     * @param value - The value it ran with.
+     * @returns The row.
+     */
+    private sweepRow(step: BatchStep, value: unknown): SweepRow {
+        const found = step.ok && step.runId !== undefined ? this.runs.get(step.runId)?.result : undefined;
+
+        return Object.freeze({
+            value,
+            ok: step.ok,
+            ...(step.runId === undefined ? {} : { runId: step.runId }),
+            ...(step.failure === undefined ? {} : { failure: step.failure }),
+            ...(found === undefined ? {} : { summary: found.summary(), graph: found.graph }),
+        });
+    }
+
+    /**
+     * Start a batch whose result is shaped by `finish`.
+     * @param specs - What to run.
+     * @param options - The batch's label, and the ordinary run options.
+     * @param finish - Turns what the batch produced into what the run resolves to.
+     * @returns A run over the batch.
+     */
+    private batchRun<T extends BatchResult>(
+        specs: readonly RunSpec[],
+        options: RunOptions & { readonly label?: string },
+        finish: (result: BatchResult) => T,
+    ): Run<T> {
         this.refuseWhenDisposed();
 
+        // The record's deprecated label and the journal's history label still need a name; the
+        // result says only what the caller named it (null for none), never words of the element's.
         const label = options.label ?? "Batch";
         const identity: RunIdentity = {
             algorithm: "batch",
@@ -897,8 +1097,15 @@ class Runs implements SessionRunsApi {
             exact: null,
         };
         const id = deriveRunId(identity);
-        let run: ManagedRun<BatchResult> | null = null;
-        const definition: RunDefinition<BatchResult> = {
+        let run: ManagedRun<T> | null = null;
+        const execute = this.batchExecutor(
+            specs,
+            label,
+            options.label ?? null,
+            { code: "algo.batch", params: { label: options.label ?? null, count: specs.length } },
+            () => run,
+        );
+        const definition: RunDefinition<T> = {
             id,
             algorithm: "batch",
             params: identity.params,
@@ -911,12 +1118,10 @@ class Runs implements SessionRunsApi {
             fields: [],
             engine: this.options.engine,
             caveats: this.defaultCaveats,
-            execute: this.batchExecutor(
-                specs,
-                label,
-                { code: "algo.batch", params: { label: options.label ?? null, count: specs.length } },
-                () => run,
-            ),
+            execute: async (context) => {
+                const outcome = await execute(context);
+                return { ...outcome, result: finish(outcome.result) };
+            },
             publishOnCancel: true,
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             ...(options.onProgress === undefined ? {} : { onProgress: options.onProgress }),
@@ -934,7 +1139,7 @@ class Runs implements SessionRunsApi {
                 }
             },
         };
-        run = new ManagedRun<BatchResult>(definition, surroundings);
+        run = new ManagedRun<T>(definition, surroundings);
         this.batches.add(run);
         run.start();
 
@@ -953,7 +1158,24 @@ class Runs implements SessionRunsApi {
         params?: Readonly<Record<string, unknown>>,
         options: StartOptions = {},
     ): Run | undefined {
-        const { identity, result, id } = this.resolve(algorithm, params, options);
+        return this.answer(algorithm, params, options, false);
+    }
+
+    /**
+     * The finished run a start would hand back without computing, or undefined.
+     * @param algorithm - Which algorithm.
+     * @param params - Its parameters.
+     * @param options - As `start()` takes them.
+     * @param own - Whether it is a `startOwn()`.
+     * @returns The run, or undefined.
+     */
+    private answer(
+        algorithm: AlgorithmKey,
+        params: Readonly<Record<string, unknown>> | undefined,
+        options: StartOptions,
+        own: boolean,
+    ): Run | undefined {
+        const { identity, result, id } = this.resolve(algorithm, params, options, own);
         const existing = this.runs.get(id);
 
         if (
@@ -1064,12 +1286,55 @@ class Runs implements SessionRunsApi {
     }
 
     /**
+     * Give a finished run the reader's own name, or take it away with null, as one step.
+     * @param id - The run id.
+     * @param name - The new name, or null.
+     * @returns Settles once the name is recorded; rejects with the refusal.
+     */
+    rename(id: RunId, name: string | null): Promise<void> {
+        const command: AlgoRenameCommand = { op: "algo.rename", runId: id, name };
+
+        return this.dispatcher.dispatch(command).then(() => undefined);
+    }
+
+    /**
      * Whether the element minted this run's id rather than the author naming it.
      * @param id - The run id.
      * @returns True when the element derived the id.
      */
     isDerivedId(id: RunId): boolean {
         return this.derivedIds.has(id);
+    }
+
+    /**
+     * Mark a run a project open brought back under its saved id as one the element minted, as it
+     * was when saved (#6227). Without this a later unnamed start of the same question -- Analyze
+     * again, or a filter step reading the result -- found no minted run answering it and minted a
+     * second id beside the restored one.
+     * @param id - The run id.
+     */
+    restoreDerived(id: RunId): void {
+        const run = this.runs.get(id);
+
+        if (run === undefined) {
+            return;
+        }
+
+        this.derivedIds.add(id);
+        this.names.set(id, suggestRunName(this.descriptorFor(run.algorithm), run.params));
+    }
+
+    scopeCountOf(spec?: Scope): { readonly nodes: number; readonly edges: number } | null {
+        try {
+            const resolved = this.options.resolveScope(spec ?? this.defaultScope);
+            return { nodes: resolved.nodeCount, edges: resolved.edgeCount };
+        } catch (error) {
+            if (!isGraphtyError(error)) {
+                throw error;
+            }
+
+            return null;
+        }
     }
 
     heldOf(id: RunId): HeldCaptures {
@@ -1129,6 +1394,7 @@ class Runs implements SessionRunsApi {
      * @param params - Its parameters.
      * @param options - The scope, the seed, the id and the rest.
      * @param hold - The batch whose painting holds this run's.
+     * @param own - Whether a listed run of other settings is left alone (`startOwn()`).
      * @returns The run.
      */
     private startRun(
@@ -1137,6 +1403,7 @@ class Runs implements SessionRunsApi {
         params: Readonly<Record<string, unknown>> | undefined,
         options: StartOptions,
         hold: PaintHold | undefined,
+        own = false,
     ): Run {
         this.refuseWhenDisposed();
 
@@ -1161,9 +1428,17 @@ class Runs implements SessionRunsApi {
             });
         }
 
-        const { descriptor, identity, result, spec, id, derived, name } = this.resolve(algorithm, params, options);
+        const { descriptor, identity, result, spelled, spec, id, derived, name } = this.resolve(
+            algorithm,
+            params,
+            options,
+            own,
+        );
         // The scope as admitted: session edge ids made stable, so a re-run reads the same edges.
-        const command = runCommand(algorithm, params, options, options.scope === undefined ? undefined : spec);
+        const asked = runCommand(algorithm, params, options, options.scope === undefined ? undefined : spec);
+        // A run of its own under a counted id: its command names that id, or carrying it out would
+        // derive the shared id again and re-run that run in place.
+        const command = own ? this.pinnedTo(id, asked) : asked;
         const launch: Launch = { via, command, beside: options.queue === "now" };
         const existing = this.runs.get(id);
 
@@ -1174,14 +1449,52 @@ class Runs implements SessionRunsApi {
         }
 
         if (existing !== undefined && (this.listed(existing) || this.identities.get(id) === result)) {
-            return this.reuse(existing, identity, result, descriptor, launch);
+            if (this.identities.get(id) !== result && this.spellings.get(id) === spelled) {
+                // The same question over a visible graph that moved (a filter, the time window):
+                // the run answers it again under its id.
+                this.identities.set(id, result);
+            }
+
+            if (!this.listed(existing) && !this.adopting) {
+                this.restart(existing, options.style ?? true, command, derived);
+            }
+
+            const reused = this.reuse(existing, identity, result, descriptor, launch);
+            this.recordWeight(id);
+            return reused;
         }
 
         if (name !== undefined) {
             this.names.set(id, name);
         }
 
+        this.spellings.set(id, spelled);
+        this.recordWeight(id);
+
         return this.create(id, identity, result, descriptor, { spec, options, derived }, launch);
+    }
+
+    /**
+     * Make a removed run's handle answer a new start under its id (#3231): a removed run has no
+     * first completion behind it, so its styling choice, its command and whether its id was
+     * minted are the new start's, never the start before the removal. Without this, a project
+     * opened in place over the session that ran it painted the run's suggested layer again,
+     * which the file does not hold.
+     * @param run - The removed run.
+     * @param style - The new start's `style`.
+     * @param command - The new start's command.
+     * @param derived - Whether the element minted the id this time.
+     */
+    private restart(run: ManagedRun, style: RunStyle, command: AlgorithmRunCommand, derived: boolean): void {
+        run.restyle(style);
+        this.commands.set(run.id, withoutSuggested(command));
+        this.groupStyles.delete(run.id);
+        if (derived) {
+            this.derivedIds.add(run.id);
+        } else {
+            this.derivedIds.delete(run.id);
+            this.names.delete(run.id);
+        }
     }
 
     /**
@@ -1189,12 +1502,14 @@ class Runs implements SessionRunsApi {
      * @param algorithm - Which algorithm to run.
      * @param params - Its parameters.
      * @param options - The scope, the seed, the id and the rest.
+     * @param own - Whether a minted id skips runs of other settings (`startOwn()`).
      * @returns The run's descriptor, identity, scope and id.
      */
     private resolve(
         algorithm: AlgorithmKey,
         params: Readonly<Record<string, unknown>> | undefined,
         options: StartOptions,
+        own = false,
     ): ResolvedRun {
         const descriptor = this.descriptorFor(algorithm);
         this.checkParams(descriptor, params);
@@ -1218,14 +1533,32 @@ class Runs implements SessionRunsApi {
             exact: identity.exact,
         };
         const canonical = canonicalResultIdentity(result);
+        const spelled = canonicalResultIdentity({ ...result, scope: freezeScope(spec, () => null) });
 
-        if (options.as !== undefined) {
-            return { descriptor, identity, result: canonical, spec, id: assertRunId(options.as), derived: false };
+        if (options.as !== undefined && !own) {
+            return {
+                descriptor,
+                identity,
+                result: canonical,
+                spelled,
+                spec,
+                id: assertRunId(options.as),
+                derived: false,
+            };
         }
 
         const name = suggestRunName(descriptor, identity.params);
 
-        return { descriptor, identity, result: canonical, spec, id: this.mintId(name, canonical), derived: true, name };
+        return {
+            descriptor,
+            identity,
+            result: canonical,
+            spelled,
+            spec,
+            id: this.mintId(name, canonical, own ? identity : undefined),
+            derived: true,
+            name,
+        };
     }
 
     /**
@@ -1233,11 +1566,16 @@ class Runs implements SessionRunsApi {
      * else the name itself, counting up from `_2` past every id something else holds.
      * @param name - The name the algorithm suggested.
      * @param result - The canonical identity of the result.
+     * @param settings - For `startOwn()`: only a run of these params and seed is the one.
      * @returns The id.
      */
-    private mintId(name: SuggestedName, result: string): RunId {
+    private mintId(name: SuggestedName, result: string, settings?: RunIdentity): RunId {
         for (const id of this.derivedIds) {
-            if (this.identities.get(id) === result && this.names.get(id)?.id === name.id) {
+            if (
+                this.identities.get(id) === result &&
+                this.names.get(id)?.id === name.id &&
+                (settings === undefined || this.sameSettings(id, settings))
+            ) {
                 return id;
             }
         }
@@ -1249,6 +1587,21 @@ class Runs implements SessionRunsApi {
                 return id;
             }
         }
+    }
+
+    /**
+     * Whether the run under an id was started with these params and seed.
+     * @param id - The run id.
+     * @param settings - The params and seed.
+     * @returns True when they match.
+     */
+    private sameSettings(id: RunId, settings: RunIdentity): boolean {
+        const run = this.runs.get(id);
+        return (
+            run !== undefined &&
+            canonicalize(run.params) === canonicalize(settings.params) &&
+            run.seed === settings.seed
+        );
     }
 
     /**
@@ -1300,6 +1653,7 @@ class Runs implements SessionRunsApi {
             siblingsDifferBy: () => this.siblingsDifferBy(id),
             queuePosition: () => this.queuePositionOf(id),
             stale: () => this.staleOf(id),
+            timeline: () => this.options.timeline?.() !== false,
             resolveScope: () => refuseEmptySet(spec, this.options.resolveScope(spec)),
             ...(this.options.scopeFacts === undefined
                 ? {}
@@ -1313,6 +1667,7 @@ class Runs implements SessionRunsApi {
                 this.announce(run, phase);
             },
             entry: () => this.dispatcher.state.runs.get(id),
+            numberedAfter: () => this.sameQuestion(id)?.result,
         };
         const run = new ManagedRun<RunResult>(definition, surroundings);
 
@@ -1331,6 +1686,32 @@ class Runs implements SessionRunsApi {
         run.start();
 
         return run;
+    }
+
+    /**
+     * The newest other listed run that asked a run's question (the same algorithm over the same
+     * scope as spelled) and answered it, whose group numbers the run's first answer keeps.
+     * @param id - The run.
+     * @returns The other run, or undefined.
+     */
+    private sameQuestion(id: RunId): Run | undefined {
+        const spelled = this.spellings.get(id);
+        if (spelled === undefined) {
+            return undefined;
+        }
+        const others = [...this.runs.values()];
+        for (let at = others.length - 1; at >= 0; at--) {
+            const other = others[at];
+            if (
+                other.id !== id &&
+                this.spellings.get(other.id) === spelled &&
+                other.status === "succeeded" &&
+                this.listed(other)
+            ) {
+                return other;
+            }
+        }
+        return undefined;
     }
 
     /**
@@ -1413,7 +1794,61 @@ class Runs implements SessionRunsApi {
             return true;
         }
 
-        return this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest || this.dataMoved(run);
+        return (
+            this.options.resolveScope(run.scope.spec).digest !== run.record.scope.digest ||
+            this.dataMoved(run) ||
+            this.windowMoved(run) ||
+            this.weightMoved(run)
+        );
+    }
+
+    /**
+     * Note the default weight in force as a run starts.
+     * @param id - The run.
+     */
+    private recordWeight(id: RunId): void {
+        const now = this.options.defaultWeight?.();
+        if (now !== undefined) {
+            this.weightKeys.set(id, now);
+        }
+    }
+
+    /**
+     * Whether a run that reads the default weight started under another one than is in force now
+     * (the weight role moved to another column, or its meaning changed).
+     * @param run - The run.
+     * @returns False for a run that names its own weight, an algorithm that reads none, or a run
+     *   this session did not start.
+     */
+    private weightMoved(run: ManagedRun): boolean {
+        const recorded = this.weightKeys.get(run.id);
+        const descriptor = this.descriptorFor(run.algorithm);
+        if (
+            recorded === undefined ||
+            this.options.defaultWeight === undefined ||
+            askedWeight(run.params.weight, descriptor.options) !== undefined
+        ) {
+            return false;
+        }
+
+        return (descriptor.weightMeaning ?? null) !== null && this.options.defaultWeight() !== recorded;
+    }
+
+    /**
+     * Whether a run over the visible graph was computed in another time window than the one in
+     * force now, and no `results: "keep"` move accepted it in this one.
+     * @param run - The run.
+     * @returns True when the window moved.
+     */
+    private windowMoved(run: ManagedRun): boolean {
+        const ran = run.scopeWindow;
+        if (ran === undefined || this.options.windowNow === undefined || this.options.timeline?.() === false) {
+            return false;
+        }
+
+        const now = this.options.windowNow();
+        const key = now === null ? "" : windowKey(now);
+        return (ran === null ? "" : windowKey(ran)) !== key && this.options.acceptedWindow?.(run.id) !== key;
     }
 
     /**
@@ -1456,9 +1891,13 @@ class Runs implements SessionRunsApi {
             return { cancel: () => undefined };
         }
 
+        // A re-run keeps its id: a command that names none would derive one from the scope as it
+        // is now, which after a filter or a window move names another run, and this one would wait
+        // in the queue for ever.
+        const recorded = this.commands.get(run.id) ?? { op: "algo.run", algorithm: run.algorithm };
         const launch = this.launches.get(run.id) ?? {
             via: this.dispatch,
-            command: this.commands.get(run.id) ?? { op: "algo.run", algorithm: run.algorithm },
+            command: this.pinnedTo(run.id, recorded),
             beside: false,
         };
         this.launches.delete(run.id);
@@ -1481,6 +1920,23 @@ class Runs implements SessionRunsApi {
     }
 
     /**
+     * A recorded command that still names its run: one that names no id derives it from the scope
+     * as it is now, and is given the run's id when that derives another.
+     * @param id - The run's id.
+     * @param command - The command it was recorded with.
+     * @returns The command to dispatch.
+     */
+    private pinnedTo(id: RunId, command: AlgorithmRunCommand): AlgorithmRunCommand {
+        if (command.as !== undefined) {
+            return command;
+        }
+
+        const { algorithm, params, ...options } = command;
+
+        return this.resolve(algorithm, params, options).id === id ? command : { ...command, as: id };
+    }
+
+    /**
      * What the run ops call.
      * @returns The service the dispatcher reaches this API through.
      */
@@ -1490,6 +1946,9 @@ class Runs implements SessionRunsApi {
             remove: (command, draft) => this.removeInto(command, draft),
             move: (command, draft) => {
                 this.moveInto(command, draft);
+            },
+            rename: (command, ctx) => {
+                this.renameInto(command, ctx);
             },
         };
     }
@@ -1614,7 +2073,7 @@ class Runs implements SessionRunsApi {
         }
         const entry: RunEntry = Object.freeze({
             command: this.commands.get(run.id) ?? command,
-            record: run.record,
+            record: run.savedRecord,
             result: run.computed as RunResult,
             ...(run.computedExecution === undefined ? {} : { execution: run.computedExecution }),
             ...(run.computedHeld.size === 0 ? {} : { held: run.computedHeld }),
@@ -1623,6 +2082,8 @@ class Runs implements SessionRunsApi {
             ...(prior?.painting === undefined ? {} : { painting: prior.painting }),
             derived: this.derivedIds.has(run.id),
             stale: ctx.state.graph.token !== token,
+            // A re-run keeps the name the reader gave it.
+            ...(prior?.name === undefined ? {} : { name: prior.name }),
         });
         const revert = draft.checkpoint();
 
@@ -2195,14 +2656,63 @@ class Runs implements SessionRunsApi {
     }
 
     /**
+     * Carry out one `algo.rename`: write the name onto the run's entry, or take it off.
+     * @param command - The rename.
+     * @param ctx - The command's context.
+     */
+    private renameInto(command: AlgoRenameCommand, ctx: UndoableContext): void {
+        const { runId: id, name } = command;
+        const entry = ctx.state.runs.get(id);
+
+        if (entry === undefined) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_RUN",
+                message: `This session holds no finished run "${id}".`,
+                source: "run",
+                details: { runId: id },
+            });
+        }
+
+        if (name !== null && (typeof name !== "string" || name.trim() === "" || name.length > MAX_RUN_NAME)) {
+            throw new GraphtyError({
+                code: "E_OPTION_RANGE",
+                message: `A run's name is 1 to ${String(MAX_RUN_NAME)} characters, not all spaces.`,
+                source: "run",
+                details: { runId: id, option: "name", max: MAX_RUN_NAME },
+            });
+        }
+
+        const renamed: { -readonly [K in keyof RunEntry]: RunEntry[K] } = { ...entry };
+        if (name === null) {
+            delete renamed.name;
+        } else {
+            renamed.name = name;
+        }
+        ctx.draft.runs.set(id, Object.freeze(renamed));
+    }
+
+    /**
      * What removing a run takes with it.
      * @param id - The run id.
      * @returns The layers bound to it.
      */
     private removalOf(id: RunId): RunRemoval {
         const layerIds = Object.freeze([...(this.options.layers?.bindings(id) ?? [])]);
+        const gone = new Set<string>(layerIds);
+        const selections = Object.freeze(
+            this.readers(id).filter((reader) => reader.kind !== "layer" || !gone.has(reader.id)),
+        );
 
-        return Object.freeze({ removedLayers: layerIds.length, layerIds });
+        return Object.freeze({ removedLayers: layerIds.length, layerIds, selections });
+    }
+
+    /**
+     * The selections that read a run's values in a step.
+     * @param id - The run id.
+     * @returns The readers.
+     */
+    readers(id: RunId): readonly RunReader[] {
+        return Object.freeze([...(this.options.layers?.readers?.(id) ?? [])]);
     }
 
     // -- the queue ----------------------------------------------------------------------------
@@ -2254,10 +2764,16 @@ class Runs implements SessionRunsApi {
         }
 
         const dataChanged = this.dataMoved(run);
+        const windowMoved = !dataChanged && this.windowMoved(run);
         let nowVisible: number;
         try {
             const current = this.options.resolveScope(run.scope.spec);
-            if (!dataChanged && current.digest === run.scope.digest) {
+            if (
+                !dataChanged &&
+                !windowMoved &&
+                (current.digest === run.scope.digest ||
+                    current.digest === this.options.acceptedDigest?.(id, run.scope.digest))
+            ) {
                 return null;
             }
 
@@ -2272,11 +2788,25 @@ class Runs implements SessionRunsApi {
             nowVisible = 0;
         }
 
+        const ran = windowMoved ? run.scopeWindow : undefined;
+        let reason: StaleNote["reason"] = windowMoved ? "window-moved" : "scope-changed";
+        if (dataChanged) {
+            reason = "data-changed";
+        }
+
         return Object.freeze({
-            reason: dataChanged ? "data-changed" : "scope-changed",
+            reason,
             ranOn: run.scope.nodeCount,
             nowVisible,
             scopeSpec: run.scope.spec,
+            ...(ran === undefined || ran === null
+                ? {}
+                : {
+                      window: Object.freeze({
+                          code: "window-moved" as const,
+                          params: Object.freeze({ from: ran.from, to: ran.to, nodes: ran.nodes, edges: ran.edges }),
+                      }),
+                  }),
         });
     }
 
@@ -2294,6 +2824,11 @@ class Runs implements SessionRunsApi {
 
         if (run === undefined) {
             return id;
+        }
+
+        const named = this.dispatcher.state.runs.get(id)?.name;
+        if (named !== undefined) {
+            return named;
         }
 
         const base = this.baseLabelOf(run);
@@ -2447,7 +2982,8 @@ class Runs implements SessionRunsApi {
      * The work a batch does: start each member in turn, on one progress stream and one cancel, as
      * one transaction, so its members and their layers are one step.
      * @param specs - What to run.
-     * @param label - What the batch is called.
+     * @param label - What the batch is called in the journal.
+     * @param callerLabel - What the caller named it, or null.
      * @param fact - What its step did.
      * @param handle - The batch's own run, once it exists.
      * @returns The executor.
@@ -2455,8 +2991,9 @@ class Runs implements SessionRunsApi {
     private batchExecutor(
         specs: readonly RunSpec[],
         label: string,
+        callerLabel: string | null,
         fact: CodedFact<HistoryCode>,
-        handle: () => ManagedRun<BatchResult> | null,
+        handle: () => { cancel(reason?: string): void } | null,
     ): RunExecutor<BatchResult> {
         return async (context) => {
             const steps: BatchStep[] = [];
@@ -2473,11 +3010,7 @@ class Runs implements SessionRunsApi {
                     const spec = specs[index];
 
                     if (context.signal.aborted || stopped.aborted) {
-                        steps.push({
-                            index,
-                            ok: false,
-                            reason: "The batch was stopped before this member started.",
-                        });
+                        steps.push({ index, ok: false, failure: Object.freeze({ code: "not-started", details: {} }) });
                         continue;
                     }
 
@@ -2485,7 +3018,7 @@ class Runs implements SessionRunsApi {
                         phase: "running",
                         completed: index,
                         total: specs.length,
-                        message: `Running ${spec.algorithm}`,
+                        params: { algorithm: spec.algorithm },
                     });
 
                     const step = await this.runBatchMember(context.signal, spec, index, via, hold);
@@ -2527,7 +3060,13 @@ class Runs implements SessionRunsApi {
             const partial = completed < specs.length;
 
             return {
-                result: Object.freeze({ label, total: specs.length, completed, partial, steps: Object.freeze(steps) }),
+                result: Object.freeze({
+                    label: callerLabel,
+                    total: specs.length,
+                    completed,
+                    partial,
+                    steps: Object.freeze(steps),
+                }),
                 partial,
                 ...(partial
                     ? {
@@ -2614,7 +3153,7 @@ class Runs implements SessionRunsApi {
                 hold,
             );
         } catch (error) {
-            return { index, ok: false, reason: error instanceof Error ? error.message : String(error) };
+            return { index, ok: false, failure: batchStepFailure(error) };
         }
 
         const stopMember = (): void => {
@@ -2628,7 +3167,7 @@ class Runs implements SessionRunsApi {
 
             return { index, runId: member.id, ok: true };
         } catch (error) {
-            return { index, runId: member.id, ok: false, reason: batchStepReason(error) };
+            return { index, runId: member.id, ok: false, failure: batchStepFailure(error) };
         } finally {
             signal.removeEventListener("abort", stopMember);
         }
@@ -2639,12 +3178,14 @@ class Runs implements SessionRunsApi {
      *
      * A throwing observer is contained here rather than allowed to reach the run: a status bar
      * that fails to render must not turn a successful computation into a failed one.
-     * @param run - The run.
+     * @param run - The run, or the batch.
+     * @param run.record - Its record, which the observer is handed.
+     * @param run.generation - Which execution of it this is.
      * @param phase - Which moment it reached.
      * @param cause - What moved it.
      */
     private announce(
-        run: ManagedRun | ManagedRun<BatchResult>,
+        run: { readonly record: RunRecord; readonly generation: number },
         phase: RunPhase,
         cause: RunChange["cause"] = "command",
     ): void {
@@ -2678,16 +3219,18 @@ class Runs implements SessionRunsApi {
 }
 
 /**
- * Why one batch member did not finish, in a sentence its row can show.
+ * Why one batch member did not finish, as a code and the error's own details.
  * @param error - What the member threw.
- * @returns The reason.
+ * @returns The failure.
  */
-function batchStepReason(error: unknown): string {
+function batchStepFailure(error: unknown): BatchStepFailure {
     if (isAbortLike(error)) {
-        return "The batch was canceled.";
+        return Object.freeze({ code: "canceled", details: {} });
     }
 
-    return error instanceof Error ? error.message : String(error);
+    const coded = GraphtyError.wrap(error, { code: "E_INTERNAL", source: "run" });
+
+    return Object.freeze({ code: coded.code, details: coded.details });
 }
 
 /**

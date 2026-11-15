@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+import { switchedOff } from "../commands/registry";
 import type { WorkspaceValue } from "../state/WorkspaceContext";
 import { firesWhileTyping, hasPendingEdit, isSingleKey, isTypingTarget, matchesKey, trackPendingEdits } from "./keys";
 
@@ -19,6 +20,12 @@ const OVERLAY = '[role="menu"], [role="dialog"]:not(:has(.cm-info-bubble)), [rol
  * takes back the page's last step, as it does in the inspector beside it.
  */
 const HISTORY_OVERLAY = '[role="menu"], [role="dialog"]:not([aria-modal="false"]), [role="listbox"]';
+
+/**
+ * A modal dialog (Settings, a confirmation): the page behind it is inert, so no command key reaches
+ * it -- Mod+I does not take focus out of the dialog to the composer.
+ */
+const MODAL = '[role="dialog"][aria-modal="true"]';
 
 /**
  * Whether a menu, popover list or dialog is showing.
@@ -56,6 +63,30 @@ function inspectorEscape(event: KeyboardEvent, key: string): boolean {
 }
 
 /**
+ * Whether the press belonged to an overlay that may already be gone: its target sits in one, or
+ * left the page while the press was on its way here. Mantine's Modal closes on a window capture
+ * listener, so an Esc that closes Settings reaches this listener with the dialog already
+ * unmounting, and counting only the overlays still showing let that Esc clear the selection too.
+ * @param target - the key press's target.
+ * @param selector - which overlays count.
+ * @returns true when the press was the overlay's.
+ */
+function pressedInOverlay(target: EventTarget | null, selector: string): boolean {
+    return target instanceof Element && (!target.isConnected || target.closest(selector) !== null);
+}
+
+/**
+ * Escape on the Assistant panel, outside a field, leaves the selection: the selection is the next
+ * message's scope and has no undo, and Esc closes the innermost thing first.
+ * @param event - the key press.
+ * @param key - the command key it matched.
+ * @returns true for Escape on the Assistant panel.
+ */
+function assistantEscape(event: KeyboardEvent, key: string): boolean {
+    return key === "Escape" && event.target instanceof Element && event.target.closest(".ws-assistant") !== null;
+}
+
+/**
  * Runs a built command when one of its keys is pressed anywhere in the window.
  * @param workspace - the workspace context value.
  */
@@ -67,19 +98,22 @@ export function useCommandKeys(workspace: WorkspaceValue): void {
                 return;
             }
             const typing = isTypingTarget(event.target);
-            const overlayOpen = overlayShown();
+            const overlayOpen = overlayShown() || pressedInOverlay(event.target, OVERLAY);
+            const modalOpen = overlayShown(MODAL) || pressedInOverlay(event.target, MODAL);
             const { singleKeyShortcuts } = workspace.store.get();
             for (const command of workspace.registry.live) {
                 const key = command.keys?.find((combo) => matchesKey(event, combo));
-                if (key === undefined) {
+                if (key === undefined || switchedOff(command, workspace)) {
                     continue;
                 }
                 const pending = hasPendingEdit(event.target);
                 const blocked =
+                    modalOpen ||
                     (typing && !firesWhileTyping(key, pending)) ||
                     (overlayOpen && !firesWhileTyping(key, (typing && pending) || overlayShown(HISTORY_OVERLAY))) ||
                     (!singleKeyShortcuts && isSingleKey(key)) ||
-                    inspectorEscape(event, key);
+                    inspectorEscape(event, key) ||
+                    assistantEscape(event, key);
                 if (blocked) {
                     return;
                 }

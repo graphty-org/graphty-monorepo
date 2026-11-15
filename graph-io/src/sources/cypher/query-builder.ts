@@ -123,18 +123,33 @@ function idExpression(v: string, profile: CypherProfile, filters: QueryFilters, 
 }
 
 /**
+ * The id of a node a neighborhood returns: its id property, else the server's id, as the flattener
+ * keys it, so a neighbor without the property is kept rather than dropped.
+ * @param v - the node variable
+ * @param profile - the server's profile
+ * @param filters - the id property
+ * @returns the expression
+ */
+function neighborKey(v: string, profile: CypherProfile, filters: QueryFilters): string {
+    const server = idExpression(v, profile, filters, false);
+    return filters.idProperty === null ? server : `coalesce(${v}.${filters.idProperty}, ${server})`;
+}
+
+/**
  * The node predicate of the label and id property filters, or null.
  * @param v - the node variable
  * @param filters - the filters
+ * @param requireId - whether a node must have the id property (mode "all"; a neighborhood keeps
+ *   a node without it, keyed by the server's id)
  * @returns the predicate
  */
-function nodePredicate(v: string, filters: QueryFilters): string | null {
+function nodePredicate(v: string, filters: QueryFilters, requireId = true): string | null {
     const parts: string[] = [];
     if (filters.labels.length > 0) {
         const prefix = `${v}:`;
         parts.push(`(${filters.labels.map((l) => prefix + l).join(" OR ")})`);
     }
-    if (filters.idProperty !== null) {
+    if (requireId && filters.idProperty !== null) {
         parts.push(`${v}.${filters.idProperty} IS NOT NULL`);
     }
     return parts.length === 0 ? null : parts.join(" AND ");
@@ -215,6 +230,28 @@ export function edgePage(profile: CypherProfile, filters: QueryFilters, pageSize
         .join(" ");
 }
 
+/**
+ * The relationships among the nodes a capped mode "all" has loaded that touch one node page: each
+ * starts from the page's own nodes `$keys` (an id or index lookup, never a scan of every
+ * relationship), with its other end on this page or an earlier one (at or before `$last`), so each
+ * relationship arrives once, with the page that loads its later end.
+ * @param profile - the server's profile
+ * @param filters - the filters
+ * @returns the statement; it reads `$keys` and `$last`
+ */
+export function edgesAmong(profile: CypherProfile, filters: QueryFilters): string {
+    const ka = idExpression("a", profile, filters);
+    const kb = idExpression("b", profile, filters);
+    const ends = [nodePredicate("a", filters), nodePredicate("b", filters)].filter((p) => p !== null);
+    const rest = ends.length === 0 ? "" : ` AND ${ends.join(" AND ")}`;
+    const pattern = `MATCH (a)-[r${typesPattern(filters)}]->(b)`;
+    return [
+        `${pattern} WHERE ${ka} IN $keys AND ${kb} <= $last${rest} RETURN a, r, b`,
+        "UNION ALL",
+        `${pattern} WHERE ${kb} IN $keys AND ${ka} <= $last AND NOT ${ka} IN $keys${rest} RETURN a, r, b`,
+    ].join(" ");
+}
+
 /** How far a neighborhood reaches. */
 interface NeighborhoodShape {
     /** The checked depth, as text. */
@@ -245,9 +282,9 @@ export function neighborhood(
     const rel = `[${typesPattern(filters)}*1..${shape.depth}]`;
     const [left, right] = ARROWS[shape.direction];
     const pattern = `${left}${rel}${right}`;
-    const x = nodePredicate("x", filters);
+    const x = nodePredicate("x", filters, false);
     const degrees = degree
-        ? `, [m IN CASE WHEN p IS NULL THEN [s] ELSE nodes(p) END | [${idExpression("m", profile, filters)}, ${degreeOf("m")}]] AS degrees`
+        ? `, [m IN CASE WHEN p IS NULL THEN [s] ELSE nodes(p) END | [${neighborKey("m", profile, filters)}, ${degreeOf("m")}]] AS degrees`
         : "";
     // A capped expansion is ordered by the neighbor's key, so its next page starts after the last
     // key it returned. ponytail: a page boundary falling between two paths to the same neighbor
@@ -259,12 +296,31 @@ export function neighborhood(
     if (shape.limit === null) {
         return [...head, "WITH s, p", `RETURN s, p${degrees}`].join(" ");
     }
+    const key = `${neighborKey("x", profile, filters)} AS key`;
+    if (filters.idProperty === null) {
+        return [
+            ...head,
+            `WITH s, p, ${key}`,
+            shape.after === true ? "WHERE key > $after" : null,
+            `WITH s, p, key ORDER BY key LIMIT ${shape.limit}`,
+            `RETURN s, p, key${degrees}`,
+        ]
+            .filter((l) => l !== null)
+            .join(" ");
+    }
+    // Keyed by an id property, a neighbor without it is keyed by the server's id, and the two kinds
+    // of key can interleave (numbers among integer ids) or not compare at all (numbers and string
+    // ids). So the page is ordered on (byServer, key): every property-keyed neighbor first, then
+    // every server-keyed one, and the cursor `($afterByServer, $after)` is compared as a pair. A seed
+    // with no neighbor (x null) gets a null byServer, so its row sorts after every keyed one, as before.
     return [
         ...head,
-        `WITH s, p, ${idExpression("x", profile, filters)} AS key`,
-        shape.after === true ? "WHERE key > $after" : null,
-        `WITH s, p, key ORDER BY key LIMIT ${shape.limit}`,
-        `RETURN s, p, key${degrees}`,
+        `WITH s, p, CASE WHEN x IS NOT NULL THEN x.${filters.idProperty} IS NULL END AS byServer, ${key}`,
+        shape.after === true
+            ? "WHERE (byServer = $afterByServer AND key > $after) OR (byServer AND NOT $afterByServer)"
+            : null,
+        `WITH s, p, byServer, key ORDER BY byServer, key LIMIT ${shape.limit}`,
+        `RETURN s, p, byServer, key${degrees}`,
     ]
         .filter((l) => l !== null)
         .join(" ");
@@ -291,4 +347,15 @@ export function counts(filters: QueryFilters): readonly [string, string] {
         `MATCH (n)${whereClause(n)} RETURN count(n) AS c`,
         `MATCH (a)-[r${typesPattern(filters)}]->(b)${whereClause(where.length === 0 ? null : where.join(" AND "))} RETURN count(r) AS c`,
     ];
+}
+
+/**
+ * The node count of a mode "all" load with at most one label and the server's ids: a pattern
+ * Neo4j answers from its count store in one cheap lookup, whatever the graph's size.
+ * @param label - the quoted label, or undefined for every node
+ * @returns the statement
+ */
+export function storeCount(label: string | undefined): string {
+    const pattern = label === undefined ? "n" : `n:${label}`;
+    return `MATCH (${pattern}) RETURN count(n) AS c`;
 }

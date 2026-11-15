@@ -27,9 +27,56 @@ import { GraphtyError } from "../errors";
 import { quoteEach } from "../utils/quote-each";
 import type { OptionDescriptor } from "./types";
 
+/**
+ * Give every described option without a `descriptionId` the id `<prefix>.<option name>`, which an
+ * application keys its own words on.
+ * @param prefix - The owner of the options, such as "algorithm.pagerank" or "layout.ngraph".
+ * @param options - The options.
+ * @returns The options, each described one carrying a `descriptionId`.
+ */
+export function withDescriptionIds(prefix: string, options: readonly OptionDescriptor[]): readonly OptionDescriptor[] {
+    return options.map((option) =>
+        !("description" in option) || option.descriptionId !== undefined
+            ? option
+            : { ...option, descriptionId: `${prefix}.${option.name}` },
+    );
+}
+
+/**
+ * {@link withDescriptionIds} over each descriptor of a catalogue list. A described descriptor
+ * without a `descriptionId` gets `<kind>.<id>` too.
+ * @param kind - The catalogue, such as "camera"; each descriptor's options get the prefix `<kind>.<id>`.
+ * @param descriptors - The descriptors, each with an id and options.
+ * @param idOf - A descriptor's id.
+ * @returns The descriptors, each described one and its described options carrying a `descriptionId`.
+ */
+export function withEachDescriptionIds<
+    T extends { readonly options: readonly OptionDescriptor[]; readonly descriptionId?: string },
+>(kind: string, descriptors: readonly T[], idOf: (descriptor: T) => string): T[] {
+    return descriptors.map((descriptor) => ({
+        ...descriptor,
+        ...("description" in descriptor && descriptor.descriptionId === undefined
+            ? { descriptionId: `${kind}.${idOf(descriptor)}` }
+            : {}),
+        options: withDescriptionIds(`${kind}.${idOf(descriptor)}`, descriptor.options),
+    }));
+}
+
+/**
+ * A catalogue entry's deprecated English `description`, which the element's own assistant tools
+ * and error messages still read this release: a model needs words, and the application words its
+ * readers' text from `descriptionId` instead. Goes when the field does (#7961).
+ * @param entry - An algorithm, layout, camera, log sink or format descriptor.
+ * @param entry.description - Its English sentence, when it has one.
+ * @returns The sentence, or "" when it has none.
+ */
+export function englishDescription(entry: { readonly description?: string }): string {
+    return entry.description ?? "";
+}
+
 /** Which extension point is being configured, which is what a failure message names. */
 export interface OptionContext {
-    readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink";
+    readonly kind: "algorithm" | "camera" | "format" | "layout" | "sink" | "transition";
     readonly id: string;
 }
 

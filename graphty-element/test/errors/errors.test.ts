@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, expectTypeOf, it } from "vitest";
 
 import {
     ACCELERATION_ERROR_CODES,
@@ -19,6 +19,32 @@ import * as errors from "../../src/errors/index";
 // Duplicated here on purpose: the union and this list drifting apart is the thing the test is
 // for.
 const CODES_FROM_THE_DESIGN = [
+    // the node models (design/rendering/node-models.md section 4)
+    "E_MODEL_FETCH",
+    "E_MODEL_URL_BLOCKED",
+    "E_MODEL_TOO_LARGE",
+    "E_MODEL_STRUCTURE",
+    "E_MODEL_FORMAT_UNSUPPORTED",
+    "E_MODEL_FORMAT_UNKNOWN",
+    "E_MODEL_AMBIGUOUS",
+    "E_MODEL_MISSING_FILE",
+    "E_MODEL_EXTERNAL_URL",
+    "E_MODEL_DECODER_UNAVAILABLE",
+    "E_MODEL_PARSE",
+    "E_MODEL_PART_AMBIGUOUS",
+    "E_MODEL_PART_REQUIRED",
+    "E_MODEL_WEB_PAGE",
+    "E_MODEL_ZIP",
+    "E_MODEL_NAME_TAKEN",
+    "E_MODEL_UNKNOWN_ASSET",
+    "E_MODEL_DIGEST_MISMATCH",
+    // a node picture that cannot be loaded (issue #4515)
+    "E_IMAGE_LOAD",
+    // a picture the browser cannot decode (issue #6818)
+    "E_IMAGE_DECODE",
+    // a screenshot or video that could not be made (issue #6826)
+    "E_CAPTURE_FAILED",
+    "E_NOT_SETTLED",
     // the network sources (design/graph-io/network-sources-design.md section 8), experimental
     "E_SOURCE_BLOCKED",
     "E_SOURCE_AUTH",
@@ -34,6 +60,8 @@ const CODES_FROM_THE_DESIGN = [
     "E_SOURCE_PARAM",
     "E_SOURCE_LIMIT",
     "E_SOURCE_UNKNOWN",
+    "E_SOURCE_PENDING",
+    "E_LOAD_UNKNOWN",
     "E_SOURCE_UNSUPPORTED",
     "E_SOURCE_INVALID",
     "E_CREDENTIAL_NOT_STORABLE",
@@ -49,10 +77,15 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_OPTION",
     "E_OPTION_RANGE",
     "E_UNKNOWN_ATTRIBUTE",
+    "E_FEATURE_OFF",
+    "E_NO_TIME_FIELD",
     "E_UNKNOWN_ALGORITHM",
     "E_UNKNOWN_LAYOUT",
     "E_UNKNOWN_FORMAT",
     "E_UNKNOWN_PALETTE",
+    "E_UNKNOWN_SHADER",
+    "E_SHADER_KIND",
+    "E_UNKNOWN_SHADER_PARAM",
     "E_UNKNOWN_CAMERA",
     "E_UNKNOWN_GENERATOR",
     "E_UNKNOWN_DATASET",
@@ -60,11 +93,13 @@ const CODES_FROM_THE_DESIGN = [
     "E_UNKNOWN_RUN",
     "E_UNKNOWN_LAYER",
     "E_UNKNOWN_ELEMENT",
+    "E_HOST_NOT_FOUND",
     "E_BAD_DOCUMENT",
     "E_UNSUPPORTED_VERSION",
     "E_UNSAVED_CHANGES",
     "E_AUTOSAVE_ENTRY_TAKEN",
     "E_AUTOSAVE_UNKNOWN_ENTRY",
+    "E_AUTOSAVE_STALLED",
     "E_UNSTABLE_RUN_ID",
     "E_DUPLICATE_ID",
     "E_DUPLICATE_EDGE",
@@ -102,7 +137,11 @@ const CODES_FROM_THE_DESIGN = [
     "E_SOFTWARE_ONLY",
     "E_DEVICE_INCORRECT",
     "E_DEVICE_LOST",
+    "E_RENDER_LOST",
     "E_NO_WEBGL",
+    "E_SHADER_REFUSED",
+    // an immersive session the browser or headset would not start (issue #7236)
+    "E_XR_SESSION_FAILED",
     "E_MISSING_PACKAGE",
     "E_UNSUPPORTED",
     "E_READONLY",
@@ -134,10 +173,15 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_CHANNEL":
         case "E_UNKNOWN_OPTION":
         case "E_UNKNOWN_ATTRIBUTE":
+        case "E_FEATURE_OFF":
+        case "E_NO_TIME_FIELD":
         case "E_UNKNOWN_ALGORITHM":
         case "E_UNKNOWN_LAYOUT":
         case "E_UNKNOWN_FORMAT":
         case "E_UNKNOWN_PALETTE":
+        case "E_UNKNOWN_SHADER":
+        case "E_SHADER_KIND":
+        case "E_UNKNOWN_SHADER_PARAM":
         case "E_UNKNOWN_CAMERA":
         case "E_UNKNOWN_GENERATOR":
         case "E_UNKNOWN_DATASET":
@@ -145,6 +189,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNKNOWN_RUN":
         case "E_UNKNOWN_LAYER":
         case "E_UNKNOWN_ELEMENT":
+        case "E_HOST_NOT_FOUND":
             return "unknown-name";
         case "E_UNSTABLE_RUN_ID":
         case "E_DUPLICATE_ID":
@@ -155,6 +200,7 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_UNSAVED_CHANGES":
         case "E_AUTOSAVE_ENTRY_TAKEN":
         case "E_AUTOSAVE_UNKNOWN_ENTRY":
+        case "E_AUTOSAVE_STALLED":
         case "E_READONLY":
         case "E_DISPOSED":
         case "E_TRANSACTION_CLOSED":
@@ -183,7 +229,10 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SOFTWARE_ONLY":
         case "E_DEVICE_INCORRECT":
         case "E_DEVICE_LOST":
+        case "E_RENDER_LOST":
         case "E_NO_WEBGL":
+        case "E_SHADER_REFUSED":
+        case "E_XR_SESSION_FAILED":
         case "E_MISSING_PACKAGE":
             return "hardware";
         case "E_UNSUPPORTED":
@@ -199,6 +248,27 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_PATH_COUNT_OVERFLOW":
         case "E_INTERNAL":
             return "refused";
+        case "E_MODEL_FETCH":
+        case "E_MODEL_URL_BLOCKED":
+        case "E_MODEL_TOO_LARGE":
+        case "E_MODEL_STRUCTURE":
+        case "E_MODEL_FORMAT_UNSUPPORTED":
+        case "E_MODEL_FORMAT_UNKNOWN":
+        case "E_MODEL_AMBIGUOUS":
+        case "E_MODEL_MISSING_FILE":
+        case "E_MODEL_PART_AMBIGUOUS":
+        case "E_MODEL_WEB_PAGE":
+        case "E_MODEL_PART_REQUIRED":
+        case "E_MODEL_EXTERNAL_URL":
+        case "E_MODEL_DECODER_UNAVAILABLE":
+        case "E_MODEL_PARSE":
+        case "E_MODEL_ZIP":
+        case "E_MODEL_NAME_TAKEN":
+        case "E_MODEL_UNKNOWN_ASSET":
+        case "E_MODEL_DIGEST_MISMATCH":
+        case "E_IMAGE_LOAD":
+        case "E_IMAGE_DECODE":
+            return "model";
         case "E_SOURCE_BLOCKED":
         case "E_SOURCE_AUTH":
         case "E_SOURCE_FORBIDDEN":
@@ -213,12 +283,17 @@ function bucketOf(code: GraphtyErrorCode): string {
         case "E_SOURCE_PARAM":
         case "E_SOURCE_LIMIT":
         case "E_SOURCE_UNKNOWN":
+        case "E_SOURCE_PENDING":
+        case "E_LOAD_UNKNOWN":
         case "E_SOURCE_UNSUPPORTED":
         case "E_SOURCE_INVALID":
         case "E_CREDENTIAL_NOT_STORABLE":
             return "source";
         case "E_EXTENSION_FAILED":
             return "extension";
+        case "E_CAPTURE_FAILED":
+        case "E_NOT_SETTLED":
+            return "capture";
         default: {
             const unreachable: never = code;
             return unreachable;
@@ -702,6 +777,27 @@ describe("the error module stays Node-safe", () => {
             for (const pattern of banned) {
                 assert.notMatch(code, pattern);
             }
+        }
+    });
+});
+
+describe("isGraphtyError narrows details by code", () => {
+    it("types a documented code's facts once the code is checked", () => {
+        const thrown: unknown = new GraphtyError({
+            code: "E_UNKNOWN_ATTRIBUTE",
+            message: "no column named nmae",
+            source: "data",
+            details: { candidates: ["name"] },
+        });
+
+        assert.isTrue(isGraphtyError(thrown));
+        if (isGraphtyError(thrown) && thrown.code === "E_UNKNOWN_ATTRIBUTE") {
+            expectTypeOf(thrown.details.candidates).toEqualTypeOf<readonly string[] | undefined>();
+            assert.deepEqual(thrown.details.candidates, ["name"]);
+        }
+
+        if (isGraphtyError(thrown) && thrown.code === "E_TOO_LARGE") {
+            expectTypeOf(thrown.details.limit).toEqualTypeOf<number | undefined>();
         }
     });
 });

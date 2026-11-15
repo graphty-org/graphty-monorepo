@@ -10,12 +10,13 @@ import { type GraphSink, INVALID_INDEX, type NodeId, type U32 } from "@graphty/g
 import { MISSING_ID_CODE } from "../common/codes.js";
 import { readBytes, throwIfAborted } from "../common/input.js";
 import { ImportReportBuilder } from "../common/report.js";
-import { readZipDirectory, readZipEntry } from "../common/zip.js";
+import { readZipDirectory, readZipEntry, ZipError } from "../common/zip.js";
+import { DEFAULT_MAX_UNCOMPRESSED, MAX_RATIO } from "../formats/cys/constants.js";
 import { type FormatRegistry } from "../registry.js";
 import { SNIFF_HEAD_BYTES } from "../sniff.js";
 import { type CommonImportOptions, ImportError, type ImportInput, type ImportReport } from "../types.js";
 import { type CreatedContext, createSourceContext, detectRuntime, LimitStop } from "./context.js";
-import { originOf } from "./credentials.js";
+import { credentialQuery, endpointOrigin } from "./credentials.js";
 import { checkParams } from "./define.js";
 import { failOn, warnOn } from "./fail.js";
 import { SOURCE_FORMAT_PREFIX } from "./ids.js";
@@ -60,6 +61,8 @@ interface Prepared {
     readonly params: Record<string, unknown>;
     /** The sink wrapper's counters, set once the sink is known. */
     readonly counts: { nodes: Set<number>; edgesAtStart: number; sink: GraphSink | null };
+    /** The query parameter the call's credential is sent in, which a cursor never keeps; null for none. */
+    readonly secretQuery: string | null;
 }
 
 /**
@@ -131,7 +134,8 @@ function prepare(
             edges: counts.sink === null ? 0 : counts.sink.edgeCount - counts.edgesAtStart,
         }),
     });
-    return { report, created, params, counts };
+    const secretQuery = options.credential === undefined ? null : credentialQuery(options.credential);
+    return { report, created, params, counts, secretQuery };
 }
 
 /**
@@ -202,7 +206,9 @@ function resumeCursor(
         return null;
     }
     const { [CURSOR_VERSION_KEY]: recorded, ...rest } = given;
-    if (recorded !== undefined && recorded !== version) {
+    // the cursor is the caller's, and need not carry the version
+    const own: Readonly<Partial<SourceCursor>> = given;
+    if (own[CURSOR_VERSION_KEY] !== undefined && recorded !== version) {
         failOn(report, "E_SOURCE_PARAM", "the cursor was made by another version of the source", {
             name: "cursor",
             reason: "stale-cursor",
@@ -418,15 +424,6 @@ function writeEdges(
 }
 
 /**
- * The origin of an endpoint, or "" without one.
- * @param endpoint - the endpoint
- * @returns its origin
- */
-function endpointOrigin(endpoint: URL | null): string {
-    return endpoint === null ? "" : originOf(endpoint);
-}
-
-/**
  * The edge id column, declared on first use.
  * @param sink - the sink
  * @returns its handle
@@ -473,7 +470,7 @@ function stopOrThrow(err: unknown, page: number, prepared: Prepared): void {
     if (page > 0 && err instanceof ImportError && AUTH_CODES.has(String(err.issue?.code))) {
         const p = err.issue?.params ?? {};
         warnOn(prepared.report, "W_SOURCE_AUTH", "a later page needs a credential; the pages before it are kept", {
-            origin: typeof p.origin === "string" ? p.origin : endpointOrigin(prepared.created.ctx.endpoint),
+            origin: typeof p.origin === "string" ? p.origin : (endpointOrigin(prepared.created.ctx.endpoint) ?? ""),
             status: typeof p.status === "number" ? p.status : null,
         });
         return;
@@ -514,7 +511,17 @@ async function runRecords(
             }
             writeBatch(step.value, sink, source, prepared, page === 0);
             page++;
+            const readWith = next;
             next = step.value.next ?? null;
+            if (next !== null && readWith !== null && sameCursor(next, readWith)) {
+                // a server repeating its cursor would be read forever, a duplicate page each time
+                stopped = true;
+                failOn(prepared.report, "E_SOURCE_RESPONSE", "the source returned the cursor it was read with", {
+                    origin: endpointOrigin(ctx.endpoint),
+                    expected: "advancing-cursor",
+                    contentType: null,
+                });
+            }
             ctx.progress(prepared.report.counts.nodes + prepared.report.counts.edges, undefined, "items");
             if (ctx.limits.reached()) {
                 stopped = true;
@@ -529,17 +536,32 @@ async function runRecords(
 }
 
 /**
- * The importer input of a file source's body, gunzipped or unzipped when its name says so.
+ * Whether two cursors hold the same values.
+ * @param a - one cursor
+ * @param b - the other
+ * @returns true when every key has the same value in both
+ */
+function sameCursor(a: SourceCursor, b: SourceCursor): boolean {
+    const keys = Object.keys(a);
+    return keys.length === Object.keys(b).length && keys.every((k) => Object.hasOwn(b, k) && a[k] === b[k]);
+}
+
+/**
+ * The importer input of a file source's body, gunzipped or unzipped when its name says so. What a
+ * .gz or .zip inflates to is held to `maxBytes`, or to 2 GiB when it is unset, so a small bomb
+ * cannot fill memory.
  * @param file - what the source returned
  * @param formats - the registry, for choosing a zip entry
- * @param signal - the signal
+ * @param prepared - the call
  * @returns the input and its hints
  */
 async function fileInput(
     file: SourceFile,
     formats: FormatRegistry,
-    signal: AbortSignal,
+    prepared: Prepared,
 ): Promise<{ input: ImportInput; filename: string | undefined; mimeType: string | undefined }> {
+    const { signal, limits, endpoint } = prepared.created.ctx;
+    const budget = limits.maxBytes ?? DEFAULT_MAX_UNCOMPRESSED;
     let input: ImportInput = file.body instanceof Response ? (file.body.body ?? new Uint8Array(0)) : file.body;
     let { filename } = file;
     let mimeType =
@@ -552,20 +574,49 @@ async function fileInput(
             input instanceof ReadableStream
                 ? input
                 : new Response((await bytesOf(input, signal)) as Uint8Array<ArrayBuffer>).body;
-        input = (stream ?? new Response("").body ?? new ReadableStream()).pipeThrough(
-            new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>,
-        );
+        let inflated = 0;
+        input = (stream ?? new Response("").body ?? new ReadableStream())
+            .pipeThrough(new DecompressionStream("gzip") as unknown as ReadableWritablePair<Uint8Array, Uint8Array>)
+            .pipeThrough(
+                new TransformStream<Uint8Array, Uint8Array>({
+                    transform: (chunk, ctrl): void => {
+                        inflated += chunk.byteLength;
+                        if (inflated > budget) {
+                            throw new LimitStop("maxBytes", inflated);
+                        }
+                        ctrl.enqueue(chunk);
+                    },
+                }),
+            );
         filename = filename?.replace(/\.gz$/i, "");
         mimeType = undefined;
     } else if (zip) {
         const bytes = await bytesOf(input, signal);
-        const entry = readZipDirectory(bytes).find((e) => !e.directory && formats.sniff({ filename: e.name }) !== null);
-        if (entry === undefined) {
-            throw new ImportError("the zip holds no graph file", new ImportReportBuilder("zip", 0).finish());
+        const zipFailed = (message: string): never =>
+            failOn(prepared.report, "E_SOURCE_RESPONSE", message, {
+                origin: endpointOrigin(endpoint),
+                expected: "graph-file",
+                contentType: mimeType ?? null,
+            });
+        try {
+            const entry = readZipDirectory(bytes).find(
+                (e) => !e.directory && formats.sniff({ filename: e.name }) !== null,
+            );
+            if (entry === undefined) {
+                return zipFailed("the zip holds no graph file");
+            }
+            if (entry.size > budget) {
+                throw new LimitStop("maxBytes", entry.size);
+            }
+            input = await readZipEntry(bytes, entry, { signal, maxBytes: budget, maxRatio: MAX_RATIO });
+            filename = entry.name;
+            mimeType = undefined;
+        } catch (err) {
+            if (err instanceof ZipError) {
+                zipFailed(err.message);
+            }
+            throw err;
         }
-        input = await readZipEntry(bytes, entry, { signal, maxBytes: Number.MAX_SAFE_INTEGER, maxRatio: 1000 });
-        filename = entry.name;
-        mimeType = undefined;
     }
     return { input, filename, mimeType };
 }
@@ -599,7 +650,7 @@ async function runFile(
     const { ctx } = prepared.created;
     const read = source.file as (p: unknown, c: typeof ctx) => Promise<SourceFile>;
     const file = await read(prepared.params, ctx);
-    const { input, filename, mimeType } = await fileInput(file, formats, ctx.signal);
+    const { input, filename, mimeType } = await fileInput(file, formats, prepared);
     let { format } = file;
     let body: ImportInput = input;
     if (format === undefined) {
@@ -608,6 +659,7 @@ async function runFile(
         body = bytes;
         if (format === undefined) {
             failOn(prepared.report, "E_SOURCE_RESPONSE", "the file is in no format graph-io reads", {
+                origin: endpointOrigin(ctx.endpoint),
                 expected: "graph-file",
                 contentType: mimeType ?? null,
             });
@@ -721,6 +773,7 @@ export async function runMethod<T>(
  */
 export function withSource(report: ImportReport, prepared: Prepared, next: SourceCursor | null): ImportReport {
     const own = prepared.report.finish();
+    const cursor = prepared.secretQuery === null || next === null ? next : withoutParam(next, prepared.secretQuery);
     // issues the context recorded (retries, limits) that a source's own report does not hold
     const missing = own.issues.filter((i) => !report.issues.includes(i));
     return Object.freeze({
@@ -728,8 +781,36 @@ export function withSource(report: ImportReport, prepared: Prepared, next: Sourc
         issues: missing.length === 0 ? report.issues : Object.freeze([...report.issues, ...missing]),
         warningCount: report.warningCount + missing.filter((i) => i.severity === "warning").length,
         errorCount: report.errorCount + missing.filter((i) => i.severity === "error").length,
-        source: prepared.created.info(next),
+        source: prepared.created.info(cursor),
     });
+}
+
+/**
+ * A cursor without a query parameter in any URL it holds: a next-page link a service returns
+ * repeats the API key the request carried, and a cursor is saved where a credential never is.
+ * The credential is sent again with every request, so the next page does not need it there.
+ * @param value - the cursor, or a value inside it
+ * @param name - the parameter
+ * @returns the value without it
+ */
+function withoutParam<T>(value: T, name: string): T {
+    if (typeof value === "string" && /^https?:\/\//i.test(value)) {
+        const url = new URL(value);
+        if (!url.searchParams.has(name)) {
+            return value;
+        }
+        url.searchParams.delete(name);
+        return url.href as T;
+    }
+    if (Array.isArray(value)) {
+        return Object.freeze(value.map((each: unknown) => withoutParam(each, name))) as T;
+    }
+    if (typeof value === "object" && value !== null) {
+        return Object.freeze(
+            Object.fromEntries(Object.entries(value).map(([key, each]) => [key, withoutParam(each, name)])),
+        ) as T;
+    }
+    return value;
 }
 
 /**

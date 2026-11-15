@@ -56,11 +56,32 @@ const file = (name: string): Uint8Array => new Uint8Array(readFileSync(join(GENE
 const plain = (ex: ExtractedStyles): StyleRule[] => JSON.parse(JSON.stringify(ex.styles.rules)) as StyleRule[];
 const toolRules = (ex: ExtractedStyles): StyleRule[] => ex.styles.rules.filter((r) => r.origin === "tool");
 
+/** Every neutral node label position and yEd's GML anchor for it: the inside places, then the outside ones. */
+const LABEL_PLACES: readonly (readonly [string, string])[] = [
+    ["center", "c"],
+    ["inside-top", "t"],
+    ["inside-bottom", "b"],
+    ["inside-left", "l"],
+    ["inside-right", "r"],
+    ["inside-top-left", "tl"],
+    ["inside-top-right", "tr"],
+    ["inside-bottom-left", "bl"],
+    ["inside-bottom-right", "br"],
+    ["top", "n"],
+    ["bottom", "s"],
+    ["right", "e"],
+    ["left", "w"],
+    ["top-left", "nw"],
+    ["top-right", "ne"],
+    ["bottom-left", "sw"],
+    ["bottom-right", "se"],
+];
+
 describe("GML styles: who wrote the file", () => {
     it("reads yEd's keys with yEd's defaults: no fill, label color and weight, arrows by name, curves, extra labels", async () => {
         const { snapshot, styles } = await load(file("yed-labels-and-arrows.gml"));
         expect(styles.styles.source).toEqual({ format: "gml", dialect: "yed", tool: "yed" });
-        expect(toolRules(styles)[0].set).toMatchObject({ fill: "#ffcc00", labelFont: "DejaVu Sans, sans-serif" });
+        expect(toolRules(styles)[0].set).toMatchObject({ fill: "#ccccff", labelFont: "DejaVu Sans, sans-serif" });
         const kind = (i: number): string => String(snapshot.nodes.value("label", i)).replace(/\d+$/, "");
         const opacity = resolveStyles(styles, "node", "fillOpacity", snapshot);
         const weight = resolveStyles(styles, "node", "labelWeight", snapshot);
@@ -75,6 +96,56 @@ describe("GML styles: who wrote the file", () => {
         expect(resolveStyles(styles, "edge", "curved", snapshot)[0]).toBe(false);
         expect(resolveStyles(styles, "edge", "label", snapshot)[0]).toBe("inhibits");
         expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_EXTRA_LABELS");
+    });
+
+    it("reads yEd's fill2 as yEd draws it: left to right, and a diamond corner to corner", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [",
+                '  node [ id 0 label "a" graphics [ w 60 h 30 type "rectangle" fill "#FF0000" fill2 "#0000FF" ] ]',
+                '  node [ id 1 label "b" graphics [ w 60 h 30 type "diamond" fill "#FF0000" fill2 "#0000FF" ] ]',
+                "]",
+            ].join("\n"),
+        );
+        const angle = resolveStyles(styles, "node", "fillGradientAngle", snapshot);
+        expect(resolveStyles(styles, "node", "fillGradient", snapshot)).toEqual(["#0000ff", "#0000ff"]);
+        expect(angle[0]).toBe(0);
+        // the ramp stretched over a 60 x 30 box changes color along its diagonal, as yEd's does
+        expect(angle[1]).toBe(14.036);
+        // a left-to-right ramp starts a third of the way across and mirrors back over the left third
+        expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)).toEqual([
+            "#800080 #ff0000 #0000ff",
+            null,
+        ]);
+        expect(resolveStyles(styles, "node", "fillGradientStops", snapshot)).toEqual(["0 0.333333 1", null]);
+        expect(styles.styles.notes.map((n) => n.code)).not.toContain("W_STYLE_GRADIENT");
+    });
+
+    it("reads fill2's alpha into each stop, and a six-pointed star's ramp under its own sides", async () => {
+        const { snapshot, styles } = await load(
+            [
+                'Creator "yFiles"',
+                "graph [",
+                '  node [ id 0 label "a" graphics [ w 60 h 30 type "rectangle" fill "#C8C8C8" fill2 "#00000000" ] ]',
+                '  node [ id 1 label "b" graphics [ w 60 h 30 type "diamond" fill "#FF8800" fill2 "#FF880080" ] ]',
+                '  node [ id 2 label "c" graphics [ w 80 h 30 type "star6" fill "#FF0000" fill2 "#0000FF" ] ]',
+                '  node [ id 3 label "d" graphics [ w 60 h 30 type "rectangle" fill "#FF000080" fill2 "#0000FF80" ] ]',
+                "]",
+            ].join("\n"),
+        );
+        const colors = resolveStyles(styles, "node", "fillGradientColors", snapshot);
+        const stops = resolveStyles(styles, "node", "fillGradientStops", snapshot);
+        // the left side halfway, half clear; color2 clear at the right
+        expect([colors[0], stops[0]]).toEqual(["#64646480 #c8c8c8ff #00000000", "0 0.333333 1"]);
+        // a corner-to-corner ramp keeps its two colors, the second half clear
+        expect([colors[1], stops[1]]).toEqual(["#ff8800 #ff880080", "0 1"]);
+        // yEd's star reaches 0.067 to 0.933 of its box, where graphty-element's reaches the sides
+        expect(stops[2]).toBe("0 0.30755 1");
+        expect(colors[2]).toBe("#990066 #ff0000 #1a00e5");
+        // color2 as clear as color: the node's fillOpacity carries both, its stops none
+        expect(colors[3]).toBe("#800080 #ff0000 #0000ff");
+        expect(resolveStyles(styles, "node", "fillOpacity", snapshot)[3]).toBe(0.501961);
     });
 
     it("reads Cytoscape's keys with Cytoscape's default style: numbered arrows, outline_width, nodes labeled", async () => {
@@ -357,6 +428,38 @@ describe("GML styles: who wrote the file", () => {
         expect(shapes[2]).toBe("round-rectangle");
     });
 
+    it("draws a Cytoscape GML edge's arrowheads in the edge's fill, as Cytoscape does", async () => {
+        // gml-specimen-arrows-p4: `fill "#505050" source_arrow 1` draws its head #505050, not the style's black
+        const { snapshot, styles } = await load(
+            [
+                'Creator "Cytoscape"',
+                "graph [ directed 1",
+                "node [ id 1 ] node [ id 2 ]",
+                'edge [ source 1 target 2 graphics [ fill "#505050" source_arrow 1 target_arrow 3 ] ]',
+                "edge [ source 2 target 1 graphics [ target_arrow 3 ] ]",
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "edge", "sourceArrowColor", snapshot)).toEqual(["#505050", "#000000"]);
+        expect(resolveStyles(styles, "edge", "targetArrowColor", snapshot)).toEqual(["#505050", "#000000"]);
+    });
+
+    it("stands a Cytoscape GML edge's T and half arrows off the node, as Cytoscape draws them", async () => {
+        // gml-specimen-arrows-p4: `source_arrow 13` (T) ends its line 8 px from the node, as a CYS session's T does
+        const { snapshot, styles } = await load(
+            [
+                'Creator "Cytoscape"',
+                "graph [ directed 1",
+                "node [ id 1 ] node [ id 2 ]",
+                "edge [ source 1 target 2 graphics [ source_arrow 13 target_arrow 16 ] ]",
+                "edge [ source 2 target 1 graphics [ source_arrow 3 ] ]",
+                "]",
+            ].join("\n"),
+        );
+        expect(resolveStyles(styles, "edge", "sourceArrowGap", snapshot)).toEqual([4, null]);
+        expect(resolveStyles(styles, "edge", "targetArrowGap", snapshot)[0]).toBeCloseTo(0.3 / 1.135);
+    });
+
     it("reads Gephi's GML as Gephi draws it: y up, w a radius, an edge as thick as its value", async () => {
         const doc = [
             "graph [",
@@ -394,6 +497,89 @@ describe("GML styles: who wrote the file", () => {
         }
     });
 
+    it("centers a plain GML node's label on its node, where the GML draft names no place for it", async () => {
+        const doc = [
+            "graph [",
+            '  node [ id 1 label "A" graphics [ x 0 y 0 w 20 h 20 ] ]',
+            '  node [ id 2 label "B" graphics [ x 40 y 0 w 20 h 20 ] ]',
+            '  edge [ source 1 target 2 label "e" graphics [ fill "#000000" ] ]',
+            "]",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual(["center", "center"]);
+        // yEd's GML keeps its own label models
+        const yed = await load(
+            'Creator "yFiles"\ngraph [ node [ id 1 label "A" graphics [ x 0 y 0 w 20 h 20 ] LabelGraphics [ text "A" anchor "n" ] ] ]',
+        );
+        expect(resolveStyles(yed.styles, "node", "labelPosition", yed.snapshot)).not.toEqual(["center"]);
+    });
+
+    it("draws a plain GML file as Tk draws the draft's graphics: colors, stipples, outlines, pictures, smooth lines", async () => {
+        const node = (id: number, graphics: string): string =>
+            `  node [ id ${String(id)} graphics [ x ${String(id * 40)} y 0 w 20 h 20 ${graphics} ] ]`;
+        const doc = [
+            "graph [",
+            node(1, 'type "oval" fill "#FFF888000" outline "#505050" width 1'),
+            node(2, 'type "oval" fill "#FFFF88880000" outline "#505050" width 0'),
+            node(3, 'type "oval" fill "light blue" stipple "gray25" width 2'),
+            node(4, 'type "image" fill "#C8C8C8" outline "#505050" width 1 image "a.png"'),
+            node(5, 'type "bitmap" fill "#0000FF" outline "#505050" width 1 bitmap "a.xbm"'),
+            node(6, 'type "oval" fill "#C8C8C8" stipple "questhead"'),
+            '  edge [ source 1 target 2 graphics [ fill "#505050" width 4 stipple "gray50" ] ]',
+            '  edge [ source 2 target 3 graphics [ fill "#505050" smooth 1 Line [ point [ x 40 y 0 ] point [ x 60 y 30 ] point [ x 80 y 0 ] ] ] ]',
+            '  edge [ source 3 target 4 graphics [ fill "#505050" smooth 1 Line [ point [ x 120 y 0 ] point [ x 160 y 0 ] ] ] ]',
+            "]",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        const node_ = (p: Parameters<typeof resolveStyles>[2]): readonly unknown[] =>
+            resolveStyles(styles, "node", p, snapshot);
+        const edge = (p: Parameters<typeof resolveStyles>[2]): readonly unknown[] =>
+            resolveStyles(styles, "edge", p, snapshot);
+        // Tk_GetColor: 3- and 4-digit components, and X11 names written with spaces
+        expect(node_("fill").slice(0, 3)).toEqual(["#ff8800", "#ff8800", "#add8e6"]);
+        // the gray stipples let that much of the fill or line through; one Tk draws no gray with is noted
+        expect(node_("fillOpacity")).toEqual([null, null, 0.25, null, null, null]);
+        expect(edge("opacity")).toEqual([0.5, null, null]);
+        expect(
+            styles.styles.notes.some(
+                (n) => n.code === "W_STYLE_UNKNOWN_VALUE" && JSON.stringify(n).includes("questhead"),
+            ),
+        ).toBe(true);
+        // an outline is at least a pixel wide; a picture draws a rectangle with none
+        expect(node_("borderWidth")).toEqual([1, 1, 2, 0, 0, null]);
+        expect(node_("shape").slice(3, 5)).toEqual(["rectangle", "rectangle"]);
+        // a smoothed line of three or more points curves through the middles of its segments; two points stay straight
+        expect(edge("curved")).toEqual([null, true, null]);
+        expect(edge("bendCurve")).toEqual([null, "midpoints", null]);
+    });
+
+    it("reads a yEd label's fill and outline as its box and keeps them through a save, on nodes and edges alike", async () => {
+        const label = 'LabelGraphics [ text "A" fill "#EBEBEB" outline "#FF0000" ]';
+        const { snapshot, styles } = await load(
+            `Creator "yFiles"\ngraph [ node [ id 1 ${label} ] node [ id 2 LabelGraphics [ text "B" ] ] edge [ source 1 target 2 ${label} ] ]`,
+        );
+        expect(resolveStyles(styles, "node", "labelBackground", snapshot)).toEqual(["#ebebeb", null]);
+        expect(resolveStyles(styles, "node", "labelBorderColor", snapshot)).toEqual(["#ff0000", null]);
+        expect(resolveStyles(styles, "node", "labelBorderWidth", snapshot)).toEqual([1, null]);
+        expect(resolveStyles(styles, "edge", "labelBackground", snapshot)).toEqual(["#ebebeb"]);
+        const text = await registry.exportGraphToString(snapshot, "gml", { styles });
+        expect(text.match(/LabelGraphics \[[^\]]*fill "#EBEBEB"/g)).toHaveLength(2);
+        // yEd's outline is a one-pixel line, so a border is carried by the styles block, whatever its width
+        expect(text).not.toMatch(/LabelGraphics \[[^\]]*outline/);
+        const back = await load(text);
+        expect(resolveStyles(back.styles, "node", "labelBorderColor", back.snapshot)).toEqual(["#ff0000", null]);
+        expect(resolveStyles(back.styles, "node", "labelBorderWidth", back.snapshot)).toEqual([1, null]);
+    });
+
+    it("reads yEd's inside anchors (t, b, l, r, tl, ...) as inside places and n, s, e, w, nw, ... as outside", async () => {
+        const anchors = ["c", "t", "b", "l", "r", "tl", "tr", "bl", "br", "n", "s", "e", "w", "nw", "ne", "sw", "se"];
+        const nodes = anchors.map(
+            (a, i) => `node [ id ${String(i)} graphics [ w 50 h 30 ] LabelGraphics [ text "${a}" anchor "${a}" ] ]`,
+        );
+        const { snapshot, styles } = await load(`Creator "yFiles"\ngraph [ ${nodes.join(" ")} ]`);
+        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual(LABEL_PLACES.map(([p]) => p));
+    });
+
     it("gives igraph's file, which holds no graphics, no styles; a color attribute stays data", async () => {
         const result = await read(file("igraph-flat-attributes.gml"));
         expect(result.snapshot.meta.creator).toMatch(/^igraph/);
@@ -420,8 +606,43 @@ describe("GML styles: yEd's flowchart shapes", () => {
         ]);
         // stored data: its outline, a left side bulging out and a right side bulging in
         const [, , , stored] = resolveStyles(styles, "node", "shapePoints", snapshot);
-        expect(String(stored)).toContain("0.8,0");
+        expect(String(stored)).toContain("0.84,1");
         expect(String(stored)).toContain("-1,0");
+    });
+
+    it("draws the shapes and sizes yEd draws for its types and palette nodes", async () => {
+        const node = (id: number, extra: string): string =>
+            `node [ id ${String(id)} graphics [ w 48.0 h 36.0 outlineWidth 1 ${extra} ] ]`;
+        const doc = `Creator "yFiles"\ngraph [ ${[
+            'type "fatarrow"',
+            'type "fatarrow2"',
+            'type "triangle2"',
+            'type "hexagon2"',
+            'type "octagon2"',
+            'type "rectangle3d"',
+            'customconfiguration "com.yworks.flowchart.annotation"',
+            'customconfiguration "com.yworks.flowchart.start2"',
+        ]
+            .map((extra, i) => node(i, extra))
+            .join(" ")} ]`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual([
+            "polygon",
+            "polygon",
+            "polygon",
+            "ellipse",
+            "ellipse",
+            "rectangle",
+            "rectangle",
+            "ellipse",
+        ]);
+        expect(resolveStyles(styles, "node", "shapePoints", snapshot).slice(0, 3)).toEqual([
+            "-1,1 0.8,1 1,0 0.8,-1 -1,-1 -0.8,0",
+            "-0.8,1 1,1 0.8,0 1,-1 -0.8,-1 -1,0",
+            "-1,1 1,1 0,-1",
+        ]);
+        expect(resolveStyles(styles, "node", "borderWidth", snapshot)).toEqual([1, 1, 1, 1, 1, 0, 0, 1]);
+        expect(resolveStyles(styles, "node", "width", snapshot).at(-1)).toBe(36);
     });
 });
 
@@ -476,6 +697,36 @@ describe("GML styles: writing", () => {
         const back = await load(text);
         expect(resolveStyles(back.styles, "edge", "lineStyle", back.snapshot)).toEqual(
             resolveStyles(styles, "edge", "lineStyle", snapshot),
+        );
+    });
+
+    it("writes a node label's place as yEd's anchor, which yEd and a re-import without the block read back", async () => {
+        const b = new GraphBuilder({ directed: false });
+        LABEL_PLACES.forEach((_, i) => b.addNode(i));
+        const g = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: {
+                    values: {
+                        label: LABEL_PLACES.map(([p]) => p),
+                        labelPosition: LABEL_PLACES.map(([p]) => p),
+                    },
+                },
+                fingerprint: styleFingerprint(g),
+            },
+            { node: featuresOf(g, "node"), edge: [] },
+        );
+        const losses = registry.checkExport(g, "gml", { styles });
+        expect(losses.filter((l) => l.style?.property === "labelPosition")).toEqual([]);
+        const text = await registry.exportGraphToString(g, "gml", { styles });
+        expect([...text.matchAll(/anchor "(\w+)"/g)].map((m) => m[1])).toEqual(LABEL_PLACES.map(([, a]) => a));
+        // the graphics alone, as yEd reads the file
+        const bare = text.replace(new RegExp(`\\n\\s*${GML_STYLE_BLOCK_KEY.replaceAll(".", "\\.")} "[^"]*"`), "");
+        expect(bare).not.toContain(GML_STYLE_BLOCK_KEY);
+        const back = await load(`Creator "yFiles"\n${bare}`);
+        expect(resolveStyles(back.styles, "node", "labelPosition", back.snapshot)).toEqual(
+            LABEL_PLACES.map(([p]) => p),
         );
     });
 

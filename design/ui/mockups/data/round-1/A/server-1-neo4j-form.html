@@ -1,0 +1,681 @@
+<!doctype html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+        <title>Neo4j form, Test first</title>
+        <style>
+            body {
+                margin: 0;
+                background: #111;
+                font-family:
+                    system-ui,
+                    -apple-system,
+                    "Segoe UI",
+                    sans-serif;
+            }
+            a {
+                color: #5b8ff9;
+            }
+            a:hover {
+                color: #75a5f9;
+            }
+        </style>
+    </head>
+    <body>
+        <div
+            style="
+                width: 1440px;
+                height: 900px;
+                position: relative;
+                overflow: hidden;
+                background: #242424;
+                color: #e4e4e4;
+                font-size: 12px;
+            "
+        >
+            <div
+                style="
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 1440px;
+                    height: 40px;
+                    background: #2b2b2b;
+                    border-bottom: 1px solid #3a3a3a;
+                    display: flex;
+                    align-items: center;
+                    gap: 14px;
+                    padding: 0 16px;
+                    box-sizing: border-box;
+                "
+            >
+                <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    style="flex: none"
+                >
+                    <path d="M2.5 4h11M2.5 8h11M2.5 12h11" /></svg
+                ><span style="font-weight: 600; font-size: 14px">Untitled</span
+                ><span style="color: #a3a3a3; display: flex; gap: 12px"
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M5 3.5 2.5 6 5 8.5" />
+                        <path d="M2.5 6h7a3.5 3.5 0 0 1 0 7H7" /></svg
+                    ><svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M11 3.5 13.5 6 11 8.5" />
+                        <path d="M13.5 6h-7a3.5 3.5 0 0 0 0 7H9" /></svg></span
+                ><span style="display: flex; align-items: center; gap: 6px"
+                    ><svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+                        <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></svg
+                    >Local only</span
+                >
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 0;
+                    top: 41px;
+                    width: 56px;
+                    height: 859px;
+                    background: #262626;
+                    border-right: 1px solid #3a3a3a;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 6px;
+                    padding-top: 12px;
+                    box-sizing: border-box;
+                "
+            >
+                <div
+                    style="
+                        width: 44px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        padding: 6px 0;
+                        border-radius: 6px;
+                        font-size: 10px;
+                        color: #e4e4e4;
+                    "
+                >
+                    <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <circle cx="4" cy="4" r="2" />
+                        <circle cx="12" cy="6" r="2" />
+                        <circle cx="6" cy="12" r="2" />
+                        <path d="M5.8 4.6 10.1 5.5M4.6 5.9l.9 4.2M7.7 11 10.5 7.4" /></svg
+                    ><span>Graph</span>
+                </div>
+                <div
+                    style="
+                        width: 44px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        padding: 6px 0;
+                        border-radius: 6px;
+                        font-size: 10px;
+                        color: #e4e4e4;
+                        background: #353d5c;
+                    "
+                >
+                    <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <ellipse cx="8" cy="4" rx="5" ry="2" />
+                        <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" /></svg
+                    ><span>Data</span>
+                </div>
+                <div
+                    style="
+                        width: 44px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 3px;
+                        padding: 6px 0;
+                        border-radius: 6px;
+                        font-size: 10px;
+                        color: #e4e4e4;
+                    "
+                >
+                    <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        style="flex: none"
+                    >
+                        <path d="M4 2.5h6l2.5 2.5v8.5h-8.5z" />
+                        <path d="M6 7.5h4.5M6 10h4.5" /></svg
+                    ><span>Notes</span>
+                </div>
+                <div style="flex: 1"></div>
+                <div style="padding-bottom: 14px">
+                    <div
+                        style="
+                            width: 44px;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            gap: 3px;
+                            padding: 6px 0;
+                            border-radius: 6px;
+                            font-size: 10px;
+                            color: #e4e4e4;
+                        "
+                    >
+                        <svg
+                            width="18"
+                            height="18"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <circle cx="8" cy="8" r="2.2" />
+                            <path
+                                d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"
+                            /></svg
+                        ><span>Settings</span>
+                    </div>
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    left: 57px;
+                    top: 41px;
+                    width: 1383px;
+                    height: 859px;
+                    background: #2b2b2b;
+                    display: flex;
+                    flex-direction: column;
+                "
+            >
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 14px 16px;
+                        border-bottom: 1px solid #3a3a3a;
+                    "
+                >
+                    <span style="font-size: 18px; font-weight: 600">Open network data</span
+                    ><span
+                        style="
+                            font-size: 11px;
+                            line-height: 15px;
+                            color: #a3a3a3;
+                            display: flex;
+                            align-items: center;
+                            gap: 5px;
+                        "
+                        ><svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            style="flex: none"
+                        >
+                            <rect x="3.5" y="7" width="9" height="6.5" rx="1" />
+                            <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></svg
+                        >Your files stay in this browser.</span
+                    >
+                </div>
+                <div style="flex: 1; display: flex; min-height: 0">
+                    <div style="width: 240px; flex: none; border-right: 1px solid #3a3a3a; padding-top: 6px">
+                        <div
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 6px;
+                                padding: 10px 12px 6px 10px;
+                                font-weight: 600;
+                                font-size: 12px;
+                                padding-top: 8px;
+                            "
+                        >
+                            Sources
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: flex-start;
+                                gap: 8px;
+                                padding: 5px 12px 5px 22px;
+                                background: #353d5c;
+                                border-radius: 4px;
+                                margin: 0 6px;
+                                padding-left: 16px;
+                                padding-left: 8px;
+                            "
+                        >
+                            <span style="width: 16px; height: 16px; flex: none; color: #a3a3a3; margin-top: 1px"
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <rect x="2.5" y="2.5" width="11" height="4.5" rx="1" />
+                                    <rect x="2.5" y="9" width="11" height="4.5" rx="1" />
+                                    <path d="M5 4.8h.5M5 11.3h.5" /></svg
+                            ></span>
+                            <div style="flex: 1; min-width: 0">
+                                <div style="font-size: 12px; line-height: 16px">Neo4j</div>
+                                <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">A graph database</div>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: flex-start;
+                                gap: 8px;
+                                padding: 5px 12px 5px 22px;
+                                padding-left: 14px;
+                            "
+                        >
+                            <span style="width: 16px; height: 16px; flex: none; color: #a3a3a3; margin-top: 1px"
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <circle cx="4" cy="4" r="2" />
+                                    <circle cx="12" cy="6" r="2" />
+                                    <circle cx="6" cy="12" r="2" />
+                                    <path d="M5.8 4.6 10.1 5.5M4.6 5.9l.9 4.2M7.7 11 10.5 7.4" /></svg
+                            ></span>
+                            <div style="flex: 1; min-width: 0">
+                                <div style="font-size: 12px; line-height: 16px">NDEx</div>
+                                <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">
+                                    Published biology networks
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: flex-start;
+                                gap: 8px;
+                                padding: 5px 12px 5px 22px;
+                                padding-left: 14px;
+                            "
+                        >
+                            <span style="width: 16px; height: 16px; flex: none; color: #a3a3a3; margin-top: 1px"
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <circle cx="4" cy="4" r="2" />
+                                    <circle cx="12" cy="6" r="2" />
+                                    <circle cx="6" cy="12" r="2" />
+                                    <path d="M5.8 4.6 10.1 5.5M4.6 5.9l.9 4.2M7.7 11 10.5 7.4" /></svg
+                            ></span>
+                            <div style="flex: 1; min-width: 0">
+                                <div style="font-size: 12px; line-height: 16px">STRING</div>
+                                <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">
+                                    Proteins from a gene list
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            style="
+                                display: flex;
+                                align-items: flex-start;
+                                gap: 8px;
+                                padding: 5px 12px 5px 22px;
+                                padding-left: 14px;
+                            "
+                        >
+                            <span style="width: 16px; height: 16px; flex: none; color: #a3a3a3; margin-top: 1px"
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="M6.5 9.5 9.5 6.5" />
+                                    <path
+                                        d="M7 4.5 8.5 3a2.5 2.5 0 0 1 3.5 3.5L10.5 8M9 11.5 7.5 13A2.5 2.5 0 0 1 4 9.5L5.5 8"
+                                    /></svg
+                            ></span>
+                            <div style="flex: 1; min-width: 0">
+                                <div style="font-size: 12px; line-height: 16px">A web address</div>
+                                <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">
+                                    Any graph file online
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        style="
+                            flex: 1;
+                            min-width: 0;
+                            padding: 14px 16px;
+                            display: flex;
+                            flex-direction: column;
+                            gap: 12px;
+                            overflow: hidden;
+                        "
+                    >
+                        <div style="display: flex; flex-direction: column; gap: 8px">
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 8px;
+                                    border: 1px solid #3a3a3a;
+                                    border-radius: 4px;
+                                    background: #1f1f1f;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                    width: 420px;
+                                "
+                            >
+                                <span style="color: #a3a3a3; width: 80px">Address</span
+                                ><span>bolt://graph.internal:7687</span>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 8px;
+                                    border: 1px solid #3a3a3a;
+                                    border-radius: 4px;
+                                    background: #1f1f1f;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                    width: 420px;
+                                "
+                            >
+                                <span style="color: #a3a3a3; width: 80px">User</span><span>analyst</span>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 8px;
+                                    border: 1px solid #3a3a3a;
+                                    border-radius: 4px;
+                                    background: #1f1f1f;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                    width: 420px;
+                                "
+                            >
+                                <span style="color: #a3a3a3; width: 80px">Password</span
+                                ><span>&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;</span>
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 8px;
+                                    border: 1px solid #3a3a3a;
+                                    border-radius: 4px;
+                                    background: #1f1f1f;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                    width: 420px;
+                                "
+                            >
+                                <span style="color: #a3a3a3; width: 80px">Database</span><span>fraud</span>
+                            </div>
+                            <div style="font-size: 11px; color: #a3a3a3">Query</div>
+                            <div
+                                style="
+                                    width: 640px;
+                                    height: 84px;
+                                    border: 1px solid #3a3a3a;
+                                    border-radius: 4px;
+                                    background: #1f1f1f;
+                                    padding: 8px;
+                                    box-sizing: border-box;
+                                    font-family: ui-monospace, monospace;
+                                    font-size: 12px;
+                                    line-height: 18px;
+                                "
+                            >
+                                MATCH (a:Account)-[t:TRANSFER]-&gt;(b:Account)<br />WHERE t.date &gt;=
+                                date("2026-01-01")<br />RETURN a, t, b
+                            </div>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    height: 24px;
+                                    padding: 0 8px;
+                                    border: 1px solid #3a3a3a;
+                                    border-radius: 4px;
+                                    background: #1f1f1f;
+                                    font-size: 12px;
+                                    box-sizing: border-box;
+                                    white-space: nowrap;
+                                    width: 220px;
+                                "
+                            >
+                                <span style="color: #a3a3a3; width: 80px">At most</span><span>5,000 links</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 10px; padding-top: 6px">
+                                <span
+                                    style="
+                                        display: inline-flex;
+                                        align-items: center;
+                                        gap: 6px;
+                                        height: 24px;
+                                        padding: 0 10px;
+                                        border: 1px solid #3a3a3a;
+                                        border-radius: 4px;
+                                        font-size: 12px;
+                                        color: #e4e4e4;
+                                        background: #333333;
+                                        white-space: nowrap;
+                                        border-color: #228be6;
+                                    "
+                                    >Test</span
+                                ><svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 16 16"
+                                    fill="none"
+                                    stroke="#51cf66"
+                                    stroke-width="1.5"
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    style="flex: none"
+                                >
+                                    <path d="m3.5 8.5 3 3 6-7" /></svg
+                                ><span
+                                    >Connected. The query matches <b>40,000</b> links; the first 5,000 will load.</span
+                                >
+                            </div>
+                            <div style="font-size: 11px; line-height: 15px; color: #a3a3a3">
+                                The password stays in this browser and is not saved with the project.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div
+                    style="
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        padding: 10px 16px;
+                        border-top: 1px solid #3a3a3a;
+                    "
+                >
+                    <div style="flex: 1"></div>
+                    <span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 6px;
+                            height: 24px;
+                            padding: 0 10px;
+                            border: 1px solid #3a3a3a;
+                            border-radius: 4px;
+                            font-size: 12px;
+                            color: #e4e4e4;
+                            background: #333333;
+                            white-space: nowrap;
+                        "
+                        >Cancel</span
+                    ><span
+                        style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 6px;
+                            height: 24px;
+                            padding: 0 12px;
+                            border-radius: 4px;
+                            font-size: 12px;
+                            color: #ffffff;
+                            background: #228be6;
+                            white-space: nowrap;
+                        "
+                        >Load 5,000 links</span
+                    >
+                </div>
+            </div>
+            <div
+                style="
+                    position: absolute;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                    font-size: 11px;
+                    font-weight: 600;
+                    color: #fff;
+                    z-index: 20;
+                    left: 820px;
+                    top: 420px;
+                "
+            >
+                <span
+                    style="
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        width: 18px;
+                        height: 18px;
+                        border-radius: 9px;
+                        background: #e8590c;
+                        color: #fff;
+                        font-size: 11px;
+                        font-weight: 700;
+                        flex: none;
+                    "
+                    >1</span
+                ><span style="background: #e8590c; padding: 2px 6px; border-radius: 4px"
+                    >Test says what Load will do</span
+                >
+            </div>
+        </div>
+    </body>
+</html>

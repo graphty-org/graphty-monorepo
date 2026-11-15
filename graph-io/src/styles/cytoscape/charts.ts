@@ -11,8 +11,12 @@
  * drawn clockwise is its slices in reverse order from where the last one ends.
  */
 
+import { itemAt } from "../../common/text.js";
+import { DIALOG_LINE_HEIGHT, dialogWidth } from "../../formats/gexf/dialog-metrics.js";
+import { hexChannels } from "../canon/color.js";
 import { num6 } from "../canon/number.js";
 import type { StyleColumn, StyleValue } from "../types.js";
+import { colorSchemeColors } from "./color-schemes.js";
 
 /** How far across the node Cytoscape draws a pie, measured from its SVG export. */
 const CHART_ACROSS = 0.9;
@@ -26,6 +30,8 @@ const SLOTS = Array.from({ length: 9 }, (_, k) => `NODE_CUSTOMGRAPHICS_${String(
 /** A chart's options as Cytoscape writes them. */
 interface ChartOptions {
     readonly cy_colors?: unknown;
+    readonly cy_colorScheme?: unknown;
+    readonly cy_values?: unknown;
     readonly cy_dataColumns?: unknown;
     readonly cy_startAngle?: unknown;
     readonly cy_holeSize?: unknown;
@@ -41,6 +47,11 @@ interface ChartOptions {
     readonly cy_itemLabels?: unknown;
     readonly cy_itemLabelsColumn?: unknown;
     readonly cy_itemLabelFontSize?: unknown;
+    readonly cy_showRangeAxis?: unknown;
+    readonly cy_showDomainAxis?: unknown;
+    readonly cy_axisLabelFontSize?: unknown;
+    readonly cy_domainLabelPosition?: unknown;
+    readonly cy_domainLabelsColumn?: unknown;
 }
 
 /** The charts Cytoscape draws, by the name of their class. */
@@ -223,21 +234,111 @@ function chartOnNode(
     sizeSync: boolean,
 ): void {
     const { options } = chart;
-    const colors = Array.isArray(options.cy_colors) ? options.cy_colors.map(String) : [];
     const columns = Array.isArray(options.cy_dataColumns) ? options.cy_dataColumns.map(String) : [];
-    const values = valuesOf(columns, node.value);
+    // the chart's own values, when it holds any, before its data columns (`AbstractChart.getData`)
+    const own = Array.isArray(options.cy_values) && options.cy_values.length > 0 ? options.cy_values : null;
+    const values = own === null ? valuesOf(columns, node.value) : own.map(Number);
+    const named = Array.isArray(options.cy_colors) ? options.cy_colors.map(String) : [];
+    // no colors named: the scheme's, one per value (`AbstractChart.getColors`)
+    const colors = named.length > 0 ? named : colorSchemeColors(options.cy_colorScheme, values.length);
     if (chart.kind === "PieChart" || chart.kind === "RingChart") {
         pieOnNode(chart.ring, options, values, colors, node, sizeSync);
         return;
     }
-    const own = Number(node.graphic("NODE_CUSTOMGRAPHICS_SIZE"));
+    const ownSize = Number(node.graphic("NODE_CUSTOMGRAPHICS_SIZE"));
     const side = shorterSide(node);
-    const ownSize = own > 0;
-    const fitted = sizeSync || !ownSize;
-    const box = side === null ? null : { disc: CHART_ACROSS * (fitted ? side : own), side };
-    for (const [property, v] of Object.entries(plotChart(chart.kind, options, values, colors, box))) {
+    const fitted = sizeSync || Number.isNaN(ownSize) || ownSize <= 0;
+    const box = side === null ? null : { disc: CHART_ACROSS * (fitted ? side : ownSize), side };
+    const plotted = plotChart(chart.kind, options, values, colors, box);
+    // ponytail: a heat map's made-up names are unmeasured, so it keeps naming only by its columns or labels
+    const names = domainNames(
+        options,
+        columns,
+        own !== null,
+        node.value,
+        chart.kind === "HeatMapChart" ? 0 : values.length,
+    );
+    const axes = box === null ? null : chartAxes(options, plotted, box.disc, node, (k) => names[k]);
+    for (const [property, v] of Object.entries({ ...plotted, ...axes?.plot })) {
         node.put(property, v);
     }
+    if (axes !== null && axes.texts.length > 0 && (node.get("shapeTexts") ?? null) === null) {
+        node.put("shapeTexts", JSON.stringify(axes.texts));
+    }
+}
+
+/**
+ * The names a chart's categories carry on its domain axis, one per value: the node's list in
+ * `cy_domainLabelsColumn`, else the data columns' names when there is one column per value; Cytoscape's own "#1",
+ * "#2", ... for a list column's values or the chart's own, and for the values past the labels list.
+ * @param options - the chart's options
+ * @param columns - its data columns
+ * @param own - whether it draws its own values
+ * @param value - reads the node's value of a column
+ * @param count - how many values it plots
+ * @returns the names by value, an empty string where there is none
+ */
+function domainNames(
+    options: ChartOptions,
+    columns: readonly string[],
+    own: boolean,
+    value: (column: string) => unknown,
+    count: number,
+): string[] {
+    const listed = typeof options.cy_domainLabelsColumn === "string" ? value(options.cy_domainLabelsColumn) : null;
+    if (Array.isArray(listed)) {
+        const names = listed.map((v) => (typeof v === "string" || typeof v === "number" ? String(v) : ""));
+        // past the list, Cytoscape's own names (`createCategoryDataset`: "#" + (i + 1))
+        return count > names.length ? [...names, ...madeUpNames(count).slice(names.length)] : names;
+    }
+    return own || (columns.length === 1 && Array.isArray(value(columns[0]))) ? madeUpNames(count) : [...columns];
+}
+
+/**
+ * The names Cytoscape gives categories nothing names: "#1", "#2", ...
+ * @param count - how many categories
+ * @returns the names
+ */
+function madeUpNames(count: number): string[] {
+    return Array.from({ length: count }, (_, k) => `#${k + 1}`);
+}
+
+/**
+ * A category's name as JFreeChart fits it on its one line (`TextUtilities.createTextBlock` with
+ * `CategoryAxis.maximumCategoryLabelLines` 1): whole when it fits; else the words that fit (or, when the first word
+ * alone is too wide, as much of it as fits, at least one character), and when any of the name is left over, their
+ * last 3 characters replaced by "...", or "..." alone for 3 characters or fewer.
+ * @param text - the name
+ * @param room - the line's width
+ * @param width - a text's width
+ * @returns the name as drawn
+ */
+function fitName(text: string, room: number, width: (text: string) => number): string {
+    if (width(text) <= room) {
+        return text;
+    }
+    // ponytail: breaks only after spaces, where Java's line BreakIterator also breaks after hyphens and between
+    // ideographs; add them when a sample names a category with one
+    const words = text.match(/\S*\s*/g) ?? [text];
+    let end = 0;
+    for (const word of words) {
+        if (width(text.slice(0, end + word.length)) > room) {
+            break;
+        }
+        end += word.length;
+    }
+    if (end === 0) {
+        while (end < text.length && width(text.slice(0, end + 1)) <= room) {
+            end++;
+        }
+        end = Math.max(end, 1);
+    }
+    // nothing left over: no "..." (a one-character name is drawn whole however narrow its category)
+    if (end >= text.length) {
+        return text;
+    }
+    const line = text.slice(0, end);
+    return line.length > 3 ? `${line.slice(0, -3)}...` : "...";
 }
 
 /**
@@ -248,11 +349,12 @@ function chartOnNode(
  */
 function pieSlices(values: readonly number[], colors: readonly string[]): { color: string; size: number }[] {
     const total = values.reduce((sum, v) => sum + (Number.isFinite(v) && v > 0 ? v : 0), 0);
-    return values.flatMap((v, k) =>
-        Number.isFinite(v) && v > 0 && colors[k] !== undefined
-            ? [{ color: colors[k].toLowerCase(), size: v / total }]
-            : [],
-    );
+    return values.flatMap((v, k) => {
+        const color = itemAt(colors, k);
+        return Number.isFinite(v) && v > 0 && color !== undefined
+            ? [{ color: color.toLowerCase(), size: v / total }]
+            : [];
+    });
 }
 
 /**
@@ -292,7 +394,7 @@ function pieOnNode(
     node.put("pieRotation", num6((((90 - from) % 360) + 360) % 360));
     const texts = pieItemLabels(options, values, colors, node.value, {
         start: from,
-        radius: (CHART_ACROSS * (fitted || side === null ? 1 : own / side) * (side ?? 0)) / 2,
+        radius: (CHART_ACROSS * (fitted ? 1 : own / side) * (side ?? 0)) / 2,
         dx: Number(node.get("pieOffsetX") ?? 0),
         dy: Number(node.get("pieOffsetY") ?? 0),
         w: node.w,
@@ -344,6 +446,9 @@ const ITEM_LABEL_RADIUS = 0.62;
  * px tall (xgmml-specimen-images-charts-p5 `pie-item-labels`).
  */
 const ITEM_LABEL_FONT_SIZE = 1;
+
+/** The color Cytoscape gives a bar its chart has no color for (`AbstractChartLayer.DEFAULT_ITEM_BG_COLOR`). */
+const ITEM_BG_COLOR = "#c0c0c0";
 
 /** The color JFreeChart draws Cytoscape's chart labels in. */
 const CHART_LABEL_COLOR = "#404040";
@@ -400,7 +505,7 @@ function pieItemLabels(
     if (!drawn) {
         return null;
     }
-    const shown = values.map((v, k) => Number.isFinite(v) && v > 0 && colors[k] !== undefined);
+    const shown = values.map((v, k) => Number.isFinite(v) && v > 0 && itemAt(colors, k) !== undefined);
     const total = values.reduce((sum, v, k) => sum + (shown[k] ? v : 0), 0);
     const size = Number(options.cy_itemLabelFontSize ?? ITEM_LABEL_FONT_SIZE);
     const texts: [number, number, string, { size: number; color: string }][] = [];
@@ -462,8 +567,7 @@ const RANGE_HEADROOM = 0.1;
  * @returns the color
  */
 function mix(a: string, b: string, t: number): string {
-    const rgb = (c: string): number[] => [1, 3, 5].map((k) => Number.parseInt(c.slice(k, k + 2), 16));
-    const [x, y] = [rgb(a), rgb(b)];
+    const [x, y] = [hexChannels(a), hexChannels(b)];
     if ([...x, ...y].some((v) => !Number.isFinite(v))) {
         return a;
     }
@@ -535,6 +639,13 @@ function plotSize(
 }
 
 /**
+ * The plot background Cytoscape fills under a heat map's cells when it draws an axis (`cy_showRangeAxis` or
+ * `cy_showDomainAxis`; without one the plot is unfilled): #e8eae8 at 128/255 (measured from Cytoscape 3.10.5's SVG
+ * export of images-charts-p5 and -p7, `fill-opacity="0.501960813999176"`).
+ */
+const HEAT_MAP_BACKGROUND = { chartBackgroundColor: "#e8eae8", chartBackgroundOpacity: num6(128 / 255) };
+
+/**
  * The outline Cytoscape draws round each bar and box.
  * @param options - the chart's options
  * @returns `chartBorderColor` and `chartBorderWidth`
@@ -548,7 +659,7 @@ function chartOutline(options: ChartOptions): Record<string, StyleValue> {
 }
 
 /**
- * A bar chart's own properties: grouped, stacked, up and down (the first color up, the last down) or heat strips
+ * A bar chart's own properties: grouped, stacked, up and down (the first color up, the third or second down) or heat strips
  * (each bar colored on the three-color scale).
  * @param options - its options
  * @param finite - the node's values that are numbers
@@ -595,13 +706,18 @@ function barColor(
     k: number,
     range: readonly [number, number],
 ): string {
-    if (type === "HEAT_STRIPS") {
-        return scaleColor(colors, v, range);
+    if (type === "HEAT_STRIPS" || type === "UP_DOWN") {
+        // `BarLayer`: colors[1] is zero only among three or more colors, else black; down is colors[2], else
+        // colors[1], else gray; up is colors[0], else light gray
+        const many = colors.length > 2;
+        const scale = [colors[0] ?? ITEM_BG_COLOR, many ? colors[1] : "#000000", colors[many ? 2 : 1] ?? "#808080"];
+        if (type === "HEAT_STRIPS") {
+            return scaleColor(scale, v, range);
+        }
+        return scale[v < 0 ? 2 : 0].toLowerCase();
     }
-    if (type === "UP_DOWN") {
-        return colors[v >= 0 ? 0 : colors.length - 1].toLowerCase();
-    }
-    return colors[Math.min(k, colors.length - 1)].toLowerCase();
+    // a bar past the chart's colors is JFreeChart's light gray (`BarLayer`, DEFAULT_ITEM_BG_COLOR)
+    return (colors[k] ?? ITEM_BG_COLOR).toLowerCase();
 }
 
 /**
@@ -626,7 +742,7 @@ function plotChart(
 ): Record<string, StyleValue> {
     const finite = values.filter((v) => Number.isFinite(v));
     if (finite.length === 0 || colors.length === 0) {
-        // ponytail: a chart colored by a named scheme (cy_colorScheme) without its colors is not drawn
+        // no colors (a RANDOM or CUSTOM scheme, or a palette from a provider): not drawn
         return {};
     }
     const given = Array.isArray(options.cy_range) ? options.cy_range.map(Number) : [];
@@ -669,7 +785,9 @@ function plotChart(
         case "HeatMapChart": {
             // one cell per value, top to bottom; laid left to right, the last value first
             const cells = horizontal ? [...finite].reverse() : finite;
-            Object.assign(out, {
+            // the plot is filled only when an axis is drawn round it
+            const axes = options.cy_showRangeAxis === true || options.cy_showDomainAxis === true;
+            Object.assign(out, axes ? HEAT_MAP_BACKGROUND : {}, {
                 chartKind: "cells",
                 chartValues: cells.join(" "),
                 chartColors: cells.map((v) => scaleColor(colors, v, range)).join(" "),
@@ -681,4 +799,349 @@ function plotChart(
             break;
     }
     return out;
+}
+
+/**
+ * JFreeChart's room round a chart's axis labels, in the file's lengths (its chart units are half of one): 4 beyond a
+ * label's own size for the tick, the axis' offset from the plot and the label's insets, the label's near edge 3.5 from
+ * the plot (measured from Cytoscape 3.10.5's SVG export of xgmml-specimen-images-charts-p7 at label sizes 1, 10 and
+ * 20), and 2 above and below a tick label when JFreeChart picks how far apart the ticks are.
+ */
+const AXIS_ROOM = 4;
+const AXIS_LABEL_GAP = 3.5;
+const TICK_LABEL_INSETS = 2;
+
+/** The size of a chart's axis labels when its options name none (Cytoscape's `cy_axisLabelFontSize` default). */
+const AXIS_LABEL_FONT_SIZE = 1;
+
+/**
+ * How JFreeChart turns a category's name for each `cy_domainLabelPosition`: the turn (degrees clockwise on screen)
+ * and the point of the name's box it pins to the category's middle under the plot, from the box's middle as
+ * fractions of its width and height (`CategoryLabelPositions`: STANDARD the top's middle, UP_45 the top right corner,
+ * UP_90 the right end's middle, DOWN_45 the top left, DOWN_90 the left end's middle).
+ */
+const DOMAIN_LABEL_POSITIONS: ReadonlyMap<string, { turn: number; pin: readonly [number, number] }> = new Map([
+    ["STANDARD", { turn: 0, pin: [0, -0.5] }],
+    ["UP_45", { turn: -45, pin: [0.5, -0.5] }],
+    ["UP_90", { turn: -90, pin: [0.5, 0] }],
+    ["DOWN_45", { turn: 45, pin: [-0.5, -0.5] }],
+    ["DOWN_90", { turn: 90, pin: [-0.5, 0] }],
+]);
+const STANDARD_POSITION = { turn: 0, pin: [0, -0.5] } as const;
+
+/** The most tick numbers one range axis draws, however tall its plot, so one odd node never floods the scene. */
+const MAX_TICKS = 100;
+
+/** The steps JFreeChart's standard tick units take in each power of ten (`NumberAxis.createStandardTickUnits`). */
+const TICK_STEPS = [1, 2.5, 5];
+
+/**
+ * The tick unit JFreeChart picks for a vertical number axis (`NumberAxis.selectVerticalAutoTickUnit`): from a unit of
+ * 1, the smallest standard unit at least as far apart as a tick label is tall, the next one up when that is still too
+ * close.
+ * @param span - the axis' range
+ * @param length - the plot's height
+ * @param label - a tick label's height with its insets
+ * @returns the unit, or NaN when the axis has no length
+ */
+function tickUnit(span: number, length: number, label: number): number {
+    const per = length / span;
+    if (per <= 0 || !Number.isFinite(per)) {
+        return Number.NaN;
+    }
+    const units = (from: number): number[] => {
+        const decade = 10 ** Math.floor(Math.log10(from));
+        return [decade / 10, decade, decade * 10].flatMap((d) => TICK_STEPS.map((k) => k * d));
+    };
+    const guess = label / per;
+    const all = units(guess);
+    const at = all.findIndex((u) => u >= guess * (1 - 1e-9));
+    return label > all[at] * per ? all[at + 1] : all[at];
+}
+
+/**
+ * A number as a tick unit's format writes it: as many decimals as the unit has, thousands grouped (`#,##0.0`).
+ * @param v - the number
+ * @param unit - the tick unit
+ * @returns the text
+ */
+function tickText(v: number, unit: number): string {
+    // the unit's own decimals (2.5 "0.0", 0.25 "0.00"), at most 6
+    let digits = 0;
+    while (digits < 6 && Math.abs(Math.round(unit * 10 ** digits) - unit * 10 ** digits) > 1e-9 * unit * 10 ** digits) {
+        digits++;
+    }
+    return v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
+
+/** A chart's further text: `[x, y, text, look]` in the node's frame (shares of its half sides, y up). */
+type ChartText = [number, number, string, { size: number; color: string; rotation?: number }];
+
+/**
+ * The axes Cytoscape draws on a bar or line chart standing up (`cy_showRangeAxis`, `cy_showDomainAxis`), as JFreeChart
+ * lays them out: the plot shrunk by the room the range axis' widest end value and the domain axis' tallest name take,
+ * the range axis' tick numbers right-aligned left of the plot, each one's middle on its tick, and each category's name
+ * under it, turned as `cy_domainLabelPosition` says, all `cy_axisLabelFontSize` tall in the measures of Java's Dialog
+ * (DejaVu Sans). The axis lines and tick marks are a quarter of a chart unit wide, under a pixel, and not drawn.
+ * @param options - the chart's options
+ * @param plotted - its properties so far
+ * @param disc - how far across a pie would be drawn on the node
+ * @param node - the node
+ * @param nameOf - a category's name by its value's place
+ * @returns the plot's box and the texts, or null for a chart without axes
+ */
+function chartAxes(
+    options: ChartOptions,
+    plotted: Record<string, StyleValue>,
+    disc: number,
+    node: ChartNode,
+    nameOf: (k: number) => string | undefined,
+): { plot: Record<string, StyleValue>; texts: ChartText[] } | null {
+    const [range, domain] = [options.cy_showRangeAxis === true, options.cy_showDomainAxis === true];
+    const { w, h } = node;
+    if (w === null || h === null || !(w > 0 && h > 0)) {
+        return null;
+    }
+    if (plotted.chartKind === "cells") {
+        return domain ? heatMapDomain(options, plotted, disc, { w, h }, nameOf) : null;
+    }
+    const upright = (plotted.chartKind === "bar" || plotted.chartKind === "line") && plotted.chartHorizontal !== true;
+    if (!(range || domain) || !upright) {
+        return null;
+    }
+    const [lo, hi] = [Number(plotted.chartMin), Number(plotted.chartMax)];
+    const values = String(plotted.chartValues).split(" ");
+    const f = axisFontSize(options);
+    const line = f * DIALOG_LINE_HEIGHT;
+    const half = Math.max(0, disc - CHART_INSET - PLOT_INSET) / 2;
+    const look = { size: num6(f / h), color: CHART_LABEL_COLOR };
+    const put = (x: number, y: number, text: string, turn = 0): ChartText => [
+        num6(x / (w / 2)),
+        num6(-y / (h / 2)),
+        text,
+        turn === 0 ? look : { ...look, rotation: turn },
+    ];
+    const width = (text: string): number => f * dialogWidth(text);
+    // the domain axis first: the range axis' ticks depend on the plot's height
+    const position = DOMAIN_LABEL_POSITIONS.get(String(options.cy_domainLabelPosition)) ?? STANDARD_POSITION;
+    const names = values.map((_, k) => nameOf(k) ?? "");
+    const axes = { domain: domain ? names : null, range: range ? ([lo, hi] as const) : null };
+    const plot = plotRoom(half, axes, position.turn, { line, width });
+    const [pw, ph] = [plot.x1 - plot.x0, plot.y1 - plot.y0];
+    // labels that squeeze the plot to nothing: no axes, so no chart is offset far off its node
+    if (!(pw > 0 && ph > 0)) {
+        return null;
+    }
+    const texts: ChartText[] = [
+        ...(range && hi > lo ? rangeTicks(plot, [lo, hi], line, width) : []),
+        ...(domain ? categoryNames(plot, plotted, names, position, { line, width }) : []),
+    ].map(([x, y, text, turn]) => put(x, y, text, turn));
+    return {
+        plot: {
+            chartWidth: num6(pw / w),
+            chartHeight: num6(ph / h),
+            chartOffsetX: num6((plot.x0 + plot.x1) / 2),
+            chartOffsetY: num6((plot.y0 + plot.y1) / 2),
+        },
+        texts,
+    };
+}
+
+/**
+ * How tall a chart's axis labels are: `cy_axisLabelFontSize`, or the default when it is unset or not a positive number.
+ * @param options - the chart's options
+ * @returns the font size
+ */
+function axisFontSize(options: ChartOptions): number {
+    const size = Number(options.cy_axisLabelFontSize ?? AXIS_LABEL_FONT_SIZE);
+    return Number.isFinite(size) && size > 0 ? size : AXIS_LABEL_FONT_SIZE;
+}
+
+/**
+ * A bar or line chart's plot box once its axes' labels take their room: the domain axis' names below it (each as tall
+ * as it stands at its turn), and the range axis' end values on its left.
+ * @param half - half the plot's side before the labels
+ * @param axes - the domain axis' names and the range axis' ends, each null where that axis is not shown
+ * @param axes.domain - the names
+ * @param axes.range - the low and high ends
+ * @param turn - the domain labels' turn, in degrees
+ * @param text - the labels' line height and a text's width
+ * @param text.line - the line height
+ * @param text.width - a text's width
+ * @returns the plot's box
+ */
+function plotRoom(
+    half: number,
+    axes: { domain: readonly string[] | null; range: readonly [number, number] | null },
+    turn: number,
+    text: { line: number; width: (text: string) => number },
+): { x0: number; y0: number; x1: number; y1: number } {
+    const plot = { x0: -half, y0: -half, x1: half, y1: half };
+    const { line, width } = text;
+    if (axes.domain !== null) {
+        const r = (turn * Math.PI) / 180;
+        const tall = (t: string): number =>
+            t === "" ? 0 : Math.abs(Math.sin(r)) * width(t) + Math.abs(Math.cos(r)) * line;
+        plot.y1 -= Math.max(0, ...axes.domain.map(tall)) + AXIS_ROOM;
+    }
+    if (axes.range !== null) {
+        // ponytail: the range's ends as JFreeChart's default number format writes them (up to 3 decimals, grouped)
+        const endText = (v: number): string => v.toLocaleString("en-US", { maximumFractionDigits: 3 });
+        plot.x0 += Math.max(...axes.range.map((v) => width(endText(v)))) + AXIS_ROOM;
+    }
+    return plot;
+}
+
+/**
+ * The room JFreeChart keeps between a heat map's domain label and the top of its plot, beyond the label's length, and
+ * how far above the plot's top the label starts, in the file's lengths (measured from Cytoscape 3.10.5's SVG export of
+ * images-charts-p5 and -p7 heat maps at label sizes 1 and 10: the plot's top 2.434 and 24.34 plus 2 lower, the
+ * label's origin 0.5 above where the top was at both).
+ */
+const HEAT_MAP_DOMAIN_ROOM = 2;
+const HEAT_MAP_DOMAIN_RISE = 0.5;
+
+/**
+ * A heat map's domain axis as Cytoscape draws it on a column standing up: one category, named by its data columns
+ * joined with commas, its name turned to read down above the plot, centered across it, and the plot's top lowered by
+ * the name's length.
+ * @param options - the chart's options
+ * @param plotted - its properties so far
+ * @param disc - how far across a pie would be drawn on the node
+ * @param node - the node's width and height
+ * @param node.w - the width
+ * @param node.h - the height
+ * @param nameOf - a category's name by its value's place
+ * @returns the plot's box and the label, or null when there is none
+ */
+function heatMapDomain(
+    options: ChartOptions,
+    plotted: Record<string, StyleValue>,
+    disc: number,
+    node: { w: number; h: number },
+    nameOf: (k: number) => string | undefined,
+): { plot: Record<string, StyleValue>; texts: ChartText[] } | null {
+    // ponytail: only a vertical heat map named by its columns is measured; a horizontal one or other names wait for
+    // a sample
+    const values = String(plotted.chartValues).split(" ");
+    const names = values.map((_, k) => nameOf(k) ?? "");
+    if (plotted.chartHorizontal !== true || names.includes("")) {
+        return null;
+    }
+    const text = names.join(",");
+    const size = Number(options.cy_axisLabelFontSize ?? AXIS_LABEL_FONT_SIZE);
+    const f = Number.isFinite(size) && size > 0 ? size : AXIS_LABEL_FONT_SIZE;
+    const length = f * dialogWidth(text);
+    const half = Math.max(0, disc - CHART_INSET - HEAT_MAP_INSET) / 2;
+    const top = -half + length + HEAT_MAP_DOMAIN_ROOM;
+    const room = half - top;
+    if (Number.isNaN(room) || room <= 0) {
+        return null;
+    }
+    const { w, h } = node;
+    return {
+        plot: {
+            chartWidth: num6((2 * half) / w),
+            chartHeight: num6((half - top) / h),
+            chartOffsetX: 0,
+            chartOffsetY: num6((top + half) / 2),
+        },
+        texts: [
+            [
+                0,
+                num6((half + HEAT_MAP_DOMAIN_RISE - length / 2) / (h / 2)),
+                text,
+                { size: num6(f / h), color: CHART_LABEL_COLOR, rotation: 90 },
+            ],
+        ],
+    };
+}
+
+/** A plot's box in the node's lengths, y down. */
+interface PlotBox {
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+}
+
+/**
+ * The range axis' tick numbers: every tick of JFreeChart's unit in the range, each right-aligned
+ * {@link AXIS_LABEL_GAP} left of the plot, its middle on its tick.
+ * @param plot - the plot's box
+ * @param range - the axis' low and high values
+ * @param line - a label's line height
+ * @param width - a label's width
+ * @returns each number's middle (x, y down), text and turn
+ */
+function rangeTicks(
+    plot: PlotBox,
+    range: readonly [number, number],
+    line: number,
+    width: (text: string) => number,
+): [number, number, string, number][] {
+    const [lo, hi] = range;
+    const ph = plot.y1 - plot.y0;
+    // never more than MAX_TICKS: a label at least a 99th of the plot tall
+    const unit = tickUnit(hi - lo, ph, Math.max(line + 2 * TICK_LABEL_INSETS, ph / (MAX_TICKS - 1)));
+    const out: [number, number, string, number][] = [];
+    const first = Math.ceil(lo / unit - 1e-9);
+    // a range so far from zero that its ticks cannot be counted one by one (past 2^53) draws none
+    if (!Number.isSafeInteger(first) || !Number.isSafeInteger(Math.floor(hi / unit))) {
+        return out;
+    }
+    for (let k = first; k * unit <= hi + 1e-9 * unit && out.length < MAX_TICKS; k++) {
+        // never "-0"
+        const tick = k * unit || 0;
+        const text = tickText(tick, unit);
+        out.push([plot.x0 - AXIS_LABEL_GAP - width(text) / 2, plot.y1 - ((tick - lo) / (hi - lo)) * ph, text, 0]);
+    }
+    return out;
+}
+
+/**
+ * The categories' names under the plot, each pinned by its position's point to its category's middle,
+ * {@link AXIS_LABEL_GAP} below the plot, and turned with its box.
+ * @param plot - the plot's box
+ * @param plotted - the chart's properties (its margin and gap)
+ * @param names - each category's name, empty for none
+ * @param position - the names' turn and pinned point
+ * @param position.turn - the turn, degrees clockwise on screen
+ * @param position.pin - the pinned point, from the box's middle as fractions of its width and height
+ * @param measure - a label's line height and width
+ * @param measure.line - the line height
+ * @param measure.width - a text's width
+ * @returns each name's middle (x, y down), text and turn
+ */
+function categoryNames(
+    plot: PlotBox,
+    plotted: Readonly<Partial<Record<string, StyleValue>>>,
+    names: readonly string[],
+    position: { turn: number; pin: readonly [number, number] },
+    measure: { line: number; width: (text: string) => number },
+): [number, number, string, number][] {
+    const pw = plot.x1 - plot.x0;
+    const margin = Number(plotted.chartMargin ?? 0);
+    const gap = Number(plotted.chartGap ?? 0);
+    const n = names.length;
+    const band = Math.max(0, 1 - 2 * margin - gap) / n;
+    const step = band + (n > 1 ? gap / (n - 1) : 0);
+    const r = (position.turn * Math.PI) / 180;
+    // JFreeChart's room for a name: 0.95 of its category standing up, half the plot's height turned
+    // (`CategoryLabelPositions`, CategoryLabelWidthType CATEGORY and RANGE)
+    // ponytail: the plot's room is reserved for the uncut names, so a cut turned name leaves the plot a little short
+    const room = position.turn === 0 ? 0.95 * band * pw : 0.5 * (plot.y1 - plot.y0);
+    return names.flatMap((name, k): [number, number, string, number][] => {
+        if (name === "") {
+            return [];
+        }
+        const text = fitName(name, room, measure.width);
+        // from the pinned point to the box's middle, turned with the box
+        const [dx, dy] = [-position.pin[0] * measure.width(text), -position.pin[1] * measure.line];
+        const x = plot.x0 + (margin + k * step + band / 2) * pw;
+        const y = plot.y1 + AXIS_LABEL_GAP;
+        return [
+            [x + Math.cos(r) * dx - Math.sin(r) * dy, y + Math.sin(r) * dx + Math.cos(r) * dy, text, position.turn],
+        ];
+    });
 }

@@ -3,6 +3,9 @@
  * reloaded page: it shares the browser's storage and nothing else.
  */
 
+// encrypt-storage, as the ./ai and ./credentials entry points register it
+import "../../../src/ai/keys/withEncryptStorage";
+
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { ApiKeyManager } from "../../../src/ai/keys/ApiKeyManager";

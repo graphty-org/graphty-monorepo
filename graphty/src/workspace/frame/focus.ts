@@ -14,7 +14,7 @@ export function focusIsLost(): boolean {
  * Data page closes), so focus lands where the reader goes next, not on the drawing's outline or
  * on the page.
  */
-export function focusCurrentPlace(): void {
+function focusCurrentPlace(): void {
     const rowOf = (): HTMLElement | null =>
         document.querySelector<HTMLElement>('.ws-left [role="tree"] [role="treeitem"][tabindex="0"]');
     const row = rowOf();
@@ -57,15 +57,58 @@ export const INSPECTOR_TITLE_ID = "ws-inspector-title";
 /**
  * Puts focus on the graph's heading in the inspector once a graph has opened (a sample, a file,
  * a project, a load from the Data page), so a screen reader starts with which graph it is and
- * how big; else, while the inspector shows something else, on the open place's list.
+ * how big, or on the heading of the layer row the open selected; else, while the inspector shows something else, on the open place's list. A reader
+ * who has already moved into the drawing, or into a dialog, while the graph was still being read
+ * keeps their place.
+ * @param readerStayed - the reader pressed nothing while the graph was read, so focus on the
+ *   drawing was left there by something else (a closed dialog handing focus back to where it
+ *   opened) and the heading takes it all the same.
  */
-export function focusOpenedGraph(): void {
-    const title = document.querySelector<HTMLElement>(`[data-inspected="graph"] #${INSPECTOR_TITLE_ID}`);
+export function focusOpenedGraph(readerStayed = false): void {
+    const active = document.activeElement;
+    const inDrawing = !readerStayed && active?.tagName === "GRAPHTY-ELEMENT";
+    if (inDrawing || (active?.closest('[role="dialog"]') ?? null) !== null) {
+        return;
+    }
+    // The graph's heading, or the heading of the layer row an open selects (#3409).
+    const title = document.querySelector<HTMLElement>(
+        `:is([data-inspected="graph"], [data-inspected="layer-row"]) #${INSPECTOR_TITLE_ID}`,
+    );
     if (title === null) {
         focusCurrentPlace();
     } else {
         title.focus();
     }
+}
+
+/**
+ * For a graph that opens after a wait (a sample read, a file opened): watches, from now, for the
+ * reader's own keys and presses. The function it returns puts focus on the graph's heading
+ * (`focusOpenedGraph`), or where `to` puts it, only when the reader did nothing meanwhile or focus
+ * has fallen to the page, so focus never jumps away from where the reader went while the graph was
+ * loading.
+ * @param to - where focus goes instead of the graph's heading (a reopened tab's main heading).
+ * @returns Stops watching; with `focus` (the default) it then moves focus as above.
+ */
+export function focusOpenedGraphLater(to?: () => void): (focus?: boolean) => void {
+    let acted = false;
+    const onInput = (event: Event): void => {
+        acted ||= event.isTrusted;
+    };
+    document.addEventListener("keydown", onInput, true);
+    document.addEventListener("pointerdown", onInput, true);
+    return (focus = true) => {
+        document.removeEventListener("keydown", onInput, true);
+        document.removeEventListener("pointerdown", onInput, true);
+        if (!focus || (acted && !focusIsLost())) {
+            return;
+        }
+        if (to === undefined) {
+            focusOpenedGraph(!acted);
+        } else {
+            to();
+        }
+    };
 }
 
 /**
@@ -77,6 +120,33 @@ export function focusInspectorTitle(): void {
     document.getElementById(INSPECTOR_TITLE_ID)?.focus();
 }
 
+/**
+ * Puts focus on the workspace's main heading, the inspector's title, which names what is open:
+ * where a reopened tab starts, so a screen reader hears where the reader left off. The title is
+ * drawn after the place it names comes back, so focus waits for it, unless the reader has moved
+ * focus somewhere first.
+ */
+export function focusMainHeading(): void {
+    const title = (): HTMLElement | null => document.getElementById(INSPECTOR_TITLE_ID);
+    if (title() !== null) {
+        title()?.focus();
+        return;
+    }
+    const observer = new MutationObserver(() => {
+        const drawn = title();
+        if (drawn !== null) {
+            stop();
+            drawn.focus();
+        }
+    });
+    const stop = (): void => {
+        observer.disconnect();
+        document.removeEventListener("focusin", stop);
+    };
+    document.addEventListener("focusin", stop);
+    observer.observe(document.body, { childList: true, subtree: true });
+}
+
 /** Everything that can take focus, before the checks `canFocus` makes. */
 const FOCUSABLE = 'a[href], button, input, select, textarea, summary, [tabindex], [contenteditable="true"]';
 
@@ -85,7 +155,7 @@ const FOCUSABLE = 'a[href], button, input, select, textarea, summary, [tabindex]
  * @param element - the element.
  * @returns true when it can take focus.
  */
-function canFocus(element: Element): boolean {
+export function canFocus(element: Element): boolean {
     return (
         element instanceof HTMLElement &&
         element.isConnected &&
@@ -107,13 +177,42 @@ export function tabStops(root: ParentNode): HTMLElement[] {
     );
 }
 
+/** The drawing's F6 stop. */
+const CANVAS = ".ws-canvas graphty-element";
+
 /**
- * The panels F6 and Shift+F6 move between, in order, as a desktop application's do: the left
- * panel, then the inspector that edits what it picks (one press from a layer to its style), the
- * drawing, the canvas toolbar, the table while it is open, and the Data page while it stands in
- * for them. A hidden one is passed over.
+ * The regions F6 and Shift+F6 move between, in order, as a desktop application's do -- the one
+ * place the app's F6 ring is defined: the top bar, the places rail, the left panel, then the
+ * selection workspace's header and its body while it is open, the inspector that edits what it picks (one press from a
+ * layer to its style), the drawing (right after the workspace while it is open: it is the
+ * preview), the timeline dock while a time field is designated, the canvas toolbar, the table while it is open,
+ * the Data page while it stands in for the panels, and the status bar; then round to the top bar.
+ * A hidden one is passed over. Inside each region Tab follows the order the region is drawn in
+ * (document order: the app sets no positive tabindex), so a region's Tab order is its markup's.
  */
-const PANELS = [".ws-left", ".ws-right", ".ws-canvas graphty-element", ".ws-toolbar-dock", ".ws-dock", ".ws-page"];
+const PANELS = [
+    ".ws-header",
+    ".ws-rail",
+    ".ws-left",
+    // The selection workspace, between the panel it covers and the one beside it (spec 3.0): its
+    // header (Done, Cancel, Clear) is a stop of its own, then its outline and pane.
+    ".sel-ws-head",
+    ".sel-ws-body",
+    ".ws-right",
+    CANVAS,
+    // The timeline dock while a time field is designated: its brush is where focus lands.
+    ".tl-dock",
+    ".ws-toolbar-dock",
+    ".ws-dock",
+    ".ws-page",
+    ".cm-status-bar",
+];
+
+/**
+ * Where F6 never lands: a panel's resize handle is a control on the panel's edge, not a place to
+ * work in, so it stays a Tab stop but is never a region's landing, not even the one F6 last left.
+ */
+const NOT_A_LANDING = '[role="separator"]';
 
 /** The control that last had focus in each panel, by its selector: where F6 returns to it. */
 const lastInPanel = new Map<string, HTMLElement>();
@@ -129,13 +228,23 @@ export function cyclePanel(step: 1 | -1): void {
     if (modal) {
         return;
     }
-    const panels = PANELS.map((selector) => ({
-        selector,
-        element: document.querySelector<HTMLElement>(selector),
-    })).filter(
-        (panel): panel is { selector: string; element: HTMLElement } =>
-            panel.element !== null && canFocus(panel.element),
-    );
+    // While the selection workspace is open the drawing is its preview: its stop comes right after
+    // the workspace's, before the side panel beside it (ws-polish 3).
+    const order =
+        document.querySelector(".sel-ws") === null
+            ? PANELS
+            : PANELS.filter((each) => each !== CANVAS).flatMap((each) =>
+                  each === ".sel-ws-body" ? [each, CANVAS] : [each],
+              );
+    const panels = order
+        .map((selector) => ({
+            selector,
+            element: document.querySelector<HTMLElement>(selector),
+        }))
+        .filter(
+            (panel): panel is { selector: string; element: HTMLElement } =>
+                panel.element !== null && canFocus(panel.element),
+        );
     if (panels.length === 0) {
         return;
     }
@@ -157,18 +266,30 @@ export function cyclePanel(step: 1 | -1): void {
 }
 
 /**
- * Where focus lands in a panel: the control that last had it there, else the drawing itself for
+ * Where focus lands in a panel: where it always lands, else the control that last had it there, else the drawing itself for
  * the canvas, else the panel's first Tab stop.
  * @param selector - the panel's selector.
  * @param element - the panel.
  * @returns the control, or undefined when the panel has none.
  */
 function panelTarget(selector: string, element: HTMLElement): HTMLElement | undefined {
+    // A panel can name where focus always lands (the Assistant's composer).
+    const always = element.querySelector<HTMLElement>("[data-panel-always]");
+    if (always !== null) {
+        return tabStops(always)[0];
+    }
     const last = lastInPanel.get(selector);
-    if (last !== undefined && element.contains(last) && canFocus(last)) {
+    if (last !== undefined && element.contains(last) && canFocus(last) && !last.matches(NOT_A_LANDING)) {
         return last;
     }
-    return element.tagName === "GRAPHTY-ELEMENT" ? element : tabStops(element)[0];
+    if (element.tagName === "GRAPHTY-ELEMENT") {
+        return element;
+    }
+    // A panel can name where focus lands first (the timeline dock's brush, not its first button).
+    const start = element.querySelector<HTMLElement>("[data-panel-start]");
+    const landings = (root: ParentNode): HTMLElement | undefined =>
+        tabStops(root).find((stop) => !stop.matches(NOT_A_LANDING));
+    return (start === null ? undefined : landings(start)) ?? landings(element);
 }
 
 /** How many focused controls the guard remembers, newest last. */

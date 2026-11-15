@@ -87,7 +87,17 @@ changed, the reader's restored work is kept. Change the URL (or the key) when th
 Data calls (`addNodes`, `loadFromUrl`, `loadFromFile` and the rest) also wait for the decision,
 then run as ordinary changes.
 
+A graph the page asks the session for while the entry is still being read (`session.data.import`,
+`loadExample`, `addNodes` and the other session data calls) is never replaced by the restore: the
+work is not reopened over it, stays listed, and fires `graphty-autosave-available` with reason
+`"page-data-changed"`, so the page can offer it.
+
 Restored work that was never saved to a file stays unsaved (`session.project.dirty` is true).
+
+An entry carries the code of every shader the work used, so it comes back the same after the page
+updates graphty-element. If a shader in it no longer reads, its uses are dropped and the rest comes
+back; the entry is then kept as it was and further changes go to a new entry, so the older copy is
+never written over.
 
 ## What each browser guarantees
 
@@ -109,16 +119,17 @@ draws nothing but still loads the data and restores the work, so the reader can 
 
 ## Choices
 
-| Option, on `autosaveOptions` | Default       | What it does                                                                     |
-| ---------------------------- | ------------- | -------------------------------------------------------------------------------- |
-| `key`                        | the attribute | the key, overriding the attribute's value                                        |
-| `restore`                    | `"auto"`      | `"manual"` restores nothing by itself; see below                                 |
-| `delayMs`, `maxWaitMs`       | 500, 2000     | the debounce of a write while visible, and the most a change waits               |
-| `dataMaxWaitMs`              | 10000         | the most a change to the graph's data waits                                      |
-| `keep`                       | 10            | entries per key beyond which clean ones are deleted; unsaved work never is       |
-| `persist`                    | `false`       | ask for persistent storage after the first write that follows a reader's gesture |
-| `unloadGuard`                | `"pending"`   | when to ask the reader before the page closes; see below                         |
-| `store`                      | IndexedDB     | a store of your own (`AutosaveStore` from `@graphty/graphty-element/extend`)     |
+| Option, on `autosaveOptions` | Default       | What it does                                                                         |
+| ---------------------------- | ------------- | ------------------------------------------------------------------------------------ |
+| `key`                        | the attribute | the key, overriding the attribute's value                                            |
+| `restore`                    | `"auto"`      | `"manual"` restores nothing by itself; see below                                     |
+| `delayMs`, `maxWaitMs`       | 500, 2000     | the debounce of a write while visible, and the most a change waits                   |
+| `dataMaxWaitMs`              | 10000         | the most a change to the graph's data waits                                          |
+| `keep`                       | 10            | entries per key beyond which clean ones are deleted; unsaved work never is           |
+| `persist`                    | `false`       | ask for persistent storage after the first write that follows a reader's gesture     |
+| `unloadGuard`                | `"pending"`   | when to ask the reader before the page closes; see below                             |
+| `store`                      | IndexedDB     | a store of your own (`AutosaveStore` from `@graphty/graphty-element/extend`)         |
+| `keepCamera`                 | `false`       | put the camera back where this tab left it when its work reopens, instead of framing |
 
 `autosave-restore="manual"` (or `restore: "manual"`) turns automatic restore off: the element fires
 `graphty-autosave-available` with reason `"manual"` when an entry exists, and you call
@@ -151,7 +162,9 @@ copy survives it.
 - `element.autosaver.status.persisted` says whether the browser granted persistent storage.
   `element.autosaver.requestPersistence()` asks for it (Firefox shows the reader a prompt), and so
   does `autosaveOptions = { persist: true }`, once per page load.
-- `status.ephemeral` is `"likely"` in what looks like a private window or another site's frame.
+- `status.ephemeral` is `"likely"` in a Safari or Firefox private window and in another site's
+  frame. Chrome's Incognito cannot be told from a normal profile, so it reads `"unknown"`; its
+  storage is never persisted, so the warning below still fires there.
 - `graphty-autosave-at-risk` fires once per page load when work that was never saved to a file is
   in storage that is not persisted, or probably private. Its detail is
   `{ code: "W_AUTOSAVE_ORIGIN_EPHEMERAL", params: { persisted, ephemeral, unexported } }`. That is
@@ -185,7 +198,10 @@ await element.autosaver.flush(); // write everything now
 `restore()` refuses with `E_UNSAVED_CHANGES` when the current work was never saved to a file,
 unless `discard: true` is passed; the current work then ends and stays listed. `remove()` and
 `restore()` refuse an entry another tab is writing with `E_AUTOSAVE_ENTRY_TAKEN`, and a missing
-one with `E_AUTOSAVE_UNKNOWN_ENTRY`.
+one with `E_AUTOSAVE_UNKNOWN_ENTRY`. When the browser's database does not answer (another tab holds
+it, or the browser's storage stalled), `restore()` refuses with `E_AUTOSAVE_STALLED` instead of
+waiting: `details.step` is `"list"` or `"read"` (finding or reading the entry) or `"restore"`
+(writing the attempt). The entry is left as it was, so a later `restore()` can open it.
 
 ### Before there is an element
 
@@ -207,6 +223,14 @@ await removeAutosave("acme.org-chart", latest.id);
 ```
 
 Both take `{ store }` for a store of your own. Where the browser keeps no storage, the list is empty.
+When another tab holds the browser's database for three seconds and does not let go (a tab the
+browser suspended in the middle of a write), `listAutosaves` refuses with `E_AUTOSAVE_STALLED`
+rather than answer an empty list: nothing is known about the kept work then, so offer none and
+start the page as usual.
+
+An entry listed with `own: true` is the one this tab was writing before a reload or a discarded
+tab: open it without asking. After a reload the call waits up to two seconds for the page that left
+to let go of the entry; a duplicated tab gets `own: false` while its original is still writing.
 
 ## Status and codes
 
@@ -230,12 +254,12 @@ tries again.
 An entry that was not restored by itself is reported by `graphty-autosave-available`, whose detail
 is `{ entry, reason, problem }`:
 
-| `reason`              | When                                                               |
-| --------------------- | ------------------------------------------------------------------ |
-| `"manual"`            | `restore: "manual"` is set and an entry exists                     |
-| `"page-data-changed"` | the page supplied different data, which replaced the restored work |
-| `"held-by-other-tab"` | the newest entry belongs to a tab that is still open               |
-| `"restore-failed"`    | the entry could not be opened; `problem` says why (below)          |
+| `reason`              | When                                                                  |
+| --------------------- | --------------------------------------------------------------------- |
+| `"manual"`            | `restore: "manual"` is set and an entry exists                        |
+| `"page-data-changed"` | the page supplied different data, which replaced or kept out the work |
+| `"held-by-other-tab"` | the newest entry belongs to a tab that is still open                  |
+| `"restore-failed"`    | the entry could not be opened; `problem` says why (below)             |
 
 | `problem.code`               | When                                                                                             |
 | ---------------------------- | ------------------------------------------------------------------------------------------------ |

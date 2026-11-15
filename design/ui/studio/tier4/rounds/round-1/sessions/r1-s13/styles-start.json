@@ -1,0 +1,351 @@
+{
+ "tree": [
+  {
+   "id": "everything_2",
+   "kind": "layer",
+   "name": "Everything",
+   "pin": "bottom",
+   "locked": false,
+   "hidden": false,
+   "children": []
+  },
+  {
+   "id": "pinned_1",
+   "kind": "layer",
+   "name": "Pinned",
+   "pin": "top",
+   "locked": false,
+   "hidden": false,
+   "children": []
+  },
+  {
+   "id": "selected_2",
+   "kind": "layer",
+   "name": "Selected",
+   "pin": "top",
+   "locked": false,
+   "hidden": false,
+   "children": []
+  },
+  {
+   "id": "hovered_1",
+   "kind": "layer",
+   "name": "Hovered",
+   "pin": "top",
+   "locked": false,
+   "hidden": false,
+   "children": []
+  }
+ ],
+ "layers": [
+  {
+   "id": "node-defaults_1",
+   "name": "Node defaults",
+   "kind": "base",
+   "source": {
+    "by": "element",
+    "reason": "default"
+   },
+   "locked": true,
+   "enabled": true,
+   "target": "node",
+   "selector": {
+    "match": "everything"
+   },
+   "set": {
+    "node.color": "#6366F1",
+    "node.size": 1,
+    "node.shape": "icosphere"
+   },
+   "counts": {
+    "matched": 12,
+    "painted": {
+     "node.color": 0,
+     "node.size": 0,
+     "node.shape": 0
+    },
+    "noValue": 0,
+    "outsideScale": 0,
+    "reads": [],
+    "paintedBy": [],
+    "covers": {},
+    "undrawn": [],
+    "leftOut": [],
+    "tops": [],
+    "adjusted": [],
+    "revision": "1.8"
+   }
+  },
+  {
+   "id": "edge-defaults_1",
+   "name": "Edge defaults",
+   "kind": "base",
+   "source": {
+    "by": "element",
+    "reason": "default"
+   },
+   "locked": true,
+   "enabled": true,
+   "target": "edge",
+   "selector": {
+    "match": "everything"
+   },
+   "set": {
+    "edge.color": "darkgrey",
+    "edge.width": 8,
+    "edge.style": "solid",
+    "edge.animationSpeed": 0
+   },
+   "counts": {
+    "matched": 0,
+    "painted": {
+     "edge.color": 0,
+     "edge.width": 0,
+     "edge.style": 0,
+     "edge.animationSpeed": 0
+    },
+    "noValue": 0,
+    "outsideScale": 0,
+    "reads": [],
+    "paintedBy": [],
+    "covers": {},
+    "undrawn": [],
+    "leftOut": [],
+    "tops": [],
+    "adjusted": [],
+    "revision": "1.8"
+   }
+  },
+  {
+   "id": "everything_1",
+   "name": "Everything",
+   "kind": "custom",
+   "source": {
+    "by": "template",
+    "templateId": "graphty:starting-everything"
+   },
+   "locked": false,
+   "enabled": true,
+   "target": "edge",
+   "selector": {
+    "match": "everything"
+   },
+   "set": {
+    "edge.color": "darkgrey",
+    "edge.width": 8,
+    "edge.style": "solid",
+    "edge.animationSpeed": 0
+   },
+   "row": "everything_2",
+   "counts": {
+    "matched": 0,
+    "painted": {
+     "edge.color": 0,
+     "edge.width": 0,
+     "edge.style": 0,
+     "edge.animationSpeed": 0
+    },
+    "noValue": 0,
+    "outsideScale": 0,
+    "reads": [],
+    "paintedBy": [],
+    "covers": {},
+    "undrawn": [],
+    "leftOut": [],
+    "tops": [],
+    "adjusted": [],
+    "revision": "1.8"
+   }
+  },
+  {
+   "id": "everything_2",
+   "name": "Everything",
+   "kind": "custom",
+   "source": {
+    "by": "template",
+    "templateId": "graphty:starting-everything"
+   },
+   "locked": false,
+   "enabled": true,
+   "target": "node",
+   "selector": {
+    "match": "everything"
+   },
+   "set": {
+    "node.color": "#6366F1",
+    "node.size": 1,
+    "node.shape": "icosphere"
+   },
+   "row": "everything_2",
+   "counts": {
+    "matched": 12,
+    "painted": {
+     "node.color": 12,
+     "node.size": 12,
+     "node.shape": 12
+    },
+    "noValue": 0,
+    "outsideScale": 0,
+    "reads": [],
+    "paintedBy": [],
+    "covers": {},
+    "undrawn": [],
+    "leftOut": [],
+    "tops": [],
+    "adjusted": [],
+    "revision": "1.8"
+   }
+  },
+  {
+   "id": "pinned_1",
+   "name": "Pinned",
+   "kind": "custom",
+   "source": {
+    "by": "template",
+    "templateId": "graphty:starting-pinned"
+   },
+   "locked": false,
+   "enabled": true,
+   "target": "node",
+   "selector": {
+    "match": "state",
+    "state": "pinned"
+   },
+   "set": {
+    "node.haloColor": "#868E96",
+    "node.haloScale": 1.3,
+    "node.haloOpacity": 1
+   },
+   "counts": {
+    "matched": 0,
+    "painted": {
+     "node.haloColor": 0,
+     "node.haloScale": 0,
+     "node.haloOpacity": 0
+    },
+    "noValue": 0,
+    "outsideScale": 0,
+    "reads": [],
+    "paintedBy": [],
+    "covers": {},
+    "undrawn": [],
+    "leftOut": [],
+    "tops": [],
+    "adjusted": [],
+    "revision": "1.8"
+   }
+  },
+  {
+   "id": "selected_1",
+   "name": "Selected",
+   "kind": "custom",
+   "source": {
+    "by": "template",
+    "templateId": "graphty:starting-selected"
+   },
+   "locked": false,
+   "enabled": true,
+   "target": "edge",
+   "selector": {
+    "match": "state",
+    "state": "selected"
+   },
+   "set": {
+    "edge.bandColor": "#0077BB",
+    "edge.bandWidth": 2.5,
+    "edge.bandOpacity": 1
+   },
+   "row": "selected_2",
+   "counts": {
+    "matched": 0,
+    "painted": {
+     "edge.bandColor": 0,
+     "edge.bandWidth": 0,
+     "edge.bandOpacity": 0
+    },
+    "noValue": 0,
+    "outsideScale": 0,
+    "reads": [],
+    "paintedBy": [],
+    "covers": {},
+    "undrawn": [],
+    "leftOut": [],
+    "tops": [],
+    "adjusted": [],
+    "revision": "1.8"
+   }
+  },
+  {
+   "id": "selected_2",
+   "name": "Selected",
+   "kind": "custom",
+   "source": {
+    "by": "template",
+    "templateId": "graphty:starting-selected"
+   },
+   "locked": false,
+   "enabled": true,
+   "target": "node",
+   "selector": {
+    "match": "state",
+    "state": "selected"
+   },
+   "set": {
+    "node.haloColor": "#FFD700",
+    "node.haloScale": 1.45,
+    "node.haloOpacity": 1,
+    "node.glow": "#111111"
+   },
+   "row": "selected_2",
+   "counts": {
+    "matched": 0,
+    "painted": {
+     "node.haloColor": 0,
+     "node.haloScale": 0,
+     "node.haloOpacity": 0,
+     "node.glow": 0
+    },
+    "noValue": 0,
+    "outsideScale": 0,
+    "reads": [],
+    "paintedBy": [],
+    "covers": {},
+    "undrawn": [],
+    "leftOut": [],
+    "tops": [],
+    "adjusted": [],
+    "revision": "1.8"
+   }
+  },
+  {
+   "id": "hovered_1",
+   "name": "Hovered",
+   "kind": "custom",
+   "source": {
+    "by": "template",
+    "templateId": "graphty:starting-hovered"
+   },
+   "locked": false,
+   "enabled": true,
+   "target": "node",
+   "selector": {
+    "match": "state",
+    "state": "hovered"
+   },
+   "counts": {
+    "matched": 0,
+    "painted": {},
+    "noValue": 0,
+    "outsideScale": 0,
+    "reads": [],
+    "paintedBy": [],
+    "covers": {},
+    "undrawn": [],
+    "leftOut": [],
+    "tops": [],
+    "adjusted": [],
+    "revision": "1.8"
+   }
+  }
+ ]
+}

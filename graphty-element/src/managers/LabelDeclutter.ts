@@ -1,13 +1,10 @@
-import {
-    AbstractMesh,
-    type Camera,
-    Matrix,
-    type Mesh,
-    type Observer,
-    type Scene,
-    Vector3,
-    Viewport,
-} from "@babylonjs/core";
+import type { Observer } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Viewport } from "@babylonjs/core/Maths/math.viewport.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { LabelDeclutterOrder } from "../catalog/label-style";
 import type { Edge } from "../Edge";
@@ -15,6 +12,7 @@ import type { RichTextLabel } from "../meshes/RichTextLabel";
 import type { Node } from "../Node";
 import { animatesEveryFrame } from "./everyFrameAnimations";
 import type { GraphContext } from "./GraphContext";
+import { LabelSampler } from "./LabelSampler";
 
 /**
  * How many node labels the element is drawing, and why the rest are not.
@@ -43,6 +41,13 @@ export interface NodeLabelCounts {
      * of the canvas.
      */
     readonly hiddenByOverlap: number;
+    /**
+     * Labels not built because label sampling (`layoutBehavior.labels.sampleCell`) kept another
+     * node's label in their screen cell, or their node is outside the view. Never counts a label
+     * whose node is hidden. Present only while sampling is on.
+     * @since 3.47.0
+     */
+    readonly hiddenBySampling?: number;
 }
 
 /**
@@ -125,7 +130,12 @@ const QUIET_FRAMES = 10;
  * @returns True when every count is equal.
  */
 function sameCounts(a: NodeLabelCounts, b: NodeLabelCounts): boolean {
-    return a.labeled === b.labeled && a.nodeHidden === b.nodeHidden && a.hiddenByOverlap === b.hiddenByOverlap;
+    return (
+        a.labeled === b.labeled &&
+        a.nodeHidden === b.nodeHidden &&
+        a.hiddenByOverlap === b.hiddenByOverlap &&
+        a.hiddenBySampling === b.hiddenBySampling
+    );
 }
 
 /** One labeled node, what the last pass saw of it, and where its words were on screen. */
@@ -259,6 +269,8 @@ export class LabelDeclutter {
     /** What the last pass saw of edge texts. Read by `element.edgeLabelCounts`. */
     edgeCounts: EdgeLabelCounts = NO_EDGE_LABELS;
 
+    /** Label sampling: which nodes build their label at all. */
+    readonly sampler: LabelSampler;
     private readonly observer: Observer<Scene>;
     private readonly entries = new Map<Node, Entry>();
     /** How many labels were ever tracked, numbering each entry's `added`. */
@@ -304,7 +316,9 @@ export class LabelDeclutter {
      * the counts it drew, and a wait for the finished picture would wait for ever.
      */
     private releaseFrames: (() => void) | null = null;
-    private published: NodeLabelCounts = NO_NODE_LABELS;
+    private announced: NodeLabelCounts = NO_NODE_LABELS;
+    /** Someone asked {@link LabelDeclutter.published} while the counts were not: publish early. */
+    private wanted = false;
     /** Callers of {@link LabelDeclutter.whenPublished} waiting for the next publish. */
     private readonly waiters: (() => void)[] = [];
     private camera: Camera | null = null;
@@ -331,6 +345,7 @@ export class LabelDeclutter {
         private readonly scene: Scene,
         private readonly context: GraphContext,
     ) {
+        this.sampler = new LabelSampler(scene, context);
         this.observer = scene.onBeforeRenderObservable.add(() => {
             this.run();
         });
@@ -383,6 +398,35 @@ export class LabelDeclutter {
                 nry: 0,
                 slot: -1,
             });
+        }
+    }
+
+    /**
+     * Asked by a node about to build its label: whether label sampling holds it back.
+     * @param scene - The scene the label is drawn in.
+     * @param context - The graph.
+     * @param node - The node.
+     * @param wanted - Whether its style asks for a label at all.
+     * @returns True when the label must not be built.
+     */
+    static withholds(scene: Scene, context: GraphContext, node: Node, wanted: boolean): boolean {
+        if (context.getStyles().config.behavior.labels.sampleCell === undefined) {
+            const declutter: unknown = scene.metadata?.labelDeclutter;
+            return declutter instanceof LabelDeclutter ? declutter.sampler.withholds(node, wanted) : false;
+        }
+
+        return LabelDeclutter.of(scene, context).sampler.withholds(node, wanted);
+    }
+
+    /**
+     * A row drawn plain past `limits.objectRows` wants a label: while label sampling is on, a pass is owed,
+     * which may pick the row and build it a `Node` for the label.
+     * @param scene - The scene the labels are drawn in.
+     * @param context - The graph.
+     */
+    static notePlainLabel(scene: Scene, context: GraphContext): void {
+        if (context.getStyles().config.behavior.labels.sampleCell !== undefined) {
+            LabelDeclutter.of(scene, context).sampler.pending = true;
         }
     }
 
@@ -442,6 +486,20 @@ export class LabelDeclutter {
             return;
         }
 
+        const { sampler } = this;
+        if (
+            sampler.run(camera, this.entries.keys(), () => {
+                this.refreshDegrees();
+                return this.degrees;
+            })
+        ) {
+            this.dirty = true;
+        }
+
+        if (sampler.pending) {
+            this.releaseFrames ??= animatesEveryFrame(this.scene);
+        }
+
         if (
             on !== this.wasOn ||
             avoidNodesAndEdges !== this.wasAvoiding ||
@@ -457,7 +515,7 @@ export class LabelDeclutter {
 
             this.quiet = 0;
             this.releaseFrames ??= animatesEveryFrame(this.scene);
-        } else if (++this.quiet === QUIET_FRAMES || this.waiters.length > 0) {
+        } else if (!sampler.pending && (++this.quiet === QUIET_FRAMES || this.waiters.length > 0 || this.wanted)) {
             // Someone waiting for the counts (`waitForStableFrame`) gets them on the first frame
             // with nothing to re-decide: the labels have settled, and the QUIET_FRAMES wait only
             // keeps a gesture from publishing every frame. Counting those frames instead made the
@@ -479,13 +537,31 @@ export class LabelDeclutter {
      * @returns A promise that resolves when nothing is left to publish.
      */
     whenPublished(): Promise<void> {
+        if (this.published()) {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+            this.waiters.push(resolve);
+        });
+    }
+
+    /**
+     * Whether the counts of the last pass have been published, asked without waiting: the entry a
+     * graph's record of pending work asks (issue #4219). Asking it while they are not makes the next
+     * frame with nothing to re-decide publish them, as a {@link LabelDeclutter.whenPublished} waiter
+     * does.
+     * @returns True when nothing is left to publish.
+     */
+    published(): boolean {
         // A setting switched since the last pass is a pass still to come: without this check a
         // wait started right after `labels.declutter` changed resolved before any label moved.
         const { declutter, avoidNodesAndEdges } = this.context.getStyles().config.behavior.labels;
         const on = declutter || avoidNodesAndEdges || this.styledLabels > 0;
-        const settled = !this.dirty && on === this.wasOn && avoidNodesAndEdges === this.wasAvoiding;
-        if (settled && sameCounts(this.counts, this.published)) {
-            return Promise.resolve();
+        const settled =
+            !this.dirty && !this.sampler.pending && on === this.wasOn && avoidNodesAndEdges === this.wasAvoiding;
+        if (settled && sameCounts(this.counts, this.announced)) {
+            return true;
         }
 
         // The caller waits for the finished picture, and a frame has been drawn since the last
@@ -497,19 +573,19 @@ export class LabelDeclutter {
             this.publish();
             this.releaseFrames?.();
             this.releaseFrames = null;
-            return Promise.resolve();
+            return true;
         }
 
-        return new Promise((resolve) => {
-            this.waiters.push(resolve);
-        });
+        this.wanted = true;
+        return false;
     }
 
     /** Tell the context the counts, when they differ from the last it was told. */
     private publish(): void {
         const { counts } = this;
-        if (!sameCounts(counts, this.published)) {
-            this.published = counts;
+        this.wanted = false;
+        if (!sameCounts(counts, this.announced)) {
+            this.announced = counts;
             this.context.onNodeLabelCounts?.notifyObservers(counts);
         }
 
@@ -544,14 +620,35 @@ export class LabelDeclutter {
     }
 
     private setCounts(labeled: number, nodeHidden: number, hiddenByOverlap: number): void {
-        const { counts } = this;
-        if (
-            counts.labeled !== labeled ||
-            counts.nodeHidden !== nodeHidden ||
-            counts.hiddenByOverlap !== hiddenByOverlap
-        ) {
-            this.counts = Object.freeze({ labeled, nodeHidden, hiddenByOverlap });
+        const { on, unbuilt, unbuiltHidden } = this.sampler;
+        const next: NodeLabelCounts = on
+            ? {
+                  labeled: labeled + unbuilt,
+                  nodeHidden: nodeHidden + unbuiltHidden,
+                  hiddenByOverlap,
+                  hiddenBySampling: unbuilt - unbuiltHidden,
+              }
+            : { labeled, nodeHidden, hiddenByOverlap };
+        if (!sameCounts(this.counts, next)) {
+            this.counts = Object.freeze(next);
         }
+    }
+
+    /**
+     * Move the labels for a camera a framing has just set, so the framing measures them where
+     * they are drawn from it (issue #8250). Only the labels' places change the room they take:
+     * hiding one (`declutter`) leaves its plane where it was, so nothing runs without
+     * `avoidNodesAndEdges`.
+     * @param camera - The camera the framing set.
+     * @returns True when labels were placed.
+     */
+    placeForFraming(camera: Camera): boolean {
+        if (!this.context.getStyles().config.behavior.labels.avoidNodesAndEdges) {
+            return false;
+        }
+
+        this.place(camera);
+        return true;
     }
 
     /**
@@ -718,8 +815,8 @@ export class LabelDeclutter {
         // render id without looking at the position, so a node the layout moved after that
         // was measured one step behind, and the last step before the layout rested left labels
         // decided for places their nodes had left.
-        const parent = entry.node.mesh;
-        const centre = Vector3.TransformCoordinatesToRef(mesh.position, parent.computeWorldMatrix(true), this.centre);
+        const { node } = entry;
+        const centre = Vector3.TransformCoordinatesToRef(mesh.position, node.drawnWorldMatrix(true), this.centre);
 
         // A label behind the camera projects to a mirrored point on screen, and one outside
         // the view is not drawn at all; neither may hide a label the reader can see. This
@@ -730,7 +827,7 @@ export class LabelDeclutter {
         }
 
         const extent = mesh.getBoundingInfo().boundingBox.extendSize;
-        const scale = parent.absoluteScaling;
+        const scale = node.drawnWorldScaling;
         const corner = this.corner.copyFrom(centre);
         this.right.scaleAndAddToRef(extent.x * Math.abs(scale.x * mesh.scaling.x), corner);
         this.up.scaleAndAddToRef(extent.y * Math.abs(scale.y * mesh.scaling.y), corner);
@@ -762,7 +859,7 @@ export class LabelDeclutter {
 
         if (entry.styled === "size") {
             entry.labelSize = entry.bottom - entry.top;
-            entry.nodeSize = parent.getBoundingInfo().boundingSphere.radiusWorld / Math.max(entry.perPixelY, 1e-12);
+            entry.nodeSize = node.drawnWorldRadius / Math.max(entry.perPixelY, 1e-12);
         }
         return true;
     }
@@ -943,10 +1040,9 @@ export class LabelDeclutter {
     private nodesChanged(): boolean {
         let seen = 0;
         for (const node of this.context.getDataManager().nodes.values()) {
-            const { mesh } = node;
-            const { position } = mesh;
-            seen += position.x * 1.31 + position.y * 2.71 + position.z * 3.17 + mesh.uniqueId * 0.001;
-            if (mesh.isEnabled()) {
+            const position = node.drawnPosition;
+            seen += position.x * 1.31 + position.y * 2.71 + position.z * 3.17 + node.drawnGeneration * 0.001;
+            if (node.isDrawn) {
                 seen += 0.5;
             }
         }
@@ -990,7 +1086,7 @@ export class LabelDeclutter {
                 return true;
             }
 
-            const { position } = entry.node.mesh;
+            const position = entry.node.drawnPosition;
             if (
                 position.x !== entry.x ||
                 position.y !== entry.y ||
@@ -1027,9 +1123,10 @@ export class LabelDeclutter {
             entry.placed = null;
         }
 
-        entry.x = node.mesh.position.x;
-        entry.y = node.mesh.position.y;
-        entry.z = node.mesh.position.z;
+        const { x, y, z } = node.drawnPosition;
+        entry.x = x;
+        entry.y = y;
+        entry.z = z;
         entry.enabled = mesh.isEnabled();
         entry.selected = node.isSelected();
         entry.degree = this.degrees.get(node.id) ?? 0;
@@ -1206,14 +1303,13 @@ export class LabelDeclutter {
      * @returns False when the node is not drawn or is behind the camera.
      */
     private projectNode(node: Node, slot: number, size: number): boolean {
-        const { mesh } = node;
-        if (mesh.isDisposed() || !mesh.isEnabled()) {
+        if (!node.isDrawn) {
             return false;
         }
 
         const { view, viewport, nodeAreas } = this;
         // Forced, for the reason given in `placeNodes`.
-        const centre = mesh.computeWorldMatrix(true).getTranslationToRef(this.centre);
+        const centre = node.drawnWorldMatrix(true).getTranslationToRef(this.centre);
         const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
         if (depth <= 0) {
             return false;
@@ -1226,13 +1322,11 @@ export class LabelDeclutter {
         // A node ringed by its halo (the selection ring) reaches as far as the ring: a label moved
         // beside it, its own or another node's, keeps clear of the ring, not of the node inside it.
         const ring = node.label?.ringScale ?? 1;
-        if (node.roundRadius === null && ring <= 1 && this.projectBox(mesh, at)) {
+        if (node.roundRadius === null && ring <= 1 && this.projectBox(node, at)) {
             nodeAreas[at + 4] = 0;
         } else {
-            const root =
-                mesh.parent && "absoluteScaling" in mesh.parent ? (mesh.parent.absoluteScaling as Vector3).x : 1;
             const corner = this.corner.copyFrom(centre);
-            this.right.scaleAndAddToRef(node.drawnRadius * ring * Math.abs(root), corner);
+            this.right.scaleAndAddToRef(node.drawnRadius * ring * Math.abs(node.drawnRootScale), corner);
             const k = Vector3.TransformCoordinatesToRef(corner, this.worldToPixels, this.cornerOnScreen);
             const r = Math.hypot(k.x - c.x, k.y - c.y);
             nodeAreas[at + 2] = r;
@@ -1267,17 +1361,17 @@ export class LabelDeclutter {
      * into its slot, as half-sizes about the centre already there. A box, a tall cylinder or a
      * torus is not the circle its largest half-extent draws: a box's corners reach past it, and a
      * tall or flat node's circle hides labels beside it for nothing.
-     * @param mesh - The node's mesh, its world matrix computed.
+     * @param node - The node, its world matrix computed.
      * @param at - Where its slot starts.
      * @returns False, writing nothing, when a corner is behind the camera and cannot be projected.
      */
-    private projectBox(mesh: Node["mesh"], at: number): boolean {
+    private projectBox(node: Node, at: number): boolean {
         const { view, nodeAreas } = this;
         const cx = nodeAreas[at];
         const cy = nodeAreas[at + 1];
         let rx = 0;
         let ry = 0;
-        for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld) {
+        for (const corner of node.drawnBoundingBox.vectorsWorld) {
             if (corner.x * view[2] + corner.y * view[6] + corner.z * view[10] + view[14] <= 0) {
                 return false;
             }
@@ -1524,8 +1618,7 @@ export class LabelDeclutter {
         // The plane's centre from the words' rectangle: the inverse of `frame`.
         const x = entry.left - (2 * text.left - 1) * entry.across;
         const y = entry.top - (2 * text.top - 1) * entry.down;
-        const parent = entry.node.mesh;
-        const world = parent.computeWorldMatrix();
+        const world = entry.node.drawnWorldMatrix();
         const at = Vector3.TransformCoordinatesToRef(entry.home, world, this.moved);
         this.right.scaleAndAddToRef((x - entry.cx) * entry.perPixelX, at);
         // Screen y grows downwards.
@@ -1649,13 +1742,13 @@ function cell(at: number, size: number, count: number): number {
 }
 
 /**
- * The texts an edge is drawing: its label and its end captions, each with a live plane.
+ * The texts an edge is drawing: its label, its external label and its end captions, each with a live plane.
  * @param edge - The edge.
  * @returns The texts, in that order.
  */
 function edgeTexts(edge: Edge): RichTextLabel[] {
     const texts: RichTextLabel[] = [];
-    for (const text of [edge.label, edge.arrowHeadText, edge.arrowTailText]) {
+    for (const text of [edge.label, edge.xlabelLabel, edge.arrowHeadText, edge.arrowTailText]) {
         const mesh = text?.labelMesh;
         // a text with no words (an empty label column) has a plane of no size, placed nowhere a
         // number can say (NaN): it draws nothing, so it is neither counted nor watched

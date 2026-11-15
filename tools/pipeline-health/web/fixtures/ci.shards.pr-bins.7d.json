@@ -1,0 +1,41 @@
+{
+    "page": "ci",
+    "range": "7d",
+    "generated": "2026-10-25T23:30:00Z",
+    "section": {
+        "kind": "shards",
+        "id": "shards",
+        "range": "7d",
+        "runKind": "pr-bins",
+        "rows": [
+            {
+                "shard": "graphty-element-browser",
+                "runs": 212,
+                "minRuns": 5,
+                "medianS": 444,
+                "p90S": 516,
+                "budgetS": 480
+            },
+            {
+                "shard": "graphty",
+                "runs": 188,
+                "minRuns": 5,
+                "medianS": 414,
+                "p90S": 468,
+                "budgetS": 480
+            },
+            {
+                "shard": "graphty-element-storybook",
+                "runs": 160,
+                "minRuns": 5,
+                "medianS": 366,
+                "p90S": 432,
+                "budgetS": 480
+            }
+        ],
+        "more": {
+            "count": 9,
+            "allWithin": true
+        }
+    }
+}

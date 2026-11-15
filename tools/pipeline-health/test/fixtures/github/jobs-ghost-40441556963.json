@@ -1,0 +1,30 @@
+{
+    "total_count": 1,
+    "jobs": [
+        {
+            "id": 121982867527,
+            "run_id": 40441556963,
+            "workflow_name": "PR Title",
+            "head_branch": "fix/3938-master-builds-finish",
+            "run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/runs/40441556963",
+            "run_attempt": 1,
+            "node_id": "CR_kwDOQuemQs8AAAAcZr7YRw",
+            "head_sha": "97a0065888306569d249e7389d60a60def579daa",
+            "url": "https://api.github.com/repos/graphty-org/graphty-monorepo/actions/jobs/121982867527",
+            "html_url": "https://github.com/graphty-org/graphty-monorepo/actions/runs/40441556963/job/121982867527",
+            "status": "queued",
+            "conclusion": null,
+            "created_at": "2026-10-27T02:58:55Z",
+            "started_at": "2026-10-27T02:58:55Z",
+            "completed_at": null,
+            "name": "Lint PR Title",
+            "steps": [],
+            "check_run_url": "https://api.github.com/repos/graphty-org/graphty-monorepo/check-runs/121982867527",
+            "labels": ["ubuntu-24.04"],
+            "runner_id": 0,
+            "runner_name": "",
+            "runner_group_id": 0,
+            "runner_group_name": ""
+        }
+    ]
+}

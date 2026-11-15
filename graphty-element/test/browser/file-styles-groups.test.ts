@@ -10,6 +10,9 @@ import { afterEach, assert, describe, test } from "vitest";
 import type { Graphty } from "../../index.js";
 import { readDrawn } from "../fidelity/drawn-scene";
 import { occluders } from "../fidelity/extract-scene";
+import { fileStylesOn } from "../helpers/file-styles-on";
+
+fileStylesOn();
 
 /** An outer compound holding an inner one holding two nodes, each drawn as a filled rectangle. */
 const DOC = JSON.stringify({
@@ -106,7 +109,8 @@ function drawnSizes(element: Graphty, id: string): { border: number; label: numb
         const { minimumWorld: min, maximumWorld: max } = mesh.getBoundingInfo().boundingBox;
         return { x: max.x - min.x, y: max.y - min.y };
     };
-    const ring = node.mesh.getChildMeshes().find((mesh) => mesh.name.startsWith("node-border"));
+    // The drawn ring: a group keeps the cached border its ring replaced, hidden, beside it.
+    const ring = node.mesh.getChildMeshes().find((mesh) => mesh.name.startsWith("node-border") && mesh.isEnabled());
     assert.isDefined(ring, `${id} has a border`);
     const label = node.label?.labelMesh;
     assert.isDefined(label ?? undefined, `${id} has a label`);

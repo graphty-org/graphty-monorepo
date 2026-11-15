@@ -67,6 +67,11 @@ export const PACKED: Readonly<
         sha256: "581a47f5d6c73f93b395e8e314bab7e79cf09fff9086902e011a19fe87b02011",
         thumbnail: "openflights.webp",
     },
+    "venice-transit": {
+        bytes: 69012,
+        sha256: "1274782031f47685d9afb976b88d62518a6ceec7c0bc1eba743324df6c220db3",
+        thumbnail: "venice-transit.webp",
+    },
     "yeast-perturbation": {
         bytes: 13463,
         sha256: "5c656ba6c952ff64c7dc73098b4cb111ee7b13f972ba9288272a6cdb72c6f5dc",

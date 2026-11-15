@@ -1,0 +1,8 @@
+{
+ "problems": [
+  "layer \"PageRank\" (pagerank_1): it says it selects 24 nodes with a value, but the element paints 0"
+ ],
+ "notes": [],
+ "items": 6,
+ "layers": 4
+}

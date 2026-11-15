@@ -224,7 +224,41 @@ function toCyjs(target: StyleTarget, property: string, value: StyleValue): Writt
         case "labelBorderWidth":
             return ifNumber(value, (v) => exact({ "text-border-width": v, "text-border-opacity": 1 }));
         default:
-            return propertyToCyjs(property, value, specs);
+            return groupToCyjs(property, value) ?? propertyToCyjs(property, value, specs);
+    }
+}
+
+/**
+ * A compound parent's sizing as Cytoscape.js properties: a bias share as the two sides' percentages.
+ * @param property - the neutral property
+ * @param value - the value
+ * @returns the properties, or null when the property is no group sizing
+ */
+function groupToCyjs(property: string, value: StyleValue): Written | null {
+    const percent = (v: number): string => `${num6(v * 100)}%`;
+    switch (property) {
+        case "groupPadding":
+            return ifNumber(value, (v) => exact({ padding: `${num6(v)}px` }));
+        case "groupPaddingRatio":
+            return ifNumber(value, (v) => exact({ padding: percent(v) }));
+        case "groupPaddingOf":
+            return exact({ "padding-relative-to": String(value) });
+        case "groupMinWidth":
+            return ifNumber(value, (v) => exact({ "min-width": `${num6(v)}px` }));
+        case "groupMinHeight":
+            return ifNumber(value, (v) => exact({ "min-height": `${num6(v)}px` }));
+        case "groupMinWidthBiasLeft":
+            return ifNumber(value, (v) =>
+                exact({ "min-width-bias-left": percent(v), "min-width-bias-right": percent(1 - v) }),
+            );
+        case "groupMinHeightBiasTop":
+            return ifNumber(value, (v) =>
+                exact({ "min-height-bias-top": percent(v), "min-height-bias-bottom": percent(1 - v) }),
+            );
+        case "groupIncludeLabels":
+            return exact({ "compound-sizing-wrt-labels": value === false ? "exclude" : "include" });
+        default:
+            return null;
     }
 }
 
@@ -379,6 +413,34 @@ function lineStyleToCyjs(value: string): Written {
     return near({ "line-style": value === "dash-dot" || value === "long-dash" ? "dashed" : "solid" });
 }
 
+const BY_PROPERTY = new WeakMap<
+    ReadonlyMap<string, CyjsPropertySpec>,
+    ReadonlyMap<string, readonly [string, CyjsPropertySpec]>
+>();
+
+/**
+ * A target's properties by the neutral property each carries (the first that carries it), built once per table: a
+ * scan per value made writing a graph's values cost its size times the table's.
+ * @param specs - the target's properties
+ * @returns the Cytoscape.js name and spec, by neutral property
+ */
+function specsByProperty(
+    specs: ReadonlyMap<string, CyjsPropertySpec>,
+): ReadonlyMap<string, readonly [string, CyjsPropertySpec]> {
+    let index = BY_PROPERTY.get(specs);
+    if (index === undefined) {
+        const built = new Map<string, readonly [string, CyjsPropertySpec]>();
+        for (const [name, spec] of specs) {
+            if (!built.has(spec.property)) {
+                built.set(spec.property, [name, spec]);
+            }
+        }
+        index = built;
+        BY_PROPERTY.set(specs, index);
+    }
+    return index;
+}
+
 /**
  * Any other property: the Cytoscape.js property that carries it, the value as it is.
  * @param property - the neutral property
@@ -391,7 +453,7 @@ function propertyToCyjs(
     value: StyleValue,
     specs: ReadonlyMap<string, CyjsPropertySpec>,
 ): Written | null {
-    const entry = Array.from(specs).find(([, spec]) => spec.property === property);
+    const entry = specsByProperty(specs).get(property);
     if (entry === undefined) {
         return null;
     }
@@ -491,7 +553,9 @@ function writeColumn(
  */
 function testsOf(e: Emit, target: StyleTarget, where: Predicate): string[] | null {
     if ("all" in where) {
-        return where.all ? [""] : null;
+        // the rule is the caller's, so `all` can be any value
+        const { all }: { all: unknown } = where;
+        return all ? [""] : null;
     }
     if ("has" in where) {
         const k = keyOf(e, target, where.has);

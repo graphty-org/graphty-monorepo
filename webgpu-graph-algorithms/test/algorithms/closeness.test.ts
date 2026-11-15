@@ -206,7 +206,6 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
         ctx.release(s);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 11 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("a hub of more than PULL_MAX_DEGREE in-arcs keeps every level a push, one invocation per arc: a forced pull still gives the star's closed form", async (t) => {
         const ctx = await context(t);
         const k = PULL_MAX_DEGREE + 1;
@@ -220,7 +219,7 @@ describe("closenessCentrality (design 8.4 / 9.7)", () => {
             ).toBe(true);
         }
         ctx.release(s);
-    }, 120_000);
+    });
 
     it("karate: the oracle's sums exactly, and score for score within 1e-6 of the CPU closenessCentrality with no options (the legacy 1 / sum, never the NetworkX form)", async (t) => {
         const ctx = await context(t);

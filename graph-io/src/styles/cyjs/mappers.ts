@@ -15,7 +15,7 @@
  *   property to its Cytoscape.js default, whatever the rules beneath say.
  */
 
-import { canonColor } from "../canon/color.js";
+import { canonColor, hexChannels } from "../canon/color.js";
 import { CSS_COLORS } from "../canon/color-tables.js";
 import { canonEnum } from "../canon/enums.js";
 import { num6 } from "../canon/number.js";
@@ -25,7 +25,7 @@ import type { StyleTarget, StyleValue } from "../types.js";
 import { CYJS_FACE_PROPERTIES } from "./face.js";
 
 /** How Cytoscape.js types a property's value. */
-export type CyjsValueType =
+type CyjsValueType =
     | "color"
     | "zeroOne"
     | "size"
@@ -301,6 +301,27 @@ const CYJS_ROUND_SHAPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * A Cytoscape.js node shape as the neutral shape.
+ * @param word - the shape as written
+ * @param site - where it was read
+ * @returns the neutral shape, or undefined when it does not parse (noted)
+ */
+function cyjsShape(word: string, site: CanonSite): string | undefined {
+    const polygon = word.toLowerCase();
+    if (polygon === "polygon") {
+        return "polygon";
+    }
+    // two square corners, which no neutral shape has; other formats still read the name as round-rectangle
+    if (polygon === "bottom-round-rectangle" || polygon === "bottomroundrectangle") {
+        return "other:bottom-round-rectangle";
+    }
+    // drawn exactly as the polygon Cytoscape.js builds, by `cyjsPolygonShapes`
+    return CYJS_POLYGON_SHAPES.has(polygon) || CYJS_ROUND_SHAPES.has(polygon)
+        ? `other:${polygon}`
+        : (canonEnum("shape", word, "cytoscape-js", site) ?? undefined);
+}
+
+/**
  * Draws every Cytoscape.js shape no neutral shape names (`other:heptagon`, `other:tag`) as the polygon Cytoscape.js
  * builds for it: `polygon` with its corners in `shapePoints`.
  * @param values - node values (per element, or a rule's constants), changed in place
@@ -465,6 +486,18 @@ export const CYJS_NODE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     ["height", { property: "height", type: "nodeSize" }],
     // a node is drawn this much larger on every side (`nodeSizes`)
     ["padding", { property: "_padding", type: "text" }],
+    // how a compound parent is sized round its children (`groupBoxes`)
+    [
+        "padding-relative-to",
+        { property: "_paddingOf", type: "enum", enums: ["width", "height", "average", "min", "max"] },
+    ],
+    ["min-width", { property: "_minWidth", type: "text" }],
+    ["min-height", { property: "_minHeight", type: "text" }],
+    ["min-width-bias-left", { property: "_biasLeft", type: "text" }],
+    ["min-width-bias-right", { property: "_biasRight", type: "text" }],
+    ["min-height-bias-top", { property: "_biasTop", type: "text" }],
+    ["min-height-bias-bottom", { property: "_biasBottom", type: "text" }],
+    ["compound-sizing-wrt-labels", { property: "_compoundLabels", type: "enum", enums: ["include", "exclude"] }],
     [
         "text-valign",
         { property: "_valign", type: "enum", enums: ["top", "top-inside", "center", "bottom", "bottom-inside"] },
@@ -538,6 +571,8 @@ export const CYJS_EDGE_PROPERTIES: ReadonlyMap<string, CyjsPropertySpec> = new M
     // where the ends meet the nodes, read with the routes (`edgePorts`)
     ["source-endpoint", { property: "_sourceEndpoint", type: "text" }],
     ["target-endpoint", { property: "_targetEndpoint", type: "text" }],
+    ["source-distance-from-node", { property: "sourceNodeGap", type: "size" }],
+    ["target-distance-from-node", { property: "targetNodeGap", type: "size" }],
     // a bundle's control points are this far apart, so the curves' middles half of it (see cyjsNeutral)
     ["control-point-step-size", { property: "fanSpacing", type: "size" }],
     ["arrow-scale", { property: "arrowSize", type: "positive" }],
@@ -699,11 +734,7 @@ function namedColor(name: string): string | undefined {
 function colorTuple(value: string): [number, number, number] | null {
     const named = namedColor(value.toLowerCase());
     if (named !== undefined) {
-        return [
-            Number.parseInt(named.slice(1, 3), 16),
-            Number.parseInt(named.slice(3, 5), 16),
-            Number.parseInt(named.slice(5, 7), 16),
-        ];
+        return hexChannels(named);
     }
     if ((value.length === 4 || value.length === 7) && value.startsWith("#")) {
         const short = value.length === 4;
@@ -1267,16 +1298,8 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
         case "underlayShape":
         case "overlayShape":
             return canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined;
-        case "shape": {
-            const polygon = String(word).toLowerCase();
-            if (polygon === "polygon") {
-                return "polygon";
-            }
-            // drawn exactly as the polygon Cytoscape.js builds, by `cyjsPolygonShapes`
-            return CYJS_POLYGON_SHAPES.has(polygon) || CYJS_ROUND_SHAPES.has(polygon)
-                ? `other:${polygon}`
-                : (canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined);
-        }
+        case "shape":
+            return cyjsShape(String(word), site);
         case "borderStyle":
             return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "outerBorderStyle":

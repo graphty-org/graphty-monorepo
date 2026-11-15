@@ -68,9 +68,9 @@ type SpiralLayoutOpts = Partial<SpiralLayoutConfigType>;
  * Spiral layout engine that arranges nodes along a spiral path
  */
 export class SpiralLayout extends SnapshotLayoutEngine {
-    static type = "spiral";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = spiralLayoutOptionsSchema;
+    static readonly type: string = "spiral";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = spiralLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: SpiralLayoutConfigType;
 

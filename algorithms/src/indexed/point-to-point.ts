@@ -42,6 +42,139 @@ export interface AstarResult extends PathResult {
 const NO_PATH: PathResult = { distance: Infinity, path: new Uint32Array(0), edges: new Uint32Array(0) };
 
 /**
+ * The weight of `arc`, 1 when there are no weights.
+ * @param weights - Per-arc weights, or null for all ones
+ * @param arc - The arc
+ * @returns The weight
+ */
+function arcWeight(weights: NumericVector | null, arc: number): number {
+    return weights === null ? 1 : weights[arc];
+}
+
+/** The state of one bidirectional Dijkstra, built once per call. */
+interface BidirectionalState {
+    readonly s: GraphSnapshot;
+    readonly rev: ReturnType<GraphSnapshot["reverse"]>;
+    readonly weights: NumericVector | null;
+    readonly distF: Float64Array;
+    readonly distB: Float64Array;
+    /**
+     * Forward: the arc into each node. Backward: the reverse-view arc that reached each node from
+     * its successor toward the target -- on an undirected snapshot that arc points the other way,
+     * so the successor node is kept too rather than read off the arc.
+     */
+    readonly predArc: Uint32Array;
+    readonly succRevArc: Uint32Array;
+    readonly succNode: Uint32Array;
+    readonly heapF: IndexedMinHeap;
+    readonly heapB: IndexedMinHeap;
+    best: number;
+    /** The step joining the two searches: meetFrom -> meetTo over logical edge meetEdge. */
+    meetFrom: number;
+    meetTo: number;
+    meetEdge: number;
+    meetWeight: number;
+}
+
+/**
+ * Records the step `from -> to` over `edge` as the best meeting so far.
+ * @param st - The run state, updated in place
+ * @param best - The path length through the step
+ * @param from - The node on the source side
+ * @param to - The node on the target side
+ * @param edge - The logical edge of the step
+ * @param w - The weight
+ */
+function meet(st: BidirectionalState, best: number, from: number, to: number, edge: number, w: number): void {
+    st.best = best;
+    st.meetFrom = from;
+    st.meetTo = to;
+    st.meetEdge = edge;
+    st.meetWeight = w;
+}
+
+/**
+ * Closes the forward search's next node and relaxes its out-arcs.
+ * @param st - The run state, updated in place
+ */
+function forwardStep(st: BidirectionalState): void {
+    const { s, distF, distB, predArc, heapF } = st;
+    const u = heapF.pop();
+    for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
+        const v = s.colIdx[a];
+        const w = arcWeight(st.weights, a);
+        const dv = distF[u] + w;
+        if (dv < distF[v]) {
+            distF[v] = dv;
+            predArc[v] = a;
+            heapF.pushOrDecrease(v, dv);
+        }
+        if (dv + distB[v] < st.best) {
+            meet(st, dv + distB[v], u, v, s.arcToEdge[a], w);
+        }
+    }
+}
+
+/**
+ * Closes the backward search's next node and relaxes its in-arcs.
+ * @param st - The run state, updated in place
+ */
+function backwardStep(st: BidirectionalState): void {
+    const { rev, distF, distB, succRevArc, succNode, heapB } = st;
+    const v = heapB.pop();
+    for (let k = rev.rowPtr[v]; k < rev.rowPtr[v + 1]; k++) {
+        const u = rev.colIdx[k];
+        const w = arcWeight(st.weights, rev.fwdArc[k]);
+        const du = distB[v] + w;
+        if (du < distB[u]) {
+            distB[u] = du;
+            succRevArc[u] = k;
+            succNode[u] = v;
+            heapB.pushOrDecrease(u, du);
+        }
+        if (distF[u] + du < st.best) {
+            meet(st, distF[u] + du, u, v, rev.arcToEdge[k], w);
+        }
+    }
+}
+
+/**
+ * The path through the meeting step, with its distance summed source end first.
+ * @param st - The run state, updated in place
+ * @param source - The source node
+ * @param target - The target node
+ * @returns The distance, the node path and its logical edges
+ */
+function joinedPath(st: BidirectionalState, source: number, target: number): PathResult {
+    const { s, rev, weights, predArc, succRevArc, succNode } = st;
+    const nodes: number[] = [];
+    const edges: number[] = [];
+    const steps: number[] = []; // the weight of each edge, source end first
+    for (let node = st.meetFrom; node !== source; node = s.arcSource(predArc[node])) {
+        nodes.push(node);
+        edges.push(s.arcToEdge[predArc[node]]);
+        steps.push(arcWeight(weights, predArc[node]));
+    }
+    nodes.push(source);
+    nodes.reverse();
+    edges.reverse();
+    steps.reverse();
+    edges.push(st.meetEdge);
+    steps.push(st.meetWeight);
+    nodes.push(st.meetTo);
+    for (let node = st.meetTo; node !== target; node = succNode[node]) {
+        edges.push(rev.arcToEdge[succRevArc[node]]);
+        steps.push(arcWeight(weights, rev.fwdArc[succRevArc[node]]));
+        nodes.push(succNode[node]);
+    }
+    let distance = 0;
+    for (const w of steps) {
+        distance += w;
+    }
+    return { distance, path: Uint32Array.from(nodes), edges: Uint32Array.from(edges) };
+}
+
+/**
  * Bidirectional Dijkstra between two nodes: one search forward from the source, one backward from
  * the target over `reverse()`, each step taken by the side whose next key is smaller, stopping once
  * the two next keys sum to at least the best path found. That is the point-to-point query legacy
@@ -72,93 +205,35 @@ export function bidirectionalDijkstra(
     if (weights?.some((w) => w < 0) === true) {
         throw withCode(new Error("Bidirectional Dijkstra does not support negative edge weights"), "E_BAD_WEIGHT");
     }
-    const rev = s.reverse();
-    const weightOf = (arc: number): number => (weights === null ? 1 : weights[arc]);
-    const distF = new Float64Array(n).fill(Infinity);
-    const distB = new Float64Array(n).fill(Infinity);
-    // Forward: the arc into each node. Backward: the reverse-view arc that reached each node from
-    // its successor toward the target -- on an undirected snapshot that arc points the other way,
-    // so the successor node is kept too rather than read off the arc.
-    const predArc = new Uint32Array(n).fill(INVALID_INDEX);
-    const succRevArc = new Uint32Array(n).fill(INVALID_INDEX);
-    const succNode = new Uint32Array(n).fill(INVALID_INDEX);
-    const heapF = new IndexedMinHeap(n);
-    const heapB = new IndexedMinHeap(n);
-    distF[source] = 0;
-    distB[target] = 0;
-    heapF.push(source, 0);
-    heapB.push(target, 0);
-    let best = Infinity;
-    // The step joining the two searches: meetFrom -> meetTo over logical edge meetEdge.
-    let meetFrom = INVALID_INDEX;
-    let meetTo = INVALID_INDEX;
-    let meetEdge = INVALID_INDEX;
-    let meetWeight = 0;
-
-    while (heapF.peekKey() + heapB.peekKey() < best) {
-        if (heapF.peekKey() <= heapB.peekKey()) {
-            const u = heapF.pop();
-            for (let a = s.rowPtr[u]; a < s.rowPtr[u + 1]; a++) {
-                const v = s.colIdx[a];
-                const w = weightOf(a);
-                const dv = distF[u] + w;
-                if (dv < distF[v]) {
-                    distF[v] = dv;
-                    predArc[v] = a;
-                    heapF.pushOrDecrease(v, dv);
-                }
-                if (dv + distB[v] < best) {
-                    best = dv + distB[v];
-                    [meetFrom, meetTo, meetEdge, meetWeight] = [u, v, s.arcToEdge[a], w];
-                }
-            }
+    const st: BidirectionalState = {
+        s,
+        rev: s.reverse(),
+        weights,
+        distF: new Float64Array(n).fill(Infinity),
+        distB: new Float64Array(n).fill(Infinity),
+        predArc: new Uint32Array(n).fill(INVALID_INDEX),
+        succRevArc: new Uint32Array(n).fill(INVALID_INDEX),
+        succNode: new Uint32Array(n).fill(INVALID_INDEX),
+        heapF: new IndexedMinHeap(n),
+        heapB: new IndexedMinHeap(n),
+        best: Infinity,
+        meetFrom: INVALID_INDEX,
+        meetTo: INVALID_INDEX,
+        meetEdge: INVALID_INDEX,
+        meetWeight: 0,
+    };
+    st.distF[source] = 0;
+    st.distB[target] = 0;
+    st.heapF.push(source, 0);
+    st.heapB.push(target, 0);
+    while (st.heapF.peekKey() + st.heapB.peekKey() < st.best) {
+        if (st.heapF.peekKey() <= st.heapB.peekKey()) {
+            forwardStep(st);
         } else {
-            const v = heapB.pop();
-            for (let k = rev.rowPtr[v]; k < rev.rowPtr[v + 1]; k++) {
-                const u = rev.colIdx[k];
-                const w = weightOf(rev.fwdArc[k]);
-                const du = distB[v] + w;
-                if (du < distB[u]) {
-                    distB[u] = du;
-                    succRevArc[u] = k;
-                    succNode[u] = v;
-                    heapB.pushOrDecrease(u, du);
-                }
-                if (distF[u] + du < best) {
-                    best = distF[u] + du;
-                    [meetFrom, meetTo, meetEdge, meetWeight] = [u, v, rev.arcToEdge[k], w];
-                }
-            }
+            backwardStep(st);
         }
     }
-    if (meetFrom === INVALID_INDEX) {
-        return NO_PATH;
-    }
-    const nodes: number[] = [];
-    const edges: number[] = [];
-    const steps: number[] = []; // the weight of each edge, source end first
-    for (let node = meetFrom; node !== source; node = s.arcSource(predArc[node])) {
-        nodes.push(node);
-        edges.push(s.arcToEdge[predArc[node]]);
-        steps.push(weightOf(predArc[node]));
-    }
-    nodes.push(source);
-    nodes.reverse();
-    edges.reverse();
-    steps.reverse();
-    edges.push(meetEdge);
-    steps.push(meetWeight);
-    nodes.push(meetTo);
-    for (let node = meetTo; node !== target; node = succNode[node]) {
-        edges.push(rev.arcToEdge[succRevArc[node]]);
-        steps.push(weightOf(rev.fwdArc[succRevArc[node]]));
-        nodes.push(succNode[node]);
-    }
-    let distance = 0;
-    for (const w of steps) {
-        distance += w;
-    }
-    return { distance, path: Uint32Array.from(nodes), edges: Uint32Array.from(edges) };
+    return st.meetFrom === INVALID_INDEX ? NO_PATH : joinedPath(st, source, target);
 }
 
 /**

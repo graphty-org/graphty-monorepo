@@ -15,6 +15,8 @@ export class ApiKeyManager {
     disablePersistence(clearStorage?: boolean): void;
     enablePersistence(config?: PersistenceConfig): void;
     enablePersistenceWithPassphrase(passphrase: string, config?: PassphrasePersistenceConfig): Promise<void>;
+    forgetKey(provider: ProviderType): void;
+    forgetKeys(): void;
     getConfiguredProviders(): ProviderType[];
     getDefaultProvider(): ProviderType | null;
     getKey(provider: ProviderType): string | undefined;
@@ -22,6 +24,7 @@ export class ApiKeyManager {
     hasKey(provider: ProviderType): boolean;
     isPersistenceEnabled(): boolean;
     removeKey(provider: ProviderType): void;
+    retireOtherStorage(): void;
     setDefaultProvider(provider: ProviderType | null): void;
     setKey(provider: ProviderType, key: string): void;
     setStoredItem(name: string, value: unknown): void;
@@ -50,7 +53,7 @@ export class CredentialStore {
     forget(target: SourceCredentialTarget): Promise<void>;
     forgetAll(): Promise<void>;
     list(): readonly StoredCredentialInfo[];
-    lookup(source: string, origin: string | URL): Promise<Credential_2 | undefined>;
+    lookup(source: string, origin: string | URL, slot?: string): Promise<Credential_2 | undefined>;
     remember(target: SourceCredentialTarget, credential: Credential_2): Promise<void>;
 }
 
@@ -71,6 +74,7 @@ export interface PersistenceConfig {
 // @public
 export interface SourceCredentialTarget {
     readonly endpoint: string | URL;
+    readonly slot?: string;
     readonly source: string;
 }
 
@@ -84,6 +88,7 @@ export type StoredCredentialInfo = {
     readonly origin: string;
     readonly kind: CredentialKind;
     readonly username?: string;
+    readonly slot?: string;
 };
 
 // (No @packageDocumentation comment for this package)

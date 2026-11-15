@@ -1,0 +1,185 @@
+{
+    "data": {
+        "repository": {
+            "refs": {
+                "nodes": [
+                    {
+                        "name": "golden-good",
+                        "target": {
+                            "oid": "a253768c108eda8c1856f0c07f255221599950fc",
+                            "committedDate": "2026-10-24T00:12:30Z"
+                        }
+                    },
+                    {
+                        "name": "webgpu-graph-algorithms@0.6.61",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "visual-review@0.2.35",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "layout@2.5.10",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "graphty-element@3.30.0",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "graphty@0.8.92",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "@graphty/remote-logger@2.0.23",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "graph-samples@0.1.39",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "graph-io@0.3.48",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "graph-format@1.4.7",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "githerd@0.1.19",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "cytoscape-extensions@0.0.28",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "compact-mantine@0.9.33",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "algorithms@3.4.14",
+                        "target": {
+                            "oid": "c7e343d3f7345adf61ae3eb312da52b817a61bb2",
+                            "committedDate": "2026-10-21T04:45:37Z"
+                        }
+                    },
+                    {
+                        "name": "webgpu-graph-algorithms@0.6.60",
+                        "target": {
+                            "oid": "d40e537d4805a9c92a638b635e21d865be95661c",
+                            "committedDate": "2026-10-20T06:56:29Z"
+                        }
+                    },
+                    {
+                        "name": "visual-review@0.2.34",
+                        "target": {
+                            "oid": "d40e537d4805a9c92a638b635e21d865be95661c",
+                            "committedDate": "2026-10-20T06:56:29Z"
+                        }
+                    },
+                    {
+                        "name": "layout@2.5.9",
+                        "target": {
+                            "oid": "d40e537d4805a9c92a638b635e21d865be95661c",
+                            "committedDate": "2026-10-20T06:56:29Z"
+                        }
+                    },
+                    {
+                        "name": "graphty-element@3.29.3",
+                        "target": {
+                            "oid": "d40e537d4805a9c92a638b635e21d865be95661c",
+                            "committedDate": "2026-10-20T06:56:29Z"
+                        }
+                    },
+                    {
+                        "name": "graphty@0.8.91",
+                        "target": {
+                            "oid": "d40e537d4805a9c92a638b635e21d865be95661c",
+                            "committedDate": "2026-10-20T06:56:29Z"
+                        }
+                    },
+                    {
+                        "name": "@graphty/remote-logger@2.0.22",
+                        "target": {
+                            "oid": "d40e537d4805a9c92a638b635e21d865be95661c",
+                            "committedDate": "2026-10-20T06:56:29Z"
+                        }
+                    },
+                    {
+                        "name": "graph-samples@0.1.38",
+                        "target": {
+                            "oid": "d40e537d4805a9c92a638b635e21d865be95661c",
+                            "committedDate": "2026-10-20T06:56:29Z"
+                        }
+                    },
+                    {
+                        "name": "graph-io@0.3.47",
+                        "target": {
+                            "oid": "d40e537d4805a9c92a638b635e21d865be95661c",
+                            "committedDate": "2026-10-20T06:56:29Z"
+                        }
+                    },
+                    {
+                        "name": "graph-format@1.4.6",
+                        "target": {
+                            "oid": "d40e537d4805a9c92a638b635e21d865be95661c",
+                            "committedDate": "2026-10-20T06:56:29Z"
+                        }
+                    },
+                    {
+                        "name": "githerd@0.1.18",
+                        "target": {
+                            "oid": "d40e537d4805a9c92a638b635e21d865be95661c",
+                            "committedDate": "2026-10-20T06:56:29Z"
+                        }
+                    },
+                    {
+                        "name": "cytoscape-extensions@0.0.27",
+                        "target": {
+                            "oid": "d40e537d4805a9c92a638b635e21d865be95661c",
+                            "committedDate": "2026-10-20T06:56:29Z"
+                        }
+                    }
+                ]
+            }
+        }
+    }
+}

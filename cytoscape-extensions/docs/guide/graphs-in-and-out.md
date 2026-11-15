@@ -234,8 +234,11 @@ with `restoreMangledIds: false` to keep the numbers and get the old id in
 Many files also say how the graph looks: Gephi's node colors and sizes in GEXF, yEd's shapes in
 GraphML, Graphviz attributes in DOT, Cytoscape desktop's visual style in XGMML, CX, CX2 and
 sessions, a Cytoscape.js stylesheet in JSON. `styles: true` reads that look into Cytoscape, and
-writes the core's look back out. This example draws a Gephi file in Gephi's colors, recolors one
-node, and saves the result as GraphML:
+writes the core's look back out. Styles are experimental: the `styles`, `applyStyles` and
+`stylesheet` options and results may change or be removed in a minor release.
+
+This example draws a Gephi file in Gephi's colors, recolors one node, and saves the result as
+GraphML:
 
 <!-- example: styles-in-and-out (run by test/docs-styles-example.test.ts) -->
 

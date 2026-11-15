@@ -4,7 +4,7 @@
  * The project settings are the keys of the `config` slice, one key per leaf, named by its dotted
  * path: every leaf of the zod `DataConfig` schema under `data.` (the id, label, weight and time
  * paths, the repeated-edge policy, the position scale, the id coercion, the on-load algorithms and
- * the direction), whether the on-load algorithms run, the background, the selection style, and
+ * the direction), whether the on-load algorithms run, the background, the selection style, the pinned style, and
  * three layout-behaviour keys, the author stamped on notes, and the project's name. The `DataConfig` leaves are read from the schema when this module
  * loads, so a field added there joins the slice without an edit here.
  *
@@ -15,16 +15,18 @@
  * and `config.set` refuses it. See design/undo/undo-design.md sections 3.1, 3.2 and 10.1.
  */
 
-import { z } from "zod";
-
-import { DataConfig } from "../../config/DataConfig";
-import { GraphBehaviorOpts } from "../../config/GraphBehavior";
-import { type GraphBackgroundConfig, type GraphSelectionStyleConfig, GraphStyle } from "../../config/GraphStyle";
+import {
+    type GraphBackgroundConfig,
+    type GraphSelectionStyleConfig,
+    type LayoutTransitionConfig,
+} from "../../config/GraphStyle";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { CONFIG_KEYS } from "../configKeys";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import { deepFreeze } from "../project/draft";
 import { deepEquals } from "../styles/predicate";
-import type { ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
+import type { GraphFraming, ProjectConfig, ProjectConfigPatch, RunPlacement, SessionDataConfig } from "../types";
+import { dropUnusedShaderCopies, namedShaders, settleShaderCopies, shaderIdsIn } from "./shaderCopies";
 
 /** `config.set`: write project settings. */
 export interface ConfigSetCommand {
@@ -32,93 +34,11 @@ export interface ConfigSetCommand {
     readonly values: ProjectConfigPatch;
 }
 
-/** Which part of the project settings a key belongs to: the discriminant of `config.set`. */
-type ConfigGroup =
-    | "data"
-    | "runAlgorithmsOnLoad"
-    | "background"
-    | "selectionStyle"
-    | "startingRows"
-    | "runPlacement"
-    | "layoutBehavior"
-    | "author"
-    | "name";
-
-/** One key of the `config` slice. */
-interface ConfigKey {
-    readonly group: ConfigGroup;
-    /** Validates a value set, and reads a stored value (or `undefined`) as the setting. */
-    readonly schema: z.ZodType;
-}
-
-/**
- * Strip the default, prefault and optional wrappers off a schema.
- * @param schema - The schema.
- * @returns The schema inside them.
- */
-function unwrap(schema: z.ZodType): z.ZodType {
-    let inner = schema;
-    while ("innerType" in inner.def) {
-        inner = inner.def.innerType as z.ZodType;
-    }
-
-    return inner;
-}
-
-/**
- * Every leaf of an object schema, by dotted path.
- * @param shape - The object's shape.
- * @param prefix - The path of the object.
- * @returns The leaves and their schemas.
- */
-function leavesOf(shape: Readonly<Record<string, z.ZodType>>, prefix: string): [string, z.ZodType][] {
-    return Object.entries(shape).flatMap(([name, schema]): [string, z.ZodType][] => {
-        const inner = unwrap(schema);
-        return inner instanceof z.ZodObject
-            ? leavesOf(inner.shape, `${prefix}${name}.`)
-            : [[`${prefix}${name}`, schema]];
-    });
-}
-
-const LAYOUT = unwrap(GraphBehaviorOpts.shape.layout) as z.ZodObject;
-
-/** Every key of the `config` slice, with its group and schema. */
-export const CONFIG_KEYS: ReadonlyMap<string, ConfigKey> = new Map<string, ConfigKey>([
-    ...leavesOf(DataConfig.shape, "data.").map(([path, schema]): [string, ConfigKey] => [
-        path,
-        { group: "data", schema },
-    ]),
-    ["runAlgorithmsOnLoad", { group: "runAlgorithmsOnLoad", schema: z.boolean().default(false) }],
-    ["background", { group: "background", schema: GraphStyle.shape.background }],
-    ["selectionStyle", { group: "selectionStyle", schema: unwrap(GraphStyle.shape.selection).prefault({}) }],
-    ["startingRows", { group: "startingRows", schema: z.boolean().default(false) }],
-    // The base look's home goes with the starting rows: one round-trip fixture covers both.
-    ["editableBase", { group: "startingRows", schema: z.boolean().default(false) }],
-    ["runPlacement", { group: "runPlacement", schema: z.enum(["beneath", "top"]).default("beneath") }],
-    ...(["preSteps", "stepMultiplier", "minDelta"] as const).map((name): [string, ConfigKey] => [
-        `layoutBehavior.${name}`,
-        { group: "layoutBehavior", schema: LAYOUT.shape[name] as z.ZodType },
-    ]),
-    // Who is writing, stamped on each note. Never blank: a blank name is written as no name.
-    [
-        "author",
-        {
-            group: "author",
-            schema: z.string().refine((name) => Array.from(name).length <= 256, "An author is at most 256 characters."),
-        },
-    ],
-    // The project's name, which a project file carries. Never blank, as the author.
-    [
-        "name",
-        {
-            group: "name",
-            schema: z.string().refine((name) => Array.from(name).length <= 256, "A name is at most 256 characters."),
-        },
-    ],
-]);
-
 /**
  * Whether a value is a plain object, which a patch recurses into.
+ *
+ * Twin of `utils/isPlainObject`, kept apart on purpose: that one also accepts a null-prototype
+ * object, and a config patch does not, so merging them would change what `config.set` accepts.
  * @param value - The value.
  * @returns True for `{...}`.
  */
@@ -165,7 +85,18 @@ function configLeaves(values: ProjectConfigPatch): [string, unknown][] {
         const key = CONFIG_KEYS.get(path);
         if (key !== undefined) {
             if (value !== undefined) {
-                const parsed = key.schema.safeParse(value);
+                // A transform can throw rather than refuse (a color it cannot parse): refused all the same.
+                let parsed: ReturnType<typeof key.schema.safeParse>;
+                try {
+                    parsed = key.schema.safeParse(value);
+                } catch (cause) {
+                    throw badPatch(
+                        `${JSON.stringify(value)} is not a value the setting "${path}" takes.`,
+                        { key: path, value },
+                        cause,
+                    );
+                }
+
                 if (!parsed.success) {
                     throw badPatch(
                         `${JSON.stringify(value)} is not a value the setting "${path}" takes: ${parsed.error.issues[0]?.message ?? "refused"}.`,
@@ -197,6 +128,16 @@ function configLeaves(values: ProjectConfigPatch): [string, unknown][] {
 }
 
 /**
+ * The value at a dotted path of the settings in effect.
+ * @param config - The settings.
+ * @param path - The key, such as `data.knownFields.nodeTimePath`.
+ * @returns The value, or undefined.
+ */
+function readPath(config: ProjectConfig, path: string): unknown {
+    return path.split(".").reduce<unknown>((at, name) => (at as Record<string, unknown> | undefined)?.[name], config);
+}
+
+/**
  * The step's name: the one setting it changed, or how many.
  * @param command - The command.
  * @returns The label.
@@ -214,7 +155,8 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
     // One round-trip fixture per group of keys.
     variants: [...new Set([...CONFIG_KEYS.values()].map((key) => key.group))],
     lane: { kind: "immediate" },
-    keys: (command) => configLeaves(command.values).map(([path]) => `config/${path}`),
+    // A background naming a catalog shader copies it into the project in this step.
+    keys: (command) => [...configLeaves(command.values).map(([path]) => `config/${path}`), "shaders"],
     undo: {
         kind: "undoable",
         label: labelOf,
@@ -231,16 +173,18 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
     },
     execute: (command, ctx) => {
         const effective = ctx.services.config?.();
-        let restore = false;
+        const named = namedShaders(ctx.state);
+        settleShaderCopies(shaderIdsIn(command.values), ctx.draft, ctx.services);
+        let addDefaultRows = false;
         for (const [path, value] of configLeaves(command.values)) {
-            if (effective !== undefined && value !== undefined && !ctx.state.config.has(path)) {
+            // What the key reads as now, and whether this write changes it.
+            const current = effective === undefined ? undefined : readPath(effective, path);
+            const same =
+                effective !== undefined &&
+                deepEquals(value === undefined ? undefined : CONFIG_KEYS.get(path)?.schema.parse(value), current);
+            if (same && value !== undefined && !ctx.state.config.has(path)) {
                 // An unset key already reads as its default: writing that default changes nothing.
-                const current = path
-                    .split(".")
-                    .reduce<unknown>((at, name) => (at as Record<string, unknown> | undefined)?.[name], effective);
-                if (deepEquals(CONFIG_KEYS.get(path)?.schema.parse(value), current)) {
-                    continue;
-                }
+                continue;
             }
 
             if (value === undefined) {
@@ -249,16 +193,30 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
                 ctx.draft.config.set(path, value);
             }
 
-            restore ||= (path === "startingRows" || path === "editableBase") && value === true;
+            // Turning `startingRows` on writes the default rows; writing the value already in effect
+            // (a project opened over the same settings) writes none.
+            addDefaultRows ||= path === "startingRows" && value === true && !same;
         }
 
-        // The starting rows arrive with the setting, in its step: undo takes both back. Added once
-        // every key is written, so an Everything row added with `editableBase` holds the base look.
-        if (restore && ctx.state.config.get("startingRows") === true) {
-            ctx.services.styles?.execute({ op: "style.patch", action: "restoreStartingRows" }, ctx.draft);
+        dropUnusedShaderCopies(named, ctx.state, ctx.draft, ctx.services);
+
+        // The default rows arrive with the setting, in its step: undo takes both back. Written once
+        // every key is, so they take the `editableBase`, `pinnedStyle` and selection look written
+        // with it. They are plain data from then on: no later setting adds, removes or rewrites one.
+        if (addDefaultRows) {
+            ctx.services.styles?.execute({ op: "style.patch", action: "addDefaultRows" }, ctx.draft);
         }
     },
 };
+
+/**
+ * An object's keys whose values are set, so an unset setting is absent rather than `undefined`.
+ * @param values - The values.
+ * @returns The same object less its `undefined` keys.
+ */
+function definedOnly<T extends object>(values: T): Partial<T> {
+    return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)) as Partial<T>;
+}
 
 /**
  * The project settings a slice holds, with every absent key at its default.
@@ -285,11 +243,17 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
     Object.freeze(data.knownFields);
     const author = slice.get("author");
     const name = slice.get("name");
+    const layoutTransition = read("layoutTransition") as LayoutTransitionConfig | undefined;
+    const viewRotation = read("viewRotation") as number | undefined;
+    const framing = read("framing") as GraphFraming | undefined;
+    const minMarkSize = read("minMarkSize") as ProjectConfig["minMarkSize"];
+    const pinned = slice.has("pinnedStyle") ? (read("pinnedStyle") as GraphSelectionStyleConfig) : undefined;
     return Object.freeze({
         data: Object.freeze(data) as SessionDataConfig,
         runAlgorithmsOnLoad: read("runAlgorithmsOnLoad") as boolean,
         background: read("background") as GraphBackgroundConfig,
         selectionStyle: read("selectionStyle") as GraphSelectionStyleConfig,
+        ...(pinned === undefined ? {} : { pinnedStyle: pinned }),
         startingRows: read("startingRows") as boolean,
         editableBase: read("editableBase") as boolean,
         runPlacement: read("runPlacement") as RunPlacement,
@@ -298,6 +262,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
             stepMultiplier: read("layoutBehavior.stepMultiplier") as number,
             minDelta: read("layoutBehavior.minDelta") as number,
         }),
+        ...definedOnly({ layoutTransition, viewRotation, framing, minMarkSize }),
         ...(typeof author === "string" ? { author } : {}),
         ...(typeof name === "string" ? { name } : {}),
     });

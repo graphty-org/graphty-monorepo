@@ -37,14 +37,8 @@ describe("CompactColorInput swatches and onChangeEnd", () => {
         const names = within(group)
             .getAllByRole("button")
             .map((b) => b.getAttribute("aria-label"));
-        // Each swatch is named by its color word and hex, and the color the picker opened on
-        // leads, as the color before this edit (85d4a40593, 273e236a4e).
-        expect(names).toEqual([
-            "blue 3373E5, the color before this edit",
-            "dark blue 112233",
-            "blue 445566",
-            "light slate gray 778899CC",
-        ]);
+        // Each swatch is named by its color word and hex; the set is exactly the one given (Figma).
+        expect(names).toEqual(["dark blue 112233", "blue 445566", "light slate gray 778899CC"]);
     });
 
     it("a drag across the saturation field calls onChange many times and onChangeEnd once, on release", async () => {

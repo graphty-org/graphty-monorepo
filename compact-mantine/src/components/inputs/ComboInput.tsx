@@ -1,8 +1,8 @@
-import { Combobox, TextInput, useCombobox } from "@mantine/core";
+import { Combobox, type ComboboxStore, TextInput, useCombobox } from "@mantine/core";
 import { useId, useMergedRef, useUncontrolled } from "@mantine/hooks";
 import React, { forwardRef, useRef, useState } from "react";
 
-import { PANEL_GRID } from "../../constants/panel";
+import { PANEL_GRID, PANEL_INK } from "../../constants/panel";
 import { useLabels, useNumberParser } from "../../i18n";
 import type { ChangeHandler } from "../../types/events";
 import { isRtl, useDirection } from "../../utils/rtl";
@@ -65,12 +65,13 @@ export interface ComboInputProps {
     width?: number | string;
     /** The field cannot be used. */
     disabled?: boolean;
-    /**
-     * Text shown in an empty field. An empty field with a placeholder is drawn in the not-set
-     * look every style field shares (gray italic): what it shows is what is in force without it,
-     * such as the value the layers beneath give.
-     */
+    /** Text shown in an empty field, in Figma's placeholder color. */
     placeholder?: string;
+    /**
+     * The selection disagrees: the empty field reads "Mixed" in the value's ink, as Figma draws
+     * it, and typing a value replaces it.
+     */
+    mixed?: boolean;
     /**
      * The field's surface: `"filled"`, Figma's gray number field, or `"outlined"`, the panel's
      * background inside a 1px edge, as the select and the style fields draw it.
@@ -154,6 +155,21 @@ function comboboxAttributes(
 }
 
 /**
+ * The number a numeric field's text holds, for its number handling.
+ * @param numeric - whether the field is numeric
+ * @param text - the field's current text
+ * @param parse - the locale's number parser
+ * @returns the number, or null when the field is not numeric, is empty or holds no number
+ */
+function numberOf(numeric: boolean, text: string, parse: (text: string) => number): number | null {
+    if (!numeric || text === "") {
+        return null;
+    }
+    const value = parse(text);
+    return Number.isNaN(value) ? null : value;
+}
+
+/**
  * The width of a field's right section: its suffix and its chevron.
  * @param hasList - whether the field has a chevron
  * @param divided - whether a rule divides the chevron from the value
@@ -175,8 +191,100 @@ function rightSectionWidthOf(
     return `calc(${String(suffix.length)}ch + ${String(chevronWidth + 4)}px)`;
 }
 
+/**
+ * The field wrapper's look: the "Mixed" ink and the divided chevron.
+ * @param mixed - whether the field reads "Mixed"
+ * @param divided - whether a rule divides the chevron from the value
+ * @returns the wrapper's styles and class names
+ */
+function wrapperLookOf(
+    mixed: boolean,
+    divided: boolean,
+): { styles: { wrapper: Record<string, string> } | undefined; classNames: { wrapper: string } } {
+    return {
+        styles: mixed ? { wrapper: { "--input-placeholder-color": PANEL_INK.VALUE } } : undefined,
+        classNames: { wrapper: divided ? "cm-combo cm-combo-divided" : "cm-combo" },
+    };
+}
+
+/**
+ * Whether an empty field shows its placeholder as the not-set look.
+ * @param placeholder - the placeholder, if any
+ * @param text - the committed value's text
+ * @param draft - the typed text not yet committed
+ * @returns "true" for the data attribute, or undefined
+ */
+function isDefaultOf(placeholder: string | undefined, text: string, draft: string | null): "true" | undefined {
+    return placeholder !== undefined && text === "" && draft === null ? "true" : undefined;
+}
+
 function isSeparator(item: ComboInputItem): item is ComboInputSeparator {
     return "separator" in item;
+}
+
+/**
+ * The list's keys in a combo field: Control+ArrowDown (or Alt+ArrowDown) opens the list; with it
+ * open, ArrowUp / ArrowDown move, Home / End jump, Enter picks and Escape closes.
+ * @param event - the key press in the field
+ * @param combobox - the field's combobox store
+ * @param list - the field's list
+ * @param list.hasList - whether the field has a list at all
+ * @param list.choiceCount - how many choices (not separators) the list holds
+ * @param list.syncActive - points aria-activedescendant at the highlighted option
+ * @returns whether the key was the list's (so the field does nothing more with it)
+ */
+function handleListKeys(
+    event: React.KeyboardEvent<HTMLInputElement>,
+    combobox: ComboboxStore,
+    list: { hasList: boolean; choiceCount: number; syncActive: () => void },
+): boolean {
+    if (!combobox.dropdownOpened) {
+        if (list.hasList && event.key === "ArrowDown" && (event.ctrlKey || event.altKey)) {
+            event.preventDefault();
+            combobox.openDropdown("keyboard");
+            return true;
+        }
+        return false;
+    }
+    // An arrow pressed before the open frame has highlighted the current value still moves
+    // from the current value, not from the top of the list.
+    const fromChecked = (step: () => void) => (): void => {
+        if (combobox.getSelectedOptionIndex() === -1) {
+            combobox.selectActiveOption();
+        }
+        step();
+    };
+    const move: Record<string, () => void> = {
+        ArrowDown: fromChecked(() => combobox.selectNextOption()),
+        ArrowUp: fromChecked(() => combobox.selectPreviousOption()),
+        Home: () => combobox.selectFirstOption(),
+        End: () => {
+            combobox.selectOption(list.choiceCount - 1);
+        },
+    };
+    const mover = move[event.key];
+    if (mover) {
+        event.preventDefault();
+        mover();
+        list.syncActive();
+        return true;
+    }
+    if (event.key === "Enter") {
+        event.preventDefault();
+        if (combobox.getSelectedOptionIndex() !== -1) {
+            combobox.clickSelectedOption();
+        } else {
+            combobox.closeDropdown();
+        }
+        return true;
+    }
+    if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        combobox.closeDropdown();
+        return true;
+    }
+    return false;
 }
 
 /**
@@ -216,7 +324,8 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         divided = false,
         width = PANEL_GRID.FIELD,
         disabled = false,
-        placeholder,
+        placeholder: placeholderProp,
+        mixed = false,
         variant = "filled",
         openLabel = "Open list",
         className,
@@ -224,6 +333,7 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
     } = props;
     const parse = useNumberParser();
     const labels = useLabels();
+    const placeholder = mixed ? labels.mixed : placeholderProp;
     const direction = useDirection();
     const [current, setCurrent] = useUncontrolled<string | number>({ value, defaultValue, finalValue: "", onChange });
     const [textDraft, setTextDraft] = useState<string | null>(null);
@@ -259,9 +369,8 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         document.querySelector(`[id="${listId}"] [data-combobox-selected]`)?.id || undefined;
 
     const currentText = String(current);
-    const numberValue = numeric && currentText !== "" ? parse(currentText) : Number.NaN;
     const number = useNumberField({
-        value: Number.isNaN(numberValue) ? null : numberValue,
+        value: numberOf(numeric, currentText, parse),
         display: currentText,
         onCommit: (next, event) => {
             setCurrent(next, event);
@@ -287,56 +396,14 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
         }
     };
 
-    const listKeys = (event: React.KeyboardEvent<HTMLInputElement>): boolean => {
-        const open = combobox.dropdownOpened;
-        if (!open) {
-            if (hasList && event.key === "ArrowDown" && (event.ctrlKey || event.altKey)) {
-                event.preventDefault();
-                combobox.openDropdown("keyboard");
-                return true;
-            }
-            return false;
-        }
-        // An arrow pressed before the open frame has highlighted the current value still moves
-        // from the current value, not from the top of the list.
-        const fromChecked = (step: () => void) => (): void => {
-            if (combobox.getSelectedOptionIndex() === -1) {
-                combobox.selectActiveOption();
-            }
-            step();
-        };
-        const move: Record<string, () => void> = {
-            ArrowDown: fromChecked(() => combobox.selectNextOption()),
-            ArrowUp: fromChecked(() => combobox.selectPreviousOption()),
-            Home: () => combobox.selectFirstOption(),
-            End: () => {
-                combobox.selectOption(options.filter((item) => !isSeparator(item)).length - 1);
+    const listKeys = (event: React.KeyboardEvent<HTMLInputElement>): boolean =>
+        handleListKeys(event, combobox, {
+            hasList,
+            choiceCount: options.filter((item) => !isSeparator(item)).length,
+            syncActive: () => {
+                setActiveId(highlightedId());
             },
-        };
-        const mover = move[event.key];
-        if (mover) {
-            event.preventDefault();
-            mover();
-            setActiveId(highlightedId());
-            return true;
-        }
-        if (event.key === "Enter") {
-            event.preventDefault();
-            if (combobox.getSelectedOptionIndex() !== -1) {
-                combobox.clickSelectedOption();
-            } else {
-                combobox.closeDropdown();
-            }
-            return true;
-        }
-        if (event.key === "Escape") {
-            event.preventDefault();
-            event.stopPropagation();
-            combobox.closeDropdown();
-            return true;
-        }
-        return false;
-    };
+        });
 
     const textProps = {
         value: textDraft ?? currentText,
@@ -429,12 +496,10 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                     placeholder={placeholder}
                     disabled={disabled}
                     variant={variant}
-                    data-is-default={
-                        placeholder !== undefined && currentText === "" && textDraft === null ? "true" : undefined
-                    }
+                    data-is-default={isDefaultOf(placeholder, currentText, textDraft)}
                     className={className}
                     style={{ width, ...style }}
-                    classNames={{ wrapper: ["cm-combo", divided ? "cm-combo-divided" : ""].filter(Boolean).join(" ") }}
+                    {...wrapperLookOf(mixed, divided)}
                     leftSection={glyph === undefined ? undefined : <ScrubSlot glyph={glyph} scrub={scrub} />}
                     leftSectionPointerEvents={scrub ? "all" : "none"}
                     rightSection={hasList || suffix !== undefined ? rightSection : undefined}
@@ -443,8 +508,8 @@ export const ComboInput = forwardRef<HTMLInputElement, ComboInputProps>(function
                     inputContainer={discardNoteContainer(discardedText)}
                 />
             </Combobox.Target>
-            <Combobox.Dropdown className="cm-menu-surface cm-menu cm-listbox">
-                <Combobox.Options id={listId} aria-label={label}>
+            <Combobox.Dropdown className="cm-menu-surface cm-listbox cm-listbox-frame">
+                <Combobox.Options id={listId} aria-label={label} className="cm-listbox-options cm-menu">
                     {options.map((item, index) =>
                         isSeparator(item) ? (
                             <hr key={`separator-${String(index)}`} className="cm-listbox-separator" />

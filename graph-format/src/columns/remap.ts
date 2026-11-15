@@ -532,66 +532,11 @@ export function remapReferences(column: Column, valueRemap: U32): Column {
     if (column.meta.refersTo === null) {
         return column;
     }
-    const mapValue = (value: number): number => {
-        if (value === INVALID_INDEX || value >= valueRemap.length) {
-            return INVALID_INDEX;
-        }
-        return valueRemap[value];
-    };
     if (column.dtype === "u32") {
-        const { length } = column;
-        const data = new Uint32Array(length);
-        let validity = column.validity === null ? null : column.validity.slice();
-        let { nullCount } = column;
-        for (let row = 0; row < length; row++) {
-            const mapped = mapValue(column.data[row]);
-            data[row] = mapped;
-            if (mapped === INVALID_INDEX && (validity === null || bitmapGet(validity, row))) {
-                validity ??= makeBitmap(length, true);
-                bitmapClear(validity, row);
-                nullCount++;
-            }
-        }
-        const parts: MutableColumnParts = {
-            ...partsOf(column),
-            meta: gatheredMeta(column.meta, nullCount),
-            data,
-            validity,
-            nullCount,
-        };
-        return createColumn(parts);
+        return remapU32References(column, valueRemap);
     }
     if (column.dtype === "list" && column.child.dtype === "u32") {
-        const { length, offsets, child } = column;
-        const rows = new Array<number[]>(length);
-        let validity = column.validity === null ? null : column.validity.slice();
-        let { nullCount } = column;
-        for (let row = 0; row < length; row++) {
-            const items: number[] = [];
-            const start = offsets[row];
-            const end = offsets[row + 1];
-            for (let j = start; j < end; j++) {
-                const mapped = mapValue(child.data[j]);
-                if (mapped !== INVALID_INDEX) {
-                    items.push(mapped);
-                }
-            }
-            rows[row] = items;
-            if (end > start && items.length === 0 && (validity === null || bitmapGet(validity, row))) {
-                validity ??= makeBitmap(length, true);
-                bitmapClear(validity, row);
-                nullCount++;
-            }
-        }
-        const meta = gatheredMeta(column.meta, nullCount);
-        const rebuilt = columnOfValues(Object.freeze({ ...meta, nullable: true }), rows);
-        const parts: MutableColumnParts = {
-            ...partsOf(rebuilt),
-            meta,
-            validity,
-            nullCount,
-        };
-        return createColumn(parts);
+        return remapListReferences(column, column.child, valueRemap);
     }
     throw new GraphFormatError(
         "E_COLUMN_TYPE",
@@ -601,6 +546,94 @@ export function remapReferences(column: Column, valueRemap: U32): Column {
             field: "refersTo",
         },
     );
+}
+
+/**
+ * Map one referenced index through a value remap: INVALID_INDEX and out-of-range values dangle.
+ * @param value - the old referenced index
+ * @param valueRemap - old index -> new index or INVALID_INDEX
+ * @returns the new index, or INVALID_INDEX for a dangling reference
+ */
+function mapReference(value: number, valueRemap: U32): number {
+    if (value === INVALID_INDEX || value >= valueRemap.length) {
+        return INVALID_INDEX;
+    }
+    return valueRemap[value];
+}
+
+/**
+ * The u32 case of remapReferences(): every value mapped, a dangling one unsets its row.
+ * @param column - a u32 column with refersTo
+ * @param valueRemap - old index -> new index or INVALID_INDEX
+ * @returns the rewritten column
+ */
+function remapU32References(column: Extract<Column, { dtype: "u32" }>, valueRemap: U32): Column {
+    const { length } = column;
+    const data = new Uint32Array(length);
+    let validity = column.validity === null ? null : column.validity.slice();
+    let { nullCount } = column;
+    for (let row = 0; row < length; row++) {
+        const mapped = mapReference(column.data[row], valueRemap);
+        data[row] = mapped;
+        if (mapped === INVALID_INDEX && (validity === null || bitmapGet(validity, row))) {
+            validity ??= makeBitmap(length, true);
+            bitmapClear(validity, row);
+            nullCount++;
+        }
+    }
+    const parts: MutableColumnParts = {
+        ...partsOf(column),
+        meta: gatheredMeta(column.meta, nullCount),
+        data,
+        validity,
+        nullCount,
+    };
+    return createColumn(parts);
+}
+
+/**
+ * The list-of-u32 case of remapReferences(): dangling items dropped, a row whose every item
+ * dangled becomes unset and empty.
+ * @param column - a list-of-u32 column with refersTo
+ * @param child - the column's u32 child
+ * @param valueRemap - old index -> new index or INVALID_INDEX
+ * @returns the rewritten column
+ */
+function remapListReferences(
+    column: Extract<Column, { dtype: "list" }>,
+    child: Extract<Column, { dtype: "u32" }>,
+    valueRemap: U32,
+): Column {
+    const { length, offsets } = column;
+    const rows = new Array<number[]>(length);
+    let validity = column.validity === null ? null : column.validity.slice();
+    let { nullCount } = column;
+    for (let row = 0; row < length; row++) {
+        const items: number[] = [];
+        const start = offsets[row];
+        const end = offsets[row + 1];
+        for (let j = start; j < end; j++) {
+            const mapped = mapReference(child.data[j], valueRemap);
+            if (mapped !== INVALID_INDEX) {
+                items.push(mapped);
+            }
+        }
+        rows[row] = items;
+        if (end > start && items.length === 0 && (validity === null || bitmapGet(validity, row))) {
+            validity ??= makeBitmap(length, true);
+            bitmapClear(validity, row);
+            nullCount++;
+        }
+    }
+    const meta = gatheredMeta(column.meta, nullCount);
+    const rebuilt = columnOfValues(Object.freeze({ ...meta, nullable: true }), rows);
+    const parts: MutableColumnParts = {
+        ...partsOf(rebuilt),
+        meta,
+        validity,
+        nullCount,
+    };
+    return createColumn(parts);
 }
 
 /**

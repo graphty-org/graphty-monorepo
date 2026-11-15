@@ -120,6 +120,8 @@ function exportOf(namespace: unknown, name: string): unknown {
 export interface LoadedPeer {
     readonly root: { readonly EXACT_MAX_NODES: number };
     readonly acquireAccelerator: (...args: never[]) => unknown;
+    /** Optional: without it the accelerator never shares the renderer's device. */
+    readonly summarizeAdapter?: (...args: never[]) => unknown;
 }
 
 /**
@@ -148,8 +150,12 @@ export function checkPeerExports(root: unknown, browser: unknown): LoadedPeer {
         });
     }
 
+    const summarizeAdapter = exportOf(browser, "summarizeAdapter");
     return {
         root: { EXACT_MAX_NODES: exactMaxNodes },
         acquireAccelerator: acquireAccelerator as LoadedPeer["acquireAccelerator"],
+        ...(typeof summarizeAdapter === "function"
+            ? { summarizeAdapter: summarizeAdapter as NonNullable<LoadedPeer["summarizeAdapter"]> }
+            : {}),
     };
 }

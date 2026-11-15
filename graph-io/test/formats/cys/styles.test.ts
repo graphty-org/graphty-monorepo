@@ -53,7 +53,8 @@ describe("reading session styles", () => {
             by: { data: "interaction" },
             table: [
                 ["pp", "solid"],
-                ["pd", "dashed"],
+                // LONG_DASH, dashes twice as long as EQUAL_DASH's
+                ["pd", "long-dash"],
             ],
         });
         expect(new Set(resolveStyles(ex, "node", "fill", snapshot))).toEqual(new Set(["#ccccff"]));
@@ -204,7 +205,7 @@ describe("writing session styles", () => {
         const back = await load(written);
         const arrows = resolveStyles(back.styles as ExtractedStyles, "edge", "targetArrow", back.snapshot);
         expect(arrows).toEqual(resolveStyles(ex, "edge", "targetArrow", first.snapshot));
-        expect(arrows[17]).toBe("triangle");
+        expect(arrows[17]).toBe("vee"); // yEd's standard arrow, notched
     });
 
     it("draws the same without its block: the named style and the view's bypasses are Cytoscape's own", async () => {

@@ -1,7 +1,7 @@
-import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine";
-import { EngineStore } from "@babylonjs/core/Engines/engineStore";
+import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine.js";
+import { EngineStore } from "@babylonjs/core/Engines/engineStore.js";
 import { Vector2, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
-import { Logger } from "@babylonjs/core/Misc/logger";
+import { Logger } from "@babylonjs/core/Misc/logger.js";
 import { afterAll, afterEach, beforeAll, beforeEach, expect, vi } from "vitest";
 
 import type { Graph } from "../src/Graph";
@@ -17,18 +17,32 @@ installCaughtErrors();
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
 // A plain global rather than an import, so this file reaches nothing under src/ at setup time.
 (globalThis as { __GRAPHTY_STRICT_STATE__?: boolean }).__GRAPHTY_STRICT_STATE__ = true;
+// Draw on demand: a graph that never set `renderOnDemand` stops drawing once its picture is still,
+// instead of redrawing every frame in software (SwiftShader) for the whole test. Not the
+// consumer's default; a test that needs continuous frames sets `renderOnDemand = false`.
+(globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: boolean }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ = true;
 
 // Mock CreateScreenshotAsync to return a valid 1x1 PNG data URL
-// This allows testing screenshot logic without requiring actual WebGL rendering
+// This allows testing screenshot logic without requiring actual WebGL rendering.
+// src/ imports it by path (Misc/screenshotTools.js) and tests import it from the barrel, so both
+// are mocked with the same function: a test's vi.mocked(CreateScreenshotAsync) drives the capture.
+const screenshotMock = vi.hoisted(() => ({
+    // 1x1 white PNG: 67 bytes base64-encoded
+    CreateScreenshotAsync: vi
+        .fn()
+        .mockResolvedValue(
+            "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
+        ),
+}));
 vi.mock("@babylonjs/core", async () => {
     const actual = await vi.importActual<typeof import("@babylonjs/core")>("@babylonjs/core");
-    // 1x1 white PNG: 67 bytes base64-encoded
-    const mockPngDataUrl =
-        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==";
-    return {
-        ...actual,
-        CreateScreenshotAsync: vi.fn().mockResolvedValue(mockPngDataUrl),
-    };
+    return { ...actual, CreateScreenshotAsync: screenshotMock.CreateScreenshotAsync };
+});
+vi.mock("@babylonjs/core/Misc/screenshotTools.js", async () => {
+    const actual = await vi.importActual<typeof import("@babylonjs/core/Misc/screenshotTools.js")>(
+        "@babylonjs/core/Misc/screenshotTools.js",
+    );
+    return { ...actual, CreateScreenshotAsync: screenshotMock.CreateScreenshotAsync };
 });
 
 // Type augmentation for Chrome-specific performance.memory API
@@ -146,6 +160,11 @@ afterAll(() => {
 // Cleanup after each test
 afterEach(async (context) => {
     const leakedEngines = releaseLeakedEngines(enginesBeforeTest, elementsBeforeTest);
+    // Let go of them: kept to the next test's beforeEach, they would hold a graph a file's
+    // afterAll removes -- its whole graph, 2.4 GB at 1,000,000 edges -- through the next
+    // beforeAll, so a second big graph in the same page ran out of memory (#6028).
+    enginesBeforeTest = new Set();
+    elementsBeforeTest = new Set();
 
     // Strict state's full sweep: no typed array state kept was written in place during the test.
     // Registered by src/session/project/strict.ts once a test has loaded it.

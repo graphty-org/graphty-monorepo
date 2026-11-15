@@ -73,7 +73,7 @@ async function captureStory(page: Page, storyId: string, filename: string): Prom
     await page.goto(storyUrl, { waitUntil: "networkidle" });
 
     // Wait for component to load
-    await page.waitForSelector("graphty-element", { timeout: 10000 });
+    await page.waitForSelector("graphty-element");
     await waitForStablePicture(page);
 
     // Take screenshot
@@ -88,7 +88,7 @@ async function checkZoomBehavior(page: Page): Promise<void> {
     const storyUrl = `${STORYBOOK_URL}/iframe.html?id=styles-edge--two-d-solid-lines&viewMode=story`;
     await page.goto(storyUrl, { waitUntil: "networkidle" });
 
-    await page.waitForSelector("graphty-element", { timeout: 10000 });
+    await page.waitForSelector("graphty-element");
     await waitForStablePicture(page);
 
     // Capture before zoom

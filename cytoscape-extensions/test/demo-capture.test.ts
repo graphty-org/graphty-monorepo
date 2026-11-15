@@ -26,11 +26,31 @@ describe("the demo in a capture", () => {
         const boxes = [document.createElement("div"), document.createElement("div")];
         const cores = boxes.map((box) => newCore(box, [{ group: "nodes", data: { id: "a" } }]));
         const root = document.createElement("div");
+        root.append(...boxes);
+        document.body.replaceChildren(root);
         markDone(root, () => Promise.resolve());
 
         await (root as unknown as { whenDone(): Promise<void> }).whenDone();
 
         expect(cores.map((cy) => cy.destroyed())).toEqual([true, true]);
         expect(boxes.map((box) => box.querySelectorAll("canvas").length)).toEqual([1, 1]);
+    });
+
+    // A story whose wait timed out finishes after the next story rendered. Its freeze must leave that story's cores
+    // alone: destroying them ended its runs, and picturing a detached container failed decode() (#4071, #4072).
+    it("a story that finishes after the next one rendered touches none of the next story's cores", async () => {
+        vi.spyOn(HTMLImageElement.prototype, "decode").mockResolvedValue(undefined);
+        const late = document.createElement("div");
+        markDone(late, () => Promise.resolve());
+        const box = document.createElement("div");
+        const next = document.createElement("div");
+        next.append(box);
+        document.body.replaceChildren(next);
+        const cy = newCore(box, [{ group: "nodes", data: { id: "a" } }]);
+
+        await (late as unknown as { whenDone(): Promise<void> }).whenDone();
+
+        expect(cy.destroyed()).toBe(false);
+        expect(box.querySelectorAll("canvas").length).toBe(0);
     });
 });

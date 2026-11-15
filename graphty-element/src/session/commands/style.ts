@@ -47,7 +47,7 @@ const STYLE_PATCH_ACTIONS = Object.freeze([
     "lockRow",
     "hideRow",
     "deleteRow",
-    "restoreStartingRows",
+    "addDefaultRows",
 ] as const);
 
 /** `style.patch`: one change to the stack, said the way the styles verb that made it says it. */
@@ -65,7 +65,7 @@ export type StylePatchCommand =
           readonly id: LayerId;
           /** Applied over the layer's specification one key deep; `undefined` clears a key. */
           readonly patch: Partial<LayerSpec>;
-          /** Keep the layer when the patch takes its last value away (`styles.update`'s `keepEmpty`). */
+          /** `styles.update`'s `keepEmpty`: kept for callers; every layer may write nothing. */
           readonly keepEmpty?: boolean;
       }
     | { readonly op: "style.patch"; readonly action: "remove"; readonly id: LayerId }
@@ -110,8 +110,8 @@ export type StylePatchCommand =
           /** Where it goes; the top of the unpinned top-level rows when absent. */
           readonly at?: StyleRowPlace;
       }
-    /** Add back whichever of the starting rows (Everything, Selected, Hovered) the stack lacks. */
-    | { readonly op: "style.patch"; readonly action: "restoreStartingRows" }
+    /** Write the default rows once, as plain data (the project setting `startingRows` turning on). */
+    | { readonly op: "style.patch"; readonly action: "addDefaultRows" }
     | { readonly op: "style.patch"; readonly action: "renameRow"; readonly id: StyleRowId; readonly name: string }
     | { readonly op: "style.patch"; readonly action: "moveRow"; readonly id: StyleRowId; readonly to: StyleRowPlace }
     | { readonly op: "style.patch"; readonly action: "pinRow"; readonly id: StyleRowId; readonly pin: StyleRowPin }
@@ -143,6 +143,8 @@ interface StyleTemplateCommand {
     readonly templateId?: string;
     /** Where the layers go; the top of the stack when absent. */
     readonly at?: TemplatePosition;
+    /** What to do with the document's shaders: hold them (absent), run them, or refuse to run them (still kept, held, so a save carries them). */
+    readonly shaders?: "run" | "hold" | "refuse";
 }
 
 /** Every style op. */
@@ -175,7 +177,8 @@ export interface StyleService {
 }
 
 /** What a style op's step is keyed on: the stack, one frozen value. */
-const STYLES_KEY = ["styles"] as const;
+// A write may copy a catalog shader into the project in its own step (the style service's execute).
+const STYLES_KEY = ["styles", "shaders"] as const;
 
 /**
  * The name of a layer in the stack, for a label.
@@ -240,8 +243,8 @@ function patchFact(command: StylePatchCommand, state: ProjectState): CodedFact<H
             return { code: "style.move-row", params: { row: rowOf(state, command.id) } };
         case "deleteRow":
             return { code: "style.delete-row", params: { row: rowOf(state, command.id) } };
-        case "restoreStartingRows":
-            return { code: "style.restore-starting-rows", params: {} };
+        case "addDefaultRows":
+            return { code: "style.add-default-rows", params: {} };
         case "pinRow":
             return { code: "style.pin-row", params: { row: rowOf(state, command.id), pin: command.pin } };
         case "lockRow":
@@ -328,8 +331,8 @@ function patchLabel(command: StylePatchCommand, state: ProjectState): string {
             return `${command.hidden ? "Hid" : "Showed"} "${rowOf(state, command.id)}"`;
         case "deleteRow":
             return `Deleted "${rowOf(state, command.id)}"`;
-        case "restoreStartingRows":
-            return "Restored the starting layers";
+        case "addDefaultRows":
+            return "Added the default layers";
         default:
             return "Changed the style layers";
     }
@@ -369,7 +372,9 @@ const stylePatch: UndoableDefinition<StylePatchCommand> = {
         kind: "undoable",
         label: patchLabel,
         fact: patchFact,
-        // A drag of a colour picker is one step: updates of the same keys of one layer merge.
+        // A drag of a color picker is one step: updates of the same keys of one layer merge. The
+        // keys are `set` and `encode`, not channels, so edits of two channels within a second merge
+        // too; the merged step's fact then names both (History's mergedFact).
         coalesce: (command) =>
             command.action === "update" ? `style:${command.id}:${Object.keys(command.patch).sort().join(",")}` : null,
     },
@@ -395,6 +400,8 @@ const styleTemplate: UndoableDefinition<StyleTemplateCommand> = {
         label: () => "Applied a style document",
         fact: () => ({ code: "style.template", params: {} }),
     },
+    // Its document's shaders join the project in the same step.
+    keys: () => ["styles", "shaders"],
     execute: (command, ctx) => required(ctx.services.styles).execute(command, ctx.draft),
 };
 

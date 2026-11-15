@@ -86,6 +86,27 @@ describe("session.data.expand from a network source", () => {
         assert.lengthOf(session.data.loads()[0]?.expansions ?? [], 1);
     });
 
+    it("returns what each expansion brought, and nodeSource says what a node can do", async () => {
+        const session = await seeded();
+        const fresh = session.data.nodeSource("valjean");
+        assert.strictEqual(fresh?.loadKey, "load-1");
+        assert.isFalse(fresh?.expanded, "nothing to collapse before an expansion");
+
+        const first = await session.data.expand(["valjean"]);
+        assert.deepEqual(first, {
+            code: "I_SOURCE_EXPANDED",
+            params: { seeds: ["valjean"], added: [4, 4], partial: true },
+        });
+        assert.deepInclude(session.data.nodeSource("valjean"), { expanded: true, hiddenNeighbors: 2 });
+        assert.isNull(session.data.nodeSource("nobody"));
+
+        await session.data.expand(["valjean"]);
+        const again = await session.data.expand(["valjean"]);
+        assert.strictEqual(again.code, "I_SOURCE_NOTHING_NEW");
+        assert.deepEqual(again.params.added, [0, 0]);
+        assert.isFalse(session.data.nodeSource("valjean")?.canExpand, "complete: nothing more to fetch");
+    });
+
     it("expands a node that session.data.import loaded from the source", async () => {
         const session = createGraphSession();
         sessions.push(session);
@@ -120,6 +141,49 @@ describe("session.data.expand from a network source", () => {
 
         assert.lengthOf(session.history.steps, steps + 1, "one expansion, not two");
         assert.strictEqual(facts(session, "valjean").expansion, "partial");
+    });
+
+    it("expands again, after the running one, a second call that asks a different depth", async () => {
+        const session = await seeded();
+        const steps = session.history.steps.length;
+
+        const [first, second] = await Promise.all([
+            session.data.expand(["valjean"], { depth: 1 }),
+            session.data.expand(["valjean"], { depth: 3 }),
+        ]);
+
+        assert.lengthOf(session.history.steps, steps + 2, "the deeper call is not folded into the first");
+        assert.deepEqual(facts(session, "valjean").loads, ["load-1", "load-1/x1", "load-1/x2"]);
+        assert.deepEqual(first.params.added, [4, 4]);
+        assert.deepEqual(second.params.added, [2, 2]);
+    });
+
+    it("lets a joined call's signal cancel only its own wait", async () => {
+        const session = await seeded();
+        const steps = session.history.steps.length;
+        const controller = new AbortController();
+
+        const first = session.data.expand(["valjean"]);
+        const joined = rejection(session.data.expand(["valjean"], { signal: controller.signal }));
+        controller.abort();
+
+        assert.strictEqual((await joined)?.name, "AbortError");
+        assert.strictEqual((await first).code, "I_SOURCE_EXPANDED");
+        assert.lengthOf(session.history.steps, steps + 1);
+    });
+
+    it("runs a joined call itself when the expansion it joined was cancelled by its own caller", async () => {
+        const session = await seeded();
+        const steps = session.history.steps.length;
+        const controller = new AbortController();
+        controller.abort();
+
+        const first = rejection(session.data.expand(["valjean"], { signal: controller.signal }));
+        const joined = session.data.expand(["valjean"]);
+
+        assert.isNotNull(await first);
+        assert.strictEqual((await joined).code, "I_SOURCE_EXPANDED");
+        assert.lengthOf(session.history.steps, steps + 1);
     });
 
     it("updates a node already held with the incoming attributes, without adding it twice", async () => {

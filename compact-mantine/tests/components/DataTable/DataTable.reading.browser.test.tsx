@@ -88,12 +88,9 @@ describe("DataTable reading", () => {
     it("shows a cut value whole in a tooltip while the pointer rests on it", async () => {
         renderTable();
         await userEvent.hover(textOf("Mademoiselle Baptistine"));
-        await waitFor(
-            () => {
-                expect(screen.getByRole("tooltip")).toHaveTextContent("Mademoiselle Baptistine");
-            },
-            { timeout: 3000 },
-        );
+        await waitFor(() => {
+            expect(screen.getByRole("tooltip")).toHaveTextContent("Mademoiselle Baptistine");
+        });
         // A value the column shows whole has no tooltip.
         await userEvent.hover(textOf("p2"));
         await waitFor(() => {

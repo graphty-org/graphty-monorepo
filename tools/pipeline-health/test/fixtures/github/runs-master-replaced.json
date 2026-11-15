@@ -1,0 +1,384 @@
+{
+    "workflow_runs": [
+        {
+            "id": 40580296271,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "b2453a02448ca561fcc2bd0019ef2ecf74141c54",
+            "event": "push",
+            "status": "pending",
+            "conclusion": null,
+            "run_attempt": 1,
+            "created_at": "2026-10-27T20:41:33Z",
+            "run_started_at": "2026-10-27T20:41:33Z",
+            "updated_at": "2026-10-27T20:41:34Z",
+            "display_title": "Merge pull request #3932 from graphty-org/dependabot/github_actions/a…",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZnCZ0sA",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40579783151,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "164734fe23494b0a8c2c8753e0b2bb128f9e9fa7",
+            "event": "push",
+            "status": "in_progress",
+            "conclusion": null,
+            "run_attempt": 1,
+            "created_at": "2026-10-27T20:38:00Z",
+            "run_started_at": "2026-10-27T20:38:00Z",
+            "updated_at": "2026-10-27T20:48:14Z",
+            "display_title": "Merge pull request #4054 from graphty-org/test/nightly-scenario-matrix",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZnBCQwg",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40578798343,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "1786468983c21769cf87338c8350e5c75eee1048",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T20:31:26Z",
+            "run_started_at": "2026-10-27T20:31:26Z",
+            "updated_at": "2026-10-27T20:38:01Z",
+            "display_title": "Merge pull request #4052 from graphty-org/visual/seed-2026-10-27",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZm-dVVA",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40576673438,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "8f67724a3bdd8be2dd16ce83a6632faf6912245b",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T20:17:15Z",
+            "run_started_at": "2026-10-27T20:17:15Z",
+            "updated_at": "2026-10-27T20:41:31Z",
+            "display_title": "Merge pull request #4045 from graphty-org/fix/4043-master-reference-f…",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZm43Z7g",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40576167159,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "02c56c04361e65207f27f5f457111567659cd893",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T20:13:54Z",
+            "run_started_at": "2026-10-27T20:13:54Z",
+            "updated_at": "2026-10-27T20:17:16Z",
+            "display_title": "Merge pull request #4051 from graphty-org/ci/cache-version-agnostic-t…",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZm3iM-w",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40575998808,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "b777d8f0139b53db155caf2ac04dc8dfe22939cc",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T20:12:47Z",
+            "run_started_at": "2026-10-27T20:12:47Z",
+            "updated_at": "2026-10-27T20:26:19Z",
+            "display_title": "Merge pull request #4048 from graphty-org/ci/3447-story-rates",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZm3F5YA",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40572381298,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "d3787e63c5c6fcac60e29191730f461019f8f8a2",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T19:48:17Z",
+            "run_started_at": "2026-10-27T19:48:17Z",
+            "updated_at": "2026-10-27T20:01:53Z",
+            "display_title": "CI",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZmtZweg",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40570279312,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "4edbeaa5a517d2ac0fe339397c03512b420fe06b",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T19:34:05Z",
+            "run_started_at": "2026-10-27T19:34:05Z",
+            "updated_at": "2026-10-27T19:47:36Z",
+            "display_title": "Merge pull request #4042 from graphty-org/ci/3447-stories-shard-balance",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZmnxWUQ",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40563699613,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "b80914bb269a613631833115ee0cd880df33d269",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T18:50:33Z",
+            "run_started_at": "2026-10-27T18:50:33Z",
+            "updated_at": "2026-10-27T19:06:18Z",
+            "display_title": "Merge pull request #4040 from graphty-org/ci/4039-abandon-own-concurr…",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZmWRXqw",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40557782682,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "50c1d05c14be3e0c190b9bfd86f57a4805bcb594",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T18:12:27Z",
+            "run_started_at": "2026-10-27T18:12:27Z",
+            "updated_at": "2026-10-27T18:27:37Z",
+            "display_title": "Merge pull request #3592 from graphty-org/feat/3418-on-configuration",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZmGgyeQ",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40551476614,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "8b8e1928fc7c9b6c95b59e4f88098d97f754688b",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T17:31:57Z",
+            "run_started_at": "2026-10-27T17:31:57Z",
+            "updated_at": "2026-10-27T17:47:15Z",
+            "display_title": "Merge pull request #4038 from graphty-org/ci/3418-old-capture-removal",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZl1iFOA",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40517367058,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "14576fbe1748b4f326aa2d358d044ba3c45c9826",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T14:02:21Z",
+            "run_started_at": "2026-10-27T14:02:21Z",
+            "updated_at": "2026-10-27T14:19:14Z",
+            "display_title": "Merge pull request #4032 from graphty-org/fix/nightly-verdict-hold-state",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZkZ53LA",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40515312387,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "a72a4cad3635fa801f6f96726e0429cb55a8c5dd",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T13:48:23Z",
+            "run_started_at": "2026-10-27T13:48:23Z",
+            "updated_at": "2026-10-27T14:05:23Z",
+            "display_title": "Merge pull request #4036 from graphty-org/fix/story-parity-rerun-attempt",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZkUKtJA",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40513487143,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "87ae197cd428417f7fc087be8f0b58fee4fd5ef0",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T13:36:20Z",
+            "run_started_at": "2026-10-27T13:36:20Z",
+            "updated_at": "2026-10-27T13:48:31Z",
+            "display_title": "Merge pull request #4034 from graphty-org/chore/hold-graphty-githerd-npm",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZkPOQqg",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40510510846,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "ca74f788e56445704f36de2d11304527600f04c5",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T13:15:55Z",
+            "run_started_at": "2026-10-27T13:15:55Z",
+            "updated_at": "2026-10-27T13:35:09Z",
+            "display_title": "Merge pull request #4030 from graphty-org/fix/nightly-publish-policy",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZkHKwxQ",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40510344499,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "87b2441a57f866aae80afd8d883d7f55a77d00ac",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T13:14:47Z",
+            "run_started_at": "2026-10-27T13:14:47Z",
+            "updated_at": "2026-10-27T13:15:56Z",
+            "display_title": "Merge pull request #4029 from graphty-org/fix/candidate-runs-master-t…",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZkGuqig",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40509439919,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "312b51c537209d86eeeb9bb447d8b33c39e8ec29",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "cancelled",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T13:08:29Z",
+            "run_started_at": "2026-10-27T13:08:29Z",
+            "updated_at": "2026-10-27T13:14:49Z",
+            "display_title": "Merge pull request #3978 from graphty-org/fix/release-rerun-cancelled",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZkETrJA",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40507460343,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "818ff7f7c942b78da471bb966ad702d3b65314bc",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T12:54:11Z",
+            "run_started_at": "2026-10-27T12:54:11Z",
+            "updated_at": "2026-10-27T13:20:29Z",
+            "display_title": "Merge pull request #4023 from graphty-org/fix/4018-health-502-and-ale…",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZj-7PrQ",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40506981899,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "7f1ed32ebe5f154739fa1f887b9e4006b0a94b62",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T12:50:38Z",
+            "run_started_at": "2026-10-27T12:50:38Z",
+            "updated_at": "2026-10-27T13:06:42Z",
+            "display_title": "Merge pull request #4022 from graphty-org/fix/llm-depleted-credit-own…",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZj9phrQ",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        },
+        {
+            "id": 40505432790,
+            "name": "CI",
+            "path": ".github/workflows/ci.yml",
+            "head_branch": "master",
+            "head_sha": "13d9aa51bf21e51649e41e522a9b39395eef415b",
+            "event": "push",
+            "status": "completed",
+            "conclusion": "success",
+            "run_attempt": 1,
+            "created_at": "2026-10-27T12:39:04Z",
+            "run_started_at": "2026-10-27T12:39:04Z",
+            "updated_at": "2026-10-27T12:52:11Z",
+            "display_title": "Merge pull request #4016 from graphty-org/fix/full-run-single-capture",
+            "check_suite_node_id": "CS_kwDOQuemQs8AAAAZj5gXSA",
+            "triggering_actor": {
+                "login": "graphty-agent"
+            }
+        }
+    ]
+}

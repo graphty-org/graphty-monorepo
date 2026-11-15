@@ -1,0 +1,26 @@
+{
+ "commit": "1e123d7d33eb66f190fb4a197f90102ede2478a5",
+ "toolCommit": "40d3d73bd66130cdc1fd197199c03d7b225aa668",
+ "uncommittedChanges": false,
+ "buildStamp": "1e123d7d33eb graphty@0.8.92",
+ "url": "/?next",
+ "screenReaderMode": false,
+ "keyboardOnlyMode": true,
+ "viewport": {
+  "width": 1440,
+  "height": 900
+ },
+ "renderer": "ANGLE (NVIDIA, Vulkan 1.4.312 (NVIDIA NVIDIA GeForce RTX 4070 SUPER (0x00002783)), NVIDIA)",
+ "started": "2026-11-03T12:48:21.885Z",
+ "setup": [
+  "--click Open a file",
+  "--upload /home/apowers/Projects/graphty-monorepo/.worktrees/design-studio-tier5/design/ui/studio/tool/files/volunteers.graphml",
+  "--key Shift+A",
+  "--type PageRank",
+  "--click PageRank",
+  "--click Run"
+ ],
+ "task": "T71A",
+ "followUp": "given 2026-11-03T12:49:08.296Z",
+ "setupOk": true
+}

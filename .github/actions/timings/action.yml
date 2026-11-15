@@ -1,0 +1,51 @@
+# The run's durations against ci-budgets.json (tools/ci-budgets.mjs report): a table in the step summary, a
+# warning per key over budget, one comment on a pull request slower than master, and the run, job, step,
+# queue and nx task rows sent to the results store. It never fails: every part warns and goes on.
+#
+# The calling job checks out tools/ and ci-budgets.json, runs last with `if: always()`, and needs
+# `actions: read` (the run's jobs), `id-token: write` (the store's credential) and `pull-requests: write`
+# (the comment), and `issues: write` (the trend alarm issues of master's runs, kind full in the store).
+# The Build job uploads its nx profile as the artifact `nx-profile`.
+name: CI timings
+description: Report the run's durations against their budgets and send them to the results store
+inputs:
+    kind:
+        description: The run kind (pr, master, full, dispatch); empty takes it from the event
+        required: false
+        default: ""
+    results-url:
+        description: The results store's URL (the repository variable RESULTS_URL); empty sends nothing
+        required: false
+        default: ""
+    health-api-url:
+        description: The pipeline health API's URL (the repository variable HEALTH_API_URL); empty sends nothing there
+        required: false
+        default: ""
+runs:
+    using: composite
+    steps:
+        - uses: actions/setup-node@v7
+          with:
+              node-version: 22.x
+
+        - name: Download the nx profiles
+          continue-on-error: true
+          uses: actions/download-artifact@v8
+          with:
+              pattern: nx-profile*
+              path: ${{ runner.temp }}/nx-profiles
+              merge-multiple: true
+
+        - name: Report the run's durations
+          shell: bash
+          env:
+              GITHUB_TOKEN: ${{ github.token }}
+              RESULTS_URL: ${{ inputs.results-url }}
+              HEALTH_API_URL: ${{ inputs.health-api-url }}
+              KIND: ${{ inputs.kind }}
+              PROFILES: ${{ runner.temp }}/nx-profiles
+          run: |
+              args=(report --run "$GITHUB_RUN_ID")
+              if [ -n "$KIND" ]; then args+=(--kind "$KIND"); fi
+              for f in "$PROFILES"/*.json; do if [ -f "$f" ]; then args+=(--nx-profile "$f"); fi; done
+              node tools/ci-budgets.mjs "${args[@]}" || true

@@ -1,0 +1,50 @@
+[
+    {
+        "number": 3765,
+        "title": "Flaky story test: GraphPlace Find No Match (graphty)",
+        "state": "OPEN",
+        "stateReason": null,
+        "closedAt": null,
+        "body": "graphty/src/workspace/graph-place/GraphPlace.stories.tsx > Find No Match: 4 flaky detections in 28 days. #3553 (closed) fixed a race in this story; this is that race back or another cause. Detected as flaky by the test quarantine retry in CI (failed, then passed on the same inputs). Find the mechanism and fix it; never a longer timeout or a fixed wait. Part of #3418 (flaky tests first)."
+    },
+    {
+        "number": 3766,
+        "title": "Flaky story test: StartScreen Settings Privacy (graphty)",
+        "state": "OPEN",
+        "stateReason": null,
+        "closedAt": null,
+        "body": "graphty/src/workspace/start/StartScreen.stories.tsx > Settings Privacy: 1 flaky detection. Related: #3373 (closed), #3366 (open). Detected as flaky by the test quarantine retry in CI (failed, then passed on the same inputs). Find the mechanism and fix it; never a longer timeout or a fixed wait. Part of #3418 (flaky tests first)."
+    },
+    {
+        "number": 3767,
+        "title": "Flaky test: LegendCard real-element at 900 x 700 drawing width",
+        "state": "OPEN",
+        "stateReason": null,
+        "closedAt": null,
+        "body": "graphty/src/workspace/canvas/__tests__/LegendCard.real-element.test.tsx > at 900 x 700 leaves the drawing at least half the canvas's width: 1 flaky detection. #3517 (closed) had the same test at width 0; see also #3280 (open). Detected as flaky by the test quarantine retry in CI (failed, then passed on the same inputs). Find the mechanism and fix it; never a longer timeout or a fixed wait. Part of #3418 (flaky tests first)."
+    },
+    {
+        "number": 3762,
+        "title": "Flaky: graphty LayoutSeed.real-element.test.tsx fails as a whole file (27 CI detections in 28 days)",
+        "state": "CLOSED",
+        "stateReason": "COMPLETED",
+        "closedAt": "2026-10-26T22:12:23Z",
+        "body": "graphty/src/workspace/layout/__tests__/LayoutSeed.real-element.test.tsx failed and then passed on retry 27 times in CI between 2026-10-25 and 2026-10-26 (backfilled from CI annotations by #3760). The whole file fails, not one test, so the cause is likely in setup or teardown (element load, a shared resource, an unhandled error), not one assertion.\n\nFix the mechanism; never raise a timeout or add a fixed wait. Refs #3418"
+    },
+    {
+        "number": 3768,
+        "title": "Flaky test: visual-review capture-run classifies new, unchanged, excluded, failed",
+        "state": "CLOSED",
+        "stateReason": "COMPLETED",
+        "closedAt": "2026-10-26T23:07:58Z",
+        "body": "visual-review/test/capture-run.test.mjs > classifies new, unchanged, excluded, failed, and a story newly excluded by its parameters: 1 flaky detection. Detected as flaky by the test quarantine retry in CI (failed, then passed on the same inputs). Find the mechanism and fix it; never a longer timeout or a fixed wait. Part of #3418 (flaky tests first)."
+    },
+    {
+        "number": 3754,
+        "title": "Flaky: graphty \"lands a layout change on the bare canvas's fit, whenever the key card comes up\"",
+        "state": "CLOSED",
+        "stateReason": "COMPLETED",
+        "closedAt": "2026-10-26T21:51:27Z",
+        "body": "CI's results service detected this graphty test as flaky (it failed, then passed on the retry of the same inputs) in the last 7 days:\n\n- File: `graphty/src/workspace/canvas/__tests__/FramingIgnoresOverlays.real-element.test.tsx`\n- Test: `the drawing is framed in the canvas alone > lands a layout change on the bare canvas's fit, whenever the key card comes up`\n- Shard: graphty (real-element project)\n\nThe test applies the Circle layout on Les Miserables four times (key card never shown, shown before the layout change, right after it while its fit is pending, and after the fit landed) and asserts every node lands within 1 px of the bare-canvas picture. An intermittent failure means the picture it reads is sometimes not the settled one.\n\nRelated: #3372 (canvas is the frame), closed.\n"
+    }
+]

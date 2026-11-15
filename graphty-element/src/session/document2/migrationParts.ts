@@ -592,6 +592,21 @@ function mappingOf(
 }
 
 /**
+ * The version 1 load records a migrated source keeps verbatim in its `metadata`.
+ * @param inputs - The version 1 members.
+ * @returns The records.
+ */
+function versionOneLoadsOf(inputs: DataInputs): JsonObject {
+    const { data, session, sources } = inputs;
+    return {
+        ...(data.source === undefined ? {} : { source: data.source }),
+        ...(data.sources === undefined ? {} : { sources: data.sources }),
+        ...(sources === undefined ? {} : { loads: sources }),
+        ...(isObject(session?.issues) && session.issues.facts !== undefined ? { facts: session.issues.facts } : {}),
+    };
+}
+
+/**
  * Find a migrated edge's reference by its ends: by the file's id; else by position among the edges
  * between those ends; else, for an id the element minted in a session (`graphty:e<n>`, never in
  * the file), the one edge between those ends.
@@ -634,7 +649,7 @@ function edgeFinderOf(
  * @returns The data section and the references into it.
  */
 export function migrateData(inputs: DataInputs): MigratedData {
-    const { data, session, sources } = inputs;
+    const { data, session } = inputs;
     const graph = isObject(data.graph) ? data.graph : {};
     const directed = graph.directed !== false;
     const styles = fileStyleValues(session);
@@ -679,14 +694,7 @@ export function migrateData(inputs: DataInputs): MigratedData {
     const byPosition = new Map(edgeRows.map((row, at) => [row.at, refs[at]]));
     const edgeBetween = edgeFinderOf(edgeRows, refs, edgeId, directed);
 
-    const held = {
-        "version-1": {
-            ...(data.source === undefined ? {} : { source: data.source }),
-            ...(data.sources === undefined ? {} : { sources: data.sources }),
-            ...(sources === undefined ? {} : { loads: sources }),
-            ...(isObject(session?.issues) && session.issues.facts !== undefined ? { facts: session.issues.facts } : {}),
-        },
-    };
+    const held = { "version-1": versionOneLoadsOf(inputs) };
     const record = {
         id: source,
         label: "Version 1 data",

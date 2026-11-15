@@ -75,11 +75,10 @@ const CONTAINER = /\.(zip|sog)$/;
  * @param color - the color, or "any".
  * @returns both shares, 0 to 1.
  */
-async function shares(picture: HTMLImageElement, color: Variant["color"]): Promise<{ drawn: number; colored: number }> {
-    await picture.decode();
+function shares(picture: HTMLCanvasElement, color: Variant["color"]): { drawn: number; colored: number } {
     const canvas = document.createElement("canvas");
-    canvas.width = picture.naturalWidth;
-    canvas.height = picture.naturalHeight;
+    canvas.width = picture.width;
+    canvas.height = picture.height;
     const context = canvas.getContext("2d");
     assert.isNotNull(context);
     context.drawImage(picture, 0, 0);
@@ -108,7 +107,7 @@ async function shares(picture: HTMLImageElement, color: Variant["color"]): Promi
 async function assertPreview(dialog: HTMLElement, variant: Variant): Promise<void> {
     // The name graphty-element's record gives it, as the dialog's Name field shows it.
     const name = (await within(dialog).findByRole<HTMLInputElement>("textbox", { name: "Name" })).value;
-    const { drawn, colored } = await shares(await previewOf(dialog, name), variant.color);
+    const { drawn, colored } = shares(await previewOf(dialog, name), variant.color);
     assert.isAtLeast(drawn, 0.03, `${variant.id}: the preview is not blank`);
     if (variant.color !== "any") {
         assert.isAtLeast(colored, 0.01, `${variant.id}: the preview shows ${variant.color}`);
@@ -203,7 +202,7 @@ describe("every model format and variant, through the Load custom model dialog",
         if (variant.drawFails !== undefined) {
             const preview = await within(dialog).findByTestId("model-preview");
             assert.isNotNull(await within(preview).findByText("Not loaded"));
-            assert.isNull(preview.querySelector("img"));
+            assert.isNull(preview.querySelector("img, canvas"));
             const addButton = within(dialog).getByRole("button", { name: "Add model" });
             assert.equal(addButton.getAttribute("aria-disabled"), "true");
             // The reader is told, as an intake refusal is told.

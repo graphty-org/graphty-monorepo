@@ -104,6 +104,8 @@ import { layoutIdForEngine } from "./catalog/layouts";
 import { registeredAlgorithmByKey } from "./catalog/registry";
 import type {
     AlgorithmKey,
+    Channel,
+    ChannelValue,
     DrawnShaders,
     EdgeId,
     ElementAtResult,
@@ -203,6 +205,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
+import { LiveModelPreview, type ModelPreview, type ModelPreviewOptions } from "./meshes/ModelPreview";
 import { NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
@@ -218,7 +221,7 @@ import {
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
-import { optionsOf } from "./models/ModelCache";
+import { type ModelTemplate, optionsOf } from "./models/ModelCache";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
 import { EdgeIdTarget } from "./render/EdgeIdTarget";
@@ -243,7 +246,7 @@ import { type DrawnTarget, RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
-import type { AssetsApiInternal } from "./session/assets/AssetsApi";
+import type { AssetRecord, AssetsApiInternal } from "./session/assets/AssetsApi";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
 import {
@@ -7332,19 +7335,16 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * One node drawn as a model, alone, as the graph draws it, on a transparent background. See
-     * {@link ModelThumbnailOptions}. Waits for the asset to settle; queued with `nodeThumbnail` and
-     * drawn once per asset digest, size, style values, 2D and lighting.
-     * @param ref - What `node.model` takes: an asset id, a sample's id, or a URL the session holds.
-     * @param options - The size and the node's style values.
-     * @returns The picture as a PNG data URL.
-     * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected or waiting model, its first problem's code and params (a waiting model with
-     *     `standInMissing` is drawn unless it waits for its geometry or an answer); for an accepted model that
-     *     could not be drawn, the load failure's code (`E_MODEL_STRUCTURE`, `E_MODEL_PARSE`,
-     *     `E_MODEL_DECODER_UNAVAILABLE`, `E_MODEL_EXTERNAL_URL`) and its params as `details`.
+     * The record of a model `modelThumbnail` or `modelPreview` can draw, and its stand-ins.
+     * @param ref - What `node.model` takes.
+     * @param standInMissing - Draw a model waiting for pictures or materials with them stood in for.
+     * @returns The record and, for a waiting model, what stands in.
+     * @throws GraphtyError as `modelThumbnail` does.
      */
-    async modelThumbnail(ref: string, options: ModelThumbnailOptions = {}): Promise<string> {
+    async #drawableModel(
+        ref: string,
+        standInMissing: boolean,
+    ): Promise<{ record: AssetRecord; standIn: ReturnType<AssetsApiInternal["standIn"]> }> {
         const { assets } = this.getSession();
         const held = assets.find(ref); // NOSONAR(S7754): the session's find, not Array.find
         if (held === undefined && !ref.startsWith("asset:sample/")) {
@@ -7365,7 +7365,7 @@ export class Graph implements GraphContext {
                   }
                 : record.problems[0];
         const standIn =
-            options.standInMissing === true && record.state !== "accepted"
+            standInMissing && record.state !== "accepted"
                 ? (assets as AssetsApiInternal).standIn(record.id)
                 : undefined;
         if ((record.state !== "accepted" && standIn === undefined) || record.kind === "image") {
@@ -7377,7 +7377,26 @@ export class Graph implements GraphContext {
             });
         }
 
-        const style = options.style ?? {};
+        return { record, standIn };
+    }
+
+    /**
+     * The model's template in a scene, built for the style's geometry options. See `modelPreview`.
+     * @param scene - The scene.
+     * @param ref - What `node.model` takes.
+     * @param record - The model's record.
+     * @param standIn - What stands in for a waiting model's missing parts.
+     * @param style - The node's style values.
+     * @returns The template, the caller's to dispose.
+     */
+    async #modelTemplate(
+        scene: Scene,
+        ref: string,
+        record: AssetRecord,
+        standIn: ReturnType<AssetsApiInternal["standIn"]>,
+        style: Readonly<Partial<Record<Channel, ChannelValue>>>,
+    ): Promise<ModelTemplate> {
+        const { assets } = this.getSession();
         const shape = {
             type: "box",
             model: ref,
@@ -7389,19 +7408,91 @@ export class Graph implements GraphContext {
             modelDoubleSided: style["node.modelDoubleSided"],
             modelAnimation: style["node.modelAnimation"],
         } as NonNullable<NodeStyleConfig["shape"]>;
+        const container = await loadModel(
+            scene,
+            standIn?.files ?? assets.files(record.id),
+            standIn?.main ?? record.path ?? "",
+            standIn?.format ?? record.format,
+            standIn?.skipped ?? record.skipped,
+        ).catch((error: unknown) => {
+            if (!(error instanceof ModelLoadFailure)) {
+                throw error;
+            }
+
+            throw new GraphtyError({
+                code: error.fact.code as GraphtyError["code"],
+                source: "data",
+                message: `The model ${ref} could not be drawn.`,
+                details: error.fact.params,
+            });
+        });
+        const chunk = await loadChunk();
+        return chunk.prepareTemplate(
+            scene,
+            container,
+            `graphty-model-preview-${record.digest.slice(0, 8)}`,
+            optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
+                unlit: style["node.unlit"] === true,
+                wireframe: style["node.wireframe"] === true,
+            }),
+            () => chunk.neutralEnvironment(scene),
+        );
+    }
+
+    /**
+     * One model drawn live, as a node draws it, in a canvas filling an element of the caller's,
+     * with a camera the reader turns by dragging. See {@link ModelPreviewOptions}.
+     * @param ref - What `node.model` takes.
+     * @param host - The element the preview's canvas fills.
+     * @param options - The node's style values, and whether a waiting model is drawn with stand-ins.
+     * @returns The preview, once the model is drawn.
+     * @throws GraphtyError as `modelThumbnail` does.
+     */
+    async modelPreview(ref: string, host: HTMLElement, options: ModelPreviewOptions = {}): Promise<ModelPreview> {
+        const { record, standIn } = await this.#drawableModel(ref, options.standInMissing === true);
+        const preview = new LiveModelPreview(
+            host,
+            async (scene, style) => this.#modelTemplate(scene, ref, record, standIn, style),
+            this.#lighting,
+        );
+        try {
+            await preview.update(options.style ?? {});
+        } catch (error) {
+            preview.dispose();
+            throw error;
+        }
+        return preview;
+    }
+
+    /**
+     * One node drawn as a model, alone, as the graph draws it, on a transparent background. See
+     * {@link ModelThumbnailOptions}. Waits for the asset to settle; queued with `nodeThumbnail` and
+     * drawn once per asset digest, size, style values, 2D and lighting.
+     * @param ref - What `node.model` takes: an asset id, a sample's id, or a URL the session holds.
+     * @param options - The size and the node's style values.
+     * @returns The picture as a PNG data URL.
+     * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
+     *     rejected or waiting model, its first problem's code and params (a waiting model with
+     *     `standInMissing` is drawn unless it waits for its geometry or an answer); for an accepted model that
+     *     could not be drawn, the load failure's code (`E_MODEL_STRUCTURE`, `E_MODEL_PARSE`,
+     *     `E_MODEL_DECODER_UNAVAILABLE`, `E_MODEL_EXTERNAL_URL`) and its params as `details`.
+     */
+    async modelThumbnail(ref: string, options: ModelThumbnailOptions = {}): Promise<string> {
+        const { record, standIn } = await this.#drawableModel(ref, options.standInMissing === true);
+        const style = options.style ?? {};
         const is2D = this.getViewMode() === "2d";
         const key = JSON.stringify([
             standIn === undefined ? "model" : "model-stand-in",
             record.digest,
             options.size,
             style["node.color"],
-            shape.modelSourceUp,
-            shape.modelTurn,
-            shape.modelCenter,
-            shape.modelFit,
-            shape.modelTint,
-            shape.modelDoubleSided,
-            shape.modelAnimation,
+            style["node.modelSourceUp"],
+            style["node.modelTurn"],
+            style["node.modelCenter"],
+            style["node.modelFit"],
+            style["node.modelTint"],
+            style["node.modelDoubleSided"],
+            style["node.modelAnimation"],
             style["node.modelAnimationOffset"],
             style["node.unlit"],
             style["node.wireframe"],
@@ -7411,35 +7502,7 @@ export class Graph implements GraphContext {
         let shot = this.#thumbnails.get(key);
         if (shot === undefined) {
             shot = this.#thumbnailQueue.then(async () => {
-                const container = await loadModel(
-                    this.scene,
-                    standIn?.files ?? assets.files(record.id),
-                    standIn?.main ?? record.path ?? "",
-                    standIn?.format ?? record.format,
-                    standIn?.skipped ?? record.skipped,
-                ).catch((error: unknown) => {
-                    if (!(error instanceof ModelLoadFailure)) {
-                        throw error;
-                    }
-
-                    throw new GraphtyError({
-                        code: error.fact.code as GraphtyError["code"],
-                        source: "data",
-                        message: `The model ${ref} could not be drawn.`,
-                        details: error.fact.params,
-                    });
-                });
-                const chunk = await loadChunk();
-                const template = await chunk.prepareTemplate(
-                    this.scene,
-                    container,
-                    `graphty-model-thumbnail-${record.digest.slice(0, 8)}`,
-                    optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
-                        unlit: style["node.unlit"] === true,
-                        wireframe: style["node.wireframe"] === true,
-                    }),
-                    () => chunk.neutralEnvironment(this.scene),
-                );
+                const template = await this.#modelTemplate(this.scene, ref, record, standIn, style);
                 try {
                     // As nodeThumbnail: the instance is made now, so the frozen list must not leave it out.
                     this.updateManager.thawActiveMeshes();

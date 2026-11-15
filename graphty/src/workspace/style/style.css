@@ -605,9 +605,10 @@
 
 /* The node-models experiment (issue #3396). */
 
-/* Model settings' rows: a short name column, the field, and the minus, across the pop-over's width. */
+/* Model settings' rows: a short name column, the field, and the minus, across the pop-over's width.
+   The column fits the longest name ("Animation", "Wireframe") at 11px without cutting it. */
 .ws-model-settings .ws-field {
-    grid-template-columns: 48px minmax(0, 1fr) 24px;
+    grid-template-columns: 60px minmax(0, 1fr) 24px;
 }
 
 /* The Shape field's model chips (node-models design 13.4): a line under the field, in its column. */
@@ -705,6 +706,24 @@
     border-radius: var(--mantine-radius-sm);
     background: var(--cm-bg-secondary);
     color: var(--cm-text-secondary);
+    position: relative;
+    overflow: hidden;
+}
+
+/* graphty-element's live preview fills the box; what stands in while it draws sits over it. */
+.ws-model-live {
+    position: absolute;
+    inset: 0;
+    cursor: grab;
+}
+
+.ws-model-live:active {
+    cursor: grabbing;
+}
+
+.ws-model-preview-over {
+    position: relative;
+    pointer-events: none;
 }
 
 /* Files, More options and Details: a chevron and a word that open their rows, as the selection pane's Advanced. */

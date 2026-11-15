@@ -292,6 +292,22 @@ img.src = await element.modelThumbnail(car.id, { size: 160, style: { "node.model
 element.session.assets.rename(car.id, "Cruiser"); // record.plainName, saved with the project
 ```
 
+For a preview the reader can turn, `element.modelPreview(ref, box, { style })` draws the model
+live in a canvas that fills `box` (any sized element): dragging turns it, the wheel or a pinch
+zooms, and the arrow keys turn it while the canvas has focus. A clip named by
+`node.modelAnimation` plays at `node.modelAnimationSpeed` (Speed 0 holds the pose at
+`node.modelAnimationOffset`), and `node.unlit` and `node.wireframe` are drawn too.
+`preview.update(style)` redraws it with other values and keeps the reader's view;
+`preview.resetView()` goes back to the first view; `preview.dispose()` removes the canvas. It
+rejects with the same codes as `modelThumbnail`.
+
+```ts
+const preview = await element.modelPreview(car.id, box, { style: { "node.modelAnimation": "Drive" } });
+preview.canvas.setAttribute("aria-label", "Cruiser preview, drag to turn");
+await preview.update({ "node.modelAnimation": "Drive", "node.color": "#e63946", "node.modelTint": "replace" });
+preview.dispose(); // when the picker closes
+```
+
 ### Dropped files go to the model that waits for them
 
 A page usually has one place to drop files, and a reader who was told a model needs

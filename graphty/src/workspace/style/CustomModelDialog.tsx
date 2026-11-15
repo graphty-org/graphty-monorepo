@@ -33,7 +33,7 @@ import {
 } from "@mantine/core";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { fileStem, type ModelDraw, modelName, useModelDraw } from "../canvas/models";
+import { fileStem, type ModelLive, modelName, useModelPreview } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FactChip, ModelChip } from "./ModelChip";
@@ -55,9 +55,6 @@ const MODEL_FORMATS = MODEL_MAIN_EXTENSIONS.filter(
     (ext) => ext !== ".zip" && detectModelFormat({ filename: `model${ext}` })?.supported === true,
 );
 
-/** The preview's side, in CSS pixels: the right column's width. */
-const PREVIEW_PX = 240;
-
 /** The settings shown at once, with a layer to write them to: Color, and Animation for a model with clips. */
 const SHOWN_CHANNELS: readonly Channel[] = ["node.modelTint", "node.modelAnimation"];
 
@@ -71,6 +68,7 @@ const MORE_CHANNELS: readonly Channel[] = [
     "node.modelAnimationOffset",
     "node.modelDoubleSided",
     "node.unlit",
+    "node.wireframe",
 ];
 
 /** The rotate buttons under the preview, in their order. */
@@ -232,15 +230,17 @@ function PartLine({ part }: Readonly<{ part: ModelPart }>): React.JSX.Element {
 }
 
 /**
- * The preview: a spinner while loading, the model drawn by graphty-element once it is accepted or,
- * while it waits for parts, with them stood in for; the cube and the "N missing" chip while it waits
- * for a part it cannot be drawn without, or the cube and the chip saying why graphty-element could
- * not draw it.
+ * The preview: graphty-element draws the model live in it (`modelPreview`) once it is accepted or,
+ * while it waits for parts, with them stood in for; the reader turns it by dragging or with the
+ * arrow keys, and its clip plays. Over it: a spinner while it loads or draws, the cube and the
+ * "N missing" chip while it waits for a part it cannot be drawn without, or the cube and the chip
+ * saying why graphty-element could not draw it.
  * @param props - Component props
  * @param props.held - the model, if any
  * @param props.name - its name
- * @param props.draw - its picture, or why it could not be drawn
+ * @param props.draw - whether graphty-element drew it, or why it could not
  * @param props.busy - a source is loading
+ * @param props.onHost - takes the element graphty-element draws in
  * @returns The preview box
  */
 function Preview({
@@ -248,14 +248,21 @@ function Preview({
     name,
     draw,
     busy,
-}: Readonly<{ held: Held | null; name: string; draw: ModelDraw; busy: boolean }>): React.JSX.Element {
+    onHost,
+}: Readonly<{
+    held: Held | null;
+    name: string;
+    draw: ModelLive;
+    busy: boolean;
+    onHost: (host: HTMLDivElement | null) => void;
+}>): React.JSX.Element {
     const accepted = held?.record.state === "accepted";
     const missing = countChip(held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? []);
-    let content: React.ReactNode;
-    if (draw.url !== undefined && !busy) {
-        content = <img src={draw.url} alt={CUSTOM_MODEL.preview(name)} width={PREVIEW_PX} height={PREVIEW_PX} />;
+    let over: React.ReactNode;
+    if (draw.drawn && !busy) {
+        over = null;
     } else if (draw.failure !== undefined && !busy) {
-        content = (
+        over = (
             <Stack gap={4} align="center">
                 <GLYPHS.model size={32} aria-hidden />
                 <ModelChip chip={modelChip(draw.failure)} />
@@ -263,20 +270,23 @@ function Preview({
         );
     } else if (held === null) {
         // Blank until a model is loaded.
-        content = null;
-    } else if (busy || accepted) {
-        content = <Loader size="sm" aria-label={CUSTOM_MODEL.loading(busy ? "model" : name)} />;
+        over = null;
+    } else if (busy || accepted || missing === undefined) {
+        over = <Loader size="sm" aria-label={CUSTOM_MODEL.loading(busy ? "model" : name)} />;
     } else {
-        content = (
+        over = (
             <Stack gap={4} align="center">
                 <GLYPHS.model size={32} aria-hidden />
-                {missing === undefined ? null : <ModelChip chip={missing} />}
+                <ModelChip chip={missing} />
             </Stack>
         );
     }
     return (
         <div className="ws-model-preview" data-testid="model-preview">
-            {content}
+            {held === null || busy ? null : (
+                <div ref={onHost} className="ws-model-live" aria-busy={draw.drawing || undefined} />
+            )}
+            {over === null ? null : <div className="ws-model-preview-over">{over}</div>}
         </div>
     );
 }
@@ -473,15 +483,18 @@ export function CustomModelDialog({
     const heldKey = held === null ? "" : `${held.record.id} ${held.record.state}`;
     const waits = waitingFor.length > 0;
     const values: ModelDraft = { ...baseStyle, ...draft };
+    // graphty-element draws the model live in this element of the preview box.
+    const [previewHost, setPreviewHost] = useState<HTMLDivElement | null>(null);
     // A model waiting for parts is drawn with them stood in for, while Files still asks for them.
-    const drawn = useModelDraw(
+    const drawn = useModelPreview(
         held?.record.state === "accepted" ? (held.url ?? held.record.id) : held?.record.id,
-        PREVIEW_PX,
+        previewHost,
         values,
+        CUSTOM_MODEL.preview(name),
         true,
     );
     // Only an accepted model's failure is said: a waiting one keeps the cube and its "N missing".
-    const draw: ModelDraw = held?.record.state === "accepted" ? drawn : { ...drawn, failure: undefined };
+    const draw: ModelLive = held?.record.state === "accepted" ? drawn : { ...drawn, failure: undefined };
     useEffect(() => {
         // The name and the parts are drawn once the load is over, so focus waits for that too.
         if (heldKey === "" || busy) {
@@ -952,15 +965,31 @@ export function CustomModelDialog({
 
     const side = (
         <Stack gap={8} className="ws-model-side">
-            <Preview held={held} name={name} draw={draw} busy={busy} />
+            <Preview held={held} name={name} draw={draw} busy={busy} onHost={setPreviewHost} />
             {summary === undefined || busy ? null : (
                 <Text size="xs" c="dimmed" ta="center" data-testid="model-variant">
                     {CUSTOM_MODEL.variantLine(summary)}
                 </Text>
             )}
-            {forLayer && accepted !== null && !busy ? (
-                <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
-            ) : null}
+            {held === null || busy ? null : (
+                <Group gap={4} justify="center" wrap="nowrap">
+                    {forLayer && accepted !== null ? (
+                        <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
+                    ) : null}
+                    {draw.drawn ? (
+                        <Tooltip label={CUSTOM_MODEL.resetView}>
+                            <ActionIcon
+                                variant="subtle"
+                                size="sm"
+                                aria-label={CUSTOM_MODEL.resetView}
+                                onClick={draw.resetView}
+                            >
+                                <GLYPHS.resetView size={14} aria-hidden />
+                            </ActionIcon>
+                        </Tooltip>
+                    ) : null}
+                </Group>
+            )}
             {summary === undefined || accepted === null || busy ? null : (
                 <>
                     <Disclosure

@@ -2228,7 +2228,9 @@ export const CUSTOM_MODEL = {
      * @param name - the model's name.
      * @returns the words.
      */
-    preview: (name: string): string => `${name} preview`,
+    preview: (name: string): string => `${name} preview, drag or use the arrow keys to turn it`,
+    /** The button that turns the preview back to its first view. */
+    resetView: "Reset view",
     /**
      * Said while a model loads.
      * @param name - its name, or "model".
@@ -2286,7 +2288,7 @@ export const MODEL_SETTING_ROWS: readonly {
             ["false", "Model's own"],
             ["true", "Node color on top"],
             ["untextured", "Node color on plain parts"],
-            ["replace", "Node color only"],
+            ["replace", "Node color only, no pictures"],
         ],
     },
     {
@@ -2324,6 +2326,14 @@ export const MODEL_SETTING_ROWS: readonly {
         choices: [
             ["false", "Lit"],
             ["true", "Unlit"],
+        ],
+    },
+    {
+        channel: "node.wireframe",
+        word: "Wireframe",
+        choices: [
+            ["false", "Off"],
+            ["true", "On"],
         ],
     },
 ];

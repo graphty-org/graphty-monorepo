@@ -18,12 +18,23 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
+import { dragAcross } from "../../../test/real-pointer";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
 import damagedPlyUrl from "../__fixtures__/variants/damaged.ply?url";
 import pointsPlyUrl from "../__fixtures__/variants/points.ply?url";
-import { addModel, choose, dropOn, openCustom, openModels, openShapes, previewOf, written } from "./modelHarness";
+import {
+    addModel,
+    choose,
+    dropOn,
+    openCustom,
+    openModels,
+    openShapes,
+    previewOf,
+    previewPicture,
+    written,
+} from "./modelHarness";
 import { dotPng, quadGlb } from "./quadGlb";
 
 /** babylonjs-models' variant fixtures, as the file chooser reads them (relative to the graphty project). */
@@ -426,7 +437,8 @@ describe("the Load custom model dialog, on the real element", () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
-        const before = (await previewOf(dialog, "quad")).src;
+        await previewOf(dialog, "quad");
+        const before = previewPicture(dialog, "quad");
         const more = within(dialog).getByRole("button", { name: "More options" });
         assert.equal(more.getAttribute("aria-expanded"), "false");
         await userEvent.click(more);
@@ -434,7 +446,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await userEvent.click(within(rows).getByRole("combobox", { name: /^Up, / }));
         await userEvent.click(await screen.findByRole("option", { name: "Z" }));
         await waitFor(() => {
-            assert.notEqual(within(dialog).getByRole<HTMLImageElement>("img", { name: "quad preview" }).src, before);
+            assert.notEqual(previewPicture(dialog, "quad"), before);
         });
         assert.isUndefined(written(session, "node.modelSourceUp"), "a draft until Add");
         await addModel(dialog);
@@ -496,7 +508,8 @@ describe("the Load custom model dialog, on the real element", () => {
         await userEvent.click(await screen.findByRole("option", { name: "Node color on top" }));
         await userEvent.click(within(dialog).getByRole("combobox", { name: /^Animation, / }));
         await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
-        const still = (await previewOf(dialog, "cube")).src;
+        await previewOf(dialog, "cube");
+        const still = previewPicture(dialog, "cube");
         const pose = await within(dialog).findByRole("slider", { name: "Pose" });
         pose.focus();
         await userEvent.keyboard("{End}");
@@ -504,11 +517,7 @@ describe("the Load custom model dialog, on the real element", () => {
             assert.equal(pose.getAttribute("aria-valuenow"), "1", "the end of the one-second clip");
         });
         await waitFor(() => {
-            assert.notEqual(
-                within(dialog).getByRole<HTMLImageElement>("img", { name: "cube preview" }).src,
-                still,
-                "the preview draws the pose at the end of the clip",
-            );
+            assert.notEqual(previewPicture(dialog, "cube"), still, "the preview draws the pose at the end of the clip");
         });
         assert.isUndefined(written(session, "node.modelAnimation"), "a draft until Add");
         await addModel(dialog);
@@ -589,7 +598,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await choose(dialog, "Choose file", [await fixture(damagedPlyUrl, "cube.ply")]);
         const preview = await within(dialog).findByTestId("model-preview");
         assert.isNotNull(await within(preview).findByText("Not loaded"));
-        assert.isNull(preview.querySelector("img"));
+        assert.isNull(preview.querySelector("img, canvas"));
         assert.match(within(dialog).getByTestId("model-refusal").textContent, /^Not loaded: /);
         assert.equal(within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"), "true");
     });
@@ -636,6 +645,86 @@ describe("the Load custom model dialog, on the real element", () => {
             assert.isUndefined(session.assets.find(url), "let go once it settled");
         });
         assert.isUndefined(written(session, "node.model"), "the reader closed it before it loaded");
+    });
+
+    it("turns the live preview with a drag and Reset view, changing no setting", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [`${VARIANTS}/gltf-animated/cube.glb`]);
+        const canvas = await previewOf(dialog, "cube");
+        assert.equal(canvas.tabIndex, 0, "the preview takes focus, so the arrow keys turn it too");
+        const start = previewPicture(dialog, "cube");
+        await dragAcross(canvas, 80);
+        await waitFor(() => {
+            assert.notEqual(previewPicture(dialog, "cube"), start, "the drag turns the model");
+        });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Reset view" }));
+        await waitFor(() => {
+            assert.equal(previewPicture(dialog, "cube"), start, "back to the first view");
+        });
+        await addModel(dialog);
+        await waitFor(() => {
+            assert.match(String(written(session, "node.model")), /^asset:/);
+        });
+        assert.isUndefined(written(session, "node.modelTurn"), "turning the view is not a setting");
+        assert.isUndefined(written(session, "node.modelSourceUp"));
+    });
+
+    it("plays the chosen clip in the preview, and writes the clip and its Speed with the model", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [`${VARIANTS}/gltf-animated/cube.glb`]);
+        await previewOf(dialog, "cube");
+        await userEvent.click(within(dialog).getByRole("combobox", { name: /^Animation, / }));
+        await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
+        const host = within(dialog).getByTestId("model-preview").querySelector(".ws-model-live");
+        await waitFor(() => {
+            assert.isNull(host?.getAttribute("aria-busy") ?? null, "drawn with the clip");
+        });
+        // Playing: the picture moves on by itself, again and again.
+        for (let seen = 0, last = previewPicture(dialog, "cube"); seen < 2; seen++) {
+            const from = last;
+            last = await waitFor(() => {
+                const now = previewPicture(dialog, "cube");
+                assert.notEqual(now, from, "the clip plays in the preview");
+                return now;
+            });
+        }
+        await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
+        const speed = within(within(dialog).getByTestId("model-more")).getByRole("textbox", { name: /^Speed/ });
+        await userEvent.type(speed, "0.5{Enter}");
+        await addModel(dialog);
+        await waitFor(() => {
+            assert.equal(written(session, "node.modelAnimation"), "spin");
+        });
+        assert.equal(written(session, "node.modelAnimationSpeed"), 0.5);
+    });
+
+    it("draws a textured model in the node color with no pictures, and as wires, live, then writes both", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose folder", [KIT_FOLDER]);
+        await previewOf(dialog, "police");
+        const own = previewPicture(dialog, "police");
+        await userEvent.click(within(dialog).getByRole("combobox", { name: /^Color, / }));
+        await userEvent.click(await screen.findByRole("option", { name: "Node color only, no pictures" }));
+        await waitFor(() => {
+            assert.notEqual(previewPicture(dialog, "police"), own, "the pictures are gone");
+        });
+        const flat = previewPicture(dialog, "police");
+        await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
+        await userEvent.click(
+            within(within(dialog).getByTestId("model-more")).getByRole("combobox", { name: /^Wireframe, / }),
+        );
+        await userEvent.click(await screen.findByRole("option", { name: "On" }));
+        await waitFor(() => {
+            assert.notEqual(previewPicture(dialog, "police"), flat, "drawn as wires");
+        });
+        await addModel(dialog);
+        await waitFor(() => {
+            assert.equal(written(session, "node.modelTint"), "replace");
+        });
+        assert.equal(written(session, "node.wireframe"), true);
     });
 
     it("has no Main menu row with the experiment off", async () => {

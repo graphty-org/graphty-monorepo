@@ -421,7 +421,7 @@ const READER_INPUT_EVENTS = [
  * - matte: fill 0.8 alone. Brightest 1.00x, median 0.81x, spread 0.179.
  * - flat: nodes are unlit (NodeLighting); the fill stays for anything else lit in the scene.
  */
-const LIGHTS: Record<Lighting, { fill: number; ground: number; key: number; keyDirection: Vector3 }> = {
+export const LIGHTS: Record<Lighting, { fill: number; ground: number; key: number; keyDirection: Vector3 }> = {
     studio: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
     headlight: { fill: 0.4, ground: 0.65, key: 0.45, keyDirection: new Vector3(0.25, -0.3, 1) },
     matte: { fill: 0.8, ground: 0.35, key: 0, keyDirection: new Vector3(0, 0, 1) },

@@ -680,12 +680,12 @@ export const CustomModelEmpty: Story = nodeModelsStory(
     "Custom model, empty",
 );
 
-/** The dialog with police.glb and its picture loaded: Name and Color left, the preview graphty-element draws right with its rotate buttons and Details. */
+/** The dialog with police.glb and its picture loaded: Name and Color left, the live preview graphty-element draws right (drag to turn it) with its rotate buttons, Reset view and Details. */
 export const CustomModelLoaded: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("colormap.png"));
-        await within(dialog).findByRole("img", { name: "police preview" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
     }),
     "Custom model, loaded",
 );
@@ -700,7 +700,7 @@ export const CustomModelMissingParts: Story = nodeModelsStory(
         await chooseInDialog(dialog, await carKit("paint.png"));
         const files = await within(dialog).findByTestId("model-files");
         await within(files).findByRole("combobox", { name: "File for colormap.png" });
-        await within(dialog).findByRole("img", { name: "police preview" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
     }),
     "Custom model, missing parts",
 );
@@ -720,12 +720,12 @@ export const CustomModelUrlError: Story = nodeModelsStory(
     "Custom model, address error",
 );
 
-/** The dialog with police loaded and More options open: Up, Turn, Fit, Center, Sides and Light. */
+/** The dialog with police loaded and More options open: Up, Turn, Fit, Center, Sides, Light and Wireframe. */
 export const CustomModelMoreOptions: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("colormap.png"));
-        await within(dialog).findByRole("img", { name: "police preview" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
         await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
         await within(dialog).findByRole("combobox", { name: /^Up, / });
         // However tall the settings grow, Add model stays in view: the left column scrolls, the footer stays.
@@ -740,7 +740,7 @@ export const CustomModelDetails: Story = nodeModelsStory(
     sceneStory(async () => {
         const dialog = await openCustomModel();
         await chooseInDialog(dialog, await carKit("colormap.png"));
-        await within(dialog).findByRole("img", { name: "police preview" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
         await userEvent.click(within(dialog).getByRole("button", { name: "Details" }));
         await within(await within(dialog).findByTestId("model-details")).findByRole("group", { name: "Format" });
     }),
@@ -831,7 +831,7 @@ export const CustomModelProjectTile: Story = nodeModelsStory(
         await userEvent.click(await page().findByRole("menuitem", { name: "Add custom model..." }));
         const dialog = await page().findByRole("dialog", { name: "Load custom model" });
         await chooseInDialog(dialog, await carKit("colormap.png"));
-        await within(dialog).findByRole("img", { name: "police preview" });
+        await within(dialog).findByRole("img", { name: /^police preview/ });
         await userEvent.click(within(dialog).getByRole("button", { name: "Add to project" }));
         await waitFor(() => {
             expect(page().queryByRole("dialog", { name: "Load custom model" })).toBeNull();

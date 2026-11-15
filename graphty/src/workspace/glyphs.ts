@@ -385,6 +385,8 @@ export const GLYPHS = {
     wholeTimeline: ZoomOut,
     // The window moved to where the selection is.
     jumpToSelection: LocateFixed,
+    // The model preview's Reset view: back to the first view of the model.
+    resetView: LocateFixed,
 } as const satisfies Readonly<Record<string, LucideIcon>>;
 
 /** The icon of each thing the inspector shows; a style tree row draws the same icon. */

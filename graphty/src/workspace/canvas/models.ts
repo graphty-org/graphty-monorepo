@@ -4,6 +4,7 @@
  * (`session.assets.add`).
  */
 
+import type { ModelPreview } from "@graphty/graphty-element";
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
 import {
     type CodedFact,
@@ -13,7 +14,7 @@ import {
     isGraphtyError,
     type ModelChange,
 } from "@graphty/graphty-element/session";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
 
@@ -83,8 +84,19 @@ export function useModelStates(session: GraphSession | null): readonly ModelChan
     return states;
 }
 
+/**
+ * Why graphty-element could not draw a model, from what `modelThumbnail` or `modelPreview` threw.
+ * @param error - what it threw.
+ * @returns the coded reason.
+ */
+function failureOf(error: unknown): CodedFact {
+    return isGraphtyError(error)
+        ? { code: error.code, params: error.details as Readonly<Record<string, CodedFactParam>> }
+        : { code: "E_MODEL_PARSE", params: {} };
+}
+
 /** A model's picture as graphty-element drew it, or why it could not draw it. */
-export interface ModelDraw {
+interface ModelDraw {
     /** The picture's URL, or undefined while it is drawn, failed, or for no model. */
     readonly url: string | undefined;
     /** Why graphty-element could not draw an accepted model (`modelThumbnail`'s rejection), or undefined. */
@@ -104,7 +116,7 @@ export interface ModelDraw {
  *     stood in for (`modelThumbnail`'s `standInMissing`).
  * @returns the picture, the failure and a retry.
  */
-export function useModelDraw(
+function useModelDraw(
     ref: string | undefined,
     size: number,
     style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
@@ -152,12 +164,7 @@ export function useModelDraw(
             })
             .catch((error: unknown) => {
                 if (live) {
-                    setDrawn({
-                        key,
-                        failure: isGraphtyError(error)
-                            ? { code: error.code, params: error.details as Readonly<Record<string, CodedFactParam>> }
-                            : { code: "E_MODEL_PARSE", params: {} },
-                    });
+                    setDrawn({ key, failure: failureOf(error) });
                 }
             });
         return () => {
@@ -188,4 +195,125 @@ export function useModelPicture(
     style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
 ): string | undefined {
     return useModelDraw(ref, size, style).url;
+}
+
+/** A model drawn live by graphty-element (`modelPreview`), or why it could not be drawn. */
+export interface ModelLive {
+    /** Whether the model is on the preview's canvas now. */
+    readonly drawn: boolean;
+    /** Whether it is being drawn again with new style values. */
+    readonly drawing: boolean;
+    /** Why graphty-element could not draw it, or undefined. */
+    readonly failure: CodedFact | undefined;
+    /** Asks graphty-element to draw it again: for a decoder whose files did not load. */
+    readonly retry: () => void;
+    /** Turns the reader's view back to the first one. */
+    readonly resetView: () => void;
+}
+
+/**
+ * A model drawn live by graphty-element in an element of the page (`modelPreview`): the reader
+ * turns it by dragging and its clip plays. Drawn again with new style values as they change,
+ * keeping the reader's view; drawn anew when the model itself changes (its parts arrive).
+ * @param ref - what a layer names, or undefined for no model.
+ * @param host - the element the preview fills, or null before it is mounted.
+ * @param style - the node's style values it is drawn with.
+ * @param label - the preview's name for assistive technology.
+ * @param standIn - also draw a model still waiting for parts, with them stood in for.
+ * @returns whether it is drawn, the failure, a retry and a reset of the view.
+ */
+export function useModelPreview(
+    ref: string | undefined,
+    host: HTMLElement | null,
+    style: Readonly<Partial<Record<Channel, ChannelValue>>>,
+    label: string,
+    standIn = false,
+): ModelLive {
+    const { session, element } = useWorkspace();
+    useModelStates(session);
+    const [attempt, setAttempt] = useState(0);
+    const record = ref === undefined ? undefined : session?.assets.find(ref);
+    const sample = ref !== undefined && session?.catalog.models().some((m) => m.id === ref) === true;
+    const key =
+        ref !== undefined && (sample || (record !== undefined && (record.state === "accepted" || standIn)))
+            ? JSON.stringify([ref, record?.digest, record?.state, attempt])
+            : undefined;
+    const styleKey = JSON.stringify(style);
+    // The style a new preview starts with: the latest, without making a new preview when it changes.
+    const startStyle = useRef(styleKey);
+    useEffect(() => {
+        startStyle.current = styleKey;
+    }, [styleKey]);
+    // The style the preview last drew with, so it is not drawn twice with the same values.
+    const drawnStyle = useRef<string | null>(null);
+    const [pending, setPending] = useState(0);
+    const [state, setState] = useState<{
+        readonly key: string;
+        readonly preview?: ModelPreview;
+        readonly failure?: CodedFact;
+    } | null>(null);
+    useEffect(() => {
+        if (key === undefined || element === null || host === null) {
+            return undefined;
+        }
+        const [asked] = JSON.parse(key) as [string];
+        let live = true;
+        let made: ModelPreview | undefined;
+        const first = startStyle.current;
+        element
+            .modelPreview(asked, host, {
+                style: JSON.parse(first) as Record<string, ChannelValue>,
+                standInMissing: standIn,
+            })
+            .then((preview) => {
+                made = preview;
+                if (live) {
+                    drawnStyle.current = first;
+                    setState({ key, preview });
+                } else {
+                    preview.dispose();
+                }
+            })
+            .catch((error: unknown) => {
+                if (live) {
+                    setState({ key, failure: failureOf(error) });
+                }
+            });
+        return () => {
+            live = false;
+            made?.dispose();
+        };
+    }, [key, element, host, standIn]);
+    const mine = state !== null && state.key === key ? state : undefined;
+    const preview = mine?.preview;
+    useEffect(() => {
+        preview?.canvas.setAttribute("aria-label", label);
+        preview?.canvas.setAttribute("role", "img");
+    }, [preview, label]);
+    useEffect(() => {
+        if (preview === undefined || drawnStyle.current === styleKey) {
+            return;
+        }
+        drawnStyle.current = styleKey;
+        setPending((n) => n + 1);
+        preview
+            .update(JSON.parse(styleKey) as Record<string, ChannelValue>)
+            .catch((error: unknown) => {
+                setState((now) => (now?.preview === preview ? { key: now.key, failure: failureOf(error) } : now));
+            })
+            .finally(() => {
+                setPending((n) => n - 1);
+            });
+    }, [preview, styleKey]);
+    return {
+        drawn: preview !== undefined,
+        drawing: preview !== undefined && pending > 0,
+        failure: mine?.failure,
+        retry: () => {
+            setAttempt((n) => n + 1);
+        },
+        resetView: () => {
+            preview?.resetView();
+        },
+    };
 }

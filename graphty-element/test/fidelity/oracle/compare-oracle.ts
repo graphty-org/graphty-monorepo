@@ -2362,6 +2362,14 @@ export function compareOracle(
         at: PNode | undefined,
         end: Pt | undefined,
     ): [PNode | undefined, PNode | undefined] => {
+        // a node the program drew no body for but says where it drew (`PNode.drawnBox`: vis-network's text and icon
+        // nodes, whose lines it runs to their middle) is cut at that box, and graphty's line at its own node's box
+        if (on?.drawnBox === true && at !== undefined) {
+            return [
+                { ...on, shape: "rect" },
+                { ...at, figure: undefined, ...(bodied(at) ? {} : { shape: "rect" }) },
+            ];
+        }
         if (!bodied(on) || !bodied(at)) {
             return [undefined, undefined];
         }

@@ -672,6 +672,28 @@ function decodeFiles(
 }
 
 /**
+ * Add an entry's checked files as a dropped file is; a sample the file carries is held as its own
+ * copy, drawn instead of the build's.
+ * @param assets - The assets API.
+ * @param entry - The checked entry.
+ * @param given - Its files, checked against its digest.
+ * @returns The settled record.
+ */
+function addEntry(assets: AssetsApiInternal, entry: Entry, given: Map<string, Uint8Array>): Promise<AssetRecord> {
+    if (entry.id.startsWith(SAMPLE_PREFIX)) {
+        return assets.carrySample(entry.id, given, sampleOptions(entry));
+    }
+
+    return assets.add(
+        { files: given, ...(entry.main === "" ? {} : { main: entry.main }) },
+        {
+            name: entry.id,
+            ...(entry.skipped === undefined ? {} : { skipped: entry.skipped }),
+        },
+    );
+}
+
+/**
  * Put one checked entry's model back into the session: checked against its digest, then added
  * through `session.assets.add` as a dropped file is.
  * @param assets - The assets API.
@@ -716,16 +738,7 @@ async function restoreEntry(
         return fail({ code: "E_MODEL_DIGEST_MISMATCH", params: {} });
     }
 
-    // A sample the file carries is its own copy, drawn instead of the build's.
-    const record = entry.id.startsWith(SAMPLE_PREFIX)
-        ? await assets.carrySample(entry.id, given, sampleOptions(entry))
-        : await assets.add(
-              { files: given, ...(entry.main === "" ? {} : { main: entry.main }) },
-              {
-                  name: entry.id,
-                  ...(entry.skipped === undefined ? {} : { skipped: entry.skipped }),
-              },
-          );
+    const record = await addEntry(assets, entry, given);
     if (record.state !== "accepted") {
         return fail(record.problems[0] ?? { code: "E_MODEL_PARSE", params: {} });
     }

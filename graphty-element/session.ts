@@ -316,9 +316,7 @@ export type {
     FileStyleNoteCode,
     FileStyleOptions,
     FileStyleScalar,
-    FileStyleShapeTable,
     FileStyleSummary,
-    FileStyleTool,
     FileStyleTranslationCode,
     LoadStyleReport,
     StyleValueColumn,
@@ -331,7 +329,6 @@ export {
     EXPORT_STYLE_LOSS_CODES,
     FILE_STYLE_CODES,
     FILE_STYLE_ISSUE,
-    FILE_STYLE_SHAPES,
     FILE_STYLE_TRANSLATION_ISSUE,
 } from "./src/session";
 

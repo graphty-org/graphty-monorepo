@@ -924,14 +924,18 @@ export abstract class DataSource {
      * parses a file itself answers null. Not an extension point: a format gets styles by being
      * read with a graph-io importer.
      * @internal
-     * @param options - Whether the defaults of the program that wrote the file are added (true
-     *     by default), and a cancel signal.
-     * @param options.toolDefaults - Whether the writing program's defaults are added.
+     * @param options - Passed to graph-io as it reads the styles, uninterpreted.
+     * @param options.toolDefaults - Whether a property the file leaves unset gets its reader's default.
+     * @param options.viewport - The canvas the drawing is first framed in, in CSS px, or null without one.
      * @param options.signal - Cancels the reading.
      * @returns The styles, or null when the file carries none or nothing has been read yet.
      */
     async fileStyles(
-        options: { readonly toolDefaults?: boolean; readonly signal?: AbortSignal } = {},
+        options: {
+            readonly toolDefaults?: boolean;
+            readonly viewport?: { readonly width: number; readonly height: number } | null;
+            readonly signal?: AbortSignal;
+        } = {},
     ): Promise<FileStylesRead | null> {
         const pending = readerImport(this);
         if (pending === null) {
@@ -942,6 +946,7 @@ export abstract class DataSource {
         const { imported } = held;
         const extracted = extractStyles(imported.importer, imported.snapshot, imported.report, {
             ...(options.toolDefaults === undefined ? {} : { toolDefaults: options.toolDefaults }),
+            ...(options.viewport === undefined || options.viewport === null ? {} : { viewport: options.viewport }),
             ...(options.signal === undefined ? {} : { signal: options.signal }),
         });
         if (extracted === null) {
@@ -950,8 +955,7 @@ export abstract class DataSource {
 
         const positions = filePositionsOf(imported);
         const pxPerUnit = positions?.pxPerUnit;
-        const fit = positions?.viewerFit;
-        const box = positions?.bounds;
+        const padding = positions?.viewerFit?.padding;
         const annotations = imported.importer.annotations?.(imported.snapshot) ?? [];
         return {
             extracted,
@@ -960,17 +964,7 @@ export abstract class DataSource {
             path: (kind, column) => held.path(kind, column),
             ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
             positionsStored: positions?.usable === true,
-            ...(fit === undefined || box === null || box === undefined
-                ? {}
-                : {
-                      positionFit: {
-                          padding: fit.padding,
-                          width: box.max[0] - box.min[0],
-                          height: box.max[1] - box.min[1],
-                          center: [(box.min[0] + box.max[0]) / 2, (box.min[1] + box.max[1]) / 2],
-                          ...(positions === null ? {} : { coords: positions.coords }),
-                      },
-                  }),
+            ...(padding === undefined ? {} : { framingPadding: padding }),
         };
     }
 

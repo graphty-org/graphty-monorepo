@@ -110,7 +110,8 @@ describe("a draft", () => {
         const draft = await session.data.prepare({ type: "gexf", config: { data: MISERABLES } });
         assert.strictEqual(draft.styles?.declared, true);
         assert.isAbove(draft.styles?.summary.nodeRules ?? 0, 0);
-        assert.strictEqual(draft.styles?.summary.tool, "gephi");
+        // the summary names no program: a loaded file is drawn the same way whatever wrote it
+        assert.notProperty(draft.styles?.summary ?? {}, "tool");
         await draft.load({ styles: "file" });
         assert.include(fileLayers(session), "node.by.Modularity Class");
         session.dispose();

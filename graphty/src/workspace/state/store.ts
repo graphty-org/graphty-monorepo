@@ -358,7 +358,9 @@ export interface WorkspaceState {
 
 /**
  * What a reload of this tab does with each field of {@link WorkspaceState}: "kept" puts it back as
- * the reader left it; "fresh: <why>" starts it from its default. Every field is listed once, so a
+ * the reader left it, and stashes it with the project's autosaved work so restoring that work in
+ * another tab or on a later visit puts it back too; "this tab: <why>" puts it back after a reload
+ * of this tab only; "fresh: <why>" starts it from its default. Every field is listed once, so a
  * new field does not compile until someone decides. What the reader arranged on screen is kept;
  * drafts, requests, in-flight work, notices and readings of the element are fresh. The graph itself
  * is graphty-element's and comes back through its autosave.
@@ -374,11 +376,12 @@ export const ON_RELOAD = {
     inspected: "kept",
     tabs: "kept",
     styleSide: "kept",
-    leftWidth: "kept",
-    assistantWidth: "kept",
+    leftWidth: "this tab: changes on every drag step, too often to write to autosaved work",
+    assistantWidth: "this tab: changes on every drag step, too often to write to autosaved work",
     assistantFrom: "fresh: holds an element to focus, which the reload replaced",
     composerCalls: "fresh: a count of requests, not a place",
-    assistantDraft: "kept",
+    assistantDraft:
+        "this tab: typed text changes on every key, and autosaved work is stored unencrypted beyond the tab",
     assistantLinks: "fresh: counts this page's assistant set-ups",
     assistantWaiting: "fresh: read from the element's assistant",
     assistantTalkPress: "fresh: a press in flight",
@@ -386,8 +389,8 @@ export const ON_RELOAD = {
     assistantScopeSelection: "fresh: about the selection, which a reload does not keep",
     assistantRefused: "fresh: about the question that was open",
     assistantEnded: "fresh: a notice about the last message",
-    rightWidth: "kept",
-    dockHeight: "kept",
+    rightWidth: "this tab: changes on every drag step, too often to write to autosaved work",
+    dockHeight: "this tab: changes on every drag step, too often to write to autosaved work",
     dockOpen: "kept",
     timeSpeed: "kept",
     dockTab: "kept",
@@ -431,17 +434,20 @@ export const ON_RELOAD = {
     opened: "fresh: an open in flight",
     autosave: "fresh: set by the application at start",
     recovered: "fresh: looked up again at start",
-} as const satisfies Record<keyof WorkspaceState, "kept" | `fresh: ${string}`>;
+} as const satisfies Record<keyof WorkspaceState, "kept" | `this tab: ${string}` | `fresh: ${string}`>;
 
 /** The fields a reload of this tab puts back. */
 type KeptKey = {
-    [K in keyof typeof ON_RELOAD]: (typeof ON_RELOAD)[K] extends "kept" ? K : never;
+    [K in keyof typeof ON_RELOAD]: (typeof ON_RELOAD)[K] extends "kept" | `this tab: ${string}` ? K : never;
 }[keyof WorkspaceState];
 
 /** The fields a reload of this tab puts back, in the order the table lists them. */
 export const KEPT_FIELDS = (Object.keys(ON_RELOAD) as (keyof WorkspaceState)[]).filter(
-    (key): key is KeptKey => ON_RELOAD[key] === "kept",
+    (key): key is KeptKey => !ON_RELOAD[key].startsWith("fresh:"),
 );
+
+/** The fields stashed with the project's autosaved work: the kept ones, not the this-tab ones. */
+export const STASHED_FIELDS = KEPT_FIELDS.filter((key) => ON_RELOAD[key] === "kept");
 
 /** The part of the chrome a reload of this tab puts back. */
 export type KeptPlace = Pick<WorkspaceState, KeptKey>;
@@ -449,10 +455,11 @@ export type KeptPlace = Pick<WorkspaceState, KeptKey>;
 /**
  * The kept fields of a state, or of what was saved (fields since made fresh are left out).
  * @param from - the state, or a saved snapshot.
+ * @param fields - the fields to take: every kept field, or only the stashed ones.
  * @returns the kept fields it holds.
  */
-export function keptFields(from: object): Partial<KeptPlace> {
-    return Object.fromEntries(Object.entries(from).filter(([key]) => (KEPT_FIELDS as readonly string[]).includes(key)));
+export function keptFields(from: object, fields: readonly string[] = KEPT_FIELDS): Partial<KeptPlace> {
+    return Object.fromEntries(Object.entries(from).filter(([key]) => fields.includes(key)));
 }
 
 /** Panel sizes: 240 is the design's panel width (PANEL_GRID.WIDTH). */
@@ -749,7 +756,7 @@ export function stashPlace(store: WorkspaceStore, element: GraphtyElement): () =
         if (!ready || element.autosaver.status.entry === null) {
             return;
         }
-        const kept = keptFields(store.get());
+        const kept = keptFields(store.get(), STASHED_FIELDS);
         const text = JSON.stringify(kept);
         if (text !== last) {
             last = text;
@@ -777,7 +784,7 @@ export function stashPlace(store: WorkspaceStore, element: GraphtyElement): () =
  */
 export function stashedPlace(element: GraphtyElement): Partial<KeptPlace> {
     const kept = element.autosaver.stashed(PLACE_STASH);
-    return typeof kept === "object" && kept !== null ? keptFields(kept) : {};
+    return typeof kept === "object" && kept !== null ? keptFields(kept, STASHED_FIELDS) : {};
 }
 
 /**

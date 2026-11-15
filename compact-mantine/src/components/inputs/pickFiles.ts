@@ -15,6 +15,14 @@ export interface PickFilesOptions {
 }
 
 /**
+ * The input whose picker is open. Safari frees an input nothing on the page holds while its picker
+ * is still showing, and then drops the reader's choice: `change` never fires (WebKit bug 201289,
+ * https://bugs.webkit.org/show_bug.cgi?id=201289). Holding it here until `change` or `cancel` keeps
+ * it alive; a new pick replaces it, so a picker closed without `cancel` keeps at most one.
+ */
+let pending: HTMLInputElement | null = null;
+
+/**
  * Opens the browser's file picker. Call it from a click or key handler: browsers open a picker
  * only in answer to the reader's own input.
  * @param options - which files, and whether more than one.
@@ -37,12 +45,19 @@ export function pickFiles({ accept, multiple = false, folder = false }: PickFile
         } else if (accept !== undefined) {
             input.accept = accept;
         }
+        const settle = (files: File[]): void => {
+            if (pending === input) {
+                pending = null;
+            }
+            resolve(files);
+        };
         input.addEventListener("change", () => {
-            resolve([...(input.files ?? [])]);
+            settle([...(input.files ?? [])]);
         });
         input.addEventListener("cancel", () => {
-            resolve([]);
+            settle([]);
         });
+        pending = input;
         input.click();
     });
 }

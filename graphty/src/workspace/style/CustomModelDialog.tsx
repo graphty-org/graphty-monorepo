@@ -339,31 +339,6 @@ function AddressActions({
 }
 
 /**
- * The source line: what was loaded, its name cut in the middle, and the x that takes it out.
- * @param props - Component props
- * @param props.name - the file's name or the address
- * @param props.byAddress - an address, drawn with the address glyph
- * @param props.action - the button at its end
- * @returns The line
- */
-function SourceLine({
-    name,
-    byAddress,
-    action,
-}: Readonly<{ name: string; byAddress: boolean; action: React.ReactNode }>): React.JSX.Element {
-    const Glyph = byAddress ? GLYPHS.webAddress : GLYPHS.file;
-    return (
-        <Group gap={4} wrap="nowrap" data-testid="model-source">
-            <Glyph size={14} aria-hidden />
-            <Text size="xs" flex={1} miw={0} title={name} className="ws-part-name">
-                {middleCut(name, 40)}
-            </Text>
-            {action}
-        </Group>
-    );
-}
-
-/**
  * How far a load has come, as graphty-element reports it, for the file loader's bar: its stage and
  * the bytes, and the fraction done when the size is known (null when it is not).
  * @param loading - the load
@@ -742,7 +717,6 @@ export function CustomModelDialog({
     const addressProblem = problem !== null && ADDRESS_CODES.has(problem.code) ? problem : null;
     const fileProblem = problem !== null && addressProblem === null ? problem : null;
     const empty = held === null && !busy;
-    const sourcesOpen = busy || held === null;
     const shownLoad = loading === null ? undefined : loadStatus(loading);
     const heldFile = held === null ? "" : (held.url ?? held.record.path ?? name);
     // The x beside the file: back to the empty dialog, after letting go of what nothing uses.
@@ -777,9 +751,16 @@ export function CustomModelDialog({
             folder
             url
             accept={MODEL_MAIN_EXTENSIONS.join(",")}
+            chooseGlyph="fileUpload"
+            dropping={over}
+            dropLabel={CUSTOM_MODEL.dropToLoad}
+            loaded={held === null ? undefined : { name: heldFile, kind: held.url === undefined ? "file" : "url" }}
+            onClear={clear}
+            clearLabel={CUSTOM_MODEL.remove(heldFile)}
             label={CUSTOM_MODEL.chooseFile}
             folderLabel={CUSTOM_MODEL.chooseFolder}
-            placeholder={CUSTOM_MODEL.address}
+            placeholder={CUSTOM_MODEL.addressOrDrop}
+            urlLabel={CUSTOM_MODEL.address}
             defaultValue={address}
             error={addressProblem === null ? undefined : refusalLine(addressProblem)}
             onDiscard={() => {
@@ -797,25 +778,7 @@ export function CustomModelDialog({
 
     const left = (
         <Stack gap="sm" className="ws-model-left">
-            {held === null || busy ? null : (
-                <SourceLine
-                    name={heldFile}
-                    byAddress={held.url !== undefined}
-                    action={
-                        <Tooltip label={CUSTOM_MODEL.remove(heldFile)}>
-                            <ActionIcon
-                                variant="subtle"
-                                size="sm"
-                                aria-label={CUSTOM_MODEL.remove(heldFile)}
-                                onClick={clear}
-                            >
-                                <GLYPHS.close size={14} aria-hidden />
-                            </ActionIcon>
-                        </Tooltip>
-                    }
-                />
-            )}
-            {sourcesOpen ? fileSource : null}
+            {fileSource}
             {addressProblem === null || busy ? null : (
                 <AddressActions
                     problem={addressProblem}

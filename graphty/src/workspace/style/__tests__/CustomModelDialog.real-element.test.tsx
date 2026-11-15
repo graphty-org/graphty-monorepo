@@ -259,11 +259,41 @@ describe("the Load custom model dialog, on the real element", () => {
         );
     });
 
+    it("shows a file glyph on its chooser, says a file may be dropped, and marks a drag over the dialog", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        const chooser = within(dialog).getByRole("button", { name: "Choose file" });
+        assert.equal(chooser.querySelector("svg")?.getAttribute("data-glyph"), "fileUpload");
+        const address = within(dialog).getByRole("textbox", { name: "Model address" });
+        assert.equal(address.getAttribute("placeholder"), "Model address, or drop a file");
+
+        const body = within(dialog).getByTestId("custom-model");
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(quadFile());
+        for (const type of ["dragenter", "dragover"]) {
+            body.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
+        }
+        await waitFor(() => {
+            assert.equal(dialog.querySelector(".cm-file-drop-cue")?.textContent, "Drop to load model");
+        });
+        assert.equal(body.dataset.over, "true", "the whole dialog is lit as the drop target");
+        body.dispatchEvent(new DragEvent("drop", { dataTransfer, bubbles: true, cancelable: true }));
+        await previewOf(dialog, "quad");
+        assert.isNull(dialog.querySelector(".cm-file-drop-cue"), "the cue goes with the drag");
+    });
+
     it("takes the loaded model out with the x beside its name, back to the empty dialog", async () => {
         const { session, tab, store } = await openShapes();
         const dialog = await openCustom(tab);
         await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
+        // One line says what was loaded: its name and the x, with no chooser or address under it.
+        const line = within(dialog).getByTitle("quad.glb");
+        assert.isTrue(line.classList.contains("cm-file-loaded"), "the file loader's loaded line");
+        assert.equal(line.textContent, "quad.glb");
+        assert.isNull(within(dialog).queryByRole("button", { name: "Choose file" }), "no chooser");
+        assert.isNull(within(dialog).queryByRole("textbox", { name: "Model address" }), "no address field");
+        assert.lengthOf(within(dialog).getAllByText("quad.glb"), 1, "the name is said once");
         const name = within(dialog).getByRole("textbox", { name: "Name" });
         await userEvent.clear(name);
         await userEvent.type(name, "Panel");
@@ -271,9 +301,14 @@ describe("the Load custom model dialog, on the real element", () => {
         await userEvent.click(within(dialog).getByRole("button", { name: "Remove quad.glb" }));
 
         await within(dialog).findByRole("button", { name: "Choose file" });
+        assert.equal(
+            document.activeElement,
+            within(dialog).getByRole("textbox", { name: "Model address" }),
+            "focus goes to the address that comes back",
+        );
         assert.isNull(within(dialog).queryByRole("textbox", { name: "Name" }), "no Name");
         assert.isNull(within(dialog).queryByRole("button", { name: "More options" }), "no More options");
-        assert.isNull(within(dialog).queryByTestId("model-source"), "no file line");
+        assert.isNull(dialog.querySelector(".cm-file-loaded"), "no file line");
         assert.equal(within(dialog).getByTestId("model-preview").childElementCount, 0, "a blank preview");
         assert.equal(store.get().announcement, "quad.glb removed");
         await waitFor(() => {

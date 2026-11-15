@@ -2,7 +2,7 @@ import { ActionIcon, Button, Group, Progress, Text, TextInput } from "@mantine/c
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useLabels } from "../../i18n";
-import { UiGlyph } from "../../icons";
+import { UiGlyph, type UiGlyphName } from "../../icons";
 import { pickFiles } from "./pickFiles";
 import { chosenFiles } from "./readDrop";
 import { useFileDrop } from "./useFileDrop";
@@ -90,7 +90,39 @@ export interface FileSourceProps {
      * the Mantine Modal or Popover around it opens (`data-autofocus`). @default false
      */
     autoFocus?: boolean;
+    /** The glyph on the row's choose-file button (`row`). @default "upload" */
+    chooseGlyph?: UiGlyphName;
+    /** The URL field's accessible name, when the placeholder says more than the name. Defaults to `placeholder`. */
+    urlLabel?: string;
+    /**
+     * Whether files are being dragged over a larger target around it (the dialog it sits in), so
+     * the row draws its drop cue too (`row`). The row draws the cue for a drag over itself when
+     * `dropLabel` is given. @default false
+     */
+    dropping?: boolean;
+    /**
+     * What the row's drop cue says over its field while files are dragged over it (`row`). Without
+     * it or `dropping`, a drag over the row only outlines the field. Defaults to the `fileDrop` label
+     * ("Drop to load") when `dropping` is set.
+     */
+    dropLabel?: string;
+    /**
+     * What was loaded, drawn in place of the URL field and its buttons as one line: the name, a
+     * glyph for its kind and an x that calls `onClear` (`row`; `drop` and `button` ignore it). The row
+     * still takes a drop, which goes to `onFiles`. Not drawn while a load is under way (`progress`).
+     */
+    loaded?: { readonly name: string; readonly kind?: "file" | "folder" | "url" };
+    /** Called by the x on the loaded line (`loaded`). Focus then moves to the URL field (or the choose button). */
+    onClear?: () => void;
+    /** The x's accessible name and tooltip (`loaded`). Defaults to the `fileRemove` label and the name ("Remove model.glb"). */
+    clearLabel?: string;
 }
+
+/** The glyph the loaded line draws for each kind of source. */
+const LOADED_GLYPH: Record<"file" | "folder" | "url", UiGlyphName> = { file: "file", folder: "folder", url: "link" };
+
+/** The characters of a long loaded name kept whole at its end, so a cut name still shows its extension. */
+const LOADED_TAIL = 8;
 
 /**
  * The width of an element, kept current with a ResizeObserver.
@@ -213,6 +245,13 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         onDiscard,
         fill = false,
         autoFocus = false,
+        chooseGlyph = "upload",
+        urlLabel,
+        dropping = false,
+        dropLabel,
+        loaded,
+        onClear,
+        clearLabel,
     } = props;
     const labels = useLabels();
     const root = useRef<HTMLDivElement>(null);
@@ -234,6 +273,16 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
     const showUrl = url ?? onUrl !== undefined;
     const chooseText = label ?? labels.fileChoose;
     const urlName = placeholder ?? labels.fileUrl;
+    const showLoaded = loaded !== undefined && progress === undefined && drawn === "row";
+    const dropCue = drawn === "row" && (dropping || (over && dropLabel !== undefined));
+    // The x took the loaded line away: focus goes to what came back in its place.
+    const refocus = useRef(false);
+    useEffect(() => {
+        if (refocus.current && !showLoaded) {
+            refocus.current = false;
+            root.current?.querySelector<HTMLElement>("input, button")?.focus();
+        }
+    }, [showLoaded]);
 
     const choose = (inFolder = false): void => {
         void pickFiles({ accept, multiple, folder: inFolder }).then((files) => {
@@ -266,7 +315,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
                 value={address}
                 disabled={disabled}
                 placeholder={urlName}
-                aria-label={urlName}
+                aria-label={urlLabel ?? urlName}
                 error={error ?? invalid}
                 className="cm-file-url"
                 rightSection={rightSection}
@@ -351,6 +400,29 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
     let body: React.ReactNode;
     if (drawn === "button") {
         body = buttons(true);
+    } else if (showLoaded) {
+        const clearName = clearLabel ?? `${labels.fileRemove} ${loaded.name}`;
+        const cut = loaded.name.length > LOADED_TAIL * 2 ? loaded.name.length - LOADED_TAIL : loaded.name.length;
+        body = (
+            <div className="cm-file-loaded" title={loaded.name}>
+                <UiGlyph name={LOADED_GLYPH[loaded.kind ?? "file"]} size={16} />
+                <span className="cm-file-loaded-name">
+                    <span className="cm-file-loaded-head">{loaded.name.slice(0, cut)}</span>
+                    {loaded.name.slice(cut)}
+                </span>
+                <ActionIcon
+                    disabled={disabled}
+                    title={clearName}
+                    aria-label={clearName}
+                    onClick={() => {
+                        refocus.current = true;
+                        onClear?.();
+                    }}
+                >
+                    <UiGlyph name="close" size={10} />
+                </ActionIcon>
+            </div>
+        );
     } else if (drawn === "row") {
         const chooseIcon = (
             <ActionIcon
@@ -361,7 +433,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
                     choose();
                 }}
             >
-                {uploadGlyph}
+                <UiGlyph name={chooseGlyph} size={16} />
             </ActionIcon>
         );
         // A row that also takes a folder carries its icon beside the file icon; a row that does not looks as before.
@@ -411,8 +483,15 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
             data-over={over || undefined}
             data-disabled={disabled || undefined}
             data-fill={fill || undefined}
+            data-dropping={dropCue || undefined}
         >
             {body}
+            {dropCue ? (
+                <div className="cm-file-drop-cue" aria-hidden="true">
+                    <UiGlyph name={chooseGlyph} size={12} />
+                    {dropLabel ?? labels.fileDrop}
+                </div>
+            ) : null}
             {progress === undefined ? null : (
                 <LoadBar
                     progress={progress}

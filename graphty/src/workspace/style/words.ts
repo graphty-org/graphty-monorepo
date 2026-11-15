@@ -2050,6 +2050,10 @@ export const CUSTOM_MODEL = {
     button: "Add custom model...",
     description: "Load a 3D model file or address into this project",
     address: "Model address",
+    /** The address field's placeholder: it also says the dialog takes a dropped file. */
+    addressOrDrop: "Model address, or drop a file",
+    /** What the file row says over itself while files are dragged over the dialog. */
+    dropToLoad: "Drop to load model",
     chooseFile: "Choose file",
     chooseFolder: "Choose folder",
     cancelLoad: "Cancel load",

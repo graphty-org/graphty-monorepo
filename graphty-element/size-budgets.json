@@ -19,9 +19,9 @@
     },
     "lazyChunks": {
         "models": {
-            "source": "src/models/chunk.ts",
-            "external": ["@babylonjs/core"],
-            "budget": 40900
+            "source": "src/models/loadModel.ts",
+            "external": ["@babylonjs/core", "../decoders", "../files", "./files"],
+            "budget": 58456
         }
     }
 }

@@ -20,7 +20,13 @@ import omit from "lodash/omit.js";
 
 import type { ShaderUse } from "./catalog/shaders";
 import type { Rgba } from "./catalog/types";
-import { AdHocData, DEFAULT_SELECTION_STYLE, type GraphSelectionStyleConfig, NodeStyleConfig } from "./config";
+import {
+    AdHocData,
+    DEFAULT_SELECTION_STYLE,
+    defaultNodeStyle,
+    type GraphSelectionStyleConfig,
+    NodeStyleConfig,
+} from "./config";
 import { drawnText, labelTextOf, richTextLabelOptions } from "./config/RichTextStyle";
 import { writableLane } from "./data/lane";
 import type { ElementPositions } from "./data/positions";
@@ -59,7 +65,17 @@ import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
 import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
-import { ModelCache, type ModelTemplate, type ModelUser, noteModelDrawn } from "./models/ModelCache";
+import type { TemplateAnimation } from "./models/animateTemplate";
+import { loadedChunk } from "./models/loadModel";
+import {
+    animationOf,
+    ModelCache,
+    type ModelTemplate,
+    type ModelUser,
+    noteModelDrawn,
+    tintBufferOf,
+} from "./models/ModelCache";
+import type { ModelMarkLook } from "./models/NodeOutlineLayers";
 import { noteImageDrawn, publishImageFailure, TextureCache } from "./models/TextureCache";
 import { NodeBehavior, NodeDragHandler, nodePointerRosterOf } from "./NodeBehavior";
 import { edgeDrawChanges } from "./render/EdgeIdTarget";
@@ -67,7 +83,13 @@ import { rowScanOf } from "./render/PickService";
 import type { RowTable } from "./render/RowTable";
 import { dispatcherOf } from "./session/GraphSession";
 import { frozenRecord } from "./session/project/draft";
-import { CHANNEL_DESCRIPTORS, drawnUses, toColorValue } from "./session/styles/channels";
+import {
+    CHANNEL_DESCRIPTORS,
+    DEFAULT_GLOW_COLOR,
+    DEFAULT_OUTLINE_COLOR,
+    drawnUses,
+    toColorValue,
+} from "./session/styles/channels";
 import { transitionsOf } from "./transitions/LayoutTransitionRunner";
 
 export type NodeIdType = string | number;
@@ -313,6 +335,27 @@ const DEFAULT_NODE_COLOR = String(CHANNEL_DESCRIPTORS["node.color"].default ?? "
 /** White: an untinted model instance keeps its own colours. */
 const UNTINTED = new Color4(1, 1, 1, 1);
 
+/** The color a model part that follows the node is drawn in when nothing names one. */
+const MODEL_FALLBACK_COLOR =
+    typeof defaultNodeStyle.texture?.color === "string" ? defaultNodeStyle.texture.color : "#6366F1";
+
+/** How a shape block colors its model (`node.modelTint`). */
+type ModelTintMode = "own" | "on" | "untextured" | "replace";
+
+/**
+ * How a shape block colors its model, read by name as well as by value.
+ * @param shape - The shape block.
+ * @returns The mode.
+ */
+function modelTintMode(shape: NodeStyleConfig["shape"]): ModelTintMode {
+    const tint = shape?.modelTint as unknown;
+    if (tint === true || tint === "true") {
+        return "on";
+    }
+
+    return tint === "replace" || tint === "untextured" ? tint : "own";
+}
+
 /**
  * Whether a shape block tints its model with the node's colour.
  * @param shape - The shape block.
@@ -440,6 +483,10 @@ export class Node implements ModelUser {
     #anchor!: TransformNode;
     /** Whether a consumer has read {@link Node.mesh}: the node then keeps drawing with its own mesh. */
     #meshHeld = false;
+    /** Whether this node's model carries a silhouette mark (src/models/NodeOutlineLayers.ts). */
+    #modelMarked = false;
+    /** The animation this node's model instances play from, to forget it when the model changes. */
+    #playing: TemplateAnimation | null = null;
     /** The view's scale on this node (`depthIndependentSize`, a map's `nodeScale: "screen"`), a shrink left out. */
     #wholeScale = 1;
     /** The actions a pick of the node's mesh runs, put back on a mesh rebuilt when a batch lets the row go. */
@@ -2257,13 +2304,21 @@ export class Node implements ModelUser {
      * @param color - The colour, or null when no layer painted one.
      */
     private applyModelTint(model: ModelTemplate, color: Rgba | null): void {
-        const tint =
-            color !== null && modelTinted(this.drawnStyle?.shape)
-                ? new Color4(color.r / 255, color.g / 255, color.b / 255, 1)
-                : UNTINTED;
+        const mode = modelTintMode(this.drawnStyle?.shape);
+        // A part that follows the node's color takes it even when no layer painted one: the
+        // color a node is drawn in by default.
+        const fill = this.drawnStyle?.texture?.color;
+        const painted = typeof fill === "string" ? fill : undefined;
+        const nodeColor =
+            color === null
+                ? readColor(painted, MODEL_FALLBACK_COLOR).rgb.toColor4(1)
+                : new Color4(color.r / 255, color.g / 255, color.b / 255, 1);
+        const onTop = mode === "on" && color !== null ? nodeColor : UNTINTED;
         for (const part of this.#mesh === null ? [] : [this.#mesh, ...this.#mesh.getChildMeshes(true)]) {
             if (part instanceof InstancedMesh && model.groups.includes(part.sourceMesh)) {
-                part.instancedBuffers.color = tint;
+                part.instancedBuffers[tintBufferOf(part.sourceMesh)] = model.follows.has(part.sourceMesh)
+                    ? nodeColor
+                    : onTop;
             }
         }
     }
@@ -2292,13 +2347,17 @@ export class Node implements ModelUser {
      */
     private applyInstancePaint(style: NodeStyleConfig, color: Rgba | null): void {
         this.applyInstanceColor(color);
+        this.syncModelAnimation(style);
         // A node drawn by the shader batch draws its outline ring and glow there, from its radius:
         // on its invisible pick proxy they would ring nothing.
-        const effect = this.drawnByBatch() ? undefined : style.effect;
+        // A model node marks its silhouette instead (syncModelMark): a ring is a circle whatever the
+        // model's shape, and a glow on its shared source mesh lights every node drawing the model.
+        const effect = this.drawnByBatch() || this.drawnModel !== null ? undefined : style.effect;
         if (this.#mesh !== null) {
             NodeEffects.applyOutlineEffect(this.#mesh, effect, this.context.getMeshCache());
             NodeEffects.applyGlowEffect(this.#mesh, effect);
         }
+        this.syncModelMark();
         const hidden = style.visible === false;
         if (hidden !== this.styleHidden) {
             this.styleHidden = hidden;
@@ -2658,7 +2717,8 @@ export class Node implements ModelUser {
             return null;
         }
 
-        return ModelCache.of(this.context)?.templateFor(this, o.shape, o.texture?.image) ?? null;
+        const look = { unlit: o.effect?.unlit === true, wireframe: o.effect?.wireframe === true };
+        return ModelCache.of(this.context)?.templateFor(this, o.shape, o.texture?.image, look) ?? null;
     }
 
     /**
@@ -2853,16 +2913,25 @@ export class Node implements ModelUser {
      * @returns Its template, whether it is tinted and whether a reader's layer coloured it.
      * @internal
      */
-    modelDrawn(): { readonly template: ModelTemplate | null; readonly tinted: boolean; readonly colored: boolean } {
+    modelDrawn(): {
+        readonly template: ModelTemplate | null;
+        readonly tinted: boolean;
+        readonly colored: boolean;
+        readonly clip: string | null;
+    } {
         const color = this.drawnColor;
         const hex =
             color === null
                 ? DEFAULT_NODE_COLOR
                 : `#${[color.r, color.g, color.b].map((c) => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
+        const model = this.drawnModel;
+        const mode = modelTintMode(this.drawnStyle?.shape);
         return {
-            template: this.drawnModel,
-            tinted: modelTinted(this.drawnStyle?.shape),
+            template: model,
+            // Untinted only while some part that states its own color keeps it.
+            tinted: mode === "on" || model === null || model.groups.every((group) => model.follows.has(group)),
             colored: hex !== DEFAULT_NODE_COLOR,
+            clip: animationOf(this.drawnStyle?.shape),
         };
     }
 
@@ -3163,6 +3232,12 @@ export class Node implements ModelUser {
         }
 
         this.disposed = true;
+        if (this.#modelMarked) {
+            loadedChunk()?.markModelNode(this.context.getScene(), this, [], null);
+            this.#modelMarked = false;
+        }
+        this.#playing?.stop(this);
+        this.#playing = null;
         this.rowTable?.drop(this.row);
         this.context.getNodeBatches?.()?.leave(this);
 
@@ -3380,6 +3455,13 @@ export class Node implements ModelUser {
      */
     private syncHalo(): void {
         const look = this.renderState === "visible" ? this.haloLook() : null;
+        this.syncModelMark();
+        if (this.drawnModel !== null) {
+            // A copy of one part, scaled out, is no halo for a model: its silhouette is marked instead.
+            this.showOverlay("halo", false);
+            return;
+        }
+
         if (this.drawnByBatch()) {
             // The shader batch draws the halo from the radius; the mesh halo would be the proxy's.
             this.showOverlay("halo", false);
@@ -3389,6 +3471,104 @@ export class Node implements ModelUser {
         }
 
         this.showOverlay("halo", look !== null, look ?? undefined);
+    }
+
+    /**
+     * The model instances this node draws: its root and every part, or none for a built-in shape.
+     * @returns The instances.
+     */
+    private modelInstances(): AbstractMesh[] {
+        const model = this.drawnModel;
+        const root = this.#mesh;
+        if (model === null || root === null || root.isDisposed()) {
+            return [];
+        }
+
+        return [root, ...root.getChildMeshes(true)].filter(
+            (part) => part instanceof InstancedMesh && model.groups.includes(part.sourceMesh),
+        );
+    }
+
+    /**
+     * Play the clip `node.modelAnimation` names on this node's model, at its speed and start, or
+     * forget the clip of a model it no longer draws.
+     * @param style - The resolved style.
+     */
+    private syncModelAnimation(style: NodeStyleConfig): void {
+        const animation = this.drawnModel?.animation ?? null;
+        if (this.#playing !== animation) {
+            this.#playing?.stop(this);
+            this.#playing = animation;
+        }
+
+        if (animation === null) {
+            return;
+        }
+
+        const clip = animationOf(style.shape);
+        animation.play(
+            this,
+            this.modelInstances(),
+            clip !== null && animation.clips.has(clip) ? clip : null,
+            style.shape?.modelAnimationSpeed ?? 1,
+            style.shape?.modelAnimationOffset ?? 0,
+        );
+    }
+
+    /**
+     * Mark, change or take off the silhouette band of a model node: its halo, else its outline,
+     * else its glow, drawn around the model's outline on screen (src/models/NodeOutlineLayers.ts).
+     */
+    private syncModelMark(): void {
+        const model = this.drawnModel;
+        const look = model === null || this.renderState !== "visible" ? null : this.modelMarkLook();
+        if (look === null && !this.#modelMarked) {
+            return;
+        }
+
+        const chunk = loadedChunk();
+        if (chunk === null) {
+            return;
+        }
+
+        const parts =
+            this.#mesh === null || this.#mesh.isDisposed() ? [] : [this.#mesh, ...this.#mesh.getChildMeshes(true)];
+        const meshes = parts.filter(
+            (part) => model !== null && part instanceof InstancedMesh && model.groups.includes(part.sourceMesh),
+        );
+        chunk.markModelNode(this.context.getScene(), this, meshes, look);
+        this.#modelMarked = look !== null;
+    }
+
+    /**
+     * The band a model node is marked with: its halo (selection or `node.halo*`), else its
+     * outline, else its glow. Width in pixels: a halo's `(scale - 1) x 20` (9 at the default
+     * 1.45), an outline's width x 4, a glow's strength x 8, each between 2 and 16.
+     * @returns The look, or null for no mark.
+     */
+    private modelMarkLook(): ModelMarkLook | null {
+        const pixels = (value: number): number => Math.min(16, Math.max(2, Math.round(value)));
+        const halo = this.haloLook();
+        if (halo !== null && halo.opacity !== 0) {
+            const { rgb } = readColor(halo.color, DEFAULT_SELECTION_STYLE.color);
+            return { color: rgb.toHexString(), thickness: pixels((halo.scale - 1) * 20) };
+        }
+
+        const effect = this.drawnStyle?.effect;
+        if (effect?.outline !== undefined && NodeEffects.outlineDrawn(effect)) {
+            const { rgb } = readColor(NodeEffects.extractColorValue(effect.outline.color), DEFAULT_OUTLINE_COLOR);
+            const width = NodeEffects.outlineWidthOf(this.context.getScene(), effect.outline.width);
+            return { color: rgb.toHexString(), thickness: pixels(width * 4) };
+        }
+
+        const glow = NodeEffects.extractColorValue(effect?.glow?.color);
+        const strength = effect?.glow?.strength ?? 1;
+        if (glow !== undefined && strength > 0) {
+            const { rgb } = readColor(glow, DEFAULT_GLOW_COLOR);
+            return { color: rgb.toHexString(), thickness: pixels(strength * 8) };
+        }
+
+        return null;
     }
 
     /**

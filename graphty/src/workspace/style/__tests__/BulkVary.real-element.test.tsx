@@ -103,7 +103,8 @@ describe("vary by data on several layers", () => {
         );
         assert.strictEqual(colors.size, groups.length);
         assert.lengthOf(
-            session.styles.legend().filter((block) => block.channel === "node.color"),
+            // The group layers' blocks: a Ghost row (the timeline experiment on) paints a color of its own.
+            session.styles.legend().filter((block) => block.channel === "node.color" && groups.includes(block.layerId)),
             1,
             "the key shows one block",
         );

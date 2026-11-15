@@ -71,7 +71,7 @@
  */
 
 import { execFileSync, spawn } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { availableParallelism, constants, cpus, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -81,21 +81,38 @@ import { logWait } from "./wait-log.mjs";
 /** Set in the environment of everything a slot holder runs, so a nested run takes no second slot. */
 export const HELD = "GRAPHTY_TEST_SLOT_HELD";
 
+/** How long a written `.count` holds: 2 hours, four 30-minute rounds that did not rewrite it. */
+export const COUNT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
 /**
- * How many runs may hold a slot at once.
- * @param env the environment (GRAPHTY_TEST_SLOTS)
+ * How many runs may hold a slot at once: GRAPHTY_TEST_SLOTS, else the whole number in the ticket
+ * directory's `.count` file (tmp/test-slots/.count, shared by every worktree, so writing it changes the
+ * limit for every run on the machine at once), else one per 8 cores (at least 2). A `.count` last written more
+ * than COUNT_MAX_AGE_MS ago is ignored: only the rounds' memory checks rewrite it, so a raised count whose
+ * writer stopped must not outlive the measurement behind it.
+ * @param env the environment (GRAPHTY_TEST_SLOTS, GRAPHTY_TEST_SLOTS_DIR)
  * @param cores the machine's cores: cpus(), not availableParallelism(), which follows this process's CPU
  *   affinity, and every process must count the same slots (#6001)
+ * @param now the time to judge the `.count` file's age against (milliseconds since the epoch)
  * @returns the slot count; 0 means no limit
  */
-export function slotCount(env = process.env, cores = cpus().length) {
-    const set = env.GRAPHTY_TEST_SLOTS;
+export function slotCount(env = process.env, cores = cpus().length, now = Date.now()) {
+    let set = env.GRAPHTY_TEST_SLOTS;
+    let from = "GRAPHTY_TEST_SLOTS";
     if (set === undefined || set === "") {
+        from = join(env.GRAPHTY_TEST_SLOTS_DIR || slotDir("test"), ".count");
+        try {
+            set = now - statSync(from).mtimeMs > COUNT_MAX_AGE_MS ? "" : readFileSync(from, "utf8").trim();
+        } catch {
+            set = "";
+        }
+    }
+    if (set === "") {
         return Math.max(2, Math.floor(cores / 8));
     }
     const n = Number(set);
     if (!Number.isInteger(n) || n < 0) {
-        throw new Error(`GRAPHTY_TEST_SLOTS must be a whole number (0 turns the limit off), not "${set}"`);
+        throw new Error(`${from} must be a whole number (0 turns the limit off), not "${set}"`);
     }
     return n;
 }
@@ -174,6 +191,67 @@ function statOf(pid) {
  * @returns clock ticks since boot, or null
  */
 const startOf = (pid) => statOf(pid)?.[19] ?? null;
+
+const TICK_MS = 10; // /proc reports CPU time in clock ticks, 100 a second on Linux
+
+/**
+ * The CPU time a process and every process under it have used, the reaped children of each included.
+ * @param pid the root of the tree
+ * @returns milliseconds of CPU, or null off Linux or once the process is gone
+ */
+export function treeCpuMs(pid) {
+    const self = statOf(pid);
+    if (!self) return null;
+    const kids = new Map();
+    for (const entry of readdirSync("/proc")) {
+        const stat = /^\d+$/.test(entry) ? statOf(entry) : null;
+        if (stat) kids.set(Number(entry), stat);
+    }
+    let ticks = 0;
+    const seen = new Set();
+    for (const queue = [[pid, self]]; queue.length;) {
+        const [p, stat] = queue.pop();
+        if (seen.has(p)) continue;
+        seen.add(p);
+        // utime, stime, cutime, cstime: fields 14 to 17 of the stat line, 11 to 14 after the command name
+        ticks += Number(stat[11]) + Number(stat[12]) + Number(stat[13]) + Number(stat[14]);
+        for (const [k, s] of kids) if (Number(s[1]) === p) queue.push([k, s]);
+    }
+    return ticks * TICK_MS;
+}
+
+/**
+ * When a test slot holder counts as stalled. A run that is getting somewhere uses the CPU: vitest, its workers
+ * and its browser all do. One that waits on something that will never come (a page that never loads, a server
+ * that never answers) sits near zero, and no test guard ends it when it is not a guarded vitest test: a command
+ * wrapped by this file, a benchmark, a script (#8041: a load-time benchmark held a slot for over 90 minutes at
+ * 25 s of CPU while 9 to 13 runs queued). So a holder whose whole process tree uses under `cpuMs` of CPU in
+ * `ms` gives its slot back and is told; the run is never killed, so a long run that is busy keeps its slot
+ * however long it takes. Sampled every `every`.
+ */
+export const IDLE = { ms: 10 * 60_000, cpuMs: 10_000, every: 60_000, cpu: treeCpuMs };
+
+/**
+ * Tracks one holder's CPU use.
+ * @param cpu reads the tree's CPU time so far (milliseconds, or null when it cannot be read)
+ * @param since when the hold began (epoch milliseconds)
+ * @param limits the limits of IDLE
+ * @param limits.ms how long a stall lasts before it counts
+ * @param limits.cpuMs the CPU time under which the tree counts as stalled
+ * @returns sample(now): true once the tree has used under `cpuMs` of CPU for `ms`
+ */
+export function progressWatch(cpu, since, { ms, cpuMs }) {
+    let mark = cpu() ?? 0;
+    let busyAt = since;
+    return (now) => {
+        const used = cpu();
+        if (used === null) return false;
+        if (used - mark >= cpuMs) busyAt = now;
+        // A child that exited before its parent reaped it takes its time out of the sum: start counting again.
+        if (used - mark >= cpuMs || used < mark) mark = used;
+        return now - busyAt >= ms;
+    };
+}
 
 /**
  * Whether a ticket's process still runs.
@@ -263,6 +341,46 @@ export const laneOf = (env) => (env.GRAPHTY_SLOT_PRIORITY === "low" ? LOW : "");
 const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(ms / 60_000)}m`);
 
 /**
+ * Gives a test slot back once its holder stops using the CPU (IDLE), and tells the holder.
+ * @param hold the hold
+ * @param hold.release the hold's release (and its `free`)
+ * @param hold.kind the slot's kind: only a test slot is watched
+ * @param hold.pid the holding process
+ * @param hold.granted when the slot was granted (epoch milliseconds)
+ * @param hold.idle the limits and the CPU reader (IDLE)
+ * @param hold.label what the run is
+ * @param hold.what its package or shard family, for the wait log
+ * @param hold.log where the line telling the holder goes
+ * @param hold.waitLog records the early release
+ * @returns the release, which also stops the watch
+ */
+function watchIdle({ release, kind, pid, granted, idle, label, what, log, waitLog }) {
+    if (kind !== "test" || !idle) return release;
+    const stalled = progressWatch(() => idle.cpu(pid), granted, idle);
+    const timer = setInterval(() => {
+        if (!stalled(Date.now())) return;
+        clearInterval(timer);
+        release.free();
+        log(
+            `test-slots: ${label} used under ${idle.cpuMs / 1000} s of CPU in ${idle.ms / 60_000} minutes, ` +
+                `so it gave its test slot back to the runs waiting for one. It keeps running without a ` +
+                `slot; if it is hung (a page that never loads, a wait on nothing), end it.`,
+        );
+        waitLog({ kind: "test-slot-idle", start: granted, waiter: label, extra: { what } });
+    }, idle.every);
+    timer.unref();
+    const stop = (code) => {
+        clearInterval(timer);
+        release(code);
+    };
+    stop.free = () => {
+        clearInterval(timer);
+        release.free();
+    };
+    return stop;
+}
+
+/**
  * Wait for a slot.
  * @param options the run
  * @param options.label what the run is, for the waiting message of others
@@ -276,6 +394,7 @@ const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(m
  * @param options.kind "test", "gpu" or "lint", for the wait log (tools/wait-log.mjs)
  * @param options.waitLog records a wait that happened, and each hold when it ends (a test replaces it)
  * @param options.what what holds the slot, for the hold's log line: a package or a shard family
+ * @param options.idle when a test slot holder counts as stalled and gives its slot back (IDLE; null: never)
  * @returns a function that gives the slot back and logs the hold, `<kind>-slot-held` with `what` and the exit
  *   code it is called with (an exit listener's); its `free` gives the slot back without logging, for a teardown
  *   that runs before the exit code is known. A no-op when no slot was taken.
@@ -292,6 +411,7 @@ export async function acquire({
     kind = "test",
     waitLog = logWait,
     what,
+    idle = IDLE,
 }) {
     const none = () => {};
     if (slots === 0 || env[HELD]) {
@@ -338,7 +458,7 @@ export async function acquire({
         const at = placeInLine(live, name);
         if (at === -1) {
             // Our ticket is gone (a cleanup removed the directory): queue again at the back.
-            return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog, what });
+            return acquire({ label, dir, slots, pid, env, poll, log, list, kind, waitLog, what, idle });
         }
         if (at < slots) {
             // Marked held: placeInLine counts a low ticket that holds a slot (ordinary ones ignore the mark).
@@ -355,7 +475,8 @@ export async function acquire({
                 waitLog({ kind: `${kind}-slot-held`, start: granted, waiter: label, extra: { what, exit } });
             };
             release.free = free;
-            return release;
+            // A test slot holder that stops using the CPU gives its slot back (#8041); the run itself goes on.
+            return watchIdle({ release, kind, pid, granted, idle, label, what, log, waitLog });
         }
         if (!holders) {
             holders = live.slice(0, slots).map((t) => `pid ${t.pid} ${t.label} (${age(Date.now() - t.since)})`);

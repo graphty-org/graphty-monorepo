@@ -90,7 +90,7 @@
             "paths": ["graphty-session.layout.id"],
             "catalogs": ["layouts"],
             "issue": 6512,
-            "finding": "The layout is saved by id and engine and run again on open, plus the legacy layoutBehavior.type."
+            "finding": "The layout is saved by id, engine, options and dimension and run again on open, plus the legacy layoutBehavior.type. Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results; the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "basemap",

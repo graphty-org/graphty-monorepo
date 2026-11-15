@@ -1,5 +1,5 @@
 import { detCos, detSin, INVALID_INDEX, type NodeMask } from "@graphty/graph-format";
-import ngraphCreateLayout, { Body, Layout as NGraphLayout, Spring } from "ngraph.forcelayout";
+import ngraphCreateLayout, { Body, Layout as NGraphLayout } from "ngraph.forcelayout";
 import createGraph, { Graph as NGraph, Link as NGraphLink, Node as NGraphNode } from "ngraph.graph";
 import random from "ngraph.random";
 import { z } from "zod";
@@ -9,6 +9,7 @@ import { getDefaults } from "../config/OptionsSchema";
 import { NGRAPH_SPRING_LENGTH } from "../constants/layoutConstants";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
+import { wholeGraph } from "../session/working/graphs";
 import {
     clusterByOption,
     clusterCentroids,
@@ -702,7 +703,7 @@ export class NGraphEngine extends LayoutEngine {
             this.copyBody(ngraphNode.id, node.index, count++, rows, coords);
         }
 
-        const snapshot = this.rowNodes.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row !== INVALID_INDEX) {
@@ -766,7 +767,7 @@ export class NGraphEngine extends LayoutEngine {
      * Pin each held row body and free the rest, and weigh each by whether its row follows.
      */
     private holdRowBodies(): void {
-        const snapshot = this.rowNodes.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         for (const [id, ngraphNode] of snapshot === undefined ? [] : this.rowNodes) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row !== INVALID_INDEX) {
@@ -837,14 +838,12 @@ export class NGraphEngine extends LayoutEngine {
         const link = this.pairLink(e.srcId, e.dstId);
         pairOf(link).edges.add(e);
         this.edgeMapping.set(e, link);
-        this.slacken(link);
         this.unsettle();
     }
 
     /**
-     * Under renderPath "batched", put each edge stored with no `Edge` on its pair's link. Such an
-     * edge is never left out by an edge filter, which reads an `Edge`; an end left out still
-     * slackens the link. A third party's engine is handed `Edge`s only.
+     * Under renderPath "batched", put each edge stored with no `Edge` on its pair's link. A third
+     * party's engine is handed `Edge`s only.
      * @param rows - The edges.
      * @internal
      */
@@ -853,7 +852,6 @@ export class NGraphEngine extends LayoutEngine {
             const link = this.pairLink(source, target);
             pairOf(link).rows.add(key);
             this.rowLinks.set(key, link);
-            this.slacken(link);
         }
 
         if (rows.length > 0) {
@@ -1027,7 +1025,7 @@ export class NGraphEngine extends LayoutEngine {
      */
     override loadArrangement(): void {
         super.loadArrangement();
-        const snapshot = this.rowNodes.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
             if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
@@ -1144,36 +1142,6 @@ export class NGraphEngine extends LayoutEngine {
         }
 
         this.holdRowBodies();
-        for (const link of new Set(this.edgeMapping.values())) {
-            this.slacken(link);
-        }
-    }
-
-    /**
-     * Give a link to a node the layout leaves out (see `LayoutEngine.setLeftOut`) a spring too weak
-     * to pull, and a link that no longer touches one ngraph's own spring back. Zero would not do:
-     * ngraph reads a coefficient of 0 as "use the default".
-     * @param link - The link.
-     */
-    private slacken(link: NGraphLink): void {
-        const spring = this.ngraphLayout.getSpring(link) as Spring | undefined;
-        if (spring === undefined) {
-            return;
-        }
-
-        const leftOut =
-            [link.fromId, link.toId].some((id) => {
-                const node = (this.ngraph.getNode(id)?.data as { parentNode?: Node } | undefined)?.parentNode;
-                return node !== undefined && this.isLeftOut(node.index);
-            }) ||
-            (pairOf(link).edges.size > 0 &&
-                pairOf(link).rows.size === 0 &&
-                [...pairOf(link).edges].every((edge) => this.isEdgeLeftOut(edge)));
-        if (leftOut) {
-            spring.coefficient = FOLLOWER_MASS;
-        } else if (spring.coefficient === FOLLOWER_MASS) {
-            spring.coefficient = 0;
-        }
     }
 
     /**

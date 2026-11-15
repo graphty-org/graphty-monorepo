@@ -127,6 +127,50 @@ async function nextReading(session: GraphSession, rule: RuleTree, act: () => unk
 }
 
 describe("watchSteps", () => {
+    it("says how many of a whole-graph reading's members are shown, and hears a filter change", async () => {
+        const session = await lesMis();
+        const staff = IDS.filter((_, at) => ROLE(at) === "staff");
+        const kept = IDS.slice(0, 20);
+        await session.visibility.set({ kind: "member", of: { nodes: kept } });
+        const given = { side: "nodes", within: "graph" } as const;
+        const heard: StepsReading[] = [];
+        const watch = session.scope.watchSteps(STAFF, (reading) => heard.push(reading), given);
+        const shownStaff = staff.filter((id) => kept.includes(id)).length;
+        assert.deepStrictEqual(watch.current.total, { count: staff.length, of: IDS.length, shown: shownStaff });
+
+        const changed = new Promise<void>((resolve) => {
+            const each = session.scope.watchSteps(
+                STAFF,
+                () => {
+                    each.end();
+                    resolve();
+                },
+                given,
+            );
+        });
+        await session.visibility.set(null);
+        await changed;
+        assert.deepStrictEqual(heard.at(-1)?.total, { count: staff.length, of: IDS.length, shown: staff.length });
+        watch.end();
+        session.dispose();
+    });
+
+    it("counts what a filter condition leaves shown, for a whole-graph reading beside it", async () => {
+        const session = await lesMis();
+        await session.visibility.addCondition({ effect: "keep", rule: { kind: "degree", min: 6 } });
+        const shownIds = new Set([...session.visibility.nodes].map(String));
+        assert.isBelow(shownIds.size, IDS.length, "the condition hides some nodes");
+        const staff = IDS.filter((_, at) => ROLE(at) === "staff");
+        const watch = session.scope.watchSteps(STAFF, () => undefined, { side: "nodes", within: "graph" });
+        assert.deepStrictEqual(watch.current.total, {
+            count: staff.length,
+            of: IDS.length,
+            shown: staff.filter((id) => shownIds.has(id)).length,
+        });
+        watch.end();
+        session.dispose();
+    });
+
     it("reads every branch and step: counts, ids, colors, the base and the order icon", async () => {
         const session = await lesMis();
         const rule: UnionLeaf = {

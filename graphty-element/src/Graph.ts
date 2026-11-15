@@ -268,6 +268,7 @@ import {
     scopeResolverOfSession,
     sessionRunsOf,
     setsNotifierOfSession,
+    workingGraphOfSession,
 } from "./session/GraphSession";
 import { ISSUES_VALUE } from "./session/issues";
 import { DEFAULT_LIMITS, type LimitsOption, RenderLimits } from "./session/limits";
@@ -294,6 +295,7 @@ import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
 import type { CompiledLayer } from "./session/styles/Layer";
 import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
+import type { WorkingGraph } from "./session/working/view";
 import {
     attachTransitions,
     LayoutTransitionRunner,
@@ -1065,7 +1067,6 @@ export class Graph implements GraphContext {
 
         this.basemapManager = new BasemapManager(
             () => this.scene,
-            this.element,
             () => {
                 // The map made or showed meshes, usually just before the scene draws: a frozen list
                 // of what is drawn would leave them out of this frame and the frames after it.
@@ -1440,6 +1441,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = action === "play";
             },
             immersive: (mode) => this.setImmersive(mode),
+            followsFilters: () => this.followsShown(workingGraphOfSession(this.session)),
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;
@@ -1705,7 +1707,8 @@ export class Graph implements GraphContext {
                 edges: () => this.session.selection.edgeMembers(),
                 nodes: () => this.session.selection.nodeMembers(),
             },
-            showContext: () => this.session.visibility.showContext,
+            // Off while the working graph is on: nothing outside the view is drawn.
+            showContext: () => this.session.visibility.drawsContext,
             // What is drawn: the visible elements, plus the ghosts outside the time window when
             // the timeline draws them. Visible stays the data scope everything else reads.
             visibility: this.session.visibility.drawnMasks,
@@ -1747,12 +1750,17 @@ export class Graph implements GraphContext {
         const resolver = scopeResolverOfSession(this.session);
         // A layout's grouping option names an attribute or a run's field the way an algorithm's does.
         const columns = sessionColumns(this.session, [], {}, "layout");
+        const working = workingGraphOfSession(this.session);
         this.layoutManager.setScopeSource({
+            // What layouts run over while the session reads the working graph, or while
+            // `layout.visibleOnly` asks for it: the one way a layout runs over only what is shown.
+            working: () => (this.followsShown(working) ? working.filtered() : null),
+            // What a layout definition reads: the same, or else the whole graph chosen by name, the
+            // only way one reads it. Read only when a definition places, so it freezes nothing else.
+            input: () => (this.followsShown(working) ? working.filtered() : working.view("graph")),
             nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
-            visibleEdges: () => this.session.visibility.edges,
-            playing: () => this.session.time.playing,
             detached: (scope) => {
                 try {
                     const { freshness } = this.session.sets.status(scope);
@@ -1772,20 +1780,15 @@ export class Graph implements GraphContext {
                 this.layoutManager.releaseDetachedScope();
             }
         });
-
-        // Under `layout.visibleOnly` the layout runs over what the filter shows, so it runs again
-        // when that changes. A restore or a rollback brings back an arrangement of its own.
+        // WHAT IS SHOWN CHANGED: a filter, a time-window commit, or an undo or redo of one. While
+        // layouts run over what is shown, the running layout follows it once
+        // (design/working-graph/design.md, section 7); queued, so `waitForSettled` waits for it. A
+        // restore or a rollback brings back an arrangement of its own.
         this.session.on("visibility:changed", ({ cause }) => {
-            if (cause !== "restore" && cause !== "rollback") {
-                this.layoutManager.relayoutForVisibility();
+            if (cause !== "restore" && cause !== "rollback" && this.followsShown(working)) {
+                this.followShown(cause === "undo" || cause === "redo");
             }
         });
-        // Under `layout.visibleOnlyWhilePlaying: "hold"` a play's window moves lay nothing out:
-        // the pause lays out what it stopped on.
-        this.session.on("time:pause", () => {
-            this.layoutManager.relayoutForVisibility();
-        });
-
         // A layout's `clusterBy` may name a run's field, which moves when the run ends, is undone or comes back.
         this.session.on("run:changed", ({ phase }) => {
             if (phase === "end" || phase === "removed" || phase === "restored") {
@@ -2625,10 +2628,39 @@ export class Graph implements GraphContext {
      */
     #watchViewForLog(): void {
         const { signal } = this.#teardown;
+        // What the first frame drawn after a return holds: a page shown again, or a context given
+        // back, that draws the map but no node or edge reads as nodesDrawn above meshesInView (#8216).
+        const logFirstFrame = (after: string): void => {
+            if (!GraphtyLogger.isEnabled()) {
+                return;
+            }
+
+            const observer = this.scene.onAfterRenderObservable.addOnce(() => {
+                viewLog.info("drawn after return", { after, ...this.#drawnCounts() });
+            });
+            signal.addEventListener(
+                "abort",
+                () => {
+                    this.scene.onAfterRenderObservable.remove(observer);
+                },
+                { once: true },
+            );
+        };
         document.addEventListener(
             "visibilitychange",
             () => {
                 viewLog.info("page visibility", { state: document.visibilityState });
+                if (document.visibilityState === "visible") {
+                    logFirstFrame("page shown");
+                }
+            },
+            { signal },
+        );
+        // The WebGPU engine tells the canvas too (RecoveringWebGPUEngine), so both renderers are heard here.
+        this.canvas.addEventListener(
+            "webglcontextrestored",
+            () => {
+                logFirstFrame("render restored");
             },
             { signal },
         );
@@ -3052,16 +3084,6 @@ export class Graph implements GraphContext {
         return this.basemapManager.status;
     }
 
-    /**
-     * How far above the canvas's bottom edge the map's credits sit, in CSS pixels, so they clear
-     * controls the page draws over that edge. A view setting, not saved with the project.
-     * @param pixels - The offset; 0 (the default) is the corner.
-     * @since 3.31.0
-     */
-    setAttributionOffset(pixels: number): void {
-        this.basemapManager.attributionOffset = pixels;
-    }
-
     /** See {@link setGlobeLook}. */
     #globeLook: GlobeLook = Object.freeze({});
 
@@ -3181,7 +3203,7 @@ export class Graph implements GraphContext {
         // A label declutter switched on or off changes the picture without moving anything.
         this.renderManager.requestFrame();
         // `layout.visibleOnly` switched lays the graph out again over what it now covers.
-        this.layoutManager.relayoutForVisibility();
+        this.followShown();
 
         // New fit insets frame the graph again inside what they leave.
         if (JSON.stringify(this.styles.config.behavior.camera.fitInsets) !== insetsBefore) {
@@ -3989,7 +4011,8 @@ export class Graph implements GraphContext {
      * refuses a scope that cannot be laid out -- one naming a removed set, or a running layout
      * that is not scoped -- because it is not an explicit `setLayout`: such a scope is inactive,
      * and the layout runs over the whole graph.
-     * @param scope - The scope; undefined or `"graph"` for the whole graph.
+     * @param scope - The scope; undefined or `"graph"` for the whole graph, which while
+     *     `workingGraph` is on is what is shown: a layout never moves a hidden node.
      * @returns A promise that resolves once the running layout has restarted.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` when the value is not a scope.
      * @since 2.5.0
@@ -5241,6 +5264,11 @@ export class Graph implements GraphContext {
                 },
                 this.scene,
             );
+            // A node whose mesh was read on the objects path shares its look's source, which the batch hides.
+            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+                node.holdOffBatch();
+            }
+
             this.#edgeRowLines = new EdgeRowLines({
                 scene: this.scene,
                 cache: this.dataManager.meshCache,
@@ -9160,7 +9188,52 @@ export class Graph implements GraphContext {
             }
         }
 
+        // While the session reads the working graph, Frame selection frames the selected nodes
+        // that are shown: one the time window hides stays selected but is not framed.
+        const working = workingGraphOfSession(this.session);
+        const view = working.enabled ? working.view() : null;
+        if (view !== null && !view.whole) {
+            const { ids } = view.snapshot;
+            for (const id of nodes) {
+                if (!ids.has(id)) {
+                    nodes.delete(id);
+                }
+            }
+        }
+
         return nodes;
+    }
+
+    /**
+     * Whether layouts run over only what is shown, the working graph's view: as
+     * `layout.visibleOnly` says, and while it is unset, as the session's `workingGraph` option says.
+     * @param working - The session's working graph.
+     * @returns True when they do.
+     */
+    private followsShown(working: WorkingGraph): boolean {
+        return this.styles.config.behavior.layout.visibleOnly ?? working.enabled;
+    }
+
+    /**
+     * Have the running layout follow what is shown, queued so that `waitForSettled` waits for it.
+     * Nothing is queued when what is shown is what it was built over: a change that moves no node
+     * (a time field, a playback setting) draws no frame for it.
+     * @param atRest - Whether an undo or a redo changed what is shown: see `LayoutManager.followView`.
+     */
+    private followShown(atRest = false): void {
+        if (!this.layoutManager.viewChanged()) {
+            return;
+        }
+
+        void this.operationQueue
+            .queueOperationAsync(
+                "layout-update",
+                async () => {
+                    await this.layoutManager.followView(atRest);
+                },
+                { description: "Laying out what is shown" },
+            )
+            .catch(() => undefined);
     }
 
     private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {

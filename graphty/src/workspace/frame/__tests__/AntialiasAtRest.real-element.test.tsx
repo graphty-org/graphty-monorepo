@@ -58,13 +58,14 @@ describe("antialias at rest above the edge threshold", () => {
 
         await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }]);
         await session.data.addEdges([
-            { id: "ab", src: "a", dst: "b" },
-            { id: "bc", src: "b", dst: "c" },
-            { id: "ca", src: "c", dst: "a" },
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+            { src: "c", dst: "a" },
         ]);
         await waitFor(() => assert.strictEqual(element.antialias, "at-rest"));
 
-        await session.data.removeEdges(["ca"]);
+        // Node c takes two of the three edges with it.
+        await session.data.removeNodes(["c"]);
         await waitFor(() => assert.strictEqual(element.antialias, true));
     });
 });

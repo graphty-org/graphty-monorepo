@@ -3,7 +3,16 @@ import { createGraphSession, type GraphSession } from "@graphty/graphty-element/
 import { afterEach, assert, describe, it } from "vitest";
 
 import { CHANNEL_HOMES } from "../coverage";
-import { addLabelLine, EVERYTHING_LAYER, labelRow, propose, startingValue, textBinding, writeLine } from "../row";
+import {
+    addLabelLine,
+    EVERYTHING_LAYER,
+    labelRow,
+    propose,
+    sourceName,
+    startingValue,
+    textBinding,
+    writeLine,
+} from "../row";
 
 /**
  * Every channel a "+" can add: drawn, offered somewhere on the Style tab, and not a whole label
@@ -166,5 +175,19 @@ describe("a label line the app adds", () => {
         assert.isDefined(written?.encode?.["node.label"]);
         assert.isUndefined(written?.set?.["node.labelStyle"]);
         assert.isUndefined(written?.set?.["node.labelSize"]);
+    });
+});
+
+describe("the name a bound value goes by", () => {
+    it("is graphty-element's name for a degree or a file's style column, never the path", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        await session.data.addEdges([{ source: "a", target: "b" }]);
+
+        assert.equal(sourceName(session, { by: "graphty.degree" }), "Degree");
+        assert.equal(sourceName(session, { by: "graphty.style.graphml.node.copy.width" }), "File style");
+        assert.equal(sourceName(session, { by: "graphty.style.graphml.node.class" }), "Style class");
+        assert.isNull(sourceName(session, { by: "data.nothing" }));
+        session.dispose();
     });
 });

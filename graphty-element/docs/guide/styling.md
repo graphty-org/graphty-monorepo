@@ -295,9 +295,9 @@ A channel is one visual property with one name. These are all of them:
 | `node.glow`                   | a colour                                                                                                                                         |
 | `node.glowStrength`           | 0 or more, scaling `node.glow`; 0 or on its own it draws no glow                                                                                 |
 | `node.halo`                   | true or false: the selection highlight around the node, in its own shape                                                                         |
-| `node.haloColor`              | a colour; the selection highlight's when unset (gold)                                                                                            |
+| `node.haloColor`              | a colour; the selection highlight's when unset (blue, `#0077BB`)                                                                                 |
 | `node.haloScale`              | above 0: how many times the node's size the halo is drawn at (1.45)                                                                              |
-| `node.haloOpacity`            | 0 to 1 (0.4)                                                                                                                                     |
+| `node.haloOpacity`            | 0 to 1 (1)                                                                                                                                       |
 | `node.wireframe`              | true or false                                                                                                                                    |
 | `node.flat`                   | true or false: one normal per face, so a sphere looks faceted (3D)                                                                               |
 | `node.unlit`                  | true or false: drawn in its own color with no light, as a flat dot (3D)                                                                          |

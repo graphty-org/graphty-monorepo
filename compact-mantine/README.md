@@ -52,6 +52,7 @@ works in light and dark schemes, and works in right-to-left languages.
 - [Internationalization](#internationalization)
 - [Right-to-left languages](#right-to-left-languages)
 - [Accessibility](#accessibility)
+- [Hooks, helpers and constants](#hooks-helpers-and-constants)
 - [TypeScript](#typescript)
 - [Which one should I use?](#which-one-should-i-use)
     - [Use these instead of Mantine's](#use-these-instead-of-mantines)
@@ -231,16 +232,24 @@ imported before this package's stylesheet as in the quick start.
 Pass no `size` prop and these render compact. Pass `size="md"` or `size="lg"`
 and you get larger sizes back.
 
-| Group      | Components                                                                                                                                                      |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Inputs     | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, InputClearButton |
-| Buttons    | Button, ActionIcon, CloseButton                                                                                                                                 |
-| Controls   | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl                                                                                                  |
-| Color      | ColorSwatch, HueSlider, AlphaSlider                                                                                                                             |
-| Display    | Badge, Text, Avatar, Avatar.Group, ThemeIcon, Indicator, Kbd, Pill                                                                                              |
-| Navigation | Tabs, NavLink, Pagination, Stepper, Anchor, Burger                                                                                                              |
-| Feedback   | Loader, Progress, RingProgress, Notification                                                                                                                    |
-| Overlays   | Menu, Tooltip, Tooltip.Group, Popover, HoverCard, Modal, ScrollArea                                                                                             |
+| Group      | Components                                                                                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inputs     | TextInput, NumberInput, Select, NativeSelect, Textarea, PasswordInput, Autocomplete, MultiSelect, TagsInput, PillsInput, FileInput, JsonInput, InputClearButton, Combobox |
+| Buttons    | Button, ActionIcon, CloseButton                                                                                                                                           |
+| Controls   | Switch, Checkbox, Radio, Slider, RangeSlider, SegmentedControl                                                                                                            |
+| Color      | ColorSwatch, HueSlider, AlphaSlider                                                                                                                                       |
+| Display    | Badge, Text, Avatar, Avatar.Group, ThemeIcon, Indicator, Kbd, Pill, Card                                                                                                  |
+| Navigation | Tabs, NavLink, Pagination, Stepper, Anchor, Burger                                                                                                                        |
+| Feedback   | Loader, Progress, RingProgress, Notification, Alert                                                                                                                       |
+| Overlays   | Menu, Tooltip, Tooltip.Group, Popover, HoverCard, Modal, Drawer, ScrollArea                                                                                               |
+
+Most of these have a Storybook page under
+[Themed Mantine](https://graphty.app/storybook/compact-mantine/?path=/docs/themed-mantine-actions-button--docs),
+and `Select`, `NativeSelect`, `Menu`, `Tooltip` and `Modal` have theirs under Components.
+`ColorSwatch`, `HueSlider` and `AlphaSlider` are shown on the
+[ColorPickerPanel](https://graphty.app/storybook/compact-mantine/?path=/docs/components-color-colorpickerpanel--docs)
+page, and `InputClearButton` and `Combobox` on the `Select`, `MultiSelect` and `FileInput` pages.
+`Tooltip.Group`, `Popover`, `HoverCard`, `Drawer`, `Notification` and `Alert` have no page.
 
 A few defaults are worth knowing: `Badge` defaults to the outlined look
 (`variant="filled"` and `"light"` are the brand looks); `Kbd` is Figma's dark key
@@ -319,6 +328,25 @@ Merge component extensions with care: `mergeThemeOverrides` replaces a
 component's `vars` or `styles` function rather than composing it, so an override
 of a component this theme already extends discards the compact treatment. Adjust
 such a component through its props, `classNames` or the `--cm-*` tokens instead.
+The theme extends these keys of `theme.components` (`AvatarGroup` is `Avatar.Group`,
+`TabsTab` is `Tabs.Tab`, and so on); an override that names any of them replaces the compact
+treatment of that component:
+
+<!-- theme-component-keys:start -->
+
+`ActionIcon`, `ActionIconGroup`, `Alert`, `AlphaSlider`, `Anchor`, `Autocomplete`, `Avatar`,
+`AvatarGroup`, `Badge`, `Burger`, `Button`, `Card`, `Checkbox`, `CloseButton`, `ColorSwatch`,
+`Combobox`, `ComboboxTarget`, `Drawer`, `DrawerHeader`, `FileInput`, `HoverCard`, `HueSlider`,
+`Indicator`, `InputBase`, `InputClearButton`, `InputWrapper`, `JsonInput`, `Kbd`, `Loader`,
+`Menu`, `MenuSub`, `MenuSubItem`, `Modal`, `ModalHeader`, `MultiSelect`, `NativeSelect`,
+`NavLink`, `Notification`, `NumberInput`, `Pagination`, `PasswordInput`, `Pill`, `PillsInput`,
+`Popover`, `Progress`, `Radio`, `RangeSlider`, `RingProgress`, `ScrollArea`, `SegmentedControl`,
+`Select`, `Slider`, `Stepper`, `Switch`, `Tabs`, `TabsTab`, `TagsInput`, `Text`, `Textarea`,
+`TextInput`, `ThemeIcon`, `Tooltip`, `TooltipGroup`.
+
+<!-- theme-component-keys:end -->
+
+An override of any other component, and `defaultProps` on any component, merge safely.
 
 ### A compact region inside a normal-sized app
 
@@ -898,6 +926,34 @@ as a set of props you must remember:
 
 Storybook runs axe-core against every story, so a regression shows up in the
 Accessibility panel before it is published.
+
+## Hooks, helpers and constants
+
+The package also exports the small pieces its components are built from, for a control of your own
+that should behave like theirs.
+
+| Export                                                                                                                                            | What it does                                                                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `useActualColorScheme(fallback?)`                                                                                                                 | The color scheme in force, `"light"` or `"dark"`, with Mantine's `"auto"` resolved from the system preference. `fallback` (default `"dark"`) is used where there is no system preference to read, such as server rendering. |
+| `useDirection()`, `isRtl(direction)`                                                                                                              | The text direction set by Mantine's `DirectionProvider` (`"ltr"` with no provider), and whether a direction runs right to left. See [Right-to-left languages](#right-to-left-languages).                                    |
+| `getActivationMeta(event)`                                                                                                                        | Whether a click or key event came from a pointer or the keyboard, as `{ source: "pointer" \| "keyboard" }`: the `meta` the rows pass to `onClick` (see [Handling events](#handling-events)), for a row of your own.         |
+| `ensureCompactStyles()`                                                                                                                           | Puts the theme's stylesheet into `document.head` once. The theme and its components already call it; call it yourself for a shadow root. See [Stylesheet, SSR and shadow roots](#stylesheet-ssr-and-shadow-roots).          |
+| `useLocale()`, `useNumberParser()`, `parseLocaleNumber(text, locale)`                                                                             | The locale numbers are formatted for, and a parser that reads a number typed in that locale (`3,14` in German is 3.14). See [Internationalization](#internationalization).                                                  |
+| `useScrub(enabled, rtl, callbacks)`                                                                                                               | The horizontal drag on a field's leading glyph that changes its value: returns the pointer handlers to spread on the glyph, and reports start, change and end so one drag is one undo step.                                 |
+| `useFileDrop(ref, onFiles, options?)`, `pickFiles(options?)`                                                                                      | Files dropped on an element, and the browser's file picker (call it from a click or key handler). `FileSource` is built from both.                                                                                          |
+| `focusWithRing(element)`                                                                                                                          | Moves focus to a field the reader did not press and draws its focus ring there, as keyboard focus would.                                                                                                                    |
+| `FieldCaret`, `ListboxCheck`, `LISTBOX_CLASS_NAMES`                                                                                               | A select field's caret, the check column of a list option, and the class names that make a list built on Mantine's `Combobox` look like every `Select`'s.                                                                   |
+| `MenuShortcut`, `MenuItemDescription`                                                                                                             | A menu row's keyboard shortcut and its second line, for `Menu.Item`.                                                                                                                                                        |
+| `EllipsizedName`                                                                                                                                  | A name that ellipsizes in a narrow row and shows the whole string in a tooltip only while it is cut short.                                                                                                                  |
+| `mixHex(from, to, t)`                                                                                                                             | The color a fraction `t` (0 to 1) of the way between two hex colors, as `#RRGGBB`.                                                                                                                                          |
+| `isLightColor(color)`                                                                                                                             | Whether a hex color is near-white (every channel at or above `E0`), so a swatch of it needs a ring to show on a white surface.                                                                                              |
+| `colorWord(color)`                                                                                                                                | A hex color as a reader says it in English ("purple", "dark indigo"), for a tooltip or a spoken name beside the hex code.                                                                                                   |
+| `isValidHex`, `normalizeHexa`, `parseHexaColor`, `toHexaColor`, `opacityToAlphaHex`, `parseAlphaFromHexa`, `MAX_ALPHA_HEX`, `MAX_OPACITY_PERCENT` | Reading, checking and writing `#RRGGBBAA` colors and converting between an opacity percentage (0 to 100) and its two hex digits.                                                                                            |
+| `createColorStop`, `createDefaultGradientStops`, `DEFAULT_GRADIENT_STOP_COLOR`                                                                    | Gradient stops with fresh ids, for the value of `GradientEditor`.                                                                                                                                                           |
+| `SWATCH_COLORS_HEXA`                                                                                                                              | The swatches `CompactColorInput`'s picker offers.                                                                                                                                                                           |
+| `COMPACT_SIZING`, `MANTINE_SPACING`, `PANEL_GRID`, `PANEL_INK`                                                                                    | The compact sizes, spacing steps, panel grid and panel colors, for a custom control that lines up with the rest. See [The panel grid](#the-panel-grid).                                                                     |
+| `POPOUT_Z_INDEX_BASE`, `POPOUT_GAP`, `POPOUT_NESTED_GAP`                                                                                          | The stacking level and gaps pop-outs use. See [Floating panels](#floating-panels).                                                                                                                                          |
+| `ALIGNMENT_MATRIX_VALUES`                                                                                                                         | The nine values of `AlignmentMatrix`, in reading order.                                                                                                                                                                     |
 
 ## TypeScript
 

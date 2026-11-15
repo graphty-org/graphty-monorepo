@@ -508,6 +508,23 @@ console.log(run.record.scope.set); // the set's id, and its revision when the ru
 
 With no `scope`, a run is over `"visible"`: the whole graph, or what the visibility filter shows.
 
+### Describing an entry in your own words
+
+Every catalogue entry the element ships -- algorithm, layout, layout engine, camera, log destination,
+and a format that needs explaining -- carries a `descriptionId`, a stable id to key your own words on:
+`algorithm.<key>`, `layout.<id>`, `layout.<id>:<engine>`, `camera.<id>`, `logSink.<id>` and
+`format.<id>`. Each described option carries one too (`algorithm.<key>.<option>`). The English
+`description` beside it is deprecated and goes in a later release.
+
+```typescript
+const MY_WORDS: Record<string, string> = { "algorithm.pagerank": "Who the influential nodes are." };
+const line = (entry: { descriptionId?: string }) => MY_WORDS[entry.descriptionId ?? ""] ?? "";
+const lines = element.session.catalog.algorithms().map(line);
+```
+
+An extension that describes its entries supplies its own `descriptionId`, prefixed with its
+namespace.
+
 ### Options for this graph
 
 `session.catalog.algorithms()` and `session.catalog.layouts()` describe every option as plain data,

@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 
+import { englishDescription } from "../../../catalog/options";
 import type { TransactionScope } from "../../../session/types";
 import { compactSchema, toolJsonSchema } from "../../engine/jsonSchema";
 import { text } from "../fields";
@@ -72,7 +73,7 @@ async function describeAlgorithm(
         data: {
             name: entry.key,
             plainName: entry.plainName,
-            description: entry.description,
+            description: englishDescription(entry),
             category: entry.category,
             shape: entry.shape,
             options: optionsJsonSchema(
@@ -126,7 +127,7 @@ async function describe(
                 data: {
                     name: entry.id,
                     plainName: entry.plainName,
-                    description: entry.description,
+                    description: englishDescription(entry),
                     options: optionsJsonSchema(entry.options),
                     // Every engine takes its own options; the default engine's are `options`.
                     engines: enginesOf(entry).map((engine) => ({
@@ -211,7 +212,7 @@ async function describe(
                 data: {
                     name: entry.id,
                     plainName: entry.plainName,
-                    description: entry.description,
+                    description: englishDescription(entry),
                     modes: [...entry.modes],
                 },
             };

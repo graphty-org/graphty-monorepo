@@ -225,6 +225,13 @@ const OFF_SHARDS = [
         "test-command": "pnpm exec nx run babylonjs-map:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
+    // babylonjs-models - single shard (Node.js, no browser); its packaging test reads babylonjs-models/dist
+    {
+        shard: "babylonjs-models",
+        package: "babylonjs-models",
+        "test-command": "pnpm exec nx run babylonjs-models:coverage --exclude-task-dependencies",
+        "needs-browser": false,
+    },
     // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist.
     // --exclude-task-dependencies: its coverage target depends on build and ^build, and nx replays a cached build by
     // deleting that package's dist and copying it back, so the shard briefly removed graph-format/dist (and the rest)
@@ -445,6 +452,19 @@ const OFF_SHARDS = [
         // Minutes of browser per slice; npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts by hand.
         local: "never",
     })),
+    // The drawn fidelity scorecard on the "batched" render path (the forced-batched project). The browser shards run
+    // it on the objects path only, and the whole forced-batched project runs only when render-proof.yml is
+    // dispatched by hand, so a batched-path defect that turned 37 of its 41 samples white went unseen (issue #8221).
+    // One file, a few minutes of browser; no coverage.
+    {
+        shard: "graphty-element-forced-batched-scorecard",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=forced-batched test/browser/fidelity-scorecard.test.ts ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        "full-run-only": true,
+        // npx vitest run --project=forced-batched test/browser/fidelity-scorecard.test.ts by hand.
+        local: "never",
+    },
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
     // down as it runs more stories (after about 100 to 120, each takes ten times as long and they
     // hit the 30 s timeout), so each shard is kept well under 100 stories.
@@ -583,6 +603,7 @@ export const GROUPS = {
         "graph-format",
         "graph-samples",
         "babylonjs-map",
+        "babylonjs-models",
         "cytoscape-extensions",
         "cytoscape-extensions-cytoscape-versions",
         "layout",
@@ -610,6 +631,8 @@ export const GROUP_MEMBER_SECONDS = {
     "graph-format": 78,
     "graph-samples": 39,
     "babylonjs-map": 3,
+    // Measured locally on 2026-11-14 (about 2 s of vitest with coverage); remeasure from the group job's log.
+    "babylonjs-models": 4,
     "cytoscape-extensions": 15,
     "cytoscape-extensions-cytoscape-versions": 25,
     layout: 46,

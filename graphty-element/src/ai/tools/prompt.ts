@@ -10,6 +10,7 @@
 import type { AiMessageScope } from "../../catalog/ai";
 import type { NodeId } from "../../catalog/types";
 import type { GraphSession } from "../../session/types";
+import { wholeGraph } from "../../session/working/graphs";
 import type { GraphCommand } from "../commands/types";
 import { INTENT_HELP } from "./inputs";
 
@@ -254,7 +255,7 @@ const IDS_SCANNED = 10_000;
  * @returns The line's text.
  */
 function idsLine(session: GraphSession): string {
-    const { ids, nodeCount } = session.data.snapshot();
+    const { ids, nodeCount } = wholeGraph(session.data.store);
     const first = Array.from({ length: Math.min(nodeCount, 5) }, (_, index) => ids.idOf(index));
     if (nodeCount > 0 && nodeCount <= IDS_SCANNED) {
         let low = Infinity;

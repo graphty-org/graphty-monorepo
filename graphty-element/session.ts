@@ -76,6 +76,8 @@ export type {
     DataChangeIds,
     DataSourceDescriptor,
     DataSourceInput,
+    DerivedColumn,
+    DeriveOptions,
     DraftColumn,
     DraftRow,
     DraftRowFilter,
@@ -114,6 +116,7 @@ export type {
     HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
+    HoverDrawn,
     ImportColumnsInput,
     ImportOptions,
     JoinChoices,
@@ -256,7 +259,10 @@ export type {
     AssetSource,
     AssetState,
     BuiltInModelFormat,
+    ModelCompression,
+    ModelEncoding,
     ModelFormat,
+    ModelGeometry,
     ModelLimits,
     ModelPart,
     ModelPartRole,
@@ -272,6 +278,7 @@ export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
  * the data, a reopened project's network-source loads -- waiting for the reader's answer
  * (`session.network`).
  */
+export type { CollapsedGroup, GroupRef, GroupsApi, GroupValue } from "./src/session";
 export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -594,10 +601,12 @@ export type {
     FilterConditionCount,
     FilterConditionInput,
     FilterConditionMatches,
+    FilterDraft,
     FilterEffect,
     FilterResult,
     FilterSelectWithin,
     FilterStep,
+    HiddenNotDrawn,
     RuleTree,
     StepCounts,
     TimePlayback,
@@ -803,6 +812,10 @@ export type {
     StyleCounts,
     StyleExplanation,
     StyleFileDocument,
+    StyleGrayCollision,
+    StyleGrayCollisionOptions,
+    StyleGrayColor,
+    StyleGrayUse,
     StyleRepaintCause,
     StyleRepaintFailure,
     StyleRow,

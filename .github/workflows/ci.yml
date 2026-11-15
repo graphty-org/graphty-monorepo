@@ -131,16 +131,19 @@ jobs:
     # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 150) or more
     # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a release.yml run waits for a
     # runner, so the full run goes first. Every other job needs the Build job, which needs this one, so a waiting
-    # run holds nothing else. It never fails the run: an API error proceeds, and waiting has no limit but this
-    # job's timeout. A push to master, a dispatch and the release train's call skip the wait. Change the limits
-    # with `gh variable set CI_PR_JOB_BUDGET --body <n|off>` and `gh variable set CI_PR_RUN_CAP --body <n|off>`.
+    # run holds nothing else. It never fails the run: an API error proceeds, and the wait ends (the run proceeds)
+    # at the script's MAX_WAIT_MINUTES, before this job's timeout, since a timed-out job is cancelled and that
+    # skips Build and every job after it (#8219). A push to master, a dispatch and the release train's call
+    # skip the wait. Change the limits with `gh variable set CI_PR_JOB_BUDGET --body <n|off>` and
+    # `gh variable set CI_PR_RUN_CAP --body <n|off>`.
     run-cap:
         name: Run cap
         runs-on: ubuntu-24.04
         timeout-minutes: 120
         # the job runs on every event (a skipped job would skip every job below Build); only its steps are
         # limited to a pull request, so elsewhere it is a few seconds on one runner
-        # never fails the run, a timeout included, and so is no required check (tools/ci-advisory-checks.json)
+        # never fails the run (its wait ends before this timeout), and so is no required check
+        # (tools/ci-advisory-checks.json)
         continue-on-error: true
         permissions:
             contents: read
@@ -693,6 +696,7 @@ jobs:
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
                       babylonjs-map/dist/
+                      babylonjs-models/dist/
                       algorithms/dist/
                       layout/dist/
                       cytoscape-extensions/dist/
@@ -747,6 +751,13 @@ jobs:
               with:
                   name: build-babylonjs-map
                   path: babylonjs-map/dist/
+                  retention-days: 1
+
+            - name: Upload babylonjs-models build
+              uses: actions/upload-artifact@v7
+              with:
+                  name: build-babylonjs-models
+                  path: babylonjs-models/dist/
                   retention-days: 1
 
             - name: Upload algorithms build
@@ -1232,6 +1243,12 @@ jobs:
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 20
+        # issues and pull requests: read, for the style fidelity known failures' tracking issues below
+        permissions:
+            contents: read
+            checks: write
+            issues: read
+            pull-requests: read
         steps:
             - uses: actions/checkout@v7
               with:
@@ -1332,7 +1349,7 @@ jobs:
                   BASE_REF: ${{ github.base_ref }}
               run: |
                   if [[ "$FULL" == "true" ]]; then
-                      printf '%s=true\n' format-all bundle api datasource cytoscape >> "$GITHUB_OUTPUT"
+                      printf '%s=true\n' format-all bundle api datasource cytoscape fidelity >> "$GITHUB_OUTPUT"
                       exit 0
                   fi
                   changed=$(git diff --name-only "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD)
@@ -1342,6 +1359,11 @@ jobs:
                   out api graphty-element '^tools/api-report'
                   out datasource graphty-element '^tools/check-data-source-migration'
                   out cytoscape cytoscape-extensions '^cytoscape-extensions/'
+                  if grep -qE '^graphty-element/(test/fidelity/|scripts/fidelity-)' <<<"$changed"; then
+                      echo "fidelity=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "fidelity=false" >> "$GITHUB_OUTPUT"
+                  fi
                   if grep -qE '(^|/)(\.prettierrc|\.prettierignore|prettier\.config|\.editorconfig|\.gitignore)|^package\.json$|^pnpm-lock\.yaml$' <<<"$changed"; then
                       echo "format-all=true" >> "$GITHUB_OUTPUT"
                   else
@@ -1384,6 +1406,17 @@ jobs:
             - name: Feature flags
               run: pnpm run check:features
 
+            # Every style fidelity known failure (graphty-element/test/fidelity/oracle-known-failures.json and
+            # baseline-scores.json) names an open issue: a reason citing none, or only closed issues, fails (#7015).
+            # One GraphQL query. The full run checks it, and a pull request that changes the lists or the harness;
+            # other pull requests and the master push build (the light run) skip it, so closing an issue fails
+            # neither every open pull request nor the next master build, only the next full run.
+            - name: Style fidelity known failures tracked
+              if: steps.scope.outputs.fidelity == 'true' && needs.packages.outputs.light != 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: pnpm --filter @graphty/graphty-element run fidelity:issues
+
             - name: Declared build tools
               run: pnpm run check:declared-tools
 
@@ -1423,6 +1456,12 @@ jobs:
             # tools/check-quick.sh.
             - name: No special style layers
               run: pnpm run check:special-layers
+
+            # Every reader reads the working graph (design/working-graph/design.md section 9):
+            # graphty-element/working-graph-whole-readers.json, the readers that read the whole graph by
+            # agreement, may only shrink against the merge base. The same check runs in tools/check-quick.sh.
+            - name: Readers honor the working graph
+              run: pnpm run check:working-graph
 
             # No pile of images committed outside the folders that hold them (more than 20 new images or
             # 20 MB against the base; an `Images-Approved: <reason>` trailer passes a deliberate addition).
@@ -2224,7 +2263,11 @@ jobs:
     # shards) skips them. They need only the build, not the tests, so they run beside the shards and
     # never hold up the end of a full run (design/ci/channels-pipeline/channels.md section 5).
     # Advisory: release.yml, deploy-pages.yml and coverage.yml read the run's conclusion, and a
-    # measurement with no pass/fail role must not hold them.
+    # measurement with no pass/fail role must not hold them. continue-on-error absorbs a failed job but not a
+    # cancelled one, and a job that reaches its timeout-minutes is cancelled, which makes the whole run conclude
+    # cancelled (issue #7986). So the benchmarks stop themselves first: each runs under tools/before-deadline.sh,
+    # which fails its step at DEADLINE (44 minutes in), and the steps after them carry their own
+    # timeout-minutes, all inside the job's 50.
     performance:
         name: Performance Benchmarks
         needs: packages
@@ -2237,6 +2280,9 @@ jobs:
             contents: read
             id-token: write
         steps:
+            - name: Note when the benchmarks must end
+              run: echo "DEADLINE=$(( $(date +%s) + 44 * 60 ))" >> "$GITHUB_ENV"
+
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
@@ -2274,7 +2320,7 @@ jobs:
 
             - name: Run the algorithms benchmarks
               id: algorithms-bench
-              run: pnpm exec nx run algorithms:benchmark
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec nx run algorithms:benchmark
               env:
                   CI: "true"
                   NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
@@ -2323,7 +2369,7 @@ jobs:
             - name: Run the graphty-element browser timing benchmarks
               if: ${{ !cancelled() }}
               working-directory: graphty-element
-              run: pnpm exec vitest run --project=browser-bench
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=browser-bench
 
             # The repaint's frame budget and undo's cost against a load, timed without coverage. A
             # stopwatch measures whatever else the machine is doing, so these never gate a push;
@@ -2331,7 +2377,7 @@ jobs:
             - name: Run the graphty-element timing benchmarks
               if: ${{ !cancelled() }}
               working-directory: graphty-element
-              run: pnpm exec vitest run --project=bench
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=bench
 
             # The built app's landing page timed in Chromium (graphty/bench/load-time.bench.test.ts): usable, its graph's
             # first frame and first settled frame, medians of 15 first visits. The element's own connect-to-settled
@@ -2339,7 +2385,7 @@ jobs:
             - name: Run the graphty app load-time benchmark
               if: ${{ !cancelled() }}
               working-directory: graphty
-              run: pnpm exec vitest run --project=bench
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=bench
 
             # Fails the job when a median and its minimum both regressed past tools/load-time.mjs's margin against the
             # baseline of this runner's CPU model (benchmarks/results/load-time.json); a CPU model with no baseline
@@ -2347,10 +2393,12 @@ jobs:
             - name: Compare the load times with the baseline
               id: load-time
               if: ${{ !cancelled() }}
+              timeout-minutes: 2
               run: node tools/load-time.mjs
 
             - name: Post the load times to the health dashboard
               if: ${{ !cancelled() }}
+              timeout-minutes: 2
               env:
                   HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
               run: node tools/results/post-benchmarks.mjs graphty-load benchmarks/out/load-time-*.json

@@ -41,7 +41,7 @@ describe("UpdateManager", () => {
         // Set fixed layout
         await graph.setLayout("fixed");
 
-        updateManager = graphAny.updateManager as UpdateManager;
+        updateManager = graph.getUpdateManager();
     });
 
     afterEach(() => {

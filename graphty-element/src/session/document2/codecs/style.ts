@@ -463,7 +463,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
         const id = ids[place];
         const opened = memory.layers.get(id);
         const rowId = spec.row === undefined ? undefined : writtenId(spec.row);
-        if (opened !== undefined && opened.baseline === baselineOf(writeLayer(spec, "", rowId, session))) {
+        if (opened?.baseline === baselineOf(writeLayer(spec, "", rowId, session))) {
             // Unchanged since the open (a `type` selector applied by id included): as the file held it.
             placeIds.push(writtenId(id));
             layers.push(opened.original);

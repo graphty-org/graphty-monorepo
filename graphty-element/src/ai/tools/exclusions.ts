@@ -215,6 +215,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         // A tour is a run of camera moves; the assistant makes each with view.camera.
         { root, members: ["playTour"], reason: "covered-by", by: "view.camera", kind: BY_DESIGN },
     ]),
+    // A figure is a file for the reader to save; its SVG text is nothing the assistant reads or acts on.
+    { root: "Graphty", members: ["exportFigure"], reason: "raw-data", kind: BY_DESIGN },
     {
         root: "Graph",
         members: [

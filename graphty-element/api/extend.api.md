@@ -1879,7 +1879,7 @@ export type GraphtyErrorCode =
 /**
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
-* no camera to draw from. `details.media` is `"image"` or `"video"`, `details.destination` is
+* no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
 * `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
 * @since 3.40.0
 */

@@ -1565,6 +1565,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             enableDetailedProfiling: PROFILING,
             xr: XR,
             captureScreenshot: CAPTURE,
+            exportFigure: CAPTURE,
             nodeThumbnail: CAPTURE,
             modelThumbnail: CAPTURE,
             canCaptureScreenshot: READ,

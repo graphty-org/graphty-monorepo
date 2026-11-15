@@ -271,6 +271,9 @@ function Preview({
     } else if (held === null) {
         // Blank until a model is loaded.
         over = null;
+    } else if (draw.unavailable && !busy) {
+        // The preview could not draw here (no WebGL context for it); the model itself may be fine.
+        over = <GLYPHS.model size={32} aria-hidden />;
     } else if (busy || accepted || missing === undefined) {
         over = <Loader size="sm" aria-label={CUSTOM_MODEL.loading(busy ? "model" : name)} />;
     } else {

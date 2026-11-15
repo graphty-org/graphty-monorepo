@@ -184,4 +184,38 @@ describe("modelPreview", () => {
         const closed = countIn(await readFrame(element), red);
         assert.isAbove(closed.left + closed.right, 500, "and after it closes");
     });
+    it("goes back to the first view after a right-button drag", async () => {
+        const element = await mount();
+        const ball = await element.session.assets.add({ files: new Map([["ball.glb", sphereGlb(8, 4)]]) });
+        const preview = await element.modelPreview(ball.id, previewBox(), { style: { "node.modelTurn": 30 } });
+        cleanups.push(() => {
+            preview.dispose();
+        });
+        const first = await shot(preview.canvas);
+        await drag(preview.canvas, { x: 40, y: 80 }, { x: 120, y: 120 }, 8, undefined, undefined, "right");
+        await settled(preview.canvas);
+        preview.resetView();
+        assert.strictEqual(pixelsChanged(first, await shot(preview.canvas)), 0, "centered as at first");
+    });
+
+    it("draws preview after preview without using up the browser's drawing contexts", async () => {
+        const element = await mount();
+        const ball = await element.session.assets.add({ files: new Map([["ball.glb", sphereGlb(8, 4)]]) });
+        const box = previewBox();
+        const canvases = new Set<HTMLCanvasElement>();
+        for (let round = 0; round < 20; round++) {
+            const preview = await element.modelPreview(ball.id, box);
+            canvases.add(preview.canvas);
+            preview.dispose();
+        }
+        assert.isAtMost(canvases.size, 2, "a closed preview's canvas is used again");
+        const graphCanvas = element.graph.engine.getRenderingCanvas();
+        const gl = graphCanvas?.getContext("webgl2") ?? graphCanvas?.getContext("webgl");
+        assert.isFalse(gl?.isContextLost() ?? true, "the graph keeps its own context");
+        const again = await element.modelPreview(ball.id, box);
+        cleanups.push(() => {
+            again.dispose();
+        });
+        assert.isAbove(drawn(await shot(again.canvas)), 100, "and the next preview draws");
+    });
 });

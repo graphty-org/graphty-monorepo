@@ -205,7 +205,7 @@ import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
-import { LiveModelPreview, type ModelPreview, type ModelPreviewOptions } from "./meshes/ModelPreview";
+import { LiveModelPreview, type ModelPreview, type ModelPreviewOptions, PreviewEngines } from "./meshes/ModelPreview";
 import { NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
@@ -764,6 +764,8 @@ export class Graph implements GraphContext {
     #lighting: Lighting = DEFAULT_LIGHTING;
     /** The node thumbnails drawn so far, by what they draw. */
     readonly #thumbnails = new Map<string, Promise<string>>();
+    /** Engines closed model previews left, for the next ones. */
+    readonly #previewEngines = new PreviewEngines();
     /** The last thumbnail drawing in line. */
     #thumbnailQueue: Promise<unknown> = Promise.resolve();
     /** Margins of the canvas something else covers, in CSS pixels; see {@link setViewInsets}. */
@@ -1917,6 +1919,7 @@ export class Graph implements GraphContext {
      * nothing.
      */
     shutdown(): void {
+        this.#previewEngines.dispose();
         if (this.#teardown.signal.aborted) {
             return;
         }
@@ -7454,6 +7457,7 @@ export class Graph implements GraphContext {
             host,
             async (scene, style) => this.#modelTemplate(scene, ref, record, standIn, style),
             this.#lighting,
+            this.#previewEngines,
         );
         try {
             await preview.update(options.style ?? {});

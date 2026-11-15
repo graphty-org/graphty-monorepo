@@ -95,6 +95,17 @@ function failureOf(error: unknown): CodedFact {
         : { code: "E_MODEL_PARSE", params: {} };
 }
 
+/**
+ * Why a live preview failed, when the model is to blame: undefined when the preview itself could
+ * not draw (no WebGL context for it, or the preview's drawing broke) -- the graph may draw the
+ * model well, so that never stops it being added.
+ * @param error - what `modelPreview` or its `update` rejected with.
+ * @returns the model's failure, or undefined.
+ */
+function modelFailureOf(error: unknown): CodedFact | undefined {
+    return isGraphtyError(error) && error.code !== "E_NO_WEBGL" ? failureOf(error) : undefined;
+}
+
 /** A model's picture as graphty-element drew it, or why it could not draw it. */
 interface ModelDraw {
     /** The picture's URL, or undefined while it is drawn, failed, or for no model. */
@@ -205,6 +216,8 @@ export interface ModelLive {
     readonly drawing: boolean;
     /** Why graphty-element could not draw it, or undefined. */
     readonly failure: CodedFact | undefined;
+    /** Whether the preview itself could not draw (no WebGL context for it): the model is not to blame. */
+    readonly unavailable: boolean;
     /** Asks graphty-element to draw it again: for a decoder whose files did not load. */
     readonly retry: () => void;
     /** Turns the reader's view back to the first one. */
@@ -251,6 +264,7 @@ export function useModelPreview(
         readonly key: string;
         readonly preview?: ModelPreview;
         readonly failure?: CodedFact;
+        readonly unavailable?: boolean;
     } | null>(null);
     useEffect(() => {
         if (key === undefined || element === null || host === null) {
@@ -276,7 +290,8 @@ export function useModelPreview(
             })
             .catch((error: unknown) => {
                 if (live) {
-                    setState({ key, failure: failureOf(error) });
+                    const failure = modelFailureOf(error);
+                    setState({ key, failure, unavailable: failure === undefined });
                 }
             });
         return () => {
@@ -299,7 +314,10 @@ export function useModelPreview(
         preview
             .update(JSON.parse(styleKey) as Record<string, ChannelValue>)
             .catch((error: unknown) => {
-                setState((now) => (now?.preview === preview ? { key: now.key, failure: failureOf(error) } : now));
+                const failure = modelFailureOf(error);
+                setState((now) =>
+                    now?.preview === preview ? { key: now.key, failure, unavailable: failure === undefined } : now,
+                );
             })
             .finally(() => {
                 setPending((n) => n - 1);
@@ -309,6 +327,7 @@ export function useModelPreview(
         drawn: preview !== undefined,
         drawing: preview !== undefined && pending > 0,
         failure: mine?.failure,
+        unavailable: mine?.unavailable === true,
         retry: () => {
             setAttempt((n) => n + 1);
         },

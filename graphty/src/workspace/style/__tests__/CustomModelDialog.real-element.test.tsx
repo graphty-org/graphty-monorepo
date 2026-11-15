@@ -603,6 +603,34 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"), "true");
     });
 
+    it("still adds a model when the preview gets no WebGL context of its own", async () => {
+        const { session, tab } = await openShapes();
+        // The graph's canvas is already in the page; the preview's has none yet when it asks.
+        const original = HTMLCanvasElement.prototype.getContext;
+        vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function (
+            this: HTMLCanvasElement,
+            type: string,
+            ...rest: unknown[]
+        ) {
+            return !this.isConnected && type.includes("webgl")
+                ? null
+                : (original as (...a: unknown[]) => unknown).call(this, type, ...rest);
+        } as typeof original);
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [quadFile()]);
+        await within(dialog).findByRole("button", { name: /^Remove / });
+        const preview = within(dialog).getByTestId("model-preview");
+        await waitFor(() => {
+            assert.isNull(preview.querySelector('[aria-label^="Loading"]'), "the preview stops loading");
+        });
+        assert.isNull(preview.querySelector("canvas"), "no canvas is left behind");
+        assert.isNull(within(dialog).queryByTestId("model-refusal"), "the model is not refused");
+        await addModel(dialog);
+        await waitFor(() => {
+            assert.match(String(written(session, "node.model")), /^asset:/);
+        });
+    });
+
     it("offers a lone picture as the layer's picture", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);

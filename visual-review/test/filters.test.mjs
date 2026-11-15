@@ -80,6 +80,24 @@ describe("grouped review", () => {
         ]);
         expect(outliers).toEqual(["e.png", "f.png"]);
     });
+
+    it("places a change with no box or no size over the whole image, and counts unknown pixels as none", () => {
+        const bare = {
+            file: "a.png",
+            status: "changed",
+            size: null,
+            baselineSize: null,
+            changedPixels: null,
+            bbox: null,
+        };
+        expect(signature(bare)).toBe("speck whole any");
+        expect(signature(changed("a.png", 900, null))).toBe("pixels whole any");
+        expect(signature(changed("a.png", 900, [0, 0, 400, 400]))).toBe("pixels top-left medium");
+        expect(signature(changed("a.png", 900, [0, 0, 2400, 1800]))).toBe("pixels middle-center large");
+        expect(clusters([bare, { ...bare, file: "b.png" }]).clusters).toEqual([
+            { signature: "speck whole any", files: ["a.png", "b.png"], representative: "b.png", pixels: [0, 0] },
+        ]);
+    });
 });
 
 describe("known capture noise", () => {
@@ -193,5 +211,17 @@ describe("approved before", () => {
         expect(approvalIndex([first, at("2", rejected)], [KEY.entry]).size).toBe(0);
         // A record elsewhere (another branch) does not replace it.
         expect(approvalIndex([first, row("3", signed(rejected), false)], [KEY.entry]).size).toBe(1);
+    });
+
+    it("names the newest of two default branch approvals of one image, and takes a signed tree's records as they are", () => {
+        const older = row("1", signed(record(5, [item("h1")], "2026-10-01T00:00:00.000Z")), true);
+        const newer = row("2", signed(record(6, [item("h1")], "2026-10-02T00:00:00.000Z")), true);
+        expect(approvalIndex([newer, older], [KEY.entry]).get(`${PATH} h1`).pr).toBe(6);
+        expect(approvalIndex([older, newer], [KEY.entry]).get(`${PATH} h1`).pr).toBe(6);
+        // Unsigned, with no pull request or time of its own, inside a baselines tree the owner signed.
+        const bare = { version: 2, subject: {}, items: [item("h4")], rejects: [] };
+        expect([...approvalIndex([{ ...row("3", bare, false), treeSigned: true }], [KEY.entry])]).toEqual([
+            [`${PATH} h4`, { pr: null, commit: "3".repeat(40), record: "r/3.json", reviewedAt: "" }],
+        ]);
     });
 });

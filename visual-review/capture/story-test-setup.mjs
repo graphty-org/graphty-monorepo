@@ -356,7 +356,8 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
                     throw e;
                 }
             }
-            confirm = { story, chromatic, plan, fail, mine, modes: again };
+            // With no mode to confirm, the confirming hook has nothing to do, and the clock comes down here.
+            confirm = again.length > 0 ? { story, chromatic, plan, fail, mine, modes: again } : null;
         } finally {
             if (!confirm) {
                 restoreDate();

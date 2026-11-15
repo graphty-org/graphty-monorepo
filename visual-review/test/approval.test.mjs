@@ -136,6 +136,8 @@ describe("canonical and recordHash", () => {
         expect(() => canonical({ runId: Infinity })).toThrow(/no canonical JSON form/);
         expect(() => canonical([-0])).toThrow(/no canonical JSON form/);
         expect(canonical({ a: 0, b: null })).toBe('{"a":0,"b":null}');
+        // A hole or undefined in a list is written as JSON.stringify writes it: null.
+        expect(canonical([1, undefined, 2])).toBe("[1,null,2]");
         const r = approved(record());
         const edited = JSON.parse(JSON.stringify(r).replace('"runId":9', '"runId":1e999'));
         expect(verifyApproval(edited, KEYS)).toMatch(/^the record cannot be hashed/);
@@ -177,6 +179,9 @@ describe("parsePasskeys", () => {
             /rpId/,
         );
         expect(() => parsePasskeys(JSON.stringify({ version: 1, keys: [{ ...KEY.entry, id: "" }] }))).toThrow(/id/);
+        expect(() =>
+            parsePasskeys(JSON.stringify({ version: 1, keys: [{ ...KEY.entry, publicKey: "not+base64url" }] })),
+        ).toThrow("keys[0].publicKey must be base64url");
     });
 });
 

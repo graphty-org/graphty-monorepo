@@ -125,6 +125,11 @@ describe("validateResults", () => {
         expect(validateResults(results({ items: [item(), item()] })).join("\n")).toMatch(/duplicate/);
     });
 
+    it("rejects items that are not a list of objects", () => {
+        expect(validateResults(results({ items: {} }))).toContain("items must be an array");
+        expect(validateResults(results({ items: [item(), 7] }))).toContain("items[1] must be an object");
+    });
+
     it("rejects a non-object and a wrong version", () => {
         expect(validateResults(null)).not.toEqual([]);
         expect(validateResults(results({ version: 2 }))).not.toEqual([]);

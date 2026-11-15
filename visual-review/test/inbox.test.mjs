@@ -62,6 +62,37 @@ describe("inboxOf", () => {
         expect(inbox).toMatchObject({ capturing: 2, done: 1, rejected: 1 });
     });
 
+    it("holds back a pull request with a failed story, naming the story, its mode and how many more failed", () => {
+        const failed = (stories) => target(12, [project("a", { undecided: 3, failed: stories }), project("b")]);
+        const one = inboxOf([failed([{ id: "menu--open", mode: null, reason: null }])], { now: 1 });
+        expect(one.ready).toEqual([]);
+        expect(one.notReady).toEqual([
+            expect.objectContaining({
+                pr: 12,
+                project: "a",
+                story: "menu--open",
+                reason: "capture failed: menu--open: no reason given",
+                retry: false,
+                logUrl: null,
+            }),
+        ]);
+        const many = inboxOf(
+            [
+                failed([
+                    { id: "menu--open", mode: "dark", reason: "story render errored" },
+                    { id: "menu--closed", mode: null, reason: "x" },
+                ]),
+            ],
+            { now: 1 },
+        );
+        expect(many.notReady[0].reason).toBe("capture failed: menu--open (dark): story render errored (and 1 more)");
+    });
+
+    it("says a pull request whose images come partly from a local preview comes from both", () => {
+        const mixed = target(13, [project("a", { undecided: 1, preview: true }), project("b", { undecided: 1 })]);
+        expect(inboxOf([mixed], { now: 1 }).ready[0].source).toBe("local preview and CI");
+    });
+
     it("offers the held candidate first, by its commit, and never a plain master seed", () => {
         const commit = "4".repeat(40);
         const candidate = target(null, [project("a", { undecided: 569 })], {

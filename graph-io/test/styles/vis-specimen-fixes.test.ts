@@ -259,6 +259,9 @@ describe("vis-network nodes", () => {
         });
         expect(values(r, "node", "borderStyle")).toEqual(["dashed", "dotted"]);
         expect(values(r, "edge", "lineStyle")).toEqual(["dashed", "dashed", "dash-dot", "solid", "dotted", "solid"]);
+        // the dash and gap as drawn, a width longer and shorter with its caps; two dashes as their mean
+        expect(values(r, "edge", "dashLength")).toEqual([6, 3.5, 9, null, 1.1, null]);
+        expect(values(r, "edge", "dashGap")).toEqual([4, 1.5, 1.5, null, 3, null]);
     });
 
     it("fades a node's colors by its opacity only where vis-network can: a hex or rgb() color", async () => {

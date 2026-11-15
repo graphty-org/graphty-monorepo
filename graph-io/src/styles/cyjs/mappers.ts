@@ -1349,6 +1349,33 @@ export function cyjsRendered(
 }
 
 /**
+ * A dash array as one dash and the gap after it, as drawn: each dash `grow` longer and each gap `grow` shorter (a
+ * round or square cap reaches half a width past each end), and a pattern of several dashes as their mean dash and
+ * mean gap, which keep its period and the share of it drawn.
+ * @param dash - the dashes and gaps (an odd count repeats)
+ * @param grow - how much longer a cap draws each dash
+ * @returns the dash and gap, or null for an empty array
+ */
+export function drawnDash(dash: readonly number[], grow: number): { dash: number; gap: number } | null {
+    const pairs = dash.length % 2 === 1 ? [...dash, ...dash] : dash;
+    if (pairs.length === 0) {
+        return null;
+    }
+    let on = 0;
+    let off = 0;
+    pairs.forEach((d, i) => {
+        if (i % 2 === 0) {
+            on += Math.max(0, d) + grow;
+        } else {
+            off += Math.max(0, d - grow);
+        }
+    });
+    const n = pairs.length / 2;
+    const round = (x: number): number => Math.round((x / n) * 1e6) / 1e6;
+    return { dash: round(on), gap: round(off) };
+}
+
+/**
  * The line class a dash array looks like against the line's width: solid where its gaps are a tenth of it or less,
  * dotted where no dash is longer than one and a half widths, dash-dot where a dash is twice another, else dashed.
  * @param dash - the dashes and gaps, in pixels

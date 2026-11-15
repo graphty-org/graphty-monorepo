@@ -250,6 +250,8 @@ export const STYLE_PROPERTIES: {
         ["targetArrowParts", "text"],
         ["arrowPosition", "number"],
         ["lineStyle", "lineStyle"],
+        ["dashLength", "number"],
+        ["dashGap", "number"],
         ["waveAmplitude", "number"],
         ["wavePeriod", "number"],
         ["taper", "number"],

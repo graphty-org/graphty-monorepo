@@ -484,6 +484,19 @@ describe("Cytoscape.js node borders, opacity and sizes to the label", () => {
         expect(edges({ "line-dash-pattern": [12, 4, 2, 4] })).toBe("dash-dot");
         // a round cap grows each dash by the width
         expect(edges({ "line-dash-pattern": [3, 6], "line-cap": "round" })).toBe("dashed");
+        // a dashed line's own pattern as the dash and gap it draws, a round cap a width longer; without one, and for
+        // dots, Cytoscape.js's own (ToolDefaults.dashes)
+        const lengths = (edge: Record<string, unknown>): unknown => {
+            const v = evaluateCytoscapeJs(doc({}, { "curve-style": "straight", ...edge })).edge.values;
+            return [v.dashLength?.[0] ?? null, v.dashGap?.[0] ?? null];
+        };
+        expect(lengths({ "line-style": "dotted" })).toEqual([null, null]);
+        expect(lengths({ "line-style": "dashed" })).toEqual([null, null]);
+        expect(lengths({ "line-style": "dashed", "line-dash-pattern": [10, 5] })).toEqual([10, 5]);
+        expect(lengths({ "line-style": "dashed", width: 2, "line-dash-pattern": [3, 6], "line-cap": "round" })).toEqual(
+            [5, 4],
+        );
+        expect(lengths({ "line-style": "solid" })).toEqual([null, null]);
         const border = (node: Record<string, unknown>): unknown =>
             evaluateCytoscapeJs(doc({ "border-style": "dashed", ...node })).node.values.borderStyle?.[0];
         expect(border({ "border-width": 1 })).toBe("dashed");

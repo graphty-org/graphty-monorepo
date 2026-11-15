@@ -58,6 +58,7 @@ import {
     cyjsPropertyName,
     type CyjsPropertySpec,
     cyjsRendered,
+    drawnDash,
     gradientStopColors,
     gradientStops,
     parseCyjsValue,
@@ -2035,8 +2036,8 @@ function combineNodeOpacity(
  * A dashed line or border as the line it looks like. Cytoscape.js draws `dashed` with `line-dash-pattern` (6 3) or
  * `border-dash-pattern` (4 2) in pixels whatever the width, and `dotted` as 1 1 (cytoscape.js 3.34.3 `drawEdgePath`,
  * `drawNode`), so a wide dashed line shows dots and a pattern of long and short dashes a dash-dot. The class is read
- * from the dashes and gaps against the width, a round or square cap lengthening each dash by the width.
- * ponytail: the neutral line styles name a class, not a pattern; a dash pattern slot would carry the lengths exactly
+ * from the dashes and gaps against the width, a round or square cap lengthening each dash by the width. An edge's
+ * own pattern's dash and gap as drawn are kept as `dashLength` and `dashGap`.
  * @param kind - the target
  * @param n - the element count
  * @param words - the parts by internal name
@@ -2059,7 +2060,50 @@ function combineDashes(
     for (const [style, width, fallback, pattern, own] of lines) {
         const col = values[style];
         if (col !== undefined) {
+            if (kind === "edge") {
+                dashLengths(col, n, values, fallback, words);
+            }
             dashColumn(col, n, values[width], { fallback, pattern }, own ? words : null);
+        }
+    }
+}
+
+/**
+ * Each dashed edge's own `line-dash-pattern` as the dash and gap it draws, into `dashLength` and `dashGap`: in pixels
+ * whatever the width, a round or square cap lengthening each dash by the width (cytoscape.js 3.34.3 `drawEdgePath`).
+ * The pattern Cytoscape.js draws without one, and its dots, are its own (`ToolDefaults.dashes`).
+ * @param col - the line styles, before they are read as the lines they look like
+ * @param n - the element count
+ * @param values - the values; changed in place
+ * @param fallback - the width Cytoscape.js draws when none is set
+ * @param words - the parts by internal name
+ */
+function dashLengths(
+    col: readonly (StyleValue | null)[],
+    n: number,
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+    fallback: number,
+    words: ReadonlyMap<string, (string | null)[]>,
+): void {
+    const patterns = words.get("_dashPattern");
+    for (let i = 0; i < n; i++) {
+        const own = patterns?.[i];
+        if (col[i] !== "dashed" || own === null || own === undefined) {
+            continue;
+        }
+        const dashes = own
+            .split(/[\s,[\]]+/)
+            .filter((t) => t !== "")
+            .map((t) => Number.parseFloat(t));
+        if (!dashes.every((d) => Number.isFinite(d))) {
+            continue;
+        }
+        const w = values.width?.[i];
+        const width = typeof w === "number" ? w : fallback;
+        const pair = drawnDash(dashes, (words.get("_dashCap")?.[i] ?? "butt") === "butt" ? 0 : width);
+        if (pair !== null && pair.gap > 0) {
+            columnOf(values, "dashLength", n)[i] = pair.dash;
+            columnOf(values, "dashGap", n)[i] = pair.gap;
         }
     }
 }

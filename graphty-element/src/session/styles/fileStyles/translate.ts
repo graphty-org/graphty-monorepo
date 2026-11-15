@@ -945,6 +945,9 @@ function channelPlans(
         // in the line's own width units, as its width is
         ["waveAmplitude", [length("edge.waveAmplitude")]],
         ["wavePeriod", [length("edge.wavePeriod")]],
+        // Drawn in line widths by the dash pass, where the line is dashed or dotted
+        ["dashLength", []],
+        ["dashGap", []],
         // a ratio of two widths: no unit to convert
         ["taper", [id("edge.taper")]],
         ["targetArrow", [table("edge.arrowHead", arrows, ARROW_SHAPES_NEAREST)]],
@@ -3225,17 +3228,16 @@ class KindTranslation {
      * Dash patterns in the writing program's own: each program draws its dashed and dotted lines in dashes and gaps of
      * its own lengths, some in proportion to the line's width and some the same at any width (graph-io's
      * `ToolDefaults.dashes`), so each edge's dash length and gap are worked out from its line style and width, in line
-     * widths, and drawn above the topmost rule that writes either.
+     * widths, and drawn above the topmost rule that writes either. A file that gives an edge's own `dashLength` and
+     * `dashGap` is drawn in those instead. Dots that would repeat within a width, which would merge, keep the element's
+     * own spacing.
      */
     #dashes(): void {
         const { extracted, snapshot } = this.#input;
         const { tool } = extracted.styles.source;
         const dashes = tool === null ? undefined : toolDefaults(tool)?.dashes;
-        if (dashes === undefined) {
-            return;
-        }
 
-        const props = ["width", "lineStyle"] as const;
+        const props = ["width", "lineStyle", "dashLength", "dashGap"] as const;
         const writers = this.#rules
             .map((rule, bucket) => ({ rule, bucket }))
             .filter(({ rule }) => props.some((p) => rule.set?.[p] !== undefined || rule.map?.[p] !== undefined));
@@ -3244,12 +3246,19 @@ class KindTranslation {
             return;
         }
 
-        const [width, style] = props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
-        // each edge's dash and gap in its own line's widths, where its program draws its style in dashes
+        const [width, style, ownDash, ownGap] = props.map((p) => resolveStyles(extracted, "edge", p, snapshot));
+        // each edge's dash and gap in its own line's widths: the file's own, else where its program draws its style
+        // in dashes
         const pattern = style.map((value, i) => {
             const w = width[i];
-            const dash = typeof value === "string" ? dashes[value as keyof typeof dashes]?.value : undefined;
-            return dash === undefined || typeof w !== "number" || Number.isNaN(w) || w <= 0 ? null : dash(w);
+            if (typeof w !== "number" || Number.isNaN(w) || w <= 0 || value === "solid") {
+                return null;
+            }
+            const [dash, gap] = [ownDash[i], ownGap[i]];
+            const drawn = typeof value === "string" ? dashes?.[value as keyof typeof dashes]?.value : undefined;
+            const pair = typeof dash === "number" && typeof gap === "number" ? { dash, gap } : (drawn?.(w) ?? null);
+            // a dot is drawn round and one width across, so dots repeating within a width would draw a solid line
+            return pair !== null && value === "dotted" && pair.dash + pair.gap <= w ? null : pair;
         });
         if (pattern.every((value) => value === null)) {
             return;

@@ -805,6 +805,14 @@ export interface EdgeStyleValues {
     /** The line style. */
     readonly lineStyle: StyleLineStyle;
     /**
+     * How long each dash of a dashed or dotted line is as drawn, its caps included (a length; Cytoscape.js draws
+     * `dotted` 1 px on, 1 px off, vis-network gives its own dash arrays). For a pattern of several dashes, their mean,
+     * which keeps its period and the share of it drawn. Unset, the line is drawn in its program's own pattern.
+     */
+    readonly dashLength: number;
+    /** The clear gap after each dash of a dashed or dotted line, as drawn (a length), as `dashLength` says. */
+    readonly dashGap: number;
+    /**
      * How far a zigzag or sine-wave line swings to either side of its path (a length; Cytoscape desktop's strokes
      * swing 10 px). With it, `width` is the thickness of the waving line.
      */

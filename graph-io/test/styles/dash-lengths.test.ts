@@ -19,6 +19,10 @@ describe("dash patterns", () => {
         expect(at("pajek", "dotted", 6)).toEqual({ dash: 5, gap: 5 });
         // a program whose files carry their own arrays has none yet
         expect(toolDefaults("vis-network")?.dashes).toBeUndefined();
-        expect(toolDefaults("cytoscape-js")?.dashes).toBeUndefined();
+    });
+
+    it("draws Cytoscape.js's dots 1 px on and 1 off and its dashes 6 and 3, at any width", () => {
+        expect(toolDefaults("cytoscape-js")?.dashes?.dotted?.value(3)).toEqual({ dash: 1, gap: 1 });
+        expect(toolDefaults("cytoscape-js")?.dashes?.dashed?.value(3)).toEqual({ dash: 6, gap: 3 });
     });
 });

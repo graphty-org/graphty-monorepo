@@ -17,6 +17,9 @@ describe("dash patterns", () => {
         expect(at("cytoscape", "dashed", 3)).toEqual({ dash: 6, gap: 6 });
         expect(at("cytoscape", "long-dash", 3)).toEqual({ dash: 12, gap: 6 });
         expect(at("pajek", "dotted", 6)).toEqual({ dash: 5, gap: 5 });
+        // OGDF's GraphIO::drawSVG: Dash "12,6" and Dot "3,6" at width 3
+        expect(at("ogdf", "dashed", 3)).toEqual({ dash: 12, gap: 6 });
+        expect(at("ogdf", "dotted", 3)).toEqual({ dash: 3, gap: 6 });
         // a program whose files carry their own arrays has none yet
         expect(toolDefaults("vis-network")?.dashes).toBeUndefined();
         expect(toolDefaults("cytoscape-js")?.dashes).toBeUndefined();

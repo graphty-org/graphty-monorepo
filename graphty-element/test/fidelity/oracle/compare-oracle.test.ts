@@ -985,6 +985,32 @@ describe("oracle comparison", () => {
         );
     });
 
+    it("leaves out a caption the program draws with the file's character references undecoded", () => {
+        // gml-specimen-labels: OGDF draws GML's "label=A&amp;amp;B" as written, graph-io the draft's "label=A&amp;B"
+        const g = {
+            ...graphtyScene(),
+            texts: [
+                text("label=A&amp;B", 50, 50, 12, { owner: "cap-entity" }),
+                text('label=""', 150, 50, 12, { owner: "cap-empty" }),
+                text("label=&#233;", 250, 50, 12, { owner: "cap-char-ref" }),
+            ],
+        };
+        const o = {
+            ...graphtyScene(),
+            side: "oracle" as const,
+            texts: [
+                text("label=A&amp;amp;B", 50, 50),
+                text("label=&quot;&quot;", 150, 50),
+                text("label=&amp;#233;", 250, 50),
+                text("A&amp;B", 9, 9),
+            ],
+        };
+        assert.deepEqual(
+            withoutCaptions(o, g).texts.map((t) => t.content),
+            ["A&amp;B"],
+        );
+    });
+
     it("leaves out a wrapped caption whose first line is another caption's words", () => {
         // vis-network wraps "w=3 color" under "w=3", the whole caption of the specimen beside it
         const g = {

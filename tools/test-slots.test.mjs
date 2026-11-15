@@ -21,9 +21,11 @@ import {
     laneOf,
     liveTickets,
     packageName,
+    progressWatch,
     shardCacheDir,
     slotCount,
     statusLines,
+    treeCpuMs,
     workerShare,
 } from "./test-slots.mjs";
 import { trackedFiles } from "./tracked-files.mjs";
@@ -55,7 +57,7 @@ function sleeper() {
 after(() => children.forEach((c) => c.kill("SIGKILL")));
 
 const fresh = () => mkdtempSync(join(TMP, "test-slots-"));
-const quiet = { env: {}, poll: 10, log: () => {}, waitLog: () => {} };
+const quiet = { env: {}, poll: 10, log: () => {}, waitLog: () => {}, idle: null };
 // Ticket names carry the millisecond they were written in, so a run asked for after this gets a later place in line.
 async function nextMillisecond() {
     const now = Date.now();
@@ -219,6 +221,68 @@ describe("test-slots", () => {
             liveTickets(dir).map((t) => t.label),
             ["next"],
         );
+    });
+
+    it("gives back the slot of a holder that stopped using the CPU, says so, and leaves the run alone (#8041)", async () => {
+        const dir = fresh();
+        const [stuck, waiter] = [sleeper(), sleeper()];
+        let told;
+        const said = new Promise((r) => (told = r));
+        const logged = [];
+        // A tree whose CPU never moves: stalled at the first sample, as a page that never loads is after IDLE.ms.
+        const idle = { ms: 0, cpuMs: 10_000, every: 1, cpu: () => 25_000 };
+        await acquire({
+            ...quiet,
+            dir,
+            slots: 1,
+            pid: stuck.pid,
+            label: "bench",
+            log: told,
+            idle,
+            waitLog: (w) => logged.push(w),
+        });
+        const next = queue({ ...quiet, dir, slots: 1, pid: waiter.pid, label: "next" });
+        assert.match(await said, /bench used under 10 s of CPU in 0 minutes, so it gave its test slot back/);
+        assert.equal(await settled(next), true, "the waiting run gets the slot");
+        assert.equal(stuck.exitCode, null, "the stalled run is not killed");
+        assert.deepEqual(
+            logged.map((w) => w.kind),
+            ["test-slot-idle"],
+        );
+    });
+
+    it("keeps the slot of a holder that keeps using the CPU, however long it holds it", async () => {
+        const dir = fresh();
+        let samples = 0;
+        let reached;
+        const fifty = new Promise((r) => (reached = r));
+        const cpu = () => {
+            if (++samples === 50) reached();
+            return samples * 10_000;
+        };
+        // 10 s of CPU at every sample: never 10 minutes without it, however many samples pass.
+        const idle = { ms: 600_000, cpuMs: 10_000, every: 1, cpu };
+        const release = await acquire({ ...quiet, dir, slots: 1, pid: sleeper().pid, label: "busy", idle });
+        await fifty;
+        assert.deepEqual(
+            liveTickets(dir).map((t) => t.label),
+            ["busy"],
+            "a busy holder keeps its slot",
+        );
+        release();
+    });
+
+    it("counts a stall from the last time the tree's CPU moved, through a child exiting, and measures real trees", () => {
+        let used = 0;
+        const stalled = progressWatch(() => used, 0, { ms: 100, cpuMs: 10 });
+        assert.equal(stalled(50), false);
+        used = 20;
+        assert.equal(stalled(90), false, "busy at 90");
+        assert.equal(stalled(150), false, "only 60 ms since it was busy");
+        used = 5; // a child exited before it was reaped: its time left the sum
+        assert.equal(stalled(189), false);
+        assert.equal(stalled(190), true, "100 ms with under 10 ms of CPU");
+        if (process.platform === "linux") assert.ok(treeCpuMs(process.pid) > 0);
     });
 
     it("takes no second slot for a run nested in one that holds a slot, so it cannot wait on its own parent", async () => {

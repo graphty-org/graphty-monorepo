@@ -280,5 +280,8 @@ describe("the issue loop's throughput rules (#7810)", () => {
         assert.match(flatIssue, /tmp\/test-slots\/\.count/);
         assert.match(flatIssue, /at least 22 GB available/);
         assert.match(flatIssue, /under 10 GB available/);
+        assert.match(flatIssue, /`some avg300` in `\/proc\/pressure\/memory` is under 1/);
+        assert.match(flatIssue, /`some avg60` exceeds 5/);
+        assert.doesNotMatch(flatIssue, /swap is not full/);
     });
 });

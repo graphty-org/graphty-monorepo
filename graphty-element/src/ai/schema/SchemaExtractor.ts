@@ -7,6 +7,7 @@
  */
 
 import type { Graph } from "../../Graph";
+import { shownIdsOf } from "../commands/selectors";
 import { type InferredSchema, inferSchema } from "./inferSchema";
 import type { PropertySummary, PropertyType, SchemaExtractorOptions, SchemaSummary } from "./types";
 
@@ -140,20 +141,24 @@ export class SchemaExtractor {
      */
     extract(): SchemaSummary {
         const dataManager = this.graph.getDataManager();
-
-        // Get counts
-        const nodeCount = this.graph.getNodeCount();
-        const edgeCount = this.graph.getEdgeCount();
+        // While the session reads the working graph, only what is shown.
+        const shown = shownIdsOf(this.graph);
 
         // Extract node data
         const nodeData = Array.from(dataManager.nodes.values())
+            .filter((n) => shown === null || shown.nodes.has(String(n.id)))
             .map((n) => (n as { data?: Record<string, unknown> }).data)
             .filter((d): d is Record<string, unknown> => d !== undefined);
 
         // Extract edge data
         const edgeData = Array.from(dataManager.edges.values())
+            .filter((e) => shown === null || shown.edges.has(e.id))
             .map((e) => (e as { data?: Record<string, unknown> }).data)
             .filter((d): d is Record<string, unknown> => d !== undefined);
+
+        // Get counts
+        const nodeCount = shown === null ? this.graph.getNodeCount() : shown.nodes.size;
+        const edgeCount = shown === null ? this.graph.getEdgeCount() : shown.edges.size;
 
         return {
             nodeProperties: this.extractFromCollection(nodeData),

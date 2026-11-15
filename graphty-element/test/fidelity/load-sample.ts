@@ -55,6 +55,9 @@ export function createSampleElement(width: number, height: number): Graphty {
     element.style.cssText = `display:block;width:${String(width)}px;height:${String(height)}px`;
     // The samples are drawn with their file's styles, the file styles experiment.
     element.features = ["file-styles"];
+    // The working graph off: the programs a file came from lay out and draw every element, hidden
+    // ones included, so the drawing is compared over the whole graph.
+    element.workingGraph = false;
     element.viewMode = "2d";
     element.layoutConfig = { seed: SEED };
     // Run the layout before the first frame, as the File Styles stories do: drawing every step

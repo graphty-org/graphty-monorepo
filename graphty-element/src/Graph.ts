@@ -222,6 +222,7 @@ import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
 import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { type ModelTemplate, optionsOf } from "./models/ModelCache";
+import { TextureCache } from "./models/TextureCache";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
 import { EdgeIdTarget } from "./render/EdgeIdTarget";
@@ -7430,14 +7431,25 @@ export class Graph implements GraphContext {
             });
         });
         const chunk = await loadChunk();
+        // `node.texture`, as a model node takes it: every material's base picture. Held while the
+        // scene lives (a preview's) or until a thumbnail is drawn.
+        const picture = style["node.texture"];
+        const textures = typeof picture === "string" ? TextureCache.forScene(scene, this.getSession()) : null;
+        const image = typeof picture === "string" ? ((await textures?.load(picture)) ?? null) : null;
+        if (image !== null && typeof picture === "string") {
+            textures?.hold(picture, 1);
+        }
         return chunk.prepareTemplate(
             scene,
             container,
             `graphty-model-preview-${record.digest.slice(0, 8)}`,
-            optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
-                unlit: style["node.unlit"] === true,
-                wireframe: style["node.wireframe"] === true,
-            }),
+            {
+                ...optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
+                    unlit: style["node.unlit"] === true,
+                    wireframe: style["node.wireframe"] === true,
+                }),
+                image,
+            },
             () => chunk.neutralEnvironment(scene),
         );
     }
@@ -7500,6 +7512,7 @@ export class Graph implements GraphContext {
             style["node.modelAnimationOffset"],
             style["node.unlit"],
             style["node.wireframe"],
+            style["node.texture"],
             is2D,
             this.#lighting,
         ]);
@@ -7513,6 +7526,10 @@ export class Graph implements GraphContext {
                     return await modelThumbnail(this.engine, this.scene, is2D, template, options);
                 } finally {
                     template.dispose();
+                    const picture = style["node.texture"];
+                    if (typeof picture === "string") {
+                        TextureCache.forScene(this.scene, this.getSession())?.hold(picture, -1);
+                    }
                 }
             });
             this.#thumbnailQueue = shot.catch(() => undefined);

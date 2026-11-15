@@ -277,6 +277,9 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.equal(chooser.querySelector("svg")?.getAttribute("data-glyph"), "fileUpload");
         const address = within(dialog).getByRole("textbox", { name: "Model address" });
         assert.equal(address.getAttribute("placeholder"), "Model address, or drop a file");
+        const empty = within(dialog).getByTestId("model-preview");
+        assert.equal(getComputedStyle(empty).borderTopStyle, "dashed", "the empty preview is drawn as a drop area");
+        assert.include(empty.textContent, "Drop a model file, a folder or a .zip here");
 
         const body = within(dialog).getByTestId("custom-model");
         const dataTransfer = new DataTransfer();
@@ -320,7 +323,9 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isNull(within(dialog).queryByRole("textbox", { name: "Name" }), "no Name");
         assert.isNull(within(dialog).queryByRole("button", { name: "More options" }), "no More options");
         assert.isNull(dialog.querySelector(".cm-file-loaded"), "no file line");
-        assert.equal(within(dialog).getByTestId("model-preview").childElementCount, 0, "a blank preview");
+        const blank = within(dialog).getByTestId("model-preview");
+        assert.isNull(blank.querySelector("canvas"), "no model drawn");
+        assert.include(blank.textContent, "Drop a model file", "the empty drop area again");
         assert.equal(store.get().announcement, "quad.glb removed");
         await waitFor(() => {
             assert.deepEqual(models(session), [], "what nothing uses is let go");
@@ -364,6 +369,12 @@ describe("the Load custom model dialog, on the real element", () => {
         }
 
         const row = await within(dialog).findByRole("group", { name: "cube.mtl" });
+        const partChooser = within(row).getByRole("button", { name: "Choose cube.mtl" });
+        assert.equal(partChooser.querySelector("svg")?.getAttribute("data-glyph"), "fileUpload", "the same glyph");
+        assert.equal(
+            within(row).getByRole("textbox", { name: "cube.mtl address" }).getAttribute("placeholder"),
+            "cube.mtl address, or drop a file",
+        );
         await choose(row, "Choose cube.mtl", [`${VARIANTS}/obj-mtl-png/cube.mtl`]);
         assert.isNull((await commands.lastFileChooser())?.accept ?? null, "an .mtl is offered whatever its type");
         const picture = await within(dialog).findByRole("group", { name: "cube.png" });
@@ -458,6 +469,29 @@ describe("the Load custom model dialog, on the real element", () => {
         await waitFor(() => {
             assert.isUndefined(written(session, "node.model"));
             assert.isUndefined(written(session, "node.modelSourceUp"));
+        });
+    });
+
+    it("takes a picture for the model in More options, draws it, and writes it with the model", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [quadFile()]);
+        await previewOf(dialog, "quad");
+        const before = previewPicture(dialog, "quad");
+        await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
+        const rows = within(dialog).getByTestId("model-more");
+        await userEvent.click(within(rows).getByLabelText("Model picture, Choose"));
+        const picture = await screen.findByRole("dialog", { name: "Picture" });
+        await choose(picture, "Choose picture", [await fixture(colormapUrl, "colormap.png")]);
+        assert.isNotNull(await within(rows).findByLabelText("Model picture, colormap"));
+        await waitFor(() => {
+            assert.notEqual(previewPicture(dialog, "quad"), before, "the preview draws the picture");
+        });
+        assert.isUndefined(written(session, "node.texture"), "a draft until Add");
+        await addModel(dialog);
+        await waitFor(() => {
+            assert.match(String(written(session, "node.texture")), /^asset:/);
+            assert.match(String(written(session, "node.model")), /^asset:/);
         });
     });
 

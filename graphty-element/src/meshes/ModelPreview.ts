@@ -18,8 +18,9 @@ import { type PlacedModel, placeModel } from "./NodeThumbnail";
 export interface ModelPreviewOptions {
     /**
      * The node's style values, as a layer's `set` holds them: `node.color`, the `node.model*`
-     * channels (Up, Turn, Fit, Center, Tint, Sides, Animation, its Speed and Start), `node.unlit`
-     * and `node.wireframe` are read, the rest are ignored. A clip plays at its Speed (1 when left
+     * channels (Up, Turn, Fit, Center, Tint, Sides, Animation, its Speed and Start), `node.unlit`,
+     * `node.wireframe` and `node.texture` (the picture every material takes) are read, the rest
+     * are ignored. A clip plays at its Speed (1 when left
      * out); Speed 0 holds the pose at Start.
      */
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
@@ -79,6 +80,7 @@ function templateKey(style: Readonly<Partial<Record<Channel, ChannelValue>>>): s
         typeof clip === "string" && clip !== "",
         style["node.unlit"] === true,
         style["node.wireframe"] === true,
+        style["node.texture"],
     ]);
 }
 

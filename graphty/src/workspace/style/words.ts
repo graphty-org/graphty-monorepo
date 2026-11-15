@@ -2054,6 +2054,8 @@ export const CUSTOM_MODEL = {
     addressOrDrop: "Model address, or drop a file",
     /** What the file row says over itself while files are dragged over the dialog. */
     dropToLoad: "Drop to load model",
+    /** The empty preview, drawn as a drop area before any model is loaded. */
+    dropHere: "Drop a model file, a folder or a .zip here",
     chooseFile: "Choose file",
     chooseFolder: "Choose folder",
     cancelLoad: "Cancel load",
@@ -2212,6 +2214,18 @@ export const CUSTOM_MODEL = {
      * @returns the words.
      */
     partAddress: (part: string): string => `${part} address`,
+    /**
+     * A missing part's field placeholder: it also says the row takes a dropped file.
+     * @param part - the part's file name.
+     * @returns the words.
+     */
+    partAddressOrDrop: (part: string): string => `${part} address, or drop a file`,
+    /**
+     * What a missing part's row says over itself while a file is dragged over it.
+     * @param part - the part's file name.
+     * @returns the words.
+     */
+    dropPart: (part: string): string => `Drop to use as ${part}`,
     useFile: "Use file",
     cancel: "Cancel",
     add: "Add model",

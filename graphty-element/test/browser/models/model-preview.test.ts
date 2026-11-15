@@ -218,4 +218,31 @@ describe("modelPreview", () => {
         });
         assert.isAbove(drawn(await shot(again.canvas)), 100, "and the next preview draws");
     });
+    it("draws the picture node.texture names on the model", async () => {
+        const element = await mount();
+        const ball = await element.session.assets.add({ files: new Map([["ball.glb", sphereGlb(8, 4)]]) });
+        const paint = new OffscreenCanvas(8, 8);
+        const context = paint.getContext("2d");
+        assert.isNotNull(context);
+        context.fillStyle = "#00ff00";
+        context.fillRect(0, 0, 8, 8);
+        const png = new Uint8Array(await (await paint.convertToBlob({ type: "image/png" })).arrayBuffer());
+        const picture = await element.session.assets.add({ files: new Map([["green.png", png]]) });
+        assert.strictEqual(picture.kind, "image");
+        const preview = await element.modelPreview(ball.id, previewBox());
+        cleanups.push(() => {
+            preview.dispose();
+        });
+        const green = (frame: Frame): number => {
+            let count = 0;
+            for (let at = 0; at < frame.pixels.length; at += 4) {
+                const [r, g, b] = [frame.pixels[at], frame.pixels[at + 1], frame.pixels[at + 2]];
+                count += g > 100 && r < 60 && b < 60 ? 1 : 0;
+            }
+            return count;
+        };
+        assert.strictEqual(green(await shot(preview.canvas)), 0, "its own color first");
+        await preview.update({ "node.texture": picture.id });
+        assert.isAbove(green(await shot(preview.canvas)), 200, "then the picture");
+    });
 });

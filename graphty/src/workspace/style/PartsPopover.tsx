@@ -199,7 +199,10 @@ function SupplyPart({
                 url
                 autoFocus={first && unused.length === 0}
                 label={`Choose ${label}`}
-                placeholder={CUSTOM_MODEL.partAddress(label)}
+                chooseGlyph="fileUpload"
+                placeholder={CUSTOM_MODEL.partAddressOrDrop(label)}
+                urlLabel={CUSTOM_MODEL.partAddress(label)}
+                dropLabel={CUSTOM_MODEL.dropPart(label)}
                 defaultValue={url}
                 onDiscard={onDiscard}
                 onFiles={([file]) => {

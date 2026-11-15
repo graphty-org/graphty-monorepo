@@ -1,4 +1,4 @@
-import { DataRow, FileSource, ModalFooter, useFileDrop } from "@graphty/compact-mantine";
+import { DataRow, FileSource, ModalFooter, UiGlyph, useFileDrop } from "@graphty/compact-mantine";
 import {
     assetFileExtensions,
     detectModelFormat,
@@ -40,8 +40,9 @@ import { FactChip, ModelChip } from "./ModelChip";
 import { SettingRows } from "./ModelSettings";
 import { chipLine, countChip, middleCut, modelChip, PART_CODES, partChip, roleWord } from "./modelWords";
 import { PartRow, RoleGlyph } from "./PartsPopover";
+import { PictureField, PicturePopover } from "./PicturePopover";
 import { useStillOpen } from "./useStillOpen";
-import { CUSTOM_MODEL, logUnexpected } from "./words";
+import { CUSTOM_MODEL, logUnexpected, PICTURE_WORD } from "./words";
 
 /**
  * What the file chooser takes, as graphty-element lists it: a model's own file or a .zip, never
@@ -269,8 +270,15 @@ function Preview({
             </Stack>
         );
     } else if (held === null) {
-        // Blank until a model is loaded.
-        over = null;
+        // Before a model is loaded the box says the dialog takes a dropped file, as a drop area does.
+        over = (
+            <Stack gap={6} align="center" className="ws-model-drop-hint">
+                <UiGlyph name="fileUpload" size={24} />
+                <Text size="xs" ta="center">
+                    {CUSTOM_MODEL.dropHere}
+                </Text>
+            </Stack>
+        );
     } else if (draw.unavailable && !busy) {
         // The preview could not draw here (no WebGL context for it); the model itself may be fine.
         over = <GLYPHS.model size={32} aria-hidden />;
@@ -285,11 +293,76 @@ function Preview({
         );
     }
     return (
-        <div className="ws-model-preview" data-testid="model-preview">
+        <div className="ws-model-preview" data-testid="model-preview" data-empty={held === null || undefined}>
             {held === null || busy ? null : (
                 <div ref={onHost} className="ws-model-live" aria-busy={draw.drawing || undefined} />
             )}
             {over === null ? null : <div className="ws-model-preview-over">{over}</div>}
+        </div>
+    );
+}
+
+/**
+ * More options' Picture row: `node.texture`, the picture every material of the model takes in place
+ * of its own, chosen in the Picture pop-over and written with the model.
+ * @param props - Component props
+ * @param props.value - what the draft's `node.texture` names, or undefined
+ * @param props.write - sets it
+ * @param props.remove - takes it back
+ * @returns The row
+ */
+function PictureRow({
+    value,
+    write,
+    remove,
+}: Readonly<{ value: string | undefined; write: (ref: string) => void; remove: () => void }>): React.JSX.Element {
+    const [open, setOpen] = useState(false);
+    const box = useRef<HTMLDivElement>(null);
+    const removeName = `Remove model ${PICTURE_WORD.toLowerCase()}`;
+    return (
+        <div className="ws-row" data-line="node.texture" ref={box}>
+            <div className="ws-field" data-named="">
+                <span className="ws-field-label">
+                    <span className="ws-field-name" title={PICTURE_WORD} aria-hidden>
+                        {PICTURE_WORD}
+                    </span>
+                </span>
+                <div className="ws-field-control">
+                    <PictureField
+                        label={`Model ${PICTURE_WORD.toLowerCase()}`}
+                        pictureRef={value}
+                        expanded={open}
+                        onOpen={() => {
+                            setOpen(true);
+                        }}
+                    />
+                </div>
+                <span className="ws-slot">
+                    {value === undefined ? null : (
+                        <Tooltip label={removeName}>
+                            <ActionIcon variant="subtle" size="sm" aria-label={removeName} onClick={remove}>
+                                <GLYPHS.remove size={14} aria-hidden />
+                            </ActionIcon>
+                        </Tooltip>
+                    )}
+                </span>
+            </div>
+            <PicturePopover
+                opened={open}
+                anchor={box}
+                current={value}
+                onPick={(ref) => {
+                    setOpen(false);
+                    write(ref);
+                }}
+                // A model chosen here is not this model's picture: the pop-over just closes.
+                onModel={() => {
+                    setOpen(false);
+                }}
+                onClose={() => {
+                    setOpen(false);
+                }}
+            />
         </div>
     );
 }
@@ -899,6 +972,19 @@ export function CustomModelDialog({
                                 remove={unset}
                                 clips={clips}
                             />
+                            <div className="ws-model-settings">
+                                <PictureRow
+                                    value={
+                                        typeof draft["node.texture"] === "string" ? draft["node.texture"] : undefined
+                                    }
+                                    write={(ref) => {
+                                        write("node.texture", ref);
+                                    }}
+                                    remove={() => {
+                                        unset("node.texture");
+                                    }}
+                                />
+                            </div>
                         </div>
                     </Collapse>
                 </>

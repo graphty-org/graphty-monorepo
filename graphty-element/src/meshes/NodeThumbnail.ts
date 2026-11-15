@@ -44,8 +44,9 @@ export interface ModelThumbnailOptions {
     readonly size?: number;
     /**
      * The node's style values, as a layer's `set` holds them: `node.color` and the `node.model*`
-     * channels (Up, Turn, Fit, Center, Tint, Animation and its Start, the pose drawn) are read,
-     * the rest are ignored.
+     * channels (Up, Turn, Fit, Center, Tint, Animation and its Start, the pose drawn),
+     * `node.unlit`, `node.wireframe` and `node.texture` (the picture every material takes) are
+     * read, the rest are ignored.
      */
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
     /**

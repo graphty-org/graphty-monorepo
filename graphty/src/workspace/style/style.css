@@ -726,6 +726,15 @@
     pointer-events: none;
 }
 
+/* Empty, the box is the dialog's drop area: dashed, with what it takes. */
+.ws-model-preview[data-empty] {
+    border-style: dashed;
+}
+
+.ws-model-drop-hint {
+    max-width: 180px;
+}
+
 /* Files, More options and Details: a chevron and a word that open their rows, as the selection pane's Advanced. */
 .ws-disclosure {
     display: inline-flex;

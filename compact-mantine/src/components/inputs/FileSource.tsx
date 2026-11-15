@@ -275,14 +275,18 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
     const urlName = placeholder ?? labels.fileUrl;
     const showLoaded = loaded !== undefined && progress === undefined && drawn === "row";
     const dropCue = drawn === "row" && (dropping || (over && dropLabel !== undefined));
-    // The x took the loaded line away: focus goes to what came back in its place.
+    // The x took the loaded line away: focus goes to what came back in its place. Only when it was
+    // the x's doing (nothing is loaded now): a line that a later load hides keeps the reader's focus.
     const refocus = useRef(false);
     useEffect(() => {
-        if (refocus.current && !showLoaded) {
-            refocus.current = false;
+        if (!refocus.current || showLoaded) {
+            return;
+        }
+        refocus.current = false;
+        if (loaded === undefined) {
             root.current?.querySelector<HTMLElement>("input, button")?.focus();
         }
-    }, [showLoaded]);
+    }, [showLoaded, loaded]);
 
     const choose = (inFolder = false): void => {
         void pickFiles({ accept, multiple, folder: inFolder }).then((files) => {

@@ -223,6 +223,9 @@ describe("every model format and variant, through the Load custom model dialog",
                 name: variant.needs,
             });
             await userEvent.click(within(row).getByRole("button", { name: `Load without ${variant.needs}` }));
+            // The model waiting for the part already previews with a stand-in: wait for the one drawn
+            // without it, which the variant caption marks as accepted.
+            await within(dialog).findByTestId("model-variant");
         }
 
         await assertPreview(dialog, variant);

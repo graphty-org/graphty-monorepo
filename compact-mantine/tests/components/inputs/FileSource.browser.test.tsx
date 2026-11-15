@@ -437,6 +437,41 @@ describe("FileSource's loaded state", () => {
         assert.equal(document.activeElement, screen.getByRole("textbox", { name: "URL" }), "focus goes to the field");
     });
 
+    it("leaves focus where the reader is when an x the page did not act on is followed by a load", async () => {
+        /**
+         * A row whose x does nothing, and a load the test starts with a button.
+         * @returns the row and the other controls
+         */
+        function Harness(): React.JSX.Element {
+            const [progress, setProgress] = useState<number | undefined>(undefined);
+            return (
+                <div style={{ width: 240 }}>
+                    <FileSource
+                        variant="row"
+                        loaded={{ name: "a.glb" }}
+                        progress={progress}
+                        onClear={() => undefined}
+                        onFiles={() => undefined}
+                        onUrl={() => undefined}
+                    />
+                    <input aria-label="Elsewhere" />
+                    <button type="button" onClick={() => setProgress(0.1)}>
+                        Start load
+                    </button>
+                </div>
+            );
+        }
+        const { container } = await renderThemed(<Harness />);
+        await userEvent.click(screen.getByRole("button", { name: "Remove a.glb" }));
+        assert.isNotNull(container.querySelector(".cm-file-loaded"), "the page kept it");
+        const elsewhere = screen.getByRole("textbox", { name: "Elsewhere" });
+        await userEvent.click(elsewhere);
+        await userEvent.keyboard("{Tab}");
+        await userEvent.keyboard("{Enter}");
+        await expect.poll(() => container.querySelector("[role='progressbar']")).not.toBeNull();
+        assert.equal(document.activeElement, screen.getByRole("button", { name: "Start load" }), "focus stays put");
+    });
+
     it("keeps a long name's end, with its extension, when it is cut", async () => {
         const name = "a-very-long-model-name-that-will-not-fit-here.gltf";
         const { container } = await renderThemed(

@@ -452,25 +452,6 @@ function palettesFor(
 }
 
 /**
- * A labelled value in its JSON type: the session keeps it as the legend spells it, so a value of a
- * number or boolean column is read back from that text.
- * @param value - The value as text.
- * @param type - The type of the column at its path, when known.
- * @returns The value.
- */
-function typedValue(value: string, type: string | undefined): string | number | boolean {
-    if ((type === "number" || type === "integer") && value.trim() !== "" && String(Number(value)) === value) {
-        return Number(value);
-    }
-
-    if (type === "boolean" && (value === "true" || value === "false")) {
-        return value === "true";
-    }
-
-    return value;
-}
-
-/**
  * The section's header and body from the session as it is now.
  * @param session - The session.
  * @param problems - Where to report the layers left out.
@@ -537,11 +518,9 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
         tree.push(...memory.kept.map(({ layer }) => ({ layer: layer.id })));
     }
 
-    const attributes = session.data.attributes();
     const valueLabels = [...dispatcherOf(session).state.valueLabels].map(([key, label]) => {
         const { path, value } = valueLabelOf(key);
-        const type = attributes.find((each) => each.path === path)?.type;
-        return { path: renameRuns(path, runName), value: typedValue(value, type), label };
+        return { path: renameRuns(path, runName), value, label };
     });
     const assets = assetsMember(session).member?.assets as JsonObject[] | undefined;
     const body: JsonObject = {

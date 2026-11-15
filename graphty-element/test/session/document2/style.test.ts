@@ -428,6 +428,30 @@ describe("the version 2 style section's own rules", () => {
         ]);
     });
 
+    it("writes the number 5 and the text 5 of a mixed column apart, each in its own type", async () => {
+        const session = createGraphSession(ON);
+        await session.data.addNodes([
+            { id: "a", m: 5 },
+            { id: "b", m: "5" },
+        ]);
+        await session.data.setValueLabel("data.m", 5, "five-number");
+        await session.data.setValueLabel("data.m", "5", "five-text");
+        const { section } = await saveStyle(session);
+        assert.sameDeepMembers(section.valueLabels as JsonObject[], [
+            { path: "data.m", value: 5, label: "five-number" },
+            { path: "data.m", value: "5", label: "five-text" },
+        ]);
+
+        const reopened = createGraphSession(ON);
+        await open(reopened, section);
+        assert.sameDeepMembers((await saveStyle(reopened)).section.valueLabels as JsonObject[], [
+            { path: "data.m", value: 5, label: "five-number" },
+            { path: "data.m", value: "5", label: "five-text" },
+        ]);
+        session.dispose();
+        reopened.dispose();
+    });
+
     it("reports a run name no open run, or several, has, and leaves it as written", async () => {
         const session = createGraphSession(ON);
         const problems = await open(session, {

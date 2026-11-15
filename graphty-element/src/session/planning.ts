@@ -738,7 +738,7 @@ function planAlgorithmRun(context: PlanningContext, command: AlgorithmRunCommand
             effect,
             caveats: Object.freeze({
                 ...weighed,
-                method: descriptor?.technicalName ?? context.defaultCaveats.method,
+                method: descriptor?.key ?? context.defaultCaveats.method,
                 ...(command.seed === undefined ? {} : { seed: command.seed }),
             }),
         });

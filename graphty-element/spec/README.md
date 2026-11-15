@@ -79,6 +79,7 @@ SHOULD be `<name>.graphty.json`.
 | `sections`                                                                                                  | yes      | an object of sections keyed by section name; any subset; may be empty                |
 | `$schema`, `id`, `name`, `description`, `created`, `modified`, `authors`, `license`, `keywords`, `language` | no       | as in the section header; `id` names the project                                     |
 | `extensions`                                                                                                | no       | extension data only, keyed by reverse-domain name; never a section (3, `extensions`) |
+| `graphs`                                                                                                    | no       | reserved for a later file that holds several graphs (rule 4); never written today    |
 
 1. **The key decides** what a section is. A key the reader knows holds the section of that name,
    so there is at most one section of each known kind. A section carries its own `kind` in both
@@ -87,10 +88,14 @@ SHOULD be `<name>.graphty.json`.
    reader knows.
 2. `sections` is open. A reader MUST skip a key it does not know, whatever `kind` its value
    carries, report `W_UNKNOWN_KIND` (params `{ section }`), keep the value verbatim and write it
-   back on re-save, and load every section it knows. graphty-element adds later sections (several
-   graphs, version history) as new keys; a third party's section goes under `sections`, keyed by
+   back on re-save, and load every section it knows. graphty-element adds later sections (version
+   history) as new keys; a third party's section goes under `sections`, keyed by
    its reverse-domain kind. Its value has a `kind` and an integer `version`.
 3. There is no `requires`: any subset of sections is a valid full file.
+4. `graphs` is reserved for a later file that holds several graphs. A file of one graph MUST NOT
+   write it. A version 2 reader that finds it MUST hold the file's graph sections (`data`,
+   `results`, `notes`, `view`) unchanged (8.4), write them back, and report `W_SECTION_KEPT` with
+   `reason` `graphs`.
 
 ### 2.3 The byte-for-byte rule
 
@@ -503,7 +508,9 @@ A results section holds `bindsTo` (REQUIRED, `{ data }` only), `runs` (REQUIRED)
    `graph`), `caveats`, `graph` (graph-level values), and `nodes` and `edges` outputs.
 3. `caveats` is graphty-element's `Caveats` without its deprecated `notes` and `partialReason`
    (the words are rebuilt from `facts` and `partialCause`) and without `seed`: the run's own
-   `seed` is the authority, and a reader puts it back into the caveats.
+   `seed` is the authority, and a reader puts it back into the caveats. Its `method` is an
+   identifier (the algorithm's key, or a method of its own such as `stoer-wagner`), never
+   reader-facing text: an application names it.
 4. Outputs are columns: `{ "refs": [<element references>], "columns": { <field>: [values] } }`,
    every column as long as `refs`.
 5. `layout` is the layout's record: `id`, the catalogue id; `algorithm`, the layout that drew it,
@@ -770,8 +777,9 @@ unbound.
 
 A reader MUST skip a section whole, and **hold** it, when its `version` is newer than the reader
 knows (`W_SECTION_KEPT`, params `{ section, version, reason }`), when it lists an extension the
-reader lacks (`W_EXTENSION_REQUIRED`), when a known key holds another `kind`, or when a data
-section cannot be built whole (4.1.10). Skipping a data section leaves the sections bound to it
+reader lacks (`W_EXTENSION_REQUIRED`), when a known key holds another `kind`, when a data
+section cannot be built whole (4.1.10), or, for a graph section, when the wrapper carries `graphs`
+(2.2 rule 4). Skipping a data section leaves the sections bound to it
 unbound, which is reported. The rest of the file loads.
 
 While a section is held:

@@ -256,6 +256,9 @@
                 "description": "A section a later release, or a third party under its reverse-domain kind, adds: skipped with W_UNKNOWN_KIND and kept on re-save."
             }
         },
+        "graphs": {
+            "description": "Reserved for a later file that holds several graphs (spec/README.md 2.2 rule 4). A file of one graph never writes it."
+        },
         "extensions": {
             "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/extensions"
         }

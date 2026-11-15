@@ -315,7 +315,11 @@ export interface Caveats {
     readonly weightSkipped?: WeightSkip;
     /** The arithmetic that produced these numbers. */
     readonly precision: Precision;
-    /** Which method computed them, such as "dijkstra" or "brandes-sampled". */
+    /**
+     * Which method computed them, as an identifier: the algorithm's key unless the algorithm names
+     * a method of its own, such as "dijkstra" or "stoer-wagner". Never reader-facing text; an
+     * application names it.
+     */
     readonly method: string;
     /**
      * Why a run stopped before it finished, when it did, as a code and its values. Present when

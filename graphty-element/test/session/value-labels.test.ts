@@ -80,7 +80,9 @@ describe("a value's name", () => {
 
         await session.redo();
         await session.data.setValueLabel(path, "0", null);
-        assert.strictEqual(session.data.valueLabels(path).size, 0, "null removes it; 0 and '0' are one value");
+        assert.strictEqual(session.data.valueLabels(path).get("0"), "Students", "0 and '0' are two values");
+        await session.data.setValueLabel(path, 0, null);
+        assert.strictEqual(session.data.valueLabels(path).size, 0, "null removes it");
         session.dispose();
     });
 
@@ -127,6 +129,24 @@ describe("a value's name", () => {
         const keys = Object.keys(member);
         assert.strictEqual(keys[keys.indexOf("valueLabels") - 1], "views", "the field keeps its place in the file");
         assert.deepStrictEqual(member.valueLabels, [{ path, value: "1", label: "Last two" }]);
+    });
+
+    it("keeps the number 5 and the text 5 of one path apart", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([
+            { id: "a", m: 5 },
+            { id: "b", m: "5" },
+        ]);
+        await session.data.setValueLabel("data.m", 5, "number");
+        await session.data.setValueLabel("data.m", "5", "text");
+        assert.strictEqual(
+            session.data.valueLabels("data.m").get("5"),
+            "text",
+            "the legend's spelling reads the text's name",
+        );
+        await session.data.setValueLabel("data.m", "5", null);
+        assert.strictEqual(session.data.valueLabels("data.m").get("5"), "number", "the number's name is its own");
+        session.dispose();
     });
 });
 

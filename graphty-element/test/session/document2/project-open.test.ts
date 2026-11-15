@@ -228,6 +228,38 @@ describe("saving", () => {
 
         session.dispose();
     });
+
+    it("holds the graph sections of a file carrying the reserved graphs member and writes them back", async () => {
+        const file = readJson("examples/card-fraud.graphty.json");
+        file.graphs = [{ id: "second" }];
+        const sections = file.sections as JsonObject;
+        const session = createGraphSession(ON);
+        const report = await session.project.open(JSON.stringify(file), { rerun: false });
+        const kept = report.problems
+            .filter((problem) => problem.code === "W_SECTION_KEPT" && problem.params?.reason === "graphs")
+            .map((problem) => problem.params?.section);
+        assert.sameMembers(kept as string[], ["data", "results", "notes", "view"]);
+        assert.strictEqual(session.data.nodes().length, 0, "the held data is not loaded");
+
+        const saved = JSON.parse((await session.project.save({ format: 2, markSaved: false })).text) as JsonObject;
+        assert.deepStrictEqual(saved.graphs, file.graphs, "the reserved member is written back");
+        for (const name of ["data", "results", "notes", "view"]) {
+            assert.deepStrictEqual((saved.sections as JsonObject)[name], sections[name], `${name} is written back`);
+        }
+        session.dispose();
+    });
+
+    it("reports no column settings or issues left out when the file holds them", async () => {
+        const session = createGraphSession(ON);
+        await session.project.open(readText("examples/card-fraud.graphty.json"), { rerun: false });
+        const saved = await session.project.save({ format: 2, markSaved: false });
+        const fields = saved.report.leftOut
+            .filter((problem) => problem.code === "W_MEMBER_LEFT_OUT")
+            .map((problem) => problem.params?.field);
+        assert.notInclude(fields, "columns");
+        assert.notInclude(fields, "issues");
+        session.dispose();
+    });
 });
 
 describe("the sections a reader changed from the session", () => {

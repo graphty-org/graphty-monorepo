@@ -45,7 +45,13 @@ const FIRST_VERSION: Readonly<Record<DocumentSection, number>> = {
  * be built whole, a known key holding another `kind`, an `unknown` `sections` key, and a
  * `malformed` value (not an object, or no integer version), kept the same way.
  */
-type HeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed";
+type HeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed" | "graphs";
+
+/**
+ * The sections that describe one graph. A wrapper carrying the reserved `graphs` member (a later
+ * file holding several graphs) holds them all: this reader knows only a file of one graph.
+ */
+const GRAPH_SECTIONS = new Set<string>(["data", "results", "notes", "view"]);
 
 /** A section kept verbatim and written back on save. */
 export interface HeldSection {
@@ -447,8 +453,15 @@ export function parseDocument(value: JsonObject, codecs: CodecRegistry): ParsedD
         throw badDocument({ member: "sections" });
     }
 
+    const severalGraphs = "graphs" in wrapper;
     for (const [key, each] of Object.entries(listed)) {
-        sort(key, each, `/sections/${token(key)}`);
+        if (severalGraphs && GRAPH_SECTIONS.has(key)) {
+            const version = isJsonObject(each) && typeof each.version === "number" ? each.version : null;
+            problems.push({ code: "W_SECTION_KEPT", params: { section: key, version, reason: "graphs" } });
+            held.set(key, { value: each, reason: "graphs" });
+        } else {
+            sort(key, each, `/sections/${token(key)}`);
+        }
     }
 
     return { form: "full", wrapper, sections, held, problems };

@@ -248,7 +248,7 @@ import type {
     ValueCounts,
     ValueType,
 } from "./types";
-import { valueLabelsAt } from "./valueLabels";
+import { typedValueLabelsAt, valueLabelsAt } from "./valueLabels";
 
 /** A value a column holds that can be given a name (`data.label`) or counted. */
 type ColumnScalar = string | number | boolean;
@@ -5121,7 +5121,7 @@ export class SessionData implements SessionDataApi {
         pushLayerRenames(steps, styles, rename);
         pushVisibilityRenames(steps, visibility, rename);
         // The names given to its values.
-        for (const [value, label] of valueLabelsAt(this.writes.valueLabels(), `data.${from}`)) {
+        for (const { value, label } of typedValueLabelsAt(this.writes.valueLabels(), `data.${from}`)) {
             steps.push(
                 { op: "data.label", path: `data.${name}`, value, label },
                 { op: "data.label", path: `data.${from}`, value, label: null },

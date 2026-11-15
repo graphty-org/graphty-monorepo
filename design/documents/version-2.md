@@ -321,7 +321,10 @@ reader can say what is missing instead of failing.
 The wrapper takes the header's optional fields (`$schema`, `id` naming the project, `name`,
 `description`, `created`, `modified`, `authors`, `license`, `keywords`, `language`) plus
 `sections` and `extensions`. Its `version` covers only this envelope: all content is versioned per
-section, so the wrapper is expected never to bump again.
+section, so the wrapper is expected never to bump again. The top-level member `graphs` is
+reserved for a later file that holds several graphs: a one-graph file never writes it, and a
+version 2 reader that finds it holds the file's graph sections (data, results, notes, view)
+unchanged, writes them back, and reports `W_SECTION_KEPT` with the reason `graphs`.
 
 Version 1's `requires` goes away: any subset of sections is a valid file. A section a reader must
 not misapply by ignoring it uses a new section major version, or lists the extension it needs in

@@ -29,7 +29,7 @@ async function people(): Promise<GraphSession> {
 }
 
 describe("a value's name", () => {
-    it("is one undoable step, read back by path; null removes it and 3 and '3' are one value", async () => {
+    it("is one undoable step, read back by path; null removes it and 3 and '3' are two values", async () => {
         const session = await people();
         await session.data.setValueLabel("data.team", 3, "Third");
         assert.strictEqual(session.data.valueLabels("data.team").get("3"), "Third");
@@ -42,6 +42,8 @@ describe("a value's name", () => {
         assert.strictEqual(session.data.valueLabels("data.team").size, 0, "one undo takes the name away");
         await session.redo();
         await session.data.setValueLabel("data.team", "3", null);
+        assert.strictEqual(session.data.valueLabels("data.team").get("3"), "Third", "the text 3 had no name");
+        await session.data.setValueLabel("data.team", 3, null);
         assert.strictEqual(session.data.valueLabels("data.team").size, 0);
         session.dispose();
     });

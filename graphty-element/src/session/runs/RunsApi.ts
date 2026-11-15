@@ -71,7 +71,7 @@ import type { Layer } from "../styles/Layer";
 import { findRow, rowsOf } from "../styles/tree";
 import { type GroupMatch, matchGroups, realignPatch } from "../styles/values";
 import type { HistoryCode } from "../types";
-import { valueLabelKey, valueLabelOf } from "../valueLabels";
+import { isLabelledValue, valueLabelKey, valueLabelOf } from "../valueLabels";
 import {
     ManagedRun,
     type RunBody,
@@ -1674,7 +1674,7 @@ class Runs implements SessionRunsApi {
      * @returns The caveats.
      */
     private caveatsFor(identity: RunIdentity, descriptor: AlgorithmDescriptor): Caveats {
-        return Object.freeze({ ...this.defaultCaveats, seed: identity.seed, method: descriptor.technicalName });
+        return Object.freeze({ ...this.defaultCaveats, seed: identity.seed, method: descriptor.key });
     }
 
     /**
@@ -2171,9 +2171,10 @@ class Runs implements SessionRunsApi {
             );
             for (const { key, label, value } of named.filter((entry) => entry.path === path)) {
                 draft.valueLabels.delete(key);
-                const to = match.to.get(value);
+                const to = match.to.get(String(value));
                 if (to !== undefined) {
-                    moved.push([valueLabelKey(path, to), label]);
+                    const now = match.values.get(to);
+                    moved.push([valueLabelKey(path, isLabelledValue(now) ? now : to), label]);
                 }
             }
         }
@@ -2324,7 +2325,7 @@ class Runs implements SessionRunsApi {
         if (given !== undefined) {
             // The group goes by its layer's name wherever its value is named (the legend, a
             // value list), and the name follows the group across a re-run.
-            draft.valueLabels.set(valueLabelKey(path, value), given);
+            draft.valueLabels.set(valueLabelKey(path, isLabelledValue(bin.value) ? bin.value : value), given);
         }
         const added = styles?.execute(
             {

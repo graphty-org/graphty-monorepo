@@ -137,7 +137,8 @@
                             },
                             "method": {
                                 "type": "string",
-                                "minLength": 1
+                                "minLength": 1,
+                                "description": "An identifier of the method that computed the numbers: the algorithm's key, or a method of its own such as \"stoer-wagner\". Never reader-facing text."
                             },
                             "facts": {
                                 "type": "array"

@@ -91,7 +91,7 @@ import type {
     ProjectSlice,
     TransactionScope,
 } from "./types";
-import { valueLabelOf } from "./valueLabels";
+import { type LabelledValue, valueFromText, valueLabelOf } from "./valueLabels";
 import { CONDITIONS_VERSION, readSavedConditions } from "./visibility/conditions";
 import { assertVisibility, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 import type { SessionVisibilityApi } from "./visibility/VisibilityApi";
@@ -946,10 +946,11 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         ...(dispatcher.state.valueLabels.size === 0
             ? {}
             : {
-                  valueLabels: [...dispatcher.state.valueLabels].map(([key, label]) => ({
-                      ...valueLabelOf(key),
-                      label,
-                  })),
+                  // Version 1 spells each value as text, as files saved before did.
+                  valueLabels: [...dispatcher.state.valueLabels].map(([key, label]) => {
+                      const { path, value } = valueLabelOf(key);
+                      return { path, value: String(value), label };
+                  }),
               }),
         ...(columns.length === 0 ? {} : { declarations: { version: DECLARATIONS_VERSION, columns } }),
         // Additive: a file with no file styles writes nothing here, and an older file opens unchanged.
@@ -1472,22 +1473,29 @@ function graphtyDocumentOf(text: string, parsed?: { readonly value: unknown }): 
 /**
  * What version 1 keeps of a session that the version 2 codecs do not write yet, each reported as
  * `W_MEMBER_LEFT_OUT` with the version 1 member and field, so a caller can say so before the file
- * replaces one that held it.
+ * replaces one that held it. The data section writes the column conversions and the ignored and
+ * kept issues, and the view section the hidden columns, so only the rest is reported.
  * @param session - The session.
  * @param dispatcher - Its dispatcher.
+ * @param written - The sections the save wrote.
  * @returns One problem per field left out.
  */
-function leftOutOfVersion2(session: GraphSession, dispatcher: Dispatcher): ProjectProblem[] {
+function leftOutOfVersion2(
+    session: GraphSession,
+    dispatcher: Dispatcher,
+    written: readonly string[],
+): ProjectProblem[] {
     const { values } = dispatcher.state.graph;
     const issues = values.get(ISSUES_VALUE) as IssueState | undefined;
+    const columns = values.get(COLUMNS_VALUE) as ColumnSettings | undefined;
     const fields: [string, boolean][] = [
         ["declarations", dispatcher.state.attributes.size > 0],
-        ["columns", values.get(COLUMNS_VALUE) !== undefined],
         [
-            "issues",
-            issues !== undefined &&
-                (issues.ignored.length > 0 || issues.kept.length > 0 || (issues.fixed ?? []).length > 0),
+            "columns",
+            columns !== undefined &&
+                (Object.keys(columns.renamed).length > 0 || (columns.hidden.length > 0 && !written.includes("view"))),
         ],
+        ["issues", (issues?.fixed ?? []).length > 0],
         ["fileStyles", fileStyleValuesOf(asFileStyleStore(values.get(FILE_STYLES_VALUE))).length > 0],
         ["visibility.steps", session.visibility.steps.length > 0],
     ];
@@ -2227,8 +2235,11 @@ async function readProject(
 
     await addStylesAndNotes(opening, doc.members, remap, name);
 
-    for (const named of (state.valueLabels ?? []) as { path: string; value: string; label: string }[]) {
-        await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
+    const attributes = tx.data.attributes();
+    for (const named of (state.valueLabels ?? []) as { path: string; value: LabelledValue; label: string }[]) {
+        const type = attributes.find((each) => each.path === named.path)?.type;
+        const value = valueFromText(named.value, type);
+        await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, value, named.label));
     }
 
     await readIssues(opening, state.issues);
@@ -2980,7 +2991,7 @@ export function projectOf(
         return finishSave(
             document,
             written,
-            [...problems, ...(written.includes("data") ? leftOutOfVersion2(session, dispatcher) : [])],
+            [...problems, ...(written.includes("data") ? leftOutOfVersion2(session, dispatcher, written) : [])],
             options,
             !whole,
         );

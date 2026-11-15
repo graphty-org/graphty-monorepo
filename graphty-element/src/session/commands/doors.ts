@@ -859,8 +859,8 @@ const DOOR_GROUP_RESTORE = {
         { id: "g2", team: "door" },
     ],
     edges: [
-        { source: "g1", target: "g2" },
-        { source: "g2", target: "g3" },
+        { id: "0", source: "g1", target: "g2" },
+        { id: "1", source: "g2", target: "g3" },
     ],
     positions: [],
     pinned: [],
@@ -902,7 +902,14 @@ const GROUP_EXPAND_STEPS: readonly SessionCommand[] = [
     { op: "data.apply", mutation: { kind: "add-nodes", idPath: "id", records: DOOR_GROUP_RESTORE.nodes } },
     {
         op: "data.apply",
-        mutation: { kind: "add-edges", records: DOOR_GROUP_RESTORE.edges, source: "source", target: "target" },
+        // Each kept edge comes back with its own id.
+        mutation: {
+            kind: "add-edges",
+            records: DOOR_GROUP_RESTORE.edges.map(({ id: _id, ...edge }) => edge),
+            source: "source",
+            target: "target",
+            ids: DOOR_GROUP_RESTORE.edges.map((edge) => edge.id),
+        },
     },
 ];
 
@@ -1565,6 +1572,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             enableDetailedProfiling: PROFILING,
             xr: XR,
             captureScreenshot: CAPTURE,
+            exportFigure: CAPTURE,
             nodeThumbnail: CAPTURE,
             modelThumbnail: CAPTURE,
             canCaptureScreenshot: READ,
@@ -2307,6 +2315,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getEdge: READ,
             getEdgesBetween: READ,
             drawnBundle: READ,
+            edgeDirected: READ,
             incidentEdgeIds: READ,
             // Called while no edge is drawn: the one the row above added waits for its endpoint.
             setEdges: calls(
@@ -2614,6 +2623,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getStatsManager: READ,
             is2D: READ,
             needsRayUpdate: READ,
+            nodeScreenPosition: READ,
             getConfig: VIEW_SETTING,
             isRunning: READ,
             setRunning: IN_FLIGHT,
@@ -3874,6 +3884,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             applyAtNextRead: SELECTION,
             edgeRemovalChangesNothing: READ,
             endPeek: exempt("The session's end clears a peek, which is view state."),
+            hoverAt: exempt("The pointer resting on a node is view state, not a step, like the selection."),
             nodeMembers: READ,
             edgeMembers: READ,
             remapNodes: SELECTION,

@@ -138,12 +138,14 @@ export {
     NEPTUNE_SOURCE_ID,
     OPENALEX_SOURCE_ID,
     REST_SOURCE_ID,
+    S3_SOURCE_ID,
     SOURCE_ATTR_PREFIX,
     SOURCE_DEGREE_ATTR,
     SOURCE_ENTITY_ATTR,
     SOURCE_FORMAT_PREFIX,
     SOURCE_STUB_ATTR,
     SPARQL_SOURCE_ID,
+    ZENODO_SOURCE_ID,
 } from "./sources/ids.js";
 export { type SourceParamsMap } from "./sources/params.js";
 export { sha256Hex } from "./sources/sigv4.js";

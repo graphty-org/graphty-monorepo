@@ -830,6 +830,7 @@ export const READ_ONLY: readonly string[] = [
     "Graphty.playTour",
     "Graphty.captureAnimation",
     "Graphty.captureScreenshot",
+    "Graphty.exportFigure",
     "Graphty.clearAiHistory",
     "Graphty.createApiKeyManager",
     "Graphty.deleteAiConversation",

@@ -174,7 +174,8 @@ const listed = async () => (await listAutosaves(params.get("key"))).map((e) => (
 if (params.get("list") === "1") {
     let item = null;
     try { item = sessionStorage.getItem("graphty-autosave:own:" + params.get("key")); } catch {}
-    report("listed", { item, entries: await listed() });
+    // A listing the browser's database held up is refused: reported with the refusal's code.
+    report("listed", await listed().then((entries) => ({ item, entries }), (e) => ({ item, entries: null, code: e.code })));
 }
 
 const ids = Array.from({ length: n }, (_, i) => "n" + i);

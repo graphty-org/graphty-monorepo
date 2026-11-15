@@ -35,9 +35,16 @@ numbers and other literal values between backticks:
 | ``data.age >= `18` ``                 | `true` or `false`                                   |
 | `data.country == 'US' && data.active` | whether both hold                                   |
 | `data.title`                          | a copy of `title`                                   |
+| ``data.weight * `2` ``                | twice the weight                                    |
+| `data.in / data.out`                  | the ratio of `in` to `out`                          |
 
 A node with nothing to read gets `null`. Comparing something that is not a number with `<`, `<=`,
 `>` or `>=` also gives `null`.
+
+Arithmetic (`+`, `-`, `*`, `/`, a leading minus and parentheses) works on numbers only: if either
+side is not a number, or the answer is not a finite number (dividing by zero), the value is `null`.
+`*` and `/` bind tighter than `+` and `-`, and all four tighter than the comparisons. See
+[the expression language](./styling#the-expression-language).
 
 ## Reading an algorithm's result
 

@@ -30,7 +30,7 @@
 // k x POLL_SECONDS (at most 5 minutes), so a long queue costs few calls. The wait goes in the job summary.
 //
 // BUDGET is the repository variable CI_PR_JOB_BUDGET (default DEFAULT_BUDGET, the ~180 jobs GitHub runs at once
-// less the full run's RELEASE_SHARE), and CAP is CI_PR_RUN_CAP (default 2), both read in ci.yml's "Run cap" job:
+// less the full run's RELEASE_SHARE: 180 - 30 = 150 since the full run went to 24 Test jobs, #7849), and CAP is CI_PR_RUN_CAP (default 2), both read in ci.yml's "Run cap" job:
 //   gh variable set CI_PR_JOB_BUDGET --repo graphty-org/graphty-monorepo --body 120   (fewer pull request jobs)
 //   gh variable set CI_PR_RUN_CAP --repo graphty-org/graphty-monorepo --body off      (no run count limit)
 // Either "off" removes that limit; both off waits for nothing.
@@ -51,7 +51,7 @@ export const STALE_HOURS = 24;
 // (74 each) on 2026-11-13; runs that touch one package need far fewer, so it errs on the small side
 export const RUN_JOBS_ESTIMATE = 40;
 // ci.yml's full-run max-parallel per matrix, by job name (ci-run-cap.test.mjs checks it against ci.yml)
-export const FULL_RUN_MAX_PARALLEL = { Test: 14, "Story tests": 6 };
+export const FULL_RUN_MAX_PARALLEL = { Test: 24, "Story tests": 6 };
 // the full run's share of runners: its matrices' max-parallel together
 export const RELEASE_SHARE = Object.values(FULL_RUN_MAX_PARALLEL).reduce((a, b) => a + b);
 // the hosted jobs GitHub ran at once for this repository, never more, measured 2026-11-13 (176-184)

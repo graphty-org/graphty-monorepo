@@ -21,6 +21,8 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
     private losses = 0;
     /** Why {@link drawingDevice} has no device to give: the restore failed or the engine was disposed. */
     private noDevice: { error: unknown } | null = null;
+    /** Babylon's reopening of the device after the last loss, kept for {@link retryRestore}. */
+    private reopen: (() => void) | null = null;
     /** Those told of the new device by {@link drawingDevice}. */
     private readonly waiting: { resolve: (device: GPUDevice) => void; reject: (error: unknown) => void }[] = [];
 
@@ -57,7 +59,18 @@ export class RecoveringWebGPUEngine extends WebGPUEngine {
         this.giveUp(new Error("the WebGPU engine was disposed"));
     }
 
+    /**
+     * Tries again to open a device after a restore failed, and rebuilds on it. Does nothing while
+     * the engine has a device or is still waiting for one.
+     */
+    retryRestore(): void {
+        if (this.noDevice !== null && this.reopen !== null && !this.isDisposed) {
+            this._restoreEngineAfterContextLost(this.reopen);
+        }
+    }
+
     protected override _restoreEngineAfterContextLost(initEngine: () => void): void {
+        this.reopen = initEngine;
         this.awaitingDevice = true;
         this.noDevice = null;
         const loss = ++this.losses;

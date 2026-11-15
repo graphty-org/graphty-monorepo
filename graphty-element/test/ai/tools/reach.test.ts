@@ -33,7 +33,14 @@ describe("assistantReach", () => {
                 maxDimensions: 2,
                 sizeRating: "any",
                 structuralInputs: [],
-                options: [{ name: "shape", plainName: "Shape", type: "unknown", unsupportedReason: "a nested object" }],
+                options: [
+                    {
+                        name: "shape",
+                        plainName: "Shape",
+                        type: "unknown",
+                        unsupported: { code: "option.object", params: {} },
+                    },
+                ],
                 engine: "acme-odd",
             },
             compute: () => ({ positions: new Float32Array(0), dim: 2 }) as never,

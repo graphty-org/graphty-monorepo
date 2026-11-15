@@ -30,6 +30,7 @@ tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs
 tools/chromium-env.test.mjs
 tools/ci-budgets.test.mjs
+tools/ci-groups-snapshot.test.mjs
 tools/ci-run-cap.test.mjs
 tools/ci-workflows.test.mjs
 tools/claude-area-rules.test.mjs
@@ -43,6 +44,7 @@ tools/features-on.test.mjs
 tools/full-run.test.mjs
 tools/gate-inputs.test.mjs
 tools/health-owner-sweep.test.mjs
+tools/idle-servers.test.mjs
 tools/issue-queue.test.mjs
 tools/lfs-pre-push.test.mjs
 tools/lint-base-drift.test.mjs

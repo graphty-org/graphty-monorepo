@@ -1699,6 +1699,14 @@ object per element. Stages 26 to 28 remove that reason.
   and its label drawn as any other, through the glyph atlas when `labelText` is `"glyphs"`. With sampling
   off a plain row still draws no label: the label is what its object would have held. A `Node` built for a
   label stays when a later pass drops the label, so the objects grow by the rows that ever won a cell.
+- **Stage 125, the app raises the limits** (correction to the stage 30 bullet's "the app does not raise `limits` on
+  the element"). Under the cosmograph experiment only, the graphty app sets the element's `limits` beside
+  `renderPath = "batched"` (`ElementHost.tsx`, `COSMOGRAPH_LIMITS`): `renderCeiling`, `edgesDrawn`, `objectRows` and
+  `objectEdges` all 1,000,000, so a million nodes and a million edges load and each may draw as an object of its own.
+  With the experiment off the app writes no `limits` and the element's defaults stand. The start page's
+  `fitsInBrowser` and `isLarge` still run on `DEFAULT_LIMITS`: they are called before an element exists, so they
+  have no session to read raised limits from. `CosmographFlag.real-element.test.tsx` loads 100,001 nodes and 100,000
+  edges into the workspace with the experiment on and reads every row drawn from `rowCounts`.
 
 ## 9. Edge-case rulings (input -> expected result)
 

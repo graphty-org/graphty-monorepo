@@ -400,8 +400,12 @@ describe("the Style tab's rows on the real element", () => {
         await screen.findByTestId("style-tab", {});
         await varyBy("Node color", "dept");
         await waitFor(() => {
-            const mine = readerLayers(session);
-            assert.lengthOf(mine, 1, "one Everything layer, no other row");
+            const mine = readerLayers(session).filter((l) => l.target === "node");
+            assert.deepEqual(
+                readerLayers(session).map((l) => l.name),
+                ["Everything", "Everything"],
+                "one Everything row, its node and edge parts, no other row",
+            );
             const proposal = session.styles.proposeEncoding({
                 column: { kind: "node", name: "dept" },
                 channel: "node.color",
@@ -423,7 +427,7 @@ describe("the Style tab's rows on the real element", () => {
         await screen.findByTestId("style-tab", {});
         await varyBy("Node color", "code");
         await waitFor(() => {
-            const binding = readerLayers(session)[0]?.encode?.["node.color"];
+            const binding = readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"];
             assert.equal(binding !== undefined && "by" in binding ? binding.scale : undefined, "ordinal");
         });
         await userEvent.click(await varyGlyph("Node size"));
@@ -477,7 +481,7 @@ describe("the Style tab's rows on the real element", () => {
         await userEvent.click(within(list).getByRole("option", { name: /^Degree(,|$)/ }));
         const path = session.results.path(runId);
         await waitFor(() => {
-            const mine = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
+            const mine = readerLayers(session).filter((l) => l.name === "Everything" && l.target === "node");
             assert.lengthOf(mine, 1);
             // The element skips an element the run did not measure, so the layer keeps its rule.
             assert.deepEqual(mine[0].selector, { match: "everything" });
@@ -486,7 +490,7 @@ describe("the Style tab's rows on the real element", () => {
         });
         await userEvent.click(within(styleTab()).getByRole("button", { name: /Stop varying node size by data/ }));
         await waitFor(() => {
-            const mine = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
+            const mine = readerLayers(session).filter((l) => l.name === "Everything" && l.target === "node");
             assert.lengthOf(mine, 1);
             assert.deepEqual(mine[0].selector, { match: "everything" });
             assert.isUndefined(mine[0].encode?.["node.size"]);
@@ -510,7 +514,8 @@ describe("the Style tab's rows on the real element", () => {
         });
         await userEvent.click(await within(styleTab()).findByRole("button", { name: /^Node color: code,/ }));
         const popover = await screen.findByRole("group", { name: "Color binding" });
-        const binding = (): Record<string, unknown> => readerLayers(session)[0]?.encode?.["node.color"] ?? {};
+        const binding = (): Record<string, unknown> =>
+            readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"] ?? {};
         await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
         await userEvent.click(await screen.findByRole("option", { name: /^Shades of blue/ }));
         await waitFor(() => {
@@ -524,8 +529,11 @@ describe("the Style tab's rows on the real element", () => {
         await userEvent.keyboard("{Escape}");
         await userEvent.click(within(styleTab()).getByRole("button", { name: "Stop varying node color by data" }));
         await waitFor(() => {
-            assert.isUndefined(readerLayers(session)[0]?.encode?.["node.color"]);
-            assert.isDefined(readerLayers(session)[0]?.set?.["node.color"], "a fixed value again");
+            assert.isUndefined(readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"]);
+            assert.isDefined(
+                readerLayers(session).find((l) => l.target === "node")?.set?.["node.color"],
+                "a fixed value again",
+            );
         });
     });
 
@@ -548,7 +556,8 @@ describe("the Style tab's rows on the real element", () => {
         // The list opens with nothing active, as a select's does: Down reaches the first value.
         await userEvent.keyboard("{ArrowDown}{Enter}");
         await waitFor(() => {
-            const bound = readerLayers(session)[0]?.encode?.["node.color"] as { by?: string } | undefined;
+            const bound = readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"] as
+                { by?: string } | undefined;
             assert.equal(bound?.by, `data.${first}`);
         });
     });
@@ -568,7 +577,7 @@ describe("the Style tab's rows on the real element", () => {
             targetPosition: { x: box.width * 0.9, y: box.height * 0.9 },
         });
         await waitFor(() => {
-            assert.isString(readerLayers(session)[0]?.set?.["node.color"]);
+            assert.isString(readerLayers(session).find((l) => l.target === "node")?.set?.["node.color"]);
         });
         await session.styles.settled();
         assert.equal(session.history.steps.length, before + 1, "the drag wrote once, on release");
@@ -580,10 +589,13 @@ describe("the Style tab's rows on the real element", () => {
         await screen.findByTestId("style-tab", {});
         await typeColor("Edge color", "FF0000");
         await waitFor(() => {
-            const everything = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
+            const everything = readerLayers(session).filter((l) => l.name === "Everything");
             assert.deepEqual(
                 everything.map((l) => [l.target, hexOf(l.set?.["edge.color"])]),
-                [["edge", "#FF0000"]],
+                [
+                    ["edge", "#FF0000"],
+                    ["node", null],
+                ],
             );
         });
         const [edge] = session.data.edges();
@@ -598,6 +610,42 @@ describe("the Style tab's rows on the real element", () => {
                 [["edge", "#00FF00"]],
             );
         });
+    });
+
+    it("Everything's first edit adds an ordinary row, which stays when its last value is removed", async () => {
+        await page.viewport(1366, 768);
+        const { session } = await openEverything();
+        await screen.findByTestId("style-tab", {});
+        const size = within(await rowOf("Node size")).getByRole("spinbutton", { name: /^Node size/ });
+        await userEvent.tripleClick(size);
+        await userEvent.keyboard("3{Enter}");
+        const everything = (): ReturnType<GraphSession["styles"]["list"]> =>
+            readerLayers(session).filter((l) => l.name === "Everything");
+        await waitFor(() => {
+            assert.deepEqual(
+                everything().map((l) => [l.target, l.set?.["node.size"]]),
+                [
+                    ["edge", undefined],
+                    ["node", 3],
+                ],
+            );
+        });
+        const [part] = everything();
+        const row = part.row ?? part.id;
+        assert.isDefined(
+            session.styles.tree().find((each) => each.id === row),
+            "a row of the tree, as any row a reader adds",
+        );
+
+        // Emptying the field and pressing Enter removes the line; the row stays, as every row does.
+        const again = within(await rowOf("Node size")).getByRole("spinbutton", { name: /^Node size/ });
+        await userEvent.click(again);
+        await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
+        await waitFor(() => {
+            assert.isUndefined(everything().find((l) => l.target === "node")?.set?.["node.size"]);
+        });
+        assert.lengthOf(everything(), 2, "the emptied row is kept");
+        assert.isDefined(session.styles.tree().find((each) => each.id === row));
     });
 
     it("a node's first edit adds its row named for it and selects it; selecting it again edits that row", async () => {
@@ -663,7 +711,7 @@ describe("the Style tab's rows on the real element", () => {
         const field = await within(styleTab()).findByRole("textbox", { name: "Node tooltip text" });
         await userEvent.type(field, "hello{Enter}");
         await waitFor(() => {
-            assert.equal(readerLayers(session)[0]?.set?.["node.tooltip"], "hello");
+            assert.equal(readerLayers(session).find((l) => l.target === "node")?.set?.["node.tooltip"], "hello");
         });
         await session.undo();
         await waitFor(() => {

@@ -1444,6 +1444,7 @@ function documentOf(value: Record<string, unknown>): Record<string, unknown> {
             source: "data",
             // A version 2 file is read with the `save-files-v2` experiment on: said, so an
             // application can offer it.
+            // @experimental save-files-v2
             details: {
                 kind: DOCUMENT_KIND,
                 found: version,

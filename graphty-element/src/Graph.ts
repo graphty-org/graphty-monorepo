@@ -7600,77 +7600,19 @@ export class Graph implements GraphContext {
         capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
         onProgress: (progress: number) => void,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const { CameraPathAnimator } = await import("./video/CameraPathAnimator.js");
-
-        // A path with a view or a hold is a tour, flown with the element's own camera moves; any
-        // other path, and a `tour` of names, keeps the animator (issue #7936 records its defects).
-        if (!options.tour && options.cameraPath?.some((stop) => "view" in stop || stop.hold !== undefined)) {
-            return this.captureTourVideo(options, options.cameraPath, capture, onProgress);
-        }
-        const cameraPath = options.tour
-            ? this.tourPath(options.tour, options.duration)
-            : (options.cameraPath as import("./video/VideoCapture.js").CameraWaypoint[] | undefined);
-        // Validate cameraPath is provided
-        if (!cameraPath || cameraPath.length < 2) {
+        // Every path, and a `tour` of names, is flown with the element's own camera moves
+        // (setCameraState), so each stop lands where setCameraState puts it, in 2D and in 3D.
+        // A tour of names jumps to the first view and splits the duration evenly between the legs.
+        const names = options.tour;
+        const leg = names && names.length > 1 ? options.duration / (names.length - 1) : 0;
+        const path = names
+            ? names.map((view, index) => ({ view, duration: index === 0 ? 0 : leg }))
+            : options.cameraPath;
+        const isTour = !names && path?.some((stop) => "view" in stop || stop.hold !== undefined);
+        if (!path || (path.length < 2 && !isTour)) {
             throw new Error("Animated camera mode requires at least 2 waypoints in cameraPath");
         }
-
-        const camera = this.scene.activeCamera;
-        if (!camera) {
-            throw new Error("No active camera available for animated capture");
-        }
-
-        const fps = options.fps ?? 30;
-
-        // Create camera path animator
-        const animator = new CameraPathAnimator(camera, this.scene, {
-            fps,
-            duration: options.duration,
-            easing: options.easing,
-        });
-
-        // Create animations from waypoints
-        animator.createCameraAnimations(cameraPath);
-
-        // Start recording and animation simultaneously
-        const recordingPromise = capture.captureRealtime(this.canvas, options, onProgress);
-
-        // Start camera animation (will run concurrently with recording)
-        const animationPromise = animator.startRealtimeAnimation();
-
-        // Wait for both to complete
-        // Recording duration is controlled by options.duration
-        // Animation should complete around the same time
-        const [result] = await Promise.all([recordingPromise, animationPromise]);
-
-        // Handle download if requested
-        this.handleVideoDownload(result, options);
-
-        return result;
-    }
-
-    /**
-     * The waypoints of a tour: each named view resolved as `resolveCameraPreset` does, the
-     * duration split evenly between the legs.
-     * @param names - Camera view ids or saved view names, in order.
-     * @param duration - The whole tour, in milliseconds.
-     * @returns The waypoints.
-     * @throws A `GraphtyError` with `E_UNSUPPORTED` when a view has no position and target.
-     */
-    private tourPath(names: readonly string[], duration: number): import("./video/VideoCapture.js").CameraWaypoint[] {
-        const leg = names.length > 1 ? duration / (names.length - 1) : duration;
-        return names.map((name, index) => {
-            const { position, target } = orbitAnglesToPosition(this.resolveCameraPreset(name));
-            if (!position || !target) {
-                throw new GraphtyError({
-                    code: "E_UNSUPPORTED",
-                    message: `the view "${name}" has no camera position and target to fly to`,
-                    source: "view",
-                    details: { view: name },
-                });
-            }
-            return { position, target, ...(index === 0 ? {} : { duration: leg }) };
-        });
+        return this.captureTourVideo(options, path, capture, onProgress);
     }
 
     /**

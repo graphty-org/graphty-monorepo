@@ -14,6 +14,7 @@ import addFormatsModule from "ajv-formats";
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
+import type { RuleTree } from "../../../src/catalog/types";
 import { viewCodec } from "../../../src/session/document2/codecs/view";
 import { schemaUrl } from "../../../src/session/document2/framing";
 import {
@@ -374,7 +375,18 @@ describe("view codec: writing", () => {
             params: { source: { space: SPACE, key: "a" }, targetNode: null },
             scope: "graph",
         });
-        assert.deepEqual(section.layout, { id: "force", engine: "ngraph", options: {}, dimension: 3 });
+        // The layout's name is `algorithm`; `engine` is EngineVersions, as in results.
+        const layout = section.layout as JsonObject;
+        assert.deepEqual(
+            { ...layout, engine: Object.keys(layout.engine as JsonObject) },
+            {
+                id: "force",
+                algorithm: "ngraph",
+                options: {},
+                dimension: 3,
+                engine: ["element", "algorithms", "layout"],
+            },
+        );
         assert.deepEqual(section.hiddenColumns, [{ kind: "node", name: "group" }]);
     });
 
@@ -389,10 +401,39 @@ describe("view codec: writing", () => {
         assert.strictEqual(run.scope, "graph");
         assert.strictEqual(run.replayable, false);
         assert.deepEqual(problems, [
-            // A degree filter has no graph.filter form (spec 4.7 rule 4).
-            { code: "W_MEMBER_LEFT_OUT", params: { section: "view", pointer: "/visibility/filter" } },
             { code: "W_MEMBER_LEFT_OUT", params: { section: "view", pointer: "/runs/0/scope" } },
         ]);
+    });
+
+    it("keeps a degree filter and a members filter as rule trees, through a save and an open", async () => {
+        // Neither has graph.filter's { on, where } form, so each is written as its rule tree.
+        const cases: ((set: string) => RuleTree)[] = [
+            () => ({ kind: "degree", min: 2 }),
+            (set) => ({
+                kind: "any",
+                of: [
+                    { kind: "neighborhood", seeds: ["a"], depth: 1 },
+                    { kind: "member", of: { set } },
+                ],
+            }),
+        ];
+        for (const filterOf of cases) {
+            const session = await sessionWithData();
+            const saved = session.sets.create({ kind: "fixed", nodes: ["e"], reading: "induced" }, { name: "E" });
+            await session.visibility.set(filterOf(saved));
+            const problems: DocumentProblem[] = [];
+            const section = await save(session, problems);
+            assert.deepEqual(invalid(section), []);
+            assert.deepEqual(problems, []);
+            // A rule tree is told from graph.filter's { on, where } by its `kind`.
+            assert.strictEqual(((section.visibility as JsonObject).filter as JsonObject).kind, filterOf(saved).kind);
+
+            const reopened = await sessionWithData();
+            assert.deepEqual(await open(reopened, section), []);
+            const set = reopened.sets.list().find((each) => each.name === "E");
+            assert.isDefined(set);
+            assert.deepEqual(reopened.visibility.filter, filterOf(set.id));
+        }
     });
 
     it("writes an element-minted run as derived, and restores it as the element's own", async () => {

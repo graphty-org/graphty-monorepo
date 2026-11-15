@@ -213,9 +213,10 @@
                                     "type": "string",
                                     "minLength": 1
                                 },
-                                "engine": {
+                                "algorithm": {
                                     "type": "string",
-                                    "minLength": 1
+                                    "minLength": 1,
+                                    "description": "The layout to draw it with. A recipe says what to run, not what ran: it records no engine versions."
                                 },
                                 "dimension": {
                                     "enum": [2, 3]

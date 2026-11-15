@@ -14,6 +14,7 @@
 import type { CameraState } from "../../../camera/types";
 import type { AlgorithmKey, FilterCondition, LayerSpec, RuleTree, ScopeInput } from "../../../catalog/types";
 import { isGraphtyError } from "../../../errors/GraphtyError";
+import { ENGINE_VERSIONS } from "../../runs/engine";
 import type { Run } from "../../runs/types";
 import type { GraphSession, TransactionScope } from "../../types";
 import type { TimeWindow } from "../../visibility/filter";
@@ -327,8 +328,9 @@ function windowJson(session: GraphSession, window: TimeWindow): JsonObject {
 }
 
 /**
- * The filter in force as graph.filter's `{ on, where }` (spec 4.7 rule 4): one expression leaf on
- * nodes or edges. Any other filter has no such form, and is refused and reported.
+ * The filter in force (spec 4.7 rule 4): one expression leaf on nodes or edges as graph.filter's
+ * `{ on, where }`; any other filter as its rule tree, in the shape a rule set's definition holds
+ * it, element-naming leaves as element references.
  * @param w - The writer.
  * @param filter - The filter in force.
  * @returns The filter, or null.
@@ -342,8 +344,7 @@ function filterJson(w: Writer, filter: RuleTree | null): JsonObject | null {
         return { on: filter.kind === "edges" ? "edges" : "nodes", where: filter.where };
     }
 
-    w.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: SECTION, pointer: "/visibility/filter" } });
-    return null;
+    return mapRefs(filter, w.mapper, "") as JsonObject;
 }
 
 /**
@@ -388,7 +389,13 @@ function pinnedJson(w: Writer): JsonObject[] {
  */
 function layoutJson(session: GraphSession): JsonObject {
     const { id, engine, options, dimension } = session.layout;
-    return { id, engine, options: { ...options }, dimension: dimension === "2d" ? 2 : 3 };
+    return {
+        id,
+        algorithm: engine,
+        options: { ...options },
+        dimension: dimension === "2d" ? 2 : 3,
+        engine: { ...ENGINE_VERSIONS },
+    };
 }
 
 /**
@@ -656,11 +663,16 @@ async function readElements(r: Reader, body: Readonly<JsonObject>): Promise<void
 }
 
 /**
- * The filter a file holds as graph.filter's `{ on, where }`, as the rule the session holds.
- * @param filter - The filter.
+ * The filter a file holds, as the rule the session holds. The two forms are told apart by
+ * structure: a rule tree has a `kind`, graph.filter's `{ on, where }` has none.
+ * @param filter - The filter, its element references already mapped to ids.
  * @returns The rule, or null.
  */
 function filterIn(filter: unknown): RuleTree | null {
+    if (isObject(filter) && typeof filter.kind === "string") {
+        return filter as unknown as RuleTree;
+    }
+
     if (!isObject(filter) || typeof filter.where !== "string") {
         return null;
     }
@@ -780,7 +792,8 @@ async function readLayout(r: Reader, layout: JsonObject): Promise<void> {
     const now = tx.layout;
     const dimension = layout.dimension === 2 ? "2d" : "3d";
     const options = isObject(layout.options) ? layout.options : {};
-    const engine = typeof layout.engine === "string" ? layout.engine : undefined;
+    // The layout's own name is `algorithm`; `engine` is the EngineVersions record, not read back.
+    const engine = typeof layout.algorithm === "string" ? layout.algorithm : undefined;
     const same =
         now.id === layout.id &&
         (engine === undefined || now.engine === engine) &&

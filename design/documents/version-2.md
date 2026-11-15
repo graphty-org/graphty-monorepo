@@ -93,11 +93,11 @@ never to particular nodes or edges, so they apply to data they have never seen t
 mapping step (README.md, "Applying to new data"). A writer MUST leave out, and report, anything in
 them that names an element or a dataset.
 
-| Section  | File                     | Holds                                                                                                                                           | Taken from version 1                                                                                              |
-| -------- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| style    | `.graphty-style.json`    | style layers, palettes, shaders as source text, the style tree, value labels, and the models and images the layers draw                         | `graphty-style`, `graphty-assets`, the session's value labels                                                     |
-| recipe   | `.graphty-recipe.json`   | the ordered commands applied to new data: join steps, filters, algorithm runs, sets defined by a rule, layout (engine, options, 2D or 3D, seed) | the session's layout, visibility filters and rule sets; the commands of `graphty-results`; specified by recipe.md |
-| settings | `.graphty-settings.json` | project settings that belong to no other section, and timeline playback                                                                         | the session's config and playback                                                                                 |
+| Section  | File                     | Holds                                                                                                                                              | Taken from version 1                                                                                              |
+| -------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| style    | `.graphty-style.json`    | style layers, palettes, shaders as source text, the style tree, value labels, and the models and images the layers draw                            | `graphty-style`, `graphty-assets`, the session's value labels                                                     |
+| recipe   | `.graphty-recipe.json`   | the ordered commands applied to new data: join steps, filters, algorithm runs, sets defined by a rule, layout (algorithm, options, 2D or 3D, seed) | the session's layout, visibility filters and rule sets; the commands of `graphty-results`; specified by recipe.md |
+| settings | `.graphty-settings.json` | project settings that belong to no other section, and timeline playback                                                                            | the session's config and playback                                                                                 |
 
 **Bound to one dataset.** These name particular nodes and edges, and say which data they belong to.
 
@@ -555,8 +555,8 @@ style.md's layers, selectors, encodings and palettes, with these changes:
 
 ### recipe
 
-recipe.md's `commands` (`graph.filter`, `algo.run` with `params`, `layout.set` with `id`, `engine`
-and `options`), with these additions, each an additive command or member that recipe.md gains:
+recipe.md's `commands` (`graph.filter`, `algo.run` with `params`, `layout.set` with `id`,
+`algorithm` and `options`), with these additions, each an additive command or member that recipe.md gains:
 
 - the join steps `join.add`, `join.merge`, `join.node-values`, `join.edge-values` and
   `join.edges`, each `{ op, source, ...choices }` with graphty-element's `JoinShape` and
@@ -574,7 +574,9 @@ and `options`), with these additions, each an additive command or member that re
 - `dimension` (2 or 3) on `layout.set`.
 
 Type scopes take the same form as the style type selector: `{ "types": ["merchant"] }`. The
-algorithm and layout version is recorded only in results' engine record; steps carry no version.
+algorithm and layout version is recorded only in the engine records of results and view; steps
+carry no version. A recipe says what to run, not what ran: `layout.set` names the layout in
+`algorithm` and carries no `engine` at all.
 Every `algo.run` writes `style` explicitly (see Saving).
 
 ### settings
@@ -605,7 +607,8 @@ that name columns list them in `dependencies.columns`.
   field name and reference at 100,000 nodes; plus `graph`, the graph-level result (modularity,
   component count).
 - **`layout`**, beside `runs`, is the layout's record: `id`, the catalogue id; `algorithm`, the
-  layout that drew it, as `layout.set` spells its engine (as a run's `algorithm` names what ran);
+  layout that drew it, as `layout.set` spells it in `algorithm` (as a run's `algorithm` names what
+  ran);
   `dimension`; `options`; `seed`, the seed used; `durationMs`; `engine`, graphty-element's
   `EngineVersions`, as every run's; `bindsTo`; and `nodes: { refs, columns: { x, y, z } }`, as
   every run's output. The layout has no run id; one layout is in force at a time.
@@ -648,9 +651,13 @@ View is the record a file is opened to.
   `{ id, name, definition }`, as version 1 writes it; `definition` is graphty-element's set
   definition, its node and edge members written as element references.
 - **`visibility`**:
-    - `filter`: the filter in force, in the shape of the recipe's `graph.filter` command without
-      its `op`: `{ "on", "where" }`, `on` being `nodes` or `edges` and `where` an expression. A
-      filter in force that no such pair expresses is refused and reported;
+    - `filter`: the filter in force, in one of two forms. One expression on nodes or edges is
+      written in the shape of the recipe's `graph.filter` command without its `op` (common schema
+      `graphFilter`): `{ "on", "where" }`, `on` being `nodes` or `edges` and `where` an expression.
+      Any other filter (a degree rule, one naming members, a group of leaves) is written as a rule
+      tree in exactly the shape a rule set's `definition` holds its rule, element-naming leaves as
+      element references. A reader tells the two apart by structure, not a tag: a rule tree has a
+      `kind`, `graphFilter` has none. No filter in force is dropped;
     - `window`: graphty-element's `TimeWindow`. An instant bound is a `toISOString` string; a raw
       value (a step number, a year, an ordinal) is a JSON number. `attribute`, `end` and `spells` are
       graphty-element's value paths (`data.<working column>`), as `valueLabels.path` is. The window's
@@ -688,8 +695,10 @@ View is the record a file is opened to.
       exactly, since no scope form holds the run's own scope and the narrowing together. A later
       view major can add a narrowing form once graphty-element's `Scope` has one. An unknown scope
       form stops that run's replay and is kept on re-save.
-- **`layout`**: the layout record in force, exactly version 1's `{ id, engine, options, dimension }`.
-  A layout scope (`layoutScope`) is not saved, and the save reports it.
+- **`layout`**: the layout record in force: `id`, the catalogue id; `algorithm`, the layout's
+  name, as `layout.set` spells it; `options`; `dimension`; and `engine`, graphty-element's
+  `EngineVersions`, exactly as in results' `layout` and every run. Version 1's `engine` (the
+  layout's name) is migrated to `algorithm`. A layout scope (`layoutScope`) is not saved, and the save reports it.
 
 **Coordinate frame.** Positions and cameras are in graphty-element's scene frame, Babylon.js's
 default (left-handed, y up), in layout units; a 2D drawing writes z as 0. Annotations keep their

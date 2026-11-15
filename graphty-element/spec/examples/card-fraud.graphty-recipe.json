@@ -88,7 +88,7 @@
         {
             "op": "layout.set",
             "id": "force",
-            "engine": "ngraph",
+            "algorithm": "ngraph",
             "dimension": 3,
             "options": {
                 "seed": 52211

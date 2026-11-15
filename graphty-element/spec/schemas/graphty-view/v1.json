@@ -359,12 +359,16 @@
             "type": "object",
             "properties": {
                 "filter": {
+                    "description": "The filter in force: graph.filter's { on, where } (graphFilter) for one expression on nodes or edges, or any other filter as a rule tree in the shape a rule set's definition holds it. A reader tells the two apart by structure: a rule tree has a kind, graphFilter has none.",
                     "oneOf": [
                         {
                             "type": "null"
                         },
                         {
                             "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/graphFilter"
+                        },
+                        {
+                            "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/boundRuleTree"
                         }
                     ]
                 },
@@ -897,23 +901,51 @@
         },
         "layout": {
             "type": "object",
+            "description": "The layout record in force: the layout's name in algorithm, and engine graphty-element's EngineVersions, as in results.",
             "properties": {
                 "id": {
                     "type": "string",
                     "minLength": 1
                 },
-                "engine": {
+                "algorithm": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "description": "The layout that draws it, as layout.set spells it."
                 },
                 "options": {
                     "type": "object"
                 },
                 "dimension": {
                     "enum": [2, 3]
+                },
+                "engine": {
+                    "type": "object",
+                    "description": "graphty-element's EngineVersions.",
+                    "required": ["element", "algorithms", "layout"],
+                    "properties": {
+                        "element": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "algorithms": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "layout": {
+                            "type": "string",
+                            "minLength": 1
+                        },
+                        "plugins": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string",
+                                "minLength": 1
+                            }
+                        }
+                    }
                 }
             },
-            "required": ["id", "dimension"],
+            "required": ["id", "algorithm", "dimension", "engine"],
             "unevaluatedProperties": false
         },
         "xr": false,

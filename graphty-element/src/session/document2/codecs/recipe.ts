@@ -350,7 +350,7 @@ function writeRecipe(context: WriteContext): SectionWrite {
     const layoutCommand: JsonObject = {
         op: "layout.set",
         id: layout.id,
-        engine: layout.engine,
+        algorithm: layout.engine,
         dimension: layout.dimension === "2d" ? 2 : 3,
         ...(Object.keys(layout.options).length === 0 ? {} : { options: layout.options }),
     };
@@ -762,11 +762,11 @@ class Replay {
     }
 
     private async layout(at: number, command: JsonObject): Promise<void> {
-        const { id, engine, dimension, options } = command;
+        const { id, algorithm, dimension, options } = command;
         if (
             typeof id !== "string" ||
             (dimension !== 2 && dimension !== 3) ||
-            (engine !== undefined && typeof engine !== "string") ||
+            (algorithm !== undefined && typeof algorithm !== "string") ||
             (options !== undefined && !isObject(options))
         ) {
             this.report("E_BAD_DOCUMENT", `${at}`);
@@ -777,7 +777,7 @@ class Replay {
         try {
             await tx.layout.setDimension(dimension === 2 ? "2d" : "3d");
             await tx.layout.set(id, {
-                ...(engine === undefined ? {} : { engine }),
+                ...(algorithm === undefined ? {} : { engine: algorithm }),
                 ...(options === undefined ? {} : { options: this.bind(options) }),
             });
             this.context.restored.add("layout");

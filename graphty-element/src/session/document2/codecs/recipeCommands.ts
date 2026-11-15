@@ -27,7 +27,7 @@ export const COMMAND_MEMBERS: Readonly<Record<string, readonly string[]>> = Obje
         "style",
         "description",
     ],
-    "layout.set": ["op", "id", "engine", "dimension", "options", "description"],
+    "layout.set": ["op", "id", "algorithm", "dimension", "options", "description"],
     "set.define": ["op", "id", "name", "where", "reading", "description"],
 });
 

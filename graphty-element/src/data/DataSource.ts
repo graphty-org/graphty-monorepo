@@ -1,7 +1,6 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 import {
     type CommonImportOptions,
-    type FileLayout,
     type GraphChoiceOptions,
     type GraphImporter,
     type GraphListing,
@@ -10,6 +9,7 @@ import {
     ImportReportBuilder,
     loadFromSource,
     readText,
+    type RequestedLayout,
 } from "@graphty/graph-io";
 import { extractStyles } from "@graphty/graph-io/styles";
 import { z } from "zod";
@@ -36,7 +36,6 @@ import {
     readerImport,
     sourceGraph,
     toRecords,
-    withoutStyleSlots,
 } from "./graph-io-import.js";
 import { readOrRefuse, type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
 
@@ -514,8 +513,8 @@ export abstract class DataSource {
     private timeField: TimeField | null = null;
     /** Backing field of {@link declaredGraphValues}; written only by {@link declareGraphValues}. */
     private graphValues: Readonly<Record<string, unknown>> | null = null;
-    /** Backing field of {@link declaredFileLayout}; written only by {@link declareFileLayout}. */
-    private fileLayout: FileLayout | null = null;
+    /** Backing field of {@link requestedLayout}; written only by {@link declareRequestedLayout}. */
+    private requested: RequestedLayout | null = null;
 
     /**
      * Creates a new DataSource instance.
@@ -894,23 +893,26 @@ export abstract class DataSource {
     }
 
     /**
-     * The layout the file asks to be drawn with, as graph-io's importer read it, or null when the
-     * file names none or the source has not parsed yet. Read it after the last chunk.
-     * @returns the layout
-     * @since 3.35.0
+     * The layout the data asks to be drawn with: a graphty layout id and its options, as graph-io's
+     * `requestedLayout()` gives it, or null when it asks for none or the source has not parsed yet.
+     * Read it after the last chunk.
+     * @returns the request
      */
-    get declaredFileLayout(): FileLayout | null {
-        return this.fileLayout;
+    get requestedLayout(): RequestedLayout | null {
+        return this.requested;
     }
 
     /**
-     * Record the layout the file being parsed asks for (graph-io's `importer.layout(snapshot)`). A
-     * load that asks for the recommended layout draws the file with it.
-     * @param layout - the layout, or null when the file names none
-     * @since 3.35.0
+     * Record the layout the data being parsed asks for. A load that asks for the recommended layout
+     * draws the graph with it when it can.
+     * @param layout - the request, or null when the data asks for none
+     * @example
+     * ```ts
+     * this.declareRequestedLayout({ layout: "circular", options: {} });
+     * ```
      */
-    protected declareFileLayout(layout: FileLayout | null): void {
-        this.fileLayout = layout;
+    protected declareRequestedLayout(layout: RequestedLayout | null): void {
+        this.requested = layout;
     }
 
     /**
@@ -1208,14 +1210,7 @@ export abstract class DataSource {
                     this.declareTime(declared);
                 }
 
-                const { nodes, edges } = toRecords(
-                    imported,
-                    // A load drawing the file's styles leaves the file's own style slots to the layers.
-                    this.#config.styles === "file"
-                        ? withoutStyleSlots(snapshot, columnsMapping(snapshot))
-                        : columnsMapping(snapshot),
-                    this,
-                );
+                const { nodes, edges } = toRecords(imported, columnsMapping(snapshot), this, this.#config.styles);
                 yield* this.chunkData(nodes, edges);
             }
         };

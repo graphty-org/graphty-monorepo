@@ -20,7 +20,6 @@ import type { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import type { DuplicatePolicy } from '@graphty/graph-format';
 import { ExpandRequest } from '@graphty/graph-io';
-import { FileLayout } from '@graphty/graph-io';
 import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GEXF_LOSS } from '@graphty/graph-io';
@@ -47,6 +46,7 @@ import { registerSource } from '@graphty/graph-io';
 import { ReplayFetch } from '@graphty/graph-io';
 import { replayFetch } from '@graphty/graph-io';
 import { ReplayOptions } from '@graphty/graph-io';
+import type { RequestedLayout } from '@graphty/graph-io';
 import { RetryOptions } from '@graphty/graph-io';
 import { SOURCE_ISSUE } from '@graphty/graph-io';
 import { SourceContext } from '@graphty/graph-io';
@@ -3428,23 +3428,19 @@ export interface LayoutRecommendation {
     readonly layout: LayoutDescriptor;
     readonly options?: Readonly<Record<string, unknown>>;
     // @deprecated
-    readonly reason: string;
+    readonly reason?: string;
 }
 
 // @public
-export type LayoutRecommendationCode = "recommend.fixed" | "recommend.location-map" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable" | "recommend.graphviz-file" | "recommend.graphviz-unavailable";
+export type LayoutRecommendationCode = "recommend.fixed" | "recommend.location-map" | "recommend.random" | "recommend.circular" | "recommend.force" | "recommend.first-servable" | "recommend.requested-layout" | "recommend.requested-layout-unavailable";
 
 // @public
 export interface LayoutRecommendationOptions {
-    readonly file?: {
-        readonly format?: string;
-        readonly attributes?: Readonly<Record<string, unknown>>;
-        readonly layout?: FileLayout;
-    };
     readonly graphvizAvailable?: boolean;
     readonly largeGraphThreshold?: number;
     readonly locations?: boolean;
     readonly placedNodes?: number;
+    readonly requested?: RequestedLayout;
 }
 
 export { LazySource }

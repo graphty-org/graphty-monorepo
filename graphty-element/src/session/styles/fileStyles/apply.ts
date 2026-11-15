@@ -11,7 +11,7 @@
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
-import type { FileLayout } from "@graphty/graph-io";
+import type { RequestedLayout } from "@graphty/graph-io";
 import {
     type ExtractedStyles,
     type GraphAnnotation,
@@ -111,8 +111,8 @@ export const HELD_READERS = new WeakMap<
     Partial<FileStyleSource> & {
         /** The file's graph-level attributes, as the source read them. */
         readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
-        /** The layout the file asks for, as the source read it. */
-        readonly declaredFileLayout?: FileLayout | null;
+        /** The layout the data asks for, as the source read it. */
+        readonly requestedLayout?: RequestedLayout | null;
         /** The time field the file declares, as the source read it. */
         readonly declaredTime?: TimeField | null;
     }

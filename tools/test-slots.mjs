@@ -122,9 +122,11 @@ export function slotCount(env = process.env, cores = cpus().length, now = Date.n
  * Chromium; 2.2 to 5.1 GB per holder's process tree measured 2026-11-14, 21 GB for 4 on 2026-11-13), and a host
  * process is killed once available memory falls to about 8 GB, so the floor is 10 GB. A step up needs one more
  * slot's peak plus a 2 GB margin above the floor (17 GB); the step down sits under the ~12 GB a raised count is
- * expected to leave, so a normal round does not flip back.
+ * expected to leave, so a normal round does not flip back. MemAvailable is read at one instant, while holders
+ * may be below their peak, so a raise also subtracts what each holder has yet to grow (`slotGB` less its tree's
+ * RSS now).
  */
-export const STEP = { max: 6, floorGB: 10, upGB: 17, downGB: 11, upSome300: 1, downSome60: 5 };
+export const STEP = { max: 6, slotGB: 5, floorGB: 10, upGB: 17, downGB: 11, upSome300: 1, downSome60: 5 };
 
 /**
  * The next slot count, one step at a time between the default and STEP.max: up one when every slot is held, a
@@ -138,13 +140,14 @@ export const STEP = { max: 6, floorGB: 10, upGB: 17, downGB: 11, upSome300: 1, d
  * @param m.availGB MemAvailable in GB
  * @param m.some60 `some avg60` of /proc/pressure/memory
  * @param m.some300 `some avg300` of /proc/pressure/memory
- * @returns the count to write
+ * @param m.growthGB what the holders have yet to grow to their `slotGB` peak, summed
+ * @returns the count to write; never below the default, so a hand-written 0 or 2 is lifted to it
  */
-export function nextCount({ count, min, held, waiting, availGB, some60, some300 }) {
+export function nextCount({ count, min, held, waiting, availGB, some60, some300, growthGB = 0 }) {
     if (availGB < STEP.floorGB) return min;
     if (availGB < STEP.downGB || some60 > STEP.downSome60) return Math.max(min, count - 1);
-    const roomy = availGB >= STEP.upGB && some300 < STEP.upSome300;
-    if (roomy && held >= count && waiting > 0) return Math.min(STEP.max, count + 1);
+    const roomy = availGB - growthGB >= STEP.upGB && some300 < STEP.upSome300;
+    if (roomy && held >= count && waiting > 0) return Math.min(STEP.max, Math.max(min, count + 1));
     return Math.min(STEP.max, Math.max(min, count));
 }
 
@@ -159,7 +162,8 @@ function recount(dir = slotDir()) {
     const count = slotCount({ ...process.env, GRAPHTY_TEST_SLOTS: "" });
     mkdirSync(dir, { recursive: true });
     const live = liveTickets(dir);
-    const held = live.filter((t) => t.granted).length;
+    const granted = live.filter((t) => t.granted);
+    const held = granted.length;
     const kb = Number(/MemAvailable:\s+(\d+)/.exec(readFileSync("/proc/meminfo", "utf8"))[1]);
     const some = readFileSync("/proc/pressure/memory", "utf8").split("\n")[0]; // "some avg10=.. avg60=.. avg300=.."
     const avg = (n) => Number(new RegExp(`avg${n}=([\\d.]+)`).exec(some)[1]);
@@ -171,12 +175,14 @@ function recount(dir = slotDir()) {
         availGB: kb / 1048576,
         some60: avg(60),
         some300: avg(300),
+        growthGB: granted.reduce((sum, t) => sum + Math.max(0, STEP.slotGB - (treeRssGB(t.pid) ?? STEP.slotGB)), 0),
     };
     const next = nextCount(m);
     writeFileSync(join(dir, ".count"), `${next}\n`);
     return (
         `test-slots: count ${count} -> ${next} (held ${m.held}, waiting ${m.waiting}, ` +
-        `${m.availGB.toFixed(1)} GB available, some avg60 ${m.some60}, avg300 ${m.some300})`
+        `${m.availGB.toFixed(1)} GB available, ${m.growthGB.toFixed(1)} GB still to grow, ` +
+        `some avg60 ${m.some60}, avg300 ${m.some300})`
     );
 }
 
@@ -258,11 +264,12 @@ const startOf = (pid) => statOf(pid)?.[19] ?? null;
 const TICK_MS = 10; // /proc reports CPU time in clock ticks, 100 a second on Linux
 
 /**
- * The CPU time a process and every process under it have used, the reaped children of each included.
+ * Sums one number over a process and every process under it.
  * @param pid the root of the tree
- * @returns milliseconds of CPU, or null off Linux or once the process is gone
+ * @param value the number from one process's stat fields (after the command name)
+ * @returns the sum, or null off Linux or once the process is gone
  */
-export function treeCpuMs(pid) {
+function treeSum(pid, value) {
     const self = statOf(pid);
     if (!self) return null;
     const kids = new Map();
@@ -270,17 +277,39 @@ export function treeCpuMs(pid) {
         const stat = /^\d+$/.test(entry) ? statOf(entry) : null;
         if (stat) kids.set(Number(entry), stat);
     }
-    let ticks = 0;
+    let sum = 0;
     const seen = new Set();
     for (const queue = [[pid, self]]; queue.length;) {
         const [p, stat] = queue.pop();
         if (seen.has(p)) continue;
         seen.add(p);
-        // utime, stime, cutime, cstime: fields 14 to 17 of the stat line, 11 to 14 after the command name
-        ticks += Number(stat[11]) + Number(stat[12]) + Number(stat[13]) + Number(stat[14]);
+        sum += value(stat);
         for (const [k, s] of kids) if (Number(s[1]) === p) queue.push([k, s]);
     }
-    return ticks * TICK_MS;
+    return sum;
+}
+
+/**
+ * The CPU time a process and every process under it have used, the reaped children of each included.
+ * @param pid the root of the tree
+ * @returns milliseconds of CPU, or null off Linux or once the process is gone
+ */
+export function treeCpuMs(pid) {
+    // utime, stime, cutime, cstime: fields 14 to 17 of the stat line, 11 to 14 after the command name
+    const ticks = treeSum(pid, (s) => Number(s[11]) + Number(s[12]) + Number(s[13]) + Number(s[14]));
+    return ticks === null ? null : ticks * TICK_MS;
+}
+
+/**
+ * The resident memory of a process and every process under it (shared pages counted once per process, as the
+ * per-slot peak in STEP was measured).
+ * @param pid the root of the tree
+ * @returns gigabytes, or null off Linux or once the process is gone
+ */
+function treeRssGB(pid) {
+    // rss in pages: field 24 of the stat line, 21 after the command name
+    const pages = treeSum(pid, (s) => Number(s[21]));
+    return pages === null ? null : (pages * 4096) / 1024 ** 3;
 }
 
 /**

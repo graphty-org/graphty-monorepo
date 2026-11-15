@@ -2406,8 +2406,8 @@ export type RuleTree =
 
 /**
  * What a reader is doing to an element now: selected, under the pointer, drawn while a held filter
- * condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`, experimental,
- * with the timeline), or pinned in place.
+ * condition would remove it (`"ghosted"`), outside the time window (`"outsideWindow"`), or pinned
+ * in place.
  * @since 3.36.0
  */
 export type ElementState = "selected" | "hovered" | "ghosted" | "outsideWindow" | "pinned";

@@ -2283,7 +2283,7 @@ function outsideSelector(selector: Selector): Selector {
 /**
  * Bring a timed project saved before what lies outside the time window had a state of its own up
  * to date: called only for a file without the session member's `outsideByLayers` mark, which every
- * save writes, so a layer a reader points at `"ghosted"` today is never
+ * save writes, and with a playback or a window saved, so a layer a reader points at `"ghosted"` today is never
  * rewritten. Its layers and sets reading `"ghosted"` (as a state selector or a rule leaf) meant
  * what lay outside the window, so they read `"outsideWindow"` now, and the saved `outside` (hidden
  * unless it says `"ghost"`; hidden when absent, as that was the default) is written to the style
@@ -2295,12 +2295,16 @@ async function outsideWindowLayers(
     tx: TransactionScope,
     visibility: Readonly<Record<string, unknown>> | undefined,
 ): Promise<void> {
-    // Saved since: its layers stay as saved.
-    if (visibility?.outsideByLayers === true || tx.time.field === null) {
+    const playback = visibility?.playback;
+    // Saved since, or never played: its layers stay as saved. A file saved with the timeline off
+    // holds no playback and no window of instants (`windowRaw` marked one of values), and its
+    // "ghosted" meant a held filter condition, never the window.
+    const played =
+        (playback !== undefined && playback !== null) ||
+        (visibility?.window !== undefined && visibility.window !== null && visibility.windowRaw !== true);
+    if (visibility?.outsideByLayers === true || !played || tx.time.field === null) {
         return;
     }
-
-    const playback = visibility?.playback;
 
     await ghostedLayersOutside(tx);
     ghostedSetsOutside(tx);

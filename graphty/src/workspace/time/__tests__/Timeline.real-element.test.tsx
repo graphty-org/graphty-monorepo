@@ -782,7 +782,10 @@ describe("the Overview and the import of time", () => {
         card.getByRole("radiogroup", { name: "Zone" });
         // How a play moves the window has a section of its own, and says what each mode does.
         const animation = card.getByRole("group", { name: "Animation", description: /^Slide moves .* Grow keeps/ });
-        const settings = card.getByRole("group", { name: "Time", description: /^When window moves: / });
+        const settings = card.getByRole("group", { name: "Time" });
+        // So does what a window move does to algorithm results.
+        const results = card.getByRole("group", { name: "Algorithm results", description: /^When window moves: / });
+        within(results).getByRole("combobox", { name: "When window moves" });
         assert.isNull(within(settings).queryByRole("radiogroup", { name: "Mode" }), "Mode is not a Time setting");
         within(animation).getByRole("button", { name: "About Animation" });
         await userEvent.click(within(within(animation).getByRole("radiogroup", { name: "Mode" })).getByText("Grow"));

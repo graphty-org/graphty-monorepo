@@ -115,12 +115,7 @@ export function TimeCard(): React.JSX.Element | null {
     return (
         <div data-testid="time-card">
             <PanelLabelsProvider showLabels>
-                <ControlSection
-                    label="Time"
-                    collapsible={false}
-                    headingLevel={3}
-                    info={designated === undefined ? undefined : RESULTS_NOTE}
-                >
+                <ControlSection label="Time" collapsible={false} headingLevel={3}>
                     <Stack gap={4}>
                         <FieldRow>
                             <PanelField
@@ -204,18 +199,6 @@ export function TimeCard(): React.JSX.Element | null {
                                         />
                                     </FieldRow>
                                 ) : null}
-                                <FieldRow>
-                                    <PanelField
-                                        label={RESULTS_LABEL}
-                                        kind="select"
-                                        width="fill"
-                                        data={RESULTS_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
-                                        value={settings.results}
-                                        onChange={(picked) => {
-                                            retune(session, store, { results: picked as TimeResultsPolicy });
-                                        }}
-                                    />
-                                </FieldRow>
                             </>
                         )}
                     </Stack>
@@ -233,6 +216,22 @@ export function TimeCard(): React.JSX.Element | null {
                                     retune(session, store, {
                                         mode: picked === "cumulative" ? "cumulative" : "sliding",
                                     });
+                                }}
+                            />
+                        </FieldRow>
+                    </ControlSection>
+                )}
+                {designated === undefined ? null : (
+                    <ControlSection label="Algorithm results" collapsible={false} headingLevel={3} info={RESULTS_NOTE}>
+                        <FieldRow>
+                            <PanelField
+                                label={RESULTS_LABEL}
+                                kind="select"
+                                width="fill"
+                                data={RESULTS_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
+                                value={settings.results}
+                                onChange={(picked) => {
+                                    retune(session, store, { results: picked as TimeResultsPolicy });
                                 }}
                             />
                         </FieldRow>

@@ -466,6 +466,28 @@ describe("timeline ghosts", () => {
         opened.dispose();
     });
 
+    it("leaves a held condition's ghosted layer alone in a timed file saved before, with no window or playback", async () => {
+        const session = await trace();
+        await session.styles.add({
+            name: "Held ghosts",
+            target: "node",
+            selector: { match: "state", state: "ghosted" },
+            set: { "node.color": "#123456" },
+        });
+        const { text } = await session.project.save();
+        session.dispose();
+        // Saved with the timeline off: no outsideByLayers mark, no window and no playback.
+        const before = text.replace(',"outsideByLayers":true', "");
+        assert.notInclude(before, '"playback"');
+        assert.include(before, '"window":null');
+
+        const opened = createGraphSession() as ElementSession;
+        await opened.project.open(before);
+        const layer = opened.styles.list().find((each) => each.name === "Held ghosts");
+        assert.deepEqual(layer?.selector, { match: "state", state: "ghosted" });
+        opened.dispose();
+    });
+
     it("refuses an outside setting it does not know", async () => {
         const session = await trace();
         let refused: unknown = null;

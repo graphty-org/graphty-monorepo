@@ -54,7 +54,7 @@ plain ordered steps (`"ordinal"`). `time.candidates()` lists the columns that re
 `time.notices()` reports values that did not.
 `session.catalog.timeAttributes()` gives the same columns as attribute descriptors (the ones
 `data.attributes()` returns), with any column a file or a load declared as time first, so a time
-picker can list them by their `plainName`. With the experiment off it lists none.
+picker can list them by their `plainName`.
 
 Before a load, a draft says which columns look like time, and applies nothing. A column looks like
 time when every sampled value is a strict date, or when its name speaks of time (`date`, `time`,
@@ -336,8 +336,9 @@ const days = time.bins({ step: "day" }); // bars start at local midnight
 ```
 
 `window`, `bins` and `play` each take `timeZone` too. A call's zone wins, then the window's, then the
-setting's. A new zone in `setSettings` snaps a sliding window to the new boundaries, as a new step
-does, and a new `parseZone` clears the window. A zone is an IANA name; any other name is refused with
+setting's. A new zone in `setSettings` moves each bound that sits on a step boundary to the nearest
+boundary in the new zone and leaves the window's length alone, so switching back returns the same
+window. A new `parseZone` clears the window. A zone is an IANA name; any other name is refused with
 `E_BAD_COMMAND`, reason `"time-zone"`.
 
 Days and longer follow the zone's clock, so a day across a clock change is 23 or 25 hours; an hour is

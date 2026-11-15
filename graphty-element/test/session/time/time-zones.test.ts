@@ -223,6 +223,27 @@ describe("calendar steps in a zone", () => {
         session.dispose();
     });
 
+    it("returns the same window from a zone half a step away, however often it switches", async () => {
+        const cases = [
+            { zone: KOLKATA, step: "hour" },
+            { zone: "Pacific/Fiji", step: "day" },
+        ] as const;
+        for (const { zone, step } of cases) {
+            const session = await edgesAt(SPREAD);
+            await session.time.setField({ edges: { start: "at" } });
+            await session.time.setSettings({ step });
+            await session.time.stepBy(1);
+            const { from, to } = session.time.current ?? {};
+            for (let trip = 0; trip < 3; trip++) {
+                await session.time.setSettings({ timeZone: zone });
+                await session.time.setSettings({ timeZone: "UTC" });
+            }
+            assert.strictEqual(session.time.current?.from, from, `${zone} ${step}`);
+            assert.strictEqual(session.time.current?.to, to, `${zone} ${step}`);
+            session.dispose();
+        }
+    });
+
     it("opens the first calendar month of the example, midnight to midnight in New York", async () => {
         const session = await edgesAt(["2026-01-15T12:00:00", "2026-03-20T12:00:00"]);
         await session.time.setField({ edges: { start: "at", parseZone: NEW_YORK } });

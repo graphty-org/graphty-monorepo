@@ -2442,7 +2442,12 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             }
             const below = alignAt(at, step, zone);
             const above = addSteps(below, step, 1, zone);
-            return at - below <= above - at ? below : above;
+            if (at - below !== above - at) {
+                return at - below < above - at ? below : above;
+            }
+            // A tie (a zone half a step from the other) breaks one way going and the other coming
+            // back, so switching back returns the same bound rather than walking it.
+            return was < zone ? below : above;
         };
         const start = sliding ? rezoned(from) : from;
         const end = rezoned(to);

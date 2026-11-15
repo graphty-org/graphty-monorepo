@@ -89,6 +89,7 @@ import {
     YED_LABEL_LINE,
     YED_LINES,
     YED_SHAPES,
+    yedArcControl,
     yedArrowLength,
     yedArrowWidth,
     yedColor,
@@ -1062,10 +1063,32 @@ function gv2gmlArrowEnds(g: Rec, directed: boolean): readonly [boolean, boolean]
  * @param put - receives the value
  */
 function readYedCurve(g: Rec, put: Put): void {
+    if (yedArc(g) !== null) {
+        // yEd draws an arc edge as one quadratic Bezier between its ends, as GraphML's ArcEdge (`readLineRoute`
+        // puts its control point as the one bend)
+        put("curved", true);
+        put("bendCurve", "bezier");
+        return;
+    }
     if (g.smoothBends !== undefined) {
         const points = isRec(g.Line) ? g.Line.point : undefined;
         put("curved", Number(g.smoothBends) === 1 && Array.isArray(points) && points.length > 2);
     }
+}
+
+/**
+ * A yEd arc edge's `arcType` and its height or ratio (`arcHeight`, `arcRatio`): yEd draws a `fixedRatio` arc from its
+ * ratio whatever height and apex point the file also stores, as for GraphML's `y:Arc` (`yedArcControl`).
+ * @param g - the edge's `graphics` record
+ * @returns whether it is a fixed-ratio arc and its value, or null for an edge that is no arc
+ */
+function yedArc(g: Rec): { readonly ratio: boolean; readonly value: number } | null {
+    if (typeof g.type !== "string" || g.type.trim().toLowerCase() !== "arc") {
+        return null;
+    }
+    const ratio = typeof g.arcType === "string" && g.arcType.trim() === "fixedRatio";
+    const value = Number(ratio ? g.arcRatio : g.arcHeight);
+    return Number.isFinite(value) ? { ratio, value } : null;
 }
 
 /**
@@ -1254,6 +1277,11 @@ function readElement(
         (target === "node" ? readNodeGraphics : readEdgeGraphics)(g, writer, put, at);
     } else if (writer.vocabulary === "graphviz" && target === "edge") {
         readEdgeGraphics({}, writer, put, at);
+    } else if (writer.tool === "yed" && target === "edge") {
+        // yEd gives an edge with no graphics its own default edge: a standard head at the target, whatever the
+        // graph's `directed` says (gml-specimen-arrows-p2, gml-specimen-edges-lines-p2: 12 long, 10 wide, black);
+        // an edge whose graphics name no arrow has none (gml-dunnart-autobahn)
+        readEdgeArrows({ targetArrow: "standard" }, writer, put, at);
     }
     if (lg !== null && lg !== undefined) {
         readLabelGraphics(lg, writer, target === "node", putLabel, at);
@@ -1408,6 +1436,7 @@ function sizeOf(snapshot: GraphSnapshot, i: number): BendPoint {
  * @param e - the edge's row
  * @param bendsOnly - whether the points are the bends alone (OGDF)
  * @param put - receives the values
+ * @param arcs - whether a yEd arc edge's one bend is its arc's control point (`yedArc`)
  */
 function readLineRoute(
     snapshot: GraphSnapshot,
@@ -1415,15 +1444,28 @@ function readLineRoute(
     e: number,
     bendsOnly: boolean,
     put: (property: string, value: string) => void,
+    arcs = false,
 ): void {
     const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
     const list = isRec(raw) ? [raw] : raw;
+    const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+    const arc = arcs && isRec(g) && s !== t ? yedArc(g) : null;
+    if (arc !== null && (!Array.isArray(list) || list.length < 2)) {
+        // an arc with no Line runs between the node centers
+        const control = yedArcControl(arc.ratio, arc.value, [centerOf(snapshot, s), centerOf(snapshot, t)]);
+        const bends = control === null ? null : canonBends(centerOf(snapshot, s), centerOf(snapshot, t), control, true);
+        if (bends !== null) {
+            put("bends", bends);
+        }
+        return;
+    }
     if (!Array.isArray(list) || list.length < (bendsOnly ? 1 : 2)) {
         return;
     }
     const all = list.map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
-    const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
-    const points = bendsOnly ? all : all.slice(1, -1);
+    // an arc's Line holds its ends and its apex; yEd draws it from its arc type and value (`yedArc`)
+    const control = arc === null ? null : yedArcControl(arc.ratio, arc.value, [all[0], all.at(-1) ?? all[0]]);
+    const points = control ?? (bendsOnly ? all : all.slice(1, -1));
     const bends =
         s === t
             ? canonNodeOffsets(centerOf(snapshot, s), sizeOf(snapshot, s), points, true)
@@ -1691,8 +1733,11 @@ function readValues(
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const out = valueColumns(n);
         // Cytoscape names every element, and Graphviz labels every node and arrows a digraph's edges, with or
-        // without graphics (gv2gml writes graphics only once a layout ran)
-        const drawnBare = writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz";
+        // without graphics (gv2gml writes graphics only once a layout ran); yEd heads every bare edge
+        const drawnBare =
+            writer.vocabulary === "cytoscape" ||
+            writer.vocabulary === "graphviz" ||
+            (writer.tool === "yed" && target === "edge");
         if (!table.has("graphics") && !table.has("LabelGraphics") && !drawnBare) {
             return out.values;
         }
@@ -1742,6 +1787,7 @@ function readValues(
                         found = true;
                         out.put(i, property, value);
                     },
+                    writer.vocabulary === "yed",
                 );
             }
         }

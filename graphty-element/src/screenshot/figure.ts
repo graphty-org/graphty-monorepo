@@ -366,47 +366,23 @@ function lineWidthPx(width: number, mid: Vector3, camera: Camera, is2D: boolean,
 }
 
 /**
- * Reads the picture the last frame drew into a {@link FigureDrawing}.
+ * Every visible edge as a straight line between its ends' centres, its label added to `texts`.
  * @param graph - The graph.
- * @param options - The figure's options.
- * @returns The drawing.
+ * @param shown - Where each visible node is drawn.
+ * @param camera - The camera.
+ * @param css - CSS pixels per render pixel.
+ * @param texts - The labels drawn so far, added to.
+ * @returns The lines.
  */
-function figureDrawing(graph: Graph, options: FigureOptions = {}): FigureDrawing {
-    const { scene } = graph;
-    const camera = scene.activeCamera;
-    if (!camera) {
-        throw captureError("E_CAPTURE_FAILED", "No active camera in scene", { media: "figure" });
-    }
-    const engine = scene.getEngine();
-    const css = engine.getHardwareScalingLevel();
-    const width = engine.getRenderWidth() * css;
-    const height = engine.getRenderHeight() * css;
-    const is2D = graph.getViewMode() === "2d";
-    const view = scene.getViewMatrix();
+function edgeLines(
+    graph: Graph,
+    shown: ReadonlyMap<string | number, ReturnType<Graph["nodeScreenPosition"]>>,
+    camera: Camera,
+    css: number,
+    texts: FigureText[],
+): FigureDrawing["edges"][number][] {
     const painter = graph.getStylePainter();
-    const depthOf = (p: Vector3): number => Vector3.TransformCoordinates(p, view).z;
-
-    const shown = new Map<string | number, ReturnType<Graph["nodeScreenPosition"]>>();
-    const nodes: { depth: number; shape: FigureShape }[] = [];
-    const texts: FigureText[] = [];
-    for (const node of graph.getNodes()) {
-        const at = graph.nodeScreenPosition(node.id);
-        if (!at?.visible) {
-            continue;
-        }
-        shown.set(node.id, at);
-        const color = node.drawnInstanceColor ??
-            painter.nodePaint(node.index)?.color ?? { r: 255, g: 255, b: 255, a: 1 };
-        const paint = { fill: rgb(color), opacity: color.a * node.drawnOpacity };
-        nodes.push({ depth: depthOf(node.drawnWorldPosition), shape: { ...nodeOutline(graph, node, at), ...paint } });
-        const words = labelText(node.label, graph, camera, css);
-        if (words) {
-            texts.push(words);
-        }
-    }
-    // Far first, so a nearer node covers a farther one as it does on the canvas.
-    nodes.sort((a, b) => b.depth - a.depth);
-
+    const is2D = graph.getViewMode() === "2d";
     const edges: FigureDrawing["edges"][number][] = [];
     for (const edge of graph.getEdges()) {
         const src = shown.get(edge.srcNode.id);
@@ -435,6 +411,52 @@ function figureDrawing(graph: Graph, options: FigureOptions = {}): FigureDrawing
             texts.push(words);
         }
     }
+
+    return edges;
+}
+
+/**
+ * Reads the picture the last frame drew into a {@link FigureDrawing}.
+ * @param graph - The graph.
+ * @param options - The figure's options.
+ * @returns The drawing.
+ */
+function figureDrawing(graph: Graph, options: FigureOptions = {}): FigureDrawing {
+    const { scene } = graph;
+    const camera = scene.activeCamera;
+    if (!camera) {
+        throw captureError("E_CAPTURE_FAILED", "No active camera in scene", { media: "figure" });
+    }
+    const engine = scene.getEngine();
+    const css = engine.getHardwareScalingLevel();
+    const width = engine.getRenderWidth() * css;
+    const height = engine.getRenderHeight() * css;
+    const view = scene.getViewMatrix();
+    const painter = graph.getStylePainter();
+    const depthOf = (p: Vector3): number => Vector3.TransformCoordinates(p, view).z;
+
+    const shown = new Map<string | number, ReturnType<Graph["nodeScreenPosition"]>>();
+    const nodes: { depth: number; shape: FigureShape }[] = [];
+    const texts: FigureText[] = [];
+    for (const node of graph.getNodes()) {
+        const at = graph.nodeScreenPosition(node.id);
+        if (!at?.visible) {
+            continue;
+        }
+        shown.set(node.id, at);
+        const color = node.drawnInstanceColor ??
+            painter.nodePaint(node.index)?.color ?? { r: 255, g: 255, b: 255, a: 1 };
+        const paint = { fill: rgb(color), opacity: color.a * node.drawnOpacity };
+        nodes.push({ depth: depthOf(node.drawnWorldPosition), shape: { ...nodeOutline(graph, node, at), ...paint } });
+        const words = labelText(node.label, graph, camera, css);
+        if (words) {
+            texts.push(words);
+        }
+    }
+    // Far first, so a nearer node covers a farther one as it does on the canvas.
+    nodes.sort((a, b) => b.depth - a.depth);
+
+    const edges = edgeLines(graph, shown, camera, css, texts);
 
     const { sections, position } = resolveLegend(graph, options.legend);
     const bg = scene.clearColor;

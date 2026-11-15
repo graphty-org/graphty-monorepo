@@ -1021,7 +1021,7 @@ export class Graph implements GraphContext {
         this.#styles = new Styles(() => this.configDocument());
 
         this.stylePainter = new StylePainter(
-            () => this.dataManager.directed,
+            (row) => this.dataManager.edgeDirected(row),
             () => this.session.config.minMarkSize,
         );
 

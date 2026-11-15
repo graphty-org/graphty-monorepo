@@ -57,7 +57,8 @@ import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/Ren
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { antialiasDefault } from "./meshes/PulledLineBatch";
-import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
+import { exportFigure, type FigureOptions, type FigureResult } from "./screenshot/figure.js";
+import type { ScreenshotLegendPosition, ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
     describeSource,
@@ -99,6 +100,7 @@ import type {
     TransactionScope,
 } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
+import { LegendOverlay } from "./ui/Legend";
 import { Minimap } from "./ui/Minimap";
 import { downloadBlob } from "./utils/download";
 
@@ -878,6 +880,10 @@ export class Graphty extends LitElement {
             this.#mirrorVisibilityChange(change);
         });
         this.#screenReader.connect(this.renderRoot);
+        if (this.#legendOn) {
+            this.#legendView.connect(this.renderRoot);
+        }
+
         // A note written from a panel, a console or an undo: plain values, as the other mirrors.
         this.#unwatchNotes ??= session.on("note:changed", ({ id, change, fields, cause }) => {
             this.dispatchEvent(
@@ -1141,6 +1147,125 @@ export class Graphty extends LitElement {
         this.requestUpdate("accessibleNodeList", oldValue);
     }
 
+    /** Whether the legend is shown; see {@link Graphty.legend}. */
+    #legendOn = false;
+    /** The corner it sits in; see {@link Graphty.legendPosition}. */
+    #legendCorner: ScreenshotLegendPosition = "top-left";
+    /** Its accessible name; see {@link Graphty.legendLabel}. */
+    #legendName: string | undefined;
+    /** The legend overlay, built on first use. */
+    #legendDrawn: LegendOverlay | undefined;
+
+    /**
+     * The legend overlay, built on first use.
+     * @returns The overlay.
+     */
+    get #legendView(): LegendOverlay {
+        if (this.#legendDrawn === undefined) {
+            this.#legendDrawn = new LegendOverlay({
+                legend: () => this.#graph.getSession().styles.legend(),
+                onDerived: (listener) => this.#graph.getSession().on("project:derived", listener),
+            });
+            this.#legendDrawn.setPosition(this.#legendCorner);
+            this.#legendDrawn.setLabel(this.#legendName);
+        }
+
+        return this.#legendDrawn;
+    }
+
+    /**
+     * Whether a legend is drawn over the graph: a key for every style layer that binds a value,
+     * read from `session.styles.legend()` -- a row with a color chip per category, or a color ramp
+     * between the ends of a continuous domain. It follows every change to the layers and the data,
+     * and hides while no layer binds a value. Every word in it is the data's: the field's name,
+     * the values and the names readers gave them.
+     * @remarks
+     * A preference of this view, not part of the project: switching it records no undo step. Off
+     * by default. It is HTML in the shadow root, exposed as `::part(legend)`, so a screen reader
+     * reads its sections and rows; set its size, border, background and color from the page (its
+     * sizes are in `em`, so `font-size` scales the whole key). The corner is
+     * {@link Graphty.legendPosition}. A screenshot draws the same key with
+     * `captureScreenshot({ legend: { position: element.legendPosition } })`. To draw a legend of
+     * your own instead, read `session.styles.legend()` on the session's `project:derived` event.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element legend legend-position="bottom-left"></graphty-element>
+     * <style>
+     *     graphty-element::part(legend) { font-size: 14px; max-width: 240px; }
+     * </style>
+     * ```
+     * @returns True when the legend is shown
+     */
+    @property({ attribute: "legend", type: Boolean, reflect: true })
+    get legend(): boolean {
+        return this.#legendOn;
+    }
+    /**
+     * Shows or hides the legend.
+     */
+    set legend(value: boolean) {
+        const oldValue = this.#legendOn;
+        this.#legendOn = value;
+        if (!value) {
+            this.#legendDrawn?.disconnect();
+        } else if (this.#wired) {
+            this.#legendView.connect(this.renderRoot);
+        }
+
+        this.requestUpdate("legend", oldValue);
+    }
+
+    /**
+     * The corner of the graph the legend sits in: `"top-left"` (the default), `"top-right"`,
+     * `"bottom-left"` or `"bottom-right"`.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element legend legend-position="top-right"></graphty-element>
+     * ```
+     * @returns The corner
+     */
+    @property({ attribute: "legend-position" })
+    get legendPosition(): ScreenshotLegendPosition {
+        return this.#legendCorner;
+    }
+    /**
+     * Moves the legend to another corner.
+     */
+    set legendPosition(value: ScreenshotLegendPosition) {
+        const oldValue = this.#legendCorner;
+        this.#legendCorner = value;
+        this.#legendDrawn?.setPosition(value);
+        this.requestUpdate("legendPosition", oldValue);
+    }
+
+    /**
+     * The legend's accessible name, which a screen reader announces, in the page's own words.
+     * Unset by default: the legend then has no name of its own, and each field in it is still
+     * named by the field's name.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element legend legend-label="Leyenda"></graphty-element>
+     * ```
+     * @returns The name
+     */
+    @property({ attribute: "legend-label" })
+    get legendLabel(): string | undefined {
+        return this.#legendName;
+    }
+    /**
+     * Sets the legend's accessible name.
+     */
+    set legendLabel(value: string | undefined) {
+        const oldValue = this.#legendName;
+        // Removing the attribute sets null: that is no name, as unset is.
+        this.#legendName = value ?? undefined;
+        this.#legendDrawn?.setLabel(this.#legendName);
+        this.requestUpdate("legendLabel", oldValue);
+    }
+
     /**
      * The facts a description of the drawing is phrased from, as numbers, the legend and the
      * selection: what {@link Graphty.accessibleDescription} receives, for a page that words the
@@ -1321,6 +1446,7 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility?.();
         this.#unwatchVisibility = null;
         this.#screenReader.disconnect();
+        this.#legendDrawn?.disconnect();
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
         this.#unwatchProjectStatus?.();
@@ -4290,6 +4416,33 @@ export class Graphty extends LitElement {
      */
     async captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult> {
         return this.#graph.captureScreenshot(options);
+    }
+
+    /**
+     * Export the graph as it is drawn now as a vector figure, an SVG file for a paper or a slide.
+     *
+     * Every visible node is a filled shape where the canvas draws it, in its color; every visible
+     * edge is a line; every label on screen is text, not pixels, so it can be edited and searched;
+     * and `legend` draws the same key `captureScreenshot` draws, as text too. The figure is the
+     * canvas's size in CSS pixels and lines up with a screenshot taken at the same moment. It waits
+     * for the finished picture first, as {@link Graphty.waitForStableFrame} does, and rejects as it
+     * does.
+     * @param options - The format (`"svg"`), the key, the background and an optional download.
+     * @returns The file as a Blob of type `image/svg+xml`, its size, and whether it was downloaded.
+     * @throws A `GraphtyError`: `E_BAD_COMMAND` for a format other than `"svg"` (`details.field`
+     *   is `"format"`), `E_CAPTURE_FAILED` when there is no camera to draw from.
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * const figure = await element.exportFigure({ legend: true });
+     * const svg = await figure.blob.text();
+     * // or hand it straight to the reader:
+     * await element.exportFigure({ legend: true, download: true, downloadFilename: "figure.svg" });
+     * ```
+     */
+    async exportFigure(options?: FigureOptions): Promise<FigureResult> {
+        await this.#graph.waitForStableFrame();
+        return exportFigure(this.#graph, options);
     }
 
     /**

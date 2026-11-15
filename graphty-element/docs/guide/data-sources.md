@@ -986,6 +986,29 @@ words for it:
 `lossNotes`, the same losses with an English `message`, is deprecated and goes in the next major
 release.
 
+### Exporting part of the graph
+
+Without a `scope`, an export writes the whole graph. With one, it writes only the nodes the scope
+names, and only the edges whose two ends are both written:
+
+```typescript
+// What the visibility filter and the time window leave showing
+const shown = await element.exportGraph("graphml", { scope: "shown" });
+// The selected nodes and the edges between them
+const picked = await element.exportGraph("csv", { scope: "selection" });
+// A kept set's members
+const members = await element.exportGraph("gexf", { scope: { set: "core-team" } });
+// These nodes, by id
+const pair = await element.exportGraph("json", { scope: { nodes: ["alice", "bob"] } });
+// A rule, read as the visibility filter reads it
+const busy = await element.exportGraph("csv", {
+    scope: { kind: "range", attribute: "data.degree", min: 10 },
+});
+```
+
+Each node keeps its own position, values and styles. `columns` (a list of column names) narrows
+which attribute columns are written in the same way.
+
 ### Exporting styles
 
 Pass `styles: true` to write the graph's style layers into the file as well:

@@ -156,6 +156,8 @@ Marking an issue always means both: `gh issue edit <n> --add-label in-progress` 
 - `pipeline-round: ready <branch> <sha>` (the work is finished; written just before `pr-open.sh`)
 - `pipeline-round: opened <branch> <pull request url>` (after `pr-open.sh` printed the URL)
 - `pipeline-round: fix attempt <branch> <cause> -- <one line>` (each fix subagent sent for a red pull request)
+- `pipeline-round: inherited <check> > <test> -- waits on #<issue>[, fix #<pr>]` (on the red pull request and its issue;
+  see "Inherited failures")
 - `pipeline-round: restarted <branch> -- <reason>` (a subagent started again on the same job)
 - `pipeline-round: reran <run id>`
 - `pipeline-round: released -- <reason>` (always with the `in-progress` label removed in the same step:
@@ -321,7 +323,7 @@ Classify every failure before acting: read step names, then annotations, then th
 | Credential        | 401, `Bad credentials`, 403 naming auth, `Permission denied (publickey)`, OIDC 403, npm E401, signing errors                                            | One owner item. Never a code fix, never the owner's credentials.                                               |
 | Paid capacity     | `Insufficient balance`, `Concurrent runner limit`, a lost rented T4 runner, billing errors                                                              | One owner item; re-run once after he acts.                                                                     |
 | Outside           | A lost runner, `ERR_PNPM_FETCH`, a registry 403/404/5xx, `Could not resolve host`, a third-party 5xx, a process killed by a signal (`Killed`, 137, 143) | Retry once, note it. No fix, no revert. Repeats: one issue, stop retrying.                                     |
-| Already on master | The same job and step failing on master                                                                                                                 | Wait for the master fix.                                                                                       |
+| Already on master | The same check or test failing on master, or in other open pull requests (see "Inherited failures")                                                     | Link the master-break issue; no fix job; update the branch when its fix merges.                                |
 | Flaky             | The same test passes on the same commit, or on a later one that did not touch its package                                                               | One issue, `Flaky test: <test> (<package>)`, `bug` + `intermittent` + `priority:critical` (owner, 2026-10-22). |
 | Tool              | A bug in `tools/pr-open.sh`, a workflow or a check itself                                                                                               | Fix the tool on a branch and open its pull request; never work around it in the session.                       |
 | Code              | Everything else, judged from the failing log and the commits that could cause it                                                                        | A subagent fixes it at the root.                                                                               |
@@ -332,3 +334,37 @@ mechanism. **Re-runs** happen once: only when
 then write the `reran` marker. **An outside failure that repeats** (the same signal after its one retry) gets one
 `infrastructure` issue, filed or updated with the evidence, and nothing retries it again until that issue closes or
 the signal changes.
+
+## Inherited failures
+
+A red pull request whose failure master already has gets no fix job: it waits for master's fix. Over 14 days to
+2026-11-14, 29 of 219 red pull-request runs (27 pull requests) failed only on a break inherited from master; one
+(#7688) held 4 pull requests, and each got its own fix job that debugged it from scratch.
+
+**Check before any fix job for a red pull request** (pipeline-round's step 8, issue-round's own red pull requests):
+
+1. Name each failure: the failed check, and for a test job the failed tests (`file > name`).
+2. Read the `pipeline-health` MCP tool `master`, section `shared`: each row is a check failing on the same test in 2
+   or more open pull requests (or failing on master's newest build too), with those pull requests and the master
+   merges just before it began (suspects). A row naming this pull request, or this check and test, is a master
+   break; a `check.failed_alone` row (All Checks Pass failing with nothing under it) is not. So is an open master-break issue naming the test: `priority:critical`,
+   titled `Red master: ...`, `<run> lane red on master`, `Full run red: ...`, `Flaky test quarantined: ...`,
+   `Flaky test: ...`, or a bug naming the check. Find it with one search:
+   `gh issue list -R graphty-org/graphty-monorepo --state open --search "<test file or check> in:title,body" --json number,title,labels`,
+   and its open fix with `gh pr list -R graphty-org/graphty-monorepo --state open --search "<issue number>"`.
+3. It is not the pull request's own: its diff touches neither the failing test nor what that check reads. Otherwise
+   it is a code failure like any other.
+
+**Inherited:**
+
+- No master-break issue yet: file one (`bug`, `priority:critical`, an effort label; title
+  `Red master: <check> fails <test> in open pull requests`, body: the shared row, the pull requests it holds, the
+  suspects). It is then step 1's critical alarm, fixed once, on its own branch.
+- Write `pipeline-round: inherited <check> > <test> -- waits on #<issue>[, fix #<pr>]` once on the pull request and on
+  its issue. Start no fix job. A pull request red on an inherited break and on something of its own gets a fix job
+  for its own failure only, and the prompt names the inherited one to leave alone.
+- **When the fix merges** (the issue closed, or its fix pull request merged): the next round that finds that pull
+  request red with an `inherited` marker brings it up to date with master,
+  `gh api -X PUT repos/graphty-org/graphty-monorepo/pulls/<n>/update-branch`, and starts its checks on the new merge.
+  Never a re-run: a re-run keeps the stale merge commit and fails again. Red again on the same test after that: the
+  fix did not cover it, so reopen the issue with the evidence. Red on something else: an ordinary red pull request.

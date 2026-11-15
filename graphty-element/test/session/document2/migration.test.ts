@@ -212,7 +212,6 @@ describe("a version 1 project file, migrated", () => {
         assert.match(String((source.origin as JsonObject).copy), ULID);
         assert.deepStrictEqual(reader, {
             id: "reader",
-            label: "Your changes",
             kind: "reader",
             origin: reader.origin,
             copy: { operations: [] },

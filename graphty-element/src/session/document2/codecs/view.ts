@@ -14,6 +14,7 @@
 import type { CameraState } from "../../../camera/types";
 import type { AlgorithmKey, FilterCondition, LayerSpec, RuleTree, ScopeInput } from "../../../catalog/types";
 import { isGraphtyError } from "../../../errors/GraphtyError";
+import { dispatcherOf } from "../../dispatchers";
 import { ENGINE_VERSIONS } from "../../runs/engine";
 import type { Run } from "../../runs/types";
 import type { GraphSession, TransactionScope } from "../../types";
@@ -30,7 +31,7 @@ import type {
 } from "../types";
 import { layerNamesElements } from "./elementNaming";
 import { filterRule } from "./recipeCommands";
-import { restoredPositions, runNameOf } from "./results";
+import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
 import {
     cameraJson,
     cameraOf,
@@ -68,7 +69,11 @@ const MEMBERS = [
     "layout",
 ] as const;
 
-/** The members the session holds no state for (the live camera, the playhead): kept from the open and written back. */
+/**
+ * The members read from the live session where it has them (a renderer's camera, the timeline's
+ * playhead) and otherwise kept from the open and written back: a session that draws nothing has
+ * no camera, and one with the timeline off has no playhead.
+ */
 const HELD_ONLY = new Set<string>(["camera", "timeline"]);
 
 /** The option types whose values name nodes. */
@@ -254,7 +259,7 @@ function runJson(w: Writer, run: Run, pointer: string): JsonObject {
 
     return {
         id: run.id,
-        ...runNameOf(run.id),
+        ...recipeRunName(w.session, run.id),
         ...(name === null ? {} : { name }),
         algorithm: run.algorithm,
         ...(Object.keys(params).length === 0 ? {} : { params }),
@@ -328,6 +333,33 @@ function windowJson(session: GraphSession, window: TimeWindow): JsonObject {
 }
 
 /**
+ * The `camera` member: the renderer's camera now (spec 4.7 rule 2), or undefined with no renderer.
+ * @param session - The session.
+ * @returns The camera.
+ */
+function liveCamera(session: GraphSession): JsonObject | undefined {
+    const state = dispatcherOf(session).services.camera?.state?.();
+    return state === undefined ? undefined : cameraJson(state);
+}
+
+/**
+ * The `timeline` member: the playhead, where a seek would put the window in force -- its start
+ * when sliding, its end when cumulative -- or undefined with the timeline off or no window.
+ * @param session - The session.
+ * @returns The member.
+ */
+function timelineJson(session: GraphSession): JsonObject | undefined {
+    const window = session.features.has("timeline") ? session.time.committed : null;
+    if (window === null) {
+        return undefined;
+    }
+
+    const at = (window.mode ?? session.time.settings.mode) === "cumulative" ? window.to : window.from;
+    const instants = (session.visibility as SessionVisibilityApi).holdsInstants(window);
+    return { at: instants && typeof at === "number" ? new Date(at).toISOString() : at };
+}
+
+/**
  * The filter in force (spec 4.7 rule 4): one expression leaf on nodes or edges as graph.filter's
  * `{ on, where }`; any other filter as its rule tree, in the shape a rule set's definition holds
  * it, element-naming leaves as element references.
@@ -360,8 +392,9 @@ function visibilityJson(w: Writer): JsonObject | undefined {
         return undefined;
     }
 
+    // No filter in force is left out (spec 4.7 rule 4).
     return {
-        filter: filterJson(w, filter),
+        ...(filter === null ? {} : { filter: filterJson(w, filter) }),
         ...(window === null ? {} : { window: windowJson(w.session, window) }),
         showContext,
         conditions: mapRefs(conditions, w.mapper, "") as unknown[],
@@ -425,6 +458,7 @@ function freshBody(w: Writer): JsonObject {
     const { viewRotation, framing } = session.config;
     const layers = layersJson(w);
     return compact({
+        camera: liveCamera(session),
         views: [...session.views].flatMap(([name, state]) => {
             const camera = cameraJson(state);
             return camera === undefined ? [] : [{ name, camera }];
@@ -437,6 +471,7 @@ function freshBody(w: Writer): JsonObject {
             definition: mapRefs(set.definition, mapper, ""),
         })),
         visibility: visibilityJson(w),
+        timeline: timelineJson(session),
         viewRotation,
         framing,
         hiddenColumns: session.data.hiddenColumns().map(({ kind, name }) => ({ kind, name })),
@@ -473,7 +508,7 @@ function withNotRun(runs: unknown, memory: ViewMemory): unknown[] | undefined {
 
 /**
  * The body to write: the fresh body, with each member the session gave back unchanged written as
- * the open read it, and the members the session holds no state for written back as read.
+ * the open read it, and the camera and playhead the session has none of now written back as read.
  * @param fresh - The fresh body.
  * @param memory - The view memory.
  * @returns The body, in member order.
@@ -484,7 +519,7 @@ function keptBody(fresh: JsonObject, memory: ViewMemory): JsonObject {
         const now = name === "runs" ? withNotRun(fresh.runs, memory) : fresh[name];
         const kept = memory.kept.get(name);
         let value = kept?.applied === canonical(now) ? kept.original : now;
-        if (HELD_ONLY.has(name)) {
+        if (value === undefined && HELD_ONLY.has(name)) {
             value = memory.heldOnly.get(name);
         }
 
@@ -855,6 +890,10 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
     }
 
     r.memory.runOrder.push(id);
+    if (isObject(record) && typeof record.namespace === "string") {
+        markRecipeRun(context.session, id);
+    }
+
     const notRun = (): void => {
         context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: id } });
         r.memory.notRun.set(id, record);
@@ -1016,12 +1055,13 @@ function rememberRead(r: Reader, body: Readonly<JsonObject>): void {
             continue;
         }
 
+        const original = heldValue(name, body[name]);
         if (HELD_ONLY.has(name)) {
-            memory.heldOnly.set(name, heldValue(name, body[name]));
-        } else {
-            const now = name === "runs" ? withNotRun(fresh.runs, memory) : fresh[name];
-            memory.kept.set(name, { applied: canonical(now), original: body[name] });
+            memory.heldOnly.set(name, original);
         }
+
+        const now = name === "runs" ? withNotRun(fresh.runs, memory) : fresh[name];
+        memory.kept.set(name, { applied: canonical(now), original });
     }
 }
 

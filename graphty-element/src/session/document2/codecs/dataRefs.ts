@@ -14,7 +14,7 @@ import { sha256Hex } from "../../../utils/sha256";
 import { COLUMNS_VALUE, type ColumnSettings } from "../../commands/data";
 import { dispatcherOf } from "../../dispatchers";
 import { ISSUES_VALUE, type IssueState } from "../../issues";
-import { redactedParams } from "../../sources/member";
+import { type LoadFacts, redactedParams } from "../../sources/member";
 import { SOURCE_ID } from "../../styles/fileStyles/path";
 import type { EdgeRecord, GraphSession, LoadedSource, NodeRecord } from "../../types";
 import { projectMemory } from "../memory";
@@ -109,10 +109,27 @@ export function keyText(value: unknown): string | undefined {
     }
 
     if (typeof value === "number" && Number.isFinite(value)) {
-        return String(value);
+        // An integer too big to hold exactly is its exact decimal string, never "1e+21" (spec 11).
+        return Number.isInteger(value) && !Number.isSafeInteger(value) ? BigInt(value).toString() : String(value);
     }
 
     return typeof value === "boolean" ? String(value) : undefined;
+}
+
+/** The strings spec 11 writes for the non-finite numbers. */
+const NON_FINITE = new Set(["Infinity", "-Infinity", "NaN"]);
+/** An integer written as its decimal string because it is too big to hold exactly. */
+const BIG_INTEGER = /^-?\d{16,}$/;
+
+/**
+ * A string cell of a number column read back (spec 11): `"Infinity"`, `"-Infinity"` and `"NaN"`
+ * become those numbers, and so does an integer too big to hold exactly written as its decimal
+ * string; any other string stays the string it is.
+ * @param value - The cell.
+ * @returns The number, or the string.
+ */
+export function numericCell(value: string): number | string {
+    return NON_FINITE.has(value) || BIG_INTEGER.test(value) ? Number(value) : value;
 }
 
 /**
@@ -213,8 +230,12 @@ interface DataMemory {
     readonly nodeRefs: Map<NodeId, NodeRef>;
     /** The nodes only an edge named: supplied by no source, and not the reader's (spec 4.1.9). */
     readonly namedOnly: Set<NodeId>;
-    /** Each network source's `origin` as read, by source id, until the session records its own load. */
+    /** Each source's `origin` as read, by source id, until the session records its own load. */
     readonly origins: Map<string, JsonObject>;
+    /** Each source's `kind` as read, by source id. */
+    readonly kinds: Map<string, string>;
+    /** The reader's edits, removes and merges the last read applied, by `op`. */
+    folded: readonly string[];
     /** The edge-id column the last data section read named, until settings say one. */
     edgeIdColumn?: string;
 }
@@ -238,6 +259,8 @@ function memoryOf(session: GraphSession): DataMemory {
             nodeRefs: new Map(),
             namedOnly: new Set(),
             origins: new Map(),
+            kinds: new Map(),
+            folded: [],
         };
         MEMORY.set(session, memory);
     }
@@ -272,8 +295,12 @@ export interface DataRead {
     readonly namedOnly: readonly NodeId[];
     /** Whether the read left out part of the section. */
     readonly refused: boolean;
-    /** Each network source's `origin` as read, by source id. */
+    /** Each source's `origin` as read, by source id. */
     readonly origins?: readonly (readonly [string, JsonObject])[];
+    /** Each source's `kind` as read, by source id. */
+    readonly kinds?: readonly (readonly [string, string])[];
+    /** The reader operations read that are not `add`s, by `op`. */
+    readonly folded?: readonly string[];
     /** Each reader-added edge's key, by its session id. */
     readonly readerEdges: readonly (readonly [EdgeId, string])[];
     /** The records of the sources that could not be fetched. */
@@ -299,6 +326,10 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
         memory.origins.set(id, origin);
     }
 
+    for (const [id, kind] of read.kinds ?? []) {
+        memory.kinds.set(id, kind);
+    }
+
     for (const id of read.namedOnly) {
         memory.namedOnly.add(id);
     }
@@ -312,6 +343,7 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
     }
 
     memory.types = read.types;
+    memory.folded = read.folded ?? [];
     memory.edgeIdColumn = read.edgeIdColumn;
     const model = dataModelOf(session);
     for (const [id, copy] of model.copies) {
@@ -423,19 +455,49 @@ interface DataModel {
     readonly reader?: ReaderCopy;
     /** The sources that could not be fetched: their records as read. */
     readonly unavailable: ReadonlyMap<string, JsonObject>;
+    /** The working columns a reserved prefix left out, as `<kind>:<column>`. */
+    readonly reserved: ReadonlySet<string>;
+}
+
+/** The `_source.*` columns graphty-element keeps provenance in: its own, written as `_source.loads`. */
+const PROVENANCE = new Set(["_source.loads", "_source.expansion", "_source.next"]);
+
+/**
+ * Whether a column name has a reserved prefix (spec 4.1.1): `graphty.` (file-style columns,
+ * `graphty.style.*`, are graphty-element's own) or `_source.`.
+ * @param name - The column.
+ * @returns True when no working column may have it.
+ */
+function isReserved(name: string): boolean {
+    return (name.startsWith("graphty.") && !name.startsWith("graphty.style.")) || name.startsWith("_source.");
 }
 
 /**
- * A record without the `_source.*` columns today keeps provenance in.
+ * A record without the columns a reserved prefix keeps out: graphty-element's own provenance,
+ * and any working column so named, which is noted to be reported.
  * @param record - The record.
+ * @param kind - `node` or `edge`.
+ * @param refused - Collects `<kind>:<column>` for each working column left out.
  * @returns The record.
  */
-function withoutSourceColumns<T extends Readonly<JsonObject>>(record: T): T {
-    if (!Object.keys(record).some((name) => name.startsWith("_source."))) {
+function withoutReserved<T extends Readonly<JsonObject>>(record: T, kind: string, refused: Set<string>): T {
+    if (!Object.keys(record).some(isReserved)) {
         return record;
     }
 
-    return Object.fromEntries(Object.entries(record).filter(([name]) => !name.startsWith("_source."))) as T;
+    return Object.fromEntries(
+        Object.entries(record).filter(([name]) => {
+            if (!isReserved(name)) {
+                return true;
+            }
+
+            if (!PROVENANCE.has(name)) {
+                refused.add(`${kind}:${name}`);
+            }
+
+            return false;
+        }),
+    ) as T;
 }
 
 /**
@@ -506,26 +568,66 @@ function keyCellOf(ref: NodeRef | undefined, id: unknown): unknown {
     return ref === undefined || ref.space.startsWith("source:") ? id : ref.key;
 }
 
-/** Today's load kinds as version 2 source kinds. A joined table's own origin is not kept. */
+/**
+ * Today's load kinds as version 2 source kinds. A joined table holds no bytes of its own that the
+ * session keeps, so it is a derived source.
+ */
 const KINDS: Readonly<Record<LoadedSource["kind"], string>> = {
     file: "file",
     url: "url",
     server: "network",
     sample: "sample",
-    join: "file",
+    join: "derived",
 };
 
-/** The source kinds whose copy id is the digest of the copy, not a minted ULID. */
+/** The source kinds whose copy id is the digest of the bytes read, not a minted ULID. */
 const HASHED_KINDS = new Set(["file", "url", "sample"]);
+
+/**
+ * What a load read, as the session recorded it.
+ * @param session - The session.
+ * @param key - The load's key.
+ * @returns The facts, or undefined.
+ */
+function factsOf(session: GraphSession, key: string): LoadFacts | undefined {
+    const data = session.data as Partial<{ loadFactsOf(key: string): LoadFacts | undefined }>;
+    return typeof data.loadFactsOf === "function" ? data.loadFactsOf(key) : undefined;
+}
+
+/**
+ * The digest of the bytes a load read, as a copy id: `sha256:` and lowercase hex.
+ * @param facts - The load's facts.
+ * @returns The copy id, or undefined when the session kept no digest.
+ */
+function bytesCopyId(facts: LoadFacts | undefined): string | undefined {
+    const hex = facts?.file?.sha256 ?? facts?.url?.sha256;
+    return hex === undefined ? undefined : `sha256:${hex.replace(/^sha256:/, "").toLowerCase()}`;
+}
+
+/**
+ * A source's kind: as the file it was read from said, else from its load.
+ * @param source - The source.
+ * @param memory - The memory.
+ * @returns The kind.
+ */
+function kindOfSource(source: ModelSource, memory: DataMemory): string {
+    return memory.kinds.get(source.id) ?? KINDS[source.load.kind];
+}
 
 /**
  * A source's copy: its node and edge tables, with the copy id this writer gives it.
  * @param source - The source.
  * @param refs - The node references.
  * @param memory - The memory.
+ * @param facts - What its load read.
  * @returns The copy.
  */
-function copyOf(source: ModelSource, refs: ReadonlyMap<NodeId, NodeRef>, memory: DataMemory): Copy {
+function copyOf(
+    source: ModelSource,
+    refs: ReadonlyMap<NodeId, NodeRef>,
+    memory: DataMemory,
+    facts: LoadFacts | undefined,
+): Copy {
     const nodes =
         source.nodes.length > 0
             ? tableOf(
@@ -558,10 +660,18 @@ function copyOf(source: ModelSource, refs: ReadonlyMap<NodeId, NodeRef>, memory:
     }
 
     const digest = digestOf(tables);
-    // ponytail: a file, url or sample copy id hashes the copy as written, not the bytes as read,
-    // since today's model keeps no bytes; hash them once loads keep their bytes' digest.
-    const hashed = HASHED_KINDS.has(KINDS[source.load.kind]);
-    const { copy } = stableId(memory.copies.get(source.id), digest, () => (hashed ? digest : mintUlid()));
+    const remembered = memory.copies.get(source.id);
+    let copy: string;
+    if (HASHED_KINDS.has(kindOfSource(source, memory))) {
+        // The digest of the bytes as read (spec 4.1.2), whatever the reader changed since: the
+        // load's own, else the one the file it was opened from stamped. ponytail: a generated
+        // sample, or a load whose bytes the session never digested, has no bytes to hash, so its
+        // copy as written stands in for them.
+        copy = bytesCopyId(facts) ?? remembered?.copy ?? digest;
+    } else {
+        ({ copy } = stableId(remembered, digest, mintUlid));
+    }
+
     memory.copies.set(source.id, { digest, copy });
     return { tables, columns, digest, copy };
 }
@@ -636,8 +746,9 @@ function dataModelOf(session: GraphSession): DataModel {
     // so keys meet across loads exactly as today's ids do.
     const shared = sources.length === 0 ? `source:${READER}` : `source:${sources[0].id}`;
 
-    const nodes = session.data.nodes().map(withoutSourceColumns);
-    const edges = session.data.edges().map(withoutSourceColumns);
+    const reserved = new Set<string>();
+    const nodes = session.data.nodes().map((node) => withoutReserved(node, "node", reserved));
+    const edges = session.data.edges().map((edge) => withoutReserved(edge, "edge", reserved));
     const nodeLoads = new Map<NodeId, string[]>();
     const nodeRefs = new Map<NodeId, NodeRef>();
     const readerNodes: NodeRecord[] = [];
@@ -671,7 +782,9 @@ function dataModelOf(session: GraphSession): DataModel {
         }
     }
 
-    const copies = new Map(sources.map((source) => [source.id, copyOf(source, nodeRefs, memory)]));
+    const copies = new Map(
+        sources.map((source) => [source.id, copyOf(source, nodeRefs, memory, factsOf(session, source.load.key))]),
+    );
     const edgeIdColumn = edgeIdColumnOf(session);
     const edgeRefs = new Map<EdgeId, EdgeRef>();
     for (const source of sources) {
@@ -701,6 +814,7 @@ function dataModelOf(session: GraphSession): DataModel {
         copies,
         ...(reader === undefined ? {} : { reader }),
         unavailable: memory.unavailable,
+        reserved,
     };
 }
 
@@ -819,6 +933,38 @@ function networkOrigin(source: ModelSource, model: DataModel, copy: string): Jso
 }
 
 /**
+ * A file, url, sample or derived source's `origin` (spec 4.1.2): a file's name, size and media
+ * type; a URL's address, size, media type and HTTP validators; a sample's dataset and version.
+ * What the load read wins; else what the file it was opened from said.
+ * @param source - The source.
+ * @param model - The model.
+ * @param kind - Its kind.
+ * @param copy - Its copy id.
+ * @returns The origin.
+ */
+function originOf(source: ModelSource, model: DataModel, kind: string, copy: string): JsonObject {
+    const { load } = source;
+    const facts = factsOf(model.session, load.key);
+    const { copy: _copy, ...read } = memoryOf(model.session).origins.get(source.id) ?? {};
+    const sample = facts?.sample;
+    const live: JsonObject = {
+        ...(load.fileName === undefined ? {} : { name: load.fileName }),
+        ...(load.url === undefined ? {} : { url: load.url }),
+        ...(load.size === undefined ? {} : { size: load.size }),
+        ...(jsonSafe({
+            size: facts?.file?.size,
+            mediaType: facts?.file?.mediaType,
+            etag: facts?.url?.etag,
+            lastModified: facts?.url?.lastModified,
+            dataset: typeof sample?.dataset === "string" ? sample.dataset : undefined,
+            version: typeof sample?.version === "string" ? sample.version : undefined,
+        }) as JsonObject),
+    };
+    // A derived source holds only its copy id; the details belong to the kinds that read bytes.
+    return kind === "derived" ? { copy } : { copy, ...read, ...live };
+}
+
+/**
  * One source record (spec 4.1.2), from its load.
  * @param source - The source.
  * @param model - The model.
@@ -834,18 +980,11 @@ function sourceRecordOf(
 ): JsonObject {
     const { load } = source;
     const copy = model.copies.get(source.id) as Copy;
-    const kind = KINDS[load.kind];
+    const kind = kindOfSource(source, memoryOf(model.session));
     const options = redactedParams(load.config ?? {});
     delete options.url;
     const origin: JsonObject =
-        kind === "network"
-            ? networkOrigin(source, model, copy.copy)
-            : {
-                  copy: copy.copy,
-                  ...(load.fileName === undefined ? {} : { name: load.fileName }),
-                  ...(load.url === undefined ? {} : { url: load.url }),
-                  ...(load.size === undefined ? {} : { size: load.size }),
-              };
+        kind === "network" ? networkOrigin(source, model, copy.copy) : originOf(source, model, kind, copy.copy);
     const { choices } = load;
     if (storage === "referenced" && kind === "file") {
         problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id } });
@@ -989,8 +1128,13 @@ function elementTypesOf(
                 }
             }
 
-            const first = edgeTypes.find((type) => rulesOf(type).some((rule) => ruleMatches(rule, source.id, edge)));
-            edges.set(edge.id, first === undefined ? [] : [String(first.name)]);
+            // An edge built from several rows takes the type of the first row read (spec 4.1.8).
+            if (!edges.has(edge.id)) {
+                const first = edgeTypes.find((type) =>
+                    rulesOf(type).some((rule) => ruleMatches(rule, source.id, edge)),
+                );
+                edges.set(edge.id, first === undefined ? [] : [String(first.name)]);
+            }
         }
     }
 
@@ -1045,26 +1189,41 @@ function issuesOf(model: DataModel): JsonObject | undefined {
     return ignored.length + kept.length === 0 ? undefined : { ignored, kept };
 }
 
-/** The node-link members graphty writes itself, never a working column of that name. */
-const NODE_MEMBERS = ["id", "graphty.space", "graphty.key", "graphty.types", "_source.loads"];
-const LINK_MEMBERS = ["source", "target", "key", "id", "graphty.load", "graphty.key", "graphty.types", "_source.loads"];
+/** The node-link handles: a working column of one of these names is written `<name> (column)`. */
+const HANDLES = new Set(["id", "source", "target", "key"]);
 
 /**
- * A record's columns without the members node-link holds itself.
+ * A record's working columns as node-link graph attributes (spec 4.1.9): a column named like a
+ * node-link handle as `<name> (column)`, whatever its value; file-style columns never.
  * @param columns - The record's columns.
- * @param leaveOut - The names not written.
- * @returns The columns.
+ * @returns The attributes.
  */
-function userColumns(columns: Readonly<JsonObject>, leaveOut: readonly string[]): JsonObject {
+function userColumns(columns: Readonly<JsonObject>): JsonObject {
     const out: JsonObject = {};
     for (const [name, value] of Object.entries(columns)) {
         // File-style columns are never written into the graph (spec 4.1.2 rule 7).
-        if (!leaveOut.includes(name) && !name.startsWith("graphty.style.") && value !== undefined) {
-            out[name] = jsonSafe(value);
+        if (!name.startsWith("graphty.style.") && value !== undefined) {
+            out[HANDLES.has(name) ? `${name} (column)` : name] = jsonSafe(value);
         }
     }
 
     return out;
+}
+
+/**
+ * An edge's end columns as its copy writes them, or none for a reader-added edge.
+ * @param edge - The edge.
+ * @param ref - Its reference.
+ * @param nodeRefs - Each node's reference.
+ * @returns The `source` and `target` columns.
+ */
+function endColumns(edge: EdgeRecord, ref: EdgeRef, nodeRefs: ReadonlyMap<NodeId, NodeRef>): JsonObject {
+    return ref.load === READER
+        ? { source: undefined, target: undefined }
+        : {
+              source: keyCellOf(nodeRefs.get(edge.source), edge.source),
+              target: keyCellOf(nodeRefs.get(edge.target), edge.target),
+          };
 }
 
 /**
@@ -1098,14 +1257,18 @@ function graphOf(model: DataModel, embedded: ReadonlySet<string>, types: readonl
             "graphty.key": ref.key,
             "graphty.types": typed.nodes.get(node.id) ?? [],
             "_source.loads": loads,
-            ...userColumns(node, NODE_MEMBERS),
+            // A node a load supplied has its key column, `id` in the copy, as the copy writes it; one
+            // the reader added or only an edge named has no row, so its session id is no column.
+            ...userColumns({
+                ...node,
+                id: loads.some((id) => id !== READER) ? keyCellOf(ref, node.id) : undefined,
+            }),
         });
     }
 
     const links: JsonObject[] = [];
     const pairs = new Map<string, number>();
     // Every working column is written, the edge-id column included (spec 4.1.9).
-    const leaveOut = LINK_MEMBERS;
     for (const edge of model.edges) {
         const loads = model.edgeLoads.get(edge.id) ?? [];
         const from = handles.get(edge.source);
@@ -1124,7 +1287,9 @@ function graphOf(model: DataModel, embedded: ReadonlySet<string>, types: readonl
             "graphty.key": ref.key,
             "graphty.types": typed.edges.get(edge.id) ?? [],
             "_source.loads": loads,
-            ...userColumns(edge, leaveOut),
+            // The edge's session id is no working column; its end columns are, as the copy writes
+            // them, for an edge a load supplied, and a reader-added edge has no row at all.
+            ...userColumns({ ...edge, id: undefined, ...endColumns(edge, ref, model.nodeRefs) }),
         });
     }
 
@@ -1159,9 +1324,9 @@ function sourceRecordsOf(
     const records: JsonObject[] = [];
     const embedded = new Set<string>([READER]);
     if (model.reader !== undefined) {
+        // The reader source has no label unless a caller gives one: graphty-element writes no words.
         records.push({
             id: READER,
-            label: "Your changes",
             kind: "reader",
             origin: { copy: model.reader.copy },
             copy: { operations: model.reader.operations },
@@ -1187,6 +1352,64 @@ function sourceRecordsOf(
     return { records, embedded };
 }
 
+/** The history facts of the reader's own edits, removes and merges, by the operation each is. */
+const FOLDED_STEPS: Readonly<Record<string, string>> = {
+    "data.edit": "edit",
+    "data.remove-nodes": "remove",
+    "data.remove-edges": "remove",
+    "data.merge-nodes": "merge",
+};
+
+/** The history facts that start the open data over: what came before them is not the reader's now. */
+const LOAD_STEPS = new Set(["data.import", "data.import-source", "data.set", "data.clear"]);
+
+/**
+ * The reader's edits, removes and merges the session holds, by `op`: those an open read, and those
+ * made since the data was last loaded, as the history records them.
+ * @param model - The model.
+ * @returns The operations.
+ */
+function foldedOperations(model: DataModel): Set<string> {
+    const { history } = model.session;
+    const applied = history.steps.slice(0, history.position);
+    const ops = new Set(memoryOf(model.session).folded);
+    // Walked newest first, up to the last load.
+    for (const step of applied.reverse()) {
+        if (LOAD_STEPS.has(step.fact.code)) {
+            break;
+        }
+
+        const op = FOLDED_STEPS[step.fact.code];
+        if (op !== undefined) {
+            ops.add(op);
+        }
+    }
+
+    return ops;
+}
+
+/**
+ * Report what the save cannot write as the spec spells it: each working column a reserved prefix
+ * keeps out (spec 4.1.1), and each kind of reader operation the reader source cannot hold yet,
+ * whose result is written into the source copies instead (spec 4.1.4).
+ * @param model - The model.
+ * @param problems - Collects the reports.
+ */
+function reportLeftOut(model: DataModel, problems: DocumentProblem[]): void {
+    for (const column of model.reserved) {
+        problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "data", field: column } });
+    }
+
+    // ponytail: the session keeps no log of the reader's edits, removes and merges, only their
+    // result, so the reader source writes `add`s alone; keep a log in the data store to write them.
+    for (const op of foldedOperations(model)) {
+        problems.push({
+            code: "W_MEMBER_LEFT_OUT",
+            params: { section: "data", pointer: "/sources/reader/copy/operations", field: op },
+        });
+    }
+}
+
 /**
  * The data section's body (spec 4.1) from a model, with its build stamp: the one remembered while
  * the build inputs are unchanged, else a newly minted one.
@@ -1201,6 +1424,7 @@ function bodyOf(
     problems: DocumentProblem[],
 ): WrittenBody {
     const { records, embedded } = sourceRecordsOf(model, embed, problems);
+    reportLeftOut(model, problems);
     const types = typesOf(model);
     const conversions = conversionsOf(model.session);
     const issues = issuesOf(model);

@@ -53,6 +53,11 @@ export interface CameraService {
      * @returns Settles once the camera has arrived.
      */
     move(command: ViewCameraCommand): Promise<void>;
+    /**
+     * Where the camera is now, as `Graph.getCameraState` reads it: what a save writes.
+     * @returns The camera state.
+     */
+    state?(): CameraState;
 }
 
 /**

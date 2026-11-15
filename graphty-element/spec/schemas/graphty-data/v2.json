@@ -284,7 +284,7 @@
                             "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
                         }
                     },
-                    "required": ["id", "label", "kind", "origin", "copy"],
+                    "required": ["id", "kind", "origin", "copy"],
                     "description": "The reader's own changes, as operations in the order made, applied after the join steps and the conversions. Always embedded, at most one. Any other member holds the data section.",
                     "unevaluatedProperties": false
                 },

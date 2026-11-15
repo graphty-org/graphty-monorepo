@@ -184,6 +184,25 @@ describe("saving", () => {
         session.dispose();
     });
 
+    it("refuses a file with a duplicate member name, which is not I-JSON, and changes nothing", async () => {
+        const session = await ownProject();
+        const text = readText("examples/card-fraud.graphty.json");
+        const duplicated = text.replace(
+            '"kind": "graphty-document"',
+            '"kind": "graphty-document", "kind": "graphty-document"',
+        );
+        assert.notStrictEqual(duplicated, text);
+        const error = await refusal(session.project.open(duplicated));
+        assert.strictEqual(error.code, "E_BAD_DOCUMENT");
+        assert.deepEqual(error.details, { duplicate: "kind" });
+        assert.deepEqual(
+            session.data.nodes().map((node) => node.id),
+            ["P", "Q"],
+            "the open changed nothing",
+        );
+        session.dispose();
+    });
+
     it("refuses a version 2 option without format 2, and names the experiment a version 2 file needs", async () => {
         const session = createGraphSession(ON);
         for (const options of [{ sections: ["style" as const] }, { form: "section" as const }, { results: true }]) {

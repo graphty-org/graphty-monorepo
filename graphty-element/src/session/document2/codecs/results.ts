@@ -25,7 +25,7 @@ import type {
     SectionCodec,
     WriteContext,
 } from "../types";
-import { jsonSafe } from "./dataRefs";
+import { jsonSafe, numericCell } from "./dataRefs";
 import { canonical, mintUlid, rerunsOnOpen, viewRunRecord } from "./viewParts";
 
 /**
@@ -68,6 +68,35 @@ export function runNameOf(id: RunId): RunName | undefined {
     return fits ? { namespace, as } : undefined;
 }
 
+/** The runs a recipe made: started by an applied recipe, or read with a `namespace`. */
+const RECIPE_RUNS = projectMemory<Set<string>>();
+
+/**
+ * Remember that a recipe made a run, so it is written with its `namespace` and `as`.
+ * @param session - The session.
+ * @param id - The run id.
+ */
+export function markRecipeRun(session: object, id: string): void {
+    let runs = RECIPE_RUNS.get(session);
+    if (runs === undefined) {
+        runs = new Set();
+        RECIPE_RUNS.set(session, runs);
+    }
+
+    runs.add(id);
+}
+
+/**
+ * A run's namespace and `as` as a save writes them: only for a recipe-made run (spec 4.5 rule 1);
+ * a hand-started run whose id happens to hold `__` writes neither.
+ * @param session - The session.
+ * @param id - The run id.
+ * @returns The namespace and `as`, or undefined.
+ */
+export function recipeRunName(session: object, id: RunId): RunName | undefined {
+    return RECIPE_RUNS.get(session)?.has(id) === true ? runNameOf(id) : undefined;
+}
+
 /**
  * The run id of a recipe-made run: the inverse of {@link runNameOf}.
  * @param name - The namespace and `as`.
@@ -88,8 +117,7 @@ export function runIdOf(name: RunName): RunId {
  * @returns The value.
  */
 function decode(value: unknown, numeric: boolean): unknown {
-    // Number() reads "Infinity", "-Infinity", "NaN" and a decimal string.
-    return numeric && typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+    return numeric && typeof value === "string" ? numericCell(value) : value;
 }
 
 /**
@@ -311,7 +339,7 @@ function runOut(
         result.fields.filter((field) => field.kind === "edge"),
     );
     return {
-        ...runNameOf(run.id),
+        ...recipeRunName(context.session, run.id),
         algorithm: run.algorithm,
         params,
         engine: encode(record.engine),
@@ -380,6 +408,9 @@ function layoutOut(context: WriteContext, stamp: BuildStamp | undefined): JsonOb
         dimension: layout.dimension === "2d" ? 2 : 3,
         options: encode(layout.options),
         seed: Number.isInteger(seed) ? seed : null,
+        // ponytail: the session does not time a layout, so a fresh record writes 0, as a run with
+        // no recorded duration does; time it in the layout engine when a reader needs it.
+        durationMs: 0,
         engine: encode(ENGINE_VERSIONS),
         bindsTo: runBinding(undefined, stamp),
         nodes: { refs: nodeRefs, columns },
@@ -726,6 +757,10 @@ async function readRun(reading: Reading, id: RunId, entry: JsonObject): Promise<
         kept.set(id, { entry, result: undefined });
         context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: id } });
         return;
+    }
+
+    if (typeof entry.namespace === "string") {
+        markRecipeRun(context.session, id);
     }
 
     checkBinding(reading, id, entry.bindsTo);

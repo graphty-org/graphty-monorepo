@@ -15,6 +15,8 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import type { RuleTree } from "../../../src/catalog/types";
+import { dispatcherOf } from "../../../src/session/dispatchers";
+import { markRecipeRun } from "../../../src/session/document2/codecs/results";
 import { viewCodec } from "../../../src/session/document2/codecs/view";
 import { schemaUrl } from "../../../src/session/document2/framing";
 import {
@@ -450,6 +452,9 @@ describe("view codec: writing", () => {
     it("writes a recipe-made run with its namespace and name", async () => {
         const session = await sessionWithData();
         await session.runs.start("degree", undefined, { as: "card_testing__links", style: false, scope: "graph" });
+        const [handStarted] = (await save(session)).runs as JsonObject[];
+        assert.notProperty(handStarted, "namespace", "an id shaped <ns>__<as> alone is not recipe-made");
+        markRecipeRun(session, "card_testing__links");
         const [run] = (await save(session)).runs as JsonObject[];
         assert.deepEqual(run, {
             id: "card_testing__links",
@@ -458,6 +463,36 @@ describe("view codec: writing", () => {
             algorithm: "degree",
             scope: "graph",
         });
+    });
+});
+
+describe("view codec: the live camera and playhead", () => {
+    it("writes a fresh session's camera and playhead from the session, not only from an opened file", async () => {
+        const session = createGraphSession({ features: ["save-files-v2", "timeline"] });
+        await session.data.addNodes(
+            ["2026-11-09T00:00:00Z", "2026-11-10T00:00:00Z", "2026-11-11T00:00:00Z"].map((t, n) => ({
+                id: `n${String(n)}`,
+                t,
+            })),
+        );
+        await session.time.setField({ nodes: { start: "t" } });
+        await session.time.window({ from: Date.parse("2026-11-10T00:00:00Z"), to: Date.parse("2026-11-11T00:00:00Z") });
+        // What a renderer gives the session: where its camera is now.
+        dispatcherOf(session).services.camera = {
+            move: () => Promise.resolve(),
+            state: () => ({ position: { x: 1, y: 2, z: 3 }, target: { x: 0, y: 0, z: 0 } }),
+        };
+        const saved = await save(session);
+        assert.deepEqual(saved.camera, {
+            dimension: 3,
+            controller: "orbit",
+            position: { x: 1, y: 2, z: 3 },
+            target: { x: 0, y: 0, z: 0 },
+        });
+        assert.deepEqual(saved.timeline, { at: "2026-11-10T00:00:00.000Z" });
+        assert.notProperty(saved.visibility, "filter", "no filter in force is left out");
+        assert.deepEqual(invalid(saved), []);
+        session.dispose();
     });
 });
 

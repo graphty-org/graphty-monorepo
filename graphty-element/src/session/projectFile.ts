@@ -47,7 +47,7 @@ import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { shaderIdsIn } from "./commands/shaderCopies";
 import type { SessionData } from "./data";
 import { openDocument2, saveDocument2 } from "./document2/document";
-import { isJsonObject, isVersion2, parseDocument } from "./document2/framing";
+import { assertIJson, isJsonObject, isVersion2, parseDocument } from "./document2/framing";
 import { migrateDocument1 } from "./document2/migration";
 import { SECTION_CODECS } from "./document2/registry";
 import {
@@ -1520,6 +1520,9 @@ function version2Of(
 
     checkTree(value, 1);
     if (isVersion2(value)) {
+        // A version 2 file is I-JSON (spec 1): JSON.parse keeps the last of a duplicate member,
+        // so the text itself is checked.
+        assertIJson(text);
         return { value, problems: [] };
     }
 

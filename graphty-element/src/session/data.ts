@@ -1693,6 +1693,16 @@ export class SessionData implements SessionDataApi {
     }
 
     /**
+     * What a load read: its bytes' digest, size and media type, a URL's validators, a sample's
+     * dataset. Internal: the version 2 data section writes a source's origin and copy id from it.
+     * @param key - The load's key.
+     * @returns The facts, or undefined for a load with none recorded.
+     */
+    loadFactsOf(key: SourceKey): LoadFacts | undefined {
+        return this.loadFacts.get(key);
+    }
+
+    /**
      * What a project file writes about the loads: the `graphty-sources` member (null when the graph
      * holds no load), what the save left out, and how each record's `_source.loads` is written.
      * Internal: the project file writes it.

@@ -138,8 +138,8 @@
         },
         "window": {
             "attribute": "data.time",
-            "from": "2026-11-09T00:00:00Z",
-            "to": "2026-11-11T00:00:00Z"
+            "from": "2026-11-09T00:00:00.000Z",
+            "to": "2026-11-11T00:00:00.000Z"
         },
         "showContext": true,
         "conditions": [],

@@ -49,7 +49,7 @@ import {
     unknownMember,
     unknownScopeMember,
 } from "./recipeCommands";
-import { restoredPositions } from "./results";
+import { markRecipeRun, restoredPositions } from "./results";
 import { fileIdsOf, fileSetId } from "./viewParts";
 
 /** The header members of an opened recipe that the session has no home for, kept for its re-save. */
@@ -739,6 +739,7 @@ class Replay {
         this.started.add(as);
         const { context } = this;
         const id = this.runId(as);
+        markRecipeRun(context.session, id);
         if (!context.rerun && !context.canned.has(id)) {
             this.notRun(as);
             return;

@@ -722,7 +722,6 @@ export function migrateData(inputs: DataInputs): MigratedData {
     };
     const reader = {
         id: "reader",
-        label: "Your changes",
         kind: "reader",
         origin: { copy: readerCopy },
         copy: { operations: [] },

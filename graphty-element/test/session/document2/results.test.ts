@@ -14,7 +14,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import type { EdgeId, NodeId } from "../../../src/catalog/types";
-import { resultsCodec, runIdOf, runNameOf } from "../../../src/session/document2/codecs/results";
+import { markRecipeRun, resultsCodec, runIdOf, runNameOf } from "../../../src/session/document2/codecs/results";
 import type {
     BuildStamp,
     DocumentProblem,
@@ -255,6 +255,9 @@ describe("run ids in a document", () => {
 describe("writing results", () => {
     it("writes every finished run by run id and the layout, valid against the schema", async () => {
         const { session } = await withRuns();
+        // A hand-started run whose id only looks recipe-made writes neither namespace nor as.
+        assert.notProperty(runsOf(await save(session)).lab__degree, "namespace");
+        markRecipeRun(session, "lab__degree");
         const section = await save(session);
         assert.deepEqual(invalid(section), []);
         const runs = runsOf(section);

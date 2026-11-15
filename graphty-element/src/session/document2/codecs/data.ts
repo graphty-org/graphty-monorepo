@@ -53,6 +53,7 @@ import {
     isPlainObject,
     keyText,
     nodeRefOf,
+    numericCell,
     READER,
     recordKey,
     rememberRead,
@@ -65,6 +66,12 @@ import {
 // ---------------------------------------------------------------------------------------------
 
 const SOURCE_KINDS = new Set(["file", "url", "network", "sample", "derived"]);
+/** The kinds whose copy id hashes the bytes; the rest (network, derived, reader) mint a ULID. */
+const HASHED_KINDS = new Set(["file", "url", "sample"]);
+/** A hashed copy id: `sha256:` and lowercase hex. */
+const SHA256 = /^sha256:[0-9a-f]{64}$/;
+/** A network source's closed `origin` (spec 4.1.2). */
+const NETWORK_ORIGIN = new Set(["copy", "url", "credentials", "etag", "lastModified", "ledger"]);
 /** The join shapes of version 2; only the first two are built by this reader. */
 const JOIN_OPS = new Set(["join.add", "join.merge", "join.node-values", "join.edge-values", "join.edges"]);
 const BUILT_OPS = new Set(["join.add", "join.merge"]);
@@ -258,7 +265,7 @@ function cellOf(table: Table, name: string, row: number): unknown {
         return undefined;
     }
 
-    return typeof value === "string" && NUMERIC.has(String(dtype)) ? Number(value) : value;
+    return typeof value === "string" && NUMERIC.has(String(dtype)) ? numericCell(value) : value;
 }
 
 /**
@@ -366,6 +373,13 @@ function checkSource(record: JsonObject, pointer: string): ReadSource {
     need(typeof id === "string" && SOURCE_ID.test(id), `${pointer}/id`);
     need(typeof kind === "string" && SOURCE_KINDS.has(kind), `${pointer}/kind`);
     need(isPlainObject(origin) && typeof origin.copy === "string", `${pointer}/origin`);
+    // The copy id's form follows the kind: a bytes hash, or a ULID (spec 4.1.2).
+    need((HASHED_KINDS.has(kind) ? SHA256 : ULID).test(origin.copy), `${pointer}/origin/copy`);
+    if (kind === "network") {
+        closed(origin, NETWORK_ORIGIN, `${pointer}/origin`);
+        closed(origin.credentials ?? {}, new Set(["slot"]), `${pointer}/origin/credentials`);
+    }
+
     checkMapping(record.mapping ?? {}, `${pointer}/mapping`);
     closed(record.settings ?? {}, SETTINGS, `${pointer}/settings`);
     if (copy === undefined) {
@@ -518,8 +532,12 @@ interface Built {
     readonly unavailable: JsonObject[];
     /** Whether the build left out a part of the section, so a re-save writes other data than it read. */
     readonly refused: boolean;
-    /** Each network source's `origin` as read, by source id. */
+    /** Each source's `origin` as read, by source id. */
     readonly origins: readonly (readonly [string, JsonObject])[];
+    /** Each source's `kind` as read, by source id. */
+    readonly kinds: readonly (readonly [string, string])[];
+    /** The reader operations read that are not `add`s, by `op`, in order. */
+    readonly folded: readonly string[];
 }
 
 /** The build so far. */
@@ -608,17 +626,18 @@ function buildSource(source: ReadSource, into: Building): void {
         return;
     }
 
-    const space = keyColumn === undefined ? `source:${id}` : String(nodeMap.space).normalize("NFC");
+    const keyedSpace = keyColumn === undefined ? undefined : String(nodeMap.space).normalize("NFC");
     const seen = new Set<BuiltNode>();
     for (let row = 0; source.nodes !== undefined && row < source.nodes.length; row++) {
         const values = rowOf(source.nodes, row);
         const cell = keyColumn === undefined ? undefined : values[keyColumn];
-        const key = keyColumn === undefined ? `${copyId}#${String(row)}` : keyText(cell);
-        if (key === undefined) {
-            continue;
-        }
-
-        const node = nodeAt(into, { space, key }, cell ?? key);
+        const keyed = keyText(cell);
+        // A row with no key, or a null or empty key cell, is keyless (spec 4.1.4): it keeps its row.
+        const ref =
+            keyedSpace === undefined || keyed === undefined
+                ? { space: `source:${id}`, key: `${copyId}#${String(row)}` }
+                : { space: keyedSpace, key: keyed };
+        const node = nodeAt(into, ref, keyed === undefined ? ref.key : cell);
         const repeated = seen.has(node);
         if (repeated && duplicates === "first") {
             continue;
@@ -653,8 +672,14 @@ function buildSource(source: ReadSource, into: Building): void {
         const columns = { ...values };
         const existing = into.edges.get(edgeKey(ref));
         if (existing !== undefined && own.has(existing)) {
+            // An edge from several rows keeps the first row's values, and so its type; a later
+            // row only fills a column the first left unset (spec 4.1.8).
             if (duplicates === "merge") {
-                Object.assign(existing.columns, columns);
+                for (const [name, value] of Object.entries(columns)) {
+                    if (existing.columns[name] === undefined || existing.columns[name] === null) {
+                        existing.columns[name] = value;
+                    }
+                }
             }
 
             continue;
@@ -982,8 +1007,12 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
         issues: section.issues,
         unavailable,
         origins: [...section.sources.values()].flatMap(({ id, record }) =>
-            record.kind === "network" && isPlainObject(record.origin) ? [[id, record.origin] as const] : [],
+            isPlainObject(record.origin) ? [[id, record.origin] as const] : [],
         ),
+        kinds: [...section.sources.values()].map(({ id, record }) => [id, String(record.kind)] as const),
+        folded: (section.reader?.operations ?? [])
+            .map((operation) => String(operation.op))
+            .filter((op) => op !== "add"),
         refused: problems
             .slice(before)
             .some((problem) => problem.code === "W_MEMBER_LEFT_OUT" && problem.params.section === "data"),
@@ -1141,6 +1170,8 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
         nodeRefs: built.nodes.map((node) => [node.id, node.ref] as const),
         namedOnly: built.nodes.filter((node) => node.loads.length === 0).map((node) => node.id),
         origins: built.origins,
+        kinds: built.kinds,
+        folded: built.folded,
         refused: built.refused,
         readerEdges,
         unavailable: built.unavailable,

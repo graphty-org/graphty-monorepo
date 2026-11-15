@@ -107,7 +107,7 @@
                     },
                     "camera": {
                         "type": "object",
-                        "description": "graphty-element's CameraState members as they are, plus dimension and controller. Open: a member a later or third-party controller adds is kept.",
+                        "description": "graphty-element's CameraState members as they are, but type, plus dimension and controller. controller is the authority. Open: a member a later or third-party controller adds is kept.",
                         "required": ["dimension", "controller"],
                         "properties": {
                             "dimension": {
@@ -118,10 +118,7 @@
                                 "minLength": 1,
                                 "description": "orbit, 2d, or a later or third-party controller (an open vocabulary)."
                             },
-                            "type": {
-                                "type": "string",
-                                "minLength": 1
-                            },
+                            "type": false,
                             "position": {
                                 "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/position"
                             },

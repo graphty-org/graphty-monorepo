@@ -1,8 +1,8 @@
 /**
- * @file `behavior.layout.visibleOnlyWhilePlaying`: what a layout over only what the filter shows
- * does while time plays and the moving window changes what is shown at every step. "follow", the
- * default, lays out again during the play; "hold" lays nothing out during the play and lays out
- * once at the pause.
+ * @file The time window never moves a layout over only what is shown (owner rule 2026-11-12: "the
+ * layout shouldn't change because of the nodes that are / aren't visible due to the timeline"):
+ * the working graph is built from the filters alone, so a window step, a play and its pause lay
+ * nothing out, while a filter change still does.
  */
 
 import "../../src/graphty-element";
@@ -33,11 +33,11 @@ describe("a layout over only what the filter shows while time plays", () => {
     });
 
     /**
-     * An element laying out only what its two-step time window shows, with its layouts counted.
-     * @param whilePlaying - The behaviour while time plays, or undefined for the default.
+     * An element laying out only what is shown, with a two-step time window and its layouts counted.
+     * @param visibleOnly - `layout.visibleOnly`, or undefined to follow the working graph (on by default).
      * @returns The element and a reader of how many layouts ran since it was ready.
      */
-    async function element(whilePlaying?: "hold" | "follow"): Promise<{ made: Graphty; layouts: () => number }> {
+    async function element(visibleOnly?: boolean): Promise<{ made: Graphty; layouts: () => number }> {
         const made = document.createElement("graphty-element");
         made.style.width = "400px";
         made.style.height = "300px";
@@ -62,20 +62,29 @@ describe("a layout over only what the filter shows while time plays", () => {
         };
         await made.waitForSettled();
         await made.session.time.ready;
-        made.graph.setLayoutBehavior({
-            layout:
-                whilePlaying === undefined
-                    ? { visibleOnly: true }
-                    : { visibleOnly: true, visibleOnlyWhilePlaying: whilePlaying },
-        });
-        await made.session.time.window({ from: 0, to: 2, step: 1 });
-        await made.waitForSettled();
+        if (visibleOnly !== undefined) {
+            made.graph.setLayoutBehavior({ layout: { visibleOnly } });
+            await made.waitForSettled();
+        }
 
         let count = 0;
         made.graph.addListener("layout-changed", () => {
             count++;
         });
         return { made, layouts: () => count };
+    }
+
+    /**
+     * Where a node is now, from the shared positions array.
+     * @param on - The element.
+     * @param id - The node.
+     * @returns Its x, y and z.
+     */
+    function placeOf(on: Graphty, id: string): [number, number, number] {
+        const row = on.session.data.snapshot().ids.indexOf(id);
+        const at = { x: 0, y: 0, z: 0 };
+        on.session.positions.read(row, at);
+        return [at.x, at.y, at.z];
     }
 
     /**
@@ -96,25 +105,35 @@ describe("a layout over only what the filter shows while time plays", () => {
         });
     }
 
-    it("holds the layout while time plays under hold, and lays out once at the pause", async () => {
-        const { made, layouts } = await element("hold");
-        const shownBefore = [...made.session.visibility.nodes];
+    it.each([
+        ["visibleOnly true", true],
+        ["the working graph default", undefined],
+    ] as const)("lays nothing out for a window step, a play or its pause under %s", async (_name, visibleOnly) => {
+        const { made, layouts } = await element(visibleOnly);
+        const placed = placeOf(made, "n15");
 
+        await made.session.time.window({ from: 0, to: 2, step: 1 });
+        await made.waitForSettled();
+        assert.strictEqual(layouts(), 0, "a window step lays nothing out");
+
+        const shownBefore = [...made.session.visibility.nodes];
         made.session.time.play({ motion: "steps", interval: 0, loop: true });
         await steps(made, 5);
-        assert.notDeepEqual([...made.session.visibility.nodes], shownBefore, "the play moved the filter");
-        assert.strictEqual(layouts(), 0, "no layout while time plays");
-
+        assert.notDeepEqual([...made.session.visibility.nodes], shownBefore, "the play moved the window");
         made.session.time.pause();
         await made.waitForSettled();
-        assert.strictEqual(layouts(), 1, "one layout over what the pause shows");
+
+        assert.strictEqual(layouts(), 0, "neither the play nor its pause laid anything out");
+        assert.deepEqual(placeOf(made, "n15"), placed, "a node the window hid kept its place");
     });
 
-    it.each([["follow"], ["unset"]] as const)("lays out again while time plays under %s", async (whilePlaying) => {
-        const { made, layouts } = await element(whilePlaying === "unset" ? undefined : whilePlaying);
+    it("still lays out again when a filter changes what is shown", async () => {
+        const { made, layouts } = await element(true);
+        await made.session.time.window({ from: 0, to: 2, step: 1 });
+        await made.waitForSettled();
 
-        made.session.time.play({ motion: "steps", interval: 0, loop: true });
-        await vi.waitUntil(() => layouts() > 0);
-        assert.isTrue(made.session.time.playing, "the layout ran while time was still playing");
+        await made.session.visibility.set({ kind: "member", of: { nodes: ["n0", "n1", "n2", "n3"] } });
+        await made.waitForSettled();
+        assert.isAbove(layouts(), 0, "the filter change laid the shown nodes out again");
     });
 });

@@ -1136,6 +1136,8 @@ export type StyleDialect =
     | "css"
     /** X11 color names (`gray` is `#bebebe`). */
     | "x11"
+    /** The GML draft's Tk colors: CSS, then Tk's `#RRRGGGBBB`, `#RRRRGGGGBBBB` and X11 names written with spaces. */
+    | "tk"
     /** Graphviz: X11 and SVG names, color schemes and `/scheme/name`, `#rrggbbaa`, HSV triples, inches. */
     | "graphviz"
     /** Java's `java.awt.Color` names and `#rrggbb`. */

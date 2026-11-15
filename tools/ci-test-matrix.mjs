@@ -452,6 +452,19 @@ const OFF_SHARDS = [
         // Minutes of browser per slice; npx vitest run --project=fidelity test/fidelity/oracle-report.test.ts by hand.
         local: "never",
     })),
+    // The drawn fidelity scorecard on the "batched" render path (the forced-batched project). The browser shards run
+    // it on the objects path only, and the whole forced-batched project runs only when render-proof.yml is
+    // dispatched by hand, so a batched-path defect that turned 37 of its 41 samples white went unseen (issue #8221).
+    // One file, a few minutes of browser; no coverage.
+    {
+        shard: "graphty-element-forced-batched-scorecard",
+        package: "graphty-element",
+        "test-command": `cd graphty-element && pnpm exec vitest run --project=forced-batched test/browser/fidelity-scorecard.test.ts ${ELEMENT_REPORTERS}`,
+        "needs-browser": true,
+        "full-run-only": true,
+        // npx vitest run --project=forced-batched test/browser/fidelity-scorecard.test.ts by hand.
+        local: "never",
+    },
     // graphty-element storybook tests (5 shards). Under v8 coverage a storybook browser session slows
     // down as it runs more stories (after about 100 to 120, each takes ten times as long and they
     // hit the 30 s timeout), so each shard is kept well under 100 stories.

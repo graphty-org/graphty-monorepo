@@ -3,29 +3,33 @@
 # (design/ci/channels-pipeline/merging.md, section 6). A habit, not a gate: CI decides, and a failure
 # here only means "you would have found out in CI". Run it in the background (it waits for test slots):
 #
-#   pnpm run check:quick [--base <ref>] [--with-dry-run]     (default base origin/master)
+#   pnpm run check:quick [--base <ref>] [--with-dry-run] [--whole-browser-shards]   (default base origin/master)
 #
 # 1. prettier --check on the files changed since the merge base with the base;
 # 2. nx affected -t build lint typecheck (lint needs the builds of what it imports; local nx cache);
-# 3. tools/test-changed.mjs: the tests CI's selection would run, with CI's shard commands, no coverage;
+# 3. tools/test-changed.mjs: the tests CI's selection would run, with CI's shard commands, no coverage; a
+#    browser shard CI runs whole runs only its selected files here, or nothing (issue #8042), unless
+#    --whole-browser-shards asks for the whole shard;
 # 4. tools/sonar-gate.mjs: SonarQube on the changed lines (off the owner's network it passes, warning);
 # 5. when webgpu-graph-algorithms is affected, its node tests on this machine's NVIDIA card;
 # 6. PR Integrity on HEAD (tools/pr-integrity.mjs --local: test integrity, breaking
 #    commits, baselines signed; Proof and the fresh review need the pull request and are left to CI);
-# 7. the documentation site build CI's Docs job runs (npm run docs:build), when the change reaches the
-#    site (tools/docs-affected.sh, the pre-push gate's rule);
-# 8. the bundle size checks ci.yml's Checks job runs, for graphty-element and cytoscape-extensions when
+# 7. the bundle size checks ci.yml's Checks job runs, for graphty-element and cytoscape-extensions when
 #    affected or their script changed;
-# 9. the rest of ci.yml's Checks job, with its commands and its "Plan the package-only checks" gating: the
+# 8. the rest of ci.yml's Checks job, with its commands and its "Plan the package-only checks" gating: the
 #    tools tests (test:ci-workflows, which no test shard runs), CI budgets, offline links, the signing
 #    bypass grep, Knip, published dependencies (of the affected packages, the ones built here), the
 #    peer dependencies, the ESLint root config, the API report, feature flags, declared build tools, dry-run outcome checks,
 #    the release hold list, data sources, migration counts, legacy API use, special style layers,
-#    committed images, the Figma lock, and the whole-repository formatting check when one of prettier's inputs changed;
+#    committed images and the Figma lock;
 #    tools/check-quick.test.mjs fails when the Checks job gains a `pnpm run` step this script lacks;
-# 10. only with --with-dry-run: the graphty app's build, then its dry run (graphty/acceptance/run.mjs, every
+# 9. only with --with-dry-run: the graphty app's build, then its dry run (graphty/acceptance/run.mjs, every
 #    route, on this machine's NVIDIA card). Never by default: the agent that owns a long-lived branch
 #    asks for it before opening the pull request (CLAUDE.md, "Shipping a change", step 2; issue #3269).
+#
+# Left to CI, which runs them on every pull request that needs them (issue #8052): the documentation site
+# build (the Docs job; reproduce with pnpm run docs:build) and the whole-repository formatting check after a
+# change to prettier's inputs (the Checks job's "Formatting" step; reproduce with pnpm run format:check).
 #
 # It runs every step, prints a summary and exits 1 when any failed. No tool self-tests, no screenshots.
 # Each step's time goes into <main checkout>/tmp/step-times.jsonl (tools/step-log.mjs).
@@ -36,14 +40,16 @@ MAIN_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 
 BASE=origin/master
 DRY_RUN=0
+TEST_ARGS=()
 usage() {
-    echo "usage: tools/check-quick.sh [--base <ref>] [--with-dry-run]" >&2
+    echo "usage: tools/check-quick.sh [--base <ref>] [--with-dry-run] [--whole-browser-shards]" >&2
     exit 2
 }
 while [ $# -gt 0 ]; do
     case "$1" in
         --base) [ -n "${2:-}" ] || usage; BASE="$2"; shift 2 ;;
         --with-dry-run) DRY_RUN=1; shift ;;
+        --whole-browser-shards) TEST_ARGS+=("$1"); shift ;;
         *) usage ;;
     esac
 done
@@ -91,7 +97,7 @@ gpu_tests() {
 step "Formatting" formatting
 step "Build, lint and type-check (affected)" pnpm exec nx affected -t build lint typecheck --base="$BASE"
 # The tests read no developer git config (their git sandboxes would inherit signing, hooks, aliases).
-step "Selected tests" env GIT_CONFIG_GLOBAL=/dev/null node tools/test-changed.mjs --base "$BASE"
+step "Selected tests" env GIT_CONFIG_GLOBAL=/dev/null node tools/test-changed.mjs --base "$BASE" "${TEST_ARGS[@]}"
 step "SonarQube (changed lines)" node tools/sonar-gate.mjs
 # Captured, not piped into grep -q: under pipefail an early grep exit could SIGPIPE nx and skip the
 # GPU step, and a failing nx must not read as "not affected".
@@ -107,13 +113,12 @@ if affected webgpu-graph-algorithms; then
     step "webgpu-graph-algorithms on the local NVIDIA GPU" gpu_tests
 fi
 step "PR Integrity (local)" node tools/pr-integrity.mjs --local --base "$BASE"
-source tools/docs-affected.sh
-if docs_site_affected; then
-    step "Docs site (npm run docs:build)" pnpm run docs:build
-fi
 # ci.yml's "Plan the package-only checks": the package is affected or the check's own script changed.
 if affected graphty-element || git diff --name-only "$MB" | grep -q '^tools/check-bundle-size'; then
     step "Bundle size (graphty-element)" pnpm run check:bundle-size
+fi
+if affected graphty || git diff --name-only "$MB" | grep -qE '^graphty/scripts/(check-size|landing-files)'; then
+    step "Bundle size (graphty app)" pnpm --filter @graphty/graphty run size
 fi
 if affected cytoscape-extensions; then
     step "Bundle size (cytoscape-extensions)" pnpm --filter @graphty/cytoscape-extensions run size
@@ -137,9 +142,6 @@ published_deps() {
 step "Published dependencies (affected)" published_deps
 step "Peer dependencies stable" pnpm run check:peer-deps
 step "ESLint root config" pnpm run lint:eslint-root
-if touched '(^|/)(\.prettierrc|\.prettierignore|prettier\.config|\.editorconfig|\.gitignore)|^package\.json$|^pnpm-lock\.yaml$'; then
-    step "Formatting (whole repository)" pnpm run format:check
-fi
 if affected graphty-element || touched '^tools/api-report'; then
     step "Public API report (graphty-element)" pnpm run check:api-report
 fi
@@ -153,6 +155,7 @@ fi
 step "Migration count script" pnpm run check:migration-counts
 step "Legacy graph API use" pnpm run check:legacy-use
 step "No special style layers" pnpm run check:special-layers
+step "Readers honor the working graph" pnpm run check:working-graph
 step "No committed walk screenshots" pnpm run check:committed-images
 step "compact-mantine Figma lock" pnpm run check:figma-lock
 step "Saved-format exceptions" pnpm run check:saved-format-allowlist

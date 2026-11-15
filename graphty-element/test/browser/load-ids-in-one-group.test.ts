@@ -99,13 +99,12 @@ describe("two imports in one group", () => {
     test("started together in one batch, each keeps its own load id and announcement", async () => {
         const graph = await emptyGraph();
         const { first, second, heard } = twoLoads(graph);
-        const layout = (graph as unknown as { layoutManager: { updatePositions(...args: unknown[]): Promise<void> } })
-            .layoutManager;
+        const layout = graph.getLayoutManager();
         const updatePositions = layout.updatePositions.bind(layout);
         let placements = 0;
-        layout.updatePositions = async (...args: unknown[]) => {
+        layout.updatePositions = async (nodes) => {
             placements++;
-            await updatePositions(...args);
+            await updatePositions(nodes);
         };
 
         await dispatcherOf(graph.getSession()).dispatchNow({

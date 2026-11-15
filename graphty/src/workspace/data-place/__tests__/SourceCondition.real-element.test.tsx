@@ -156,6 +156,11 @@ describe("picking nodes by a condition card from the Data place", () => {
         const open = document.querySelector<HTMLElement>(".sel-ws");
         if (open !== null) {
             await userEvent.click(within(open).getByRole("button", { name: "Done" }));
+            // Done closes the workspace once graphty-element has painted the result, a frame or more
+            // after the click; until then the card is still open, its title row saying "Editing".
+            await waitFor(() => {
+                assert.isNull(document.querySelector(".sel-ws"));
+            });
         }
         // The card itself: the Data sources section names the load too.
         const card = await waitFor(() => {

@@ -549,6 +549,8 @@ interface PendingBatch {
     startedAt: number;
     sceneOffset: number;
     stateOffset: number;
+    /** Where the drawn slot's rows sit in the readback, or -1 when the batch reads none back. */
+    drawnOffset: number;
     profile: ReadbackRequest | null;
     /** Whether this batch carried the collision's settling sweeps. */
     sweptCollision: boolean;
@@ -584,6 +586,7 @@ function createPending(k: number, generation: number): PendingBatch {
         stale: false,
         startedAt: 0,
         sceneOffset: 0,
+        drawnOffset: -1,
         stateOffset: 0,
         profile: null,
         sweptCollision: false,
@@ -766,12 +769,17 @@ export class ForceSimulation<
     private collision: CollisionUpdate | null = null;
     private collisionStage: CollisionStage | null = null;
     /** What setDrawn() asked for (the owner's stride-4 rows), the stage writing the ring, its transform and skip mask. */
-    private drawnRows: { readonly slots: number; readonly rows: Float32Array<ArrayBuffer> } | null = null;
+    private drawnRows: {
+        readonly slots: number;
+        readonly rows: Float32Array<ArrayBuffer>;
+        readonly readBack: boolean;
+    } | null = null;
     private drawnStage: DrawnStage | null = null;
     private drawnTransform: DrawnTransform | null = null;
     private drawnSkip: Uint32Array | null = null;
     private landedDrawnValue: GPUBuffer | null = null;
     private landedDrawnTransformValue: DrawnTransform | null = null;
+    private landedDrawnRowsValue: Float32Array<ArrayBuffer> | null = null;
     private collisionDirty = false;
     private collisionRadiiDirty = false;
     /** The run is over and its settling sweeps are owed, so it does not read settled yet. */
@@ -1066,6 +1074,7 @@ export class ForceSimulation<
         this.generationValue++;
         this.landedDrawnValue = null;
         this.landedDrawnTransformValue = null;
+        this.landedDrawnRowsValue = null;
         this.discardPending();
         const resized = this.buffers === null || n !== this.n || snapshot.serial !== this.serial;
         this.snapshot = snapshot;
@@ -1551,6 +1560,16 @@ export class ForceSimulation<
     }
 
     /**
+     * The rows of {@link landedDrawn} as the batch's own readback brought them to the host (stride 4, x, y, z, w
+     * per node), when {@link setDrawn} asked for `readBack`; else null. For a renderer on another device, which
+     * sends them to its texture as they are instead of copying the slot on the card.
+     * @returns the rows, or null
+     */
+    get landedDrawnRows(): Float32Array<ArrayBuffer> | null {
+        return this.landedDrawnRowsValue;
+    }
+
+    /**
      * Makes every batch also write the renderer's drawn positions into a ring of `slots` device buffers (see
      * {@link landedDrawn}). `rows` is the owner's stride-4 copy (x, y, z, w per node): it seeds every slot, and
      * the w lane and the rows set by {@link setDrawnSkip} are only ever what the owner wrote. Null stops it.
@@ -1563,14 +1582,14 @@ export class ForceSimulation<
             this.drawnRows = null;
             return;
         }
-        const { slots, rows } = output;
+        const { slots, rows, readBack = false } = output;
         if (!Number.isInteger(slots) || slots < 1) {
             throw invalidArgument("slots", slots, "an integer >= 1", "setDrawn: slots must be an integer >= 1");
         }
         if (rows.length !== 4 * this.n) {
             throw invalidArgument("rows", rows.length, 4 * this.n, "setDrawn: four floats per node");
         }
-        this.drawnRows = { slots, rows: new Float32Array(rows) };
+        this.drawnRows = { slots, rows: new Float32Array(rows), readBack };
         const { resources } = this;
         if (resources !== null) {
             const generation = this.generationValue;
@@ -1718,6 +1737,11 @@ export class ForceSimulation<
         batch.endPass();
         const scene = batch.readback(buffers.scene, 0, 12 * this.n);
         const state = batch.readback(buffers.state, 0, STATE_HEADER_BYTES + k * this.traceBytes);
+        // In the same mapped readback as the scene rows: one map a batch, however many the owner reads.
+        record.drawnOffset =
+            record.drawn !== null && this.drawnRows?.readBack === true
+                ? batch.readback(record.drawn.buffer, 0, 16 * this.n).offset
+                : -1;
         const { profiler } = this.ctx;
         const profile = profiler === null ? null : profiler.resolveInto(batch);
         const submitted = batch.submit();
@@ -1765,6 +1789,8 @@ export class ForceSimulation<
             this.copyScene(owner, bytes, record);
             this.landedDrawnValue = record.drawn?.buffer ?? null;
             this.landedDrawnTransformValue = record.drawn?.transform ?? null;
+            this.landedDrawnRowsValue =
+                record.drawnOffset < 0 ? null : new Float32Array(bytes, record.drawnOffset, 4 * n);
             const header = new DataView(bytes, record.stateOffset, STATE_HEADER_BYTES);
             const trace = new DataView(bytes, record.stateOffset + STATE_HEADER_BYTES, k * this.traceBytes);
             this.writer.absorb(header);
@@ -2584,6 +2610,7 @@ export class ForceSimulation<
         const stage = this.drawnStage;
         this.landedDrawnValue = null;
         this.landedDrawnTransformValue = null;
+        this.landedDrawnRowsValue = null;
         if (stage !== null) {
             this.drawnStage = null;
             this.afterInFlight(() => {

@@ -506,6 +506,7 @@ export class EventManager implements Manager {
             case "lifecycle-initialized":
             case "lifecycle-disposed":
             case "skybox-loaded":
+            case "skybox-failed":
             case "operation-queue-active":
             case "operation-queue-idle":
             case "operation-batch-complete":
@@ -534,9 +535,12 @@ export class EventManager implements Manager {
             case "layout-warning":
             case "limits-warning":
             case "basemap-status":
+            case "render-lost":
+            case "render-restored":
             case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":
+            case "overview-changed":
             case "xr-session-started":
             case "xr-session-ended":
             case "input:pointer-down":

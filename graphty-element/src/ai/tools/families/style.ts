@@ -821,7 +821,7 @@ export function styleTool(catalog: CatalogView): ToolDefinition {
         },
         {
             name: "encode",
-            summary: "color/size by data or a run",
+            summary: "any channel by data or a run",
             fields: { encode: encodeField, name },
             effect: "write",
             reaches: [

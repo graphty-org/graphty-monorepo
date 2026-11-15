@@ -105,6 +105,9 @@ export class CameraManager {
     /** Told each time the reader's own input -- a wheel, a drag, a pinch, a key -- moves a camera. */
     public onReaderMove: (() => void) | null = null;
 
+    /** Frame time since the reader last moved the camera, for `camera.autoRotateResume`; null, not since it turned. */
+    #idleMs: number | null = null;
+
     /**
      * Creates a new CameraManager instance.
      * @param scene - The Babylon.js scene to manage cameras for
@@ -123,6 +126,7 @@ export class CameraManager {
         this.controllers.set(key, controller);
         this.inputs.set(key, inputHandler);
         controller.onReaderMove = () => {
+            this.#idleMs = 0;
             this.onReaderMove?.();
         };
     }
@@ -269,18 +273,40 @@ export class CameraManager {
     }
 
     /**
-     * Turn the active camera on its own by an angle, unless the reader is moving it.
+     * Turn the active camera on its own by an angle, unless the reader is moving it or moved it
+     * less than `resumeAfter` of frame time ago.
      * @param radians - The angle.
+     * @param frameMs - The frame's time, counted toward `resumeAfter` once the reader stops.
+     * @param resumeAfter - How long to wait after the reader's last move, or "never"; see `camera.autoRotateResume`.
      * @returns Whether it turned, so the next frame has to be drawn.
      */
-    public autoTurn(radians: number): boolean {
+    public autoTurn(radians: number, frameMs = 0, resumeAfter: number | "never" = 0): boolean {
         const controller = this.activeCameraController;
-        if (radians <= 0 || controller?.autoTurn === undefined || this.activeInputHandler?.busy === true) {
+        if (radians <= 0 || controller?.autoTurn === undefined) {
             return false;
+        }
+
+        if (this.activeInputHandler?.busy === true) {
+            this.#idleMs = 0;
+            return false;
+        }
+
+        if (this.#idleMs !== null) {
+            this.#idleMs += frameMs;
+            if (resumeAfter === "never" || this.#idleMs < resumeAfter) {
+                return false;
+            }
+
+            this.#idleMs = null;
         }
 
         controller.autoTurn(radians);
         return true;
+    }
+
+    /** Forget the reader's last move, so `autoTurn` turns again at once (`camera.autoRotate` was changed). */
+    public resumeAutoTurn(): void {
+        this.#idleMs = null;
     }
 
     /**

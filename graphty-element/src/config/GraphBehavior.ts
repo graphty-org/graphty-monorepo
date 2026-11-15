@@ -132,6 +132,18 @@ const CameraBehaviorOpts = z
          */
         autoRotate: z.number().min(0).default(0),
         /*
+         * How long `autoRotate` waits after the reader last moved the camera -- a press or drag on
+         * the canvas, a pinch, a wheel, a camera key, a node drag -- before it turns again, in
+         * milliseconds of frames drawn, or "never".
+         *
+         * 0 BY DEFAULT, so the turning carries on as soon as the reader lets go. A number waits
+         * that long once they stop, and every move of theirs starts the wait again. "never" stops
+         * the turning at the reader's first move until `autoRotate` or this setting is changed.
+         * Only read while `autoRotate` is above 0. The element's own framing (zoom-to-fit, a glide
+         * to the pivot) and `setCameraState` are not the reader's moves and never start a wait.
+         */
+        autoRotateResume: z.union([z.number().min(0), z.literal("never")]).default(0),
+        /*
          * Room, in CSS pixels, that framing the graph leaves clear at each edge of the canvas, for
          * a page that draws its own panels over the graph.
          *
@@ -270,27 +282,18 @@ const GraphLayoutOpts = z.strictObject({
     groupsFollowMembers: z.boolean().optional(),
 
     /*
-     * Whether a layout runs over only what the visibility filter shows.
+     * Whether a layout runs over only what is shown: the working graph, what the filters leave
+     * shown. The time window is never part of it: a window step, a play and its pause hide
+     * elements by drawing and lay nothing out.
      *
-     * True: a node the filter hides takes no part in the layout -- it pushes and pulls nothing,
-     * its edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot
-     * -- and it stays where it was, so taking the filter away shows it where it was. The layout
-     * runs again whenever what the filter shows changes, and when this is switched. Every layout
-     * honours it. Unset or false, the default, a layout runs over the whole graph, hidden nodes
-     * included.
+     * True: a node a filter hides takes no part in the layout -- it pushes and pulls nothing, its
+     * edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot -- and
+     * it stays where it was, so taking the filter away shows it where it was. The layout runs again
+     * whenever a filter changes what is shown, and when this is switched. Every layout honours it.
+     * False: a layout runs over the whole graph, hidden nodes included. Unset, the default: as the
+     * session's `workingGraph` option says.
      */
     visibleOnly: z.boolean().optional(),
-
-    /*
-     * What `visibleOnly` does while time plays, when the moving time window changes what the
-     * filter shows every frame.
-     *
-     * "follow": it runs again at every change, as it does when time is still -- a full layout per
-     * frame, thrown away by the next one. "hold": the layout keeps the nodes where they are while
-     * time plays and runs again once, over what is shown, when the play pauses or ends. Unset means
-     * "follow". A layout over the whole graph ignores it.
-     */
-    visibleOnlyWhilePlaying: z.enum(["hold", "follow"]).optional(),
 });
 
 /** How the element drives a layout, as the behaviour configuration resolves it. */

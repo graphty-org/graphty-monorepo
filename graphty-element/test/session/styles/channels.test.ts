@@ -221,6 +221,10 @@ const DECLARED = [
     "node.modelSourceUp",
     "node.modelTurn",
     "node.modelTint",
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelDoubleSided",
     "node.modelFit",
     "node.modelCenter",
     "node.texture",
@@ -429,8 +433,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and five node channels and one hundred and sixty-nine edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 205);
+    it("splits into two hundred and nine node channels and one hundred and sixty-nine edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 209);
         assert.strictEqual(channelsFor("edge").length, 169);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -733,6 +737,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.gradientColor",
         // Unset, a node draws its shape and no model.
         "node.model",
+        // Unset, a model is drawn still, in its rest pose.
+        "node.modelAnimation",
         // Unset, a node draws its own color and no picture.
         "node.texture",
         "edge.patternCount",
@@ -963,15 +969,14 @@ describe("what a style editor needs to draw a row", () => {
         );
     });
 
-    it("says in a sentence why a channel cannot be set, exactly when it cannot", () => {
+    it("says with a code why a channel cannot be set, exactly when it cannot", () => {
         for (const channel of CHANNELS) {
-            const { renderable, unsupportedReason, unsupported } = CHANNEL_DESCRIPTORS[channel];
+            const { renderable, unsupported } = CHANNEL_DESCRIPTORS[channel];
 
-            assert.strictEqual(unsupportedReason !== undefined, !renderable, channel);
+            assert.notProperty(CHANNEL_DESCRIPTORS[channel], "unsupportedReason", channel);
             assert.strictEqual(unsupported !== undefined, !renderable, channel);
         }
 
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupportedReason, "The element draws no marker yet");
         assert.deepEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupported, { code: "channel.not-drawn", params: {} });
     });
 });

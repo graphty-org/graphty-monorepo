@@ -151,6 +151,7 @@ import { arrayColumn, buildHistogram, computeColumnStatistics, resolveBinCount }
 import type { HistogramOptions } from "./results/types";
 import { RevisionCache } from "./revision";
 import type { ResolvedScope, Run, WeightMeaning } from "./runs/types";
+import type { ElementMask } from "./scope/ElementMask";
 import { edgeSpaceOf } from "./scope/ScopeApi";
 import type { SelectionTextMode } from "./selection";
 import { searchOf } from "./selection/targets";
@@ -397,10 +398,11 @@ interface PageSources {
      */
     batched?(): boolean;
     /**
-     * The visible masks, for statistics over the visible graph.
-     * @returns The node and edge masks, 1 for visible.
+     * The visible masks, for statistics over the visible graph: the same objects until what is
+     * visible changes.
+     * @returns The node and edge masks.
      */
-    visibleMasks?(): { readonly nodes: Uint8Array; readonly edges: Uint8Array };
+    visibleMasks?(): VisibleMasks;
     /**
      * The working graph, which a reader naming no scope reads while it is on.
      * @returns It.
@@ -679,6 +681,14 @@ interface Derived {
     statistics: GraphStatistics | null;
     /** The topology fingerprint, once something asked for it. */
     fingerprint: string | null;
+    /** The visible graph's shape, with the masks it was measured under. */
+    visible?: { readonly masks: VisibleMasks; readonly statistics: GraphStatistics };
+}
+
+/** The visible masks, one read-only copy per membership, so identity says nothing moved. */
+interface VisibleMasks {
+    readonly nodes: ElementMask<NodeId>;
+    readonly edges: ElementMask<EdgeId>;
 }
 
 /** The edge roles read only when edges load: what the edges are. */
@@ -5656,28 +5666,23 @@ export class SessionData implements SessionDataApi {
         }
 
         const masks = options.scope === "visible" ? this.pages.visibleMasks?.() : undefined;
-        if (masks === undefined || (!masks.nodes.includes(0) && !masks.edges.includes(0))) {
+        const graph = derived.snapshot;
+        if (masks === undefined || (masks.nodes.count >= graph.nodeCount && masks.edges.count >= graph.edgeCount)) {
             return derived.statistics;
         }
 
-        // ponytail: recomputed on every call over the visible subgraph; cache by mask version when
-        // a large graph reads it per frame.
-        const pack = (bytes: Uint8Array, length: number): Uint32Array<ArrayBuffer> => {
-            const words = new Uint32Array(Math.ceil(length / 32));
-            for (let at = 0; at < length; at++) {
-                if (bytes[at] === 1) {
-                    words[at >>> 5] |= 1 << (at & 31);
-                }
-            }
+        // Kept until what is visible changes: a panel reads it many times per change (#7966).
+        if (derived.visible?.masks.nodes !== masks.nodes || derived.visible.masks.edges !== masks.edges) {
+            const visible = graph
+                .filterEdges(masks.edges.pack(graph.edgeCount))
+                .snapshot.inducedSubgraph({ mask: masks.nodes.pack(graph.nodeCount) }).snapshot;
+            derived.visible = {
+                masks,
+                statistics: computeStatistics(visible, this.readConfig().directed, this.graphStore.directionSettledBy),
+            };
+        }
 
-            return words;
-        };
-        const graph = derived.snapshot;
-        const visible = graph
-            .filterEdges(pack(masks.edges, graph.edgeCount))
-            .snapshot.inducedSubgraph({ mask: pack(masks.nodes, graph.nodeCount) }).snapshot;
-
-        return computeStatistics(visible, this.readConfig().directed, this.graphStore.directionSettledBy);
+        return derived.visible.statistics;
     }
 
     /**

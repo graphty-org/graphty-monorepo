@@ -14,8 +14,9 @@
 
 import { decodeEntities } from "../../common/xml.js";
 import { defineSource } from "../define.js";
-import { failAlone, failOn } from "../fail.js";
+import { failOn } from "../fail.js";
 import { S3_SOURCE_ID } from "../ids.js";
+import { readLink, refuseLink } from "../link.js";
 import { type GraphSource, type SourceContext, type SourceListing, type SourceListQuery } from "../types.js";
 import { S3_DESCRIPTOR, type S3Params } from "./descriptor.js";
 
@@ -50,7 +51,8 @@ function bucketUrl(params: Partial<S3Params>, ctx: SourceContext): string {
     if (region !== "" && !REGION.test(region)) {
         failOn(ctx.report, "E_SOURCE_PARAM", "the region is not an AWS Region", { name: "region", reason: "format" });
     }
-    return `https://${bucket}.s3${region === "" ? "" : `.${region}`}.amazonaws.com/`;
+    const host = region === "" ? "s3" : `s3.${region}`;
+    return `https://${bucket}.${host}.amazonaws.com/`;
 }
 
 /**
@@ -159,52 +161,30 @@ export interface S3Link {
  * @category Network sources
  */
 export function parseS3Url(url: string | URL): S3Link {
-    let parsed: URL;
-    try {
-        parsed = new URL(url);
-    } catch {
-        return refuse("format");
-    }
-    if (parsed.username !== "" || parsed.password !== "") {
-        return refuse("credentials-in-url");
-    }
-    let path: string;
-    try {
-        path = decodeURIComponent(parsed.pathname.slice(1));
-    } catch {
-        return refuse("format");
-    }
-    const host = parsed.host.toLowerCase();
-    let bucket: string;
+    const { protocol, host, path } = readLink(url, "S3", S3_SOURCE_ID);
+    const m = /^(?:([^.]+)\.)?s3(?:[.-]([a-z0-9-]+))?\.amazonaws\.com$/.exec(host);
+    let bucket = host;
+    let key = path;
     let region: string | undefined;
-    if (parsed.protocol === "s3:") {
-        bucket = host;
-    } else {
-        const m = /^(?:([^.]+)\.)?s3(?:[.-]([a-z0-9-]+))?\.amazonaws\.com$/.exec(host);
-        if (parsed.protocol !== "https:" || m === null) {
-            return refuse("format");
+    if (protocol !== "s3:") {
+        if (protocol !== "https:" || m === null) {
+            return refuseLink("S3", S3_SOURCE_ID, "format");
         }
         region = m.at(2);
-        const hosted = m.at(1);
-        if (hosted === undefined) {
-            // path-style: the bucket is the first part of the path
-            const slash = path.indexOf("/");
-            bucket = slash < 0 ? path : path.slice(0, slash);
-            path = slash < 0 ? "" : path.slice(slash + 1);
-        } else {
-            bucket = hosted;
-        }
+        // a path-style link holds the bucket as its first path part
+        [bucket, key] = m.at(1) === undefined ? splitFirst(path) : [m[1], path];
     }
     return BUCKET.test(bucket) && (region === undefined || REGION.test(region))
-        ? { bucket, region, key: path === "" ? undefined : path }
-        : refuse("format");
+        ? { bucket, region, key: key === "" ? undefined : key }
+        : refuseLink("S3", S3_SOURCE_ID, "format");
 }
 
 /**
- * Reject an S3 link.
- * @param reason - why
- * @returns never
+ * Split a path at its first slash.
+ * @param path - the path
+ * @returns what comes before the slash and what after (empty without one)
  */
-function refuse(reason: "format" | "credentials-in-url"): never {
-    return failAlone("E_SOURCE_PARAM", "not an S3 link", { name: "url", reason }, `source:${S3_SOURCE_ID}`);
+function splitFirst(path: string): [string, string] {
+    const slash = path.indexOf("/");
+    return slash < 0 ? [path, ""] : [path.slice(0, slash), path.slice(slash + 1)];
 }

@@ -14,8 +14,9 @@
 
 import { endpointOrigin } from "../credentials.js";
 import { defineSource } from "../define.js";
-import { failAlone, failOn } from "../fail.js";
+import { failOn } from "../fail.js";
 import { ZENODO_SOURCE_ID } from "../ids.js";
+import { readLink, refuseLink } from "../link.js";
 import { type GraphSource, type SourceContext, type SourceListing, type SourceListQuery } from "../types.js";
 import { ZENODO_DESCRIPTOR, type ZenodoParams } from "./descriptor.js";
 
@@ -110,53 +111,25 @@ export interface ZenodoLink {
  * @category Network sources
  */
 export function parseZenodoUrl(url: string | URL): ZenodoLink {
-    let parsed: URL;
-    try {
-        parsed = new URL(url);
-    } catch {
-        return refuse("format");
+    const { protocol, host, parts } = readLink(url, "Zenodo", ZENODO_SOURCE_ID);
+    if (protocol === "https:" && host === "doi.org") {
+        const record =
+            parts.length === 2 && parts[0] === "10.5281" ? /^zenodo\.(\d+)$/i.exec(parts[1])?.[1] : undefined;
+        return record === undefined ? refuseLink("Zenodo", ZENODO_SOURCE_ID, "format") : { record };
     }
-    if (parsed.username !== "" || parsed.password !== "") {
-        return refuse("credentials-in-url");
-    }
-    const host = parsed.host.toLowerCase();
-    let parts: string[];
-    try {
-        parts = parsed.pathname
-            .split("/")
-            .filter((part) => part !== "")
-            .map(decodeURIComponent);
-    } catch {
-        return refuse("format");
-    }
-    if (parsed.protocol !== "https:") {
-        return refuse("format");
-    }
-    if (host === "doi.org" && parts[0] === "10.5281" && parts.length === 2) {
-        const record = /^zenodo\.(\d+)$/i.exec(parts[1] ?? "")?.[1];
-        return record === undefined ? refuse("format") : { record };
-    }
-    if (host !== "zenodo.org" && host !== "www.zenodo.org") {
-        return refuse("format");
-    }
-    if (parts[0] === "api") {
-        parts = parts.at(-1) === "content" ? parts.slice(1, -1) : parts.slice(1);
-    }
-    const [kind, record = "", files, ...file] = parts;
-    if ((kind !== "records" && kind !== "record") || !RECORD.test(record)) {
-        return refuse("format");
-    }
-    if (parts.length === 2) {
+    // an API link: drop the leading `api` and a trailing `content`
+    const api = parts[0] === "api";
+    const page = api ? parts.slice(1, parts.at(-1) === "content" ? -1 : undefined) : parts;
+    const [kind, record = "", files, ...file] = page;
+    const recordPage =
+        protocol === "https:" &&
+        (host === "zenodo.org" || host === "www.zenodo.org") &&
+        (kind === "records" || kind === "record") &&
+        RECORD.test(record);
+    if (recordPage && page.length === 2) {
         return { record };
     }
-    return files === "files" && file.length > 0 ? { record, file: file.join("/") } : refuse("format");
-}
-
-/**
- * Reject a Zenodo link.
- * @param reason - why
- * @returns never
- */
-function refuse(reason: "format" | "credentials-in-url"): never {
-    return failAlone("E_SOURCE_PARAM", "not a Zenodo link", { name: "url", reason }, `source:${ZENODO_SOURCE_ID}`);
+    return recordPage && files === "files" && file.length > 0
+        ? { record, file: file.join("/") }
+        : refuseLink("Zenodo", ZENODO_SOURCE_ID, "format");
 }

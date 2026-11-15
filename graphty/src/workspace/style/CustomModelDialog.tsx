@@ -256,8 +256,11 @@ function Preview({
                 <ModelChip chip={modelChip(draw.failure)} />
             </Stack>
         );
+    } else if (held === null) {
+        // Blank until a model is loaded.
+        content = null;
     } else if (busy || accepted) {
-        content = <Loader size="sm" aria-label={CUSTOM_MODEL.loading(held === null || busy ? "model" : name)} />;
+        content = <Loader size="sm" aria-label={CUSTOM_MODEL.loading(busy ? "model" : name)} />;
     } else {
         content = (
             <Stack gap={4} align="center">
@@ -738,8 +741,7 @@ export function CustomModelDialog({
 
     const fileSource = (
         <FileSource
-            variant="drop"
-            fill={held === null}
+            variant="row"
             autoFocus={empty}
             disabled={busy}
             progress={shownLoad?.progress}
@@ -753,8 +755,6 @@ export function CustomModelDialog({
             label={CUSTOM_MODEL.chooseFiles}
             folderLabel={CUSTOM_MODEL.chooseFolder}
             placeholder={CUSTOM_MODEL.address}
-            openLabel={CUSTOM_MODEL.load}
-            hint={CUSTOM_MODEL.dropHint(MODEL_FORMATS)}
             defaultValue={address}
             error={addressProblem === null ? undefined : refusalLine(addressProblem)}
             onDiscard={() => {
@@ -1010,19 +1010,12 @@ export function CustomModelDialog({
                 ref={setBody}
                 className="ws-dialog-columns ws-model-body"
                 data-testid="custom-model"
-                data-empty={empty || undefined}
                 data-over={over || undefined}
             >
-                {empty ? (
-                    <div className="ws-model-main ws-model-start">{left}</div>
-                ) : (
-                    <>
-                        <ScrollArea className="ws-model-main" type="hover" scrollbars="y" offsetScrollbars="y">
-                            {left}
-                        </ScrollArea>
-                        {side}
-                    </>
-                )}
+                <ScrollArea className="ws-model-main" type="hover" scrollbars="y" offsetScrollbars="y">
+                    {left}
+                </ScrollArea>
+                {side}
                 <ModalFooter className="ws-model-footer">
                     <Button variant="default" onClick={cancel}>
                         {CUSTOM_MODEL.cancel}

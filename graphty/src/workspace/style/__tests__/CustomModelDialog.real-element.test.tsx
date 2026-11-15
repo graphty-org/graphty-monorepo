@@ -120,7 +120,11 @@ describe("the Load custom model dialog, on the real element", () => {
         const { session, tab, store } = await openShapes();
         const dialog = await fromMenu();
         await waitFor(() => {
-            assert.equal(document.activeElement?.textContent, "Choose files", "focus starts on Choose files");
+            assert.equal(
+                document.activeElement?.getAttribute("aria-label"),
+                "Model address",
+                "focus starts on the address",
+            );
         });
         await choose(dialog, "Choose folder", [KIT_FOLDER]);
         await previewOf(dialog, "police");

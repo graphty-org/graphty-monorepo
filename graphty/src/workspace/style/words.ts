@@ -2050,16 +2050,8 @@ export const CUSTOM_MODEL = {
     button: "Add custom model...",
     description: "Load a 3D model file or address into this project",
     address: "Model address",
-    load: "Load",
     chooseFiles: "Choose files",
     chooseFolder: "Choose folder",
-    /**
-     * The drop target's caption, with the model formats graphty-element draws.
-     * @param formats - the formats' extensions, ".glb".
-     * @returns the words.
-     */
-    dropHint: (formats: readonly string[]): string =>
-        `Drop a model, folder or .zip -- ${formats.map((e) => e.replace(/^\./, "").toUpperCase()).join(", ")}`,
     cancelLoad: "Cancel load",
     /**
      * Said when the reader stops a load.

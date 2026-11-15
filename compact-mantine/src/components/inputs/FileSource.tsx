@@ -257,7 +257,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
     };
     const urlInput = useRef<HTMLInputElement>(null);
 
-    const urlField = (rightSection?: React.ReactNode): React.JSX.Element => {
+    const urlField = (rightSection?: React.ReactNode, rightSectionWidth?: number): React.JSX.Element => {
         const field = (
             <TextInput
                 ref={urlInput}
@@ -270,6 +270,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
                 error={error ?? invalid}
                 className="cm-file-url"
                 rightSection={rightSection}
+                rightSectionWidth={rightSectionWidth}
                 onChange={(event) => {
                     setAddress(event.currentTarget.value);
                     setInvalid(false);
@@ -351,20 +352,38 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
     if (drawn === "button") {
         body = buttons(true);
     } else if (drawn === "row") {
-        body = showUrl
-            ? urlField(
-                  <ActionIcon
-                      disabled={disabled}
-                      title={chooseText}
-                      aria-label={chooseText}
-                      onClick={() => {
-                          choose();
-                      }}
-                  >
-                      {uploadGlyph}
-                  </ActionIcon>,
-              )
-            : chooseButton(true);
+        const chooseIcon = (
+            <ActionIcon
+                disabled={disabled}
+                title={chooseText}
+                aria-label={chooseText}
+                onClick={() => {
+                    choose();
+                }}
+            >
+                {uploadGlyph}
+            </ActionIcon>
+        );
+        // A row that also takes a folder carries its icon beside the file icon; a row that does not looks as before.
+        const folderText = folderLabel ?? labels.fileChooseFolder;
+        const icons = folder ? (
+            <Group gap={0} wrap="nowrap">
+                {chooseIcon}
+                <ActionIcon
+                    disabled={disabled}
+                    title={folderText}
+                    aria-label={folderText}
+                    onClick={() => {
+                        choose(true);
+                    }}
+                >
+                    <UiGlyph name="folder" size={16} />
+                </ActionIcon>
+            </Group>
+        ) : (
+            chooseIcon
+        );
+        body = showUrl ? urlField(icons, folder ? 48 : undefined) : chooseButton(true);
     } else {
         body = (
             <>

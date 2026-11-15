@@ -652,8 +652,8 @@
 /* The Load custom model dialog (node-models design 14.2). */
 
 /* Its body: the shared two-column dialog (.ws-dialog-columns), here the settings on the left and
-   the model on the right in a 240 px column, the footer across both. Before a model is loaded, the
-   file loader fills it. The whole body takes a drop, and shows it while files are held over it. */
+   the model on the right in a 240 px column (blank until a model is loaded), the footer across both.
+   The whole body takes a drop, and shows it while files are held over it. */
 .ws-dialog-columns.ws-model-body {
     grid-template-columns: minmax(0, 1fr) 240px;
     grid-template-rows: minmax(0, 1fr) auto;
@@ -671,18 +671,6 @@
     min-height: 0;
 }
 
-.ws-model-start {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden auto;
-}
-
-.ws-model-start > .ws-model-left {
-    flex: 1 1 auto;
-    min-height: 0;
-}
-
 .ws-model-side {
     min-height: 0;
     overflow: hidden auto;
@@ -697,10 +685,6 @@
     .ws-dialog-columns.ws-model-body {
         grid-template-columns: minmax(0, 1fr);
         grid-template-rows: auto minmax(0, 1fr) auto;
-    }
-
-    .ws-dialog-columns.ws-model-body[data-empty] {
-        grid-template-rows: minmax(0, 1fr) auto;
     }
 
     .ws-model-side {

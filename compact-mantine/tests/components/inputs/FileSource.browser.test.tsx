@@ -165,6 +165,29 @@ describe("FileSource", () => {
         assert.sameMembers([...paths.keys()], ["kit/car.obj", "kit/parts/car.mtl"]);
     });
 
+    it("puts a folder icon beside the row's file icon when asked, and hands the folder's paths", async () => {
+        const onFiles = vi.fn();
+        await renderThemed(
+            <div style={{ width: 320 }}>
+                <FileSource variant="row" folder onFiles={onFiles} onUrl={() => undefined} />
+            </div>,
+        );
+        await commands.chooseFiles("button[aria-label='Choose folder']", [
+            { name: "kit/car.obj", type: "", text: "o car" },
+            { name: "kit/parts/car.mtl", type: "", text: "newmtl red" },
+        ]);
+        await vi.waitFor(() => {
+            assert.equal(onFiles.mock.calls.length, 1);
+        });
+        const [, paths] = onFiles.mock.calls[0] as [File[], ReadonlyMap<string, File>];
+        assert.sameMembers([...paths.keys()], ["kit/car.obj", "kit/parts/car.mtl"]);
+    });
+
+    it("draws no folder icon in a row that was not asked for one", async () => {
+        await renderThemed(<FileSource variant="row" onFiles={() => undefined} onUrl={() => undefined} />);
+        assert.isNull(screen.queryByRole("button", { name: "Choose folder" }));
+    });
+
     it("hands no paths for files chosen one by one", async () => {
         const onFiles = vi.fn();
         await renderThemed(<FileSource variant="drop" folder onFiles={onFiles} />);

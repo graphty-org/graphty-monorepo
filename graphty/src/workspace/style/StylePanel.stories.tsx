@@ -672,7 +672,7 @@ async function carKit(picture?: string): Promise<File[]> {
     return files;
 }
 
-/** The Load custom model dialog, empty: one file loader filling it, with Choose files, Choose folder, the formats and the address. */
+/** The Load custom model dialog, empty: the file loader row (address, Choose files, Choose folder) left, the preview blank right. */
 export const CustomModelEmpty: Story = nodeModelsStory(
     sceneStory(async () => {
         await openCustomModel();

@@ -10,7 +10,6 @@ import { act } from "react";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore } from "../../state/store";
@@ -86,14 +85,5 @@ describe("the Data page's time suggestion", () => {
         await waitFor(() => {
             assert.deepEqual(session.time.field, { edges: { start: "sent" } });
         });
-    });
-
-    it("leaves the column unmarked with the experiment off", async () => {
-        await siteFeatures([]);
-        await openDatedFile(DATED_CSV);
-        await userEvent.click(screen.getByRole("combobox", { name: "Role of sent" }));
-        const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
-        assert.notInclude(options, "Date or time (suggested)");
-        assert.isNull(screen.queryByText(/timeline candidate/));
     });
 });

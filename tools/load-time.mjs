@@ -135,7 +135,8 @@ export function judge(current, baseline) {
     let regressions = 0;
     for (const s of current) {
         const base = pinned(baseline, s.machine);
-        lines.push(`${s.machine}: ${base.size ? `baseline of ${base.size} rows` : "no baseline for this machine"}`);
+        const known = base.size ? "baseline of " + base.size + " rows" : "no baseline for this machine";
+        lines.push(`${s.machine}: ${known}`);
         for (const r of s.results) {
             const b = base.get(`${r.group}/${r.name}`);
             const status = rowStatus(r, b);

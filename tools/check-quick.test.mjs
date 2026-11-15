@@ -193,6 +193,12 @@ describe("tools/check-quick.sh", () => {
         assert.match(r.stdout, /\[FAIL\] quick check: Affected projects \(nx show projects\)/);
     });
 
+    it("asks the selected tests for whole browser shards only with --whole-browser-shards", () => {
+        const { r, tests } = sandbox({ args: ["--whole-browser-shards"] });
+        assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.deepEqual(tests.argv, ["--base", "main", "--whole-browser-shards"]);
+    });
+
     it("never runs the dry run unless asked", () => {
         const { r, pnpm, dryRun } = sandbox({ affected: "graphty graphty-element" });
         assert.equal(r.status, 0, r.stdout + r.stderr);

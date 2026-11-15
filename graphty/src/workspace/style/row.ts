@@ -13,7 +13,6 @@ import type { ChannelDescriptor, ShaderUse } from "@graphty/graphty-element/cata
 import type { Binding, Channel, ChannelValue, CombineMode, LayerId } from "@graphty/graphty-element/schema";
 import {
     type ColumnRef,
-    fileStyleWords,
     type GraphSession,
     type Layer,
     OVERFLOW_SHAPES,
@@ -676,8 +675,8 @@ export function readsNothing(session: GraphSession, target: Target, channel: Cha
 
 /**
  * The name of what a binding reads, for its line: the column's name, or the run's value by the
- * name every other surface gives it ("Connections", not the method's "Degree"), a node's degree or a
- * file's style column by the name graphty-element gives it ("In-degree", "File style").
+ * name every other surface gives it ("Connections", not the method's "Degree"), or a node's degree by
+ * the name graphty-element gives it ("In-degree").
  * @param session - the element's session.
  * @param binding - the binding.
  * @returns the name, or null when nothing of this session has the binding's path.
@@ -699,7 +698,7 @@ export function sourceName(session: GraphSession, binding: Pick<DataBinding, "by
         return readableName(session, value).name;
     }
     const structure = session.data.structureValues().find((each) => each.path === binding.by);
-    return structure?.plainName ?? fileStyleWords(binding.by)?.plainName ?? null;
+    return structure?.plainName ?? null;
 }
 
 /**

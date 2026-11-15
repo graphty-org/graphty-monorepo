@@ -2,7 +2,7 @@
 import "@graphty/graphty-element";
 
 import { setDefaultFeatures } from "@graphty/graphty-element/extend";
-import { fileStyleOf, type Layer } from "@graphty/graphty-element/session";
+import type { Layer } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
@@ -94,7 +94,7 @@ async function showStyle(
 }
 
 /**
- * A story that loads one styled file with its styles and shows the first layer the file made for
+ * A story that loads one styled file with its styles and shows the first layer the load added for
  * one kind.
  * @param file - which file.
  * @param kind - nodes or edges.
@@ -112,6 +112,7 @@ function fileStory(
             const { canvasElement } = context;
             const store = storeOf(context);
             const element = await elementOf(canvasElement);
+            const before = new Set(element.session.styles.list().map((each: Layer) => each.id));
             await element.session.data.import(
                 { type: file, name: FILES[file].name, config: { data: FILES[file].data } },
                 { styles: "file" },
@@ -119,7 +120,7 @@ function fileStory(
             await element.session.styles.settled();
             const layer = element.session.styles
                 .list()
-                .find((each: Layer) => each.target === kind && fileStyleOf(each) !== null);
+                .find((each: Layer) => each.target === kind && !before.has(each.id));
             if (layer === undefined) {
                 throw new Error(`the ${file} file made no ${kind} layer`);
             }

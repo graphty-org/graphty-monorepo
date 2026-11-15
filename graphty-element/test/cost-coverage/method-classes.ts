@@ -735,7 +735,6 @@ export const READ_ONLY: readonly string[] = [
     "Graph.setAutoFrame",
     "Graph.setZoomToPointer",
     "UpdateManager.holdSelectionFollow",
-    "Graph.setAttributionOffset",
     "Graph.getGlobeLook",
     "Graph.setGlobeLook",
     "Graph.getCameraTransitionDuration",

@@ -1065,7 +1065,6 @@ export class Graph implements GraphContext {
 
         this.basemapManager = new BasemapManager(
             () => this.scene,
-            this.element,
             () => {
                 // The map made or showed meshes, usually just before the scene draws: a frozen list
                 // of what is drawn would leave them out of this frame and the frames after it.
@@ -3079,16 +3078,6 @@ export class Graph implements GraphContext {
         // still to draw, which is loading, not the old map's ready.
         this.basemapManager.sync(this.#geoFrame(), this.#mapOption());
         return this.basemapManager.status;
-    }
-
-    /**
-     * How far above the canvas's bottom edge the map's credits sit, in CSS pixels, so they clear
-     * controls the page draws over that edge. A view setting, not saved with the project.
-     * @param pixels - The offset; 0 (the default) is the corner.
-     * @since 3.31.0
-     */
-    setAttributionOffset(pixels: number): void {
-        this.basemapManager.attributionOffset = pixels;
     }
 
     /** See {@link setGlobeLook}. */

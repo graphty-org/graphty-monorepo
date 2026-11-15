@@ -3904,7 +3904,8 @@ export class Graphty extends LitElement {
     /**
      * What the map under the `location-map` layout is doing: its source, `state` (`off`, `loading`,
      * `ready`, or `fallback` when its pictures failed and the bundled world image shows instead), and
-     * `attribution`, the credits of everything drawn, which must be visible whenever the map is.
+     * `attribution`, the credits of everything drawn, as data: the element never draws them over the
+     * canvas, and a page may show them elsewhere (an About dialog).
      * @since 3.31.0
      * @returns The status
      */
@@ -3923,37 +3924,6 @@ export class Graphty extends LitElement {
     get mapFrame(): MapFrameFact | null {
         return this.#graph.mapFrame;
     }
-
-    /**
-     * How far above the canvas's bottom edge the map's credits sit, in CSS pixels.
-     * @remarks
-     * The element draws the credits of the map under the `location-map` layout in the canvas's
-     * bottom-right corner, as every map source's terms require. A page that draws its own controls
-     * over that edge sets this to their height, so the credits stay in sight. 0 (the default) is
-     * the corner. A preference of this view, not saved with the project.
-     * @since 3.31.0
-     * @example
-     * ```html
-     * <graphty-element attribution-offset="56"></graphty-element>
-     * ```
-     * @returns The offset
-     */
-    @property({ attribute: "attribution-offset", type: Number })
-    get attributionOffset(): number {
-        return this.#attributionOffset;
-    }
-    /**
-     * Moves the map's credits up from the corner.
-     */
-    set attributionOffset(value: number) {
-        const oldValue = this.#attributionOffset;
-        this.#attributionOffset = Number.isFinite(value) ? Math.max(0, value) : 0;
-        this.#graph.setAttributionOffset(this.#attributionOffset);
-        this.requestUpdate("attributionOffset", oldValue);
-    }
-
-    /** See {@link attributionOffset}. */
-    #attributionOffset = 0;
 
     /**
      * How the globe under the `location-map` layout looks beyond its map.

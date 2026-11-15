@@ -3066,7 +3066,6 @@ export class Graph implements GraphContext {
     } | null;
     select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     selectNode(nodeId: string | number): boolean;
-    setAttributionOffset(pixels: number): void;
     setAutoFrame(on: boolean): void;
     setBackground(background: GraphBackgroundConfig): void;
     setCameraMode(mode: CameraKey, options?: QueueableOptions): Promise<void>;
@@ -3387,8 +3386,6 @@ export class Graphty extends LitElement {
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     asyncFirstUpdated(): Promise<void>;
     attributeChangedCallback(name: string, old: string | null, value: string | null): void;
-    get attributionOffset(): number;
-    set attributionOffset(value: number);
     get autoFrame(): boolean;
     set autoFrame(value: boolean);
     get autoRotate(): number;

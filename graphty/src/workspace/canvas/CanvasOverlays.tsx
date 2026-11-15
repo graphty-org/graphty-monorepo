@@ -158,9 +158,8 @@ function useCanvasReading(session: GraphSession | null, paused: boolean): Canvas
 const DETAILED_MAP_SPAN = 20;
 
 /**
- * The street map the app draws small data over: free, keyless and credited on the canvas, as
- * OpenStreetMap's tile usage policy asks (https://operations.osmfoundation.org/policies/tiles/);
- * the map only loads the tiles in view and never prefetches.
+ * The street map the app draws small data over: free and keyless; the map only loads the tiles in
+ * view and never prefetches (https://operations.osmfoundation.org/policies/tiles/).
  */
 const DETAILED_MAP_SOURCE = "openstreetmap";
 

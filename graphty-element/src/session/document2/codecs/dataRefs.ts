@@ -458,6 +458,8 @@ interface DataModel {
     readonly edgeRefs: ReadonlyMap<EdgeId, EdgeRef>;
     /** Each load source's copy, by source id. */
     readonly copies: ReadonlyMap<string, Copy>;
+    /** The nodes a load held with no key of their own: their key cells (null or empty). */
+    readonly keyless: ReadonlyMap<NodeId, unknown>;
     /** The reader source, when the reader added anything. */
     readonly reader?: ReaderCopy;
     /** The sources that could not be fetched: their records as read. */
@@ -629,6 +631,7 @@ function kindOfSource(source: ModelSource, memory: DataMemory): string {
  * @param facts - What its load read.
  * @param folded - Whether the session holds the reader's edits, removes or merges.
  * @param edgeIdColumn - The edge-id column, if any.
+ * @param keyless - The keyless nodes' key cells (null or empty), by node.
  * @returns The copy.
  */
 function copyOf(
@@ -638,12 +641,14 @@ function copyOf(
     facts: LoadFacts | undefined,
     folded: boolean,
     edgeIdColumn: string | undefined,
+    keyless: ReadonlyMap<NodeId, unknown>,
 ): Copy {
     const repeated = repeatedEdgeRows(source, edgeIdColumn);
+    const cellOf = (id: NodeId): unknown => (keyless.has(id) ? keyless.get(id) : keyCellOf(refs.get(id), id));
     const nodes =
         source.nodes.length > 0
             ? tableOf(
-                  source.nodes.map((node) => ({ ...node, id: keyCellOf(refs.get(node.id), node.id) })),
+                  source.nodes.map((node) => ({ ...node, id: cellOf(node.id) })),
                   ["id"],
               )
             : undefined;
@@ -783,6 +788,33 @@ function nameNode(
     return { loads: [READER], ref: { space: known?.space ?? `source:${READER}`, key }, reader: true };
 }
 
+/** The id a load gives a node row with no key of its own (`#<n>`). */
+const KEYLESS_ID = /^#\d+$/;
+
+/**
+ * The nodes a load held with no key of their own: the session gave each an id, and its record
+ * keeps the null or empty id cell its row had. A node a file named already keeps that name.
+ * @param session - The session.
+ * @param memory - The memory.
+ * @returns Each such node's key cell, by node.
+ */
+function keylessCells(session: GraphSession, memory: DataMemory): Map<NodeId, unknown> {
+    const cells = new Map<NodeId, unknown>();
+    const path = session.config.data.knownFields.nodeIdPath;
+    if (typeof path !== "string" || !/^[A-Za-z_][\w-]*$/.test(path)) {
+        return cells;
+    }
+
+    for (const [id, record] of dispatcherOf(session).state.graph.nodes) {
+        const cell: unknown = record[path];
+        if (KEYLESS_ID.test(String(id)) && keyText(cell) === undefined && !memory.nodeRefs.has(id)) {
+            cells.set(id, cell ?? null);
+        }
+    }
+
+    return cells;
+}
+
 /**
  * Name each node a source supplied with no key (an empty id) as its keyless row:
  * `<copy id>#<row>` in the space `source:<source id>` (spec 6.1), so its key holds across saves;
@@ -791,18 +823,21 @@ function nameNode(
  * @param copies - Their copies.
  * @param nodeRefs - Each node's reference, named here for the keyless ones.
  * @param memory - The memory: a node already named by the file it was read from keeps that name.
+ * @param cells - The nodes a load held with no key of their own.
  */
 function nameKeyless(
     sources: readonly ModelSource[],
     copies: ReadonlyMap<string, Copy>,
     nodeRefs: Map<NodeId, NodeRef>,
     memory: DataMemory,
+    cells: ReadonlyMap<NodeId, unknown>,
 ): void {
     const keyless = new Set<NodeId>();
     for (const source of sources) {
         const copy = copies.get(source.id) as Copy;
         source.nodes.forEach((node, row) => {
-            if (keyText(node.id) === undefined && !memory.nodeRefs.has(node.id) && !keyless.has(node.id)) {
+            const unkeyed = cells.has(node.id) || (keyText(node.id) === undefined && !memory.nodeRefs.has(node.id));
+            if (unkeyed && !keyless.has(node.id)) {
                 keyless.add(node.id);
                 nodeRefs.set(node.id, { space: `source:${source.id}`, key: `${copy.copy}#${String(row)}` });
             }
@@ -884,13 +919,14 @@ function dataModelOf(session: GraphSession): DataModel {
 
     const folded = foldedOperations(session).size > 0;
     const edgeIdColumn = edgeIdColumnOf(session);
+    const keyless = keylessCells(session, memory);
     const copies = new Map(
         sources.map((source) => [
             source.id,
-            copyOf(source, nodeRefs, memory, factsOf(session, source.load.key), folded, edgeIdColumn),
+            copyOf(source, nodeRefs, memory, factsOf(session, source.load.key), folded, edgeIdColumn, keyless),
         ]),
     );
-    nameKeyless(sources, copies, nodeRefs, memory);
+    nameKeyless(sources, copies, nodeRefs, memory, keyless);
     const edgeRefs = new Map<EdgeId, EdgeRef>();
     for (const source of sources) {
         const copy = copies.get(source.id) as Copy;
@@ -918,6 +954,7 @@ function dataModelOf(session: GraphSession): DataModel {
         nodeRefs,
         edgeRefs,
         copies,
+        keyless,
         ...(reader === undefined ? {} : { reader }),
         unavailable: memory.unavailable,
         reserved,
@@ -1356,6 +1393,23 @@ function userColumns(columns: Readonly<JsonObject>): JsonObject {
 }
 
 /**
+ * A node's key column as the graph writes it: as its copy writes it for a node a load supplied (a
+ * keyless node's null or empty cell included), none for one the reader added or only an edge named.
+ * @param model - The model.
+ * @param id - The node.
+ * @param ref - Its reference.
+ * @param loads - Its source ids.
+ * @returns The cell, or undefined.
+ */
+function keyColumnOf(model: DataModel, id: NodeId, ref: NodeRef, loads: readonly string[]): unknown {
+    if (!loads.some((load) => load !== READER)) {
+        return undefined;
+    }
+
+    return model.keyless.has(id) ? model.keyless.get(id) : keyCellOf(ref, id);
+}
+
+/**
  * An edge's end columns as its copy writes them, or none for a reader-added edge.
  * @param edge - The edge.
  * @param ref - Its reference.
@@ -1406,7 +1460,7 @@ function graphOf(model: DataModel, embedded: ReadonlySet<string>, types: readonl
             // the reader added or only an edge named has no row, so its session id is no column.
             ...userColumns({
                 ...node,
-                id: loads.some((id) => id !== READER) ? keyCellOf(ref, node.id) : undefined,
+                id: keyColumnOf(model, node.id, ref, loads),
             }),
         });
     }

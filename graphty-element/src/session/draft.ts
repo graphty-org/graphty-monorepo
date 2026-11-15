@@ -1398,12 +1398,14 @@ export class Draft implements LoadDraft {
                 const seen = new Set<unknown>();
                 held.rows.forEach((row, index) => {
                     const id = roles.key === null ? index : value(row, idPath);
-                    const rejected = !isStorableId(id);
+                    // A row whose id is null or empty is keyless: it makes a node of its own.
+                    const keyless = id === null || id === undefined || id === "";
+                    const rejected = !keyless && !isStorableId(id);
                     if (rejected) {
                         reasons.set(index, { reason: rowReason("refused-row", { rowsAre: "nodes" }) });
                     }
                     // A row repeating an earlier row's id makes no node of its own.
-                    const loaded = !rejected && !seen.has(id);
+                    const loaded = keyless || (!rejected && !seen.has(id));
                     seen.add(id);
                     if (only === "rejected" ? rejected : loaded) {
                         picked.push(index);

@@ -458,6 +458,12 @@ export interface GraphWriter {
      */
     nodeRecord(id: NodeId): GraphRecord | undefined;
     /**
+     * Read one edge's record as this command's writes have left it.
+     * @param edgeIndex - The edge's row in the builder.
+     * @returns The record, or undefined when the graph holds none.
+     */
+    edgeRecord(edgeIndex: number): GraphRecord | undefined;
+    /**
      * Read one graph-level value as this command's writes have left it.
      * @param name - The value's name.
      * @returns The value, or undefined when none is set.
@@ -1976,6 +1982,10 @@ class Writer implements GraphWriter {
 
     nodeRecord(id: NodeId): GraphRecord | undefined {
         return this.graph.slice.nodes.get(id);
+    }
+
+    edgeRecord(edgeIndex: number): GraphRecord | undefined {
+        return this.graph.slice.edges.get(edgeIdOf(this.store.edgeIdAt(edgeIndex)));
     }
 
     setAttributes(target: RecordTarget, id: NodeId, values: GraphRecord, replace = false): boolean {

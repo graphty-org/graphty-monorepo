@@ -465,7 +465,13 @@ export class JsonDataSource extends DataSource {
         const imported = await importRecords(
             jsonImporter,
             JSON.stringify({
-                nodes: idKey === null ? [] : rawNodes.map((node, row) => stub(node, row, [idKey])),
+                // A node with a null, empty or missing id is keyless, not wrong: nothing to check.
+                nodes:
+                    idKey === null
+                        ? []
+                        : rawNodes.flatMap((node, row) =>
+                              isObject(node) && (node[idKey] ?? "") === "" ? [] : [stub(node, row, [idKey])],
+                          ),
                 edges:
                     endpoints === null
                         ? []

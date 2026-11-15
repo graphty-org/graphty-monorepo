@@ -424,7 +424,9 @@ A style section holds `layers` (REQUIRED), `palettes`, `shaders`, `tree`, `value
 
 1. A layer has `id` (REQUIRED, unique in the section), `name`, `target` (`node` or `edge`),
    `selector`, and `set` and/or `encode`; optionally `source`, `enabled` and `userData`. A layer
-   has no `kind`: there are no special layers.
+   has no `kind`: there are no special layers. `source.by` is `run`, `template` or `plugin`; a
+   layer the reader made writes no `source`, in style and view alike, and an absent `source` means
+   the reader made it.
 2. `set` maps channel names (`node.color`) to values; `encode` maps channel names to bindings
    (`{ "by": <path>, "scale", "palette", ... }`). A value naming a built-in (a node shape, an
    arrowhead, a line pattern, a label look) MUST be a name from `builtins.md`.

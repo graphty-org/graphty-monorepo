@@ -291,7 +291,6 @@ const viewLayer = (id: string): JsonObject => ({
     target: "node",
     selector: { match: "ids", nodes: [{ space: SPACE, key: "a" }] },
     set: { "node.color": "#ff0000" },
-    source: { by: "user" },
 });
 
 describe("view codec: writing", () => {
@@ -682,6 +681,20 @@ describe("view codec: opening", () => {
         assert.isDefined(top);
         await opened.styles.move(top.id, null);
         assert.deepEqual((await save(opened)).order, [idOf(opened, "Mine"), "Low", "Top"]);
+    });
+
+    it("writes no source for a layer the reader made, and reads a layer with none as reader-made", async () => {
+        const opened = await sessionWithData();
+        await open(opened, { kind: "graphty-view", version: 1, layers: [viewLayer("Mine")] });
+        const mine = opened.styles.list().find((layer) => layer.name === "Mine");
+        assert.deepEqual(mine?.source, { by: "user" });
+        if (mine !== undefined) {
+            await opened.styles.update(mine.id, { set: { "node.color": "#00ff00" } });
+        }
+
+        const [written] = (await save(opened)).layers as JsonObject[];
+        assert.strictEqual(written.name, "Mine");
+        assert.notProperty(written, "source");
     });
 
     it("opens the worked example on other data, binding nothing and writing it back unchanged", async () => {

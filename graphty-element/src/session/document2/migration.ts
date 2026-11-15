@@ -433,7 +433,12 @@ function migrateStyle(
         }
 
         used.add(id);
-        const { id: _id, name, kind: _kind, ...rest } = layer;
+        // A layer the reader made writes no source (an absent source means reader-made).
+        const { id: _id, name, kind: _kind, ...withSource } = layer;
+        const byReader = isObject(withSource.source) && withSource.source.by === "user";
+        const rest = byReader
+            ? Object.fromEntries(Object.entries(withSource).filter(([key]) => key !== "source"))
+            : withSource;
         const named = layerNames(layer, sets);
         const rename = named ? asRunId : asName;
         const source = isObject(rest.source) && typeof rest.source.runId === "string" ? rest.source : undefined;

@@ -88,7 +88,7 @@
             "target": "edge",
             "selector": {
                 "match": "expression",
-                "where": "data.amount > 500"
+                "where": "data.amount > `500`"
             },
             "set": {
                 "edge.color": "#c62828",

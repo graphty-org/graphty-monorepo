@@ -241,9 +241,8 @@ describe("the style codec round-trips", () => {
         const example = readJson("examples/card-fraud.graphty-style.json");
         const session = createGraphSession(ON);
         const problems = await open(session, example);
-        // The element does not yet read a bare number in an expression (style.md, "Expressions"
-        // rule 1): that layer is kept, not applied. The `type` layer applies, to no node here.
-        assert.deepEqual(pointerParams(problems, "W_UNKNOWN_MEMBER"), ["/layers/2"]);
+        // Every layer applies; the `type` layer to no node here.
+        assert.deepEqual(pointerParams(problems, "W_UNKNOWN_MEMBER"), []);
         assert.include(
             session.styles.list().map((layer) => layer.name),
             "Merchants",
@@ -410,6 +409,23 @@ describe("the version 2 style section's own rules", () => {
         const problems = await open(other, written);
         assert.deepEqual(pointerParams(problems, "W_UNKNOWN_MEMBER"), ["/layers/0/kind"]);
         assert.deepEqual((await saveStyle(other)).section.layers, written.layers, "kept on re-save");
+    });
+
+    it("writes a labelled value in its column's JSON type", async () => {
+        const session = createGraphSession(ON);
+        await session.data.addNodes([
+            { id: "a", rank: 3, flag: true, mcc: "5947" },
+            { id: "b", rank: 4, flag: false, mcc: "12" },
+        ]);
+        await session.data.setValueLabel("data.rank", 3, "Third");
+        await session.data.setValueLabel("data.flag", true, "Flagged");
+        await session.data.setValueLabel("data.mcc", "12", "Twelve");
+        const { section } = await saveStyle(session);
+        assert.sameDeepMembers(section.valueLabels as JsonObject[], [
+            { path: "data.rank", value: 3, label: "Third" },
+            { path: "data.flag", value: true, label: "Flagged" },
+            { path: "data.mcc", value: "12", label: "Twelve" },
+        ]);
     });
 
     it("reports a run name no open run, or several, has, and leaves it as written", async () => {

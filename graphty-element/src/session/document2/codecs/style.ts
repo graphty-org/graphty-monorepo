@@ -39,10 +39,22 @@ import { layerNamesElements } from "./elementNaming";
 import { asName, columnSchema, isNamespace, namespaceFromId, splitRunId } from "./recipeCommands";
 import { fileIdsOf, fileSetId } from "./viewParts";
 
+/** One opened layer: as the file held it, and the session's form of it right after the open. */
+interface OpenedLayer {
+    readonly original: JsonObject;
+    baseline: string;
+    /**
+     * A `type` selector (or a `member` of `{ types }`) the file held, and the session's `ids`
+     * selector it was applied as: while the layer still holds those ids, its selector is the type
+     * selector, whatever else changed.
+     */
+    typed?: { readonly selector: JsonObject; readonly applied: string };
+}
+
 /** What a session remembers of the style sections it opened, to write them back as read. */
 interface StyleMemory {
     /** Each opened layer: as the file held it, and the session's form of it right after the open. */
-    readonly layers: Map<LayerId, { readonly original: JsonObject; baseline: string }>;
+    readonly layers: Map<LayerId, OpenedLayer>;
     /** Layers this release could not apply, kept, with the file id of the layer they followed. */
     readonly kept: { readonly layer: JsonObject; readonly after: string | null }[];
     /** The palettes the opened sections carried, as written. */
@@ -440,6 +452,25 @@ function palettesFor(
 }
 
 /**
+ * A labelled value in its JSON type: the session keeps it as the legend spells it, so a value of a
+ * number or boolean column is read back from that text.
+ * @param value - The value as text.
+ * @param type - The type of the column at its path, when known.
+ * @returns The value.
+ */
+function typedValue(value: string, type: string | undefined): string | number | boolean {
+    if ((type === "number" || type === "integer") && value.trim() !== "" && String(Number(value)) === value) {
+        return Number(value);
+    }
+
+    if (type === "boolean" && (value === "true" || value === "false")) {
+        return value === "true";
+    }
+
+    return value;
+}
+
+/**
  * The section's header and body from the session as it is now.
  * @param session - The session.
  * @param problems - Where to report the layers left out.
@@ -470,6 +501,15 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
             return;
         }
 
+        const typed = heldTypeSelector(session, id, spec.selector);
+        if (typed !== undefined) {
+            // Edited, but still on the elements of its types: its own id and its type selector.
+            const own = writtenId(id);
+            placeIds.push(own);
+            layers.push({ ...writeLayer(spec, own, rowId, session), selector: typed });
+            return;
+        }
+
         if (layerNamesElements(spec, session)) {
             placeIds.push(undefined);
             problems.push({
@@ -497,9 +537,11 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
         tree.push(...memory.kept.map(({ layer }) => ({ layer: layer.id })));
     }
 
+    const attributes = session.data.attributes();
     const valueLabels = [...dispatcherOf(session).state.valueLabels].map(([key, label]) => {
         const { path, value } = valueLabelOf(key);
-        return { path: renameRuns(path, runName), value, label };
+        const type = attributes.find((each) => each.path === path)?.type;
+        return { path: renameRuns(path, runName), value: typedValue(value, type), label };
     });
     const assets = assetsMember(session).member?.assets as JsonObject[] | undefined;
     const body: JsonObject = {
@@ -753,6 +795,30 @@ function prepareLayer(raw: unknown, index: number, reading: Reading): Prepared {
 }
 
 /**
+ * The type selector an opened layer was read from, while the layer still holds the ids it was
+ * applied as (spec 4.2 rule 3: the layer keeps its selector; the ids are only how it paints).
+ * @param session - The session.
+ * @param id - The layer's id in the session.
+ * @param selector - The layer's selector now.
+ * @returns The type selector, or undefined when the layer had none or now selects other elements.
+ */
+export function heldTypeSelector(session: GraphSession, id: LayerId, selector: unknown): JsonObject | undefined {
+    const typed = memoryOf(session).layers.get(id)?.typed;
+    return typed !== undefined && typed.applied === JSON.stringify(selector) ? typed.selector : undefined;
+}
+
+/**
+ * Whether a selector picks elements by type: a `type` selector, or a `member` of `{ types }`.
+ * @param selector - The selector.
+ * @returns True when it does.
+ */
+function isTypeSelector(selector: JsonObject): boolean {
+    return (
+        selector.match === "type" || (selector.match === "member" && isObject(selector.of) && "types" in selector.of)
+    );
+}
+
+/**
  * A selector with a `type` selector, or a `member` of `{ types }`, as the elements of those types
  * (spec 4.2 rule 3): graphty-element has no type predicate, so it names them by id. Any other
  * selector as it is.
@@ -762,10 +828,11 @@ function prepareLayer(raw: unknown, index: number, reading: Reading): Prepared {
  * @returns The selector, or undefined when its type names are not a list of strings.
  */
 function typedSelector(selector: JsonObject, target: unknown, reading: Reading): JsonObject | undefined {
-    const of = selector.match === "member" && isObject(selector.of) ? selector.of : undefined;
-    if (selector.match !== "type" && (of === undefined || !("types" in of))) {
+    if (!isTypeSelector(selector)) {
         return selector;
     }
+
+    const of = selector.match === "member" && isObject(selector.of) ? selector.of : undefined;
 
     const types: unknown = of === undefined ? selector.types : of.types;
     if (!Array.isArray(types) || !types.every((type): type is string => typeof type === "string")) {
@@ -1098,6 +1165,10 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
             const rowId =
                 spec.row === undefined ? undefined : (memory.layers.get(spec.row)?.original.id as string | undefined);
             opened.baseline = baselineOf(writeLayer(spec, "", rowId ?? spec.row, session));
+            const { selector } = opened.original;
+            if (isObject(selector) && isTypeSelector(selector)) {
+                opened.typed = { selector, applied: JSON.stringify(spec.selector) };
+            }
         }
     }
 

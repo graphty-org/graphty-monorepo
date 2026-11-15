@@ -106,16 +106,23 @@ describe("the version 2 schemas", () => {
 });
 
 describe("the examples", () => {
-    it("validate against the schema their kind and version name, and their $schema is derived from them", () => {
+    it("name their schema in $schema, derived from their kind and version, and validate by it", () => {
         for (const dir of ["", "minimal/"]) {
             for (const file of examples(dir)) {
                 const doc = readJson(new URL(`examples/${dir}${file}`, SPEC));
-                assert.strictEqual(errorsOf(doc), "", `${dir}${file}`);
-                if (doc.$schema !== undefined) {
-                    assert.strictEqual(doc.$schema, `${SCHEMA_URL}${text(doc.kind)}/v${text(doc.version)}.json`);
-                }
+                assert.strictEqual(doc.$schema, `${SCHEMA_URL}${text(doc.kind)}/v${text(doc.version)}.json`, file);
+                const validate = ajv.getSchema(text(doc.$schema));
+                assert.isDefined(validate, `${dir}${file}`);
+                assert.isTrue(validate?.(doc), `${dir}${file}: ${ajv.errorsText(validate?.errors)}`);
             }
         }
+    });
+
+    it("write no source on a layer the reader made: by user is refused", () => {
+        const view = sectionsOf(cardFraud()).view as { layers: JsonObject[] };
+        assert.isTrue(view.layers.some((layer) => !("source" in layer)));
+        view.layers[0].source = { by: "user" };
+        assert.notStrictEqual(errorsOf(view), "");
     });
 
     it("cut out of a full file give the section files, member for member and in order", () => {

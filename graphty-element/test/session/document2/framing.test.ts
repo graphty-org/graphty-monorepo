@@ -212,7 +212,11 @@ describe("telling what a file is", () => {
     });
 
     it("holds a newer section and one that needs an extension", () => {
-        const newer = { ...minimalStyle(), version: 9 };
+        const newer = {
+            ...minimalStyle(),
+            $schema: "https://graphty.app/schema/documents/graphty-style/v9.json",
+            version: 9,
+        };
         const needs = {
             ...readJson("examples/minimal/minimal.graphty-recipe.json"),
             dependencies: { extensions: [{ name: "org.example.lab", version: 1 }] },
@@ -336,7 +340,12 @@ describe("saving version 2", () => {
 describe("opening version 2", () => {
     it("writes back the held and unknown sections of a project it opened, and reports the held one on save", async () => {
         const session = createGraphSession(ON);
-        const newer = { ...minimalStyle(), version: 9, future: true };
+        const newer = {
+            ...minimalStyle(),
+            $schema: "https://graphty.app/schema/documents/graphty-style/v9.json",
+            version: 9,
+            future: true,
+        };
         const unknown = { kind: "org.example.lab", version: 1, cells: [1, 2] };
         const data = readJson("examples/minimal/minimal.graphty-data.json");
         const report = await session.project.open(
@@ -356,7 +365,12 @@ describe("opening version 2", () => {
 
     it("reports what an additive open holds and never puts it in place of the project's own section", async () => {
         const session = createGraphSession(ON);
-        const newer = { ...minimalStyle(), version: 9, future: true };
+        const newer = {
+            ...minimalStyle(),
+            $schema: "https://graphty.app/schema/documents/graphty-style/v9.json",
+            version: 9,
+            future: true,
+        };
         // A kit (a full file with no data) and a section file, each holding a newer style.
         for (const file of [fullFile({ style: newer }), newer]) {
             const report = await session.project.open(JSON.stringify(file));

@@ -17,6 +17,7 @@ import { isGraphtyError } from "../../../errors/GraphtyError";
 import { dispatcherOf } from "../../dispatchers";
 import { ENGINE_VERSIONS } from "../../runs/engine";
 import type { Run } from "../../runs/types";
+import type { Layer } from "../../styles/Layer";
 import type { GraphSession, TransactionScope } from "../../types";
 import type { TimeWindow } from "../../visibility/filter";
 import type { SessionVisibilityApi } from "../../visibility/VisibilityApi";
@@ -33,6 +34,7 @@ import { typedIds } from "./dataRefs";
 import { layerNamesElements } from "./elementNaming";
 import { filterRule } from "./recipeCommands";
 import { markRecipeRun, recipeRunName, restoredPositions } from "./results";
+import { heldTypeSelector } from "./style";
 import {
     cameraJson,
     cameraOf,
@@ -277,8 +279,30 @@ function runJson(w: Writer, run: Run, pointer: string): JsonObject {
  * @param session - The session.
  * @returns True when it does.
  */
-function inView(layer: LayerSpec, session: GraphSession): boolean {
+function inView(layer: Layer, session: GraphSession): boolean {
+    if (heldTypeSelector(session, layer.id, layer.selector) !== undefined) {
+        return false;
+    }
+
     return layer.fileStyle !== undefined || layerNamesElements(layer, session);
+}
+
+/**
+ * A view layer's `source` member: a run's with its params mapped, none for a layer the reader made
+ * (an absent `source` means reader-made), any other written as it is.
+ * @param w - The writer.
+ * @param source - The layer's source.
+ * @returns The member, or nothing.
+ */
+function layerSourceJson(w: Writer, source: LayerSpec["source"]): JsonObject {
+    if (source === undefined || source.by === "user") {
+        return {};
+    }
+    if (source.by !== "run") {
+        return { source };
+    }
+    const { params } = mapParams(w.session, source.algorithm, source.params, w.mapper, "");
+    return { source: { by: "run", runId: source.runId, algorithm: source.algorithm, params } };
 }
 
 /**
@@ -299,15 +323,7 @@ function layersJson(w: Writer): JsonObject[] {
                 selector: mapRefs(layer.selector, w.mapper, ""),
                 ...(layer.set === undefined ? {} : { set: layer.set }),
                 ...(layer.encode === undefined ? {} : { encode: mapRefs(layer.encode, w.mapper, "") }),
-                source:
-                    source.by === "run"
-                        ? {
-                              by: "run",
-                              runId: source.runId,
-                              algorithm: source.algorithm,
-                              params: mapParams(w.session, source.algorithm, source.params, w.mapper, "").params,
-                          }
-                        : source,
+                ...layerSourceJson(w, source),
                 ...(layer.enabled ? {} : { enabled: false }),
                 ...(layer.userData === undefined ? {} : { userData: layer.userData }),
                 ...(layer.fileStyle === undefined ? {} : { fileStyle: layer.fileStyle }),

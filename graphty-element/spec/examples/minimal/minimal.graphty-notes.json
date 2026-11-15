@@ -1,4 +1,5 @@
 {
+    "$schema": "https://graphty.app/schema/documents/graphty-notes/v2.json",
     "kind": "graphty-notes",
     "version": 2,
     "generator": {

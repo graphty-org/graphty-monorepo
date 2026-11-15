@@ -615,7 +615,7 @@
                     "target": "edge",
                     "selector": {
                         "match": "expression",
-                        "where": "data.amount > 500"
+                        "where": "data.amount > `500`"
                     },
                     "set": {
                         "edge.color": "#c62828",
@@ -763,11 +763,12 @@
                         "of": [
                             {
                                 "kind": "source",
-                                "sources": ["accounts"]
+                                "sources": ["accounts"],
+                                "side": "nodes"
                             },
                             {
                                 "kind": "expression",
-                                "where": "results.pagerank.value > 0.2"
+                                "where": "results.pagerank.value > `0.2`"
                             }
                         ]
                     }
@@ -1268,11 +1269,12 @@
                             "of": [
                                 {
                                     "kind": "source",
-                                    "sources": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"]
+                                    "sources": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
+                                    "side": "nodes"
                                 },
                                 {
                                     "kind": "expression",
-                                    "where": "results.pagerank.value > 0.2"
+                                    "where": "results.pagerank.value > `0.2`"
                                 }
                             ]
                         },
@@ -1360,9 +1362,6 @@
                     },
                     "set": {
                         "node.outline": "#c62828"
-                    },
-                    "source": {
-                        "by": "user"
                     }
                 },
                 {

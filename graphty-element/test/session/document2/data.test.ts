@@ -991,6 +991,80 @@ describe("data section version 2", () => {
         session.dispose();
     });
 
+    it("loads repeated ids under merge with the first row's values, one node and one edge, as a reopen builds them", async () => {
+        const session = createGraphSession(ON);
+        await session.config.set({ data: { knownFields: { edgeIdPath: "eid" } } });
+        await session.data.import(
+            {
+                type: "json",
+                config: {
+                    data: JSON.stringify({
+                        nodes: [{ id: "a", role: "x" }, { id: "b" }, { id: "a", role: "y", team: "blue" }],
+                        edges: [
+                            { eid: "e1", source: "a", target: "b", kind: "phone" },
+                            { eid: "e1", source: "a", target: "b", kind: "text", note: "later" },
+                        ],
+                    }),
+                },
+                name: "calls.json",
+            },
+            { duplicateIds: "merge" },
+        );
+        const a = session.data.node("a");
+        assert.strictEqual(a?.role, "x", "the first row's value stands");
+        assert.strictEqual(a?.team, "blue", "a later row fills only what the first left unset");
+        assert.strictEqual(session.data.edges().length, 1);
+        assert.strictEqual(session.data.edges()[0].kind, "phone");
+        assert.strictEqual(session.data.edges()[0].note, "later");
+
+        const { body } = await writeBody(session);
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const links = (body.graph as JsonObject).links as JsonObject[];
+        assert.deepStrictEqual(
+            links.map((link) => link["graphty.key"]),
+            ["e1"],
+        );
+        const reopened = createGraphSession(ON);
+        await readBody(reopened, body);
+        assert.strictEqual(reopened.data.edges().length, 1);
+        assert.deepStrictEqual(keysOf((await writeBody(reopened)).body), keysOf(body));
+        session.dispose();
+        reopened.dispose();
+    });
+
+    for (const [what, type, data] of [
+        ["JSON null", "json", JSON.stringify({ nodes: [{ id: "a" }, { id: null, name: "Blank" }], edges: [] })],
+        ["JSON empty", "json", JSON.stringify({ nodes: [{ id: "a" }, { id: "", name: "Blank" }], edges: [] })],
+        ["a CSV empty cell", "csv", "id,name\na,Ann\n,Blank\n"],
+    ] as const) {
+        it(`loads a node row whose id is ${what} as a keyless node keyed <copy id>#<row>`, async () => {
+            const session = createGraphSession(ON);
+            const source = { type, config: { data }, name: `blank.${type}` };
+            // A CSV node table is read through a load draft, which takes its rows as they are.
+            await (type === "csv" ? (await session.data.prepare(source)).load() : session.data.import(source));
+            assert.strictEqual(session.data.nodes().length, 2);
+            assert.strictEqual(session.data.lastImport()?.counts.rejected, 0);
+            const { body } = await writeBody(session);
+            assert.deepStrictEqual(invalid(asSection(body)), []);
+            const file = (body.sources as JsonObject[]).find((each) => each.kind === "file") as JsonObject;
+            const copy = String((file.origin as JsonObject).copy);
+            const blank = ((body.graph as JsonObject).nodes as JsonObject[]).find((node) => node.name === "Blank");
+            assert.deepStrictEqual(
+                [blank?.["graphty.space"], blank?.["graphty.key"]],
+                [`source:${String(file.id)}`, `${copy}#1`],
+            );
+            const cell = ((file.copy as JsonObject).nodes as JsonObject).id as unknown[];
+            assert.include([null, ""], cell[1], "the row keeps its null or empty key cell");
+
+            const reopened = createGraphSession(ON);
+            assert.deepStrictEqual(await readBody(reopened, body), []);
+            assert.strictEqual(reopened.data.nodes().length, 2);
+            assert.deepStrictEqual(keysOf((await writeBody(reopened)).body), keysOf(body));
+            session.dispose();
+            reopened.dispose();
+        });
+    }
+
     it("keeps reserved-prefix columns out and reports them, writes handle-named columns as (column)", async () => {
         const session = createGraphSession(ON);
         await session.data.import({

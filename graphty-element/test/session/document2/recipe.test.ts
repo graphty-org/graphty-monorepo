@@ -540,12 +540,11 @@ describe("the version 2 recipe codec", () => {
         const example = readJson("examples/card-fraud.graphty-recipe.json");
         assert.deepEqual(invalid(example), []);
         const problems = await read(target, example);
-        // The type scope has no session form yet, and no source of this data plays the role
-        // "accounts": the run and the set are reported and the rest replays.
+        // The type scope has no session form yet: that run is reported and the rest replays, the
+        // set of node-side source leaves included.
         assert.deepEqual(problems, [
             { code: "E_BAD_DOCUMENT", params: { section: "recipe", pointer: "/commands/2" } },
             { code: "W_RUN_NOT_RUN", params: { run: "card_testing__communities" } },
-            { code: "E_BAD_DOCUMENT", params: { section: "recipe", pointer: "/commands/3", reason: "E_BAD_COMMAND" } },
         ]);
         assert.deepEqual(target.computed, ["card_testing__pagerank"]);
         assert.deepEqual(

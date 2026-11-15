@@ -339,3 +339,42 @@ describe("a data section too costly to build", () => {
         assert.isTrue(holds(outside));
     });
 });
+
+describe("the worked example, edited and reopened", () => {
+    it("keeps an edited type layer's id and type selector, and its new color", async () => {
+        const session = createGraphSession(ON);
+        await session.project.open(readText("examples/card-fraud.graphty.json"), { rerun: false });
+        const merchants = session.styles.list().find((layer) => layer.name === "Merchants");
+        assert.isDefined(merchants);
+        await session.styles.update(merchants.id, { set: { "node.color": "#123456" } });
+        const saved = (await session.project.save({ format: 2, markSaved: false })).text;
+        const written = (sectionsOf(saved).style.layers as JsonObject[]).find((layer) => layer.id === "merchants");
+        assert.deepEqual(written?.selector, { match: "type", types: ["merchant"] });
+        assert.strictEqual((written?.set as JsonObject)["node.color"], "#123456");
+        assert.isFalse(
+            ((sectionsOf(saved).view.layers ?? []) as JsonObject[]).some((layer) => layer.name === "Merchants"),
+        );
+
+        const reopened = createGraphSession(ON);
+        await reopened.project.open(saved, { rerun: false });
+        const again = (await reopened.project.save({ format: 2, markSaved: false })).text;
+        const kept = (sectionsOf(again).style.layers as JsonObject[]).find((layer) => layer.id === "merchants");
+        assert.deepEqual(kept?.selector, { match: "type", types: ["merchant"] });
+        assert.strictEqual((kept?.set as JsonObject)["node.color"], "#123456");
+    });
+
+    it("opens, saves and reopens with no error and no refused set", async () => {
+        const features = { features: ["save-files-v2", "timeline"] };
+        const session = createGraphSession(features);
+        const opened = await session.project.open(readText("examples/card-fraud.graphty.json"), { rerun: false });
+        assert.deepEqual(
+            codes(opened.problems).filter((code) => code.startsWith("E_")),
+            [],
+        );
+        assert.strictEqual(session.sets.list().length, 2);
+        const saved = (await session.project.save({ format: 2, markSaved: false })).text;
+        const reopened = createGraphSession(features);
+        const again = await reopened.project.open(saved, { rerun: false });
+        assert.deepEqual(codes(again.problems), codes(opened.problems));
+    });
+});

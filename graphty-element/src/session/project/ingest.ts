@@ -615,6 +615,9 @@ export class Ingest<K extends KnownEdge> {
     /** What writes beside a running load added, so the load does not count them as its own. */
     private besideAdded = { nodes: 0, edges: 0 };
 
+    /** The last number a keyless node row's id was made from. */
+    private keylessSerial = 0;
+
     /** The highest load key number handed out, so a key is never handed out twice. */
     private sourceSerial = 0;
 
@@ -1112,7 +1115,7 @@ export class Ingest<K extends KnownEdge> {
         // A node an earlier edge created is in the builder, and so in `heldCounts`, without a
         // render object yet: its row is not fresh, or the ceiling counts it twice.
         const { builder } = this.host.store();
-        const ids = nodes.map((node) => searchRecord(node, query) as NodeIdType);
+        const ids = nodes.map((node) => this.keyedId(searchRecord(node, query) as NodeIdType));
         const fresh = new Set(ids.filter((id) => !this.hasNode(id) && !(isStorableId(id) && builder.hasNode(id))));
         this.refuseAboveCeiling("nodes", this.heldCounts().nodes, fresh.size, this.ceilings().renderCeiling);
 
@@ -1150,6 +1153,26 @@ export class Ingest<K extends KnownEdge> {
         if (nodes.length > 0) {
             this.host.nodesArrived(nodes.length);
         }
+    }
+
+    /**
+     * A node row's id: the one it gave, or, for a load's row with a null or empty id, a new id of
+     * its own. Such a row is keyless (version 2 save files key it `<copy id>#<row>`); its record
+     * keeps the null or empty id cell, which is how a save tells it apart.
+     * @param id - The id the row gave.
+     * @returns The id the node is held under.
+     */
+    private keyedId(id: NodeIdType): NodeIdType {
+        if (this.loadTally === null || (id !== null && id !== undefined && id !== "")) {
+            return id;
+        }
+
+        const { builder } = this.host.store();
+        let minted: string;
+        do {
+            minted = `#${String(++this.keylessSerial)}`;
+        } while (this.hasNode(minted) || builder.hasNode(minted));
+        return minted;
     }
 
     /**
@@ -1201,7 +1224,12 @@ export class Ingest<K extends KnownEdge> {
         }
 
         if (this.duplicateIds === "merge" && this.measure === null) {
-            writer.setAttributes("node", id, frozenRecord(record));
+            // The first row's values stand; a repeat only fills a column the first left unset.
+            const held = writer.nodeRecord(id) ?? {};
+            const unset = Object.entries(record).filter(([name]) => held[name] === undefined || held[name] === null);
+            if (unset.length > 0) {
+                writer.setAttributes("node", id, frozenRecord(Object.fromEntries(unset)));
+            }
         }
 
         return true;
@@ -1439,6 +1467,27 @@ export class Ingest<K extends KnownEdge> {
     ): boolean {
         const { policy, tally } = batch;
         const known = this.knownEdgeFor(repeat.sourceId, repeat.targetId, recordId);
+        if (known !== null && this.foldsRow(known.edgeIndex, recordId, writer)) {
+            // Under `duplicateIds: "merge"`, a row repeating an edge id an earlier row of the load
+            // gave is that edge: the first row's values stand, the repeat only fills unset columns.
+            tally.repeatedSeen++;
+            tally.repeatedMerged++;
+            const held = writer.edgeRecord(known.edgeIndex) ?? {};
+            const unset = Object.entries(repeat.record).filter(
+                ([name]) => held[name] === undefined || held[name] === null,
+            );
+            if (unset.length > 0) {
+                writer.setAttributes(
+                    "edge",
+                    edgeIdOf(writer.store.edgeIdAt(known.edgeIndex)),
+                    Object.fromEntries(unset),
+                );
+            }
+
+            tally.edgeIds.push(null);
+            return true;
+        }
+
         if (known !== null) {
             tally.repeatedSeen++;
             const own = batch.ownEdges?.has(known.edgeIndex) === true;
@@ -1458,6 +1507,23 @@ export class Ingest<K extends KnownEdge> {
 
         tally.repeatedSeen++;
         return this.countRepeat(policy, tally);
+    }
+
+    /**
+     * Whether an edge row folds into the edge an earlier row of the same load gave its edge id:
+     * the load merges repeated ids, and the row names its edge by id.
+     * @param edgeIndex - The edge the row's id names.
+     * @param recordId - The row's edge id.
+     * @param writer - The graph primitives to write through.
+     * @returns True when it folds.
+     */
+    private foldsRow(edgeIndex: number, recordId: unknown, writer: GraphWriter): boolean {
+        return (
+            this.duplicateIds === "merge" &&
+            this.measure === null &&
+            isStorableRecordId(recordId) &&
+            this.supplied?.edges.has(edgeIdOf(writer.store.edgeIdAt(edgeIndex))) === true
+        );
     }
 
     /**

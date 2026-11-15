@@ -76,11 +76,12 @@
                 "of": [
                     {
                         "kind": "source",
-                        "sources": ["accounts"]
+                        "sources": ["accounts"],
+                        "side": "nodes"
                     },
                     {
                         "kind": "expression",
-                        "where": "results.pagerank.value > 0.2"
+                        "where": "results.pagerank.value > `0.2`"
                     }
                 ]
             }

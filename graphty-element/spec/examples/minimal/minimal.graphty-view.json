@@ -1,4 +1,5 @@
 {
+    "$schema": "https://graphty.app/schema/documents/graphty-view/v1.json",
     "kind": "graphty-view",
     "version": 1,
     "generator": {

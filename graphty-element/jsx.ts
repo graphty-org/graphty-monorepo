@@ -231,6 +231,10 @@ export interface GraphtyElementJSXProps {
      */
     cameraTransitionDuration?: Graphty["cameraTransitionDuration"];
     /**
+     * Sets whether the graph reduces motion.
+     */
+    reducedMotion?: Graphty["reducedMotion"];
+    /**
      * Sets the starting camera distance.
      */
     startingCameraDistance?: Graphty["startingCameraDistance"];
@@ -442,6 +446,10 @@ export interface GraphtyElementJSXProps {
      * Sets how long camera moves take.
      */
     "camera-transition-duration"?: string;
+    /**
+     * Sets whether the graph reduces motion.
+     */
+    "reduced-motion"?: string;
     /**
      * Sets the starting camera distance.
      */

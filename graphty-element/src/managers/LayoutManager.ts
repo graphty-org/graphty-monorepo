@@ -1231,8 +1231,9 @@ export class LayoutManager implements Manager {
             // The re-run is read lazily, so the pass that moves the nodes has to run: with the
             // layout stopped a pass only walks the edges, whose first read re-ran the layout after
             // the nodes had been placed. A removal then left every Node and edge on the old
-            // arrangement while the batched rows, drawn from the array, moved to the new one.
-            if (!this.restoring()) {
+            // arrangement while the batched rows, drawn from the array, moved to the new one. An
+            // empty graph has nothing to move and never settles, so it would stay running for good.
+            if (event.next.nodeCount > 0 && !this.restoring()) {
                 this.running = true;
             }
 

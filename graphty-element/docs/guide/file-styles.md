@@ -104,30 +104,28 @@ Some of what a file says has no exact counterpart in a 3D graph, and another app
 reasonably choose differently. Those choices are `styleOptions`, beside `styles`:
 
 ```ts
-import { FILE_STYLE_SHAPES } from "@graphty/graphty-element/session";
-
 await element.loadFromUrl(url, {
     styles: "file",
     styleOptions: {
         lengths: "file",
         toolDefaults: false,
-        shapes: { ...FILE_STYLE_SHAPES, star: "box" },
     },
 });
 ```
 
-| Option         | Default             | What it decides                                                                                                                                                                                                                                                                                                |
-| -------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lengths`      | `"median"`          | `"median"` scales every length by one factor, so the file's median node size (each node by its larger side) is the element's default node size and node sizes, borders, edge widths, label sizes and a kept layout's positions keep the file's proportions; `"file"` keeps the file's numbers as they are      |
-| `labelSizes`   | `"proportional"`    | `"proportional"` scales label sizes by the factor `lengths` scales every other length by, so each label keeps its size against its node; `"file"` keeps the file's label sizes as they are                                                                                                                     |
-| `shapes`       | `FILE_STYLE_SHAPES` | The element shape each 2D shape of the file is drawn as (every 2D shape as the flat shape of the same name: `ellipse`, `rectangle`, `hexagon`, ...; a body-less `none` as an `ellipse`). A shape the table leaves out is not drawn from the file, and the load notes it                                        |
-| `labelLayers`  | none                | Deprecated, and ignored: every label position the file sets is drawn, element by element, by one layer (`node.labelLocation`)                                                                                                                                                                                  |
-| `toolDefaults` | `true`              | Whether a property the file leaves unset gets the default of the program that wrote it (below)                                                                                                                                                                                                                 |
-| `imageBaseUrl` | none                | The URL a picture the file names by a relative path (a node's image, a table cell's picture) is resolved against, usually the file's own URL; without it the path is loaded as written, which the browser resolves against the page. A file read from a `Blob` or from text has no URL, so only this gives one |
+| Option         | Default          | What it decides                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lengths`      | `"median"`       | `"median"` scales every length by one factor, so the file's median node size (each node by its larger side) is the element's default node size and node sizes, borders, edge widths, label sizes and a kept layout's positions keep the file's proportions; `"file"` keeps the file's numbers as they are; `"spacing"` scales by the node spacing the styles state for a file that stores no positions |
+| `labelSizes`   | `"proportional"` | `"proportional"` scales label sizes by the factor `lengths` scales every other length by, so each label keeps its size against its node; `"file"` keeps the file's label sizes as they are                                                                                                                                                                                                             |
+| `labelLayers`  | none             | Deprecated, and ignored: every label position the file sets is drawn, element by element, by one layer (`node.labelLocation`)                                                                                                                                                                                                                                                                          |
+| `toolDefaults` | `true`           | Passed to the file's reader: whether a property the file leaves unset gets the default the reader knows for it (below)                                                                                                                                                                                                                                                                                 |
+| `framing`      | `"element"`      | `"file"` frames a replacing load's node centers the padding the file states, when it states one; `"element"` leaves the project's framing as it is                                                                                                                                                                                                                                                     |
+| `imageBaseUrl` | none             | The URL a picture the file names by a relative path (a node's image, a table cell's picture) is resolved against, usually the file's own URL; without it the path is loaded as written, which the browser resolves against the page. A file read from a `Blob` or from text has no URL, so only this gives one                                                                                         |
 
-Copy `FILE_STYLE_SHAPES` and change the entries you want, as above.
+Every 2D node shape is drawn as the element's flat shape of the same name (`ellipse`, `rectangle`, `hexagon`,
+`database`, ...); to draw a shape another way, add a layer of your own over the file's.
 
-### The writing program's defaults
+### Defaults the file leaves unset
 
 A file rarely writes every property. A Cytoscape file that never mentions node color still draws
 its nodes in Cytoscape's default color; a DOT node with no `shape` is still an ellipse in Graphviz.
@@ -137,9 +135,9 @@ sessions, Cytoscape.js's for a Cytoscape.js document, Graphviz's for DOT, yEd's 
 file, Gephi's for GEXF, and so on. A format with no drawing program behind it adds none. Those
 defaults are the bottom layer the load makes, so the graph looks the same here as there.
 
-The draft of a load names that program before anything loads (`draft.styles.summary.tool`:
-`"cytoscape"`, `"graphviz"`, `"gephi"`, ...; null when it is not known). Pass
-`toolDefaults: false` to draw only what the file itself says, over the element's own defaults.
+The file's reader settles all of this before the layers are made: once loaded, the layers are drawn the same way
+whatever program wrote the file, and nothing in them names it. Pass `toolDefaults: false` to draw only what the file
+itself says, over the element's own defaults.
 
 ## What the layers look like
 
@@ -148,7 +146,7 @@ and sized by a `team` attribute gives:
 
 ```ts
 {
-    name: "node.by.team",
+    name: "By team",
     target: "node",
     kind: "encoding",
     selector: { match: "has", path: "graphty.style.values.node.el.load" },
@@ -160,12 +158,10 @@ and sized by a `team` attribute gives:
 }
 ```
 
-- **One layer per rule of the file**, in the file's order, named by the rule: the defaults
-  (`node.tool`, the writing program's; `node.defaults`, the file's own), a mapping from a column
-  (`node.by.team`), a group the file selects (`node.sheet.1` for a Cytoscape.js stylesheet rule),
-  and the exceptions on top. Values that follow no rule the load can name (a GEXF file's own
-  `viz:color` and `viz:size` on each node) are copied element by element into one layer,
-  `node.copy` (or `edge.copy`).
+- **One layer per rule of the file**, in the file's order, named by what the rule does: `Defaults`, a mapping from a
+  column (`By team`), a group the file selects, derived drawing values (`Arrows`, `Dashes`, `Corners`, `Draw order`)
+  and the exceptions on top. Values that follow no rule the load can name (a GEXF file's own `viz:color` and
+  `viz:size` on each node) are copied element by element into one layer. Rename any of them as you would your own.
 - **`kind`** is `"base"` for defaults, `"encoding"` for mappings and groups, and `"custom"` for
   values copied element by element.
 - **The selector** picks the elements of this load only, so a second file loaded beside the first

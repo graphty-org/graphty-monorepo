@@ -742,18 +742,17 @@ function graphNodesOf(
 }
 
 /**
- * The data section's body (spec 4.1), from today's model.
- * @param session - The session.
+ * Every source record, the reader source first, with each source's hash and the embedded ones.
+ * @param model - The model.
  * @param embed - Embedded or referenced, per source id; embedded when absent.
  * @param problems - Collects what the save reports.
- * @returns The body and each source's hash.
+ * @returns The records, the hashes by source id, and the ids of the embedded sources.
  */
-export function dataBodyOf(
-    session: GraphSession,
+function sourceRecordsOf(
+    model: DataModel,
     embed: Readonly<Record<string, SourceStorage>>,
     problems: DocumentProblem[],
-): DataBody {
-    const model = dataModelOf(session);
+): { records: JsonObject[]; hashes: Record<string, string>; embedded: Set<string> } {
     const records: JsonObject[] = [];
     const hashes: Record<string, string> = {};
     const embedded = new Set<string>([READER]);
@@ -775,6 +774,24 @@ export function dataBodyOf(
             records.push(record);
         }
     }
+
+    return { records, hashes, embedded };
+}
+
+/**
+ * The data section's body (spec 4.1), from today's model.
+ * @param session - The session.
+ * @param embed - Embedded or referenced, per source id; embedded when absent.
+ * @param problems - Collects what the save reports.
+ * @returns The body and each source's hash.
+ */
+export function dataBodyOf(
+    session: GraphSession,
+    embed: Readonly<Record<string, SourceStorage>>,
+    problems: DocumentProblem[],
+): DataBody {
+    const model = dataModelOf(session);
+    const { records, hashes, embedded } = sourceRecordsOf(model, embed, problems);
 
     const types: JsonObject[] = typesOf(model);
     const typeNames = new Set(types.map((type) => `${String(type.domain)}:${String(type.name)}`));

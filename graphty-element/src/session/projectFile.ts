@@ -2905,6 +2905,7 @@ export function projectOf(
             {
                 canned,
                 restoreDerived,
+                isDerived,
                 beforeReplace: () => {
                     refuseUnsaved(isDirty(), options.discard);
                     (session.assets as AssetsApiInternal).forgetProjectStorage();

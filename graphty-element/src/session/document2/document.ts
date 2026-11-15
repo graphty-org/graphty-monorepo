@@ -12,7 +12,7 @@ import type { TransactionOptions } from "../project/Dispatcher";
 import type { CannedOutcomes } from "../projectFile";
 import { ENGINE_VERSIONS } from "../runs";
 import type { GraphSession, ProjectSlice } from "../types";
-import { dataBindingOf, elementRefsOf } from "./codecs/dataRefs";
+import { canonicalJson, dataBindingOf, elementRefsOf } from "./codecs/dataRefs";
 import {
     assembleSection,
     assembleWrapper,
@@ -34,6 +34,8 @@ import {
     type JsonObject,
     type ReadContext,
     type ReadSection,
+    type SectionCodec,
+    type SectionWrite,
     type SourceStorage,
     type WriteContext,
 } from "./types";
@@ -91,6 +93,111 @@ function lazyRefs(session: GraphSession): () => ElementRefs {
 }
 
 /**
+ * The context a codec writes in.
+ * @param session - The session.
+ * @param state - The session's document state.
+ * @param sections - The sections written.
+ * @param embed - The saver's embed choices.
+ * @param isDerived - Whether the element minted a run's id.
+ * @param problems - Where the codecs report.
+ * @param refs - The element references, built once per save.
+ * @returns The context.
+ */
+function writeContextOf(
+    session: GraphSession,
+    state: DocumentState,
+    sections: ReadonlySet<DocumentSection>,
+    embed: Readonly<Record<string, SourceStorage>>,
+    isDerived: (id: RunId) => boolean,
+    problems: DocumentProblem[],
+    refs: () => ElementRefs = lazyRefs(session),
+): WriteContext {
+    return {
+        session,
+        problems,
+        refs,
+        dataId: () => dataIdOf(state),
+        sections,
+        embed,
+        isDerived,
+        async bindsTo(full: boolean): Promise<BindsTo> {
+            const data = dataIdOf(state);
+            return full ? { data, ...(await dataBindingOf(session)) } : { data };
+        },
+    };
+}
+
+/** The header members a codec owns (`SectionHeaderInput`), in the order the spec writes them. */
+const CODEC_HEADER = [
+    "id",
+    "revision",
+    "name",
+    "description",
+    "authors",
+    "license",
+    "keywords",
+    "language",
+    "dependencies",
+    "origin",
+] as const;
+
+/**
+ * A section as read, in the form a codec writes.
+ * @param section - The section.
+ * @returns Its codec-owned header members and its body.
+ */
+function asWritten(section: ReadSection): SectionWrite {
+    const header: Record<string, unknown> = {};
+    for (const member of CODEC_HEADER) {
+        if (section.header[member] !== undefined) {
+            header[member] = section.header[member];
+        }
+    }
+
+    return { header, body: section.body };
+}
+
+/**
+ * Remember, after a project open, what each loaded section's codec writes now beside the section
+ * as read, so a save that finds the session unchanged writes the section as read (spec 8.5: what
+ * this release cannot represent is kept). Saved results are not remembered when the runs reran:
+ * the saved outputs may disagree with the session's.
+ * @param session - The session.
+ * @param codecs - The codecs.
+ * @param sections - The loaded sections.
+ * @param rerun - Whether the open reran the behaviors.
+ * @param isDerived - Whether the element minted a run's id.
+ */
+async function rememberBaselines(
+    session: GraphSession,
+    codecs: CodecRegistry,
+    sections: ReadonlyMap<DocumentSection, ReadSection>,
+    rerun: boolean,
+    isDerived: (id: RunId) => boolean,
+): Promise<void> {
+    const state = documentStateOf(session);
+    state.opened.clear();
+    // ponytail: one extra write per section at open; skip the data section's if its write is slow on large graphs.
+    const context = writeContextOf(session, state, new Set(sections.keys()), {}, isDerived, []);
+    for (const [name, section] of sections) {
+        const codec = codecs[name];
+        if (codec === undefined || (name === "results" && rerun)) {
+            continue;
+        }
+
+        try {
+            state.opened.set(name, {
+                baseline: canonicalJson(await codec.write(context)),
+                read: asWritten(section),
+                ...(section.header.bindsTo === undefined ? {} : { bindsTo: section.header.bindsTo }),
+            });
+        } catch {
+            // A section its codec cannot write now is written fresh, or refused, at save.
+        }
+    }
+}
+
+/**
  * The sections a save writes, in file order.
  * @param choices - The saver's choices.
  * @returns The sections.
@@ -128,6 +235,52 @@ export function sectionsToSave(choices: SaveChoices): DocumentSection[] {
 }
 
 /**
+ * One section as a save writes it: the codec's write, or the section as read when the session has
+ * not changed it since the open (`rememberBaselines`), framed.
+ * @param name - The section.
+ * @param codec - Its codec.
+ * @param context - The save's context; its problems are this save's report.
+ * @param state - The session's document state.
+ * @param now - The time of this save.
+ * @returns The section.
+ */
+async function writeSection(
+    name: DocumentSection,
+    codec: SectionCodec,
+    context: WriteContext,
+    state: DocumentState,
+    now: string,
+): Promise<JsonObject> {
+    // The codec reports into its own list, dropped when the section is written as read.
+    const reported: DocumentProblem[] = [];
+    let written = await codec.write({ ...context, problems: reported });
+    const opened = state.opened.get(name);
+    const asRead = opened !== undefined && canonicalJson(written) === opened.baseline;
+    if (asRead) {
+        written = opened.read;
+    } else {
+        context.problems.push(...reported);
+    }
+
+    // A section written as read keeps the `bindsTo` it was read with while the data is the same
+    // data: it says what the data was when the section was written (spec 6.4).
+    const keptBinding = asRead && opened.bindsTo?.data === dataIdOf(state) ? opened.bindsTo : undefined;
+    const bindsTo = codec.bound ? (keptBinding ?? (await context.bindsTo(name === "results"))) : undefined;
+    return assembleSection(
+        name,
+        codec,
+        written,
+        {
+            generator: GENERATOR,
+            ...(name === "data" ? { id: dataIdOf(state) } : {}),
+            ...(bindsTo === undefined ? {} : { bindsTo: bindsTo as unknown as JsonObject }),
+        },
+        state,
+        now,
+    );
+}
+
+/**
  * Write the session as a version 2 document.
  * @param session - The session.
  * @param codecs - The codecs.
@@ -146,19 +299,7 @@ export async function saveDocument2(
     const now = new Date().toISOString();
     const problems: DocumentProblem[] = [];
     const sections: JsonObject = {};
-    const context: WriteContext = {
-        session,
-        problems,
-        refs: lazyRefs(session),
-        dataId: () => dataIdOf(state),
-        sections: new Set(chosen),
-        embed: choices.embed ?? {},
-        isDerived,
-        async bindsTo(full: boolean): Promise<BindsTo> {
-            const data = dataIdOf(state);
-            return full ? { data, ...(await dataBindingOf(session)) } : { data };
-        },
-    };
+    const refs = lazyRefs(session);
 
     for (const name of chosen) {
         const held = state.held.get(name);
@@ -174,24 +315,18 @@ export async function saveDocument2(
         }
 
         const codec = codecs[name];
-        if (codec === undefined) {
-            continue;
+        if (codec !== undefined) {
+            const context = writeContextOf(
+                session,
+                state,
+                new Set(chosen),
+                choices.embed ?? {},
+                isDerived,
+                problems,
+                refs,
+            );
+            sections[name] = await writeSection(name, codec, context, state, now);
         }
-
-        const written = await codec.write(context);
-        const bindsTo = codec.bound ? await context.bindsTo(name === "results") : undefined;
-        sections[name] = await assembleSection(
-            name,
-            codec,
-            written,
-            {
-                generator: GENERATOR,
-                ...(name === "data" ? { id: dataIdOf(state) } : {}),
-                ...(bindsTo === undefined ? {} : { bindsTo: bindsTo as unknown as JsonObject }),
-            },
-            state,
-            now,
-        );
     }
 
     if (choices.form === "section") {
@@ -231,6 +366,33 @@ export interface OpenHooks {
     readonly beforeReplace: () => void;
     /** The project's name, set in the open's transaction when it replaces the data. */
     readonly name: string | null;
+    /** Whether the element minted a run's id; default none. */
+    readonly isDerived?: (id: RunId) => boolean;
+}
+
+/**
+ * Leave out each bound section written on other data than the open's (spec 6.4, "No match").
+ * @param chosen - The sections to load; the ones left out are deleted.
+ * @param codecs - The codecs.
+ * @param openDataId - The id of the data the open binds to.
+ * @param problems - Where `W_DATA_MISMATCH` is reported.
+ */
+function dropOtherData(
+    chosen: Map<DocumentSection, ReadSection>,
+    codecs: CodecRegistry,
+    openDataId: string | undefined,
+    problems: DocumentProblem[],
+): void {
+    for (const [name, section] of [...chosen]) {
+        const bound = section.header.bindsTo?.data;
+        if (codecs[name]?.bound === true && (bound === undefined || bound !== openDataId)) {
+            problems.push({
+                code: "W_DATA_MISMATCH",
+                params: { section: name, data: typeof bound === "string" ? bound : null },
+            });
+            chosen.delete(name);
+        }
+    }
 }
 
 /**
@@ -262,21 +424,8 @@ export async function openDocument2(
     // A bound section binds to the data this open brings, or to the data already open.
     const openDataId = replaced && typeof data.header.id === "string" ? data.header.id : state.dataId;
 
-    for (const name of [...chosen.keys()]) {
-        const section = chosen.get(name);
-        const codec = codecs[name];
-        if (section === undefined || codec?.bound !== true || choices.bindOtherData === true) {
-            continue;
-        }
-
-        const bound = section.header.bindsTo?.data;
-        if (bound === undefined || bound !== openDataId) {
-            problems.push({
-                code: "W_DATA_MISMATCH",
-                params: { section: name, data: typeof bound === "string" ? bound : null },
-            });
-            chosen.delete(name);
-        }
+    if (choices.bindOtherData !== true) {
+        dropOtherData(chosen, codecs, openDataId, problems);
     }
 
     if (replaced) {
@@ -327,6 +476,7 @@ export async function openDocument2(
 
     if (replaced) {
         state.dataId = openDataId ?? newDocumentId();
+        await rememberBaselines(session, codecs, chosen, choices.rerun ?? true, hooks.isDerived ?? (() => false));
     }
 
     await rememberOpened(state, parsed, loaded);

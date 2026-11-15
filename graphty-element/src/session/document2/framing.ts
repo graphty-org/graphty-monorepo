@@ -9,8 +9,10 @@
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { GraphSession } from "../types";
+import { canonicalJson } from "./codecs/dataRefs";
 import { migrateSection } from "./migration";
 import {
+    type BindsTo,
     type CodecRegistry,
     DOCUMENT_SECTIONS,
     type DocumentProblem,
@@ -214,6 +216,26 @@ function readSection(
         return { hold: { value, reason: "extension" } };
     }
 
+    return { load: { header, body: bodyOf(name, value, pointer, codec, problems), pointer } };
+}
+
+/**
+ * A section's body: every member that is not a header member, the ones its codec does not know
+ * reported as `W_UNKNOWN_MEMBER` and kept.
+ * @param name - The section.
+ * @param value - The section as read.
+ * @param pointer - Where it is in the file.
+ * @param codec - Its codec.
+ * @param problems - Collects the reports.
+ * @returns The body, in file order.
+ */
+function bodyOf(
+    name: DocumentSection,
+    value: Readonly<JsonObject>,
+    pointer: string,
+    codec: SectionCodec,
+    problems: DocumentProblem[],
+): JsonObject {
     const known = new Set<string>([...HEADER_MEMBERS, ...codec.members]);
     const body: JsonObject = {};
     for (const [member, each] of Object.entries(value)) {
@@ -230,7 +252,7 @@ function readSection(
         }
     }
 
-    return { load: { header, body, pointer } };
+    return body;
 }
 
 /**
@@ -295,7 +317,8 @@ export function parseDocument(value: JsonObject, codecs: CodecRegistry): ParsedD
 
 /** When a section first existed and last changed, and a digest of its content then. */
 interface Stamp {
-    readonly created: string;
+    /** Absent for a section read without one: a write back does not invent it. */
+    readonly created?: string;
     readonly modified: string;
     readonly digest: string;
 }
@@ -314,6 +337,15 @@ export interface DocumentState {
     readonly stamps: Map<DocumentSection, Stamp>;
     /** The last full file's wrapper members this writer does not write itself, and its `created`. */
     wrapper: { readonly created?: string; readonly kept: JsonObject };
+    /**
+     * Each section an open loaded: what its codec wrote right after the open (canonical JSON),
+     * and the section as read. A save whose codec writes the same again writes the section as
+     * read, so what this release cannot represent is not lost (`document.ts`).
+     */
+    readonly opened: Map<
+        DocumentSection,
+        { readonly baseline: string; readonly read: SectionWrite; readonly bindsTo?: BindsTo }
+    >;
 }
 
 const STATES = new WeakMap<GraphSession, DocumentState>();
@@ -326,7 +358,14 @@ const STATES = new WeakMap<GraphSession, DocumentState>();
 export function documentStateOf(session: GraphSession): DocumentState {
     let state = STATES.get(session);
     if (state === undefined) {
-        state = { held: new Map(), kept: new Map(), extensions: new Map(), stamps: new Map(), wrapper: { kept: {} } };
+        state = {
+            held: new Map(),
+            kept: new Map(),
+            extensions: new Map(),
+            stamps: new Map(),
+            wrapper: { kept: {} },
+            opened: new Map(),
+        };
         STATES.set(session, state);
     }
 
@@ -352,8 +391,10 @@ async function digestOf(text: string): Promise<string> {
     return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-/** Members that change on every save and say nothing about content. */
-const UNSTAMPED = new Set(["$schema", "created", "modified", "generator"]);
+/**
+ * Members that change on every save, or that the framing derives, and say nothing about content.
+ */
+const UNSTAMPED = new Set(["$schema", "kind", "version", "created", "modified", "generator"]);
 
 /**
  * The digest of a section's content: every member but the ones a save always rewrites.
@@ -361,7 +402,10 @@ const UNSTAMPED = new Set(["$schema", "created", "modified", "generator"]);
  * @returns The digest.
  */
 export function contentDigest(section: Readonly<JsonObject>): Promise<string> {
-    return digestOf(JSON.stringify(Object.entries(section).filter(([member]) => !UNSTAMPED.has(member))));
+    // Canonical, so a member order a file chose does not count as a change.
+    return digestOf(
+        canonicalJson(Object.fromEntries(Object.entries(section).filter(([member]) => !UNSTAMPED.has(member)))),
+    );
 }
 
 /** Members wrapper code writes itself; any other wrapper member read is written back. */
@@ -415,7 +459,7 @@ export async function rememberOpened(
         // The header is the section as read, body included: a save that writes it back unchanged
         // keeps its `modified`.
         state.stamps.set(name, {
-            created: header.created ?? stampNow,
+            ...(header.created === undefined ? {} : { created: header.created }),
             modified: header.modified ?? stampNow,
             digest: await contentDigest(header as unknown as JsonObject),
         });
@@ -489,38 +533,36 @@ export async function assembleSection(
 
     const digest = await contentDigest(content);
     const was = state.stamps.get(name);
+    const created = was === undefined ? now : was.created;
     const stamp: Stamp = {
-        created: was?.created ?? now,
+        ...(created === undefined ? {} : { created }),
         modified: was?.digest === digest ? was.modified : now,
         digest,
     };
     state.stamps.set(name, stamp);
 
+    return framedSection(content, {
+        $schema: schemaUrl(kind, codec.version),
+        kind,
+        version: codec.version,
+        created: stamp.created,
+        modified: stamp.modified,
+        generator: framed.generator,
+    });
+}
+
+/**
+ * A section in spec order: the header members, the framing's own in place, then the body.
+ * @param content - The codec's header members and body, and the members kept from the open.
+ * @param own - The header members the framing writes.
+ * @returns The section.
+ */
+function framedSection(content: Readonly<JsonObject>, own: Readonly<JsonObject>): JsonObject {
     const section: JsonObject = {};
     for (const member of HEADER_MEMBERS) {
-        switch (member) {
-            case "$schema":
-                section.$schema = schemaUrl(kind, codec.version);
-                break;
-            case "kind":
-                section.kind = kind;
-                break;
-            case "version":
-                section.version = codec.version;
-                break;
-            case "created":
-                section.created = stamp.created;
-                break;
-            case "modified":
-                section.modified = stamp.modified;
-                break;
-            case "generator":
-                section.generator = framed.generator;
-                break;
-            default:
-                if (content[member] !== undefined) {
-                    section[member] = content[member];
-                }
+        const value = member in own ? own[member] : content[member];
+        if (value !== undefined) {
+            section[member] = value;
         }
     }
 

@@ -164,6 +164,14 @@ export interface GraphtyElementJSXProps {
      */
     labelDeclutter?: Graphty["labelDeclutter"];
     /**
+     * Shows or hides the minimap.
+     */
+    minimap?: Graphty["minimap"];
+    /**
+     * Sets the minimap's accessible name.
+     */
+    minimapLabel?: Graphty["minimapLabel"];
+    /**
      * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
      */
     autoRotate?: Graphty["autoRotate"];
@@ -400,6 +408,10 @@ export interface GraphtyElementJSXProps {
      * Switches label decluttering on or off.
      */
     "label-declutter"?: boolean;
+    /**
+     * Sets the minimap's accessible name.
+     */
+    "minimap-label"?: string;
     /**
      * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
      */
@@ -699,6 +711,10 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-active"?: (event: CustomEvent<EventOfType<"operation-queue-active">>) => void;
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
+    /**
+     * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at most once per drawn frame, never per node; read `getOverview()` in the listener.
+     */
+    "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     /**
      * Emitted when the browser takes away the graphics device the graph is drawn with: the WebGL context or the WebGPU device is lost, by a driver reset, a GPU process crash or the browser reclaiming it. Nothing is drawn until it comes back, and `rendererStatus.drawing` is false meanwhile. The data, the session, the styles, the camera and the undo history are untouched.

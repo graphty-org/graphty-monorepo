@@ -93,6 +93,7 @@ const CAMERA_VERBS: Readonly<Record<string, readonly string[]>> = {
         "setCameraState",
         "setCameraPosition",
         "setCameraTarget",
+        "centerOnOverview",
         "setCameraZoom",
         "setCameraPan",
         "zoomStep",
@@ -830,6 +831,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         root: "Graphty",
         members: [
             "labelDeclutter",
+            "minimap",
+            "minimapLabel",
             "renderOnDemand",
             "startingCameraDistance",
             "autoFrame",

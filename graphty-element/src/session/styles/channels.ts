@@ -529,7 +529,11 @@ export interface ChannelValues {
     "node.model": string;
     "node.modelSourceUp": NodeModelUpValue;
     "node.modelTurn": number;
-    "node.modelTint": boolean | "replace";
+    "node.modelTint": boolean | "replace" | "untextured";
+    "node.modelDoubleSided": boolean | "file";
+    "node.modelAnimation": string;
+    "node.modelAnimationSpeed": number;
+    "node.modelAnimationOffset": number;
     "node.modelFit": "contain" | "stretch";
     "node.modelCenter": "bounds" | "origin";
     "node.texture": string;
@@ -4175,13 +4179,74 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "color",
         default: "false",
         accepts: "enum",
-        values: ["false", "true", "replace"],
+        values: ["false", "true", "untextured", "replace"],
         stylePath: "shape.modelTint",
         renderable: true,
         caveat:
             "A model keeps its own colors unless this is set: true multiplies the model's base " +
-            'color by `node.color`, and "replace" paints every material in `node.color`. Takes ' +
-            'true, false or "replace".',
+            'color by `node.color`, "untextured" paints the parts with no picture and no vertex ' +
+            'colors in `node.color` and leaves the rest, and "replace" paints every material in ' +
+            "`node.color`. A part the file gives no material, no picture and no vertex colors takes " +
+            '`node.color` whatever this says. Takes true, false, "untextured" or "replace".',
+    },
+    "node.modelAnimation": {
+        channel: "node.modelAnimation",
+        target: "node",
+        plainName: "Node Model Animation",
+        shortName: "Model animation",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.modelAnimation",
+        renderable: true,
+        caveat:
+            "The clip a model plays, by its name in the file (the asset's summary lists them as " +
+            '`animations`); unset or "" draws the model still, in its rest pose. A name the file does not ' +
+            "have draws the first frame of its first clip and reports `W_MODEL_ANIMATION_UNKNOWN`.",
+    },
+    "node.modelAnimationSpeed": {
+        channel: "node.modelAnimationSpeed",
+        target: "node",
+        plainName: "Node Model Animation Speed",
+        shortName: "Animation speed",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 16,
+        stylePath: "shape.modelAnimationSpeed",
+        renderable: true,
+        caveat: "How fast `node.modelAnimation` plays: 1 is the file's speed; 0 holds the pose at `node.modelAnimationOffset`.",
+    },
+    "node.modelAnimationOffset": {
+        channel: "node.modelAnimationOffset",
+        target: "node",
+        plainName: "Node Model Animation Start",
+        shortName: "Animation start",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.modelAnimationOffset",
+        renderable: true,
+        caveat:
+            "Seconds into the clip a node starts at, so nodes need not move in step; with " +
+            "`node.modelAnimationSpeed` 0, the pose the node holds.",
+    },
+    "node.modelDoubleSided": {
+        channel: "node.modelDoubleSided",
+        target: "node",
+        plainName: "Node Model Double Sided",
+        shortName: "Model double-sided",
+        group: "shape",
+        default: "file",
+        accepts: "enum",
+        values: ["file", "true", "false"],
+        stylePath: "shape.modelDoubleSided",
+        renderable: true,
+        caveat:
+            'Whether the back of each triangle is drawn: "file" keeps each material\'s own choice, true ' +
+            "draws both faces (an OBJ, STL or PLY whose inside shows through where faces are missing), " +
+            "false draws only the front.",
     },
     "node.modelFit": {
         channel: "node.modelFit",

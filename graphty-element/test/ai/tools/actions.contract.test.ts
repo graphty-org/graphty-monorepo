@@ -20,6 +20,14 @@ import { loadRecordedSeed } from "../../../stories/fixtures/expand/source";
 import { assistantSession, digest, ScriptedAssistant } from "../../helpers/assistant";
 import { ReachRecorder } from "./reach-recorder";
 
+// A generated background is decoded and scaled by the browser, which this project has not got:
+// here it passes through unchanged (test/browser/ai/generate-background.test.ts decodes it).
+vi.mock("../../../src/session/backgroundImage", async (original) => ({
+    ...(await original<typeof import("../../../src/session/backgroundImage")>()),
+    prepareBackgroundImage: () =>
+        Promise.resolve({ ok: true, data: "data:image/png;base64,iVBORw0KGgo=", width: 1, height: 1, scaled: false }),
+}));
+
 // Every action runs, so the experiments that gate some of them are on: network sources
 // (network-data) and a file's own styles (file-styles).
 setDefaultFeatures(["network-data", "file-styles"]);
@@ -62,6 +70,8 @@ interface Row {
     readonly gate?: false;
     /** State the call acts on, made before the message. */
     readonly setup?: (session: GraphSession) => unknown;
+    /** The provider makes pictures: its image model answers with a picture. */
+    readonly image?: true;
     /** Calls the assistant makes in a message of its own first: a step of its own to undo. */
     readonly prior?: readonly { readonly tool: string; readonly args: Record<string, unknown> }[];
 }
@@ -507,6 +517,11 @@ const ROWS: Record<string, Row> = {
     "import_data.last_import": { args: { action: "last_import" } },
     "export_graph.export": { args: { format: "graphml" } },
     "project.settings": { args: { action: "settings", runAlgorithmsOnLoad: true } },
+    "project.generate_background": {
+        args: { action: "generate_background", prompt: "a starry night" },
+        image: true,
+        gate: false,
+    },
     "project.rename": { args: { action: "rename", name: "Network" } },
     "project.rename_run": { args: { action: "rename_run", run: "degree", runName: "Hubs" }, setup: withRun },
     "project.declare": { args: { action: "declare", column: "load", measurement: "quantitative" } },
@@ -573,6 +588,10 @@ describe("every generated action", () => {
                 ...(row.gate === false ? { gate: false } : {}),
                 ...(row.graph === undefined ? {} : { graph: row.graph }),
             });
+            if (row.image === true) {
+                assistant.engine.scriptImage(new Blob(["png"], { type: "image/png" }));
+            }
+
             const before = await digest(session);
             const steps = session.history.position;
             const { result } = await assistant.say(`do ${key}`, [{ tool, args }]);

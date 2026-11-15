@@ -3,7 +3,7 @@
  * graphty-element, by real input: the Kenney car kit's police.glb names its picture as the separate
  * file Textures/colormap.png. By a folder or a .zip in the Load custom model dialog it draws at
  * once; a layer naming it alone shows the "1 missing" chip, whose Parts pop-over takes the picture
- * dropped on its row, dropped anywhere in the pop-over, chosen, or by address -- or draws without it. Every assertion reads what the
+ * dropped on its row's file loader, dropped anywhere in the pop-over, chosen, or by address -- or draws without it. Every assertion reads what the
  * element reports: its layers and its model states.
  */
 
@@ -18,7 +18,7 @@ import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import policeUrl from "../__fixtures__/car-kit/police.glb?url";
 import colormapUrl from "../__fixtures__/car-kit/Textures/colormap.png?url";
-import { addModel, dropOn, fileInput, openCustom, openShapes, previewOf, shapeField, written } from "./modelHarness";
+import { addModel, choose, dropOn, openCustom, openShapes, previewOf, shapeField, written } from "./modelHarness";
 
 // These tests drive the Style panel the app shows with file styles off; the panel by part of the
 // drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
@@ -193,7 +193,7 @@ describe("a model missing parts, on the real element", () => {
     it("draws police from the dialog's folder chooser with its Textures folder, with no chip", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await userEvent.upload(fileInput(dialog, true), KIT_FOLDER);
+        await choose(dialog, "Choose folder", [KIT_FOLDER]);
         await previewOf(dialog, "police");
         await addModel(dialog);
         await drawn(session);
@@ -209,7 +209,7 @@ describe("a model missing parts, on the real element", () => {
                 [PART, await bytesOf(colormapUrl)],
             ]),
         );
-        dropOn(within(dialog).getByTestId("model-drop"), [new File([zip], "car-kit.zip")]);
+        dropOn(within(dialog).getByTestId("custom-model"), [new File([zip], "car-kit.zip")]);
         await previewOf(dialog, "police");
         await addModel(dialog);
         await drawn(session);
@@ -223,7 +223,7 @@ describe("a model missing parts, on the real element", () => {
         const parts = await openParts(chip);
         const row = within(parts).getByRole("group", { name: PART_NAME });
         assert.isNotNull(within(row).getByText("Texture"));
-        dropOn(row, [await colormapFile()]);
+        dropOn(within(row).getByRole("textbox", { name: `${PART_NAME} address` }), [await colormapFile()]);
         await finished(session, tab);
     });
 
@@ -239,7 +239,7 @@ describe("a model missing parts, on the real element", () => {
         const parts = await openParts(chip);
         const row = within(parts).getByRole("group", { name: PART_NAME });
         assert.isNotNull(within(row).getByRole("button", { name: `Choose ${PART_NAME}` }));
-        await userEvent.upload(fileInput(row), [await colormapFile()]);
+        await choose(row, `Choose ${PART_NAME}`, [await colormapFile()]);
         await finished(session, tab);
     });
 

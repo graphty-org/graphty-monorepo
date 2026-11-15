@@ -92,6 +92,22 @@ describe("the file-style paths", () => {
         assert.isUndefined(parseFileStylePath("graphty.style.gexf.node"));
         assert.isUndefined(parseFileStylePath("graphty.notes.count"));
         assert.strictEqual(computedPath("degree"), "graphty.degree");
+    });
+
+    it("parse a save file's source id as the namespace, and nothing looser", () => {
+        const source = "src_7PA9CCNP93MNPFKK340TMRVP1W";
+        assert.deepEqual(parseFileStylePath(`graphty.style.${source}.edge.weight`), {
+            namespace: source,
+            kind: "edge",
+            key: "weight",
+        });
+        assert.deepEqual(parseFileStylePath("graphty.style.reader.node.color")?.namespace, "reader");
+        assert.isUndefined(parseFileStylePath("graphty.style.src_7PA9CCNP93MNPFKK340TMRVP1.node.x"), "25 characters");
+        assert.isUndefined(
+            parseFileStylePath("graphty.style.src_7PA9CCNP93MNPFKK340TMRVP1U.node.x"),
+            "U is not Crockford",
+        );
+        assert.isUndefined(parseFileStylePath("graphty.style.GEXF.node.x"), "a namespace stays lowercase");
         assert.strictEqual(computedOf("graphty.inDegree"), "indegree");
         assert.isUndefined(computedOf("graphty.degrees"));
     });

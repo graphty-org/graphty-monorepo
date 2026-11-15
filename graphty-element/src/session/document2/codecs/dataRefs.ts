@@ -15,6 +15,7 @@ import { COLUMNS_VALUE, type ColumnSettings } from "../../commands/data";
 import { dispatcherOf } from "../../dispatchers";
 import { ISSUES_VALUE, type IssueState } from "../../issues";
 import { redactedParams } from "../../sources/member";
+import { SOURCE_ID } from "../../styles/fileStyles/path";
 import type { EdgeRecord, GraphSession, LoadedSource, NodeRecord } from "../../types";
 import { projectMemory } from "../memory";
 import type { BuildStamp, DocumentProblem, EdgeRef, ElementRefs, JsonObject, NodeRef, SourceStorage } from "../types";
@@ -93,8 +94,8 @@ function digestOf(value: unknown): string {
 /** A ULID: 26 Crockford base-32 characters. */
 export const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
-/** A source id: `src_` plus a ULID. */
-export const SOURCE_ID = /^src_[0-9A-HJKMNP-TV-Z]{26}$/;
+/** A source id: `src_` plus a ULID, the same one a file-style path names. */
+export { SOURCE_ID };
 
 /**
  * A value as key text (spec 11): a string as it is (NFC), a number as ECMAScript writes it, a

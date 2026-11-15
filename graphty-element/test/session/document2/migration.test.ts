@@ -331,6 +331,33 @@ describe("version 1 file styles, migrated", () => {
         assert.isFalse((graph.nodes as JsonObject[]).some((node) => column in node));
         session.dispose();
     });
+
+    it("paints a file-style layer once the migrated file is open", async () => {
+        const source = createGraphSession();
+        await source.data.addNodes([{ id: "a" }, { id: "b" }]);
+        const v1 = JSON.parse((await source.project.save({ format: 1 })).text) as JsonObject;
+        const member = (kind: string): JsonObject =>
+            (v1.members as JsonObject[]).find((each) => each.kind === kind) as JsonObject;
+        member("graphty-session").fileStyles = [
+            { namespace: "gexf", columns: [{ kind: "node", key: "color", ids: ["a"], values: ["#ff0000"] }] },
+        ];
+        (member("graphty-style").layers as JsonObject[]).push({
+            id: "from-file",
+            name: "From the file",
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "graphty.style.gexf.node.color", scale: "passthrough" } },
+        });
+        const session = createGraphSession({ features: ["save-files-v2"] });
+        await session.project.open(JSON.stringify(v1), { migrate: true });
+        const layer = session.styles.list().find((each) => each.name === "From the file");
+        assert.isDefined(layer);
+        assert.isTrue(layer.enabled, "its column is answered, so the layer is not unbound");
+        const color = session.styles.explain({ node: "a" }).merged["node.color"] as { hex: string };
+        assert.strictEqual(color.hex, "#ff0000");
+        source.dispose();
+        session.dispose();
+    });
 });
 
 describe("a version 1 document of one kind, migrated", () => {

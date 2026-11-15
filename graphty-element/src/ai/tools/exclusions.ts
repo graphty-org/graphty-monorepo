@@ -386,7 +386,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionVisibilityApi", members: ["restoreConditions"], reason: "mechanism", kind: BY_DESIGN },
     {
         root: "SessionVisibilityApi",
-        members: ["drawnMasks", "ghosted", "ghosts"],
+        members: ["drawnMasks", "keptMasks", "ghosted", "ghosts"],
         reason: "raw-data",
         kind: BY_DESIGN,
     },

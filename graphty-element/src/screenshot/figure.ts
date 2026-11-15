@@ -87,7 +87,26 @@ const FONT = "system-ui, sans-serif";
  * @returns It, escaped.
  */
 function esc(text: string): string {
-    return text.replace(/[&<>"']/g, (c) => `&#${String(c.charCodeAt(0))};`);
+    return text.replaceAll(/[&<>"']/g, (c) => `&#${String(c.codePointAt(0))};`);
+}
+
+/**
+ * An opacity attribute, or nothing at full strength.
+ * @param name - The attribute.
+ * @param opacity - The opacity.
+ * @returns ` name="value"`, or an empty string.
+ */
+function opacityAttr(name: string, opacity: number): string {
+    return opacity < 1 ? ` ${name}="${num(opacity)}"` : "";
+}
+
+/**
+ * Points as a polygon's `points` attribute takes them.
+ * @param points - The points.
+ * @returns `x,y x,y ...`.
+ */
+function pointList(points: readonly Point2[]): string {
+    return points.map(([x, y]) => `${num(x)},${num(y)}`).join(" ");
 }
 
 /**
@@ -116,16 +135,16 @@ function figureSvg(drawing: FigureDrawing): string {
     for (const e of drawing.edges) {
         out.push(
             `<line x1="${num(e.x1)}" y1="${num(e.y1)}" x2="${num(e.x2)}" y2="${num(e.y2)}" stroke="${esc(e.color)}" ` +
-                `stroke-width="${num(e.width)}"${e.opacity < 1 ? ` stroke-opacity="${num(e.opacity)}"` : ""}/>`,
+                `stroke-width="${num(e.width)}"${opacityAttr("stroke-opacity", e.opacity)}/>`,
         );
     }
     out.push(`</g><g>`);
     for (const n of drawing.nodes) {
-        const paint = `fill="${esc(n.fill)}"${n.opacity < 1 ? ` fill-opacity="${num(n.opacity)}"` : ""}`;
+        const paint = `fill="${esc(n.fill)}"${opacityAttr("fill-opacity", n.opacity)}`;
         if ("circle" in n) {
             out.push(`<circle cx="${num(n.circle.x)}" cy="${num(n.circle.y)}" r="${num(n.circle.r)}" ${paint}/>`);
         } else {
-            out.push(`<polygon points="${n.points.map(([x, y]) => `${num(x)},${num(y)}`).join(" ")}" ${paint}/>`);
+            out.push(`<polygon points="${pointList(n.points)}" ${paint}/>`);
         }
     }
     out.push(`</g><g text-anchor="middle" dominant-baseline="central">`);
@@ -199,8 +218,8 @@ function legendSvg(legend: NonNullable<FigureDrawing["legend"]>, width: number, 
                             `<stop offset="${num(colors.length === 1 ? 0 : i / (colors.length - 1))}" stop-color="${esc(c)}"/>`,
                     )
                     .join("");
-                out.push(`<defs><linearGradient id="${id}">${stops}</linearGradient></defs>`);
                 out.push(
+                    `<defs><linearGradient id="${id}">${stops}</linearGradient></defs>`,
                     `<rect x="${num(left)}" y="${num(y)}" width="${num(right - left)}" height="${String(RAMP_HEIGHT)}" fill="url(#${id})"/>`,
                 );
             } else {
@@ -298,6 +317,55 @@ function labelText(
 }
 
 /**
+ * A node's outline on screen: a circle for a round shape, a flat shape fitted to its projected
+ * box, or the hull of a solid's box corners as the camera sees them (exact for a box).
+ * @param graph - The graph.
+ * @param node - The node.
+ * @param at - Where it is drawn.
+ * @returns The outline, unpainted.
+ */
+function nodeOutline(
+    graph: Graph,
+    node: ReturnType<Graph["getNodes"]>[number],
+    at: NonNullable<ReturnType<Graph["nodeScreenPosition"]>>,
+): { circle: { x: number; y: number; r: number } } | { points: readonly Point2[] } {
+    if (node.roundRadius !== null) {
+        return { circle: { x: at.x, y: at.y, r: at.radius } };
+    }
+    const type = node.shapeType ?? "";
+    if (isFlatShape(type)) {
+        // ponytail: fitted to the projected box, so a flat shape turned away from the camera is drawn facing it.
+        const { left, right, top, bottom } = at.bounds;
+        const outline = flatShapeOutline(type, right - left, bottom - top);
+        return { points: outline.map(([x, y]): Point2 => [at.x + x, at.y - y]) };
+    }
+    const corners = node.drawnBoundingBox.vectorsWorld.map((c): Point2 => {
+        const p = graph.worldToScreen(c);
+        return [p.x, p.y];
+    });
+    return { points: convexHull(corners) };
+}
+
+/**
+ * How wide a line is drawn on screen, by the line renderers' rules: world units of `width / 40`
+ * in 2D, `width * 20` screen units over the clip w in 3D (CustomLineRenderer's vertex shader).
+ * @param width - The style's `line.width`.
+ * @param mid - The line's middle, in the world.
+ * @param camera - The camera.
+ * @param is2D - Whether the view is flat.
+ * @param css - CSS pixels per render pixel.
+ * @returns The width in CSS pixels.
+ */
+function lineWidthPx(width: number, mid: Vector3, camera: Camera, is2D: boolean, css: number): number {
+    if (is2D) {
+        return (width / 40) * pixelsPerUnit(camera, mid) * css;
+    }
+    const clipW =
+        camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : Vector3.TransformCoordinates(mid, camera.getViewMatrix()).z;
+    return (width * 10) / Math.max(clipW, 1e-6);
+}
+
+/**
  * Reads the picture the last frame drew into a {@link FigureDrawing}.
  * @param graph - The graph.
  * @param options - The figure's options.
@@ -330,24 +398,7 @@ function figureDrawing(graph: Graph, options: FigureOptions = {}): FigureDrawing
         const color = node.drawnInstanceColor ??
             painter.nodePaint(node.index)?.color ?? { r: 255, g: 255, b: 255, a: 1 };
         const paint = { fill: rgb(color), opacity: color.a * node.drawnOpacity };
-        const type = node.shapeType ?? "";
-        const { left, right, top, bottom } = at.bounds;
-        let shape: FigureShape;
-        if (node.roundRadius !== null) {
-            shape = { circle: { x: at.x, y: at.y, r: at.radius }, ...paint };
-        } else if (isFlatShape(type)) {
-            // ponytail: fitted to the projected box, so a flat shape turned away from the camera is drawn facing it.
-            const outline = flatShapeOutline(type, right - left, bottom - top);
-            shape = { points: outline.map(([x, y]): Point2 => [at.x + x, at.y - y]), ...paint };
-        } else {
-            // A solid seen from the camera: the hull of its box's corners, exact for a box.
-            const corners = node.drawnBoundingBox.vectorsWorld.map((c): Point2 => {
-                const p = graph.worldToScreen(c);
-                return [p.x, p.y];
-            });
-            shape = { points: convexHull(corners), ...paint };
-        }
-        nodes.push({ depth: depthOf(node.drawnWorldPosition), shape });
+        nodes.push({ depth: depthOf(node.drawnWorldPosition), shape: { ...nodeOutline(graph, node, at), ...paint } });
         const words = labelText(node.label, graph, camera, css);
         if (words) {
             texts.push(words);
@@ -365,15 +416,8 @@ function figureDrawing(graph: Graph, options: FigureOptions = {}): FigureDrawing
             continue;
         }
         const line = style.line ?? {};
-        const styleWidth = line.width ?? 0.25;
         const mid = Vector3.Center(edge.srcNode.drawnWorldPosition, edge.dstNode.drawnWorldPosition);
-        // The width rules of the line renderers: world units of `width / 40` in 2D, `width * 20`
-        // screen units over the clip w in 3D (CustomLineRenderer's vertex shader).
-        const clipW = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depthOf(mid);
-        let px = is2D
-            ? (styleWidth / 40) * pixelsPerUnit(camera, mid) * css
-            : (styleWidth * 10) / Math.max(clipW, 1e-6);
-        px = Math.max(px, line.minScreenWidth ?? 0);
+        const px = Math.max(lineWidthPx(line.width ?? 0.25, mid, camera, is2D, css), line.minScreenWidth ?? 0);
         if (px <= 0) {
             continue;
         }

@@ -336,10 +336,22 @@
     background: var(--mantine-color-default-hover);
 }
 
-/* A long description wraps to a second line before it is cut short; its count stays at the end. */
+/* A long description wraps to a second line before it is cut short; its count stays at the end.
+   A long count ("41 of 77, 19 shown") moves under the name rather than squeezing it to a few
+   letters a line. */
 .dp[data-tabs] .dp-filter-title {
+    flex: 1 1 7em;
     white-space: normal;
     overflow-wrap: anywhere;
+}
+
+.dp[data-tabs] .dp-filter-name {
+    flex-wrap: wrap;
+    row-gap: 0;
+}
+
+.dp[data-tabs] .dp-filter-name .sel-count {
+    margin-inline-start: auto;
 }
 
 .dp[data-tabs] .dp-filter-more {

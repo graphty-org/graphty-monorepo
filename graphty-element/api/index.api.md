@@ -5556,6 +5556,8 @@ class Node_2 implements ModelUser {
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
+    // @internal
+    holdOffBatch(): void;
     // (undocumented)
     readonly id: NodeIdType;
     // @internal

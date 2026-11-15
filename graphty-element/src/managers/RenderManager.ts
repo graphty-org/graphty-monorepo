@@ -36,6 +36,7 @@ import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { GroupOutlinePass, GroupOutlinePick, OutlineMember } from "../meshes/GroupOutlinePass";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { isRowBatch } from "../meshes/RowPullPlugin";
+import { drawOnlyEnabledMeshes } from "../render/enabledMeshCandidates";
 import { reportCaught } from "../session/project/strict";
 import { idsNamedBy, shadersControllerOf } from "../session/shaders";
 import { placeOfUse } from "../session/styles/channels";
@@ -384,6 +385,8 @@ const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set([
     "graph-frame-stable",
     "graph-first-frame",
     "stats-update",
+    // Announced after a frame that moved the view or a node: that frame is already drawn.
+    "overview-changed",
 ]);
 
 /**
@@ -979,6 +982,7 @@ export class RenderManager implements Manager {
         }
 
         useBundledStandardShaders(this.scene);
+        drawOnlyEnabledMeshes(this.scene);
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);

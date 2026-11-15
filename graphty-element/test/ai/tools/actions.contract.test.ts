@@ -745,6 +745,33 @@ describe("every generated action", () => {
         assert.strictEqual(refused.code, "AI_ARG_INVALID");
         assert.strictEqual(refused.params.path, "kind");
     });
+
+    it("describes several entries of different kinds in one call, a missing one as its own row (#7412)", async () => {
+        const session = await assistantSession();
+        const assistant = new ScriptedAssistant(session);
+        await assistant.say("describe several", [
+            {
+                tool: "catalog",
+                args: { action: "describe", name: "louvain, node.shape,node.color,no-such-entry" },
+            },
+        ]);
+        const [read] = assistant.lastResults();
+        assert.strictEqual(read.code, "AI_OK", JSON.stringify(read));
+        const rows = read.data as { name: string; code?: string; results?: unknown; byData?: unknown }[];
+        assert.deepEqual(
+            rows.map((row) => row.name),
+            ["louvain", "node.shape", "node.color", "no-such-entry"],
+        );
+        assert.isDefined(rows[0].results, "the algorithm's result fields");
+        assert.deepEqual(rows[1].byData, {
+            action: "encode",
+            encode: { channel: "node.shape", attribute: "<attribute>" },
+        });
+        assert.strictEqual(rows[3].code, "AI_ARG_INVALID");
+        const nine = Array.from({ length: 9 }, () => "pagerank").map((name, at) => `${name}${String(at)}`);
+        await assistant.say("too many", [{ tool: "catalog", args: { action: "describe", name: nine.join(",") } }]);
+        assert.strictEqual(assistant.lastResults()[0].code, "AI_ARG_INVALID");
+    });
     it("takes a call that names no action as the only action its fields fit", async () => {
         const session = await assistantSession();
         const assistant = new ScriptedAssistant(session);

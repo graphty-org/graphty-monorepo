@@ -87,7 +87,8 @@ test("parseCap: default 2, off or junk is no cap", () => {
 });
 
 test("parseBudget: unset is the runner ceiling less the full run's share, off is no budget", () => {
-    assert.equal(DEFAULT_BUDGET, 160);
+    // 180 runners less the full run's 24 Test and 6 Story tests jobs (#7849; 160 while the full run ran 14)
+    assert.equal(DEFAULT_BUDGET, 150);
     assert.equal(parseBudget(undefined), DEFAULT_BUDGET);
     assert.equal(parseBudget(""), DEFAULT_BUDGET); // ci.yml passes an unset variable as ""
     assert.equal(parseBudget("120"), 120);
@@ -304,7 +305,7 @@ test("a full run waiting for runners with fewer than its share still holds pull 
         ],
     };
     assert.match(await firstTurn(fake({ ci: [ME], release, jobs }), { cap: 2 }), /release run 42966344736/);
-    // a test shard queued behind fourteen running ones is the run's own max-parallel, not a runner wait
+    // a test shard queued behind its running siblings at max-parallel is the run's own max-parallel, not a runner wait
     jobs[42966344736][jobs[42966344736].length - 1] = job("Test (layout-2)", "queued");
     const ok = await waitTurn({ cap: 2, runId: ME.id, ...fake({ ci: [ME], release, jobs }) });
     assert.equal(ok.outcome, "proceeded");
@@ -316,5 +317,7 @@ test("FULL_RUN_MAX_PARALLEL matches ci.yml's full-run max-parallel", () => {
         const re = new RegExp(`name: ${name} \\(\\$\\{\\{[^]*?max-parallel: .*\\|\\| (\\d+) \\}\\}`);
         assert.equal(Number(re.exec(yml)?.[1]), n, `${name}'s full-run max-parallel in ci.yml`);
     }
-    assert.equal(RELEASE_SHARE, 20);
+    assert.equal(RELEASE_SHARE, 30);
+    // the run cap's comment in ci.yml states the default budget it derives
+    assert.match(yml, new RegExp(`CI_PR_JOB_BUDGET \\(a repository variable, default ${DEFAULT_BUDGET}\\b`));
 });

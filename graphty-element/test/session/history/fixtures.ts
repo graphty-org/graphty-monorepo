@@ -517,10 +517,10 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "style.patch", action: "deleteRow", id: "folder:fixture-folder_1" },
     },
     {
-        name: "style.patch restoreStartingRows",
-        variant: "restoreStartingRows",
+        name: "style.patch addDefaultRows",
+        variant: "addDefaultRows",
         tags: BOTH,
-        command: { op: "style.patch", action: "restoreStartingRows" },
+        command: { op: "style.patch", action: "addDefaultRows" },
     },
     {
         name: "style.encode",

@@ -14,6 +14,7 @@
  * a clamp and a range whatever its scale, so those are not repeated on each entry here.
  */
 
+import { withEachDescriptionIds } from "./options";
 import type { OptionDescriptor, ScaleDescriptor } from "./types";
 
 /**
@@ -62,8 +63,8 @@ function binCount(plainName: string, description: string, fallback: number): Opt
     };
 }
 
-/** Every scale the element can read a binding through. */
-export const SCALE_DESCRIPTORS: readonly ScaleDescriptor[] = [
+/** As written; {@link SCALE_DESCRIPTORS} adds each described option's `descriptionId`. */
+const SHIPPED_SCALES: readonly ScaleDescriptor[] = [
     {
         name: "linear",
         plainName: "Even Steps",
@@ -142,6 +143,13 @@ export const SCALE_DESCRIPTORS: readonly ScaleDescriptor[] = [
         options: [],
     },
 ];
+
+/** Every scale the element can read a binding through. */
+export const SCALE_DESCRIPTORS: readonly ScaleDescriptor[] = withEachDescriptionIds(
+    "scale",
+    SHIPPED_SCALES,
+    (scale) => scale.name,
+);
 
 /**
  * Find one scale by its name.

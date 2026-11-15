@@ -292,7 +292,9 @@ starts: issue-round counts the pull request's files again from then on.
 - Its branch's issue has a live `taken` marker (its session is alive, see "Alive"): that session owns it. Skip.
 - Otherwise classify the failure from the failed job (see "Failure classes"): outside, re-run the failed jobs once;
   code or a conflict, mark the issue and start a fix subagent on the existing branch (fix prompt above), which merges
-  `origin/master` (never rebase), fixes and pushes. Already on master: wait.
+  `origin/master` (never rebase), fixes and pushes.
+- **Inherited from master** (check this first, see "Inherited failures" in the shared file): link the master-break
+  issue with an `inherited` marker and start no fix job; once its fix merged, `PUT pulls/<n>/update-branch`.
 - **Close** a pull request that cannot go green after 2 fix attempts (or has 150 or more changed files): close it
   with `pipeline-round: closed -- <reason>; branch kept` (a closed pull request can be reopened) and give its issues
   a `released` marker with the evidence. Never split it into a new pull request: that copies commits ("Never copy,

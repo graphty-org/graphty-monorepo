@@ -352,7 +352,8 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
    lint, typecheck, build and the tests your change touches, never whole shards (CI runs the rest). A human, or a
    long-lived branch below, may run `pnpm run check:quick` instead (in the background, through
    `tools/low-priority.sh`: the selected tests, which leave whole browser shards to CI, `node tools/sonar-gate.mjs`
-   and every check of CI's Checks job). A long-lived branch -- open more than about two
+   and every check of CI's Checks job except the whole-repository format check; CI's Docs job builds the docs
+   site). A long-lived branch -- open more than about two
    days, holding more than a day of work, after a merge of master that brought app or graphty-element changes or
    needed conflicts resolved, or after a large change (a refactor of a shared component, a dependency or lockfile
    upgrade, a change to graphty-element's styling, layout or rendering) -- whose change reaches the graphty app also

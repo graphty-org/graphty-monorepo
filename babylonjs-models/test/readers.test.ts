@@ -209,6 +209,58 @@ describe("the .babylon reader", () => {
     });
 });
 
+describe("the .babylon reader, field by field", () => {
+    it("reads shared geometry, colors, normals, uvs, materials, parents and transforms", () => {
+        const tri = [0, 0, 0, 1, 0, 0, 0, 1, 0];
+        const scene = readBabylon({
+            materials: [
+                { id: "red", diffuse: [1, 0, 0], alpha: 0.5, diffuseTexture: { name: "wood.png" } },
+                { diffuse: [1, 2] },
+                "not a material",
+            ],
+            geometries: { vertexData: [{ id: "g", positions: tri, colors: [1, 0, 0, 0, 1, 0, 0, 0, 1] }, 7] },
+            meshes: [
+                { id: "root", name: "root" },
+                {
+                    id: "child",
+                    parentId: "root",
+                    geometryId: "g",
+                    materialId: "red",
+                    position: [1, 2, 3],
+                    rotation: [0, 1, 0],
+                    rotationQuaternion: [0, 0, 0, 1],
+                    scaling: [2, 2, 2],
+                },
+                {
+                    positions: tri,
+                    normals: [0, 0, 1, 0, 0, 1, 0, 0, 1],
+                    uvs: [0, 0, 1, 0, 0, 1],
+                    colors: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                    parentId: "missing",
+                    scaling: [1, 1],
+                },
+                { positions: tri, indices: [0, 1, 2], colors: [1, 2] },
+            ],
+        });
+        assert.deepStrictEqual(scene.materials[0], { color: [1, 0, 0], texture: "wood.png", alpha: 0.5 });
+        assert.deepStrictEqual(scene.materials[1], {});
+        const [root, child, plain, odd] = scene.meshes;
+        assert.strictEqual(root.geometry.positions.length, 0);
+        assert.strictEqual(child.parent, 0);
+        assert.strictEqual(child.material, 0);
+        assert.deepStrictEqual(child.position, [1, 2, 3]);
+        assert.deepStrictEqual(child.rotationQuaternion, [0, 0, 0, 1]);
+        assert.strictEqual(child.geometry.colors?.length, 12);
+        assert.strictEqual(plain.name, "mesh 2");
+        assert.isUndefined(plain.parent);
+        assert.isUndefined(plain.scaling);
+        assert.strictEqual(plain.geometry.normals?.length, 9);
+        assert.strictEqual(plain.geometry.uvs?.length, 6);
+        assert.strictEqual(plain.geometry.colors?.length, 12);
+        assert.isUndefined(odd.geometry.colors);
+    });
+});
+
 describe("picture sizes", () => {
     it("reads KTX2, AVIF, BMP, GIF, DDS and TGA headers", () => {
         assert.deepStrictEqual(imageSize(fixture("gltf-avif", "cube.avif")), { width: 8, height: 8 });

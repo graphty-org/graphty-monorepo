@@ -76,6 +76,7 @@ export default defineConfig({
                         { text: "What Lies Beneath a Row", link: "/guide/beneath-a-row" },
                         { text: "One Color for One Value", link: "/guide/value-entries" },
                         { text: "Colors Across Rows", link: "/guide/colors-across-rows" },
+                        { text: "Print Look", link: "/guide/print-look" },
                         { text: "Palettes & Scales", link: "/guide/style-helpers" },
                         { text: "Layouts", link: "/guide/layouts" },
                         { text: "Graphviz Layouts", link: "/guide/graphviz-layouts" },

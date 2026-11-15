@@ -1020,7 +1020,10 @@ export class Graph implements GraphContext {
         // layers -- those are `session.styles`.
         this.#styles = new Styles(() => this.configDocument());
 
-        this.stylePainter = new StylePainter(() => this.dataManager.directed);
+        this.stylePainter = new StylePainter(
+            () => this.dataManager.directed,
+            () => this.session.config.minMarkSize,
+        );
 
         // get the element that we are going to use for placing our canvas
         if (typeof element === "string") {
@@ -1327,6 +1330,9 @@ export class Graph implements GraphContext {
 
                 this.updateManager.forceEdgeWalk();
             }
+
+            // Every mark is drawn again at the new minimum; the painter drops its old paints itself.
+            return changed("minMarkSize") ? this.repaintFromSession() : undefined;
         });
 
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.

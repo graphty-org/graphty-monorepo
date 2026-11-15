@@ -30,6 +30,7 @@ export const SETTING_GROUPS = Object.freeze({
     name: "The project's name.",
     framing: "How the camera frames the graph.",
     layoutTransition: "How nodes move to a new layout.",
+    minMarkSize: "The smallest size nodes and edges are drawn.",
     pinnedStyle: "How pinned nodes are drawn.",
     runPlacement: "Where a run's style layers go in the stack.",
     startingRows: "The style rows a new project starts with.",

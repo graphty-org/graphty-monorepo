@@ -4513,6 +4513,10 @@ export interface ProjectConfig {
         readonly minDelta: number;
     };
     readonly layoutTransition?: LayoutTransitionConfig;
+    readonly minMarkSize?: {
+        readonly node?: number;
+        readonly edge?: number;
+    };
     readonly name?: string;
     readonly pinnedStyle?: GraphSelectionStyleConfig;
     readonly runAlgorithmsOnLoad: boolean;
@@ -4538,6 +4542,7 @@ export interface ProjectConfigPatch {
     // (undocumented)
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     readonly layoutTransition?: LayoutTransitionConfig;
+    readonly minMarkSize?: ProjectConfig["minMarkSize"];
     readonly name?: string | null;
     readonly pinnedStyle?: GraphSelectionStyleInput;
     // (undocumented)
@@ -7209,6 +7214,31 @@ export interface StyleFileDocument extends StyleDocument {
 }
 
 // @public
+export interface StyleGrayCollision {
+    readonly colors: readonly [StyleGrayColor, StyleGrayColor];
+    readonly difference: number;
+}
+
+// @public
+export interface StyleGrayCollisionOptions {
+    readonly threshold?: number;
+}
+
+// @public
+export interface StyleGrayColor {
+    readonly color: string;
+    readonly lightness: number;
+    readonly uses: readonly StyleGrayUse[];
+}
+
+// @public
+export interface StyleGrayUse {
+    readonly channel: Channel;
+    readonly layer: LayerId;
+    readonly value?: unknown;
+}
+
+// @public
 export interface StyleProblem {
     readonly error: GraphtyError;
     readonly runId: RunId;
@@ -7263,6 +7293,7 @@ export interface StylesApi {
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
+    grayCollisions(options?: StyleGrayCollisionOptions): readonly StyleGrayCollision[];
     groups(id: LayerId, path: Path): readonly ValueGroup[];
     hideRow(id: StyleRowId, hidden: boolean, options?: RunOptions): Run<StyleRow>;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;

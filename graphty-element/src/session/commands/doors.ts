@@ -1299,6 +1299,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     ),
     parts: READ,
     colors: READ,
+    grayCollisions: READ,
     // One fixed colour written by a layer the call sets up; the swap is one update of it.
     replaceColor: {
         kind: "dispatches",
@@ -3764,6 +3765,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             layoutTransition: READ,
             viewRotation: READ,
             framing: READ,
+            minMarkSize: READ,
             author: READ,
             name: READ,
             acceleration: READ,

@@ -445,7 +445,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "style.highlight": ["mark"],
             "style.get": ["parts", "valueAt"],
             "style.list": ["tree"],
-            "style.legend": ["colors", "categories", "groups"],
+            "style.legend": ["colors", "grayCollisions", "categories", "groups"],
         }),
         {
             root,

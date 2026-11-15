@@ -916,6 +916,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         command: { op: "config.set", values: { framing: { extent: "centers", padding: 30 } } },
     },
     {
+        name: "config.set minMarkSize",
+        variant: "minMarkSize",
+        tags: BOTH,
+        command: { op: "config.set", values: { minMarkSize: { node: 0.5, edge: 1 } } },
+    },
+    {
         name: "config.set author",
         variant: "author",
         tags: BOTH,

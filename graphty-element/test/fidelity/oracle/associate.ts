@@ -121,6 +121,12 @@ const byText = (a: PText, b: PText): number => {
  * @returns true on one line
  */
 const sameLine = (a: PBox, b: PBox): boolean => cy(b) >= a.y0 && cy(b) <= a.y1 && cy(a) >= b.y0 && cy(a) <= b.y1;
+/**
+ * Two runs on one line ({@link joinRuns}, {@link besideTexts}): on the same line, or sharing at least 0.4 of the shorter one's height, as a run
+ * raised or lowered by half a line does (vis-network's `font.bold.vadjust`).
+ */
+const runsOnLine = (a: PBox, b: PBox): boolean =>
+    sameLine(a, b) || Math.min(a.y1, b.y1) - Math.max(a.y0, b.y0) >= 0.4 * Math.min(bh(a), bh(b));
 
 /**
  * The shape class a primitive draws.
@@ -565,7 +571,9 @@ function nodeFrom(
  * Runs of one line drawn as separate text elements side by side, joined into the line they make: Graphviz writes each
  * font change of an HTML-like label as its own `<text>` on the same baseline (`<FONT>`, `<U>`, a `<SUP>` raised a
  * little), so "mono u s x2" is five texts and one line. A run is a text starting where the one before it on the line
- * ends (within half its font size) whose middle lies within that one's height; a space is put between two runs
+ * ends (within half its font size) whose middle lies within that one's height, or that shares 0.4 of it (`runsOnLine`:
+ * vis-network's bold "B" of "B x" drawn 6 px lower by `font.bold.vadjust`, its middle just past the "x" it is before,
+ * vis-network-specimen-labels-p2 font-bold-vadjust); a space is put between two runs
  * apart by more than a sixth of the font size, or where either keeps a blank at that side.
  * @param texts - the texts
  * @param keepApart - two texts never joined, whatever their places
@@ -580,7 +588,7 @@ function joinRuns(texts: readonly PText[], keepApart: (a: PText, b: PText) => bo
     const level = (p: PText): boolean => p.rotation === 0 && (p.lines?.length ?? 1) < 2;
     for (const t of [...texts].sort((a, b) => a.box.x0 - b.box.x0)) {
         const size = (p: PText): number => Math.max(p.sizePx, 1);
-        const onLine = level(t) ? out.filter((a) => level(a) && sameLine(a.box, t.box)) : [];
+        const onLine = level(t) ? out.filter((a) => level(a) && runsOnLine(a.box, t.box)) : [];
         const last = onLine.reduce<PText | undefined>(
             (m, a) => (m === undefined || (lastRun.get(a) ?? a).box.x0 > (lastRun.get(m) ?? m).box.x0 ? a : m),
             undefined,
@@ -4725,7 +4733,7 @@ function besideTexts(texts: readonly Prim[], gap = 0.5): Prim[] {
             .filter(
                 (q) =>
                     q !== p &&
-                    sameLine(p.box, q.box) &&
+                    runsOnLine(p.box, q.box) &&
                     (q.box.x0 > p.box.x0 || (q.box.x0 === p.box.x0 && q.index > p.index)),
             )
             .sort((a, b) => a.box.x0 - b.box.x0 || a.index - b.index)[0];

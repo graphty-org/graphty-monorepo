@@ -74,17 +74,16 @@ the kind of fixed cap the owner rejected on 2026-10-30 ("three jobs is an arbitr
 through at the rate that the system allows"). Measured on 2026-11-13: all 4 slots were full only 14% of the time,
 while 1.5 jobs ran on average.
 
-**Set the slot count each round** in `tmp/test-slots/.count` (main checkout; every run on the machine reads it, and
-`GRAPHTY_TEST_SLOTS` still overrides it). A browser-heavy slot holder uses about 5 GB (21 GB for 4, measured
-2026-11-13), and memory, not cores, is the limit. Write 6 only while all 4 slots are held and `free -g` shows at
-least 22 GB available (the 10 GB floor, 2 x 5 GB, 2 GB margin) and `some avg300` in `/proc/pressure/memory` is
-under 1. Swap is not a condition: it fills with idle memory from long-lived sessions and their tool servers, which
-says nothing about room for test runs. Write 4 when available memory drops below 11 GB while 6 are held, when
-`some avg60` exceeds 5 (sustained stalling), or whenever the 10 GB stop rule above trips. The drop sits below the ~12 GB that 6 runs are expected to leave, so a normal
-6-run round does not flip back to 4 (raise at 22 GB, drop under 11 GB). Rewrite the file every round even when the
-count is unchanged: `tools/test-slots.mjs` ignores a `.count` older than 2 hours, so a stopped loop's raised count
-lapses to the default. Never above 6 without measuring again. Lowering takes effect as runs end.
-The round's last line names the count.
+**Set the slot count each round** with `node tools/test-slots.mjs recount` (from the main checkout). It writes
+`tmp/test-slots/.count` (every run on the machine reads it; `GRAPHTY_TEST_SLOTS` still overrides it) and prints why.
+It steps one slot at a time between 4 and 6, never more (the limits are `STEP` in `tools/test-slots.mjs`): a
+browser-heavy slot holder peaks at about 5 GB and memory, not cores, is the limit, so it goes up one only while every
+slot is held, a run waits, `free -g` would show at least 17 GB available (the 10 GB floor, one slot's 5 GB, 2 GB
+margin) and `some avg300` in `/proc/pressure/memory` is under 1; down one when available memory is under 11 GB or
+`some avg60` exceeds 5 (sustained stalling); straight to 4 when the under 10 GB available stop rule above trips. Swap
+is not a condition: it fills with idle memory from long-lived sessions and their tool servers. Run it every round
+even when nothing changes: `tools/test-slots.mjs` ignores a `.count` older than 2 hours, so a stopped loop's raised
+count lapses to the default. Lowering takes effect as runs end. The round's last line names the count.
 
 **Never leave a slot idle for want of a startable issue.** When free test slots exist but the free list (step 4)
 has nothing startable (step 2's strict priority order holds back medium and low jobs while a critical or high issue

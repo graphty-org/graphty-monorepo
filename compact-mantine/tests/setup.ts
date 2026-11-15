@@ -39,8 +39,9 @@ class ResizeObserverMock {
 
 global.ResizeObserver = ResizeObserverMock;
 
-// Mock Pointer Capture API for JSDOM (required by @zag-js/floating-panel)
-// These methods are not implemented in JSDOM but are used by Zag.js for drag behavior
+// Mock Pointer Capture API for JSDOM, which does not implement it. compact-mantine's own drag
+// interactions call it (ResizeHandle, useScrub, useFloatingPanel, HistogramBrush, RampEditor,
+// OpacityInput, Tree, GradientEditor).
 if (!Element.prototype.hasPointerCapture) {
     Element.prototype.hasPointerCapture = function () {
         return false;

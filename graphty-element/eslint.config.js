@@ -15,6 +15,7 @@ import tseslint from "typescript-eslint";
 
 import { aiEngineBoundary } from "./eslint-rules/ai-engine-boundary.mjs";
 import nodeMeshFunnel from "./eslint-rules/node-mesh-funnel.mjs";
+import noPrivateManagerCast from "./eslint-rules/no-private-manager-cast.mjs";
 import { savedFormatLint } from "./test/saved-format/eslint-saved-format.js";
 import nodePositionFunnel from "./eslint-rules/node-position-funnel.mjs";
 
@@ -157,6 +158,13 @@ export default tseslint.config(
                                 "ChannelDescriptor",
                                 "LegendSwatch",
                                 "LegendBlock",
+                                "AlgorithmDescriptor",
+                                "BuiltInAlgorithmDescriptor",
+                                "LayoutDescriptor",
+                                "CameraDescriptor",
+                                "LogSinkDescriptor",
+                                "FormatDescriptor",
+                                "FunctionDescriptor",
                             ],
                         },
                     ],
@@ -192,5 +200,14 @@ export default tseslint.config(
                 },
             ],
         },
+    },
+    // A test reaches the graph's data, layout and update managers through their public getters, never by casting
+    // the graph to a hand-written shape that TypeScript cannot check against the private fields (issue #6988).
+    {
+        files: ["**/*.test.ts", "test/**/*.ts"],
+        // Still casts for its update manager; another open pull request changes this file.
+        ignores: ["test/interactions/filter-keeps-camera.test.ts"],
+        plugins: { cast: { rules: { "no-private-manager-cast": noPrivateManagerCast } } },
+        rules: { "cast/no-private-manager-cast": "error" },
     },
 );

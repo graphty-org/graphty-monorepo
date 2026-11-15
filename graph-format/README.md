@@ -30,6 +30,10 @@ It contains no graph algorithms, no rendering and no parsers (see @graphty/graph
 list json`, multi-component strides, Arrow-style validity bitmaps, roles, provenance, mutable
   columns for layouts, extension tables for temporal attributes, and `gpuView()` for what the GPU
   binds.
+- **Per-edge direction**: `directed` is the default direction of every edge, and a bool edge column
+  with role `"directed"` overrides it per edge (an unset row takes the default), so one graph can
+  hold directed and undirected edges. `edgeIsDirected(snapshot, e)` reads one edge;
+  `directedness(snapshot)` answers `"directed"`, `"undirected"` or `"mixed"`.
 - **Id map** (`NodeIdMap`): five storage kinds (`identity`, `dense`, `numeric`, `string`, `mixed`)
   chosen at freeze; zero bytes for the common `0..n-1` case; lazy reverse map.
 - **Views** (lazy, cached, shared): `reverse()`, `coo()`, `edgeList()`, degrees, weighted degrees,

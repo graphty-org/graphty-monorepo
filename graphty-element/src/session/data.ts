@@ -92,6 +92,7 @@ import {
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "./commands/data";
+import { type DataDeriveCommand, derivedColumnsOf, derivedRows, type ValuesWhere } from "./commands/derive";
 import {
     Draft,
     draftStyles,
@@ -104,6 +105,7 @@ import {
     readSource,
 } from "./draft";
 import type { LaneStore } from "./GraphSession";
+import { RESTORE as GROUP_RESTORE } from "./groups";
 import { columnMutations } from "./importColumns";
 import {
     type DataIssue,
@@ -123,7 +125,8 @@ import { overRepresentedValues } from "./overRepresented";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
-import { failedEnd, HELD_KINDS, Ingest, progressSource } from "./project/ingest";
+import { columnsEligible, failedEnd, HELD_KINDS, Ingest, progressSource } from "./project/ingest";
+import { recordsSource, rowsView } from "./project/recordMap";
 import type { GraphRecord, GraphSlice, RunEntry, VisibilityState } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
 import { readableValues } from "./readable";
@@ -179,6 +182,7 @@ import type {
 import { computeFingerprint, computeStatistics } from "./statistics";
 import { asksFileStyles } from "./styles/fileStyles/apply";
 import type { CompiledLayer } from "./styles/Layer";
+import { expressionPaths } from "./styles/predicate";
 import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
 import type {
     ColumnHistogram,
@@ -186,6 +190,8 @@ import type {
     DatasetLoadOptions,
     DataSourceDescriptor,
     DataSourceInput,
+    DerivedColumn,
+    DeriveOptions,
     EdgeName,
     EdgePageOptions,
     EdgeRecord,
@@ -330,6 +336,14 @@ interface PageSources {
      * @returns The matching ids
      */
     matchWhere(where: Query, target: "node" | "edge"): ReadonlySet<NodeId | EdgeId>;
+    /** What an expression reads for every element, over the query engine: a computed column's values. */
+    readonly valuesWhere: ValuesWhere;
+    /**
+     * The paths an expression names that nothing in the session answers, over the query engine.
+     * @param where - The expression
+     * @returns The unresolved paths
+     */
+    unresolvedWhere(where: Query): readonly Path[];
     /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
@@ -937,9 +951,9 @@ export class SessionData implements SessionDataApi {
     /**
      * Load a graph from column arrays, as one undoable step: the nodes, then the edges.
      * @param columns - The columns.
-     * @returns Settles once the rows are in the graph and drawn.
+     * @returns The load's report, once the rows are in the graph and drawn.
      */
-    async importColumns(columns: ImportColumnsInput): Promise<void> {
+    async importColumns(columns: ImportColumnsInput): Promise<LoadReport> {
         this.requireLive("importColumns");
         // A batched graph keeps the records it builds, so the slice keeps them as they are, not a copy.
         const [nodes, edges] = columnMutations(columns, this.pages.batched?.() === true);
@@ -957,6 +971,8 @@ export class SessionData implements SessionDataApi {
                 }),
             undefined,
         );
+        // The edge add seals a report even for no edges, so a report is always there.
+        return this.lastImport() as LoadReport;
     }
 
     /**
@@ -1102,7 +1118,33 @@ export class SessionData implements SessionDataApi {
     private edit(mutation: DataMutation): Promise<unknown> {
         checkMutation(mutation);
         const send = this.writes.applier();
-        return this.loadLine.edit(() => send(mutation), undefined);
+        const routed = this.throughColumns(mutation);
+        return this.loadLine.edit(() => send(routed), undefined);
+    }
+
+    /**
+     * Under `"batched"`, read an eligible add of records into columns, so the graph keeps no record
+     * object per row (row-renderer.md 4.6, stage 29); anything else goes as it came.
+     * @param mutation - The checked mutation.
+     * @returns The mutation to dispatch.
+     */
+    private throughColumns(mutation: DataMutation): DataMutation {
+        if ((mutation.kind !== "add-nodes" && mutation.kind !== "add-edges") || this.pages.batched?.() !== true) {
+            return mutation;
+        }
+
+        const { knownFields } = this.readConfig();
+        const edges =
+            mutation.kind === "add-edges"
+                ? {
+                      repeated: mutation.repeated ?? knownFields.repeatedEdges,
+                      weight: mutation.weight ?? knownFields.edgeWeightPath,
+                  }
+                : undefined;
+        const path = columnsEligible({ batched: true, records: mutation.records, edges });
+        return path.code === "PATH_COLUMNS"
+            ? { ...mutation, records: rowsView(recordsSource(mutation.records)) }
+            : mutation;
     }
 
     /**
@@ -4475,11 +4517,12 @@ export class SessionData implements SessionDataApi {
         // snapshot alone, an edited value never reached the descriptors), and not on a mask change,
         // which moves the input tick but no column, type or value (issue #4386).
         const snapshot = this.current();
-        // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns.
+        // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns,
+        // and so is what a collapsed group keeps for its expand.
         const described = this.attributeCache.get("", () =>
             Object.freeze(
                 describeAttributes(snapshot, this.records, this.timelineOn).filter(
-                    (each) => !isSourceFactKey(each.name),
+                    (each) => !isSourceFactKey(each.name) && each.name !== GROUP_RESTORE,
                 ),
             ),
         );
@@ -4545,8 +4588,9 @@ export class SessionData implements SessionDataApi {
      * @returns degree, and on a directed graph in-degree and out-degree
      */
     structureValues(): readonly StructureValue[] {
-        // In and out degree only on a directed graph, where they differ from degree.
-        return this.statistics().directedness === "directed"
+        // In and out degree only when some edge is directed, where they differ from degree.
+        const { directedness } = this.statistics();
+        return directedness === "directed" || directedness === "mixed"
             ? STRUCTURE_VALUES
             : STRUCTURE_VALUES.filter((each) => each.path === "graphty.degree");
     }
@@ -4582,7 +4626,7 @@ export class SessionData implements SessionDataApi {
 
         return readableValues({
             snapshot,
-            directed: this.statistics().directedness === "directed",
+            directed: ["directed", "mixed"].includes(this.statistics().directedness),
             attributes: this.attributes(),
             declarationOf: (column) => declarations.get(declarationKey(column)),
             runs,
@@ -5108,6 +5152,102 @@ export class SessionData implements SessionDataApi {
             },
             "rename a column",
         );
+    }
+
+    /**
+     * Add a computed column, or give one a new expression, as one undoable step.
+     * @param name - the column's name
+     * @param expression - what each value is
+     * @param options - nodes or edges
+     * @returns settles once the step is recorded
+     */
+    async derive(name: string, expression: Query, options: DeriveOptions = {}): Promise<void> {
+        this.requireLive("derive");
+        return this.afterLoads(
+            () => this.deriveNow(name, expression, options.kind ?? "node"),
+            () => undefined,
+        );
+    }
+
+    /**
+     * Every computed column.
+     * @returns the columns, in the order they were added
+     */
+    derivedColumns(): readonly DerivedColumn[] {
+        this.requireLive("derivedColumns");
+        return derivedColumnsOf(this.writes.slice().values);
+    }
+
+    /**
+     * The command that brings the computed columns up to date, for the dispatcher's `derive`
+     * service: what a data edit, a load or a run starts once it is recorded.
+     * @returns the command, or null when no value changes
+     */
+    derivedRefresh(): DataDeriveCommand | null {
+        const columns = this.derivedColumns();
+        if (columns.length === 0) {
+            return null;
+        }
+
+        const { nodes, edges } = derivedRows(columns, this.current(), this.pages.valuesWhere);
+        return nodes.length === 0 && edges.length === 0 ? null : { op: "data.derive", columns, nodes, edges };
+    }
+
+    /**
+     * derive, once the loads asked for before it have landed.
+     * @param name - as derive takes it
+     * @param expression - as derive takes it
+     * @param kind - nodes or edges
+     * @returns what derive returns
+     */
+    private async deriveNow(name: string, expression: Query, kind: "node" | "edge"): Promise<void> {
+        this.requireLive("derive");
+        const refuse = (reason: string, message: string): GraphtyError =>
+            new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message,
+                source: "data",
+                details: { reason, kind, column: name, expression },
+            });
+        if (typeof name !== "string" || name.trim() === "") {
+            throw refuse("empty-name", "A computed column's name is a string with something in it.");
+        }
+
+        if (kind !== "node" && kind !== "edge") {
+            throw refuse("bad-kind", 'A computed column is carried by "node" or "edge".');
+        }
+
+        const existing = this.derivedColumns();
+        const replacing = existing.some((each) => each.kind === kind && each.name === name);
+        if (!replacing && this.attributes().some((each) => each.kind === kind && each.name === name)) {
+            throw refuse("name-taken", `A ${kind} column is already named ${JSON.stringify(name)}.`);
+        }
+
+        if (typeof expression !== "string") {
+            throw refuse("not-an-expression", "A computed column's expression is a string.");
+        }
+
+        // Parsed here, so a bad expression is refused with its own reason and position.
+        if (expressionPaths(expression).includes(`data.${name}`)) {
+            throw refuse("reads-itself", `The expression of ${JSON.stringify(name)} reads ${JSON.stringify(name)}.`);
+        }
+
+        const unknown = this.pages.unresolvedWhere(expression);
+        if (unknown.length > 0) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_ATTRIBUTE",
+                message: `The expression reads ${unknown.join(", ")}, which nothing in the graph answers.`,
+                source: "data",
+                details: { paths: unknown, expression },
+            });
+        }
+
+        const column: DerivedColumn = { kind, name, expression };
+        const columns = replacing
+            ? existing.map((each) => (each.kind === kind && each.name === name ? column : each))
+            : [...existing, column];
+        const { nodes, edges } = derivedRows(columns, this.current(), this.pages.valuesWhere);
+        await this.send({ op: "data.derive", columns, nodes, edges, column: { kind, name } }, "compute a column");
     }
 
     /**
@@ -6076,20 +6216,23 @@ function nodesJoinMade(load: LoadedSource, provenance: Provenance | undefined): 
 
 /**
  * The nodes a load added: for a join that adds elements, the nodes it made (its record's
- * `made`); for any other load, and a join recorded before `made`, every node it supplied.
+ * `made`); for any other load, every node it supplied but those the graph held before it that
+ * no load supplied (its provenance's `held`, issue #7708).
  * @param load - the load
  * @param provenance - what each load supplied
  * @returns the node ids, as provenance holds them
  */
 function nodesJoinAdded(load: LoadedSource, provenance: Provenance | undefined): readonly NodeId[] {
-    const supplied = provenance?.[load.key]?.nodes ?? [];
+    const entry = provenance?.[load.key];
+    const supplied = entry?.nodes ?? [];
     const made = load.join?.made;
-    if (made === undefined) {
-        return supplied;
+    if (made !== undefined) {
+        const ids = new Set(made.map(String));
+        return supplied.filter((id) => ids.has(String(id)));
     }
 
-    const ids = new Set(made.map(String));
-    return supplied.filter((id) => ids.has(String(id)));
+    const held = new Set((entry?.held ?? []).map(String));
+    return held.size === 0 ? supplied : supplied.filter((id) => !held.has(String(id)));
 }
 
 /**
@@ -6392,6 +6535,7 @@ export function headlessDataService(
         loadFailed: () => undefined,
         progress: (change) => dispatcher.services.progress?.(change),
         timeline: () => dispatcher.services.timeline?.() === true,
+        batched: () => dispatcher.services.batched?.() === true,
     });
 
     return {

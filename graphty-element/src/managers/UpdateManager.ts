@@ -3538,7 +3538,8 @@ export class UpdateManager implements Manager {
 
         // No frame is drawn while a load holds the draw, so asking whether anything moved, a walk of
         // every node on each of a load's thousands of frames, waits for the first frame it releases.
-        const walk = !this.dataManager.drawHeld && this.edgesNeedWalking();
+        const held = this.dataManager.drawHeld;
+        const walk = !held && this.edgesNeedWalking();
         const everyEdge = walk === true;
         // support points move after their nodes stop, until they come to rest, and their edges with them; forceAtlas2
         // finds an edge's nodes among the centers by the very point, and a batched node gives a new one at each read,
@@ -3557,7 +3558,7 @@ export class UpdateManager implements Manager {
         // line, and a curve is pulled with a span of its own, so the walk asks the placed list, not every edge.
         const batched = this.dataManager.renderLimits?.batched() === true;
         const bowed =
-            !this.dataManager.drawHeld &&
+            !held &&
             this.dataManager.supportPoints.update(
                 () => Array.from(this.layoutManager.nodes, centerOf),
                 batched ? this.placedEdges() : this.layoutManager.edges,
@@ -3578,14 +3579,21 @@ export class UpdateManager implements Manager {
             } else {
                 UpdateManager.placeEdges(this.layoutManager.edges);
             }
-        } else {
+        } else if (!held) {
             this.updateEdgesOf(walk === false ? [] : walk);
             UpdateManager.placeEdges(this.edgesToPlace);
             this.placedEdgesAtRows();
         }
 
-        this.unbuiltRowsMoved = false;
-        this.edgesToPlace = [];
+        // While a load holds the draw, the edges a repaint painted wait for the frame that releases it and are placed
+        // there together, in an order that does not depend on timing. Placed on the frames between, a curve took its pieces' slots after
+        // however many paint batches that frame's time budget had run, so the order the edges were drawn in -- which
+        // of two crossing lines is on top -- followed the machine's speed (issue #8087).
+        if (!held) {
+            this.unbuiltRowsMoved = false;
+            this.edgesToPlace = [];
+        }
+
         this.settleEnds();
 
         this.statsManager.edgeUpdate.endMonitoring();

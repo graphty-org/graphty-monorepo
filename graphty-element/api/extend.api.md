@@ -71,6 +71,7 @@ import { LossNote } from '@graphty/graph-io';
 import { maskTest } from '@graphty/graph-format';
 import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
 import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
+import { ModelFormat } from 'babylonjs-models/detect';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_3 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
@@ -270,8 +271,9 @@ export interface AlgorithmDescriptor {
     cost?: (n: number, m: number) => number;
     // (undocumented)
     costClass: CostClass;
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     // (undocumented)
     fields: readonly FieldDescriptor[];
     // (undocumented)
@@ -421,8 +423,9 @@ export interface BaseDataSourceConfig {
 
 // @public
 export interface CameraDescriptor {
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     // (undocumented)
     id: CameraId;
     modes: readonly DrawingMode[];
@@ -515,7 +518,7 @@ export interface CameraViewRegistration {
 }
 
 // @public
-export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
+export type CaveatCode = "weights.unread" | "route.found" | "route.none" | "iteration.stop-rule" | "iteration.cap-reached" | "partition.unscored" | "community.resolution" | "groups.split" | "groups.merged" | "paths.counted-exactly" | "paths.hop-lengths" | "tree.edge-count" | "scope.whole-graph" | "scope.induced-subgraph" | "scope.subgraph" | "parallel-edges.merged" | "input.empty" | "defined.nothing-measured" | "defined.long-task" | "defined.inputs-read" | "sampled.instead-of-exact" | "sampled.exact-past-cap" | "sampled.still-past-cap" | "astar.straight-line" | "betweenness.sampled" | "betweenness.halved" | "edge-betweenness.sampled" | "bfs.origin" | "bfs.target-reached" | "bfs.target-unreached" | "dfs.walk" | "closeness.sampled" | "closeness.exact" | "closeness.hop-distances" | "closeness.reciprocal" | "clustering-coefficient.local" | "clustering-coefficient.simple" | "components.weak" | "components.strong" | "components.undirected-strong" | "degree.as-declared" | "eigenvector.converged" | "eigenvector.scored-by" | "floyd-warshall.eccentricity" | "flow.ends" | "flow.ends-chosen" | "flow.no-path" | "girvan-newman.no-cut" | "girvan-newman.best-of" | "hierarchical.hop-distances" | "hierarchical.fewer-clusters" | "hits.published-score" | "hits.unit-length" | "hits.max-scaled" | "k-core.undirected" | "k-core.loops-and-parallels" | "katz.attenuation" | "katz.direction" | "link-prediction.candidates" | "matching.not-bipartite" | "matching.partnered" | "min-cut.karger" | "min-cut.sides" | "min-cut.end-chosen" | "negative-cycle.no-distance" | "negative-cycle.no-route" | "pagerank.damping" | "pagerank.sums-to-one" | "pagerank.undirected" | "pagerank.personalized" | "pagerank.personalization-unmatched" | "pagerank.personalization-outside";
 
 // @public
 export interface Caveats {
@@ -993,7 +996,7 @@ export interface ExportResult {
 }
 
 // @public
-export type ExportScope = RuleTree | "shown" | "selection" | {
+export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
     readonly set: SetId;
 } | {
     readonly nodes: readonly NodeId_2[];
@@ -1048,7 +1051,9 @@ export interface FormatDescriptor {
     canExport: boolean;
     // (undocumented)
     canImport: boolean;
+    // @deprecated
     description?: string;
+    descriptionId?: string;
     exportVariants?: readonly FormatExportVariant[];
     // (undocumented)
     extensions: readonly string[];
@@ -1364,6 +1369,15 @@ export type GraphtyErrorCode =
 * `details.id` names it. The caller lists the entries again.
 */
 | "E_AUTOSAVE_UNKNOWN_ENTRY"
+/**
+* Autosave's kept work could not be listed, or an entry could not be reopened: another tab
+* holds the browser's database and did not let go within `details.afterMs` (a tab the browser
+* suspended in the middle of a write), or the browser's storage stalled. `details.step` is
+* `"list"` (listing), `"read"` (reading the entry) or `"restore"` (writing the restore). For a
+* listing nothing is known about the kept work; the caller offers none and asks again later.
+* A refused restore leaves the entry as it was; the caller may restore it again later.
+*/
+| "E_AUTOSAVE_STALLED"
 /**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -1794,11 +1808,11 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_TOO_LARGE"
 /**
-* A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
 */
 | "E_MODEL_STRUCTURE"
 /**
-* A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+* A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
 * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
 */
 | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -1840,7 +1854,7 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_EXTERNAL_URL"
 /**
-* A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+* A model's compressed data could not be decoded. `params.reason`: `missing` when this build of graphty-element leaves the decoder out (the single-file `./bundle` carries no Draco or KTX2 decoder), `load` when the decoder's files could not be loaded, `decode` when the data is damaged. `params.extension` names the glTF extension when known. Every other build ships the Draco, meshopt and KTX2 decoders; nothing is fetched from a CDN.
 */
 | "E_MODEL_DECODER_UNAVAILABLE"
 /**
@@ -1875,7 +1889,7 @@ export type GraphtyErrorCode =
 /**
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
-* no camera to draw from. `details.media` is `"image"` or `"video"`, `details.destination` is
+* no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
 * `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
 * @since 3.40.0
 */
@@ -2067,8 +2081,9 @@ export interface LayoutDefinition<O extends OptionsShorthand> extends Definition
 
 // @public
 export interface LayoutDescriptor {
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     engine: string;
     // (undocumented)
     family: string;
@@ -2122,25 +2137,22 @@ export abstract class LayoutEngine {
     static getRegisteredTypes(): string[];
     static getZodOptionsSchema(): OptionsSchema_2;
     static hasZodOptions(): boolean;
+    // @internal
+    protected hidesRow(index: number): boolean;
     get holdMask(): NodeMask | null;
     protected get holdsAny(): boolean;
     static honoursWeights: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
-    protected isEdgeLeftOut(edge: Edge): boolean;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
-    protected isLeftOut(index: number): boolean;
     isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
     // @internal
     protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
-    protected keptEdges(graph: GraphSnapshot): EdgeMask | null;
-    protected keptRows(rows: number): NodeMask | null;
     // @internal
     protected lastPublishedBox(): Readonly<Float64Array> | null;
-    protected get leavesEdgesOut(): boolean;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;
@@ -2179,8 +2191,9 @@ export abstract class LayoutEngine {
     static scoped: boolean;
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
-    protected setLeftOut(mask: NodeMask | null, rows: number, edges?: ReadonlySet<Edge> | null): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
+    // @internal
+    protected get shownView(): WorkingView | null;
     // @internal
     get spacesBySize(): boolean;
     // (undocumented)
@@ -2194,6 +2207,8 @@ export abstract class LayoutEngine {
     wakeForClusters(): boolean;
     // @internal
     wakeForResize(): boolean;
+    // @internal
+    protected get workingGraph(): WorkingView | null;
     protected writeNodePosition(n: Node_2, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
     static zodOptionsSchema?: OptionsSchema_2;
 }
@@ -2238,8 +2253,9 @@ export type LogLevelName = "error" | "warn" | "info" | "debug" | "trace";
 
 // @public
 export interface LogSinkDescriptor {
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     // (undocumented)
     id: LogSinkId;
     // (undocumented)
@@ -2360,6 +2376,8 @@ class Node_2 implements ModelUser {
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
+    // @internal
+    holdOffBatch(): void;
     // (undocumented)
     readonly id: NodeIdType;
     // @internal
@@ -2387,6 +2405,7 @@ class Node_2 implements ModelUser {
         readonly template: ModelTemplate | null;
         readonly tinted: boolean;
         readonly colored: boolean;
+        readonly clip: string | null;
     };
     // (undocumented)
     opts: NodeOpts;

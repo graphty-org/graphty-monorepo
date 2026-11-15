@@ -7,7 +7,7 @@ import { CustomModelDialog } from "./CustomModelDialog";
 import { CUSTOM_MODEL } from "./words";
 
 /**
- * The Load custom model dialog opened from the Main menu's Custom model..., which has no layer to
+ * The Load custom model dialog opened from the Main menu's Add custom model..., which has no layer to
  * write to: Add to project only adds the model to the project, where the Models pop-over shows it,
  * and says so in a notice the reader sees.
  * Open while the workspace dialog is "custom-model" and the node-models experiment is on.

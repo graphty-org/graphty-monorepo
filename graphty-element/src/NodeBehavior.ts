@@ -16,7 +16,8 @@ import { layoutEngineInternals } from "./layout/LayoutEngine";
 import { SimulationLayoutEngine } from "./layout/SimulationLayoutEngine";
 import type { GraphContext } from "./managers/GraphContext";
 import type { Node as GraphNode, NodeIdType } from "./Node";
-import { filterPointerPicks, hoverNodeId, pickNodeId } from "./render/PickService";
+import { MIN_RADIUS_PX } from "./render/NodeIdTarget";
+import { filterPointerPicks, hoverNodeId, type HoverPick, pickNodeId } from "./render/PickService";
 import { dispatcherOf } from "./session/GraphSession";
 import {
     cancelReasonOf,
@@ -25,6 +26,7 @@ import {
     type TransactionScope,
 } from "./session/project/Dispatcher";
 import { sourceLoadsOf } from "./session/sources/ids";
+import type { HoverDrawn } from "./session/types";
 
 /**
  * When a pointer event HAPPENED, on the `performance.now()` clock.
@@ -200,13 +202,13 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
             // pointer that moves every frame while each read takes several frames still hears
             // each answer one read late, instead of never (#8016).
             const move = ++roster.moves;
-            const pickedId = hoverNodeId(scene, scene.pointerX, scene.pointerY);
-            if (pickedId instanceof Promise) {
-                void pickedId.then((id) => {
-                    hearHover(roster, move, id);
+            const picked = hoverNodeId(scene, scene.pointerX, scene.pointerY);
+            if (picked instanceof Promise) {
+                void picked.then((pick) => {
+                    hearHover(roster, move, pick);
                 });
             } else {
-                hearHover(roster, move, pickedId);
+                hearHover(roster, move, picked);
             }
 
             break;
@@ -227,29 +229,30 @@ function deliverPointerEvent(scene: Scene, roster: NodePointerRoster, pointerInf
  * Deliver a move's hover answer unless a newer move's answer was already delivered.
  * @param roster - The scene's nodes.
  * @param move - The move's number.
- * @param pickedId - The node under the pointer at that move, if any.
+ * @param pick - The node under the pointer at that move, if any, and where the pick found it drawn.
  */
-function hearHover(roster: NodePointerRoster, move: number, pickedId: NodeIdType | undefined): void {
+function hearHover(roster: NodePointerRoster, move: number, pick: HoverPick): void {
     if (move > roster.heard) {
         roster.heard = move;
-        deliverHover(roster, pickedId);
+        deliverHover(roster, pick);
     }
 }
 
 /**
  * Tell the hovered nodes and the node under the pointer where the pointer is.
  * @param roster - The scene's nodes.
- * @param pickedId - The node under the pointer, if any.
+ * @param pick - The node under the pointer, if any, and where the pick found it drawn.
  */
-function deliverHover(roster: NodePointerRoster, pickedId: NodeIdType | undefined): void {
+function deliverHover(roster: NodePointerRoster, pick: HoverPick): void {
+    const { id: pickedId, drawn } = pick;
     roster.overId = pickedId;
     for (const handler of roster.hovered) {
-        handler.onHover(pickedId);
+        handler.onHover(pickedId, drawn);
     }
 
     const target = pickedId === undefined ? undefined : roster.byId.get(pickedId)?.dragHandler;
     if (target && !roster.hovered.has(target)) {
-        target.onHover(pickedId);
+        target.onHover(pickedId, drawn);
     }
 }
 
@@ -994,8 +997,10 @@ export class NodeDragHandler {
      * A move: emit node-hover when the pointer arrives on this node, and hide its tooltip when it
      * leaves. The scene's roster calls it for the node under the pointer and the hovered ones.
      * @param pickedNodeId - The node under the pointer, if any.
+     * @param drawn - Where the pick found it drawn, when the pick says (a read that answers frames
+     *     later); absent, the pick read the scene as it stands, so it is measured now.
      */
-    public onHover(pickedNodeId: NodeIdType | undefined): void {
+    public onHover(pickedNodeId: NodeIdType | undefined, drawn?: HoverDrawn): void {
         // Skip if we're currently dragging
         if (this.dragState.dragging) {
             return;
@@ -1006,8 +1011,9 @@ export class NodeDragHandler {
         // Tell the session which node is under the pointer, for `{ match: "hover" }` layers.
         // Asked on every move over the node, not only on arrival, because the pointer can
         // leave the canvas and come back onto the same node without this node seeing it go.
-        if (isOverThisNode) {
-            this.getContext().getSelectionManager?.()?.hover(this.node.id);
+        const selection = this.getContext().getSelectionManager?.();
+        if (isOverThisNode && selection && !selection.isHovered(this.node.id)) {
+            selection.hover(this.node.id, drawn ?? this.drawnNow());
         }
 
         // Emit node-hover when entering the node (not when already hovering)
@@ -1039,6 +1045,21 @@ export class NodeDragHandler {
         } else if (!isOverThisNode && this.isHovered) {
             this.endHover();
         }
+    }
+
+    /**
+     * Where this node is drawn now, with the radius hover picks it within: on a batch, never under
+     * the node ID target's least radius.
+     * @returns The place, or undefined when the graph cannot say.
+     */
+    private drawnNow(): HoverDrawn | undefined {
+        const screen = this.getContext().nodeScreenPosition?.(this.node.id);
+        if (screen === undefined) {
+            return undefined;
+        }
+
+        const least = drawnByBatch(this.node) ? MIN_RADIUS_PX * this.scene.getEngine().getHardwareScalingLevel() : 0;
+        return { x: screen.x, y: screen.y, radius: Math.max(screen.radius, least) };
     }
 
     /**

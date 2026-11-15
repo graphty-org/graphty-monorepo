@@ -157,6 +157,8 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.import-source": (p) => `importing ${text(p, "name", "data from a network source")}`,
     "data.source-expand": (p) => `expanding ${counted(p, "node", "nodes")} from a network source`,
     "data.collapse": (p) => `collapsing ${text(p, "node", "a node")}`,
+    "groups.collapse": (p) => `collapsing group ${String(p.group)}`,
+    "groups.expand": (p) => `expanding group ${String(p.group)}`,
     "data.set-file-styles": () => "choosing which file styles to use",
     "data.columns": () => "changing the columns",
     "data.join": (p) => `joining ${text(p, "name", "a table")}`,
@@ -173,6 +175,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.set-type": () => "changing a column's type",
     "data.hide-columns": () => "hiding columns",
     "data.show-columns": () => "showing columns",
+    "data.derive": (p) => (typeof p.column === "string" ? `computing ${p.column}` : "updating the computed columns"),
     "style.add-layer": (p, s) => `adding the layer ${layerWords(s, p)}`,
     "style.update-layer": (p, s) => {
         const what = channels(p.channels);
@@ -193,7 +196,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "style.lock-row": (p) => `${p.locked === true ? "locking" : "unlocking"} ${text(p, "row", "a layer")}`,
     "style.hide-row": (p) => `${p.hidden === true ? "hiding" : "showing"} ${text(p, "row", "a layer")}`,
     "style.delete-row": (p) => `deleting ${text(p, "row", "a layer")}`,
-    "style.restore-starting-rows": () => "restoring the starting rows",
+    "style.add-default-rows": () => "adding the default rows",
     "shader.add": (p, s) => `adding ${shaderName(s, p.id)}`,
     "shader.replace": (p, s) => `changing ${shaderName(s, p.id)}`,
     "shader.remove": (p, s) => `removing ${shaderName(s, p.id)}`,

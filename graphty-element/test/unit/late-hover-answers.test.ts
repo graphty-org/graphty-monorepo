@@ -11,9 +11,11 @@ const { reads } = vi.hoisted(() => ({
 vi.mock("../../src/render/PickService", () => ({
     filterPointerPicks: (): void => undefined,
     pickNodeId: (): undefined => undefined,
-    hoverNodeId: (): Promise<string | undefined> =>
+    hoverNodeId: (): Promise<{ id: string | undefined }> =>
         new Promise((resolve) => {
-            reads.push(resolve);
+            reads.push((id) => {
+                resolve({ id });
+            });
         }),
 }));
 

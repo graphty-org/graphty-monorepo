@@ -48,7 +48,7 @@ function makeScene(): { engine: Engine; scene: Scene } {
 
 describe("a graph disposed while a model loads", () => {
     it("rejects the load once the glTF was parsed before the dispose", async () => {
-        const { loadModelContainer } = await import("../../../src/models/chunk");
+        const { loadModel } = await import("../../../src/models/loadModel");
         const { engine, scene } = makeScene();
 
         // Dispose the scene and its engine the moment the glTF is parsed: after Babylon's own
@@ -61,7 +61,7 @@ describe("a graph disposed while a model loads", () => {
         });
         cleanups.push(() => SceneLoader.OnPluginActivatedObservable.remove(activated));
 
-        const outcome = await loadModelContainer(scene, sphereGlb(8, 4), ".glb").then(
+        const outcome = await loadModel(scene, new Map([["sphere.glb", sphereGlb(8, 4)]]), "sphere.glb", "glb").then(
             () => "loaded",
             () => "rejected",
         );

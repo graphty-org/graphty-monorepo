@@ -951,6 +951,21 @@ export class GraphStore {
     }
 
     /**
+     * Whether an edge may be given back an id the element assigned before: one the counter has
+     * handed out, that no live edge holds now.
+     * @param edgeId - the counter
+     * @returns true when it may
+     */
+    mayReuseEdgeId(edgeId: number): boolean {
+        return (
+            Number.isSafeInteger(edgeId) &&
+            edgeId >= 0 &&
+            edgeId < this.counter.next &&
+            this.edgeIndexOf(edgeId) === INVALID_INDEX
+        );
+    }
+
+    /**
      * Record an ingested edge for the completion pass. `ingestEdge` calls this for every edge it
      * stamps; an edge added to the builder directly (a test fixture) gets no identity values.
      * @param row - the edge row

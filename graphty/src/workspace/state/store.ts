@@ -380,6 +380,7 @@ export const ON_RELOAD = {
     renaming: "fresh: an edit in place, ended by the reload",
     renamingRow: "fresh: an edit in place, ended by the reload",
     inspected: "kept",
+    styleRow: "kept",
     tabs: "kept",
     styleSide: "kept",
     leftWidth: "this tab: changes on every drag step, too often to write to autosaved work",
@@ -464,7 +465,7 @@ export type KeptPlace = Pick<WorkspaceState, KeptKey>;
  * @param fields - the fields to take: every kept field, or only the stashed ones.
  * @returns the kept fields it holds.
  */
-export function keptFields(from: object, fields: readonly string[] = KEPT_FIELDS): Partial<KeptPlace> {
+function keptFields(from: object, fields: readonly string[] = KEPT_FIELDS): Partial<KeptPlace> {
     return Object.fromEntries(Object.entries(from).filter(([key]) => fields.includes(key)));
 }
 

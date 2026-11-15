@@ -760,7 +760,6 @@ export class PulledLineBatch {
         this.setCount();
     }
 
-    /** Draw only the pieces handed out, a vertex a corner. */
     /**
      * Draw the pieces with the lean program or the join template; see {@link drawLinesLean}.
      * @param lean - Whether to draw the lean program.
@@ -792,6 +791,7 @@ export class PulledLineBatch {
         this.setCount();
     }
 
+    /** Draw only the pieces handed out, a vertex a corner. */
     private setCount(): void {
         const [subMesh] = this.mesh.subMeshes;
         subMesh.verticesStart = 0;

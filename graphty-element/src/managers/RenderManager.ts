@@ -861,6 +861,11 @@ export class RenderManager implements Manager {
     private readonly releasePointer = (event: PointerEvent): void => {
         this.pointersHeld.delete(event.pointerId);
     };
+    /** The page lost focus (a context menu, another window): a release may never arrive. */
+    private readonly releaseAllPointers = (): void => {
+        this.pointersHeld.clear();
+        this.drawOwed = true;
+    };
     private fastCamera: Camera | null = null;
     /** See `RenderManagerConfig.pictureIsFinal`; null draws every tick. */
     private readonly pictureIsFinal: (() => boolean) | null;
@@ -1034,6 +1039,7 @@ export class RenderManager implements Manager {
         // On the window: a pointer can be released off the canvas.
         globalThis.addEventListener("pointerup", this.releasePointer, { passive: true });
         globalThis.addEventListener("pointercancel", this.releasePointer, { passive: true });
+        globalThis.addEventListener("blur", this.releaseAllPointers);
         this.canvas.addEventListener("webglcontextlost", this.dropFence);
         this.canvas.addEventListener("webglcontextrestored", this.dropFence);
         this.viewWatch?.observe(this.canvas);
@@ -1136,6 +1142,7 @@ export class RenderManager implements Manager {
         this.canvas.removeEventListener("pointerdown", this.holdPointer);
         globalThis.removeEventListener("pointerup", this.releasePointer);
         globalThis.removeEventListener("pointercancel", this.releasePointer);
+        globalThis.removeEventListener("blur", this.releaseAllPointers);
         this.canvas.removeEventListener("pointerup", this.focusOnPointer);
         this.canvas.removeEventListener("blur", this.restoreFocusRing);
         this.canvas.removeEventListener("keydown", this.restoreFocusRing);

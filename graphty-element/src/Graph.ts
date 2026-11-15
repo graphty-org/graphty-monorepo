@@ -197,13 +197,14 @@ import {
     type RendererStatus,
 } from "./managers/RenderManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
+import { columnCenter, type ColumnFraming } from "./managers/UpdateManager";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
 import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
 import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
-import { NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
+import { type ColumnRow, NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
 import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
 import { sceneLighting } from "./meshes/NodeLighting";
@@ -668,6 +669,30 @@ export interface NodeScreenPosition {
      * @since 3.27.0
      */
     bounds: { left: number; top: number; right: number; bottom: number };
+}
+
+/** A row number no row has: no batch draws it. */
+const INVALID_ROW = -1;
+
+/**
+ * Where one node is drawn, read from its `Node` or, on the `"batched"` path, from the row a batch
+ * draws with no `Node` ({@link Graph.drawnNodeSpots}).
+ * @internal
+ */
+export interface DrawnNodeSpot {
+    readonly id: string | number;
+    /** Its row: `Node.index`, or the row drawn with no `Node`. */
+    readonly row: number;
+    /** Where it is on screen. */
+    readonly at: NodeScreenPosition;
+    /** Its centre in the world. */
+    readonly centre: Vector3;
+    /** The eight corners of its drawn box in the world. */
+    readonly corners: readonly Vector3[];
+    /** Its `Node`, or null for a row drawn with none. */
+    readonly node: Node | null;
+    /** The row drawn with no `Node`, or null for a node. */
+    readonly column: ColumnRow | null;
 }
 
 /**
@@ -6438,7 +6463,9 @@ export class Graph implements GraphContext {
         // The meshes of nodes just removed go first: the cache disposes the source meshes they
         // are instances of.
         dataManagerInternals.flushReleasing(this.dataManager);
-        const nodes = [...this.getNodes()];
+        // Only the `Node`s: a row drawn with no `Node` is painted again from its row below, and
+        // building one for it cost 8.7 KB a row (#8204).
+        const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
         const edges = [...this.builtEdges()];
 
         // Every mesh goes in one bulk teardown, then every mesh is built again. Disposed one
@@ -6474,6 +6501,13 @@ export class Graph implements GraphContext {
             edge.updateStyle();
         }
 
+        // The cache took every row's source with it: each row drawn with no `Node` is painted
+        // again onto the new dimension's source at the next frame.
+        const painter = this.getStylePainter();
+        for (const row of dataManagerInternals.unbuiltRows(this.dataManager)) {
+            painter.queue("node", row);
+        }
+
         this.updateManager.meshesAdded();
     }
 
@@ -6485,7 +6519,8 @@ export class Graph implements GraphContext {
      */
     private settleDimension(twoD: boolean, frame: boolean): void {
         if (twoD) {
-            for (const node of this.getNodes()) {
+            // A batch draws a row with no `Node` flat in 2D by itself.
+            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                 const { x, y } = node.drawnPosition;
                 node.setMeshPosition(x, y, 0);
             }
@@ -6504,10 +6539,15 @@ export class Graph implements GraphContext {
         if (frame) {
             // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
             // labels are framed by zoom-to-fit, on a data load or a layout change.
+            // Every row with no `Node`, not only those a batch draws: the switch dropped them from
+            // their batches until the next paint, and the row table still holds where each is.
+            const columns = this.updateManager.columnFraming();
             const box = nodeFramingBox(
-                this.getNodes(),
+                [...dataManagerInternals.builtNodes(this.dataManager)],
                 this.session.config.framing?.extent,
-                this.updateManager.columnFraming(),
+                columns === undefined
+                    ? undefined
+                    : { ...columns, rows: dataManagerInternals.unbuiltRows(this.dataManager) },
             );
             if (box) {
                 this.camera.zoomToBoundingBox(box.min, box.max, box.spots);
@@ -6769,15 +6809,52 @@ export class Graph implements GraphContext {
      *     pixels; undefined for an id the graph does not hold.
      */
     nodeScreenPosition(nodeId: string | number): NodeScreenPosition | undefined {
-        const node = this.getNode(nodeId);
-        const camera = this.scene.activeCamera;
-        if (!node || !camera) {
+        const id = dataManagerInternals.storedIdOf(this.dataManager, nodeId);
+        if (id === undefined || !this.scene.activeCamera) {
+            return undefined;
+        }
+
+        // A row a batch draws with no `Node` is read off the row table: a `Node` built here would
+        // only be drawn by the next frame, and costs 8.7 KB (#8204).
+        if (dataManagerInternals.builtNode(this.dataManager, id) === undefined) {
+            const row = dataManagerInternals.rowOf(this.dataManager, id);
+            // An id with no row reads no batch's row, so it falls through to its `Node`.
+            const spot = this.#columnSpots([row]).next().value;
+            if (spot !== undefined) {
+                return spot.at;
+            }
+        }
+
+        const node = this.getNode(id);
+        if (!node) {
             return undefined;
         }
 
         // The world centre, not `mesh.position`: an XR gesture moves and scales graph-root.
         node.drawnWorldMatrix(true);
-        const centre = node.drawnWorldPosition;
+        // The node's largest half-extent in the world.
+        const extent = node.drawnBoundingBox.extendSize;
+        const scale = node.drawnWorldScaling;
+        const worldRadius =
+            Math.max(extent.x, extent.y, extent.z) * Math.max(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
+        return this.#screenSpot(
+            node.drawnWorldPosition,
+            worldRadius,
+            node.drawnBoundingBox.vectorsWorld,
+            node.getRenderState() === "visible",
+        );
+    }
+
+    /**
+     * Where something drawn in the world is on screen, as {@link Graph.nodeScreenPosition} reports a node.
+     * @param centre - Its centre in the world.
+     * @param worldRadius - Its largest half-extent in the world.
+     * @param corners - The corners of its box in the world.
+     * @param shown - Whether it is drawn at all.
+     * @returns Its place on screen.
+     */
+    #screenSpot(centre: Vector3, worldRadius: number, corners: readonly Vector3[], shown: boolean): NodeScreenPosition {
+        const camera = this.scene.activeCamera as Camera;
         const { x, y } = this.worldToScreen(centre);
 
         // Distance in front of the camera along its view axis; the same test LabelDeclutter uses.
@@ -6790,19 +6867,14 @@ export class Graph implements GraphContext {
         const height = engine.getRenderHeight() * engine.getHardwareScalingLevel();
         const onScreen = x >= 0 && x <= width && y >= 0 && y <= height;
 
-        // The node's largest half-extent in the world, projected: the projection's y scale over
-        // the clip w (the depth in perspective, 1 in orthographic), in pixels.
-        const box = node.drawnBoundingBox;
-        const extent = box.extendSize;
-        const scale = node.drawnWorldScaling;
-        const worldRadius =
-            Math.max(extent.x, extent.y, extent.z) * Math.max(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
+        // The largest half-extent projected: the projection's y scale over the clip w (the depth in
+        // perspective, 1 in orthographic), in pixels.
         const projection = this.scene.getProjectionMatrix().m;
         const w = camera.mode === Camera.ORTHOGRAPHIC_CAMERA ? 1 : depth;
         const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
 
         const bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
-        for (const corner of box.vectorsWorld) {
+        for (const corner of corners) {
             const ahead = corner.x * view[2] + corner.y * view[6] + corner.z * view[10] + view[14];
             if (ahead < camera.minZ) {
                 continue;
@@ -6820,13 +6892,83 @@ export class Graph implements GraphContext {
             bounds.top = bounds.bottom = y;
         }
 
-        return {
-            x,
-            y,
-            visible: node.getRenderState() === "visible" && inDepth && onScreen,
-            radius,
-            bounds,
-        };
+        return { x, y, visible: shown && inDepth && onScreen, radius, bounds };
+    }
+
+    /**
+     * Where every node is drawn, building no `Node`: each built node, then on the `"batched"` path
+     * each row a batch draws with no `Node`, in row order -- the order `getNodes()` lists them.
+     * A row stored with no `Node` that no batch draws yet is drawn nowhere, so it is left out.
+     * @yields Each node's spot.
+     * @internal
+     */
+    *drawnNodeSpots(): Generator<DrawnNodeSpot> {
+        if (!this.scene.activeCamera) {
+            return;
+        }
+
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+            const at = this.nodeScreenPosition(node.id);
+            if (at !== undefined) {
+                const corners = node.drawnBoundingBox.vectorsWorld;
+                yield {
+                    id: node.id,
+                    row: node.index,
+                    at,
+                    centre: node.drawnWorldPosition,
+                    corners,
+                    node,
+                    column: null,
+                };
+            }
+        }
+
+        yield* this.#columnSpots(dataManagerInternals.unbuiltRows(this.dataManager));
+    }
+
+    /**
+     * Where each of some rows drawn with no `Node` is drawn; a row a batch does not draw that way
+     * is left out.
+     * @param rows - The rows.
+     * @yields Each row's spot.
+     */
+    *#columnSpots(rows: Iterable<number>): Generator<DrawnNodeSpot> {
+        const batches = this.#nodeBatches;
+        const table = this.#rowTable;
+        if (batches === null || table === null || batches.columnRowCount === 0) {
+            return;
+        }
+
+        const root = this.scene.getTransformNodeByName("graph-root");
+        const world = root?.computeWorldMatrix(true);
+        const scaling = root?.absoluteScaling;
+        const rootScale =
+            scaling === undefined ? 1 : Math.max(Math.abs(scaling.x), Math.abs(scaling.y), Math.abs(scaling.z));
+        for (const row of rows) {
+            const column = batches.columnRowOf(row);
+            const id = column === undefined ? undefined : dataManagerInternals.unbuiltAt(this.dataManager, row);
+            if (column === undefined || id === undefined) {
+                continue;
+            }
+
+            // A batched row is never turned: its box is its half extents about its place.
+            const local = columnCenter(table, row);
+            const half = column.drawnHalfExtents;
+            const corners: Vector3[] = [];
+            for (let i = 0; i < 8; i++) {
+                const corner = new Vector3(
+                    local.x + ((i & 1) === 0 ? -half.x : half.x),
+                    local.y + ((i & 2) === 0 ? -half.y : half.y),
+                    local.z + ((i & 4) === 0 ? -half.z : half.z),
+                );
+                corners.push(world === undefined ? corner : Vector3.TransformCoordinates(corner, world));
+            }
+
+            const centre = world === undefined ? local : Vector3.TransformCoordinates(local, world);
+            const worldRadius = Math.max(half.x, half.y, half.z) * rootScale;
+            const at = this.#screenSpot(centre, worldRadius, corners, !table.isHidden(row));
+            yield { id, row, at, centre, corners, node: null, column };
+        }
     }
 
     /**
@@ -9063,26 +9205,78 @@ export class Graph implements GraphContext {
         return nodes;
     }
 
+    /**
+     * The nodes a box is measured over, building no `Node`: those with a `Node`, and the rows drawn
+     * with no `Node` as the row table holds them.
+     * @param nodeIds - The nodes, or undefined for every node.
+     * @returns The `Node`s and the rows.
+     */
+    #measuredNodes(nodeIds?: Iterable<string | number>): { nodes: Node[]; columns: ColumnFraming | undefined } {
+        const columns = this.updateManager.columnFraming();
+        if (nodeIds === undefined) {
+            const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
+            const unbuilt = dataManagerInternals.unbuiltRows(this.dataManager);
+            const batches = this.#nodeBatches;
+            if (unbuilt.length > (batches?.columnRowCount ?? 0)) {
+                // A row no batch draws yet (its paint has not been applied): only its `Node` knows
+                // where it is and how big, so it gets one, as every row did before #8204.
+                for (const row of unbuilt) {
+                    const id =
+                        batches?.columnRowOf(row) === undefined
+                            ? dataManagerInternals.unbuiltAt(this.dataManager, row)
+                            : undefined;
+                    const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
+                    if (node !== undefined) {
+                        nodes.push(node);
+                    }
+                }
+            }
+
+            return { nodes, columns };
+        }
+
+        const nodes: Node[] = [];
+        const rows: number[] = [];
+        const batches = this.#nodeBatches;
+        for (const asked of nodeIds) {
+            // Either spelling of an id (`"1"` for `1`), as `getNode` finds it.
+            const id = dataManagerInternals.storedIdOf(this.dataManager, asked);
+            const node = id === undefined ? undefined : dataManagerInternals.builtNode(this.dataManager, id);
+            const row =
+                id === undefined || node !== undefined ? INVALID_ROW : dataManagerInternals.rowOf(this.dataManager, id);
+            if (node !== undefined) {
+                nodes.push(node);
+            } else if (columns !== undefined && batches?.columnRowOf(row) !== undefined) {
+                rows.push(row);
+            } else if (id !== undefined) {
+                // A row no batch draws yet: only its `Node` knows where it is.
+                const built = this.getNode(id);
+                if (built !== undefined) {
+                    nodes.push(built);
+                }
+            }
+        }
+
+        return { nodes, columns: columns === undefined ? undefined : { ...columns, rows } };
+    }
+
     private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {
         // The whole graph is framed as the project's framing says, by what is drawn when it says
         // nothing, so no node at the rim is cut off; a subset by its centres unless the caller asks otherwise.
         const whole = nodeIds === undefined;
         const extent = extentOption ?? (whole ? (this.session.config.framing?.extent ?? "drawn") : "centers");
+        // The `Node`s, and the rows drawn with no `Node` (renderPath "batched"), measured by row:
+        // building a `Node` for a row only to measure it cost 8.7 KB a row (#8204).
+        const { nodes: measured, columns } = this.#measuredNodes(nodeIds);
         // Only what the reader can see: a hidden node keeps its position but must not stretch the box.
-        const nodes = (
-            whole
-                ? this.getNodes()
-                : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined)
-        ).filter((node) => node.getRenderState() === "visible");
+        const nodes = measured.filter((node) => node.getRenderState() === "visible");
 
         const points = nodes.map((node) => node.getPosition());
         // "drawn" takes each node out to its drawn box, so a big node at the edge is not cut off.
         const boxes: { min: GraphBounds["min"]; max: GraphBounds["max"] }[] =
             extent === "drawn" ? nodes.map((node) => node.framingBounds()) : [];
 
-        // The whole graph also holds the visible rows drawn with no `Node` (renderPath "batched"),
-        // each a spot as wide as its widest half, as zoom-to-fit frames them.
-        const columns = whole ? this.updateManager.columnFraming() : undefined;
+        // Each visible row drawn with no `Node` is a spot as wide as its widest half, as zoom-to-fit frames them.
         for (const { pos, half } of columns ? (nodeFramingBox([], extent, columns)?.spots ?? []) : []) {
             points.push(pos);
             if (extent === "drawn") {

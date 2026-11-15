@@ -362,9 +362,10 @@ function SourceLine({
  * @returns the bar's fraction and its status line
  */
 function loadStatus(loading: Loading): { progress: number | null; status: { label: string; detail?: string } } {
+    const first = loading.byAddress ? "downloading" : "reading";
     const label =
         loading.stage === undefined
-            ? CUSTOM_MODEL.stages[loading.byAddress ? "downloading" : "reading"]
+            ? CUSTOM_MODEL.stages[first]
             : (CUSTOM_MODEL.stages[loading.stage] ?? CUSTOM_MODEL.preparing);
     const { completed, total } = loading;
     const known = total !== null && total > 0;

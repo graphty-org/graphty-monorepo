@@ -160,7 +160,7 @@ function poseAt(group: AssetContainer["animationGroups"][number], frame: number)
         }
 
         const value: unknown = animation.evaluate(frame);
-        const key = path[path.length - 1];
+        const key = path.at(-1) ?? "";
         const current = owner[key] as { copyFrom?: (other: unknown) => void } | undefined;
         if (current?.copyFrom !== undefined && typeof value === "object" && value !== null) {
             current.copyFrom(value);
@@ -449,7 +449,7 @@ function animationFor(
     // The bones only make the shader read the texture: their own matrices are never used.
     const skeleton = new Skeleton(`${name}-bones`, `${name}-bones`, scene);
     for (let b = 0; b < baked.bones; b++) {
-        new Bone(`bone-${String(b)}`, skeleton);
+        new Bone(`bone-${String(b)}`, skeleton); // NOSONAR(S1848): a Bone adds itself to the skeleton it is given
     }
 
     const playing = new Set<object>();

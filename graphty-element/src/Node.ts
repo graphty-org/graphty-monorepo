@@ -2302,9 +2302,10 @@ export class Node implements ModelUser {
         // A part that follows the node's color takes it even when no layer painted one: the
         // color a node is drawn in by default.
         const fill = this.drawnStyle?.texture?.color;
+        const painted = typeof fill === "string" ? fill : undefined;
         const nodeColor =
             color === null
-                ? readColor(typeof fill === "string" ? fill : undefined, MODEL_FALLBACK_COLOR).rgb.toColor4(1)
+                ? readColor(painted, MODEL_FALLBACK_COLOR).rgb.toColor4(1)
                 : new Color4(color.r / 255, color.g / 255, color.b / 255, 1);
         const onTop = mode === "on" && color !== null ? nodeColor : UNTINTED;
         for (const part of this.#mesh === null ? [] : [this.#mesh, ...this.#mesh.getChildMeshes(true)]) {

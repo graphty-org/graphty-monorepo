@@ -359,6 +359,23 @@ export function findReference(
 }
 
 /**
+ * A `data:` URL's bytes, when it holds a kind of file a model may embed.
+ * @param ref - The URL.
+ * @returns Its bytes, with no path.
+ * @throws ModelError `E_MODEL_EXTERNAL_URL` for any other kind, or one that does not decode.
+ */
+function resolveDataUrl(ref: string): Resolved {
+    const end = ref.search(/[;,]/);
+    const type = ref.slice(5, end < 0 ? undefined : end);
+    const bytes = DATA_TYPES.test(type) ? decodeDataUrl(ref) : undefined;
+    if (bytes === undefined) {
+        refuse("E_MODEL_EXTERNAL_URL", { url: cut(ref.slice(0, 64)) });
+    }
+
+    return { path: "", bytes };
+}
+
+/**
  * Check one reference and resolve it, tolerantly (design 12.5).
  * @param ref - The reference as the file wrote it.
  * @param from - The path of the file that wrote it.
@@ -376,13 +393,7 @@ export function resolveReference(
     base?: string,
 ): Resolved {
     if (/^data:/i.test(ref)) {
-        const type = ref.slice(5, ref.search(/[;,]/) < 0 ? undefined : ref.search(/[;,]/));
-        const bytes = DATA_TYPES.test(type) ? decodeDataUrl(ref) : undefined;
-        if (bytes === undefined) {
-            refuse("E_MODEL_EXTERNAL_URL", { url: cut(ref.slice(0, 64)) });
-        }
-
-        return { path: "", bytes };
+        return resolveDataUrl(ref);
     }
 
     let decoded: string;

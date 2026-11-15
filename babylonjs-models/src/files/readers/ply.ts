@@ -238,6 +238,22 @@ function binaryReader(bytes: Uint8Array, at: number, little: boolean): NextValue
 }
 
 /**
+ * Read one list value of a row onto the end of its property's values.
+ * @param length - The list's length, as the file gives it.
+ * @param value - Reads the next value.
+ * @param values - The property's values, grown.
+ */
+function readList(length: number, value: () => number, values: number[]): void {
+    if (!Number.isInteger(length) || length < 0) {
+        throw new ModelReadError("ply");
+    }
+
+    for (let k = 0; k < length; k++) {
+        values.push(value());
+    }
+}
+
+/**
  * Read one element's rows.
  * @param element - The element.
  * @param next - The body reader.
@@ -264,14 +280,7 @@ function readElement(element: PlyElement, next: NextValue): ElementData {
             }
 
             const values = listValues.get(p.name) as number[];
-            const length = next(p.countType);
-            if (!Number.isInteger(length) || length < 0) {
-                throw new ModelReadError("ply");
-            }
-
-            for (let k = 0; k < length; k++) {
-                values.push(next(p.type));
-            }
+            readList(next(p.countType), () => next(p.type), values);
             (listOffsets.get(p.name) as Uint32Array)[row + 1] = values.length;
         }
     }

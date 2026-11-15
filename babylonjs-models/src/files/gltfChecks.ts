@@ -599,18 +599,17 @@ function meshoptBytes(view: Record<string, unknown>, buffers: readonly Uint8Arra
 }
 
 /**
- * Check every buffer view, accessor and their sizes; refuse when the decoded total is over the limit.
- * @param json - The glTF.
+ * Check that every buffer view lies inside its buffer.
+ * @param json - The glTF JSON.
+ * @param views - Its buffer views.
  * @param buffers - Each buffer's bytes.
- * @param limits - The limits in force.
- * @returns The accessors and the views, checked.
+ * @returns The bytes the compressed views decode to.
  */
-function checkAccessors(
+function checkViews(
     json: Record<string, unknown>,
+    views: readonly Record<string, unknown>[],
     buffers: readonly Uint8Array[],
-    limits: ModelLimits,
-): { accessors: Record<string, unknown>[]; views: Record<string, unknown>[] } {
-    const views = list(json, "bufferViews");
+): number {
     const declared = list(json, "buffers").map((b) => integer(b.byteLength, "buffer.byteLength"));
     let decoded = 0;
     for (const view of views) {
@@ -629,6 +628,23 @@ function checkAccessors(
         }
     }
 
+    return decoded;
+}
+
+/**
+ * Check every buffer view, accessor and their sizes; refuse when the decoded total is over the limit.
+ * @param json - The glTF.
+ * @param buffers - Each buffer's bytes.
+ * @param limits - The limits in force.
+ * @returns The accessors and the views, checked.
+ */
+function checkAccessors(
+    json: Record<string, unknown>,
+    buffers: readonly Uint8Array[],
+    limits: ModelLimits,
+): { accessors: Record<string, unknown>[]; views: Record<string, unknown>[] } {
+    const views = list(json, "bufferViews");
+    let decoded = checkViews(json, views, buffers);
     const accessors = list(json, "accessors");
     const fits = (viewIndex: unknown, offset: number, count: number, size: number, stride?: number): void => {
         const v = index(viewIndex, views.length, "accessor.bufferView");
@@ -942,20 +958,27 @@ function checkTextureIndices(
         }
     }
 
-    for (const material of materials) {
-        const pbr = isObject(material.pbrMetallicRoughness) ? material.pbrMetallicRoughness : {};
-        for (const slot of [
-            pbr.baseColorTexture,
-            pbr.metallicRoughnessTexture,
-            material.normalTexture,
-            material.occlusionTexture,
-            material.emissiveTexture,
-        ]) {
-            if (isObject(slot)) {
-                index(slot.index, textures.length, "material.texture");
-            }
+    for (const slot of materials.flatMap(textureSlots)) {
+        if (isObject(slot)) {
+            index(slot.index, textures.length, "material.texture");
         }
     }
+}
+
+/**
+ * A material's texture slots, set or not.
+ * @param material - The material.
+ * @returns Its five slots.
+ */
+function textureSlots(material: Record<string, unknown>): unknown[] {
+    const pbr = isObject(material.pbrMetallicRoughness) ? material.pbrMetallicRoughness : {};
+    return [
+        pbr.baseColorTexture,
+        pbr.metallicRoughnessTexture,
+        material.normalTexture,
+        material.occlusionTexture,
+        material.emissiveTexture,
+    ];
 }
 
 /**

@@ -42,8 +42,6 @@ declare module "vitest/browser" {
         accessibilityTree: () => Promise<{ role: string; name: string; description: string }[]>;
         dropFiles: (selector: string, files: { name: string; type: string; text: string }[]) => Promise<void>;
         chooseFiles: (selector: string, files: { name: string; type: string; text: string }[]) => Promise<void>;
-        collectGarbage: () => Promise<void>;
-        openFileChooser: (selector: string) => Promise<void>;
     }
 }
 

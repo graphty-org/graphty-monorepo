@@ -17,8 +17,9 @@ export interface PickFilesOptions {
 /**
  * The input whose picker is open. Safari frees an input nothing on the page holds while its picker
  * is still showing, and then drops the reader's choice: `change` never fires (WebKit bug 201289,
- * https://bugs.webkit.org/show_bug.cgi?id=201289). Holding it here until `change` or `cancel` keeps
- * it alive; a new pick replaces it, so a picker closed without `cancel` keeps at most one.
+ * https://bugs.webkit.org/show_bug.cgi?id=201289), and some versions fire no `change` on an input
+ * outside the document. So the input is held here and attached, hidden, until `change` or `cancel`;
+ * a new pick replaces it, so a picker closed without `cancel` leaves at most one.
  */
 let pending: HTMLInputElement | null = null;
 
@@ -49,6 +50,7 @@ export function pickFiles({ accept, multiple = false, folder = false }: PickFile
             if (pending === input) {
                 pending = null;
             }
+            input.remove();
             resolve(files);
         };
         input.addEventListener("change", () => {
@@ -57,7 +59,10 @@ export function pickFiles({ accept, multiple = false, folder = false }: PickFile
         input.addEventListener("cancel", () => {
             settle([]);
         });
+        pending?.remove();
         pending = input;
+        input.hidden = true;
+        document.body.append(input);
         input.click();
     });
 }

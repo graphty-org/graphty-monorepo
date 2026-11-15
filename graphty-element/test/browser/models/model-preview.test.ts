@@ -5,10 +5,14 @@
  */
 
 import { assert, describe, it } from "vitest";
+import { server } from "vitest/browser";
 
 import { isGraphtyError } from "../../../src/errors";
 import { sphereGlb } from "../../fixtures/models/fixtures";
 import { drag, nextFrame } from "../../helpers/real-input";
+
+/** The drag helper sends real input through CDP, which only Chromium has (WebKit runs the rest). */
+const noCdp = server.browser !== "chromium";
 import { cleanups, countIn, drawModel, filesOf, type Frame, mount, pixelsChanged, readFrame } from "./helpers";
 
 /**
@@ -88,40 +92,43 @@ async function settled(canvas: HTMLCanvasElement): Promise<Frame> {
 }
 
 describe("modelPreview", () => {
-    it("draws a model in the caller's canvas, redraws it with new values, and turns with a drag", async () => {
-        const element = await mount();
-        const files = await filesOf("gltf-animated");
-        const cube = await element.session.assets.add({ files });
-        assert.equal(cube.state, "accepted", JSON.stringify(cube.problems));
-        const box = previewBox();
-        const preview = await element.modelPreview(cube.id, box, { style: { "node.modelTint": "replace" } });
-        const { canvas } = preview;
-        assert.strictEqual(canvas.parentElement, box, "the preview's canvas fills the box");
-        assert.strictEqual(canvas.getBoundingClientRect().width, 160);
-        cleanups.push(() => {
-            preview.dispose();
-        });
-        const first = await shot(canvas);
-        assert.isAbove(drawn(first), 200, "the model is drawn");
+    it.skipIf(noCdp)(
+        "draws a model in the caller's canvas, redraws it with new values, and turns with a drag",
+        async () => {
+            const element = await mount();
+            const files = await filesOf("gltf-animated");
+            const cube = await element.session.assets.add({ files });
+            assert.equal(cube.state, "accepted", JSON.stringify(cube.problems));
+            const box = previewBox();
+            const preview = await element.modelPreview(cube.id, box, { style: { "node.modelTint": "replace" } });
+            const { canvas } = preview;
+            assert.strictEqual(canvas.parentElement, box, "the preview's canvas fills the box");
+            assert.strictEqual(canvas.getBoundingClientRect().width, 160);
+            cleanups.push(() => {
+                preview.dispose();
+            });
+            const first = await shot(canvas);
+            assert.isAbove(drawn(first), 200, "the model is drawn");
 
-        await preview.update({ "node.modelTint": "replace", "node.color": "#ff0000" });
-        const red = await shot(canvas);
-        assert.isAbove(pixelsChanged(first, red), 200, "the new color is drawn");
+            await preview.update({ "node.modelTint": "replace", "node.color": "#ff0000" });
+            const red = await shot(canvas);
+            assert.isAbove(pixelsChanged(first, red), 200, "the new color is drawn");
 
-        const turned = untilMoved(canvas, red);
-        await drag(canvas, { x: 40, y: 80 }, { x: 120, y: 80 });
-        await turned;
-        // At once, while the camera still glides on from the drag.
-        preview.resetView();
-        assert.strictEqual(pixelsChanged(red, await shot(canvas)), 0, "resetView goes back to the first view");
-        assert.strictEqual(pixelsChanged(red, await shot(canvas)), 0, "and stays there");
+            const turned = untilMoved(canvas, red);
+            await drag(canvas, { x: 40, y: 80 }, { x: 120, y: 80 });
+            await turned;
+            // At once, while the camera still glides on from the drag.
+            preview.resetView();
+            assert.strictEqual(pixelsChanged(red, await shot(canvas)), 0, "resetView goes back to the first view");
+            assert.strictEqual(pixelsChanged(red, await shot(canvas)), 0, "and stays there");
 
-        await drag(canvas, { x: 40, y: 80 }, { x: 120, y: 80 });
-        const after = await settled(canvas);
-        assert.isAbove(pixelsChanged(red, after), 50, "turned again");
-        await preview.update({ "node.modelTint": "replace", "node.color": "#ff0000" });
-        assert.strictEqual(pixelsChanged(after, await shot(canvas)), 0, "an update keeps the reader's view");
-    });
+            await drag(canvas, { x: 40, y: 80 }, { x: 120, y: 80 });
+            const after = await settled(canvas);
+            assert.isAbove(pixelsChanged(red, after), 50, "turned again");
+            await preview.update({ "node.modelTint": "replace", "node.color": "#ff0000" });
+            assert.strictEqual(pixelsChanged(after, await shot(canvas)), 0, "an update keeps the reader's view");
+        },
+    );
 
     it("plays the clip node.modelAnimation names, and holds a pose at Speed 0", async () => {
         const element = await mount();
@@ -184,7 +191,7 @@ describe("modelPreview", () => {
         const closed = countIn(await readFrame(element), red);
         assert.isAbove(closed.left + closed.right, 500, "and after it closes");
     });
-    it("goes back to the first view after a right-button drag", async () => {
+    it.skipIf(noCdp)("goes back to the first view after a right-button drag", async () => {
         const element = await mount();
         const ball = await element.session.assets.add({ files: new Map([["ball.glb", sphereGlb(8, 4)]]) });
         const preview = await element.modelPreview(ball.id, previewBox(), { style: { "node.modelTurn": 30 } });

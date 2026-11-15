@@ -101,6 +101,8 @@ const IDLE_KEPT = 2;
  */
 export class PreviewEngines {
     readonly #idle: Drawing[] = [];
+    /** Set when the graph goes: an engine given back after that is freed, not kept. */
+    #closed = false;
 
     /**
      * An engine and canvas for a new preview: a kept one, or a new one.
@@ -140,7 +142,7 @@ export class PreviewEngines {
      */
     giveBack(drawing: Drawing): void {
         drawing.canvas.remove();
-        if (this.#idle.length < IDLE_KEPT && !drawing.engine.isDisposed) {
+        if (!this.#closed && this.#idle.length < IDLE_KEPT && !drawing.engine.isDisposed) {
             for (const name of drawing.canvas.getAttributeNames()) {
                 drawing.canvas.removeAttribute(name);
             }
@@ -152,6 +154,7 @@ export class PreviewEngines {
 
     /** Free every kept engine (the graph is going). */
     dispose(): void {
+        this.#closed = true;
         for (const drawing of this.#idle.splice(0)) {
             free(drawing);
         }

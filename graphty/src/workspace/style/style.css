@@ -672,6 +672,13 @@
     min-height: 0;
 }
 
+/* The scroll thumb takes clicks 22 px either side of its center, 5 px in from the column's edge,
+   past the 10 px the scrollbar is offset by: the column's own controls (the loaded file's x, a
+   row's remove) keep clear of it, so a click on them is never the thumb's. */
+.ws-model-main .ws-model-left {
+    padding-right: 18px;
+}
+
 .ws-model-side {
     min-height: 0;
     overflow: hidden auto;

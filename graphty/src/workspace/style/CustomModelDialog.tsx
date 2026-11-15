@@ -309,14 +309,30 @@ function Preview({
  * @param props.value - what the draft's `node.texture` names, or undefined
  * @param props.write - sets it
  * @param props.remove - takes it back
+ * @param props.open - whether the Picture pop-over is open
+ * @param props.setOpen - opens or closes it
  * @returns The row
  */
 function PictureRow({
     value,
     write,
     remove,
-}: Readonly<{ value: string | undefined; write: (ref: string) => void; remove: () => void }>): React.JSX.Element {
-    const [open, setOpen] = useState(false);
+    open,
+    setOpen,
+}: Readonly<{
+    value: string | undefined;
+    write: (ref: string) => void;
+    remove: () => void;
+    open: boolean;
+    setOpen: (open: boolean) => void;
+}>): React.JSX.Element {
+    // A row that goes (the model cleared) takes its open pop-over with it, and Escape back.
+    useEffect(
+        () => () => {
+            setOpen(false);
+        },
+        [setOpen],
+    );
     const box = useRef<HTMLDivElement>(null);
     const removeName = `Remove model ${PICTURE_WORD.toLowerCase()}`;
     return (
@@ -546,6 +562,7 @@ export function CustomModelDialog({
     const [draft, setDraft] = useState<ModelDraft>({});
     const [filesOpen, setFilesOpen] = useState(false);
     const [moreOpen, setMoreOpen] = useState(false);
+    const [pictureOpen, setPictureOpen] = useState(false);
     const [detailsOpen, setDetailsOpen] = useState(false);
     // What this dialog added, by what names it: let go on Cancel when no layer uses it.
     const added = useRef(new Set<string>());
@@ -790,7 +807,12 @@ export function CustomModelDialog({
     const detailChips = [
         ...new Map(
             DETAIL_CHIP_CODES.flatMap((code) => accepted?.record.problems.filter((p) => p.code === code) ?? [])
-                .map(modelChip)
+                .map((p) =>
+                    // Opened from the menu the dialog has no Animation control: say where the clip is chosen.
+                    !forLayer && p.code === "W_MODEL_HAS_ANIMATIONS"
+                        ? { ...modelChip(p), tip: CUSTOM_MODEL.animatedInLayer }
+                        : modelChip(p),
+                )
                 .map((chip) => [chip.word, chip]),
         ).values(),
     ];
@@ -983,6 +1005,8 @@ export function CustomModelDialog({
                                     remove={() => {
                                         unset("node.texture");
                                     }}
+                                    open={pictureOpen}
+                                    setOpen={setPictureOpen}
                                 />
                             </div>
                         </div>
@@ -1108,6 +1132,8 @@ export function CustomModelDialog({
         <Modal
             opened
             onClose={cancel}
+            // Mantine's modal sees Escape before anything inside it: the Picture pop-over closes alone.
+            closeOnEscape={!pictureOpen}
             title={CUSTOM_MODEL.title}
             size="lg"
             // A loaded model is not lost to a stray click beside the dialog.

@@ -11,6 +11,14 @@ import { commands, userEvent } from "vitest/browser";
 import { FileSource, StatusBar } from "../../../src";
 import { renderThemed, resetHarness } from "../../harness/measure";
 
+// The two browser commands only this file uses (registered in vitest.config.ts).
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        collectGarbage: () => Promise<void>;
+        openFileChooser: (selector: string) => Promise<void>;
+    }
+}
+
 afterEach(resetHarness);
 
 const CSV = { name: "nodes.csv", type: "text/csv", text: "id\na\nb\n" };

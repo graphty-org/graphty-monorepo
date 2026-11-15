@@ -2,7 +2,8 @@
  * A model part that states no color of its own draws in the node's color from the style layers,
  * whatever format it came in and however it lost its material: an OBJ loaded without its `.mtl`,
  * a glTF primitive with no material (Babylon gives it a white default), a glTF material that names
- * no color and no picture, an STL and a PLY with neither. A part whose material states a color
+ * no color and no picture, a model whose materials are only plain grays, an STL and a PLY with
+ * neither. A part whose material states a color
  * keeps it unless `node.modelTint` asks otherwise.
  */
 
@@ -76,6 +77,33 @@ describe("a model part with no color of its own", () => {
         });
         await drawModel(element, files, [{ id: "a", x: 0 }], { "node.color": "#ff0000" });
         assert.isAbove(count(await readFrame(element), RED), 500, "the cube is drawn red");
+    });
+
+    it("draws a model whose only material is a plain gray in the node's color", async () => {
+        const element = await mount();
+        // Blender's default material: 0.8 gray, no picture.
+        const files = await gltfWith((json) => {
+            json.materials = [
+                { name: "Material", pbrMetallicRoughness: { baseColorFactor: [0.8, 0.8, 0.8, 1], metallicFactor: 0 } },
+            ];
+        });
+        await drawModel(element, files, [{ id: "a", x: 0 }], { "node.color": "#ff0000" });
+        assert.isAbove(count(await readFrame(element), RED), 500, "the cube is drawn red");
+    });
+
+    it("keeps a see-through metallic gray as the file draws it", async () => {
+        const element = await mount();
+        const files = await gltfWith((json) => {
+            json.materials = [
+                {
+                    name: "Glass",
+                    alphaMode: "BLEND",
+                    pbrMetallicRoughness: { baseColorFactor: [0.5, 0.5, 0.5, 0.3], metallicFactor: 1 },
+                },
+            ];
+        });
+        await drawModel(element, files, [{ id: "a", x: 0 }], { "node.color": "#ff0000" });
+        assert.equal(count(await readFrame(element), RED), 0, "the cube is not drawn red");
     });
 
     for (const variant of ["stl-binary", "ply-ascii"]) {

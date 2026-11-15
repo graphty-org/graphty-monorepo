@@ -2058,6 +2058,8 @@ export const CUSTOM_MODEL = {
     dropHere: "Drop a model file, a folder or a .zip here",
     chooseFile: "Choose file",
     chooseFolder: "Choose folder",
+    /** The Animated chip's tip where the dialog has no Animation control (opened from the menu). */
+    animatedInLayer: "choose a clip under Animation in a layer's Model",
     cancelLoad: "Cancel load",
     /**
      * Said when the reader stops a load.

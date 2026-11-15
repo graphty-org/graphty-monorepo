@@ -495,6 +495,46 @@ describe("the Load custom model dialog, on the real element", () => {
         });
     });
 
+    it("closes only the Picture pop-over on Escape, keeping the dialog and its model", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [quadFile()]);
+        await previewOf(dialog, "quad");
+        await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
+        await userEvent.click(within(within(dialog).getByTestId("model-more")).getByLabelText("Model picture, Choose"));
+        await screen.findByRole("dialog", { name: "Picture" });
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("dialog", { name: "Picture" }), "the pop-over closed");
+        });
+        assert.isTrue(dialog.isConnected, "the dialog stays");
+        assert.isNotNull(within(dialog).queryByTitle("quad.glb"), "with its model");
+        // With the pop-over gone, Escape closes the dialog again.
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isFalse(dialog.isConnected, "the dialog closed");
+        });
+    });
+
+    it("takes a click on the loaded file's x while the column's scrollbar shows", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [quadFile()]);
+        await previewOf(dialog, "quad");
+        await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
+        // The pointer over the column shows its scrollbar; More options makes it overflow.
+        await userEvent.hover(within(dialog).getByRole("textbox", { name: "Name" }));
+        await waitFor(() => {
+            assert.isNotNull(dialog.querySelector(".ws-model-main .cm-scroll-thumb"), "the scrollbar shows");
+        });
+        const x = within(dialog).getByRole("button", { name: "Remove quad.glb" });
+        const box = x.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        assert.isTrue(x.contains(hit), `the x is on top, not ${String(hit?.className)}`);
+        await userEvent.click(x);
+        await within(dialog).findByRole("button", { name: "Choose file" });
+    });
+
     it("shows the model's Details as table rows, closed until asked", async () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);

@@ -1484,8 +1484,9 @@ export function createLayerRepaint(sources: RepaintSources): RepaintEngine {
                 toColumn: labelField === undefined ? null : labelPatcher(labelField.field),
                 path,
                 // A value read from data, a result or a note is drawn as written; only a literal the
-                // layer itself writes is read as label markup.
-                plainText: path !== null,
+                // layer itself writes is read as label markup. A file style's columns are its own
+                // literals: the translation wrote the file's label runs into them as markup.
+                plainText: path !== null && layer.fileStyle === undefined,
                 combine: combineOf(descriptor, binding),
                 template: "template" in binding,
                 binding: prepareBinding({

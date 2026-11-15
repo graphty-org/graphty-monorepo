@@ -2118,6 +2118,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             togglesOwnMeshes: READ,
             walksEachFrame: READ,
             drawInBatch: RENDER,
+            holdOffBatch: RENDER,
             drawnRayHit: READ,
             drawnScale: RENDER,
             drawShrunk: RENDER,

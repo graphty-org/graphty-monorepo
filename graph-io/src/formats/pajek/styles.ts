@@ -1651,7 +1651,8 @@ function unborderFlatEllipses(node: ValueColumns, n: number): void {
     for (let i = 0; i < n; i++) {
         const shape = node.shape?.[i] ?? "ellipse";
         if (shape === "ellipse" && (node.width?.[i] === 0 || node.height?.[i] === 0)) {
-            (node.borderWidth ??= new Array<StyleValue | null>(n).fill(null))[i] = 0;
+            node.borderWidth ??= new Array<StyleValue | null>(n).fill(null);
+            node.borderWidth[i] = 0;
         }
     }
 }

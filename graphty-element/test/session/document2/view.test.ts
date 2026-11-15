@@ -281,7 +281,8 @@ describe("view codec", () => {
         });
         const runs = section.runs as Record<string, JsonObject>;
         assert.deepEqual(Object.keys(runs), ["session__bfs"]);
-        assert.deepEqual(runs.session__bfs.params, { source: { space: SPACE, key: "a" } });
+        // The node option is a reference; the others are the run's params as the element holds them.
+        assert.deepEqual((runs.session__bfs.params as JsonObject).source, { space: SPACE, key: "a" });
         assert.strictEqual(runs.session__bfs.style, false);
         assert.deepEqual(section.hiddenColumns, [{ kind: "node", name: "group" }]);
     });

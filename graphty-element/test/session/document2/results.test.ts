@@ -428,7 +428,8 @@ describe("reading results", () => {
         assert.deepEqual(problems, []);
         assert.isTrue(canned.has(mintedAs));
         assert.isUndefined(opened.session.runs.get(mintedAs));
-        assert.deepEqual(derived, [mintedAs]);
+        // The view starts the minted run and marks it minted once it exists, not the results codec.
+        assert.deepEqual(derived, []);
         // The run no other section stands for is started by the results section itself. Its saved
         // outcome waits in this test's own map, which the session's executor does not read, so it is
         // computed here; project.open answers it from the project's map (end-to-end.test.ts).

@@ -192,7 +192,10 @@ describe("the style codec writes", () => {
 
 describe("the style codec round-trips", () => {
     it("state -> section -> state", async () => {
+        // Both sessions hold the column the layers read: a layer whose paths nothing answers is
+        // added disabled (StylesApi.applyTemplate).
         const first = createGraphSession(ON);
+        await first.data.addNodes([{ id: "a", score: 1 }]);
         await first.styles.add({
             name: "Base",
             target: "node",
@@ -202,13 +205,13 @@ describe("the style codec round-trips", () => {
         await first.styles.add({
             name: "Score",
             target: "node",
-            // A `top` selector ranks a run's field; the element refuses one over a column.
-            selector: { match: "top", path: "results.degree.value", n: 3 },
+            selector: { match: "has", path: "data.score" },
             encode: { "node.size": { by: "data.score", scale: "linear", range: [1, 4] } },
         });
         const { section } = await saveStyle(first);
 
         const second = createGraphSession(ON);
+        await second.data.addNodes([{ id: "a", score: 1 }]);
         assert.deepEqual(await open(second, section), []);
         assert.deepEqual(ownLayers(second), ownLayers(first));
     });

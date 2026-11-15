@@ -189,8 +189,11 @@ export function canonical(value: unknown): string {
 /** The controller graphty-element drives each dimension with. */
 const DEFAULT_CONTROLLER: Readonly<Record<2 | 3, string>> = Object.freeze({ 2: "2d", 3: "orbit" });
 
-/** The members either default controller reads. */
-const SHARED = ["type", "orthoLeft", "orthoRight", "orthoTop", "orthoBottom"];
+/**
+ * The members either default controller reads. `CameraState`'s `type` is not among them: it
+ * overlaps `controller`, which is the authority, so it is neither written nor read (spec 4.7 rule 2).
+ */
+const SHARED = ["orthoLeft", "orthoRight", "orthoTop", "orthoBottom"];
 
 /** The `CameraState` members each default controller reads, by dimension. */
 const READS: Readonly<Record<2 | 3, ReadonlySet<string>>> = Object.freeze({
@@ -233,7 +236,7 @@ export function cameraJson(state: CameraState): JsonObject | undefined {
     const dimension = state.zoom !== undefined || state.pan !== undefined ? 2 : 3;
     const members = Object.fromEntries(
         Object.entries(state).flatMap(([name, value]) => {
-            const written = memberJson(name, value);
+            const written = name === "type" ? undefined : memberJson(name, value);
             return written === undefined ? [] : [[name, written]];
         }),
     );

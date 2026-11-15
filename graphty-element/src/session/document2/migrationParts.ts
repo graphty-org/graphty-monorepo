@@ -189,6 +189,10 @@ export interface MigratedData {
     edgeBetween(source: unknown, target: unknown, id?: unknown, ordinal?: number): EdgeRef | undefined;
     /** Whether the graph is directed. */
     readonly directed: boolean;
+    /** The migrated source's id. */
+    readonly source: string;
+    /** The version 1 loads' file-style namespaces, each now the migrated source's id. */
+    readonly fileStyleNamespaces: readonly string[];
     /** The version 1 `data.knownFields` names the mapping carries as roles (`edgeIdPath`, ...). */
     readonly carried: ReadonlySet<string>;
 }
@@ -233,11 +237,16 @@ function namesKinds(value: unknown): boolean {
 }
 
 /**
- * The file-style columns (spec 4.1.2 rule 7) a session member's `fileStyles` holds, by element.
+ * The file-style columns (spec 4.1.2 rule 7) a session member's `fileStyles` holds, by element,
+ * each version 1 load's namespace mapped to the migrated source's id.
  * @param session - The session member.
+ * @param source - The migrated source's id.
  * @returns Per node key and per link position, each column's value.
  */
-function fileStyleValues(session: JsonObject | undefined): {
+function fileStyleValues(
+    session: JsonObject | undefined,
+    source: string,
+): {
     nodes: Map<string, Record<string, unknown>>;
     edges: Map<number, Record<string, unknown>>;
 } {
@@ -245,7 +254,7 @@ function fileStyleValues(session: JsonObject | undefined): {
     const edges = new Map<number, Record<string, unknown>>();
     for (const load of objectsOf(session?.fileStyles)) {
         for (const column of objectsOf(load.columns)) {
-            const name = `graphty.style.${String(load.namespace)}.${String(column.kind)}.${String(column.key)}`;
+            const name = `graphty.style.${source}.${String(column.kind)}.${String(column.key)}`;
             const ids = Array.isArray(column.ids) ? (column.ids as unknown[]) : [];
             const values = Array.isArray(column.values) ? (column.values as unknown[]) : [];
             ids.forEach((id, at) => {
@@ -486,7 +495,6 @@ function issuesOf(inputs: DataInputs, nodeRef: (id: unknown) => NodeRef | undefi
  * @param tables.source - The source id.
  * @param tables.rowTypes - Each node row's types.
  * @param tables.edgeKeys - Each edge row's key.
- * @param tables.edgeId - The edge-id column.
  * @param tables.directed - Whether the graph is directed.
  * @param tables.attributes - The version 1 graph-level attributes.
  * @returns The graph.
@@ -498,16 +506,21 @@ function mergedGraph(tables: {
     source: string;
     rowTypes: readonly string[][];
     edgeKeys: readonly string[];
-    edgeId: string | undefined;
     directed: boolean;
     attributes: JsonObject;
 }): JsonObject {
-    const { nodes, edges, space, source, rowTypes, edgeKeys, edgeId, directed } = tables;
+    const { nodes, edges, space, source, rowTypes, edgeKeys, directed } = tables;
     const handle = new Map(nodes.map((row, at) => [keyText(row.values.id), at]));
     const columns = (row: Row, leaveOut: readonly (string | undefined)[]): JsonObject =>
         Object.fromEntries(
             Object.entries(row.values)
-                .filter(([name, value]) => !leaveOut.includes(name) && value !== undefined && value !== null)
+                .filter(
+                    ([name, value]) =>
+                        !leaveOut.includes(name) &&
+                        !name.startsWith("graphty.style.") &&
+                        value !== undefined &&
+                        value !== null,
+                )
                 .map(([name, value]) => [name, documentValue(value)]),
         );
     const pairs = new Set<string>();
@@ -524,7 +537,7 @@ function mergedGraph(tables: {
             "graphty.key": edgeKeys[at],
             "graphty.types": [],
             "_source.loads": [source],
-            ...columns(row, ["source", "target", "key", "id", edgeId]),
+            ...columns(row, ["source", "target", "key", "id"]),
         };
     });
     return {
@@ -652,7 +665,10 @@ export function migrateData(inputs: DataInputs): MigratedData {
     const { data, session } = inputs;
     const graph = isObject(data.graph) ? data.graph : {};
     const directed = graph.directed !== false;
-    const styles = fileStyleValues(session);
+    // The source id comes first, since the file-style columns are named after it.
+    const sourceUlid = ulidOf(`source\u0000${canonicalJson({ graph, fileStyles: session?.fileStyles ?? null })}`);
+    const source = `src_${sourceUlid}`;
+    const styles = fileStyleValues(session, source);
     const v1Nodes = Array.isArray(graph.nodes) ? (graph.nodes as unknown[]) : [];
     const v1Links = Array.isArray(graph.links) ? (graph.links as unknown[]) : [];
     const nodeRows = v1Nodes.flatMap((node, at): Row[] =>
@@ -666,8 +682,6 @@ export function migrateData(inputs: DataInputs): MigratedData {
     const edgeTable = tableOf(edgeRows);
     const copy = { nodes: nodeTable.table, ...(edgeRows.length === 0 ? {} : { edges: edgeTable.table }) };
     const seed = canonicalJson(copy);
-    const sourceUlid = ulidOf(`source\u0000${seed}`);
-    const source = `src_${sourceUlid}`;
     const copyId = ulidOf(`copy\u0000${seed}`);
     const readerCopy = ulidOf(`reader\u0000${seed}`);
     const build = ulidOf(`build\u0000${seed}`);
@@ -735,7 +749,6 @@ export function migrateData(inputs: DataInputs): MigratedData {
             source,
             rowTypes,
             edgeKeys,
-            edgeId,
             directed,
             attributes: isObject(graph.graph) ? graph.graph : {},
         }),
@@ -743,6 +756,10 @@ export function migrateData(inputs: DataInputs): MigratedData {
     return {
         section,
         dataId,
+        fileStyleNamespaces: objectsOf(session?.fileStyles).flatMap((load) =>
+            typeof load.namespace === "string" ? [load.namespace] : [],
+        ),
+        source,
         binding: { build, sources: { reader: readerCopy, [source]: copyId } },
         nodeRef,
         edgeAt: (position) => byPosition.get(position),
@@ -756,4 +773,24 @@ export function migrateData(inputs: DataInputs): MigratedData {
             ].flatMap(([name, column]) => (column === undefined ? [] : [String(name)])),
         ),
     };
+}
+
+/**
+ * A value with every file-style path of a version 1 load (`graphty.style.<namespace>.`) renamed to
+ * the migrated source's (`graphty.style.<source id>.`), as its columns are (spec 9.1).
+ * @param value - The value, a layer say.
+ * @param data - The migrated data.
+ * @returns The value.
+ */
+export function renameFileStyles<T>(value: T, data: MigratedData | undefined): T {
+    if (data === undefined || data.fileStyleNamespaces.length === 0) {
+        return value;
+    }
+
+    let text = JSON.stringify(value);
+    for (const namespace of data.fileStyleNamespaces) {
+        text = text.replaceAll(`graphty.style.${namespace}.`, `graphty.style.${data.source}.`);
+    }
+
+    return JSON.parse(text) as T;
 }

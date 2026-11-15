@@ -347,9 +347,26 @@
                                 "lastModified": {
                                     "type": "string",
                                     "minLength": 1
+                                },
+                                "credentials": {
+                                    "type": "object",
+                                    "properties": {
+                                        "slot": {
+                                            "type": "string",
+                                            "minLength": 1
+                                        }
+                                    },
+                                    "required": ["slot"],
+                                    "unevaluatedProperties": false,
+                                    "description": "The credential slot's name, never a secret."
+                                },
+                                "ledger": {
+                                    "type": "object",
+                                    "description": "graphty-element's SourceLoadRecord, its key set to the source id: the request history a refresh replays.",
+                                    "required": ["key", "source", "version"]
                                 }
                             },
-                            "description": "copy, plus per kind: file name, size, media type and path; url address, size, media type, etag and lastModified; network its request record (credentials by slot name only); sample dataset and version."
+                            "description": "copy, plus per kind: file name, size, media type and path; url address, size, media type, etag and lastModified; network exactly url, credentials, etag, lastModified and ledger; sample dataset and version."
                         },
                         "mapping": {
                             "type": "object",
@@ -561,7 +578,8 @@
                                     },
                                     "description": "A graph-format ColumnDecl, keyed by working name, plus unset for a json column. Rebuild and re-export input only."
                                 }
-                            }
+                            },
+                            "description": "graph-format ColumnDecls grouped by table, { nodes: { <working name>: decl }, edges: { ... } }, as the copy is."
                         },
                         "loaded": {
                             "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/timestamp"
@@ -584,6 +602,25 @@
                             },
                             "then": {
                                 "required": ["copy"]
+                            }
+                        },
+                        {
+                            "if": {
+                                "properties": {
+                                    "kind": {
+                                        "const": "network"
+                                    }
+                                },
+                                "required": ["kind"]
+                            },
+                            "then": {
+                                "properties": {
+                                    "origin": {
+                                        "propertyNames": {
+                                            "enum": ["copy", "url", "credentials", "etag", "lastModified", "ledger"]
+                                        }
+                                    }
+                                }
                             }
                         }
                     ],

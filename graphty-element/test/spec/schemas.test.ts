@@ -325,6 +325,34 @@ const MUTATIONS: Mutation[] = [
         },
     },
     {
+        name: "a layout record's versions (engine holds EngineVersions)",
+        section: "results",
+        change: (results) => Object.assign(results.layout as JsonObject, { versions: {} }),
+    },
+    {
+        name: "a seed in a run's caveats",
+        section: "results",
+        change: (results) => {
+            const run = Object.values(results.runs as JsonObject)[0] as JsonObject;
+            Object.assign(run.caveats as JsonObject, { seed: 1 });
+        },
+    },
+    {
+        name: "a camera type beside its controller",
+        section: "view",
+        change: (view) => Object.assign(view.camera as JsonObject, { type: "arcRotate" }),
+    },
+    {
+        name: "a visibility filter that is not graph.filter's { on, where }",
+        section: "view",
+        change: (view) => Object.assign(view.visibility as JsonObject, { filter: { kind: "degree", min: 0 } }),
+    },
+    {
+        name: "a network origin member outside its closed list",
+        section: "data",
+        change: (data) => Object.assign(sourceAt(data, 2).origin as JsonObject, { mediaType: "application/json" }),
+    },
+    {
         name: "a style selector that names an element",
         section: "style",
         change: (style) => Object.assign(first(style.layers), { selector: { match: "ids", nodes: [] } }),

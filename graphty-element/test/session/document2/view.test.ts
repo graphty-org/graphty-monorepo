@@ -108,9 +108,14 @@ async function sessionWithData(canned: CannedOutcomes = new Map()): Promise<Grap
  * The view section a session writes, with the header framing would write.
  * @param session - The session.
  * @param problems - Collects what the save reports.
+ * @param isDerived - Whether graphty-element minted a run's id.
  * @returns The section.
  */
-async function save(session: GraphSession, problems: DocumentProblem[] = []): Promise<JsonObject> {
+async function save(
+    session: GraphSession,
+    problems: DocumentProblem[] = [],
+    isDerived: (id: string) => boolean = () => false,
+): Promise<JsonObject> {
     const context: WriteContext = {
         session,
         problems,
@@ -118,7 +123,7 @@ async function save(session: GraphSession, problems: DocumentProblem[] = []): Pr
         dataId: () => DATA_ID,
         sections: new Set(["view"]),
         embed: {},
-        isDerived: () => true,
+        isDerived,
         bindsTo: () => Promise.resolve({ data: DATA_ID }),
     };
     const { body } = await viewCodec.write(context);
@@ -143,9 +148,15 @@ interface OpenChoices {
  * @param session - The session.
  * @param section - The section.
  * @param choices - Whether runs rerun, the saved outcomes waiting, and whether a style section loads too.
+ * @param derived - Collects the runs restored as minted by graphty-element.
  * @returns What the open reported.
  */
-async function open(session: GraphSession, section: JsonObject, choices: OpenChoices = {}): Promise<DocumentProblem[]> {
+async function open(
+    session: GraphSession,
+    section: JsonObject,
+    choices: OpenChoices = {},
+    derived: string[] = [],
+): Promise<DocumentProblem[]> {
     const header = new Set<string>(HEADER_MEMBERS);
     const read: ReadSection = {
         header: Object.fromEntries(
@@ -169,7 +180,9 @@ async function open(session: GraphSession, section: JsonObject, choices: OpenCho
             restored: new Set(),
             other: (name) => (name === "style" && choices.style === true ? style : undefined),
             canned: choices.canned ?? new Map(),
-            restoreDerived: () => undefined,
+            restoreDerived: (id) => {
+                derived.push(id);
+            },
         };
         await viewCodec.read(read, context);
     });
@@ -195,7 +208,7 @@ async function fullSession(): Promise<GraphSession> {
     await session.selection.apply({ nodes: ["a", "c"], edges: [ab.id] });
     await session.positions.set([{ id: "b", x: 1, y: 2, z: 0 }]);
     await session.positions.pin(["b"]);
-    await session.visibility.set({ kind: "degree", min: 0 });
+    await session.visibility.set({ kind: "expression", where: "data.group == 'x'" });
     session.visibility.showContext = true;
     await session.hidden.add(["e"]);
     await session.views.save([
@@ -336,7 +349,7 @@ describe("view codec: writing", () => {
             { name: "Flat", camera: { dimension: 2, controller: "2d", pan: { x: 1, y: 2 }, zoom: 2, rotation: 0 } },
         ]);
         assert.deepEqual(section.visibility, {
-            filter: { kind: "degree", min: 0 },
+            filter: { on: "nodes", where: "data.group == 'x'" },
             showContext: true,
             conditions: [],
             hidden: [{ space: SPACE, key: "e" }],
@@ -376,8 +389,21 @@ describe("view codec: writing", () => {
         assert.strictEqual(run.scope, "graph");
         assert.strictEqual(run.replayable, false);
         assert.deepEqual(problems, [
+            // A degree filter has no graph.filter form (spec 4.7 rule 4).
+            { code: "W_MEMBER_LEFT_OUT", params: { section: "view", pointer: "/visibility/filter" } },
             { code: "W_MEMBER_LEFT_OUT", params: { section: "view", pointer: "/runs/0/scope" } },
         ]);
+    });
+
+    it("writes an element-minted run as derived, and restores it as the element's own", async () => {
+        const session = await sessionWithData();
+        await session.runs.start("degree", undefined, { as: "minted", style: false, scope: "graph" });
+        const section = await save(session, [], (id) => id === "minted");
+        assert.deepEqual(invalid(section), []);
+        assert.strictEqual((section.runs as JsonObject[])[0].derived, true);
+        const restored: string[] = [];
+        await open(await sessionWithData(), section, {}, restored);
+        assert.deepEqual(restored, ["minted"]);
     });
 
     it("writes a recipe-made run with its namespace and name", async () => {
@@ -395,6 +421,34 @@ describe("view codec: writing", () => {
 });
 
 describe("view codec: opening", () => {
+    it("keeps the playhead, and follows the camera's controller over a type it no longer writes", async () => {
+        const section = {
+            kind: "graphty-view",
+            version: 1,
+            generator: { name: "graphty-element", version: "test" },
+            bindsTo: { data: DATA_ID },
+            camera: {
+                dimension: 3,
+                controller: "orbit",
+                type: "free",
+                position: { x: 0, y: 4, z: 18 },
+                target: { x: 0, y: 0, z: 0 },
+            },
+            timeline: { at: "2026-11-10T09:15:00.000Z" },
+        };
+        const opened = await sessionWithData();
+        assert.deepEqual(await open(opened, section), []);
+        const saved = await save(opened);
+        assert.deepEqual(saved.timeline, { at: "2026-11-10T09:15:00.000Z" });
+        assert.deepEqual(saved.camera, {
+            dimension: 3,
+            controller: "orbit",
+            position: { x: 0, y: 4, z: 18 },
+            target: { x: 0, y: 0, z: 0 },
+        });
+        assert.deepEqual(invalid(saved), []);
+    });
+
     it("gives a session back as it was saved (state to section to state)", async () => {
         const saved = await fullSession();
         const section = await save(saved);

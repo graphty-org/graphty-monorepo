@@ -105,7 +105,7 @@ describe("a project whose data section cannot be loaded", () => {
 });
 
 describe("the document state", () => {
-    it("is forgotten at a project boundary: a later import neither keeps the held sections nor the data id", async () => {
+    it("is forgotten at a project boundary, but for the data id a replacing import keeps", async () => {
         const session = createGraphSession(ON);
         const newer = { ...readJson("examples/card-fraud.graphty-style.json"), version: 9 };
         const file = readJson("examples/card-fraud.graphty.json");
@@ -119,12 +119,14 @@ describe("the document state", () => {
         const after = await session.project.save({ format: 2 });
         const sections = sectionsOf(after.text);
         assert.strictEqual(sections.style.version, 2);
-        assert.notStrictEqual(sections.data.id, DATA_ID);
+        // A replace keeps the data id (spec 3.3).
+        assert.strictEqual(sections.data.id, DATA_ID);
         assert.notInclude(codes(after.report.leftOut), "W_SECTION_KEPT");
 
-        // A notes section saved on the first data no longer binds silently to the new data.
+        // So a notes section saved on the first data binds, by key, to what the new data holds.
         const notes = await session.project.open(readText("examples/card-fraud.graphty-notes.json"));
-        assert.include(codes(notes.problems), "W_DATA_MISMATCH");
+        assert.notInclude(codes(notes.problems), "W_DATA_MISMATCH");
+        assert.include(codes(notes.problems), "W_REFERENCE_UNBOUND");
         session.dispose();
     });
 

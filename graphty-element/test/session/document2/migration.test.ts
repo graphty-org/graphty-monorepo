@@ -91,7 +91,7 @@ async function busySession(): Promise<GraphSession> {
     await session.positions.set([{ id: "a", x: 1, y: 2, z: 3 }]);
     await session.positions.pin(["a"]);
     await session.selection.apply({ nodes: ["c"], edges: [edges[1].id] });
-    await session.visibility.set({ kind: "degree", min: 1 });
+    await session.visibility.set({ kind: "expression", where: "data.dept == `1`" });
     await session.data.declare({ kind: "node", name: "dept" }, { measurement: "categorical" });
     await session.data.setValueLabel("data.dept", 1, "Research");
     return session;
@@ -262,7 +262,11 @@ describe("a version 1 project file, migrated", () => {
         assert.deepStrictEqual(view.pinned, [{ node: { space, key: "a" }, position: { x: 1, y: 2, z: 3 } }]);
         const run = (results.runs as Record<string, { nodes: { columns: { value: unknown[] } } }>).reader__links;
         assert.deepStrictEqual(run.nodes.columns.value, [1, 2, 1]);
-        assert.deepStrictEqual(view.visibility, { filter: { kind: "degree", min: 1 }, showContext: false });
+        // The filter in force in graph.filter's form (spec 4.7 rule 4).
+        assert.deepStrictEqual(view.visibility, {
+            filter: { on: "nodes", where: "data.dept == `1`" },
+            showContext: false,
+        });
         session.dispose();
     });
 
@@ -297,6 +301,34 @@ describe("a version 1 project file, migrated", () => {
         const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
         const once = JSON.stringify(migrateDocument1(v1, []));
         assert.strictEqual(JSON.stringify(migrateDocument1(structuredClone(v1), [])), once);
+        session.dispose();
+    });
+});
+
+describe("version 1 file styles, migrated", () => {
+    it("names the columns and the layer paths after the migrated source, never in the node-link graph", async () => {
+        const session = await busySession();
+        const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
+        const member = (kind: string): JsonObject =>
+            (v1.members as JsonObject[]).find((each) => each.kind === kind) as JsonObject;
+        member("graphty-session").fileStyles = [
+            { namespace: "gexf", columns: [{ kind: "node", key: "color", ids: ["a"], values: ["#ff0000"] }] },
+        ];
+        (member("graphty-style").layers as JsonObject[]).push({
+            id: "from-file",
+            name: "From the file",
+            selector: { match: "everything" },
+            encode: { "node.color": { by: "graphty.style.gexf.node.color" } },
+        });
+        const v2 = migrateDocument1(v1, []);
+        const sections = v2?.sections as Record<string, JsonObject>;
+        const source = (sections.data.sources as JsonObject[]).find((each) => each.kind === "derived") as JsonObject;
+        const column = `graphty.style.${String(source.id)}.node.color`;
+        assert.property((source.copy as JsonObject).nodes, column);
+        assert.include(JSON.stringify(sections.style), column);
+        assert.notInclude(JSON.stringify(v2), "graphty.style.gexf.");
+        const graph = sections.data.graph as JsonObject;
+        assert.isFalse((graph.nodes as JsonObject[]).some((node) => column in node));
         session.dispose();
     });
 });

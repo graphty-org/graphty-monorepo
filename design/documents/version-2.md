@@ -7,6 +7,8 @@ this page says how the parts are cut, saved, loaded, versioned and kept readable
 and a version 1 page disagree, this page wins. The data section's model -- source records, types,
 ids, the reader source, the build and how saved sections name nodes and edges -- is specified in
 design/data/data-store-options.md (sections 4 and 5); this page summarizes it and points there.
+Version 2 stays behind the save-files-v2 experiment, and its single data section is not final: a
+later version may let one file hold more than one graph.
 
 ## Why version 2
 
@@ -248,15 +250,15 @@ derives it from `kind` and `version`; a mismatch is reported, never acted on.
 - `id` is optional except on the data section, the one id other sections quote (`bindsTo.data`).
   A reverse-domain name (`org.example-lab.card-testing`) or an `https:` URL is recommended for a
   kit others will copy; any unique string otherwise. A copied section keeps its `id`.
-- The data section's `id` names the dataset: minted when the project first gets data, kept through
-  refresh, same-shape replace and edits. Loading data in replace mode, or a `fresh` replace, mints a
-  new data section `id`, so a notes or view section saved before it falls under "No match" (see
-  "Naming nodes and edges").
+- The data section's `id` names the dataset: minted when the project first gets data, and kept
+  through refresh, replace and edits. A replace keeps it, so a notes or view section saved before
+  a replace still binds, by key, to whatever the new data holds (see "Naming nodes and edges").
 - **Minted ids.** A source id is `src_` plus a ULID, minted by graphty-element, never chosen by
   hand and never reused; the reader source's is always `reader`. A name the caller gives a source
-  goes in its `label`. A set id is `set_` plus a ULID, and a note id `note_` plus a ULID. Run ids
-  keep graphty-element's form, are restored as saved, and a new one never reuses an id a loaded
-  section names. Ids minted from current state (`s<n>`, `set_<slug>`) would reappear after a delete
+  goes in its `label`. A set id is `set_` plus a ULID, and a note id `note_` plus a ULID. A run id
+  is any string matching `[A-Za-z0-9_.:-]+`, in graphty-element's own minted form (a recipe-made
+  run's `<namespace>__<as>`, a hand-started run's id as the element minted or the caller gave it);
+  run ids are restored as saved, and a new one never reuses an id a loaded section names. Ids minted from current state (`s<n>`, `set_<slug>`) would reappear after a delete
   and reopen, and kept unbound references would then bind to unrelated things.
 - Version 1's style `styleVersion` and recipe `recipeVersion` have no version 2 home: the version 1
   migration drops them and reports it.
@@ -411,7 +413,9 @@ header:
 
 - **`build`**: the build stamp, a ULID. A writer that changes a build input -- a source copy, a
   mapping or setting, a type, a join step, a kept pair, `directed`, `repeatedEdges`, a conversion,
-  a reader operation -- MUST mint a new `build`.
+  a reader operation -- MUST mint a new `build`. So does a save that writes anything other than
+  what an open read, a part refused on open included (see Saving): the stamp read is never kept
+  for data that differs from it.
 - **`directed`**, always written, is the only direction input; reader-drawn edges follow it. The
   node-link graph's `directed` is written from it and never read. A source file's own direction
   goes in that source's `metadata`; a source that disagrees is read under `directed` and reported.
@@ -426,6 +430,10 @@ header:
     - `origin.copy` is the copy id: for file, url and sample sources `sha256:<hex>` of the bytes;
       for network, derived and reader sources a ULID minted whenever that copy changes. `origin` also
       holds the file name, size, media type and HTTP validators where they apply.
+    - A network source's `origin` is a closed object: `copy`, `url`, `credentials` (`{ "slot" }`,
+      the credential slot's name, never a secret), `etag`, `lastModified`, and `ledger`, the request
+      history a refresh replays, written as graphty-element's `SourceLoadRecord` with its `key` set
+      to the source id.
     - **Working column names everywhere.** Every column name in the file is a working name, after
       renames. A column's source name appears only in `mapping.<table>.renamed` and in its
       `ColumnDecl.origin.title`.
@@ -448,8 +456,9 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
   source is copied as tables, its graph attributes in `metadata`. Any other object is an unknown
   copy form and holds the data section. A derived source, like the reader source, is always
   embedded. `columns`, present exactly when `copy` is (never on the reader source), holds each
-  copied table's parsed graph-format `ColumnDecl`s, as rebuild and re-export input only, never
-  read for meaning.
+  copied table's parsed graph-format `ColumnDecl`s grouped by table, as the copy is:
+  `{ "nodes": { "<working name>": <decl> }, "edges": { ... } }`. They are rebuild and re-export
+  input only, never read for meaning.
 - **`path`**: a `file` source's `origin` may carry a POSIX path relative to the saved file's own
   folder, never absolute (absolute paths leak user names) and never above that folder, written
   when the writer knows both locations (Node, or a File System Access directory handle).
@@ -492,17 +501,27 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
   issue id the element mints. `kept` is a list of `{ from, to }` node references, the pairs whose
   repeated edges the reader kept.
 - **`joins`**: the join history, the join steps (see "recipe") naming sources by id. A source no
-  step names is not built, and is reported; a one-source file writes one `join.add`.
+  step names is not built, and is reported; a one-source file writes one `join.add`. When a step's
+  source gives a node a value for a column the node already holds from an earlier source, and the
+  two differ, the later value is kept as the column `<column> (<source id>)`.
 - **`graph`**: the merged graph as NetworkX node-link JSON, holding only embedded sources' rows,
   recomputed on open. It always writes `directed`, `multigraph` and NetworkX's own `graph` member
   (graph-level attributes, `{}` when none). `multigraph` is true exactly when two edges share both
   ends, never a reader choice: NetworkX assumes `true` when it is missing and silently merges
   parallel edges when it is `false`. Each node carries `"graphty.space"`, `"graphty.key"`,
   `"graphty.types"` and `_source.loads`; each edge carries `"graphty.load"`, `"graphty.key"`,
-  `"graphty.types"` (at most one item) and `_source.loads`. graphty never writes a node-link
-  `key`. `_source.loads` lists the sources that supplied the row; a node only named by an edge
-  writes `[]`. The node-link `id`, `source` and `target` are handles unique within the file only,
-  since a key repeats across spaces (account 12 and merchant 12).
+  `"graphty.types"` (at most one item) and `_source.loads`. Beside them every node and edge
+  carries each of its working columns as an attribute, key, end, edge-id and type-rule columns
+  included, even one that repeats `"graphty.key"`; only a column named after a node-link member
+  (`id` on nodes; `source`, `target` and `key` on edges) and the file-style columns are left out,
+  and their source keeps them in its copy. graphty never writes a node-link `key`. The node-link
+  `id`, `source` and `target` are handles unique within the file only, since a key repeats across
+  spaces (account 12 and merchant 12).
+- **`_source.loads`** lists the sources that supplied the row. A node only named by an edge writes
+  `[]`, and keeps its key when the file is saved again: it is not a reader addition. `reader` is
+  listed only on an element the reader added; an edit does not add it, and a merge keeps the union
+  of both nodes' lists. Only the nodes and edges the reader added are written as reader `add`
+  operations.
 
 The join history and the recipe's join steps share one spelling with two jobs: the history is how
 this data was built, so a data section file rebuilds alone; the recipe's steps apply to new data,
@@ -513,9 +532,11 @@ ECMAScript `Number::toString` writes. Non-finite values are the strings `"Infini
 `"-Infinity"` and `"NaN"`, read as numbers exactly where the declared type is number (a type
 schema, a `ColumnDecl` dtype, a results field, an option typed number); any other string stays
 text. A key is always a string: a number as `Number::toString` writes it, so `34`, `34.0` and
-`"34"` are one key; a boolean as `true` or `false`; an integer id the parser cannot hold exactly
-refuses its row, reported. Cells are turned to text the same way before matching a rule's
-`values`.
+`"34"` are one key; a boolean as `true` or `false`. Cells are turned to text the same way before
+matching a rule's `values`. An integer too large to hold exactly (beyond 2^53 - 1 either way) is
+written as its decimal string, and read back as a number only where the column's schema declares
+`number` or `integer` (its `ColumnDecl` dtype is numeric); anywhere else the string stays text.
+Its row is never refused.
 
 ### style
 
@@ -574,17 +595,19 @@ that name columns list them in `dependencies.columns`.
   name, and binding by `as` considers only runs that carry one.
 - Each run holds what actually ran: `algorithm`, `params`, `engine` (graphty-element's
   `EngineVersions`: `element`, `algorithms`, `layout`, and `plugins` when an extension computed
-  it), `seed` (the seed it used), `durationMs`, `bindsTo` (see "Naming nodes and edges"),
-  `fields`, and `caveats`. `caveats` is graphty-element's `Caveats` without its deprecated `notes`
-  and `partialReason`; the words are rebuilt from `facts` and `partialCause`, so no English is
-  frozen into the file.
+  it), `seed` (the seed it used, the authority), `durationMs`, `bindsTo` (see "Naming nodes and
+  edges"), `fields`, and `caveats`. `caveats` is graphty-element's `Caveats` without its
+  deprecated `notes` and `partialReason`, whose words are rebuilt from `facts` and `partialCause`
+  so no English is frozen into the file, and without `seed`, which a reader takes from the run's
+  own `seed`. In results `engine` always means `EngineVersions`.
 - **Outputs are columns**: `nodes: { refs, columns }` and `edges: { refs, columns }`, one list of
   element references and one list per field, not one object per element, which would repeat every
   field name and reference at 100,000 nodes; plus `graph`, the graph-level result (modularity,
   component count).
-- **`layout`**, beside `runs`, is the layout's record: `id`; `engine`, the engine name as
-  `layout.set` spells it; `dimension`; `options`; `seed`, the seed used; `durationMs`; `versions`,
-  graphty-element's `EngineVersions`; `bindsTo`; and `nodes: { refs, columns: { x, y, z } }`, as
+- **`layout`**, beside `runs`, is the layout's record: `id`, the catalogue id; `algorithm`, the
+  layout that drew it, as `layout.set` spells its engine (as a run's `algorithm` names what ran);
+  `dimension`; `options`; `seed`, the seed used; `durationMs`; `engine`, graphty-element's
+  `EngineVersions`, as every run's; `bindsTo`; and `nodes: { refs, columns: { x, y, z } }`, as
   every run's output. The layout has no run id; one layout is in force at a time.
 
 ### notes
@@ -601,15 +624,17 @@ migrated.
 View is the record a file is opened to.
 
 - **`camera`** and each saved view's camera hold graphty-element's `CameraState` members as they
-  are (`graphty-element/src/camera/types.ts`), points as `{ x, y, z }`, plus two members that
-  record the dimension and the controller separately, so new controllers arrive without a new
-  dimension and a new dimension without new controllers:
+  are (`graphty-element/src/camera/types.ts`), points as `{ x, y, z }`, except `type`, plus two
+  members that record the dimension and the controller separately, so new controllers arrive
+  without a new dimension and a new dimension without new controllers:
     - `dimension`: `2` or `3`, a closed value (it follows the layout's dimension).
     - `controller`: which camera controller drove it -- `orbit` and `2d` today; an open vocabulary,
       so `universal`, `fly` or a third party's controller (reverse-domain name) can be added later.
+      `controller` is the authority: `CameraState`'s `type` overlaps it and is not written, and a
+      reader meeting a `type` that disagrees with `controller` follows `controller`.
     - The pose is the `CameraState` members that controller reads: for the orbit controller
       `position`, `target`, `pivotRotation` and `cameraDistance`; for the 2D controller `zoom`, `pan`
-      and `rotation`; and `type`, `fov` and the orthographic members where they apply.
+      and `rotation`; and `fov` and the orthographic members where they apply.
 
     A reader that does not know the controller applies the members its own default controller for
     that dimension reads, and reports it; it never drops the camera.
@@ -623,8 +648,9 @@ View is the record a file is opened to.
   `{ id, name, definition }`, as version 1 writes it; `definition` is graphty-element's set
   definition, its node and edge members written as element references.
 - **`visibility`**:
-    - `filter`: the filter in force, its element leaves as element references and its source leaves
-      by source id;
+    - `filter`: the filter in force, in the shape of the recipe's `graph.filter` command without
+      its `op`: `{ "on", "where" }`, `on` being `nodes` or `edges` and `where` an expression. A
+      filter in force that no such pair expresses is refused and reported;
     - `window`: graphty-element's `TimeWindow`. An instant bound is a `toISOString` string; a raw
       value (a step number, a year, an ordinal) is a JSON number. `attribute`, `end` and `spells` are
       graphty-element's value paths (`data.<working column>`), as `valueLabels.path` is. The window's
@@ -635,6 +661,8 @@ View is the record a file is opened to.
       written as element references, with no nested `version` (the section's major covers it).
       `steps` is not written;
     - `hidden`: the nodes hidden from the drawing.
+- **`timeline`**: `{ "at" }`, the timeline's playhead, spelled as version 1 spells it: a
+  `toISOString` string for an instant, a JSON number for a raw value.
 - **`order`**: one list of layer ids for the whole stack, bottom first as style.md `layers` and the
   element's `StylesApi.list` list it, style and view layers alike. Ids not found are skipped.
   `order` decides over a style section's own order (see Loading).
@@ -644,7 +672,9 @@ View is the record a file is opened to.
 - **`runs`**: the single ordered list of every algorithm run, recipe-made and hand-started alike,
   in the order made. Each record carries its run `id`; a recipe-made run its `namespace` and `as`;
   the reader's `name` for it when it has one; `algorithm`; `params` (element-naming options as
-  element references); `seed`; and `scope`. A view run record has no `style` member. Results stays
+  element references); `seed`; `scope`; and `derived: true` when graphty-element minted the
+  run's id, as version 1 records it, so reopening restores the id as the element's own. A view
+  run record has no `style` member. Results stays
   the one place for outputs, keyed by the same run id, so a journal or a share without notes never
   gains a results section the reader did not pick.
     - `scope` is one of graphty-element's `Scope` forms: `"graph"`, `"largest-component"`,
@@ -674,7 +704,10 @@ frame later would be a view major version.
   for example). Saving a full file with style and view moves each element-naming layer into view.
 - **The refusal rule.** A save that cannot express something refuses that part and reports it.
   Nothing is ever silently simplified. A save that refuses any part of the data section writes a
-  newly minted `build` in that file, so every saved run reads as stale (Partial) on reopen.
+  newly minted `build` in that file, so every saved run reads as stale (Partial) on reopen. This
+  holds for a part refused when the file was opened, too (a source no join step names, a
+  `repeatedEdges` value built as `keep`): a re-save never keeps the stamp it read when what it
+  writes differs from what it read.
 - **Results are optional.** Default: not saved, so opening reruns the behaviors (the 2026-11-13
   rule). A record or archive save includes them.
 - **Embed or reference is the reader's choice** (owner, 2026-11-14: "that should be an option for
@@ -871,7 +904,9 @@ migration:
 - converts each positional edge reference into `{ load, key }` with the key of the edge at that
   position: its id when it has one, else `"<copy id>#<position>"`;
 - moves file styles, stored by element id, into `graphty.style.` columns of the migrated source,
-  and their layers into view's `layers`;
+  and their layers into view's `layers`. Each version 1 load's namespace maps to the migrated
+  source's id, so `graphty.style.gexf.node.color` becomes
+  `graphty.style.<source id>.node.color`, in the columns and in every layer path that reads one;
 - moves style layers whose selector names elements into view's `layers`, their node ids converted
   to element references against the file's own data, and drops every layer's `kind`;
 - moves the session's `visibility` member into view's `visibility` and its playback into settings;

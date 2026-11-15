@@ -193,13 +193,27 @@ interface DataMemory {
      * The build stamp, and the digest of the build inputs it was given for; after a read, the copy
      * ids the read file stamped, kept while the build is.
      */
-    build?: { readonly digest: string; readonly build: string; readonly sources?: Readonly<Record<string, string>> };
+    build?: {
+        readonly digest: string;
+        readonly build: string;
+        readonly sources?: Readonly<Record<string, string>>;
+        /**
+         * The stamp the data section writes when it differs from the one runs bind to: newly minted
+         * when the open left out part of what it read, since what a save writes then differs from
+         * what the file holds (spec 8.1 rule 2).
+         */
+        readonly written?: string;
+    };
     /** The type registry the last data section read held. */
     types: readonly JsonObject[];
     /** The records of the sources the last read could not fetch, written back as read. */
     readonly unavailable: Map<string, JsonObject>;
     /** Each node's record key as the data section that loaded it named it. */
     readonly nodeRefs: Map<NodeId, NodeRef>;
+    /** The nodes only an edge named: supplied by no source, and not the reader's (spec 4.1.9). */
+    readonly namedOnly: Set<NodeId>;
+    /** Each network source's `origin` as read, by source id, until the session records its own load. */
+    readonly origins: Map<string, JsonObject>;
     /** The edge-id column the last data section read named, until settings say one. */
     edgeIdColumn?: string;
 }
@@ -221,6 +235,8 @@ function memoryOf(session: GraphSession): DataMemory {
             types: [],
             unavailable: new Map(),
             nodeRefs: new Map(),
+            namedOnly: new Set(),
+            origins: new Map(),
         };
         MEMORY.set(session, memory);
     }
@@ -251,6 +267,12 @@ export interface DataRead {
     readonly types: readonly JsonObject[];
     /** Each node's record key. */
     readonly nodeRefs: readonly (readonly [NodeId, NodeRef])[];
+    /** The nodes only an edge named. */
+    readonly namedOnly: readonly NodeId[];
+    /** Whether the read left out part of the section. */
+    readonly refused: boolean;
+    /** Each network source's `origin` as read, by source id. */
+    readonly origins?: readonly (readonly [string, JsonObject])[];
     /** Each reader-added edge's key, by its session id. */
     readonly readerEdges: readonly (readonly [EdgeId, string])[];
     /** The records of the sources that could not be fetched. */
@@ -270,6 +292,14 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
     const memory = memoryOf(session);
     for (const [id, ref] of read.nodeRefs) {
         memory.nodeRefs.set(id, ref);
+    }
+
+    for (const [id, origin] of read.origins ?? []) {
+        memory.origins.set(id, origin);
+    }
+
+    for (const id of read.namedOnly) {
+        memory.namedOnly.add(id);
     }
 
     for (const [id, key] of read.readerEdges) {
@@ -302,6 +332,7 @@ export function rememberRead(session: GraphSession, read: DataRead): void {
         digest: bodyOf(dataModelOf(session), {}, []).digest,
         build: read.build,
         sources: { ...read.copies },
+        ...(read.refused ? { written: mintUlid() } : {}),
     };
 }
 
@@ -583,6 +614,13 @@ function dataModelOf(session: GraphSession): DataModel {
     for (const node of nodes) {
         const supplied = loadsOf(session.data.sourcesOf(node.id));
         const known = memory.nodeRefs.get(node.id);
+        if (supplied.length === 0 && known !== undefined && memory.namedOnly.has(node.id)) {
+            // Only an edge names it: no source's row and no reader add, its key kept as read.
+            nodeLoads.set(node.id, []);
+            nodeRefs.set(node.id, known);
+            continue;
+        }
+
         if (supplied.length === 0) {
             readerNodes.push(node);
             nodeLoads.set(node.id, [READER]);
@@ -738,6 +776,34 @@ function mappingOf(source: ModelSource, model: DataModel, copy: Copy): JsonObjec
 }
 
 /**
+ * A network source's closed `origin` (spec 4.1.2 rule 8): its address, credential slot, HTTP
+ * validators and `ledger`, the session's record of the load (its request history) keyed by the
+ * source id; the origin an open read while the session records no load of its own.
+ * @param source - The source.
+ * @param model - The model.
+ * @param copy - Its copy id.
+ * @returns The origin.
+ */
+function networkOrigin(source: ModelSource, model: DataModel, copy: string): JsonObject {
+    const live = model.session.data.loads().find((record) => record.key === source.load.key);
+    const read = memoryOf(model.session).origins.get(source.id);
+    if (live === undefined && read !== undefined) {
+        return { ...read, copy };
+    }
+
+    const slot = live?.credential?.slot;
+    const { etag, lastModified } = live?.validators ?? {};
+    return {
+        copy,
+        ...(source.load.url === undefined ? {} : { url: source.load.url }),
+        ...(slot === undefined ? {} : { credentials: { slot } }),
+        ...(etag === undefined ? {} : { etag }),
+        ...(lastModified === undefined ? {} : { lastModified }),
+        ...(live === undefined ? {} : { ledger: jsonSafe({ ...live, key: source.id }) }),
+    };
+}
+
+/**
  * One source record (spec 4.1.2), from its load.
  * @param source - The source.
  * @param model - The model.
@@ -756,12 +822,15 @@ function sourceRecordOf(
     const kind = KINDS[load.kind];
     const options = redactedParams(load.config ?? {});
     delete options.url;
-    const origin: JsonObject = {
-        copy: copy.copy,
-        ...(load.fileName === undefined ? {} : { name: load.fileName }),
-        ...(load.url === undefined ? {} : { url: load.url }),
-        ...(load.size === undefined ? {} : { size: load.size }),
-    };
+    const origin: JsonObject =
+        kind === "network"
+            ? networkOrigin(source, model, copy.copy)
+            : {
+                  copy: copy.copy,
+                  ...(load.fileName === undefined ? {} : { name: load.fileName }),
+                  ...(load.url === undefined ? {} : { url: load.url }),
+                  ...(load.size === undefined ? {} : { size: load.size }),
+              };
     const { choices } = load;
     if (storage === "referenced" && kind === "file") {
         problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id } });
@@ -961,7 +1030,7 @@ function issuesOf(model: DataModel): JsonObject | undefined {
     return ignored.length + kept.length === 0 ? undefined : { ignored, kept };
 }
 
-/** The node-link members graphty writes itself, never a user column of that name. */
+/** The node-link members graphty writes itself, never a working column of that name. */
 const NODE_MEMBERS = ["id", "graphty.space", "graphty.key", "graphty.types", "_source.loads"];
 const LINK_MEMBERS = ["source", "target", "key", "id", "graphty.load", "graphty.key", "graphty.types", "_source.loads"];
 
@@ -974,7 +1043,8 @@ const LINK_MEMBERS = ["source", "target", "key", "id", "graphty.load", "graphty.
 function userColumns(columns: Readonly<JsonObject>, leaveOut: readonly string[]): JsonObject {
     const out: JsonObject = {};
     for (const [name, value] of Object.entries(columns)) {
-        if (!leaveOut.includes(name) && value !== undefined) {
+        // File-style columns are never written into the graph (spec 4.1.2 rule 7).
+        if (!leaveOut.includes(name) && !name.startsWith("graphty.style.") && value !== undefined) {
             out[name] = jsonSafe(value);
         }
     }
@@ -993,10 +1063,15 @@ function userColumns(columns: Readonly<JsonObject>, leaveOut: readonly string[])
 function graphOf(model: DataModel, embedded: ReadonlySet<string>, types: readonly JsonObject[]): JsonObject {
     const typed = elementTypesOf(model, types);
     const handles = new Map<NodeId, number>();
+    const namedByEmbedded = new Set(
+        model.edges
+            .filter((edge) => (model.edgeLoads.get(edge.id) ?? []).some((id) => embedded.has(id)))
+            .flatMap((edge) => [edge.source, edge.target]),
+    );
     const nodes: JsonObject[] = [];
     for (const node of model.nodes) {
         const loads = model.nodeLoads.get(node.id) ?? [];
-        if (!loads.some((id) => embedded.has(id))) {
+        if (!loads.some((id) => embedded.has(id)) && !(loads.length === 0 && namedByEmbedded.has(node.id))) {
             continue;
         }
 
@@ -1014,7 +1089,8 @@ function graphOf(model: DataModel, embedded: ReadonlySet<string>, types: readonl
 
     const links: JsonObject[] = [];
     const pairs = new Map<string, number>();
-    const leaveOut = [...LINK_MEMBERS, ...(model.edgeIdColumn === undefined ? [] : [model.edgeIdColumn])];
+    // Every working column is written, the edge-id column included (spec 4.1.9).
+    const leaveOut = LINK_MEMBERS;
     for (const edge of model.edges) {
         const loads = model.edgeLoads.get(edge.id) ?? [];
         const from = handles.get(edge.source);
@@ -1139,7 +1215,7 @@ function bodyOf(
     }
 
     const body: JsonObject = {
-        build: memory.build.build,
+        build: memory.build.written ?? memory.build.build,
         directed: model.directed,
         sources: records,
         types,

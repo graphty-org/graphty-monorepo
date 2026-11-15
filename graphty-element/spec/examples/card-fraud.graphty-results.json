@@ -121,7 +121,6 @@
             ],
             "caveats": {
                 "exact": true,
-                "seed": 1873,
                 "direction": "directed",
                 "weight": null,
                 "filterScope": true,
@@ -224,14 +223,14 @@
     },
     "layout": {
         "id": "force",
-        "engine": "ngraph",
+        "algorithm": "ngraph",
         "dimension": 3,
         "options": {
             "seed": 52211
         },
         "seed": 52211,
         "durationMs": 41,
-        "versions": {
+        "engine": {
             "element": "3.40.0",
             "algorithms": "2.1.2",
             "layout": "1.10.5"

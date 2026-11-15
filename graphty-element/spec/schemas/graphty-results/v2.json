@@ -121,7 +121,7 @@
                     },
                     "caveats": {
                         "type": "object",
-                        "description": "graphty-element's Caveats, without its deprecated notes and partialReason.",
+                        "description": "graphty-element's Caveats, without its deprecated notes and partialReason, and without seed: the run's own seed is the authority.",
                         "required": ["exact", "direction", "precision", "method", "facts"],
                         "properties": {
                             "exact": {
@@ -143,7 +143,8 @@
                                 "type": "array"
                             },
                             "notes": false,
-                            "partialReason": false
+                            "partialReason": false,
+                            "seed": false
                         }
                     },
                     "graph": {
@@ -202,24 +203,12 @@
                     "type": "string",
                     "minLength": 1
                 },
-                "engine": {
+                "algorithm": {
                     "type": "string",
-                    "minLength": 1
+                    "minLength": 1,
+                    "description": "The layout that drew it, as layout.set spells its engine."
                 },
-                "dimension": {
-                    "enum": [2, 3]
-                },
-                "options": {
-                    "type": "object"
-                },
-                "seed": {
-                    "type": ["integer", "null"]
-                },
-                "durationMs": {
-                    "type": "number",
-                    "minimum": 0
-                },
-                "versions": {
+                "engine": {
                     "type": "object",
                     "description": "graphty-element's EngineVersions.",
                     "required": ["element", "algorithms", "layout"],
@@ -244,6 +233,19 @@
                             }
                         }
                     }
+                },
+                "dimension": {
+                    "enum": [2, 3]
+                },
+                "options": {
+                    "type": "object"
+                },
+                "seed": {
+                    "type": ["integer", "null"]
+                },
+                "durationMs": {
+                    "type": "number",
+                    "minimum": 0
                 },
                 "bindsTo": {
                     "type": "object",
@@ -302,9 +304,10 @@
                     },
                     "required": ["refs", "columns"],
                     "unevaluatedProperties": false
-                }
+                },
+                "versions": false
             },
-            "required": ["id", "engine", "dimension", "versions", "bindsTo", "nodes"],
+            "required": ["id", "algorithm", "dimension", "engine", "bindsTo", "nodes"],
             "unevaluatedProperties": false
         }
     }

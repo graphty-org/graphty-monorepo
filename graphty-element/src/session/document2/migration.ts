@@ -48,6 +48,7 @@ import {
     migrateData,
     type MigratedData,
     objectsOf,
+    renameFileStyles,
     ulidOf,
 } from "./migrationParts";
 import type { DocumentProblem, DocumentSection, EdgeRef, JsonObject, NodeRef } from "./types";
@@ -436,14 +437,17 @@ function migrateStyle(
         const named = layerNames(layer, sets);
         const rename = named ? asRunId : asName;
         const source = isObject(rest.source) && typeof rest.source.runId === "string" ? rest.source : undefined;
-        const v2: JsonObject = renameSets(
-            {
-                id,
-                name: typeof name === "string" ? name : "",
-                ...renameRuns(rest, rename),
-                ...(source === undefined ? {} : { source: { ...source, runId: rename(String(source.runId)) } }),
-            },
-            context,
+        const v2: JsonObject = renameFileStyles(
+            renameSets(
+                {
+                    id,
+                    name: typeof name === "string" ? name : "",
+                    ...renameRuns(rest, rename),
+                    ...(source === undefined ? {} : { source: { ...source, runId: rename(String(source.runId)) } }),
+                },
+                context,
+            ),
+            data,
         );
         if (!named) {
             for (const match of JSON.stringify([v2.selector, v2.encode]).matchAll(/results\.([a-z][a-z0-9_]*)/g)) {
@@ -682,13 +686,14 @@ const CAVEAT_DEFAULTS: JsonObject = {
 };
 
 /**
- * A version 1 run's caveats as version 2 writes them: without `notes` and `partialReason`, a
+ * A version 1 run's caveats as version 2 writes them: without `notes`, `partialReason` and `seed`
+ * (the run's own `seed` holds it), a
  * required member it lacks at its default.
  * @param caveats - The version 1 caveats.
  * @returns The caveats.
  */
 function caveatsOf(caveats: JsonObject): JsonObject {
-    const { notes: _notes, partialReason: _reason, ...rest } = caveats;
+    const { notes: _notes, partialReason: _reason, seed: _seed, ...rest } = caveats;
     return { ...CAVEAT_DEFAULTS, ...rest };
 }
 
@@ -752,10 +757,14 @@ function layoutRecord(context: Context, data: MigratedData, positions: readonly 
         return undefined;
     }
 
+    const { engine, ...rest } = layout;
     return {
-        ...layout,
+        ...rest,
+        // The layout that drew it; version 1 may name only the catalogue id, which a registered
+        // engine name is read as.
+        algorithm: typeof engine === "string" ? engine : rest.id,
         seed: null,
-        versions: engineOf(context),
+        engine: engineOf(context),
         bindsTo: data.binding,
         nodes: {
             refs: free.map((each) => each.node),
@@ -1012,12 +1021,32 @@ function visibilityOf(visibility: JsonObject, context: Context, data: MigratedDa
             : undefined;
     const hidden = nodeRefs(visibility.hidden, data);
     return {
-        filter: isObject(visibility.filter) ? renameSets(boundRule(visibility.filter, data), context) : null,
+        filter: filterOf(visibility.filter, context),
         ...(window === undefined ? {} : { window }),
         ...(typeof visibility.showContext === "boolean" ? { showContext: visibility.showContext } : {}),
         ...(conditions.length === 0 ? {} : { conditions }),
         ...(hidden.length === 0 ? {} : { hidden }),
     };
+}
+
+/**
+ * A version 1 filter in force as graph.filter's `{ on, where }` (spec 4.7 rule 4): one expression
+ * leaf on nodes or edges. Any other filter has no such form, and is reported.
+ * @param filter - The version 1 filter.
+ * @param context - The file.
+ * @returns The filter, or null.
+ */
+function filterOf(filter: unknown, context: Context): JsonObject | null {
+    if (!isObject(filter)) {
+        return null;
+    }
+
+    if ((filter.kind === "expression" || filter.kind === "edges") && typeof filter.where === "string") {
+        return { on: filter.kind === "edges" ? "edges" : "nodes", where: filter.where };
+    }
+
+    context.problems.push(leftOut("graphty-session", "/visibility/filter"));
+    return null;
 }
 
 /**

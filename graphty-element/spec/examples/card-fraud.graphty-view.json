@@ -13,7 +13,6 @@
     "camera": {
         "dimension": 3,
         "controller": "orbit",
-        "type": "arcRotate",
         "position": {
             "x": 0,
             "y": 4,
@@ -37,7 +36,6 @@
             "camera": {
                 "dimension": 3,
                 "controller": "orbit",
-                "type": "arcRotate",
                 "position": {
                     "x": 3,
                     "y": 3,
@@ -146,6 +144,9 @@
         "showContext": true,
         "conditions": [],
         "hidden": []
+    },
+    "timeline": {
+        "at": "2026-11-10T09:15:00.000Z"
     },
     "viewRotation": 0,
     "framing": {

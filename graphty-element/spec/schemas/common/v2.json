@@ -280,7 +280,7 @@
         },
         "runId": {
             "type": "string",
-            "description": "A run id in graphty-element's form: <namespace>__<as> for a recipe-made run, the element's own id for a hand-started one.",
+            "description": "Any string of these characters, in graphty-element's own minted form: <namespace>__<as> for a recipe-made run, the element's own id for a hand-started one.",
             "minLength": 1,
             "maxLength": 128,
             "pattern": "^[A-Za-z0-9_.:-]+$"
@@ -1204,6 +1204,24 @@
             "type": "string",
             "description": "A source's copy id: sha256: plus lower-case hex of the bytes (file, url and sample sources), or a ULID minted whenever the copy changes (network, derived and reader sources).",
             "pattern": "^(sha256:[0-9a-f]{64}|[0-9A-HJKMNP-TV-Z]{26})$"
+        },
+        "graphFilter": {
+            "type": "object",
+            "description": "The shape of the recipe's graph.filter command without its op: which table a predicate keeps rows of, and the predicate.",
+            "properties": {
+                "on": {
+                    "enum": ["nodes", "edges"],
+                    "default": "nodes"
+                },
+                "where": {
+                    "$ref": "https://graphty.app/schema/documents/common/v2.json#/$defs/expression"
+                },
+                "dropIsolated": {
+                    "type": "boolean"
+                }
+            },
+            "required": ["where"],
+            "unevaluatedProperties": false
         }
     }
 }

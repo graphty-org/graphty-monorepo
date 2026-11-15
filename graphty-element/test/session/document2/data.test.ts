@@ -486,6 +486,148 @@ describe("data section version 2", () => {
         reopened.dispose();
     });
 
+    it("keeps a node only an edge names: no reader add, the same key after save and reopen", async () => {
+        const example = structuredClone(readJson("examples/card-fraud.graphty-data.json"));
+        const network = (example.sources as JsonObject[]).find((source) => source.kind === "network") as JsonObject;
+        const nodes = (network.copy as JsonObject).nodes as Record<string, unknown[]>;
+        for (const cells of Object.values(nodes)) {
+            cells.splice(1, 1); // dev-9f3 is now named only by the device-login edges
+        }
+
+        const space = `source:${String(network.id)}`;
+        const session = createGraphSession(ON);
+        assert.include(
+            (await readBody(session, example)).map((problem) => problem.code),
+            "W_NODE_NAMED_ONLY",
+        );
+        const { body } = await writeBody(session);
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const named = ((body.graph as JsonObject).nodes as JsonObject[]).find(
+            (node) => node["graphty.key"] === "dev-9f3",
+        );
+        assert.deepStrictEqual(named?.["graphty.space"], space);
+        assert.deepStrictEqual(named?.["_source.loads"], []);
+        const reader = (body.sources as JsonObject[]).find((source) => source.id === "reader");
+        const adds = ((reader?.copy as JsonObject | undefined)?.operations as JsonObject[] | undefined) ?? [];
+        assert.isFalse(
+            adds.some((operation) => operation.op === "add"),
+            "a named-only node is not a reader add",
+        );
+
+        const reopened = createGraphSession(ON);
+        await readBody(reopened, body);
+        assert.isDefined(elementRefsOf(reopened).node({ space, key: "dev-9f3" }));
+        session.dispose();
+        reopened.dispose();
+    });
+
+    it("writes every working column into the node-link graph, key, end and edge-id columns included", async () => {
+        const session = createGraphSession(ON);
+        await readBody(session, readJson("examples/card-fraud.graphty-data.json"));
+        const { body } = await writeBody(session);
+        const graph = body.graph as { nodes: JsonObject[]; links: JsonObject[] };
+        const ana = graph.nodes.find((node) => node["graphty.key"] === "acct-1001");
+        // The key column, though it repeats graphty.key.
+        const keyColumn = "account_id";
+        assert.strictEqual(ana?.[keyColumn], "acct-1001");
+        const payment = graph.links.find((link) => link["graphty.key"] === "pay-881");
+        // The example's own column names, as the file spells them.
+        assert.deepStrictEqual(
+            ["event_id", "account_id", "counterparty_id"].map((name) => payment?.[name]),
+            ["pay-881", "acct-1001", "merch-77"],
+        );
+        session.dispose();
+    });
+
+    it("names a value a later source gives differently <column> (<source id>)", async () => {
+        const source = (id: string, label: string): JsonObject => ({
+            id,
+            label: id,
+            kind: "file",
+            origin: { copy: `sha256:${"0".repeat(64)}` },
+            mapping: { nodes: { key: "id", space: "shared:people" } },
+            copy: { nodes: { id: ["ava"], label: [label] } },
+            columns: { nodes: { id: { name: "id", dtype: "string" }, label: { name: "label", dtype: "string" } } },
+        });
+        const [a, b] = [`src_${"A".repeat(26)}`, `src_${"B".repeat(26)}`];
+        const body: JsonObject = {
+            build: "0".repeat(26),
+            directed: false,
+            sources: [source(a, "Ava"), source(b, "Ava R.")],
+            types: [],
+            joins: [
+                { op: "join.add", source: a },
+                { op: "join.add", source: b },
+            ],
+            graph: { directed: false, multigraph: false, graph: {}, nodes: [], links: [] },
+        };
+        const session = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(session, body), []);
+        const [ava] = session.data.nodes();
+        assert.strictEqual(ava.label, "Ava");
+        assert.strictEqual(ava[`label (${b})`], "Ava R.");
+        session.dispose();
+    });
+
+    it("mints a new build when the open left part of the section out, and binds runs to the build read", async () => {
+        const example: JsonObject = { ...readJson("examples/card-fraud.graphty-data.json"), repeatedEdges: "first" };
+        const session = createGraphSession(ON);
+        const problems = await readBody(session, example);
+        assert.deepInclude(problems, {
+            code: "W_MEMBER_LEFT_OUT",
+            params: { section: "data", pointer: "/repeatedEdges" },
+        });
+        const { body } = await writeBody(session);
+        assert.match(String(body.build), ULID);
+        assert.notStrictEqual(body.build, example.build, "what is written differs from what was read");
+        assert.strictEqual((await dataBindingOf(session)).build, example.build, "runs keep the build they ran on");
+        session.dispose();
+    });
+
+    it("writes a network source's origin as its closed object, the ledger an open read kept", async () => {
+        const example = structuredClone(readJson("examples/card-fraud.graphty-data.json"));
+        const network = (example.sources as JsonObject[]).find((source) => source.kind === "network") as JsonObject;
+        const ledger = { key: network.id, source: "org.example.bank", version: 1, config: {}, expansions: [] };
+        Object.assign(network.origin as JsonObject, { ledger });
+        const session = createGraphSession(ON);
+        await readBody(session, example);
+        const { body } = await writeBody(session);
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const written = (body.sources as JsonObject[]).find((source) => source.id === network.id);
+        assert.deepStrictEqual((written?.origin as JsonObject).ledger, ledger);
+        assert.deepStrictEqual(written?.origin, network.origin, "url, credential slot and validators kept as read");
+        session.dispose();
+    });
+
+    it("writes an integer too large to hold exactly as its decimal string, read back as a number, its row kept", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({
+            type: "json",
+            config: {
+                data: JSON.stringify({
+                    nodes: [
+                        { id: "a", big: 2 ** 60 },
+                        { id: "b", big: 1 },
+                    ],
+                    edges: [],
+                }),
+            },
+            name: "big.json",
+        });
+        const { body } = await writeBody(session);
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        const source = (body.sources as JsonObject[]).find((each) => each.kind !== "reader") as JsonObject;
+        const cells = ((source.copy as JsonObject).nodes as JsonObject).big as unknown[];
+        assert.deepStrictEqual(cells, ["1152921504606846976", 1]);
+        assert.strictEqual((((source.columns as JsonObject).nodes as JsonObject).big as JsonObject).dtype, "f64");
+        const reopened = createGraphSession(ON);
+        await readBody(reopened, body);
+        assert.strictEqual(reopened.data.nodes().length, 2, "the row is never refused");
+        assert.strictEqual(reopened.data.nodes().find((node) => node.id === "a")?.big, 2 ** 60);
+        session.dispose();
+        reopened.dispose();
+    });
+
     it("refuses a data section added to open data", async () => {
         const session = await sampleSession();
         const { body } = await writeBody(session);

@@ -153,16 +153,17 @@ published at `spec/schemas/<kind>/v<version>.json` in the `@graphty/graphty-elem
 ### 3.3 Identity
 
 - `id` is REQUIRED on the data section, the one id other sections quote (`bindsTo.data`). It names
-  the dataset: minted when the project first gets data, kept through refresh, same-shape replace
-  and edits. Loading data in replace mode, or a `fresh` replace, mints a new data section `id`.
+  the dataset: minted when the project first gets data, and kept through refresh, replace and
+  edits.
 - On other sections `id` is OPTIONAL. A reverse-domain name (`org.example-lab.card-testing`) or an
   `https:` URL is RECOMMENDED for a section others will copy; any unique string otherwise. A
   copied section keeps its `id`.
 - **Minted ids.** A source id is `src_` plus a ULID, minted by graphty-element, never chosen by
   hand and never reused; the reader source's id is always `reader`. A name the caller gives a
   source goes in its `label`. A set id is `set_` plus a ULID; a note id is `note_` plus a ULID.
-  Run ids keep graphty-element's form (`<namespace>__<as>` for a recipe-made run), are restored
-  as saved, and a new one never reuses an id a loaded section names.
+  A run id is any string matching `[A-Za-z0-9_.:-]+`, in graphty-element's own minted form
+  (`<namespace>__<as>` for a recipe-made run); run ids are restored as saved, and a new one never
+  reuses an id a loaded section names.
 
 ### 3.4 Assets
 
@@ -237,7 +238,9 @@ The closed objects of section 10 are the exceptions. Every default lives in the 
 A writer that changes a build input -- a source copy, a mapping or setting, a type, a join step, a
 kept pair, `directed`, `repeatedEdges`, a conversion, a reader operation -- MUST mint a new
 `build`. A save that refuses any part of the data section (8.1 rule 2) MUST write a newly minted
-`build` in that file. Nothing is canonicalized or hashed to compare builds; a hand-edited section
+`build` in that file, a part refused when the file was opened included (a source no join step
+names, a `repeatedEdges` value built as `keep`): a re-save never keeps the stamp it read when
+what it writes differs from what it read. Nothing is canonicalized or hashed to compare builds; a hand-edited section
 that keeps its old stamp makes its results look current, which is the accepted cost.
 
 `directed` is always written. Reader-drawn edges follow it; the node-link graph's own `directed` is
@@ -250,20 +253,20 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 `mapping`, `settings`, `annotations`, `metadata`, `license`, `citation`, `copy`, `columns`,
 `loaded`.
 
-| Field                             | Holds                                                                                                                                                                                                                                |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `id`                              | `src_` plus a ULID (3.3)                                                                                                                                                                                                             |
-| `label`                           | display text, including any name the caller gives; also the default role match (3.6 rule 3)                                                                                                                                          |
-| `kind`                            | `file`, `url`, `network`, `sample`, `derived` or `reader`                                                                                                                                                                            |
-| `format`, `options`               | the parser and its parse options only; never identity or join choices                                                                                                                                                                |
-| `origin`                          | `copy`, the copy id (always); plus per kind: file `name`, `size`, `mediaType`, `path`; url `url`, `size`, `mediaType`, `etag`, `lastModified`; network its request record, credentials by slot name only; sample dataset and version |
-| `mapping`                         | per table, graphty-element's `TableMapping` names (4.1.3)                                                                                                                                                                            |
-| `settings`                        | closed: `duplicateIds` (`first` default, `merge`, `refuse`) and `unmatched` (`add` default, `leave-out`)                                                                                                                             |
-| `annotations`                     | the shapes and text a session, XGMML, CX or CX2 file draws beside its graph, in the file's frame (y up, file units), with their scale                                                                                                |
-| `metadata`, `license`, `citation` | the file's own header (its own direction among it), license and citation                                                                                                                                                             |
-| `copy`                            | the rows (embedded), or absent (referenced)                                                                                                                                                                                          |
-| `columns`                         | per copied table, graph-format `ColumnDecl`s keyed by working column name; present exactly when `copy` is                                                                                                                            |
-| `loaded`                          | when the current copy was read                                                                                                                                                                                                       |
+| Field                             | Holds                                                                                                                                                                                                                                                                      |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                              | `src_` plus a ULID (3.3)                                                                                                                                                                                                                                                   |
+| `label`                           | display text, including any name the caller gives; also the default role match (3.6 rule 3)                                                                                                                                                                                |
+| `kind`                            | `file`, `url`, `network`, `sample`, `derived` or `reader`                                                                                                                                                                                                                  |
+| `format`, `options`               | the parser and its parse options only; never identity or join choices                                                                                                                                                                                                      |
+| `origin`                          | `copy`, the copy id (always); plus per kind: file `name`, `size`, `mediaType`, `path`; url `url`, `size`, `mediaType`, `etag`, `lastModified`; network exactly `url`, `credentials` (`{ slot }`), `etag`, `lastModified` and `ledger` (rule 8); sample dataset and version |
+| `mapping`                         | per table, graphty-element's `TableMapping` names (4.1.3)                                                                                                                                                                                                                  |
+| `settings`                        | closed: `duplicateIds` (`first` default, `merge`, `refuse`) and `unmatched` (`add` default, `leave-out`)                                                                                                                                                                   |
+| `annotations`                     | the shapes and text a session, XGMML, CX or CX2 file draws beside its graph, in the file's frame (y up, file units), with their scale                                                                                                                                      |
+| `metadata`, `license`, `citation` | the file's own header (its own direction among it), license and citation                                                                                                                                                                                                   |
+| `copy`                            | the rows (embedded), or absent (referenced)                                                                                                                                                                                                                                |
+| `columns`                         | graph-format `ColumnDecl`s grouped by table, `{ nodes: { <working name>: decl }, edges: {...} }`; present exactly when `copy` is                                                                                                                                           |
+| `loaded`                          | when the current copy was read                                                                                                                                                                                                                                             |
 
 1. **The copy id.** `origin.copy` is `sha256:` plus lower-case hex of the bytes as read for file,
    url and sample sources, and a ULID minted whenever that copy changes for network, derived and
@@ -289,6 +292,10 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    graphty-element's root path of that name, never `data.`. They are exempt from the reserved
    prefix rule and never written into the node-link graph. The layers that paint them name a
    source, so they go in view's `layers`.
+8. **A network source's `origin`** is closed: `copy`, `url`, `credentials` (`{ "slot" }`, the
+   credential slot's name, never a secret), `etag`, `lastModified` and `ledger`, the request
+   history a refresh replays, written as graphty-element's `SourceLoadRecord` with its `key` set to
+   the source id.
 
 #### 4.1.3 The mapping
 
@@ -369,7 +376,9 @@ match) and `join.edges`; the choices are graphty-element's `JoinChoices` names `
 2. A join step that makes elements from no row (a link step), connect's "a node per row" form, and
    the choices `keys` onto a graph column, `columns`, `ignoreCase` and `ignoreSpaces` have no
    version 2 spelling: saving one refuses that part and reports it.
-3. A clashing column kept twice is named `<column> (<source id>)`.
+3. A clashing column kept twice is named `<column> (<source id>)`: when a step's source gives a
+   node a value for a column the node already holds from an earlier source, and the two differ,
+   the later value is kept under that name.
 4. The recipe's join steps (4.3) share this spelling. Opening a file rebuilds the data from its own
    history; the recipe's steps apply to new data only when the caller asks.
 
@@ -382,13 +391,18 @@ is output, never input to the build):
   `multigraph` is `true` exactly when two edges share both ends (an unordered pair on an
   undirected graph), never a reader choice.
 - Each node carries `"graphty.space"`, `"graphty.key"`, `"graphty.types"` and `"_source.loads"`
-  (the source ids that supplied the row; `[]` for a node an edge only named).
+  (the source ids that supplied the row; `[]` for a node an edge only named, which keeps its key
+  when the file is saved again and is never a reader addition). `reader` is listed only on an
+  element the reader added; an edit does not add it, and a merge keeps the union of both nodes'
+  lists.
 - Each edge carries `"graphty.load"`, `"graphty.key"`, `"graphty.types"` (at most one item) and
   `"_source.loads"`. graphty never writes a node-link `key`.
 - The node-link `id`, `source` and `target` are handles unique within the file only, since a key
   repeats across spaces.
-- Every other member is a user column, by working name. A user column named after a node-link
-  member (`id` on nodes; `source`, `target`, `key` on edges) is never written into the graph.
+- Every other member is a working column, by working name: every working column is written, key,
+  end, edge-id and type-rule columns included, even one that repeats `"graphty.key"`. A column
+  named after a node-link member (`id` on nodes; `source`, `target`, `key` on edges) and the
+  file-style columns are never written into the graph.
 
 #### 4.1.10 Built whole or not at all
 
@@ -477,13 +491,16 @@ A results section holds `bindsTo` (REQUIRED, `{ data }` only), `runs` (REQUIRED)
    and `plugins` when an extension computed it), `seed` (the seed it used, or `null`),
    `durationMs`, `bindsTo` (6.4), `fields` (`{ name, kind, type }`, `kind` being `node`, `edge` or
    `graph`), `caveats`, `graph` (graph-level values), and `nodes` and `edges` outputs.
-3. `caveats` is graphty-element's `Caveats` without its deprecated `notes` and `partialReason`; the
-   words are rebuilt from `facts` and `partialCause`.
+3. `caveats` is graphty-element's `Caveats` without its deprecated `notes` and `partialReason`
+   (the words are rebuilt from `facts` and `partialCause`) and without `seed`: the run's own
+   `seed` is the authority, and a reader puts it back into the caveats.
 4. Outputs are columns: `{ "refs": [<element references>], "columns": { <field>: [values] } }`,
    every column as long as `refs`.
-5. `layout` is the layout's record: `id`; `engine`, the engine name as `layout.set` spells it;
-   `dimension`; `options`; `seed`; `durationMs`; `versions` (`EngineVersions`); `bindsTo`; and
-   `nodes: { refs, columns: { x, y, z } }`. It has no run id; one layout is in force at a time.
+5. `layout` is the layout's record: `id`, the catalogue id; `algorithm`, the layout that drew it,
+   as `layout.set` spells its engine; `dimension`; `options`; `seed`; `durationMs`; `engine`
+   (`EngineVersions`, as every run's); `bindsTo`; and `nodes: { refs, columns: { x, y, z } }`. It
+   has no run id; one layout is in force at a time. In results, `engine` always means
+   `EngineVersions`.
 
 ### 4.6 notes
 
@@ -500,35 +517,39 @@ does not know reads as unsupported and is kept. A cite is `{ "result": <run id> 
 
 View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of:
 
-| Member          | Holds                                                                                                                    |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `camera`        | graphty-element's `CameraState` members as they are, points as `{ x, y, z }`, plus `dimension` and `controller` (rule 2) |
-| `views`         | saved views: `{ "name", "camera" }`                                                                                      |
-| `selection`     | `{ "nodes": [...], "edges": [...] }` element references                                                                  |
-| `pinned`        | the pinned nodes only: `{ "node", "position": { "x", "y", "z" } }`                                                       |
-| `sets`          | every set: `{ "id", "name", "definition" }`                                                                              |
-| `visibility`    | `filter`, `window`, `showContext`, `conditions`, `hidden` (rule 4)                                                       |
-| `viewRotation`  | degrees, -360 to 360                                                                                                     |
-| `framing`       | `{ "extent", "padding" }`, `extent` being `drawn` or `centers`                                                           |
-| `hiddenColumns` | `{ "kind", "name" }` working columns hidden from the table view                                                          |
-| `order`         | one list of layer ids for the whole stack, bottom first, style and view layers alike                                     |
-| `layers`        | the layers that name elements or a dataset (section 5 rule 5)                                                            |
-| `runs`          | the single ordered list of every run record, in the order made (rule 5)                                                  |
-| `layout`        | the layout record in force: `{ id, engine, options, dimension }`                                                         |
+| Member          | Holds                                                                                                                               |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `camera`        | graphty-element's `CameraState` members as they are but `type`, points as `{ x, y, z }`, plus `dimension` and `controller` (rule 2) |
+| `views`         | saved views: `{ "name", "camera" }`                                                                                                 |
+| `selection`     | `{ "nodes": [...], "edges": [...] }` element references                                                                             |
+| `pinned`        | the pinned nodes only: `{ "node", "position": { "x", "y", "z" } }`                                                                  |
+| `sets`          | every set: `{ "id", "name", "definition" }`                                                                                         |
+| `visibility`    | `filter`, `window`, `showContext`, `conditions`, `hidden` (rule 4)                                                                  |
+| `timeline`      | `{ "at" }`, the timeline's playhead, as version 1 spells it                                                                         |
+| `viewRotation`  | degrees, -360 to 360                                                                                                                |
+| `framing`       | `{ "extent", "padding" }`, `extent` being `drawn` or `centers`                                                                      |
+| `hiddenColumns` | `{ "kind", "name" }` working columns hidden from the table view                                                                     |
+| `order`         | one list of layer ids for the whole stack, bottom first, style and view layers alike                                                |
+| `layers`        | the layers that name elements or a dataset (section 5 rule 5)                                                                       |
+| `runs`          | the single ordered list of every run record, in the order made (rule 5)                                                             |
+| `layout`        | the layout record in force: `{ id, engine, options, dimension }`                                                                    |
 
 1. Positions and cameras are in the frame of section 7. Every other position is layout output.
 2. **Camera.** `dimension` (`2` or `3`, closed; it follows the layout's dimension) and
    `controller` (`orbit` and `2d` today; an open vocabulary, a third party's controller by
    reverse-domain name) are recorded separately. The pose is the `CameraState` members that
    controller reads: orbit `position`, `target`, `pivotRotation`, `cameraDistance`; 2D `zoom`,
-   `pan`, `rotation`; and `type`, `fov` and the orthographic members where they apply. A reader
+   `pan`, `rotation`; and `fov` and the orthographic members where they apply. `controller` is the
+   authority: `CameraState`'s overlapping `type` is not written, and a reader meeting a `type`
+   that disagrees with `controller` follows `controller`. A reader
    that does not know the controller MUST apply the members its own default controller for that
    dimension reads, report `W_CAMERA_CONTROLLER_UNKNOWN`, and keep the camera on re-save.
 3. **Sets.** `definition` is graphty-element's set definition (`fixed`, `rule` or `path`), its node
    and edge members written as element references and its source leaves by source id. View holds
    every set in force, rule sets included whatever their rule names.
-4. **Visibility.** `filter` is the filter in force, its element leaves as element references and
-   its source leaves by source id. `window` is graphty-element's `TimeWindow`: an instant bound is
+4. **Visibility.** `filter` is the filter in force in the shape of a `graph.filter` command
+   without its `op` (common schema `graphFilter`): `{ "on", "where" }`, `on` being `nodes` or
+   `edges`. A filter no such pair expresses is refused and reported. `window` is graphty-element's `TimeWindow`: an instant bound is
    a `toISOString` string, a raw value (a step number, a year) a JSON number; `attribute`, `end`
    and `spells` are value paths (`data.<working column>`); the window's own `missing`, `mode` and
    `timeZone` win over playback's; the element's `windowRaw` flag is not written. `conditions`
@@ -536,7 +557,8 @@ View is the record a file is opened to. It holds `bindsTo` (REQUIRED) and any of
    references, with no nested `version`. `hidden` holds the nodes hidden from the drawing.
 5. **Run records.** Each carries its run `id`; a recipe-made run its `namespace` and `as`; the
    reader's `name` when it has one; `algorithm`; `params` (element-naming options as element
-   references); `seed`; `scope`; and, when it cannot be replayed exactly, `"replayable": false`.
+   references); `seed`; `scope`; `"derived": true` when graphty-element minted the run's id, as
+   version 1 records it; and, when it cannot be replayed exactly, `"replayable": false`.
    A view run record has no `style`. `scope` is one of graphty-element's `Scope` forms:
    `"graph"`, `"largest-component"`, `{ "set" }`, `{ "where" }`, `{ "nodes": [<node ref>] }`,
    `{ "define" }` or `{ "types" }`. A run over the selection is written resolved as
@@ -841,9 +863,11 @@ it fails a schema, and acts by the rules above instead.
   type is number (a type schema, a `ColumnDecl` dtype, a results field, an option typed number);
   any other string stays text.
 - A key is always a string: a number as `Number::toString` writes it, so `34`, `34.0` and `"34"`
-  are one key; a boolean as `true` or `false`. An integer id the parser cannot hold exactly
-  refuses its row, reported. Cells are turned to text the same way before matching a type rule's
-  `values`.
+  are one key; a boolean as `true` or `false`. Cells are turned to text the same way before
+  matching a type rule's `values`.
+- An integer too large to hold exactly (beyond 2^53 - 1 either way) is written as its decimal
+  string, and read back as a number only where the column's schema declares `number` or `integer`
+  (a numeric `ColumnDecl` dtype); anywhere else it stays text. Its row is never refused.
 - The prefixes `graphty.` and `_source.` are reserved in column names, except the file-style
   columns of 4.1.2 rule 7.
 
@@ -885,7 +909,6 @@ application words them.
 | `W_CAMERA_CONTROLLER_UNKNOWN` | a camera names a controller the reader does not know                         | `section`, `controller`                   |
 | `W_RUN_NOT_RUN`               | a run was neither rerun nor restored                                         | `run`                                     |
 | `W_RESULTS_DIFFER`            | a rerun disagrees with the saved results                                     | `run`                                     |
-| `W_SOURCE_IDS_SEQUENTIAL`     | a source's proposed ids are exactly a 0..n-1 or n0.. sequence                | `source`                                  |
 | `W_SOURCE_UNKEYED`            | a source has no key column                                                   | `source`                                  |
 | `W_NODE_NAMED_ONLY`           | edges named nodes no source supplies, kept as named-only nodes               | `source`, `count`                         |
 | `W_EDGE_END_MISSING`          | edges naming missing nodes were left out                                     | `source`, `count`                         |

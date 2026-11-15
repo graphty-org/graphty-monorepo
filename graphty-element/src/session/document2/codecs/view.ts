@@ -28,6 +28,7 @@ import type {
     WriteContext,
 } from "../types";
 import { layerNamesElements } from "./elementNaming";
+import { filterRule } from "./recipeCommands";
 import { restoredPositions, runNameOf } from "./results";
 import {
     cameraJson,
@@ -56,6 +57,7 @@ const MEMBERS = [
     "pinned",
     "sets",
     "visibility",
+    "timeline",
     "viewRotation",
     "framing",
     "hiddenColumns",
@@ -65,8 +67,8 @@ const MEMBERS = [
     "layout",
 ] as const;
 
-/** The members the session holds no state for: kept from the open and written back. */
-const HELD_ONLY = new Set<string>(["camera"]);
+/** The members the session holds no state for (the live camera, the playhead): kept from the open and written back. */
+const HELD_ONLY = new Set<string>(["camera", "timeline"]);
 
 /** The option types whose values name nodes. */
 const NODE_OPTION_TYPES = new Set(["node-id", "node-set"]);
@@ -86,6 +88,8 @@ interface Writer {
     readonly refs: ElementRefs;
     readonly mapper: RefMapper;
     readonly problems: DocumentProblem[];
+    /** Whether graphty-element minted a run's id (`derived: true`, spec 4.7 rule 5). */
+    readonly isDerived: (id: string) => boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -228,6 +232,7 @@ function runsJson(w: Writer): JsonObject[] {
             ...(Object.keys(params).length === 0 ? {} : { params }),
             ...(Number.isInteger(seed) && (seed ?? -1) >= 0 ? { seed } : {}),
             scope: scopeJson(w, run),
+            ...(w.isDerived(run.id) ? { derived: true } : {}),
             ...(narrowed ? { replayable: false } : {}),
         });
     }
@@ -298,6 +303,26 @@ function windowJson(session: GraphSession, window: TimeWindow): JsonObject {
 }
 
 /**
+ * The filter in force as graph.filter's `{ on, where }` (spec 4.7 rule 4): one expression leaf on
+ * nodes or edges. Any other filter has no such form, and is refused and reported.
+ * @param w - The writer.
+ * @param filter - The filter in force.
+ * @returns The filter, or null.
+ */
+function filterJson(w: Writer, filter: RuleTree | null): JsonObject | null {
+    if (filter === null) {
+        return null;
+    }
+
+    if (filter.kind === "expression" || filter.kind === "edges") {
+        return { on: filter.kind === "edges" ? "edges" : "nodes", where: filter.where };
+    }
+
+    w.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: SECTION, pointer: "/visibility/filter" } });
+    return null;
+}
+
+/**
  * The `visibility` member, or undefined when nothing is filtered, windowed, conditioned or hidden.
  * @param w - The writer.
  * @returns The member.
@@ -311,7 +336,7 @@ function visibilityJson(w: Writer): JsonObject | undefined {
     }
 
     return {
-        filter: filter === null ? null : mapRefs(filter, w.mapper, ""),
+        filter: filterJson(w, filter),
         ...(window === null ? {} : { window: windowJson(w.session, window) }),
         showContext,
         conditions: mapRefs(conditions, w.mapper, "") as unknown[],
@@ -445,10 +470,16 @@ function keptBody(fresh: JsonObject, memory: ViewMemory): JsonObject {
  * @param session - The session.
  * @param refs - The element references.
  * @param problems - Where the save reports.
+ * @param isDerived - Whether graphty-element minted a run's id.
  * @returns The writer.
  */
-function writerOf(session: GraphSession, refs: ElementRefs, problems: DocumentProblem[]): Writer {
-    return { session, refs, mapper: writeMapper(session, refs), problems };
+function writerOf(
+    session: GraphSession,
+    refs: ElementRefs,
+    problems: DocumentProblem[],
+    isDerived: (id: string) => boolean,
+): Writer {
+    return { session, refs, mapper: writeMapper(session, refs), problems, isDerived };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -463,6 +494,8 @@ interface Reader {
     /** File set id to session set id. */
     readonly sets: Map<string, string>;
     readonly mapper: RefMapper;
+    /** The runs restored as minted by graphty-element. */
+    readonly derived: Set<string>;
 }
 
 /**
@@ -609,7 +642,12 @@ async function readVisibility(r: Reader, visibility: JsonObject): Promise<void> 
     const read = mapRefs(visibility, r.mapper, `${r.section.pointer}/visibility`) as JsonObject;
     await attempt(r, "visibility", async () => {
         if ("filter" in read) {
-            await tx.visibility.set((isObject(read.filter) ? read.filter : null) as RuleTree | null);
+            const { filter } = read;
+            await tx.visibility.set(
+                isObject(filter) && typeof filter.where === "string"
+                    ? filterRule(filter.where, filter.on === "edges" ? "edges" : "nodes")
+                    : null,
+            );
         }
 
         if (isObject(read.window)) {
@@ -806,6 +844,11 @@ async function readRun(r: Reader, record: unknown, at: number): Promise<void> {
             await context.tx.runs.rename(id, record.name);
         }
 
+        if (record.derived === true) {
+            context.restoreDerived(id);
+            r.derived.add(id);
+        }
+
         context.restored.add("runs");
     } catch (error) {
         if (!isGraphtyError(error)) {
@@ -906,14 +949,16 @@ async function readOrder(r: Reader, order: readonly unknown[], own: readonly str
  */
 function rememberRead(r: Reader, body: Readonly<JsonObject>): void {
     const { context, memory } = r;
-    const fresh = freshBody(writerOf(context.session, context.refs(), []));
+    const fresh = freshBody(writerOf(context.session, context.refs(), [], (id) => r.derived.has(id)));
     for (const name of MEMBERS) {
         if (body[name] === undefined) {
             continue;
         }
 
         if (HELD_ONLY.has(name)) {
-            memory.heldOnly.set(name, body[name]);
+            // The camera's `type` overlaps its controller, the authority, and is not written back (spec 4.7 rule 2).
+            const { type: _type, ...camera } = name === "camera" && isObject(body.camera) ? body.camera : {};
+            memory.heldOnly.set(name, name === "camera" && isObject(body.camera) ? camera : body[name]);
         } else {
             const now = name === "runs" ? withNotRun(fresh.runs, memory) : fresh[name];
             memory.kept.set(name, { applied: canonical(now), original: body[name] });
@@ -929,7 +974,7 @@ function rememberRead(r: Reader, body: Readonly<JsonObject>): void {
 async function readView(section: ReadSection, context: ReadContext): Promise<void> {
     const memory = resetMemory(context.session);
     const sets = new Map<string, string>();
-    const r: Reader = { section, context, memory, sets, mapper: readMapper(context, sets) };
+    const r: Reader = { section, context, memory, sets, mapper: readMapper(context, sets), derived: new Set() };
     const { body } = section;
     const savedSets = (Array.isArray(body.sets) ? body.sets : []).flatMap((set: unknown, at) =>
         isObject(set) ? [[set, at] as const] : [],
@@ -973,7 +1018,9 @@ export const viewCodec: SectionCodec = {
     members: [...MEMBERS],
     write(context: WriteContext) {
         const memory = memoryOf(context.session);
-        const fresh = freshBody(writerOf(context.session, context.refs(), context.problems));
+        const fresh = freshBody(
+            writerOf(context.session, context.refs(), context.problems, (id) => context.isDerived(id)),
+        );
         return Promise.resolve({ body: keptBody(fresh, memory) });
     },
     read: readView,

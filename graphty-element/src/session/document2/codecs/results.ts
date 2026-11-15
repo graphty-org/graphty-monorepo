@@ -292,9 +292,10 @@ function runOut(
         });
     }
 
-    // The deprecated English members are not saved; the words are rebuilt from `facts` (spec 4.5 rule 3).
+    // The deprecated English members are not saved; the words are rebuilt from `facts`. The seed is
+    // the run's own `seed`, its one home (spec 4.5 rule 3).
     const caveats = Object.fromEntries(
-        Object.entries(record.caveats).filter(([key]) => key !== "notes" && key !== "partialReason"),
+        Object.entries(record.caveats).filter(([key]) => !["notes", "partialReason", "seed"].includes(key)),
     );
     const graph = encode(result.graph) as JsonObject;
     const nodes = outputsOut(
@@ -375,11 +376,11 @@ function layoutOut(context: WriteContext, stamp: BuildStamp | undefined): JsonOb
     const { seed } = layout.options;
     return {
         id: layout.id,
-        engine: layout.engine,
+        algorithm: layout.engine,
         dimension: layout.dimension === "2d" ? 2 : 3,
         options: encode(layout.options),
         seed: Number.isInteger(seed) ? seed : null,
-        versions: encode(ENGINE_VERSIONS),
+        engine: encode(ENGINE_VERSIONS),
         bindsTo: runBinding(undefined, stamp),
         nodes: { refs: nodeRefs, columns },
     };
@@ -743,8 +744,10 @@ async function readRun(reading: Reading, id: RunId, entry: JsonObject): Promise<
         ]),
     );
     const caveatsRead = isJsonObject(entry.caveats) ? entry.caveats : {};
-    // The deprecated `notes` are not saved; the words are rebuilt from `facts` (spec 4.5 rule 3).
-    const caveats = { facts: [], ...caveatsRead, notes: [] } as unknown as Caveats;
+    // The deprecated `notes` are not saved; the words are rebuilt from `facts`. The run's own `seed`
+    // is the authority over any the caveats hold (spec 4.5 rule 3).
+    const seed = Number.isInteger(entry.seed) ? { seed: entry.seed } : {};
+    const caveats = { facts: [], ...caveatsRead, ...seed, notes: [] } as unknown as Caveats;
     const { params, bound } = paramsIn(reading, id, entry.params, descriptor);
     const check = (result: RunResult): boolean => differs({ outputs, graph, fields }, result);
     const record = viewRunRecord(context, id);

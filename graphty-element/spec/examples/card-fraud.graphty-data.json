@@ -116,8 +116,6 @@
                 "credentials": {
                     "slot": "bank-api-token"
                 },
-                "mediaType": "application/json",
-                "size": 1873,
                 "copy": "01JCBQ2F5H7K9M1P3R5T7W9Y2A",
                 "etag": "\"a41f-46\"",
                 "lastModified": "Fri, 14 Nov 2026 17:30:00 GMT"
@@ -391,6 +389,7 @@
                 "graphty.key": "acct-1001",
                 "graphty.types": ["account"],
                 "_source.loads": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
+                "account_id": "acct-1001",
                 "label": "Ana Ruiz",
                 "opened": "2021-03-02"
             },
@@ -400,6 +399,7 @@
                 "graphty.key": "acct-1002",
                 "graphty.types": ["account"],
                 "_source.loads": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
+                "account_id": "acct-1002",
                 "label": "Ben Ode",
                 "opened": "2026-10-30",
                 "country": "NG"
@@ -409,7 +409,8 @@
                 "graphty.space": "account",
                 "graphty.key": "acct-1003",
                 "graphty.types": ["account"],
-                "_source.loads": ["reader", "src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
+                "_source.loads": ["src_01JCBP0A7Q3M5V8X2K4N6R9T1W"],
+                "account_id": "acct-1003",
                 "label": "Cy Lam",
                 "opened": "2026-11-01",
                 "country": "NG"
@@ -420,6 +421,7 @@
                 "graphty.key": "merch-77",
                 "graphty.types": ["merchant"],
                 "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                "kind": "merchant",
                 "label": "QuickGift Cards",
                 "mcc": "5947"
             },
@@ -429,6 +431,7 @@
                 "graphty.key": "dev-9f3",
                 "graphty.types": ["device"],
                 "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                "kind": "device",
                 "label": "Android 9f3"
             }
         ],
@@ -440,6 +443,10 @@
                 "graphty.key": "pay-881",
                 "graphty.types": ["payment"],
                 "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                "event_id": "pay-881",
+                "account_id": "acct-1001",
+                "counterparty_id": "merch-77",
+                "event": "payment",
                 "amount": 42.5,
                 "time": "2026-11-10T09:14:00Z"
             },
@@ -450,6 +457,10 @@
                 "graphty.key": "pay-889",
                 "graphty.types": ["payment"],
                 "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                "event_id": "pay-889",
+                "account_id": "acct-1002",
+                "counterparty_id": "merch-77",
+                "event": "payment",
                 "amount": 980,
                 "time": "2026-11-10T09:15:10Z"
             },
@@ -460,6 +471,10 @@
                 "graphty.key": "pay-890",
                 "graphty.types": ["payment"],
                 "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                "event_id": "pay-890",
+                "account_id": "acct-1003",
+                "counterparty_id": "merch-77",
+                "event": "payment",
                 "amount": 975,
                 "time": "2026-11-10T09:15:40Z"
             },
@@ -470,6 +485,9 @@
                 "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#3",
                 "graphty.types": ["used-device"],
                 "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                "account_id": "acct-1002",
+                "counterparty_id": "dev-9f3",
+                "event": "device-login",
                 "first_seen": "2026-11-08T22:10:00Z"
             },
             {
@@ -479,6 +497,9 @@
                 "graphty.key": "01JCBQ2F5H7K9M1P3R5T7W9Y2A#4",
                 "graphty.types": ["used-device"],
                 "_source.loads": ["src_01JCBP1C9E2G4J6M8N0Q3S5V7Y"],
+                "account_id": "acct-1003",
+                "counterparty_id": "dev-9f3",
+                "event": "device-login",
                 "first_seen": "2026-11-09T01:45:00Z"
             }
         ]

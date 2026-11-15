@@ -496,8 +496,28 @@ export interface DocumentState {
     >;
 }
 
-/** Forgotten at every project boundary (`memory.ts`), so one project's state never reaches the next. */
-const STATES = projectMemory<DocumentState>();
+/**
+ * Forgotten at every project boundary (`memory.ts`), so one project's state never reaches the next,
+ * but for the data id a replacing load keeps (spec 3.3).
+ */
+const STATES = projectMemory<DocumentState>((state, reason) =>
+    reason === "import" && state.dataId !== undefined ? { ...emptyState(), dataId: state.dataId } : undefined,
+);
+
+/**
+ * A document state that holds nothing.
+ * @returns The state.
+ */
+function emptyState(): DocumentState {
+    return {
+        held: new Map(),
+        kept: new Map(),
+        extensions: new Map(),
+        stamps: new Map(),
+        wrapper: { kept: {} },
+        opened: new Map(),
+    };
+}
 
 /**
  * A session's version 2 document state.
@@ -508,14 +528,7 @@ export function documentStateOf(session: GraphSession): DocumentState {
     watchBoundaries(session);
     let state = STATES.get(session);
     if (state === undefined) {
-        state = {
-            held: new Map(),
-            kept: new Map(),
-            extensions: new Map(),
-            stamps: new Map(),
-            wrapper: { kept: {} },
-            opened: new Map(),
-        };
+        state = emptyState();
         STATES.set(session, state);
     }
 

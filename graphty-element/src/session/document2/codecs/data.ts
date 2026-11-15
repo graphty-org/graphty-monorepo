@@ -516,6 +516,10 @@ interface Built {
     readonly conversions: readonly JsonObject[];
     readonly issues: JsonObject;
     readonly unavailable: JsonObject[];
+    /** Whether the build left out a part of the section, so a re-save writes other data than it read. */
+    readonly refused: boolean;
+    /** Each network source's `origin` as read, by source id. */
+    readonly origins: readonly (readonly [string, JsonObject])[];
 }
 
 /** The build so far. */
@@ -595,9 +599,13 @@ function buildSource(source: ReadSource, into: Building): void {
             continue;
         }
 
+        // Every working column is the node's, its key column included (spec 4.1.9).
         for (const [name, value] of Object.entries(values)) {
-            if (name !== keyColumn && ((repeated && duplicates === "merge") || !(name in node.columns))) {
+            if ((repeated && duplicates === "merge") || !(name in node.columns)) {
                 node.columns[name] = value;
+            } else if (!repeated && canonicalJson(node.columns[name]) !== canonicalJson(value)) {
+                // A value an earlier source gave differently is kept beside it (spec 4.1.8 rule 3).
+                node.columns[`${name} (${id})`] = value;
             }
         }
 
@@ -625,7 +633,8 @@ function buildSource(source: ReadSource, into: Building): void {
 
         const key = (edgeId === undefined ? undefined : keyText(values[edgeId])) ?? `${copyId}#${String(row)}`;
         const ref: EdgeRef = { load: id, key };
-        const columns = Object.fromEntries(Object.entries(values).filter(([name]) => name !== from && name !== to));
+        // Every working column is the edge's, its end columns included (spec 4.1.9).
+        const columns = { ...values };
         const existing = into.edges.get(edgeKey(ref));
         if (existing !== undefined && own.has(existing)) {
             if (duplicates === "merge") {
@@ -894,6 +903,7 @@ function loadOf(record: JsonObject, key: string, added: { nodes: number; edges: 
  */
 function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
     const section = checked(body);
+    const before = problems.length;
     const into: Building = { nodes: new Map(), edges: new Map(), problems };
     const loads: LoadedSource[] = [];
     const unavailable: JsonObject[] = [];
@@ -955,6 +965,12 @@ function build(body: Readonly<JsonObject>, problems: DocumentProblem[]): Built {
         conversions: section.conversions,
         issues: section.issues,
         unavailable,
+        origins: [...section.sources.values()].flatMap(({ id, record }) =>
+            record.kind === "network" && isPlainObject(record.origin) ? [[id, record.origin] as const] : [],
+        ),
+        refused: problems
+            .slice(before)
+            .some((problem) => problem.code === "W_MEMBER_LEFT_OUT" && problem.params.section === "data"),
     };
 }
 
@@ -1107,6 +1123,9 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
         copies: built.copies,
         types: built.types,
         nodeRefs: built.nodes.map((node) => [node.id, node.ref] as const),
+        namedOnly: built.nodes.filter((node) => node.loads.length === 0).map((node) => node.id),
+        origins: built.origins,
+        refused: built.refused,
         readerEdges,
         unavailable: built.unavailable,
         ...(built.edgeIdColumn === undefined ? {} : { edgeIdColumn: built.edgeIdColumn }),

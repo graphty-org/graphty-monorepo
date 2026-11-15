@@ -134,6 +134,7 @@ async function counted(score = Number.POSITIVE_INFINITY): Promise<Counted> {
                             precision: "f64",
                             method: "degree",
                             facts: [],
+                            seed: 7,
                             notes: ["an English sentence"],
                         },
                         durationMs: 1,
@@ -272,6 +273,8 @@ describe("writing results", () => {
         ]);
         // No English: the deprecated notes are not written.
         assert.notProperty(links.caveats, "notes");
+        // The run's own seed is the authority; the caveats do not repeat it.
+        assert.notProperty(links.caveats, "seed");
         assert.deepEqual(
             (links.nodes as JsonObject).refs,
             ["a", "b", "c"].map((key) => ({ space: SPACE, key })),
@@ -287,7 +290,8 @@ describe("writing results", () => {
         assert.strictEqual((((links.nodes as JsonObject).columns as JsonObject).score as unknown[])[2], "Infinity");
         assert.deepEqual(((links.edges as JsonObject).refs as JsonObject[])[0], { load: LOAD, key: "a>b" });
         const layout = section.layout as JsonObject;
-        assert.deepEqual([layout.id, layout.engine, layout.dimension], ["force", "ngraph", 3]);
+        assert.deepEqual([layout.id, layout.algorithm, layout.dimension], ["force", "ngraph", 3]);
+        assert.notProperty(layout, "versions");
         assert.deepEqual(layout.bindsTo, STAMP);
         assert.deepEqual(layout.nodes, {
             refs: [

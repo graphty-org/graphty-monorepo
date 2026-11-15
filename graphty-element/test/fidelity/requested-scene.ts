@@ -219,17 +219,14 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
                           text,
                           fontSize: sizePx,
                           color: colorOf(labelStyle.color ?? channel(merged, "node.labelColor"))?.hex ?? "#000000",
-                          // a bodiless node's label is where its offset takes it (an icon node's, vis-network's);
-                          // a body's offset label stays read by its location (cx-ddram's, #8152)
-                          position: bodiless
-                              ? offsetPlace(
-                                    labelPositionOf(labelStyle.location),
-                                    num(labelStyle.offsetX, 0),
-                                    num(labelStyle.offsetY, 0),
-                                    w,
-                                    h,
-                                )
-                              : labelPositionOf(labelStyle.location),
+                          // a label is where its offset takes it (an icon node's, vis-network's; cx-ddram's, #8152)
+                          position: offsetPlace(
+                              labelPositionOf(labelStyle.location),
+                              num(labelStyle.offsetX, 0),
+                              num(labelStyle.offsetY, 0),
+                              w,
+                              h,
+                          ),
                           visible: labelStyle.enabled !== false,
                       }
                     : null,

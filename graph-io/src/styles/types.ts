@@ -811,6 +811,11 @@ export interface EdgeStyleValues {
     readonly waveAmplitude: number;
     /** How far along its path a zigzag or sine-wave line runs before it repeats (a length; Cytoscape's: 20 px). */
     readonly wavePeriod: number;
+    /**
+     * The line's width at the target as a multiple of its width at the source (`width`): 1 (the default) draws it the
+     * same width all along, 0 narrows it to a point at the target (Graphviz's `style=tapered`, `dir=forward`).
+     */
+    readonly taper: number;
     /** The arrow at the source end. */
     readonly sourceArrow: StyleArrowShape;
     /** The arrow at the target end. */

@@ -286,6 +286,52 @@ interface ReadSource {
 }
 
 /**
+ * Check the reader source: its closed members and rows, and no merges (this reader does not build
+ * them).
+ * @param record - The source record.
+ * @param pointer - Its pointer.
+ */
+function checkReader(record: JsonObject, pointer: string): void {
+    closed(record, READER_MEMBERS, pointer);
+    closed(record.copy, READER_COPY, `${pointer}/copy`);
+    for (const list of READER_COPY) {
+        const rows = record.copy[list] ?? [];
+        need(Array.isArray(rows), `${pointer}/copy/${list}`);
+        need(list !== "merges" || rows.length === 0, `${pointer}/copy/merges`);
+        rows.forEach((row: unknown, index: number) => {
+            const at = `${pointer}/copy/${list}/${String(index)}`;
+            closed(row, READER_ROW, at);
+            const columns = isPlainObject(row.columns) ? row.columns : {};
+            need(!Object.keys(columns).some((name) => name.startsWith("graphty.")), `${at}/columns`);
+        });
+    }
+}
+
+/**
+ * Check a source's `mapping`: its closed members and the spaces it names.
+ * @param mapping - The mapping.
+ * @param pointer - Its pointer.
+ */
+function checkMapping(mapping: unknown, pointer: string): void {
+    closed(mapping, new Set(["nodes", "edges"]), pointer);
+    if (mapping.nodes !== undefined) {
+        closed(mapping.nodes, NODE_MAPPING, `${pointer}/nodes`);
+        if (mapping.nodes.space !== undefined) {
+            checkSpace(mapping.nodes.space, `${pointer}/nodes/space`);
+        }
+    }
+
+    if (mapping.edges !== undefined) {
+        closed(mapping.edges, EDGE_MAPPING, `${pointer}/edges`);
+        for (const end of ["sourceSpace", "targetSpace"]) {
+            if (mapping.edges[end] !== undefined) {
+                checkSpace(mapping.edges[end], `${pointer}/edges/${end}`);
+            }
+        }
+    }
+}
+
+/**
  * Check every closed object and vocabulary of a data section before anything is applied.
  * @param body - The section's body.
  * @returns The sources by id, the types and the joins.
@@ -306,42 +352,12 @@ function checked(body: Readonly<JsonObject>): {
         need(typeof id === "string" && id.length > 0 && !id.includes(":") && !sources.has(id), `${pointer}/id`);
         need(typeof kind === "string" && SOURCE_KINDS.has(kind), `${pointer}/kind`);
         if (kind === "reader") {
-            closed(record, READER_MEMBERS, pointer);
-            closed(record.copy, READER_COPY, `${pointer}/copy`);
-            for (const list of READER_COPY) {
-                const rows = record.copy[list] ?? [];
-                need(Array.isArray(rows), `${pointer}/copy/${list}`);
-                // Merging two nodes is not built by this reader.
-                need(list !== "merges" || rows.length === 0, `${pointer}/copy/merges`);
-                rows.forEach((row: unknown, index: number) => {
-                    const at2 = `${pointer}/copy/${list}/${String(index)}`;
-                    closed(row, READER_ROW, at2);
-                    const columns = isPlainObject(row.columns) ? row.columns : {};
-                    need(!Object.keys(columns).some((name) => name.startsWith("graphty.")), `${at2}/columns`);
-                });
-            }
-
+            checkReader(record, pointer);
             sources.set(id, { record, id });
             return;
         }
 
-        const mapping = record.mapping ?? {};
-        closed(mapping, new Set(["nodes", "edges"]), `${pointer}/mapping`);
-        if (mapping.nodes !== undefined) {
-            closed(mapping.nodes, NODE_MAPPING, `${pointer}/mapping/nodes`);
-            if (mapping.nodes.space !== undefined) {
-                checkSpace(mapping.nodes.space, `${pointer}/mapping/nodes/space`);
-            }
-        }
-
-        if (mapping.edges !== undefined) {
-            closed(mapping.edges, EDGE_MAPPING, `${pointer}/mapping/edges`);
-            for (const end of ["sourceSpace", "targetSpace"]) {
-                if (mapping.edges[end] !== undefined) {
-                    checkSpace(mapping.edges[end], `${pointer}/mapping/edges/${end}`);
-                }
-            }
-        }
+        checkMapping(record.mapping ?? {}, `${pointer}/mapping`);
 
         closed(record.settings ?? {}, SETTINGS, `${pointer}/settings`);
         const { copy } = record;

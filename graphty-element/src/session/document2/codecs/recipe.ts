@@ -10,9 +10,9 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import type { RunId, Scope, ScopeInput, SetDefinitionInput } from "../../../catalog/types";
+import type { AlgorithmDescriptor, RunId, Scope, ScopeInput, SetDefinitionInput } from "../../../catalog/types";
 import { isGraphtyError } from "../../../errors";
-import type { RunStyle } from "../../runs/types";
+import type { Run, RunStyle } from "../../runs/types";
 import type { ElementSet } from "../../sets/types";
 import type { GraphSession } from "../../types";
 import type {
@@ -169,20 +169,37 @@ function recipeScope(
     return null;
 }
 
-/**
- * Write the recipe from the session.
- * @param context - The save.
- * @returns The header and the body.
- */
-function writeRecipe(context: WriteContext): SectionWrite {
-    const { session, problems } = context;
-    const sets = new Map(session.sets.list().map((set) => [set.id, set]));
-    const namesSet = (id: string): boolean => setNamesElements(sets.get(id), sets);
-    const { filters, narrowed } = gatherFilters(session, problems, namesSet);
-    const filtered = filters.length > 0;
+/** What writing the runs reads of the session. */
+interface RunWriting {
+    readonly session: GraphSession;
+    readonly problems: DocumentProblem[];
+    readonly algorithms: ReadonlyMap<string, AlgorithmDescriptor>;
+    readonly namesSet: (id: string) => boolean;
+    readonly inRecipe: (id: string) => boolean;
+    readonly filtered: boolean;
+    readonly narrowed: boolean;
+    readonly namespace: string | undefined;
+    /** Each written run's `as`, by run id. */
+    readonly asOf: Map<string, string>;
+    /** The columns the runs' attribute options name. */
+    readonly attributes: string[];
+}
 
-    const defines: JsonObject[] = [];
-    const definesAfterRuns: JsonObject[] = [];
+/**
+ * The `set.define` commands: every rule set that names no element, those reading a run's result
+ * after the runs.
+ * @param sets - The session's sets, by id.
+ * @param namesSet - Whether a set names elements.
+ * @param problems - Where a rule set left out is reported.
+ * @returns The commands before and after the runs.
+ */
+function setDefines(
+    sets: ReadonlyMap<string, ElementSet>,
+    namesSet: (id: string) => boolean,
+    problems: DocumentProblem[],
+): { before: JsonObject[]; after: JsonObject[] } {
+    const before: JsonObject[] = [];
+    const after: JsonObject[] = [];
     for (const set of sets.values()) {
         if (set.definition.kind !== "rule" || namesSet(set.id)) {
             if (set.definition.kind === "rule") {
@@ -195,73 +212,131 @@ function writeRecipe(context: WriteContext): SectionWrite {
         const { where, reading } = set.definition;
         const command = { op: "set.define", id: set.id, name: set.name, where, reading };
         // A set reading a run's result is defined after the runs.
-        (runsRead(where).length > 0 ? definesAfterRuns : defines).push(command);
+        (runsRead(where).length > 0 ? after : before).push(command);
     }
 
-    const algorithms = new Map(session.catalog.algorithms().map((algorithm) => [algorithm.key, algorithm]));
+    return { before, after };
+}
+
+/**
+ * Whether a run names elements: by its scope, a set that names elements, or an option.
+ * @param run - The run.
+ * @param w - The writing.
+ * @returns True when it does.
+ */
+function runNamesElements(run: Run, w: RunWriting): boolean {
+    const { record } = run;
+    const options = w.algorithms.get(record.algorithm)?.options ?? [];
+    const { spec } = record.scope;
+    return (
+        scopeNamesElements(spec) ||
+        (typeof spec === "object" && "set" in spec && w.namesSet(spec.set)) ||
+        options.some(
+            (option) =>
+                option.name in record.params &&
+                (ELEMENT_OPTIONS.has(option.type) ||
+                    (option.type === "partition" && Array.isArray(record.params[option.name]))),
+        )
+    );
+}
+
+/**
+ * A run's `as`: the part of its id after the recipe's namespace, else made from its name or id,
+ * made unique among the runs written so far.
+ * @param run - The run.
+ * @param w - The writing.
+ * @returns The name.
+ */
+function asOfRun(run: Run, w: RunWriting): string {
+    const split = splitRunId(run.id);
+    let as = split !== undefined && split.namespace === w.namespace ? split.as : asName(run.record.name ?? run.id); // NOSONAR(S6582): namespace may be undefined, so an optional chain would match a missing split
+    const taken = new Set(w.asOf.values());
+    let n = 2;
+    while (taken.has(as)) {
+        as = `${as.replace(/_\d+$/, "")}_${n}`;
+        n++;
+    }
+
+    return as;
+}
+
+/**
+ * One finished run as an `algo.run` command, or undefined when the recipe cannot hold it.
+ * @param run - The run.
+ * @param w - The writing.
+ * @returns The command.
+ */
+function runCommand(run: Run, w: RunWriting): JsonObject | undefined {
+    const { record } = run;
+    const namesElements = runNamesElements(run, w);
+    const scope = namesElements ? null : recipeScope(record.scope.spec, w.filtered, w.narrowed, w.inRecipe);
+    if (scope === null) {
+        if (namesElements) {
+            leftOut(w.problems, { run: run.id });
+        }
+
+        return undefined;
+    }
+
+    const as = asOfRun(run, w);
+    w.asOf.set(run.id, as);
+    const options = w.algorithms.get(record.algorithm)?.options ?? [];
+    // The seed is `seed`, never a parameter (recipe.md, "Commands" rule 7).
+    const seedOptions = new Set(options.filter((option) => option.type === "seed").map((option) => option.name));
+    const params = Object.fromEntries(Object.entries(record.params).filter(([name]) => !seedOptions.has(name)));
+    for (const option of options) {
+        if (option.type === "attribute" && typeof params[option.name] === "string") {
+            w.attributes.push(params[option.name] as string);
+        }
+    }
+
+    // A run some layer reads paints nothing on open, so the saved layer is not painted twice.
+    const { runs } = w.session;
+    const painted =
+        runs.bindings(run.id).length === 0 &&
+        !runs.readers(run.id).some((reader) => reader.kind === "layer") &&
+        runs.painting(run.id)?.state !== "opted-out";
+    return {
+        op: "algo.run",
+        algorithm: record.algorithm,
+        as,
+        ...(Object.keys(params).length === 0 ? {} : { params }),
+        ...(scope === undefined ? {} : { scope }),
+        ...(record.seed === null ? {} : { seed: record.seed }),
+        style: painted,
+    };
+}
+
+/**
+ * Write the recipe from the session.
+ * @param context - The save.
+ * @returns The header and the body.
+ */
+function writeRecipe(context: WriteContext): SectionWrite {
+    const { session, problems } = context;
+    const sets = new Map(session.sets.list().map((set) => [set.id, set]));
+    const namesSet = (id: string): boolean => setNamesElements(sets.get(id), sets);
+    const { filters, narrowed } = gatherFilters(session, problems, namesSet);
+    const defines = setDefines(sets, namesSet, problems);
+
     const kept = session.runs.list().filter((run) => run.record.status === "succeeded" && !run.record.partial);
-    const namespaces = kept.flatMap((run) => splitRunId(run.id)?.namespace ?? []);
-    const namespace = namespaces[0];
-    const asOf = new Map<string, string>();
-    const runs: JsonObject[] = [];
-    const attributes: string[] = [];
-    for (const run of kept) {
-        const { record } = run;
-        const options = algorithms.get(record.algorithm)?.options ?? [];
-        const namesElements =
-            scopeNamesElements(record.scope.spec) ||
-            (typeof record.scope.spec === "object" && "set" in record.scope.spec && namesSet(record.scope.spec.set)) ||
-            options.some(
-                (option) =>
-                    option.name in record.params &&
-                    (ELEMENT_OPTIONS.has(option.type) ||
-                        (option.type === "partition" && Array.isArray(record.params[option.name]))),
-            );
-        const scope = namesElements
-            ? null
-            : recipeScope(record.scope.spec, filtered, narrowed, (id) => sets.has(id) && !namesSet(id));
-        if (scope === null) {
-            if (namesElements) {
-                leftOut(problems, { run: run.id });
-            }
-
-            continue;
-        }
-
-        const split = splitRunId(run.id);
-        let as = split !== undefined && split.namespace === namespace ? split.as : asName(record.name ?? run.id); // NOSONAR(S6582): namespace may be undefined, so an optional chain would match a missing split
-        const taken = new Set(asOf.values());
-        let n = 2;
-        while (taken.has(as)) {
-            as = `${as.replace(/_\d+$/, "")}_${n}`;
-            n++;
-        }
-
-        asOf.set(run.id, as);
-        // The seed is `seed`, never a parameter (recipe.md, "Commands" rule 7).
-        const seedOptions = new Set(options.filter((option) => option.type === "seed").map((option) => option.name));
-        const params = Object.fromEntries(Object.entries(record.params).filter(([name]) => !seedOptions.has(name)));
-        for (const option of options) {
-            if (option.type === "attribute" && typeof params[option.name] === "string") {
-                attributes.push(params[option.name] as string);
-            }
-        }
-
-        // A run some layer reads paints nothing on open, so the saved layer is not painted twice.
-        const painted =
-            session.runs.bindings(run.id).length === 0 &&
-            !session.runs.readers(run.id).some((reader) => reader.kind === "layer") &&
-            session.runs.painting(run.id)?.state !== "opted-out";
-        runs.push({
-            op: "algo.run",
-            algorithm: record.algorithm,
-            as,
-            ...(Object.keys(params).length === 0 ? {} : { params }),
-            ...(scope === undefined ? {} : { scope }),
-            ...(record.seed === null ? {} : { seed: record.seed }),
-            style: painted,
-        });
-    }
+    const namespace = kept.flatMap((run) => splitRunId(run.id)?.namespace ?? [])[0];
+    const w: RunWriting = {
+        session,
+        problems,
+        algorithms: new Map(session.catalog.algorithms().map((algorithm) => [algorithm.key, algorithm])),
+        namesSet,
+        inRecipe: (id) => sets.has(id) && !namesSet(id),
+        filtered: filters.length > 0,
+        narrowed,
+        namespace,
+        asOf: new Map(),
+        attributes: [],
+    };
+    const runs = kept.flatMap((run): JsonObject[] => {
+        const command = runCommand(run, w);
+        return command === undefined ? [] : [command];
+    });
 
     const { layout } = session;
     const layoutCommand: JsonObject = {
@@ -273,10 +348,10 @@ function writeRecipe(context: WriteContext): SectionWrite {
     };
 
     // Run ids become the recipe's names; a run the recipe does not hold keeps its id.
-    const commands = renameRuns([...filters, ...defines, ...runs, ...definesAfterRuns, layoutCommand], (name) =>
-        asOf.get(name),
+    const commands = renameRuns([...filters, ...defines.before, ...runs, ...defines.after, layoutCommand], (name) =>
+        w.asOf.get(name),
     );
-    const dependencies = dependenciesOf(session, commands, attributes);
+    const dependencies = dependenciesOf(session, commands, w.attributes);
     return {
         header: { ...openedHeaders.get(session), ...(dependencies === undefined ? {} : { dependencies }) },
         body: { ...(namespace === undefined ? {} : { namespace }), commands },

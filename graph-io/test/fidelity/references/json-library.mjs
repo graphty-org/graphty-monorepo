@@ -435,7 +435,14 @@ try {
                             target: String(e.toId),
                             color: norm(c),
                             inherit,
-                            opacity: v.opacity,
+                            // vis-network fades only an rgb() or hex color by the edge's opacity
+                            // (EdgeBase.getColor, overrideOpacity); a named color is drawn as it is
+                            opacity:
+                                typeof c === "string" &&
+                                !c.includes("rgba") &&
+                                (c.includes("rgb") || /^#?(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(c.trim()))
+                                    ? v.opacity
+                                    : 1,
                             width: v.width,
                             dashes: v.dashes,
                             hidden: o.hidden,

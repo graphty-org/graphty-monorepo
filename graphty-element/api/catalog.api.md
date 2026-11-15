@@ -300,8 +300,9 @@ export interface AlgorithmDescriptor {
     cost?: (n: number, m: number) => number;
     // (undocumented)
     costClass: CostClass;
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     // (undocumented)
     fields: readonly FieldDescriptor[];
     // (undocumented)
@@ -500,8 +501,9 @@ export const CAMERA_DESCRIPTORS: readonly CameraDescriptor[];
 
 // @public
 export interface CameraDescriptor {
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     // (undocumented)
     id: CameraId;
     modes: readonly DrawingMode[];
@@ -859,7 +861,9 @@ export interface FormatDescriptor {
     canExport: boolean;
     // (undocumented)
     canImport: boolean;
+    // @deprecated
     description?: string;
+    descriptionId?: string;
     exportVariants?: readonly FormatExportVariant[];
     // (undocumented)
     extensions: readonly string[];
@@ -911,8 +915,9 @@ export interface FormatStyles {
 // @public
 export interface FunctionDescriptor {
     arity: [number, number];
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     // (undocumented)
     name: string;
     // (undocumented)
@@ -1973,8 +1978,9 @@ export interface LayoutCatalogEntry {
 
 // @public
 export interface LayoutDescriptor {
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     engine: string;
     // (undocumented)
     family: string;
@@ -2013,7 +2019,9 @@ export function layoutIdForEngine(engine: string): LayoutId | undefined;
 
 // @public
 export interface LayoutImplementation {
+    // @deprecated
     description: string;
+    descriptionId?: string;
     engine: string;
     fact: CodedFact<LayoutImplementationCode>;
     honoursWeights: boolean;
@@ -2064,8 +2072,9 @@ export const LOG_SINK_DESCRIPTORS: readonly LogSinkDescriptor[];
 
 // @public
 export interface LogSinkDescriptor {
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     // (undocumented)
     id: LogSinkId;
     // (undocumented)

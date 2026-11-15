@@ -643,6 +643,16 @@ export function approvalWords(request: AiApprovalRequest): ApprovalWords {
                 primary: "Run",
                 decline: "Skip",
             };
+        case "paid": {
+            const provider = AI_PROVIDER_DESCRIPTORS.find((one) => one.id === preview.provider)?.plainName;
+            return {
+                ...otherwise,
+                line:
+                    typeof preview.costUsd === "number"
+                        ? `${provider ?? "The provider"} bills about $${preview.costUsd.toFixed(2)}.`
+                        : null,
+            };
+        }
         case "network":
             return preview.url === undefined
                 ? otherwise

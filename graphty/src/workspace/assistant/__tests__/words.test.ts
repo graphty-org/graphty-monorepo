@@ -3,6 +3,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 
 import {
+    approvalWords,
     askedRows,
     changeLines,
     effectLine,
@@ -351,5 +352,17 @@ describe("isLookup", () => {
         );
         assert.isFalse(isLookup({ tool: "style", code: "AI_TOOL_FAILED", params: {} }));
         assert.isFalse(isLookup({ tool: "style" }), "a running step is not yet anything");
+    });
+});
+
+describe("approvalWords", () => {
+    it("states the provider and the cost of a paid call", () => {
+        const words = approvalWords({
+            id: "r1",
+            gate: "paid",
+            calls: [{ tool: "project", arguments: { action: "generate_background", prompt: "stars" } }],
+            preview: { provider: "google", model: "gemini-2.5-flash-image", costUsd: 0.039 },
+        });
+        assert.strictEqual(words.line, "Google bills about $0.04.");
     });
 });

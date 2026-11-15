@@ -35,6 +35,9 @@ export const AI_HOSTED_TOOL_CAPABILITIES: Readonly<Record<AiProviderId, AiToolCa
 export const AI_HOSTED_TOOL_IDS: readonly ["web-search", "web-fetch", "in-page-code"];
 
 // @public
+export const AI_IMAGE_MODELS: Readonly<Partial<Record<AiProviderId, AiImageModelDescriptor>>>;
+
+// @public
 export const AI_INPUT_KINDS: readonly ["rule", "result", "ids", "column", "layer", "run", "algorithm", "layout", "format", "values", "number", "yes-no", "choice", "text", "other"];
 
 // @public
@@ -105,6 +108,13 @@ export type AiHostedToolId = (typeof AI_HOSTED_TOOL_IDS)[number];
 
 // @public
 export function aiHostedToolStatus(provider: AiProviderId, model: string, tool: AiHostedToolId): AiCapabilityStatus;
+
+// @public
+export interface AiImageModelDescriptor {
+    readonly costUsd: number;
+    readonly id: string;
+    readonly plainName: string;
+}
 
 // @public
 export type AiInputKind = (typeof AI_INPUT_KINDS)[number];

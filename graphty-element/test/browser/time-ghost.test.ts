@@ -172,6 +172,45 @@ describe("timeline ghosts on the canvas", () => {
         assert.isFalse(fills(element).get("s0")?.shown);
     });
 
+    it("keeps the canvas on the window through a window set straight, an undo and a redo", async () => {
+        const element = await trace();
+        const { time } = element.session;
+        const visibility = element.session.visibility as ElementSession["visibility"];
+        const ids = ["s0", "s1", "s2", "s3", "s4"];
+        // The canvas draws exactly what lies inside the window.
+        const agrees = async (when: string): Promise<void> => {
+            await settle(element);
+            const graph = element.session.data.snapshot();
+            const inside = ids.filter((id) => !visibility.outsideWindow("node", graph.ids.requireIndex(id)));
+            const now = fills(element);
+            const shown = ids.filter((id) => now.get(id)?.shown === true);
+            assert.deepEqual(shown, inside, when);
+        };
+
+        await time.window({ from: 0, to: 2 });
+        await agrees("a window");
+        const { current } = time;
+        assert.isNotNull(current);
+        await visibility.setWindow({ ...current, from: 1, to: 3 });
+        await agrees("a window set straight");
+        await element.session.undo();
+        await agrees("an undo of it");
+        await element.session.redo();
+        await agrees("a redo of it");
+        await time.stepBy(5);
+        await agrees("a whole step");
+        await element.session.undo();
+        await agrees("an undo of the step");
+        await time.stepBy(1);
+        await agrees("a step");
+        await time.stepBy(1);
+        await agrees("a second step");
+        await element.session.undo();
+        await agrees("an undo");
+        await element.session.redo();
+        await agrees("a redo");
+    });
+
     it("takes a selected node's halo away with it outside the window, and draws it again as a ghost", async () => {
         // No starting rows: the selection draws a halo.
         const element = await trace(false);

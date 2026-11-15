@@ -656,8 +656,18 @@ function guessedWeight(
         .filter((column) => (column.type === "number" || column.type === "integer") && !ends?.includes(column.name))
         .filter((column) => !timeline || timeSpan(held, column, config, "edges") === undefined)
         .map((column) => column.name);
-    const named = numeric.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
-    return named ?? (numeric.length === 1 ? numeric[0] : null);
+    return weightAmong(numeric);
+}
+
+/**
+ * Which of an edge table's number columns is its weight: one named for a strength, else the only
+ * one; null when there are several. The one rule a load and `data.roleCandidate` both read.
+ * @param numbers - The number columns that play no other part.
+ * @returns The column, or null.
+ */
+export function weightAmong(numbers: readonly string[]): string | null {
+    const named = numbers.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
+    return named ?? (numbers.length === 1 ? numbers[0] : null);
 }
 
 /**

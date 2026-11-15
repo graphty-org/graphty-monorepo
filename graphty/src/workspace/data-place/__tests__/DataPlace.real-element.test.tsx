@@ -89,7 +89,7 @@ const shown = (label: string): string =>
     within(fieldsGroup()).getByRole<HTMLInputElement>("combobox", { name: label }).value;
 
 /**
- * Adds a field from a side's "+" as a reader does: "+", the kind, then a column from the list that
+ * Adds a field from a side's "+" as a reader does: "+", the kind, then a column from the submenu that
  * opens.
  * @param side - node or edge.
  * @param kind - the kind of field, as "+" lists it.
@@ -97,8 +97,9 @@ const shown = (label: string): string =>
  */
 async function addField(side: "node" | "edge", kind: string, column: string): Promise<void> {
     await userEvent.click(within(fieldsGroup()).getByRole("button", { name: `Add to ${side} attributes` }));
-    await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
-    await userEvent.click(await screen.findByRole("option", { name: column }));
+    // No obvious column for these: the kind opens a submenu of its columns.
+    await userEvent.hover(await screen.findByRole("menuitem", { name: kind }));
+    await userEvent.click(await screen.findByRole("menuitem", { name: column }));
 }
 
 /**
@@ -256,10 +257,13 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
         await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
-        const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+        // Two number columns: neither is obvious, so Weight opens a submenu, those first.
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Weight" }));
+        await screen.findByRole("menuitem", { name: "bytes" });
+        const options = screen.getAllByRole("menuitem").map((option) => option.textContent);
         assert.includeMembers(options, ["time", "bytes"]);
         assert.notInclude(options, "user");
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
     });
 

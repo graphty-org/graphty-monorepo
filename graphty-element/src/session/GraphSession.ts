@@ -3279,6 +3279,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             },
             // Read through calls: the timeline and the visibility are built below.
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
+            timeCandidates: () => (timelineOn() ? time.api.candidates() : []),
             timeline: () => timelineOn(),
             fileStyles: () => fileStylesOn(),
             batched: () => internals.batched?.() === true,

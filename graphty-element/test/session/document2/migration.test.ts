@@ -113,51 +113,43 @@ async function migrated(
 }
 
 /**
- * Whether a value is an edge reference (spec 6.2).
+ * Whether a value is an edge reference (spec 6.2): exactly `load` and `key`.
  * @param value - The value.
- * @returns True for `{ from, to, key }` or `{ from, to, h, n }`.
+ * @returns True for `{ load, key }`.
  */
 function isEdgeRef(value: unknown): boolean {
-    const ref = value as { from?: unknown; to?: unknown; key?: unknown; h?: unknown; n?: unknown };
-    const end = (node: unknown): boolean =>
-        typeof (node as { space?: unknown } | undefined)?.space === "string" &&
-        typeof (node as { key?: unknown }).key === "string";
+    const ref = value as { load?: unknown; key?: unknown };
     return (
-        end(ref.from) &&
-        end(ref.to) &&
-        (typeof ref.key === "string" ||
-            (typeof ref.h === "string" && /^sha256:[0-9a-f]{64}$/.test(ref.h) && ref.n === 0))
+        typeof ref === "object" &&
+        Object.keys(ref).join(",") === "load,key" &&
+        typeof ref.load === "string" &&
+        typeof ref.key === "string"
     );
 }
+
+const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 describe("a version 1 project file, migrated", () => {
     it("is a version 2 full file every section of which validates, each reported as upgraded", async () => {
         const session = await busySession();
         const { v2, sections, problems } = await migrated(session);
         assert.deepStrictEqual(invalid(v2), []);
-        assert.deepStrictEqual(Object.keys(sections), [
-            "data",
-            "style",
-            "recipe",
-            "settings",
-            "results",
-            "notes",
-            "view",
-        ]);
+        assert.deepStrictEqual(Object.keys(sections), ["data", "style", "settings", "results", "notes", "view"]);
         for (const section of Object.values(sections)) {
             assert.deepStrictEqual(invalid(section), [], String(section.kind));
         }
 
         assert.deepStrictEqual(
-            problems.map((problem) => [problem.code, problem.params.section, problem.params.from, problem.params.to]),
+            problems
+                .filter((problem) => problem.code === "W_SECTION_UPGRADED")
+                .map((problem) => [problem.params.section, problem.params.from, problem.params.to]),
             [
-                ["W_SECTION_UPGRADED", "data", 1, 2],
-                ["W_SECTION_UPGRADED", "style", 1, 2],
-                ["W_SECTION_UPGRADED", "recipe", 1, 2],
-                ["W_SECTION_UPGRADED", "settings", 1, 1],
-                ["W_SECTION_UPGRADED", "results", 1, 2],
-                ["W_SECTION_UPGRADED", "notes", 1, 2],
-                ["W_SECTION_UPGRADED", "view", 1, 1],
+                ["data", 1, 2],
+                ["style", 1, 2],
+                ["settings", 1, 1],
+                ["results", 1, 2],
+                ["notes", 1, 2],
+                ["view", 1, 1],
             ],
         );
         session.dispose();
@@ -169,87 +161,123 @@ describe("a version 1 project file, migrated", () => {
         const { view, results, notes, data } = sections;
         const graph = data.graph as { nodes: JsonObject[]; links: JsonObject[] };
         const keyOf = new Map(graph.nodes.map((node) => [node.id, node["graphty.key"]]));
-        const pairs = graph.links.map((link) => `${String(keyOf.get(link.source))}>${String(keyOf.get(link.target))}`);
+        const ends = new Map(
+            graph.links.map((link) => [
+                `${String(link["graphty.load"])}#${String(link["graphty.key"])}`,
+                `${String(keyOf.get(link.source))}>${String(keyOf.get(link.target))}`,
+            ]),
+        );
+        const endsOf = (ref: unknown): string | undefined => {
+            const { load, key } = ref as { load: string; key: string };
+            return ends.get(`${load}#${key}`);
+        };
 
         // The selection named the edge at position 1 of `links`: b to c.
-        const selected = (view.selection as { edges: { from: { key: string }; to: { key: string } }[] }).edges;
+        const selected = (view.selection as { edges: unknown[] }).edges;
         assert.lengthOf(selected, 1);
         assert.isTrue(isEdgeRef(selected[0]));
-        assert.deepStrictEqual([selected[0].from.key, selected[0].to.key], ["b", "c"]);
+        assert.strictEqual(endsOf(selected[0]), "b>c");
 
         // Each run's edge values, by position in version 1, are now by reference, each an edge the data holds.
-        const run = (
-            results.runs as Record<string, { edges: { refs: { from: { key: string }; to: { key: string } }[] } }>
-        ).reader__links;
+        const run = (results.runs as Record<string, { edges: { refs: unknown[] }; bindsTo: JsonObject }>).reader__links;
         assert.lengthOf(run.edges.refs, 2);
         for (const ref of run.edges.refs) {
             assert.isTrue(isEdgeRef(ref));
-            assert.include(pairs, `${ref.from.key}>${ref.to.key}`);
+            assert.isDefined(endsOf(ref));
         }
+
+        // The run records the build it ran on and the copy ids, which equal the data's.
+        assert.strictEqual(run.bindsTo.build, data.build);
+        const copies = Object.fromEntries(
+            (data.sources as JsonObject[]).map((source) => [source.id, (source.origin as JsonObject).copy]),
+        );
+        assert.deepStrictEqual(run.bindsTo.sources, copies);
 
         // A note on an edge, by its ends, names it by reference too.
         const targets = (notes.notes as { targets: JsonObject[] }[]).flatMap((note) => note.targets);
         const edge = targets.find((target) => target.edge !== undefined);
         assert.isTrue(isEdgeRef(edge?.edge));
-        assert.deepInclude(targets, {
-            node: { space: (selected[0].from as unknown as { space: string }).space, key: "b" },
-        });
+        assert.isDefined(endsOf(edge?.edge), "the note's edge is one the data holds");
         session.dispose();
     });
 
-    it("puts each member in its section: the data, the look, the analysis, the settings and the view", async () => {
+    it("puts each member in its section: the data, the look, the settings and the view", async () => {
         const session = await busySession();
         const { sections } = await migrated(session);
-        const { data, style, recipe, settings, results, view } = sections;
-        const source = (data.sources as JsonObject[])[0];
+        const { data, style, settings, results, view } = sections;
+        const [reader, source] = data.sources as JsonObject[];
         const space = `source:${String(source.id)}`;
+        assert.match(String(source.id), /^src_[0-9A-HJKMNP-TV-Z]{26}$/);
         assert.strictEqual(source.kind, "derived");
+        assert.match(String((source.origin as JsonObject).copy), ULID);
+        assert.deepStrictEqual(reader, {
+            id: "reader",
+            label: "Your changes",
+            kind: "reader",
+            origin: reader.origin,
+            copy: { operations: [] },
+        });
         assert.deepStrictEqual(data.joins, [{ op: "join.add", source: source.id }]);
-        assert.deepStrictEqual((source.mapping as { nodes: JsonObject }).nodes, { key: "id", space });
+        const mapping = source.mapping as { nodes: JsonObject; edges: JsonObject };
+        assert.deepStrictEqual(mapping.nodes, { key: "id", space });
+        assert.include(mapping.edges, { sourceSpace: space, targetSpace: space });
+        assert.match(String(data.build), ULID);
 
         // The style keeps the layers that name no element; the one picking node a moves to view.
         assert.deepStrictEqual(
             (style.layers as JsonObject[]).map((layer) => layer.name),
             ["Connections", "Dept 1"],
         );
-        assert.deepStrictEqual(style.valueLabels, [{ column: "dept", value: "1", label: "Research" }]);
+        assert.deepStrictEqual(
+            (style.valueLabels as JsonObject[]).map((label) => label.path),
+            ["data.dept"],
+        );
         const picked = (view.layers as JsonObject[])[0];
         assert.deepStrictEqual(picked.selector, { match: "ids", nodes: [{ space, key: "a" }] });
-        assert.strictEqual(picked.after, (style.layers as JsonObject[])[1].id);
+        assert.notProperty(picked, "after");
+        assert.deepStrictEqual(view.order, [...(style.layers as JsonObject[]).map((layer) => layer.id), picked.id]);
 
-        // The recipe holds the run, the rule set naming no element and the layout; the view, the others.
-        const ops = (recipe.commands as JsonObject[]).map((command) => command.op);
-        assert.deepStrictEqual(ops, ["set.define", "algo.run", "layout.set"]);
-        assert.strictEqual(recipe.namespace, "reader");
+        // Every set is in the view, by a set_<ULID> id; every run is a view run record; no recipe.
         assert.deepStrictEqual(
-            (view.sets as JsonObject[]).map((set) => [set.name, set.kind]),
+            (view.sets as JsonObject[]).map((set) => [set.name, (set.definition as JsonObject).kind]),
             [
                 ["Core", "fixed"],
+                ["Dept one", "rule"],
                 ["Around b", "rule"],
             ],
         );
+        for (const set of view.sets as JsonObject[]) {
+            assert.match(String(set.id), /^set_[0-9A-HJKMNP-TV-Z]{26}$/);
+        }
+
+        assert.deepStrictEqual(
+            (view.runs as JsonObject[]).map((run) => [run.id, run.algorithm, run.scope]),
+            [["reader__links", "degree", "graph"]],
+        );
+        assert.include(view.layout as JsonObject, { dimension: 3 });
+        assert.isUndefined(sections.recipe);
         assert.strictEqual(settings.settings && (settings.settings as JsonObject)["layoutBehavior.preSteps"], 0);
 
-        // Base64 columns are plain numbers.
-        assert.deepStrictEqual(view.placed, [{ node: { space, key: "a" }, position: [1, 2, 3], pinned: true }]);
+        // Base64 columns are plain numbers; the pinned node is pinned, the rest is the layout's output.
+        assert.deepStrictEqual(view.pinned, [{ node: { space, key: "a" }, position: { x: 1, y: 2, z: 3 } }]);
         const run = (results.runs as Record<string, { nodes: { columns: { value: unknown[] } } }>).reader__links;
         assert.deepStrictEqual(run.nodes.columns.value, [1, 2, 1]);
         assert.deepStrictEqual(view.visibility, { filter: { kind: "degree", min: 1 }, showContext: false });
         session.dispose();
     });
 
-    it("keys a file's loads, keeps their records, and hashes its rows", async () => {
+    it("keys a file's loads, keeps their records, and keys its keyless rows by copy id and row", async () => {
         const session = sessionWithRuns();
         await session.data.import({ type: "gml", config: { data: GML } });
         const { v1, sections } = await migrated(session);
         assert.deepStrictEqual(invalid(sections.data), []);
-        const source = (sections.data.sources as JsonObject[])[0];
+        const source = (sections.data.sources as JsonObject[])[1];
         const metadata = source.metadata as { "version-1": { loads: JsonObject } };
         const v1Sources = (v1.members as JsonObject[]).find((member) => member.kind === "graphty-sources");
         assert.deepStrictEqual(metadata["version-1"].loads, v1Sources);
-        assert.match(String((source.origin as JsonObject).hash), /^sha256:[0-9a-f]{64}$/);
+        const copy = String((source.origin as JsonObject).copy);
 
-        // Two parallel b-c edges: one hash, told apart by n. The graph is undirected and a multigraph.
+        // Two parallel b-c edges, told apart by their rows. The graph is undirected and a multigraph.
         const graph = sections.data.graph as JsonObject;
         assert.isFalse(graph.directed);
         assert.isTrue(graph.multigraph);
@@ -257,10 +285,14 @@ describe("a version 1 project file, migrated", () => {
             (graph.nodes as JsonObject[]).map((node) => node["graphty.key"]),
             ["1", "2", "3"],
         );
+        assert.deepStrictEqual(
+            (graph.links as JsonObject[]).map((link) => link["graphty.key"]),
+            [`${copy}#0`, `${copy}#1`, `${copy}#2`],
+        );
         session.dispose();
     });
 
-    it("writes the same file every time, so its hashes and references are stable", async () => {
+    it("writes the same file every time, so its ids and references are stable", async () => {
         const session = await busySession();
         const v1 = JSON.parse((await session.project.save({ format: 1 })).text) as JsonObject;
         const once = JSON.stringify(migrateDocument1(v1, []));
@@ -291,7 +323,8 @@ describe("a version 1 document of one kind, migrated", () => {
         session.dispose();
     });
 
-    it("turns a style's id and styleVersion into the header's id and revision", () => {
+    it("keeps a style's id, and drops and reports its styleVersion", () => {
+        const problems: DocumentProblem[] = [];
         const v2 = migrateDocument1(
             {
                 kind: "graphty-style",
@@ -301,14 +334,19 @@ describe("a version 1 document of one kind, migrated", () => {
                 name: "A look",
                 layers: [{ name: "All", selector: { match: "everything" }, set: { "node.color": "#123456" } }],
             },
-            [],
+            problems,
         );
         const { style } = v2?.sections as Record<string, JsonObject>;
         assert.deepStrictEqual(invalid(style), []);
-        assert.deepInclude(style, { id: "org.example.look", revision: "1.2.0", name: "A look" });
+        assert.deepInclude(style, { id: "org.example.look", name: "A look" });
+        assert.notProperty(style, "revision");
+        assert.deepInclude(problems, {
+            code: "W_MEMBER_LEFT_OUT",
+            params: { kind: "graphty-style", pointer: "/styleVersion" },
+        });
     });
 
-    it("turns a version 1 recipe's id and recipeVersion into id and revision, and writes every run's style", () => {
+    it("keeps a version 1 recipe's id, drops its recipeVersion, and writes every run's style", () => {
         const v2 = migrateDocument1(
             {
                 kind: "graphty-recipe",
@@ -324,7 +362,8 @@ describe("a version 1 document of one kind, migrated", () => {
         );
         const { recipe } = v2?.sections as Record<string, JsonObject>;
         assert.deepStrictEqual(invalid(recipe), []);
-        assert.deepInclude(recipe, { id: "org.example.hubs", revision: "2.0.0" });
+        assert.deepInclude(recipe, { id: "org.example.hubs" });
+        assert.notProperty(recipe, "revision");
         assert.deepStrictEqual((recipe.commands as JsonObject[])[0].style, true);
     });
 
@@ -372,26 +411,29 @@ describe("a version 1 document of one kind, migrated", () => {
         assert.isDefined(migrated);
         const sections = migrated.sections as Record<string, JsonObject>;
 
-        // The data group of the config is a settings group, not dropped.
+        // No data key is a setting: a known field naming no column of the data is reported.
         const settings = sections.settings.settings as JsonObject;
-        assert.strictEqual(settings["data.knownFields.timePath"], "year");
-        assert.strictEqual(settings["data.knownFields.edgeWeightPath"], "w");
+        assert.isFalse(Object.keys(settings).some((key) => key.startsWith("data.")));
+        assert.deepStrictEqual(invalid(sections.settings), []);
         // The first data member, and an explicit null kept as a json null rather than unset.
-        const copy = ((sections.data.sources as JsonObject[])[0].copy as JsonObject).nodes as JsonObject;
+        const copy = ((sections.data.sources as JsonObject[])[1].copy as JsonObject).nodes as JsonObject;
         assert.deepEqual(copy.label, [null, "B"]);
-        const declared = (((sections.data.sources as JsonObject[])[0].columns as JsonObject).nodes as JsonObject)
+        const declared = (((sections.data.sources as JsonObject[])[1].columns as JsonObject).nodes as JsonObject)
             .label as JsonObject;
         assert.strictEqual(declared.dtype, "json");
-        // The exclude condition that is on is folded into the filter, and the raw window kept.
+        // Every condition is kept as one plain list; the window's raw flag is not written.
         const visibility = sections.view.visibility as JsonObject;
-        assert.deepEqual(visibility.filter, { kind: "not", of: { kind: "everything" } });
-        assert.strictEqual((visibility.window as JsonObject).raw, true);
+        assert.isNull(visibility.filter);
+        assert.lengthOf(visibility.conditions as unknown[], 2);
+        assert.notProperty(visibility.window as JsonObject, "raw");
+        assert.deepStrictEqual(invalid(sections.view), []);
 
         const leftOut = problems
             .filter((problem) => problem.code === "W_MEMBER_LEFT_OUT")
             .map((problem) => `${String(problem.params.kind)}${String(problem.params.pointer)}`);
         assert.includeMembers(leftOut, [
-            "graphty-session/visibility/conditions/list/1",
+            "graphty-session/config/data/knownFields/timePath",
+            "graphty-session/config/data/knownFields/edgeWeightPath",
             "graphty-session/valueLabels/0",
             `graphty-data/members/${String(members.length - 2)}`,
             `org.example.lab/members/${String(members.length - 1)}`,

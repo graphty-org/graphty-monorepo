@@ -13,6 +13,7 @@ import { assert, describe, it } from "vitest";
 import { createGraphSession, type GraphSession } from "../../../session";
 import type { RunId } from "../../../src/catalog/types";
 import { recipeCodec } from "../../../src/session/document2/codecs/recipe";
+import { fileSetId } from "../../../src/session/document2/codecs/viewParts";
 import type {
     DocumentProblem,
     DocumentSection,
@@ -102,9 +103,13 @@ async function addGraph(session: GraphSession): Promise<void> {
 /**
  * Write the recipe section of a session.
  * @param session - The session.
+ * @param rewriteRecipe - Whether the saver asks for the session's recipe over an opened one.
  * @returns What the codec wrote and what it reported.
  */
-async function write(session: GraphSession): Promise<{ written: SectionWrite; problems: DocumentProblem[] }> {
+async function write(
+    session: GraphSession,
+    rewriteRecipe = false,
+): Promise<{ written: SectionWrite; problems: DocumentProblem[] }> {
     const problems: DocumentProblem[] = [];
     const context: WriteContext = {
         session,
@@ -113,6 +118,7 @@ async function write(session: GraphSession): Promise<{ written: SectionWrite; pr
         dataId: () => undefined,
         sections: new Set<DocumentSection>(["recipe"]),
         embed: {},
+        rewriteRecipe,
         isDerived: () => false,
         bindsTo: () => Promise.resolve(undefined),
     };
@@ -152,12 +158,13 @@ function invalid(section: JsonObject): string[] {
  * @param options - The open's choices.
  * @param options.rerun - Whether runs rerun.
  * @param options.others - The other sections the open loads.
+ * @param options.apply - Whether the caller asks to apply the recipe; default true here.
  * @returns What the open reported.
  */
 async function read(
     target: Lab,
     section: JsonObject,
-    options: { rerun?: boolean; others?: Partial<Record<DocumentSection, JsonObject>> } = {},
+    options: { rerun?: boolean; apply?: boolean; others?: Partial<Record<DocumentSection, JsonObject>> } = {},
 ): Promise<DocumentProblem[]> {
     const problems: DocumentProblem[] = [];
     const { kind, version, generator: _generator, namespace, commands, ...rest } = section;
@@ -171,6 +178,7 @@ async function read(
             sections: new Set<DocumentSection>(["recipe"]),
             tx,
             rerun: options.rerun ?? true,
+            applyRecipe: options.apply ?? true,
             dataMode: "replace",
             restored: new Set(),
             other: (name) => {
@@ -267,11 +275,13 @@ describe("the version 2 recipe codec", () => {
         assert.strictEqual(commands[5].dimension, 2);
         assert.deepEqual(written.header?.dependencies, {
             columns: [
-                { name: "score", schema: { type: "integer" } },
-                { name: "weight", schema: { type: "integer" } },
+                { kind: "node", name: "score", schema: { type: "integer" } },
+                { kind: "edge", name: "weight", schema: { type: "integer" } },
             ],
             results: ["links"],
         });
+        // A set is defined under its bare file id, `set_` plus a ULID, never its session id.
+        assert.match(String(commands[2].id), /^set_[0-9A-HJKMNP-TV-Z]{26}$/);
     });
 
     it("leaves out, and reports, what names an element", async () => {
@@ -318,7 +328,13 @@ describe("the version 2 recipe codec", () => {
         await session.runs.start("degree", undefined, { as: "lab__deg", scope: { set: high } });
         const { written } = await write(session);
         const run = (written.body.commands as JsonObject[]).find((command) => command.op === "algo.run");
-        assert.deepEqual(run, { op: "algo.run", algorithm: "degree", as: "deg", scope: { set: high }, style: false });
+        assert.deepEqual(run, {
+            op: "algo.run",
+            algorithm: "degree",
+            as: "deg",
+            scope: { set: fileSetId(session, high) },
+            style: false,
+        });
         assert.isAbove(session.runs.bindings("lab__deg").length, 0, "the run painted its suggested layer");
         assert.deepEqual(invalid(asSection(written)), []);
     });
@@ -342,17 +358,41 @@ describe("the version 2 recipe codec", () => {
             kind: "graphty-recipe",
             version: 2,
             id: "org.example.team-overview",
-            revision: "1.2.0",
             name: "Overview",
             commands: [{ op: "algo.run", algorithm: "degree", as: "deg", style: false }],
         });
         assert.isDefined(target.session.runs.get("team_overview__deg"), "the namespace comes from the id");
         const { written } = await write(target.session);
-        assert.deepEqual(written.header, {
-            id: "org.example.team-overview",
-            revision: "1.2.0",
-            name: "Overview",
-        });
+        assert.deepEqual(written.header, { id: "org.example.team-overview", name: "Overview" });
+    });
+
+    it("keeps a recipe it is not asked to apply, writes it back as read, and rewrites it only when asked", async () => {
+        const target = lab();
+        await addGraph(target.session);
+        const example = readJson("examples/card-fraud.graphty-recipe.json");
+        const problems = await read(target, example, { apply: false });
+        assert.deepEqual(problems, [{ code: "W_RECIPE_NOT_APPLIED", params: { section: "recipe" } }]);
+        assert.deepEqual(target.computed, [], "opening never applies a recipe");
+        assert.deepEqual(target.session.visibility.steps, []);
+
+        const {
+            kind: _kind,
+            version: _version,
+            generator: _generator,
+            $schema: _schema,
+            created: _created,
+            modified: _modified,
+            ...rest
+        } = example;
+        const again = (await write(target.session)).written;
+        assert.deepEqual({ ...again.header, ...again.body }, rest);
+
+        const fresh = (await write(target.session, true)).written;
+        assert.deepEqual(
+            (fresh.body.commands as JsonObject[]).map((command) => command.op),
+            ["layout.set"],
+        );
+        assert.strictEqual(fresh.header?.id, example.id, "a rewrite keeps the opened header");
     });
 
     it("stops the replay at an unknown op, unless it says narrows: false", async () => {
@@ -382,7 +422,13 @@ describe("the version 2 recipe codec", () => {
             namespace: "x",
             commands: [
                 { op: "org.example.motif-census", as: "motifs", narrows: false },
-                { op: "set.define", id: "set_m", name: "M", where: "results.motifs.count > `1`", reading: "induced" },
+                {
+                    op: "set.define",
+                    id: "set_01JCBPX7K2M4Q8R1T5V9W3Y6ZB",
+                    name: "M",
+                    where: "results.motifs.count > `1`",
+                    reading: "induced",
+                },
                 {
                     op: "algo.run",
                     algorithm: "degree",

@@ -27,7 +27,8 @@ import type {
     WriteContext,
 } from "../types";
 import { layerNamesElements } from "./elementNaming";
-import { asName } from "./recipeCommands";
+import { asName, columnSchema, isNamespace, namespaceFromId, splitRunId } from "./recipeCommands";
+import { fileIdsOf, fileSetId } from "./viewParts";
 
 /** What a session remembers of the style sections it opened, to write them back as read. */
 interface StyleMemory {
@@ -63,7 +64,6 @@ function memoryOf(session: GraphSession): StyleMemory {
 /** The header members this codec writes back as an opened section had them. */
 const OWN_HEADER = [
     "id",
-    "revision",
     "name",
     "description",
     "authors",
@@ -122,7 +122,6 @@ const LAYER_MEMBERS = new Set([
     "id",
     "name",
     "target",
-    "kind",
     "selector",
     "set",
     "encode",
@@ -219,9 +218,10 @@ function collect(value: unknown, pattern: RegExp, into: Set<string>): void {
  * A selector as a style section writes it. A member of an inline rule set is written as the rule
  * it is; every other kind is written as the session holds it.
  * @param selector - The session's selector.
+ * @param session - The session, for the file id of a kept set.
  * @returns The section's selector.
  */
-function writeSelector(selector: LayerSpec["selector"]): JsonObject {
+function writeSelector(selector: LayerSpec["selector"], session: GraphSession): JsonObject {
     if (selector.match === "member" && typeof selector.of === "object" && "define" in selector.of) {
         const definition = selector.of.define as { where?: unknown; reading?: unknown };
         const where =
@@ -229,7 +229,21 @@ function writeSelector(selector: LayerSpec["selector"]): JsonObject {
         return { match: "rule", where, ...(definition.reading === undefined ? {} : { edges: definition.reading }) };
     }
 
+    if (selector.match === "member" && typeof selector.of === "object" && "set" in selector.of) {
+        return { match: "member", of: { set: bareSetId(fileSetId(session, selector.of.set)) } };
+    }
+
     return { ...selector };
+}
+
+/**
+ * A set's file id without the namespace a recipe applied it under: what a reusable section names
+ * (spec 5 rule 1).
+ * @param id - The file id.
+ * @returns `set_<ULID>`.
+ */
+function bareSetId(id: string): string {
+    return id.replace(/^set_[a-z][a-z0-9_]*\./, "set_");
 }
 
 /**
@@ -237,16 +251,16 @@ function writeSelector(selector: LayerSpec["selector"]): JsonObject {
  * @param spec - The layer as `toDocument` writes it.
  * @param id - The id to write.
  * @param rowId - The written id of the layer named by `row`.
+ * @param session - The session, for the file ids of the sets a selector names.
  * @returns The layer.
  */
-function writeLayer(spec: LayerSpec, id: string, rowId: string | undefined): JsonObject {
+function writeLayer(spec: LayerSpec, id: string, rowId: string | undefined, session: GraphSession): JsonObject {
     const source = spec.source?.by === "user" ? undefined : spec.source;
     return {
         id,
         name: spec.name,
         ...(spec.target === undefined ? {} : { target: spec.target }),
-        ...(spec.kind === undefined ? {} : { kind: spec.kind }),
-        selector: renameRuns(writeSelector(spec.selector), runName),
+        selector: renameRuns(writeSelector(spec.selector, session), runName),
         ...(spec.set === undefined ? {} : { set: spec.set }),
         ...(spec.encode === undefined ? {} : { encode: renameRuns(spec.encode, runName) }),
         ...(source === undefined
@@ -313,42 +327,52 @@ function namedPalettes(layers: readonly JsonObject[]): Set<string> {
 }
 
 /**
- * Each column a style reads, as `dependencies.columns` writes it: its name and the JSON Schema type
- * and measurement the session knows.
+ * Each column a style reads, as `dependencies.columns` writes it (spec 3.6 rule 1): its table, its
+ * name and the JSON Schema type and measurement the session knows.
  * @param session - The session.
- * @param columns - The column names.
+ * @param columns - The columns, as `<node|edge>:<name>`.
  * @returns The entries.
  */
 function columnDependencies(session: GraphSession, columns: ReadonlySet<string>): JsonObject[] {
     const attributes = session.data.attributes();
-    return [...columns].map((name) => {
-        const column = attributes.find((each) => each.name === name);
-        const type = column?.type;
-        const typed = type === "string" || type === "number" || type === "integer" || type === "boolean";
+    return [...columns].map((ref) => {
+        const kind = ref.slice(0, ref.indexOf(":"));
+        const name = ref.slice(kind.length + 1);
+        const column = attributes.find((each) => each.kind === kind && each.name === name);
         return {
+            kind,
             name,
-            schema: {
-                ...(typed ? { type } : {}),
-                ...(column?.measurement === undefined ? {} : { measurement: column.measurement }),
-            },
+            schema: column === undefined ? {} : columnSchema(column.type, column.measurement),
         };
     });
 }
 
 /**
- * Collect the columns and runs one layer reads.
+ * Collect the columns, types and runs one layer reads.
  * @param layer - The written layer.
- * @param columns - Where the columns go.
+ * @param columns - Where the columns go, as `<node|edge>:<name>`.
  * @param runs - Where the runs go.
+ * @param types - Where the type names a `type` selector names go.
  */
-function readsOf(layer: JsonObject, columns: Set<string>, runs: Set<string>): void {
-    collect([layer.selector, layer.encode], DATA_PATH, columns);
+function readsOf(layer: JsonObject, columns: Set<string>, runs: Set<string>, types: Set<string>): void {
+    const kind = layer.target === "edge" ? "edge" : "node";
+    const names = new Set<string>();
+    collect([layer.selector, layer.encode], DATA_PATH, names);
     collect([layer.selector, layer.encode], RESULT_PATH, runs);
     // A `by` with no prefix reads a column (style.md, "Paths" rule 1).
     for (const binding of Object.values(isObject(layer.encode) ? layer.encode : {})) {
         if (isObject(binding) && typeof binding.by === "string" && !/^(data|results)\./.test(binding.by)) {
-            columns.add(binding.by);
+            names.add(binding.by);
         }
+    }
+
+    names.forEach((name) => columns.add(`${kind}:${name}`));
+    if (isObject(layer.selector) && layer.selector.match === "type" && Array.isArray(layer.selector.types)) {
+        layer.selector.types.forEach((type) => {
+            if (typeof type === "string") {
+                types.add(type);
+            }
+        });
     }
 
     if (isObject(layer.source) && layer.source.by === "run" && typeof layer.source.runId === "string") {
@@ -365,19 +389,18 @@ function readsOf(layer: JsonObject, columns: Set<string>, runs: Set<string>): vo
 function dependenciesOf(session: GraphSession, layers: readonly JsonObject[]): JsonObject | undefined {
     const columns = new Set<string>();
     const runs = new Set<string>();
+    const types = new Set<string>();
     for (const layer of layers) {
-        readsOf(layer, columns, runs);
+        readsOf(layer, columns, runs, types);
     }
 
     const written = columnDependencies(session, columns);
-    if (written.length === 0 && runs.size === 0) {
-        return undefined;
-    }
-
-    return {
+    const dependencies = {
         ...(written.length === 0 ? {} : { columns: written }),
+        ...(types.size === 0 ? {} : { types: [...types] }),
         ...(runs.size === 0 ? {} : { results: [...runs] }),
     };
+    return Object.keys(dependencies).length === 0 ? undefined : dependencies;
 }
 
 /**
@@ -440,7 +463,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
 
         const own = writtenId(id);
         placeIds.push(own);
-        const layer = writeLayer(spec, own, spec.row === undefined ? undefined : writtenId(spec.row));
+        const layer = writeLayer(spec, own, spec.row === undefined ? undefined : writtenId(spec.row), session);
         const opened = memory.layers.get(id);
         layers.push(opened?.baseline === baselineOf(layer) ? opened.original : layer);
     });
@@ -460,7 +483,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
 
     const valueLabels = [...dispatcherOf(session).state.valueLabels].map(([key, label]) => {
         const { path, value } = valueLabelOf(key);
-        return { column: path.startsWith("data.") ? path.slice(5) : renameRuns(path, runName), value, label };
+        return { path: renameRuns(path, runName), value, label };
     });
     const assets = assetsMember(session).member?.assets as JsonObject[] | undefined;
     const body: JsonObject = {
@@ -497,8 +520,10 @@ interface Reading {
     /** The section's palettes with a member this release does not know: a binding to one fails. */
     readonly failedPalettes: ReadonlySet<string>;
     readonly catalog: readonly PaletteDescriptor[];
-    /** From a run's `as` to the run id the recipe loaded alongside gives it. */
-    readonly rename: (run: string) => string;
+    /** From a run's `as` to the one open run with that `as`, or undefined when none or several. */
+    readonly rename: (run: string) => string | undefined;
+    /** From a bare set id to the one open set it names, or undefined when none or several. */
+    readonly set: (id: string) => string | undefined;
 }
 
 /**
@@ -684,18 +709,62 @@ function prepareLayer(raw: unknown, index: number, reading: Reading): Prepared {
     }
 
     const { id: _id, ...rest } = layer;
+    // A run named by `as`, or a set by its bare id, binds to the one open run or set (spec 8.2
+    // rule 7); one that binds nowhere stays as written and the layer is reported unbound.
+    const rename = (run: string): string => {
+        const bound = reading.rename(run);
+        if (bound === undefined) {
+            unbound(reading, at, run);
+        }
+
+        return bound ?? run;
+    };
     const source =
         isObject(rest.source) && rest.source.by === "run" && typeof rest.source.runId === "string"
-            ? { ...rest.source, runId: reading.rename(rest.source.runId) }
+            ? { ...rest.source, runId: rename(rest.source.runId) }
             : rest.source;
     const spec = {
         ...rest,
-        selector: renameRuns(selector, reading.rename),
+        selector: bindSet(renameRuns(selector, rename), reading, at),
         ...(set === undefined ? {} : { set }),
-        ...(encode === undefined ? {} : { encode: renameRuns(encode, reading.rename) }),
+        ...(encode === undefined ? {} : { encode: renameRuns(encode, rename) }),
         ...(source === undefined ? {} : { source }),
     };
     return { spec: spec as unknown as LayerSpec };
+}
+
+/**
+ * Report a name a layer reads that binds to no one open run or set.
+ * @param reading - The read.
+ * @param at - The layer's pointer below the section.
+ * @param ref - The name.
+ */
+function unbound(reading: Reading, at: string, ref: string): void {
+    reading.problems.push({
+        code: "W_REFERENCE_UNBOUND",
+        params: { section: "style", pointer: `${reading.pointer}${at}`, ref },
+    });
+}
+
+/**
+ * A `member` selector with its bare set id bound to the open set it names.
+ * @param selector - The selector, runs already bound.
+ * @param reading - The read.
+ * @param at - The layer's pointer.
+ * @returns The selector.
+ */
+function bindSet(selector: JsonObject, reading: Reading, at: string): JsonObject {
+    if (selector.match !== "member" || !isObject(selector.of) || typeof selector.of.set !== "string") {
+        return selector;
+    }
+
+    const bound = reading.set(selector.of.set);
+    if (bound === undefined) {
+        unbound(reading, at, selector.of.set);
+        return selector;
+    }
+
+    return { ...selector, of: { set: bound } };
 }
 
 /** Where a tree row may be pinned. */
@@ -735,35 +804,71 @@ function readTree(rows: unknown, placeOf: ReadonlyMap<string, number>): StyleDoc
 }
 
 /**
- * From each run's `as` to the run id a recipe loaded alongside gives it (`<namespace>__<as>`,
- * recipe.md, "Run ids and namespaces" rule 1), or nothing when no recipe loads.
+ * From each run's `as` to the one open run with that `as` (spec 8.2 rule 7): the session's runs,
+ * and the runs this open restores (the view's run records and the results' runs) or starts (a
+ * recipe applied alongside, as `<namespace>__<as>`). Only runs that carry an `as` take part.
  * @param context - The open.
- * @returns The rename.
+ * @returns The binding: the run id, or undefined when none or several runs have the `as`.
  */
-function runIdsOf(context: ReadContext): (run: string) => string {
-    const recipe = context.other("recipe");
-    if (recipe === undefined) {
-        return (run) => run;
+function runIdsOf(context: ReadContext): (run: string) => string | undefined {
+    const byAs = new Map<string, Set<string>>();
+    const add = (id: unknown, as?: unknown): void => {
+        if (typeof id !== "string") {
+            return;
+        }
+
+        const name = typeof as === "string" ? as : splitRunId(id)?.as;
+        if (name !== undefined) {
+            byAs.set(name, (byAs.get(name) ?? new Set()).add(id));
+        }
+    };
+    for (const run of context.session.runs.list()) {
+        add(run.id);
     }
 
-    const derived = (recipe.header.id ?? "")
-        .split(/[./:]/)
-        .at(-1)
-        ?.toLowerCase()
-        .replaceAll(/[^a-z0-9]+/g, "_")
-        .replace(/^[^a-z]+/, "")
-        .slice(0, 30)
-        .replace(/_$/, "");
-    const fallback = derived === undefined || derived === "" ? "recipe" : derived;
-    const namespace = typeof recipe.body.namespace === "string" ? recipe.body.namespace : fallback;
-    const names = new Set<string>();
-    for (const command of Array.isArray(recipe.body.commands) ? recipe.body.commands : []) {
-        if (isObject(command) && command.op === "algo.run" && typeof command.as === "string") {
-            names.add(command.as);
+    const viewRuns = context.other("view")?.body.runs;
+    for (const record of Array.isArray(viewRuns) ? viewRuns : []) {
+        if (isObject(record)) {
+            add(record.id, record.as);
         }
     }
 
-    return (run) => (names.has(run) ? `${namespace}__${run}` : run);
+    const resultRuns = context.other("results")?.body.runs;
+    for (const [id, record] of Object.entries(isObject(resultRuns) ? resultRuns : {})) {
+        add(id, isObject(record) ? record.as : undefined);
+    }
+
+    const recipe = context.applyRecipe === true ? context.other("recipe") : undefined;
+    if (recipe !== undefined) {
+        const namespace = isNamespace(recipe.body.namespace)
+            ? recipe.body.namespace
+            : namespaceFromId(recipe.header.id);
+        for (const command of Array.isArray(recipe.body.commands) ? recipe.body.commands : []) {
+            if (isObject(command) && command.op === "algo.run" && typeof command.as === "string") {
+                add(`${namespace}__${command.as}`, command.as);
+            }
+        }
+    }
+
+    return (run) => {
+        const ids = byAs.get(run);
+        return ids?.size === 1 ? [...ids][0] : undefined;
+    };
+}
+
+/**
+ * From a bare set id to the one open set it names (spec 8.2 rule 7): a session set whose file id
+ * is that id, or that id under a namespace.
+ * @param session - The session.
+ * @returns The binding: the session set id, or undefined when none or several match.
+ */
+function setIdsOf(session: GraphSession): (id: string) => string | undefined {
+    const { sets: fileIds } = fileIdsOf(session);
+    const open = session.sets.list().map((set) => [set.id, fileIds.get(set.id) ?? set.id] as const);
+    return (id) => {
+        const matches = open.filter(([, file]) => bareSetId(file) === id);
+        return matches.length === 1 ? matches[0][0] : undefined;
+    };
 }
 
 /**
@@ -851,6 +956,7 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
         failedPalettes,
         catalog: session.catalog.palettes(),
         rename: runIdsOf(context),
+        set: setIdsOf(session),
     };
     for (const [index, palette] of (Array.isArray(body.palettes) ? body.palettes : []).entries()) {
         if (isObject(palette) && typeof palette.id === "string") {
@@ -925,9 +1031,9 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
     );
 
     for (const entry of Array.isArray(body.valueLabels) ? body.valueLabels : []) {
-        if (isObject(entry) && typeof entry.column === "string" && typeof entry.label === "string") {
-            const { column, value } = entry;
-            const path = column.startsWith("results.") ? renameRuns(column, reading.rename) : `data.${column}`;
+        if (isObject(entry) && typeof entry.path === "string" && typeof entry.label === "string") {
+            const { value } = entry;
+            const path = renameRuns(entry.path, (run) => reading.rename(run) ?? run);
             if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
                 await context.tx.data.setValueLabel(path, value, entry.label);
             }
@@ -947,7 +1053,7 @@ async function read(section: ReadSection, context: ReadContext): Promise<void> {
         if (opened !== undefined && added.includes(id)) {
             const rowId =
                 spec.row === undefined ? undefined : (memory.layers.get(spec.row)?.original.id as string | undefined);
-            opened.baseline = baselineOf(writeLayer(spec, "", rowId ?? spec.row));
+            opened.baseline = baselineOf(writeLayer(spec, "", rowId ?? spec.row, session));
         }
     }
 

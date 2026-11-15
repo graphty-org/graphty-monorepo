@@ -14,7 +14,7 @@ import { createGraphSession, type GraphSession } from "../../../session";
 import { settingsCodec } from "../../../src/session/document2/codecs/settings";
 import { openDocument2, saveDocument2 } from "../../../src/session/document2/document";
 import { parseDocument, schemaUrl } from "../../../src/session/document2/framing";
-import type { CodecRegistry, DocumentProblem, JsonObject } from "../../../src/session/document2/types";
+import type { CodecRegistry, DocumentProblem, JsonObject, SectionCodec } from "../../../src/session/document2/types";
 
 const SPEC = new URL("../../../spec/", import.meta.url);
 const readJson = (path: string): JsonObject => JSON.parse(readFileSync(new URL(path, SPEC), "utf8")) as JsonObject;
@@ -44,8 +44,16 @@ function assertValid(section: JsonObject): void {
  * @returns The section.
  */
 async function save(session: GraphSession): Promise<JsonObject> {
-    const saved = await saveDocument2(session, CODECS, { sections: ["settings"], form: "section" }, () => false);
-    return saved.document;
+    return (await saveReport(session)).document;
+}
+
+/**
+ * Save the settings section file, with what the save reports.
+ * @param session - The session.
+ * @returns The section and the report.
+ */
+function saveReport(session: GraphSession): Promise<{ document: JsonObject; problems: DocumentProblem[] }> {
+    return saveDocument2(session, CODECS, { sections: ["settings"], form: "section" }, () => false);
 }
 
 /**
@@ -71,11 +79,10 @@ async function open(session: GraphSession, section: JsonObject): Promise<Documen
  * @returns They, as JSON.
  */
 function stateOf(session: GraphSession): unknown {
-    const { data, runAlgorithmsOnLoad, background, selectionStyle, pinnedStyle, runPlacement, layoutBehavior } =
+    const { runAlgorithmsOnLoad, background, selectionStyle, pinnedStyle, runPlacement, layoutBehavior } =
         session.config;
     return JSON.parse(
         JSON.stringify({
-            data,
             runAlgorithmsOnLoad,
             background,
             selectionStyle,
@@ -95,7 +102,10 @@ function stateOf(session: GraphSession): unknown {
 async function changed(): Promise<GraphSession> {
     const session = createGraphSession(ON);
     await session.config.set({
-        data: { directed: true, knownFields: { nodeIdPath: "key", edgeTimePath: "when", edgeWeightPath: "cost" } },
+        data: {
+            directed: true,
+            knownFields: { nodeIdPath: "key", edgeTimePath: "when", edgeWeightPath: "cost", positionScale: 2 },
+        },
         runAlgorithmsOnLoad: true,
         background: { backgroundType: "color", color: "#102030" },
         pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 },
@@ -114,12 +124,16 @@ async function changed(): Promise<GraphSession> {
 
 describe("settings section", () => {
     it("writes the keys no other section holds, flat, valid against its schema", async () => {
-        const section = await save(await changed());
+        const { document: section, problems } = await saveReport(await changed());
         assertValid(section);
         const settings = section.settings as JsonObject;
         assert.strictEqual(settings["layoutBehavior.preSteps"], 40);
-        assert.strictEqual(settings["data.knownFields.nodeIdPath"], "key");
         assert.strictEqual(settings.runPlacement, "top");
+        // No data key is written here; one with no home in any section is refused and reported.
+        assert.isFalse(Object.keys(settings).some((key) => key.startsWith("data.")));
+        assert.deepEqual(problems, [
+            { code: "W_MEMBER_LEFT_OUT", params: { section: "settings", field: "data.knownFields.positionScale" } },
+        ]);
         for (const key of ["viewRotation", "framing", "author", "name", "startingRows", "editableBase"]) {
             assert.notProperty(settings, key);
         }
@@ -129,10 +143,54 @@ describe("settings section", () => {
             timeZone: "Europe/Paris",
             ageFade: 0.4,
         });
-        const { columns } = section.dependencies as { columns: JsonObject[] };
-        assert.deepInclude(columns, { name: "key", schema: {} });
-        assert.deepInclude(columns, { name: "when", schema: { measurement: "time" } });
-        assert.deepInclude(columns, { name: "cost", schema: { measurement: "quantitative" } });
+        assert.notProperty(section, "dependencies", "no key written here names a column");
+    });
+
+    it("onto an open project sets only the keys the section holds", async () => {
+        const session = createGraphSession(ON);
+        await session.config.set({ background: { backgroundType: "color", color: "#000000" }, runPlacement: "top" });
+        await open(session, {
+            kind: "graphty-settings",
+            version: 1,
+            generator: { name: "test", version: "0" },
+            settings: { runPlacement: "beneath" },
+        });
+        assert.strictEqual(session.config.runPlacement, "beneath");
+        assert.deepEqual(session.config.background, { backgroundType: "color", color: "#000000" });
+    });
+
+    it("opened as a new session, sets every absent key to its default", async () => {
+        const session = createGraphSession(ON);
+        await session.config.set({ runPlacement: "top", runAlgorithmsOnLoad: true });
+        // A data section beside it makes the open a new session.
+        const data: SectionCodec = {
+            section: "data",
+            version: 2,
+            reads: [2],
+            bound: false,
+            members: [],
+            write: () => Promise.resolve({ body: {} }),
+            read: () => Promise.resolve(),
+        };
+        const codecs: CodecRegistry = { ...CODECS, data };
+        const file = {
+            kind: "graphty-document",
+            version: 2,
+            generator: { name: "test", version: "0" },
+            sections: {
+                data: { kind: "graphty-data", version: 2, id: "d", generator: { name: "test", version: "0" } },
+                settings: { kind: "graphty-settings", version: 1, generator: { name: "test", version: "0" } },
+            },
+        };
+        await openDocument2(
+            session,
+            codecs,
+            parseDocument(file, codecs),
+            {},
+            { canned: new Map(), restoreDerived: () => undefined, beforeReplace: () => undefined, name: null },
+        );
+        assert.strictEqual(session.config.runPlacement, "beneath");
+        assert.isFalse(session.config.runAlgorithmsOnLoad);
     });
 
     it("round-trips state -> section -> state, and section -> state -> section byte for byte", async () => {
@@ -217,5 +275,9 @@ describe("settings section", () => {
         assert.deepEqual(await open(session, example), []);
         assert.strictEqual(session.config.layoutTransition?.transition, "glide");
         assert.strictEqual(session.time.settings.outside, "ghost");
+        // The header it was read with is kept on re-save (spec 8.1 rule 5).
+        const saved = await save(session);
+        assert.deepEqual(saved.dependencies, example.dependencies);
+        assertValid(saved);
     });
 });

@@ -16,7 +16,15 @@ import { createGraphSession, type GraphSession } from "../../../session";
 import { isGraphtyError } from "../../../src/errors";
 import { FEATURES } from "../../../src/features/registry";
 import { openDocument2, saveDocument2 } from "../../../src/session/document2/document";
-import { isVersion2, parseDocument, schemaUrl } from "../../../src/session/document2/framing";
+import {
+    assertIJson,
+    duplicateMember,
+    isVersion2,
+    numberOf,
+    parseDocument,
+    plainNumbers,
+    schemaUrl,
+} from "../../../src/session/document2/framing";
 import { SECTION_CODECS } from "../../../src/session/document2/registry";
 import type { CodecRegistry, DocumentSection, JsonObject, SectionCodec } from "../../../src/session/document2/types";
 
@@ -181,12 +189,20 @@ describe("telling what a file is", () => {
         }
     });
 
-    it("refuses a section whose kind disagrees with its key and loads the rest", () => {
+    it("holds a section whose kind disagrees with its key and loads the rest", () => {
         const parsed = parseDocument(fullFile({ notes: minimalStyle(), style: minimalStyle() }), SECTION_CODECS);
         assert.deepEqual([...parsed.sections.keys()], ["style"]);
+        // The key decides: held and written back, never a refusal of the file (spec 2.2 rule 1).
+        assert.deepEqual(parsed.problems, [
+            { code: "W_SECTION_KEPT", params: { section: "notes", version: 2, reason: "kind" } },
+        ]);
+        assert.deepEqual(parsed.held.get("notes"), { value: minimalStyle(), reason: "kind" });
+    });
+
+    it("refuses a value that is not a section, and keeps it", () => {
+        const parsed = parseDocument(fullFile({ notes: [1] }), SECTION_CODECS);
         assert.deepEqual(parsed.problems, [{ code: "E_BAD_DOCUMENT", params: { section: "notes" } }]);
-        // Refused, and kept as read so a save writes it back rather than dropping it.
-        assert.deepEqual(parsed.held.get("notes"), { value: minimalStyle(), reason: "malformed" });
+        assert.deepEqual(parsed.held.get("notes"), { value: [1], reason: "malformed" });
     });
 
     it("keeps an unknown section key verbatim", () => {
@@ -222,6 +238,31 @@ describe("telling what a file is", () => {
     });
 });
 
+describe("I-JSON and numbers (spec 1, 11)", () => {
+    it("finds a member name repeated within one object, at any depth, and nothing else", () => {
+        assert.isUndefined(duplicateMember('{"a":1,"b":{"a":2},"c":[{"a":1},{"a":2}],"d":"a"}'));
+        assert.strictEqual(duplicateMember('{"a":1,"b":{"x":1,"x":2}}'), "x");
+        assert.strictEqual(duplicateMember('{"a\\u0062":1,"ab":2}'), "ab");
+        assert.isUndefined(duplicateMember('{"k":"\\"x\\",","x":1}'));
+        assert.throws(() => {
+            assertIJson('{"kind":"graphty-document","kind":"x"}');
+        }, /malformed/);
+    });
+
+    it("writes non-finite numbers as their strings, and reads them back where a number is declared", () => {
+        assert.deepEqual(plainNumbers({ a: [1, Infinity, -Infinity, Number.NaN], b: "Infinity", c: { d: 2 } }), {
+            a: [1, "Infinity", "-Infinity", "NaN"],
+            b: "Infinity",
+            c: { d: 2 },
+        });
+        const kept = { a: 1, b: [2] };
+        assert.strictEqual(plainNumbers(kept), kept, "nothing copied when nothing changes");
+        assert.strictEqual(numberOf("-Infinity"), -Infinity);
+        assert.isNaN(numberOf("NaN"));
+        assert.strictEqual(numberOf("infinity"), "infinity");
+    });
+});
+
 describe("saving version 2", () => {
     it("writes an empty full file that validates", async () => {
         const session = createGraphSession(ON);
@@ -231,6 +272,20 @@ describe("saving version 2", () => {
         assert.strictEqual(document.id, session.project.id);
         assert.deepEqual(saved.report.written, []);
         assert.isFalse(session.project.dirty);
+    });
+
+    it("writes no revision, and a bound section's bindsTo as { data } alone", async () => {
+        const session = createGraphSession(ON);
+        const notes = standIn("notes", () => ({ notes: [] }));
+        const saved = await saveDocument2(
+            session,
+            { notes: notes.codec },
+            { sections: ["notes"], form: "section" },
+            () => false,
+        );
+        assert.notProperty(saved.document, "revision");
+        assert.deepEqual(Object.keys(saved.document.bindsTo as JsonObject), ["data"]);
+        assert.deepEqual(invalid(saved.document), []);
     });
 
     it("refuses a section file of other than one section", async () => {

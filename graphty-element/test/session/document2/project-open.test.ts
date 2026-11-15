@@ -243,6 +243,21 @@ describe("the sections a reader changed from the session", () => {
         session.dispose();
     });
 
+    it("binds a saved run to the data's build, so reopening it is a match", async () => {
+        const session = createGraphSession({ ...ON, runs: { execute: finishAtOnce } });
+        await session.data.addEdges([{ source: "P", target: "Q" }]);
+        await session.runs.start("bfs", { source: "P" });
+        const { text } = await session.project.save({ format: 2, results: true, markSaved: false });
+        const { data, results } = sectionsOf(text);
+        const [run] = Object.values(results.runs as Record<string, JsonObject>);
+        assert.strictEqual((run.bindsTo as JsonObject).build, data.build);
+        const opened = createGraphSession({ ...ON, runs: { execute: finishAtOnce } });
+        const report = await opened.project.open(text, { rerun: false });
+        assert.notInclude(codes(report.problems), "W_DATA_CHANGED");
+        session.dispose();
+        opened.dispose();
+    });
+
     it("keeps a window whose bounds are values, set with the timeline off, as values", async () => {
         const session = createGraphSession(ON);
         await session.data.addNodes([
@@ -256,7 +271,9 @@ describe("the sections a reader changed from the session", () => {
             );
         assert.isFalse(holds(session));
         const saved = await session.project.save({ format: 2 });
-        assert.strictEqual(((sectionsOf(saved.text).view.visibility as JsonObject).window as JsonObject).raw, true);
+        // A raw bound is a JSON number; `windowRaw` is not written (spec 4.7 rule 4).
+        const window = (sectionsOf(saved.text).view.visibility as JsonObject).window as JsonObject;
+        assert.deepEqual([window.from, window.to, window.raw], [1990, 2000, undefined]);
 
         const reopened = createGraphSession(ON);
         await reopened.project.open(saved.text);

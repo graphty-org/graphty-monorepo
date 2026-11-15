@@ -1,11 +1,11 @@
 /**
- * @file The `results` section codec, version 2: the record of each run and its outputs (spec 4.5).
- * Experimental (`save-files-v2`).
+ * @file The `results` section codec, version 2: the record of each run and of the layout, and their
+ * outputs as columns (spec/README.md 4.5, 6.4, 8.2 rule 3). Experimental (`save-files-v2`).
  *
- * Today's run ids carry no namespace. An id the element minted is written under the namespace
- * `session` and one the author named under `reader`, each with the id as its `as`; both read back
- * as the bare id, and `session` marks it minted again. An id that already reads `<namespace>__<as>`
- * is split there.
+ * Runs are keyed by run id, in graphty-element's own form: a recipe-made run's id is
+ * `<namespace>__<as>` and it writes `namespace` and `as`; a hand-started run writes neither. Each
+ * run, and the layout, carries its own `bindsTo: { build, sources }`, so one section can restore
+ * one run as saved and report another stale.
  */
 
 import type { AlgorithmDescriptor, EdgeId, FieldDescriptor, NodeId, RunId } from "../../../catalog/types";
@@ -17,7 +17,7 @@ import type { GraphSession } from "../../types";
 import { isJsonObject } from "../framing";
 import { projectMemory } from "../memory";
 import type {
-    DocumentProblem,
+    BuildStamp,
     ElementRefs,
     JsonObject,
     ReadContext,
@@ -25,7 +25,8 @@ import type {
     SectionCodec,
     WriteContext,
 } from "../types";
-import { bindingOfBody, canonicalJson, dataBindingOf, jsonSafe } from "./dataRefs";
+import { jsonSafe } from "./dataRefs";
+import { canonical, mintUlid, rerunsOnOpen, viewRunRecord } from "./viewParts";
 
 /**
  * A value as a document holds it (spec 11), undefined as null so a column keeps its length.
@@ -34,30 +35,29 @@ import { bindingOfBody, canonicalJson, dataBindingOf, jsonSafe } from "./dataRef
  */
 const encode = (value: unknown): unknown => jsonSafe(value) ?? null;
 
-/** The namespace of a run id the element minted. */
-export const SESSION_NAMESPACE = "session";
-/** The namespace of a run id the author named without one. */
-export const READER_NAMESPACE = "reader";
-
 const NAMESPACE = /^[a-z](?:[a-z0-9]|_(?!_))*$/;
 const RUN_NAME = /^[a-z][a-z0-9_]*$/;
+/** A run id as the schema spells it. */
+const RUN_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
 
-/** A run's place in a document: its namespace and its name there. */
+/** A recipe-made run's place in a document: its namespace and its name there. */
 export interface RunName {
     readonly namespace: string;
     readonly as: string;
 }
 
 /**
- * Where a run id goes in a document (spec 4.3 rule 1, 4.5).
+ * A recipe-made run's namespace and `as`, split from its id (recipe.md, "Run ids and namespaces").
  * @param id - The run id.
- * @param derived - Whether the element minted it.
- * @returns The namespace and `as`, or undefined for an id a document cannot spell.
+ * @returns The namespace and `as`, or undefined for a hand-started run, whose id is its only name.
  */
-export function runNameOf(id: RunId, derived: boolean): RunName | undefined {
+export function runNameOf(id: RunId): RunName | undefined {
     const at = id.indexOf("__");
-    const [namespace, as] =
-        at < 0 ? [derived ? SESSION_NAMESPACE : READER_NAMESPACE, id] : [id.slice(0, at), id.slice(at + 2)];
+    if (at < 0) {
+        return undefined;
+    }
+
+    const [namespace, as] = [id.slice(0, at), id.slice(at + 2)];
     const fits =
         namespace.length <= 32 &&
         NAMESPACE.test(namespace) &&
@@ -69,14 +69,12 @@ export function runNameOf(id: RunId, derived: boolean): RunName | undefined {
 }
 
 /**
- * The run id a document's namespace and `as` stand for: the inverse of {@link runNameOf}.
+ * The run id of a recipe-made run: the inverse of {@link runNameOf}.
  * @param name - The namespace and `as`.
  * @returns The id.
  */
 export function runIdOf(name: RunName): RunId {
-    return name.namespace === SESSION_NAMESPACE || name.namespace === READER_NAMESPACE
-        ? name.as
-        : `${name.namespace}__${name.as}`;
+    return `${name.namespace}__${name.as}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -119,12 +117,12 @@ interface Kept {
 
 const KEPT = projectMemory<Kept>();
 
-/** The positions the last open restored with rerun off, so a layout the recipe sets after them keeps them. */
+/** The positions the last open restored, so a layout the view or the recipe sets after them keeps them. */
 const RESTORED = projectMemory<readonly { id: NodeId; x: number; y: number; z: number }[]>();
 
 /**
- * The positions an open's results section restored with rerun off (spec 8.4: restored as they
- * are), for the recipe to put back after it sets the layout, as version 1 does.
+ * The positions an open's results section restored, for the view or the recipe to put back after
+ * it sets the layout.
  * @param session - The session.
  * @returns The positions, or undefined when none were restored.
  */
@@ -143,12 +141,11 @@ type GraphIds = ReturnType<typeof graphIdsOf>;
 /** Every node's coordinates, as `positions.snapshot()` gives them. */
 type Positions = ReturnType<GraphSession["positions"]["snapshot"]>;
 
-/** What starting a saved run takes: its algorithm, params, seed, scope and caveats. */
+/** What starting a saved run takes: its algorithm, params, seed and caveats. */
 interface SavedStart {
     readonly algorithm: string;
     readonly params: Record<string, unknown>;
     readonly seed: unknown;
-    readonly scope: unknown;
     readonly caveats: JsonObject;
 }
 
@@ -221,30 +218,7 @@ function paramsOut(
 }
 
 /**
- * The scope a run ran over, as caveats record it, or undefined for one that names elements no
- * reference can hold.
- * @param run - The run.
- * @param refs - The element references.
- * @returns The scope.
- */
-function scopeOut(run: Run, refs: ElementRefs): unknown {
-    const { spec } = run.record.scope;
-    if (typeof spec === "string" || "set" in spec || "where" in spec) {
-        return spec;
-    }
-
-    if ("nodes" in spec) {
-        const nodes = spec.nodes.map((id) => refs.nodeRef(id));
-        return nodes.includes(undefined) ? undefined : { nodes };
-    }
-
-    // ponytail: a `{ define }` scope is left to the view's run record; carry it here once a set
-    // definition's element members are written as references.
-    return undefined;
-}
-
-/**
- * One half of a run's outputs as columns (spec 4.5 rule 2).
+ * One half of a run's outputs as columns (spec 4.5 rule 4).
  * @param ids - The half's ids, in the graph's order.
  * @param valuesOf - The run's values of one element.
  * @param refOf - An element's reference.
@@ -277,29 +251,51 @@ function outputsOut<Id>(
 }
 
 /**
- * One algorithm run as a results section holds it (spec 4.5 rule 1).
+ * A run's `bindsTo` (spec 6.4): the open data's build and copy ids when the run is current. A run
+ * whose data changed since it ran, or a save with no build stamp to read, gets a newly minted build,
+ * so it reads as changed (Partial) on reopen.
+ * @param run - The run, or undefined for the layout.
+ * @param stamp - The open data's stamp.
+ * @returns The binding.
+ */
+function runBinding(run: Run | undefined, stamp: BuildStamp | undefined): BuildStamp {
+    // ponytail: the element does not record the build a run ran on; the run's staleness stands in.
+    return stamp !== undefined && (run?.record.stale ?? null) === null
+        ? { build: stamp.build, sources: { ...stamp.sources } }
+        : { build: mintUlid(), sources: { ...stamp?.sources } };
+}
+
+/**
+ * One algorithm run as a results section holds it (spec 4.5 rules 1 to 4).
  * @param run - The run.
  * @param result - Its result.
- * @param name - Its namespace and `as`.
  * @param context - The save.
  * @param ids - The graph's node and edge ids.
+ * @param stamp - The open data's build stamp.
  * @returns The entry.
  */
-function runOut(run: Run, result: RunResult, name: RunName, context: WriteContext, ids: GraphIds): JsonObject {
+function runOut(
+    run: Run,
+    result: RunResult,
+    context: WriteContext,
+    ids: GraphIds,
+    stamp: BuildStamp | undefined,
+): JsonObject {
     const refs = context.refs();
     const { record } = run;
     const left: string[] = [];
     const params = paramsOut(run, refs, descriptorOf(context.session, run.algorithm), left);
-    const key = `${name.namespace}__${name.as}`;
     for (const option of left) {
         context.problems.push({
             code: "W_ELEMENT_NAMING_LEFT_OUT",
-            params: { section: "results", pointer: `/runs/${token(key)}/params/${token(option)}` },
+            params: { section: "results", pointer: `/runs/${token(run.id)}/params/${token(option)}` },
         });
     }
 
-    const plugin = record.engine.plugins?.[run.algorithm];
-    const scope = scopeOut(run, refs);
+    // The deprecated English members are not saved; the words are rebuilt from `facts` (spec 4.5 rule 3).
+    const caveats = Object.fromEntries(
+        Object.entries(record.caveats).filter(([key]) => key !== "notes" && key !== "partialReason"),
+    );
     const graph = encode(result.graph) as JsonObject;
     const nodes = outputsOut(
         ids.nodes,
@@ -314,18 +310,15 @@ function runOut(run: Run, result: RunResult, name: RunName, context: WriteContex
         result.fields.filter((field) => field.kind === "edge"),
     );
     return {
-        namespace: name.namespace,
-        as: name.as,
+        ...runNameOf(run.id),
         algorithm: run.algorithm,
         params,
-        engine:
-            plugin === undefined
-                ? { name: "@graphty/algorithms", version: record.engine.algorithms }
-                : { name: run.algorithm, version: plugin },
-        seed: record.seed,
+        engine: encode(record.engine),
+        seed: Number.isInteger(record.seed) ? record.seed : null,
         durationMs: record.durationMs ?? 0,
-        fields: result.fields.map((field) => ({ name: field.name, domain: field.kind, type: field.type })),
-        caveats: encode({ ...record.caveats, ...(scope === undefined ? {} : { scope }) }),
+        bindsTo: runBinding(run, stamp),
+        fields: result.fields.map((field) => ({ name: field.name, kind: field.kind, type: field.type })),
+        caveats: encode(caveats),
         ...(Object.keys(graph).length === 0 ? {} : { graph }),
         ...(nodes === undefined ? {} : { nodes }),
         ...(edges === undefined ? {} : { edges }),
@@ -348,11 +341,12 @@ function samePositions(a: Positions, b: Positions): boolean {
 }
 
 /**
- * The layout run (spec 4.5 rule 3), or undefined when no node is placed.
+ * The layout record (spec 4.5 rule 5), or undefined when no node is placed.
  * @param context - The save.
- * @returns The entry.
+ * @param stamp - The open data's build stamp.
+ * @returns The record.
  */
-function layoutOut(context: WriteContext): JsonObject | undefined {
+function layoutOut(context: WriteContext, stamp: BuildStamp | undefined): JsonObject | undefined {
     const { session } = context;
     const now = session.positions.snapshot();
     const kept = keptOf(session).layout;
@@ -362,13 +356,15 @@ function layoutOut(context: WriteContext): JsonObject | undefined {
 
     const refs = context.refs();
     const nodeRefs: unknown[] = [];
-    const position: number[][] = [];
+    const columns: { x: number[]; y: number[]; z: number[] } = { x: [], y: [], z: [] };
     now.order.forEach((id, at) => {
-        const xyz = [now.xyz[at * 3], now.xyz[at * 3 + 1], now.xyz[at * 3 + 2]];
+        const [x, y, z] = [now.xyz[at * 3], now.xyz[at * 3 + 1], now.xyz[at * 3 + 2]];
         const ref = refs.nodeRef(id);
-        if (ref !== undefined && xyz.every((value) => Number.isFinite(value))) {
+        if (ref !== undefined && [x, y, z].every((value) => Number.isFinite(value))) {
             nodeRefs.push(ref);
-            position.push(xyz);
+            columns.x.push(x);
+            columns.y.push(y);
+            columns.z.push(z);
         }
     });
     if (nodeRefs.length === 0) {
@@ -379,12 +375,13 @@ function layoutOut(context: WriteContext): JsonObject | undefined {
     const { seed } = layout.options;
     return {
         id: layout.id,
-        // The engines ship inside graphty-element, so its version fixes theirs.
-        engine: { name: layout.engine, version: ENGINE_VERSIONS.element },
+        engine: layout.engine,
         dimension: layout.dimension === "2d" ? 2 : 3,
         options: encode(layout.options),
         seed: Number.isInteger(seed) ? seed : null,
-        nodes: { refs: nodeRefs, columns: { position } },
+        versions: encode(ENGINE_VERSIONS),
+        bindsTo: runBinding(undefined, stamp),
+        nodes: { refs: nodeRefs, columns },
     };
 }
 
@@ -393,43 +390,36 @@ function layoutOut(context: WriteContext): JsonObject | undefined {
  * @param context - The save.
  * @returns The body.
  */
-function writeRuns(context: WriteContext): JsonObject {
+async function writeRuns(context: WriteContext): Promise<JsonObject> {
     const { session } = context;
+    const stamp = await context.buildStamp?.();
     const kept = keptOf(session);
     const ids = graphIdsOf(session);
     const runs: JsonObject = {};
-    const live = new Set<string>();
     for (const run of session.runs.list()) {
         const { result } = run;
         if (run.status !== "succeeded" || result === undefined) {
             continue;
         }
 
-        const name = runNameOf(run.id, context.isDerived(run.id));
-        if (name === undefined) {
-            context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: run.id } });
+        if (!RUN_ID.test(run.id)) {
+            context.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "results", pointer: "/runs" } });
             continue;
         }
 
-        const key = `${name.namespace}__${name.as}`;
-        const restored = kept.runs.get(key);
-        live.add(key);
-        runs[key] = restored?.result === result ? restored.entry : runOut(run, result, name, context, ids);
+        const restored = kept.runs.get(run.id);
+        runs[run.id] = restored?.result === result ? restored.entry : runOut(run, result, context, ids, stamp);
     }
 
     // A run an open could not restore (an algorithm this session lacks) is written back as read.
-    for (const [key, restored] of kept.runs) {
-        if (restored.result === undefined && !live.has(key)) {
-            runs[key] = restored.entry;
+    for (const [id, restored] of kept.runs) {
+        if (restored.result === undefined && runs[id] === undefined) {
+            runs[id] = restored.entry;
         }
     }
 
-    const layout = layoutOut(context);
-    if (layout !== undefined) {
-        runs.layout = layout;
-    }
-
-    return { runs };
+    const layout = layoutOut(context, stamp);
+    return { runs, ...(layout === undefined ? {} : { layout }) };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -447,6 +437,8 @@ interface Reading {
     readonly section: ReadSection;
     readonly context: ReadContext;
     readonly refs: ElementRefs;
+    /** The open data's build stamp, or undefined when the open cannot read one. */
+    readonly stamp: BuildStamp | undefined;
 }
 
 /**
@@ -458,7 +450,7 @@ interface Reading {
 function unbound(reading: Reading, pointer: string, ref: unknown): void {
     reading.context.problems.push({
         code: "W_REFERENCE_UNBOUND",
-        params: { section: "results", pointer: `${reading.section.pointer}${pointer}`, ref: canonicalJson(ref) },
+        params: { section: "results", pointer: `${reading.section.pointer}${pointer}`, ref: canonical(ref) },
     });
 }
 
@@ -513,7 +505,7 @@ function rowsIn<Id extends NodeId>(
 function fieldsIn(saved: unknown, descriptor: AlgorithmDescriptor): FieldDescriptor[] {
     return (Array.isArray(saved) ? saved : []).filter(isJsonObject).map((field): FieldDescriptor => {
         const name = String(field.name);
-        const kind = field.domain as FieldDescriptor["kind"];
+        const kind = field.kind as FieldDescriptor["kind"];
         return (
             descriptor.fields.find((known) => known.name === name && known.kind === kind) ?? {
                 name,
@@ -530,7 +522,7 @@ function fieldsIn(saved: unknown, descriptor: AlgorithmDescriptor): FieldDescrip
 /**
  * A run's saved params with element references bound to node ids.
  * @param reading - The open.
- * @param key - The run's key.
+ * @param key - The run's id.
  * @param saved - The params as the file holds them.
  * @param descriptor - The algorithm's catalog entry.
  * @returns The params, and whether every reference bound.
@@ -569,28 +561,8 @@ function paramsIn(
 }
 
 /**
- * The scope a saved run ran over, bound, or undefined when its caveats record none this reader
- * can bind.
- * @param reading - The open.
- * @param scope - `caveats.scope` as the file holds it.
- * @returns The scope.
- */
-function scopeIn(reading: Reading, scope: unknown): unknown {
-    if (typeof scope === "string" || (isJsonObject(scope) && ("set" in scope || "where" in scope))) {
-        return scope;
-    }
-
-    if (isJsonObject(scope) && Array.isArray(scope.nodes)) {
-        const nodes = scope.nodes.map((ref: unknown) => reading.refs.node(ref));
-        return nodes.includes(undefined) ? undefined : { nodes };
-    }
-
-    return undefined;
-}
-
-/**
  * Whether two values agree: numbers within a relative 1e-9, NaN equal to NaN, anything else as
- * canonical JSON.
+ * sorted JSON.
  * @param a - One.
  * @param b - The other.
  * @returns True when they agree.
@@ -600,7 +572,7 @@ function agree(a: unknown, b: unknown): boolean {
         return Object.is(a, b) || Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a), Math.abs(b));
     }
 
-    return canonicalJson(a) === canonicalJson(b);
+    return canonical(encode(a)) === canonical(encode(b));
 }
 
 /**
@@ -625,7 +597,7 @@ function fieldAgrees(
             return agree(was, now);
         }
 
-        const [a, b] = [canonicalJson(was), canonicalJson(now ?? null)];
+        const [a, b] = [canonical(encode(was)), canonical(encode(now ?? null))];
         const ok = (forward.get(a) ?? b) === b && (backward.get(b) ?? a) === a;
         forward.set(a, b);
         backward.set(b, a);
@@ -634,7 +606,7 @@ function fieldAgrees(
 }
 
 /**
- * Whether a rerun disagrees with the saved outputs (spec 8.4).
+ * Whether a rerun disagrees with the saved outputs (spec 8.2 rule 3).
  * @param saved - The saved outputs, bound, with the graph values and the fields.
  * @param saved.outputs - The bound rows.
  * @param saved.graph - The graph-level values.
@@ -658,27 +630,18 @@ function differs(
 }
 
 /**
- * Whether a recipe step or a view run record in the same open stands for the run (spec 4.5 rule 4).
+ * Whether a recipe in the same open, applied because the caller asked, starts the run.
  * @param context - The open.
- * @param name - The run's namespace and `as`.
- * @returns True when one does: that section starts the run.
+ * @param name - The run's namespace and `as`, when it has them.
+ * @returns True when it does.
  */
-function startedElsewhere(context: ReadContext, name: RunName): boolean {
+function recipeStarts(context: ReadContext, name: RunName | undefined): boolean {
     const recipe = context.other("recipe")?.body;
-    if (
+    return (
+        name !== undefined &&
         recipe?.namespace === name.namespace &&
         Array.isArray(recipe.commands) &&
         recipe.commands.some((command) => isJsonObject(command) && command.op === "algo.run" && command.as === name.as)
-    ) {
-        return true;
-    }
-
-    const viewRuns = context.other("view")?.body.runs;
-    return (
-        isJsonObject(viewRuns) &&
-        Object.values(viewRuns).some(
-            (record) => isJsonObject(record) && record.namespace === name.namespace && record.as === name.as,
-        )
     );
 }
 
@@ -703,10 +666,10 @@ function compareWhenEnded(context: ReadContext, id: RunId, check: (result: RunRe
 }
 
 /**
- * Start a run from its saved record, under the scope and seed it recorded.
+ * Start a run from its saved record, under the seed it recorded.
  * @param context - The open.
  * @param id - The run.
- * @param start - The algorithm, params, seed, scope and caveats.
+ * @param start - The algorithm, params, seed and caveats.
  * @returns The run.
  */
 function startSaved(context: ReadContext, id: RunId, start: SavedStart): Run {
@@ -714,63 +677,61 @@ function startSaved(context: ReadContext, id: RunId, start: SavedStart): Run {
     return context.tx.runs.start(start.algorithm, start.params, {
         as: id,
         style: false,
-        ...(start.scope === undefined ? {} : { scope: start.scope as never }),
         ...(Number.isInteger(start.seed) ? { seed: start.seed as number } : {}),
         ...(caveats.exact === false && typeof caveats.sampleSize === "number" ? { sample: caveats.sampleSize } : {}),
     });
 }
 
 /**
- * With rerun on: run a saved run again and report whether it agrees with what was saved.
- * @param context - The open.
- * @param id - The run.
- * @param how - What decides it.
- * @param how.elsewhere - Whether the recipe or the view starts it.
- * @param how.bound - Whether its options bound to the data.
- * @param how.start - How to start it.
- * @param how.check - Whether a result disagrees with the saved one.
- */
-async function rerunAndCompare(
-    context: ReadContext,
-    id: RunId,
-    how: { elsewhere: boolean; bound: boolean; start: SavedStart; check: (result: RunResult) => boolean },
-): Promise<void> {
-    if (how.elsewhere) {
-        compareWhenEnded(context, id, how.check);
-    } else if (how.bound) {
-        if (how.check(await startSaved(context, id, how.start))) {
-            context.problems.push({ code: "W_RESULTS_DIFFER", params: { run: id } });
-        }
-    } else {
-        context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: id } });
-    }
-}
-
-/**
- * Read one algorithm run: restore it (rerun off) or keep it to compare (rerun on).
+ * Report `W_DATA_CHANGED` when a run's data changed since it ran (spec 6.4, Partial): the sources
+ * whose copy id differs, or none when the build alone changed (settings, types or joins).
  * @param reading - The open.
- * @param key - The run's key.
- * @param entry - The run as the file holds it.
+ * @param id - The run, or `layout`.
+ * @param saved - The run's `bindsTo` as the file holds it.
  */
-async function readRun(reading: Reading, key: string, entry: JsonObject): Promise<void> {
-    const { context } = reading;
-    const kept = keptOf(context.session).runs;
-    const name =
-        typeof entry.namespace === "string" && typeof entry.as === "string"
-            ? runNameOf(`${entry.namespace}__${entry.as}`, false)
-            : undefined;
-    const descriptor = typeof entry.algorithm === "string" ? descriptorOf(context.session, entry.algorithm) : undefined;
-    if (name === undefined || descriptor === undefined) {
-        kept.set(key, { entry, result: undefined });
-        context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: key } });
+function checkBinding(reading: Reading, id: string, saved: unknown): void {
+    const { stamp } = reading;
+    const was = isJsonObject(saved) && isJsonObject(saved.sources) ? saved.sources : {};
+    if (
+        stamp === undefined ||
+        (isJsonObject(saved) && saved.build === stamp.build && canonical(was) === canonical(stamp.sources))
+    ) {
         return;
     }
 
-    const id = runIdOf(name);
+    const sources = [...new Set([...Object.keys(was), ...Object.keys(stamp.sources)])]
+        .filter((source) => was[source] !== stamp.sources[source])
+        .sort((a, b) => a.localeCompare(b));
+    // ponytail: the element has no way to mark a restored run stale; the report is all a reader sees.
+    reading.context.problems.push({
+        code: "W_DATA_CHANGED",
+        params: { section: "results", run: id, sources: canonical(sources) },
+    });
+}
+
+/**
+ * Read one algorithm run (spec 8.2 rule 3). A run the view records is the view's to rerun or
+ * restore: with rerun off its outcome waits for the view to start it; with rerun on it is compared
+ * once the rerun ends. A run no view or recipe in the open starts is restored as saved, never rerun.
+ * @param reading - The open.
+ * @param id - The run's id.
+ * @param entry - The run as the file holds it.
+ */
+async function readRun(reading: Reading, id: RunId, entry: JsonObject): Promise<void> {
+    const { context } = reading;
+    const kept = keptOf(context.session).runs;
+    const descriptor = typeof entry.algorithm === "string" ? descriptorOf(context.session, entry.algorithm) : undefined;
+    if (descriptor === undefined) {
+        kept.set(id, { entry, result: undefined });
+        context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: id } });
+        return;
+    }
+
+    checkBinding(reading, id, entry.bindsTo);
     const fields = fieldsIn(entry.fields, descriptor);
     const numeric = (kind: string) => (field: string) =>
         fields.some((each) => each.name === field && each.kind === kind && ["number", "integer"].includes(each.type));
-    const at = `/runs/${token(key)}`;
+    const at = `/runs/${token(id)}`;
     const outputs: BoundOutputs = {
         nodes: rowsIn(reading, `${at}/nodes`, entry.nodes, (ref) => reading.refs.node(ref), numeric("node")),
         edges: rowsIn(reading, `${at}/edges`, entry.edges, (ref) => reading.refs.edge(ref), numeric("edge")),
@@ -781,21 +742,15 @@ async function readRun(reading: Reading, key: string, entry: JsonObject): Promis
             decode(value, numeric("graph")(field)),
         ]),
     );
-    const { scope: savedScope, ...rest } = isJsonObject(entry.caveats) ? entry.caveats : {};
-    const caveats = { facts: [], ...rest } as unknown as Caveats;
-    const { params, bound } = paramsIn(reading, key, entry.params, descriptor);
-    const start = {
-        algorithm: descriptor.key,
-        params,
-        seed: entry.seed,
-        scope: scopeIn(reading, savedScope),
-        caveats: rest,
-    };
-    const elsewhere = startedElsewhere(context, name);
-
-    if (context.rerun) {
-        const check = (result: RunResult): boolean => differs({ outputs, graph, fields }, result);
-        await rerunAndCompare(context, id, { elsewhere, bound, start, check });
+    const caveatsRead = isJsonObject(entry.caveats) ? entry.caveats : {};
+    // The deprecated `notes` are not saved; the words are rebuilt from `facts` (spec 4.5 rule 3).
+    const caveats = { facts: [], ...caveatsRead, notes: [] } as unknown as Caveats;
+    const { params, bound } = paramsIn(reading, id, entry.params, descriptor);
+    const check = (result: RunResult): boolean => differs({ outputs, graph, fields }, result);
+    const record = viewRunRecord(context, id);
+    const recipe = record === undefined && context.applyRecipe === true && recipeStarts(context, runNameOf(id));
+    if ((record !== undefined && rerunsOnOpen(context, id, record)) || (recipe && context.rerun)) {
+        compareWhenEnded(context, id, check);
         return;
     }
 
@@ -803,8 +758,7 @@ async function readRun(reading: Reading, key: string, entry: JsonObject): Promis
         runId: id,
         shape: descriptor.shape,
         fields,
-        // ponytail: a version 2 file does not record how many elements the run measured; the bound
-        // outputs stand in for it.
+        // ponytail: a file does not record how many elements the run measured; the bound outputs stand in.
         measured: { nodes: outputs.nodes.length, edges: outputs.edges.length },
         graph,
         nodes: outputs.nodes,
@@ -813,10 +767,10 @@ async function readRun(reading: Reading, key: string, entry: JsonObject): Promis
         durationMs: typeof entry.durationMs === "number" ? entry.durationMs : 0,
     });
     const outcome: RunOutcome = { result, summary: result.summary(), caveats, fields };
-    kept.set(key, { entry, result });
+    kept.set(id, { entry, result });
     context.restored.add("runs");
-    if (elsewhere) {
-        // The recipe or the view starts it, after this section; the outcome waits for it.
+    if (record !== undefined || recipe) {
+        // The view or the recipe starts it, after this section; the outcome waits for it.
         context.canned.set(id, outcome);
         return;
     }
@@ -828,41 +782,38 @@ async function readRun(reading: Reading, key: string, entry: JsonObject): Promis
 
     context.canned.set(id, outcome);
     try {
-        await startSaved(context, id, start);
+        await startSaved(context, id, { algorithm: descriptor.key, params, seed: entry.seed, caveats: caveatsRead });
     } finally {
         context.canned.delete(id);
-    }
-
-    // Marked once the run exists: the element marks only a run it holds.
-    if (name.namespace === SESSION_NAMESPACE) {
-        context.restoreDerived(id);
     }
 }
 
 /**
- * Read the layout run: with rerun off, put every bound node where it was saved.
+ * Read the layout record: put every bound node where it was saved, unless the view records the
+ * layout and the layout reruns.
  * @param reading - The open.
- * @param entry - The run as the file holds it.
+ * @param entry - The record as the file holds it.
  */
 async function readLayout(reading: Reading, entry: JsonObject): Promise<void> {
     const { context } = reading;
+    checkBinding(reading, "layout", entry.bindsTo);
     const half = isJsonObject(entry.nodes) ? entry.nodes : {};
     const refs = Array.isArray(half.refs) ? (half.refs as unknown[]) : [];
-    const position = isJsonObject(half.columns) && Array.isArray(half.columns.position) ? half.columns.position : [];
+    const columns = isJsonObject(half.columns) ? half.columns : {};
+    const axis = (name: string): unknown[] => (Array.isArray(columns[name]) ? (columns[name] as unknown[]) : []);
+    const [xs, ys, zs] = [axis("x"), axis("y"), axis("z")];
     const placed: { id: NodeId; x: number; y: number; z: number }[] = [];
     refs.forEach((ref, row) => {
         const id = reading.refs.node(ref);
-        const xyz = (Array.isArray(position[row]) ? (position[row] as unknown[]) : []).map((value) =>
-            decode(value, true),
-        );
+        const [x, y, z] = [xs[row], ys[row], zs[row]].map((value) => decode(value, true));
         if (id === undefined) {
-            unbound(reading, `/runs/layout/nodes/refs/${row}`, ref);
-        } else if (xyz.length === 3 && xyz.every((value) => Number.isFinite(value))) {
-            const [x, y, z] = xyz as number[];
-            placed.push({ id, x, y, z });
+            unbound(reading, `/layout/nodes/refs/${row}`, ref);
+        } else if ([x, y, z].every((value) => typeof value === "number" && Number.isFinite(value))) {
+            placed.push({ id, x: x as number, y: y as number, z: z as number });
         }
     });
-    if (context.rerun || placed.length === 0) {
+    const reruns = isJsonObject(context.other("view")?.body.layout) && (context.rerunOf?.("layout") ?? context.rerun);
+    if (reruns || placed.length === 0) {
         RESTORED.delete(context.session);
         return;
     }
@@ -873,59 +824,32 @@ async function readLayout(reading: Reading, entry: JsonObject): Promise<void> {
     keptOf(context.session).layout = { entry, ...context.session.positions.snapshot() };
 }
 
-/**
- * Report `W_DATA_CHANGED` when the data the results were written on has changed since (spec 6.4).
- * @param section - The section.
- * @param context - The open.
- */
-async function checkFingerprint(section: ReadSection, context: ReadContext): Promise<void> {
-    const saved = section.header.bindsTo;
-    // Compared with the data section as read when this open loaded one, not the session rebuilt
-    // from it: a section written on exactly that data matches, whatever this writer would derive.
-    const data = context.other("data");
-    const now = data === undefined ? await dataBindingOf(context.session) : bindingOfBody(data.body);
-    if (saved?.fingerprint === now.fingerprint) {
-        return;
-    }
-
-    const was = saved?.sources ?? {};
-    const sources = [...new Set([...Object.keys(was), ...Object.keys(now.sources)])]
-        .filter((source) => was[source] !== now.sources[source])
-        .sort((a, b) => a.localeCompare(b));
-    // ponytail: the element has no way to mark a restored run stale; the report is all a reader
-    // sees. An empty list means settings, types or joins changed.
-    const problem: DocumentProblem = {
-        code: "W_DATA_CHANGED",
-        params: { section: "results", sources: canonicalJson(sources) },
-    };
-    context.problems.push(problem);
-}
-
 /** The `graphty-results` section, version 2. */
 export const resultsCodec: SectionCodec = {
     section: "results",
     version: 2,
     reads: [2],
     bound: true,
-    members: ["runs"],
-    write(context) {
-        return Promise.resolve({ body: writeRuns(context) });
+    members: ["runs", "layout"],
+    async write(context) {
+        return { body: await writeRuns(context) };
     },
     async read(section, context) {
-        await checkFingerprint(section, context);
         const kept = keptOf(context.session);
         kept.runs.clear();
         kept.layout = undefined;
-        const reading: Reading = { section, context, refs: context.refs() };
+        const reading: Reading = { section, context, refs: context.refs(), stamp: await context.buildStamp?.() };
         const runs = isJsonObject(section.body.runs) ? section.body.runs : {};
-        for (const [key, entry] of Object.entries(runs)) {
-            if (!isJsonObject(entry)) {
-                context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: key } });
-            } else if (key === "layout") {
-                await readLayout(reading, entry);
+        for (const [id, entry] of Object.entries(runs)) {
+            if (isJsonObject(entry)) {
+                await readRun(reading, id, entry);
             } else {
-                await readRun(reading, key, entry);
+                context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: id } });
             }
+        }
+
+        if (isJsonObject(section.body.layout)) {
+            await readLayout(reading, section.body.layout);
         }
     },
 };

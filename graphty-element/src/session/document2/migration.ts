@@ -8,42 +8,33 @@
  * Known gaps -- what the migration leaves out, because a version 1 file does not hold it or holds
  * it in a form that cannot be carried over truthfully:
  *
- * - Spaces. Every node is keyed in the one `source:<id>` space of the `derived` source the version
- *   1 graph becomes (data-store-options.md 4.8). `kindIds`, `sourceKind` and `targetKind` give
- *   types (a rule on the `kind` column) but not spaces, and `kind:` respellings stay in the key:
- *   `kindIds: "scoped"` respells exactly the ids that appear under two kinds, so stripping them
- *   would make those edge ends ambiguous, and a source's `sourceSpace` is one space for every row.
- *   `idPrefix` stays in the key, since a version 1 file keeps only the merged rows, never each
- *   load's own. Closing it needs each load's rows, which a version 1 file does not keep.
- * - Join steps. `joinOn`, `keep`, `existing` and `columnPrefix` are kept verbatim in the derived
- *   source's `metadata`, not written as join steps: the merged rows already hold their result, a
- *   step may only name a source of the data section, and the combine step spellings are not
- *   settled (version-2.md, "Open items"). Closing it needs those spellings.
- * - Renames and conversions. The copy holds the working names and converted values already, so
- *   `mapping.renamed` stays empty and a conversion reaches a type's schema only when the loads used
- *   kinds; both are kept verbatim in `metadata`. So are the load facts, which `issues` has no
- *   member for. A declared measurement of a column no type carries is dropped.
- * - Direction. A version 1 graph whose direction nothing settled is written as directed.
- * - Results. `engine` is the file's generator (the release that saved the run, not necessarily the
- *   one that computed it); `shape`, `measured` and a run's display name in the recipe are dropped.
- * - Runs. Whether a run's options name a node is not checked (that needs the catalog), so such a
- *   run lands in the recipe. A run over an inline rule set is left out. Every run writes `style:
- *   false`: the saved layers are the file's look.
- * - Visibility. The keep and exclude conditions that are on are folded into the view's filter,
- *   as a version 2 save writes them; a condition that is off, and filter steps with no condition
- *   beside them, are left out and reported `W_MEMBER_LEFT_OUT`. `windowRaw` is the window's
- *   `raw`. Pins with no placed position are left out.
+ * - Data. The version 1 merged graph is one embedded `derived` source keyed by node id in its own
+ *   `source:<id>` space, rows in version 1 order, beside an empty reader source; its edits are
+ *   already in its rows. The source id, copy id and build stamp are ULIDs derived from the copy,
+ *   so migrating one file twice writes the same ids. `kindIds`, `idPrefix` and `kind:` respellings
+ *   stay in the key. The `edgeIdPath`, `edgeWeightPath` and `timePath` known fields become mapping
+ *   roles where the copy holds the column; every other `data.` config key is reported. A `label`
+ *   role is not written as a style layer. Issue fixes and declarations of a column no type carries
+ *   are reported.
+ * - Runs. Every run becomes a view run record under the namespace `session` (element-minted) or
+ *   `reader`, so style paths name it by `as`; its outputs go to results. A run over the selection
+ *   or the visible graph is written over the whole graph and `"replayable": false`, reported; a
+ *   filter- or window-narrowed run is `"replayable": false`. `engine` names the file's generator
+ *   for graphty-element and `unknown` for the algorithms and the layout; a caveat member version 1
+ *   lacks takes a stated default; `shape`, `measured` and `sample` are dropped.
+ * - Sets. Every set goes to the view; an element-minted `set_<slug>` id becomes `set_` plus a ULID
+ *   derived from it, and every `set` member naming it is rewritten.
+ * - Visibility. Filter steps are reported and not written; `windowRaw` is not written.
  * - Members. A member of a kind this migration does not read, a second member of one kind, an
- *   assets member with no style, and a value label on a path that is neither `data.` nor
- *   `results.` are left out and reported `W_MEMBER_LEFT_OUT`.
+ *   assets member with no style, a value label on a path that is neither `data.` nor `results.`,
+ *   and `styleVersion` and `recipeVersion` are left out and reported `W_MEMBER_LEFT_OUT`.
  * - Style. Edges a version 1 `ids` selector named (session edge ids) are dropped; built-in palettes
- *   are not carried (that needs the catalog); the style tree is not carried. A set id the schema
- *   rejects is written as read.
+ *   are not carried (that needs the catalog); the style tree is not carried.
  * - Cameras. A saved view's camera has no `fov` in version 1 and takes the view codec's default.
  * - Bare members. A version 1 notes, results, arrangement, view-state, sources or assets member
  *   alone has no data to bind to and is not migrated; neither is a version 1 notes, results or
  *   view section met inside a version 2 file. A version 1 recipe snapshot (`session.recipe()`)
- *   keeps only its style.
+ *   keeps only its style. A session member gives no recipe: opening restores the view.
  */
 
 import { ENGINE_VERSIONS } from "../runs/engine";
@@ -57,6 +48,7 @@ import {
     migrateData,
     type MigratedData,
     objectsOf,
+    ulidOf,
 } from "./migrationParts";
 import type { DocumentProblem, DocumentSection, EdgeRef, JsonObject, NodeRef } from "./types";
 
@@ -88,9 +80,8 @@ const MEMBER_KINDS = new Set([
     "graphty-recipe",
 ]);
 
-/** A SemVer 2.0.0 string (common schema `semver`). */
-const SEMVER =
-    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
+/** A set id as the schema spells it: `set_` plus a ULID, under a recipe namespace or not. */
+const SET_ID = /^set_([a-z][a-z0-9_]*\.)?[0-9A-HJKMNP-TV-Z]{26}$/;
 
 /** A run namespace and name (common schema `namespace`, `runName`). */
 const NAMESPACE = /^[a-z](?:[a-z0-9]|_(?!_))*$/;
@@ -105,6 +96,8 @@ interface Context {
     readonly derived: ReadonlyMap<string, boolean>;
     /** The session's sets, by id. */
     readonly sets: ReadonlyMap<string, JsonObject>;
+    /** A version 1 set id's version 2 id (`set_` plus a ULID). */
+    setId(id: string): string;
     readonly problems: DocumentProblem[];
 }
 
@@ -116,7 +109,7 @@ interface Context {
  * A section's header members, in the order HEADER_MEMBERS gives, the empty ones left out.
  * @param section - The section.
  * @param context - For the generator.
- * @param own - The `id`, `revision`, `name`, `description`, `dependencies`, `bindsTo` and `extensions`.
+ * @param own - The `id`, `name`, `description`, `dependencies`, `bindsTo` and `extensions`.
  * @returns The header.
  */
 function header(section: DocumentSection, context: Context, own: JsonObject = {}): JsonObject {
@@ -128,25 +121,30 @@ function header(section: DocumentSection, context: Context, own: JsonObject = {}
         $schema: `https://graphty.app/schema/documents/${kind}/v${String(version)}.json`,
         kind,
         version,
-        ...pick("id", "revision", "name", "description"),
+        ...pick("id", "name", "description"),
         generator: context.generator,
         ...pick("dependencies", "bindsTo", "extensions"),
     };
 }
 
 /**
- * The header members a version 1 style or recipe names itself with.
+ * The header members a version 1 style or recipe names itself with. Its `styleVersion` or
+ * `recipeVersion` has no version 2 member: it is dropped and reported.
  * @param value - The version 1 document.
  * @param versionKey - `styleVersion` or `recipeVersion`.
- * @returns `id`, `revision`, `name` and `description`, as present.
+ * @param kind - The version 1 member, for the report.
+ * @param problems - Collects the dropped version.
+ * @returns `id`, `name` and `description`, as present.
  */
-function identityOf(value: JsonObject, versionKey: string): JsonObject {
+function identityOf(value: JsonObject, versionKey: string, kind: string, problems: DocumentProblem[]): JsonObject {
     const text = (name: string): JsonObject =>
         typeof value[name] === "string" && value[name] !== "" ? { [name]: value[name] } : {};
-    const revision = value[versionKey];
+    if (value[versionKey] !== undefined) {
+        problems.push(leftOut(kind, `/${versionKey}`));
+    }
+
     return {
         ...text("id"),
-        ...(typeof revision === "string" && SEMVER.test(revision) ? { revision } : {}),
         ...text("name"),
         ...text("description"),
         ...(isObject(value.extensions) ? { extensions: value.extensions } : {}),
@@ -362,7 +360,7 @@ function boundRule(rule: unknown, data: MigratedData): unknown {
 }
 
 // ---------------------------------------------------------------------------------------------
-// style (spec 4.2) and the view's layers (4.7 rule 3)
+// style (spec 4.2) and the view's layers (4.7)
 // ---------------------------------------------------------------------------------------------
 
 /** The members of a version 2 palette (common schema `palette`). */
@@ -382,13 +380,40 @@ function pick(value: JsonObject, names: readonly string[]): JsonObject {
 }
 
 /**
+ * Every `set` member in a value holding a version 1 set id, written as the set's version 2 id.
+ * @param value - The value.
+ * @param context - The file.
+ * @returns A copy.
+ */
+function renameSets<T>(value: T, context: Context): T {
+    if (Array.isArray(value)) {
+        return value.map((entry: unknown) => renameSets(entry, context)) as T;
+    }
+
+    if (!isObject(value)) {
+        return value;
+    }
+
+    return Object.fromEntries(
+        Object.entries(value).map(([key, entry]) => [
+            key,
+            key === "set" && typeof entry === "string" ? context.setId(entry) : renameSets(entry, context),
+        ]),
+    ) as T;
+}
+
+/**
  * A version 1 style document, split: the layers that name no element into a style section, the
- * others into the view's `layers` with element references.
+ * others into the view's `layers` with element references; every layer's id into `order`,
+ * bottom first, and no layer keeps a `kind`.
  * @param style - The version 1 style document.
  * @param context - The file.
- * @returns The style section, and the view's layers.
+ * @returns The style section, the view's layers and the order.
  */
-function migrateStyle(style: JsonObject, context: Context): { section: JsonObject; viewLayers: JsonObject[] } {
+function migrateStyle(
+    style: JsonObject,
+    context: Context,
+): { section: JsonObject; viewLayers: JsonObject[]; order: string[] } {
     const { data, sets, problems } = context;
     const used = new Set<string>();
     const asName = (id: string): string => runKey(id, context.derived.get(id) ?? false).as;
@@ -398,8 +423,8 @@ function migrateStyle(style: JsonObject, context: Context): { section: JsonObjec
     };
     const layers: JsonObject[] = [];
     const viewLayers: JsonObject[] = [];
+    const order: string[] = [];
     const results = new Set<string>();
-    let below = "bottom";
     objectsOf(style.layers).forEach((layer, at) => {
         let id = typeof layer.id === "string" && layer.id !== "" ? layer.id : `layer-${String(at + 1)}`;
         while (used.has(id)) {
@@ -407,23 +432,26 @@ function migrateStyle(style: JsonObject, context: Context): { section: JsonObjec
         }
 
         used.add(id);
-        const { id: _id, name, ...rest } = layer;
+        const { id: _id, name, kind: _kind, ...rest } = layer;
         const named = layerNames(layer, sets);
         const rename = named ? asRunId : asName;
         const source = isObject(rest.source) && typeof rest.source.runId === "string" ? rest.source : undefined;
-        const v2: JsonObject = {
-            id,
-            name: typeof name === "string" ? name : "",
-            ...renameRuns(rest, rename),
-            ...(source === undefined ? {} : { source: { ...source, runId: rename(String(source.runId)) } }),
-        };
+        const v2: JsonObject = renameSets(
+            {
+                id,
+                name: typeof name === "string" ? name : "",
+                ...renameRuns(rest, rename),
+                ...(source === undefined ? {} : { source: { ...source, runId: rename(String(source.runId)) } }),
+            },
+            context,
+        );
         if (!named) {
             for (const match of JSON.stringify([v2.selector, v2.encode]).matchAll(/results\.([a-z][a-z0-9_]*)/g)) {
                 results.add(match[1]);
             }
 
             layers.push(v2);
-            below = id;
+            order.push(id);
             return;
         }
 
@@ -435,21 +463,25 @@ function migrateStyle(style: JsonObject, context: Context): { section: JsonObjec
             return;
         }
 
-        viewLayers.push({ ...v2, selector: boundSelector(v2.selector, data), after: below });
+        viewLayers.push({ ...v2, selector: boundSelector(v2.selector, data) });
+        order.push(id);
     });
 
     const session = context.members.get("graphty-session");
     const valueLabels = objectsOf(session?.valueLabels).flatMap((label, at) => {
-        if (typeof label.path !== "string" || typeof label.label !== "string") {
+        const { path, value } = label;
+        const plain = typeof value === "string" || typeof value === "number" || typeof value === "boolean";
+        if (typeof path !== "string" || typeof label.label !== "string" || !plain) {
+            problems.push(leftOut("graphty-session", `/valueLabels/${String(at)}`));
             return [];
         }
 
-        if (label.path.startsWith("data.")) {
-            return [{ column: label.path.slice("data.".length), value: label.value, label: label.label }];
+        if (path.startsWith("data.")) {
+            return [{ path, value, label: label.label }];
         }
 
-        if (label.path.startsWith("results.")) {
-            return [{ column: renameRuns(label.path, asName), value: label.value, label: label.label }];
+        if (path.startsWith("results.")) {
+            return [{ path: renameRuns(path, asName), value, label: label.label }];
         }
 
         problems.push(leftOut("graphty-session", `/valueLabels/${String(at)}`));
@@ -462,7 +494,7 @@ function migrateStyle(style: JsonObject, context: Context): { section: JsonObjec
     const assets = objectsOf(context.members.get("graphty-assets")?.assets).flatMap((asset) =>
         typeof asset.id === "string" && typeof asset.sha256 === "string" ? [pick(asset, ASSET_MEMBERS)] : [],
     );
-    const identity = identityOf(style, "styleVersion");
+    const identity = identityOf(style, "styleVersion", "graphty-style", problems);
     const section = {
         ...header("style", context, {
             ...identity,
@@ -474,7 +506,7 @@ function migrateStyle(style: JsonObject, context: Context): { section: JsonObjec
         ...(valueLabels.length === 0 ? {} : { valueLabels }),
         ...(assets.length === 0 ? {} : { assets }),
     };
-    return { section, viewLayers };
+    return { section, viewLayers, order };
 }
 
 /**
@@ -502,49 +534,40 @@ function boundSelector(selector: unknown, data: MigratedData): unknown {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Sets and runs: the recipe (4.3) or the view (4.7)
+// Sets and runs: the view (4.7)
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The session's sets, placed: rule sets naming no element as `set.define` commands, the rest as
- * view sets with element references.
+ * Every set, as the view holds it: `{ id, name, definition }`, its node and edge members as
+ * element references, rule sets included whatever their rule names.
  * @param context - The file.
- * @returns The recipe commands and the view sets.
+ * @param data - The data.
+ * @returns The view sets.
  */
-function migrateSets(context: Context): { commands: JsonObject[]; view: JsonObject[] } {
-    const { data, sets } = context;
-    const commands: JsonObject[] = [];
-    const view: JsonObject[] = [];
-    for (const [id, set] of sets) {
+function migrateSets(context: Context, data: MigratedData): JsonObject[] {
+    return [...context.sets].map(([id, set]) => {
         const definition = isObject(set.definition) ? set.definition : {};
-        const name = typeof set.name === "string" ? set.name : "";
         const reading = typeof definition.reading === "string" ? definition.reading : "induced";
-        if (definition.kind === "rule" && !ruleNames(definition.where, sets, new Set([id]))) {
-            commands.push({ op: "set.define", id, name, where: definition.where, reading });
-        } else if (data !== undefined) {
-            view.push(viewSet(id, name, definition, data, reading));
-        }
-    }
-
-    return { commands, view };
+        return {
+            id: context.setId(id),
+            name: typeof set.name === "string" ? set.name : "",
+            definition: renameSets(definitionOf(definition, data, reading), context),
+        };
+    });
 }
 
 /**
- * A set that names elements, as the view holds it.
- * @param id - The set's id.
- * @param name - Its name.
+ * A set definition with its members written as element references.
  * @param definition - Its version 1 definition.
  * @param data - The data.
  * @param reading - Its edge reading.
- * @returns The view set.
+ * @returns The definition.
  */
-function viewSet(id: string, name: string, definition: JsonObject, data: MigratedData, reading: string): JsonObject {
+function definitionOf(definition: JsonObject, data: MigratedData, reading: string): JsonObject {
     const edges = Array.isArray(definition.edges) ? (definition.edges as unknown[]) : undefined;
     switch (definition.kind) {
         case "fixed":
             return {
-                id,
-                name,
                 kind: "fixed",
                 nodes: nodeRefs(definition.nodes, data),
                 ...(edges === undefined ? {} : { edges: edges.flatMap((edge) => edgeMemberRef(edge, data) ?? []) }),
@@ -552,8 +575,6 @@ function viewSet(id: string, name: string, definition: JsonObject, data: Migrate
             };
         case "path":
             return {
-                id,
-                name,
                 kind: "path",
                 nodes: nodeRefs(definition.nodes, data),
                 ...(edges === undefined
@@ -570,84 +591,44 @@ function viewSet(id: string, name: string, definition: JsonObject, data: Migrate
                 ...(typeof definition.directed === "boolean" ? { directed: definition.directed } : {}),
             };
         default:
-            return { id, name, kind: "rule", where: boundRule(definition.where, data), reading };
+            return { kind: "rule", where: boundRule(definition.where, data), reading };
     }
 }
 
-/** A version 1 run's command members an `algo.run` command keeps. */
-const RUN_MEMBERS = ["params", "scope", "seed", "sample", "exact", "recordedCapSeconds", "recordedPrecision"];
-
 /**
- * Whether a run's scope is one a recipe holds (recipe.md, "Writing a recipe from a session").
- * @param scope - The scope.
- * @param sets - The sets, by id.
- * @returns True when it is.
- */
-function recipeScope(scope: unknown, sets: ReadonlyMap<string, JsonObject>): boolean {
-    if (scope === undefined || scope === "graph" || scope === "largest-component") {
-        return true;
-    }
-
-    return (
-        isObject(scope) &&
-        (typeof scope.where === "string" || (typeof scope.set === "string" && !scopeNames(scope, sets, new Set())))
-    );
-}
-
-/**
- * A version 1 run's command as an `algo.run` command or a view run record, both with `style:
- * false` (the saved layers are the file's look).
- * @param run - The version 1 run.
- * @param as - Its name.
- * @returns The command members.
- */
-function runCommand(run: JsonObject, as: string): JsonObject {
-    const kept = pick(run, RUN_MEMBERS);
-    const { params, scope, seed, ...rest } = kept;
-    return {
-        algorithm: run.algorithm,
-        as,
-        ...(isObject(params) && Object.keys(params).length > 0 ? { params } : {}),
-        ...(scope === undefined || scope === "graph" ? {} : { scope }),
-        ...(Number.isInteger(seed) && (seed as number) >= 0 ? { seed } : {}),
-        ...rest,
-        style: false,
-    };
-}
-
-/**
- * The version 1 runs, placed: the runs a recipe can hold as `algo.run` commands, under one
- * namespace, and the rest as view run records.
+ * The version 1 runs as the view's run records (spec 4.7 `runs`), in the order made. A run over
+ * the selection or the visible graph, or narrowed by a filter or a time window, cannot be replayed
+ * exactly: it is written with `"replayable": false`, over the whole graph when its scope has no
+ * version 2 form, and that is reported.
  * @param runs - The version 1 runs.
  * @param context - The file.
- * @returns The namespace, the commands and the view runs.
+ * @param data - The data.
+ * @returns The run records.
  */
-function migrateRuns(
-    runs: readonly JsonObject[],
-    context: Context,
-): { namespace: string | undefined; commands: JsonObject[]; view: JsonObject } {
-    let namespace: string | undefined;
-    const commands: JsonObject[] = [];
-    const view: JsonObject = {};
-    for (const run of runs.filter((each) => typeof each.id === "string" && typeof each.algorithm === "string")) {
-        const key = runKey(String(run.id), run.derived === true);
-        const command = runCommand(run, key.as);
-        if (recipeScope(run.scope, context.sets) && (namespace === undefined || namespace === key.namespace)) {
-            ({ namespace } = key);
-            commands.push({ op: "algo.run", ...command });
-        } else if (context.data !== undefined) {
-            const { as: _as, scope, ...rest } = command;
-            view[`${key.namespace}__${key.as}`] = {
-                namespace: key.namespace,
-                as: key.as,
-                ...(typeof run.name === "string" ? { name: run.name } : {}),
-                ...rest,
-                scope: typeof scope === "string" ? scope : (boundScope(scope ?? "graph", context.data) as JsonObject),
-            };
+function migrateRuns(runs: readonly JsonObject[], context: Context, data: MigratedData): JsonObject[] {
+    return runs.map((run, at) => {
+        const { namespace, as } = runKey(String(run.id), run.derived === true);
+        const caveats = isObject(run.caveats) ? run.caveats : {};
+        const bare = run.scope === "selection" || run.scope === "visible";
+        const narrowed = bare || caveats.filterScope === true || caveats.windowScope === true;
+        if (bare) {
+            context.problems.push(leftOut("graphty-results", `/runs/${String(at)}/scope`));
         }
-    }
 
-    return { namespace, commands, view };
+        const seed = Number.isInteger(run.seed) ? run.seed : caveats.seed;
+        const scope = run.scope === undefined || bare ? "graph" : renameSets(boundScope(run.scope, data), context);
+        return {
+            id: `${namespace}__${as}`,
+            namespace,
+            as,
+            ...(typeof run.name === "string" ? { name: run.name } : {}),
+            algorithm: run.algorithm,
+            ...(isObject(run.params) && Object.keys(run.params).length > 0 ? { params: run.params } : {}),
+            ...(Number.isInteger(seed) && (seed as number) >= 0 ? { seed } : {}),
+            scope,
+            ...(narrowed ? { replayable: false } : {}),
+        };
+    });
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -679,24 +660,51 @@ function outputOf(columns: unknown, refs: readonly (NodeRef | EdgeRef | undefine
 /**
  * A version 1 run's fields as version 2 writes them.
  * @param fields - The version 1 fields.
- * @returns The fields with a name, a type and a node, edge or graph domain.
+ * @returns The fields with a name, a node, edge or graph kind, and a type.
  */
 function fieldsOf(fields: unknown): JsonObject[] {
     return objectsOf(fields).flatMap((field) =>
         typeof field.name === "string" &&
         typeof field.type === "string" &&
         ["node", "edge", "graph"].includes(String(field.kind))
-            ? [{ name: field.name, domain: field.kind, type: field.type }]
+            ? [{ name: field.name, kind: field.kind, type: field.type }]
             : [],
     );
+}
+
+/** What a version 1 caveat record may lack that version 2 requires, and the value it takes. */
+const CAVEAT_DEFAULTS: JsonObject = {
+    exact: false,
+    direction: "unknown",
+    precision: "f64",
+    method: "unknown",
+    facts: [],
+};
+
+/**
+ * A version 1 run's caveats as version 2 writes them: without `notes` and `partialReason`, a
+ * required member it lacks at its default.
+ * @param caveats - The version 1 caveats.
+ * @returns The caveats.
+ */
+function caveatsOf(caveats: JsonObject): JsonObject {
+    const { notes: _notes, partialReason: _reason, ...rest } = caveats;
+    return { ...CAVEAT_DEFAULTS, ...rest };
+}
+
+/**
+ * The engine versions of a migrated run: the release that saved the file for graphty-element; a
+ * version 1 file records none for the algorithms and the layout.
+ * @param context - The file.
+ * @returns graphty-element's `EngineVersions`.
+ */
+function engineOf(context: Context): JsonObject {
+    return { element: String(context.generator.version), algorithms: "unknown", layout: "unknown" };
 }
 
 /**
  * One version 1 run as a results entry.
  * @param run - The version 1 run.
- * @param name - Its namespace and `as`.
- * @param name.namespace - The namespace.
- * @param name.as - The name.
  * @param context - The file.
  * @param data - The data.
  * @param edgeRefs - The file's edges, by position.
@@ -704,12 +712,11 @@ function fieldsOf(fields: unknown): JsonObject[] {
  */
 function resultEntry(
     run: JsonObject,
-    name: { namespace: string; as: string },
     context: Context,
     data: MigratedData,
     edgeRefs: readonly (EdgeRef | undefined)[],
 ): JsonObject {
-    const { namespace, as } = name;
+    const { namespace, as } = runKey(String(run.id), run.derived === true);
     const nodes = isObject(run.nodes) ? run.nodes : {};
     const caveats = isObject(run.caveats) ? run.caveats : {};
     const seed = Number.isInteger(caveats.seed) ? caveats.seed : null;
@@ -718,11 +725,12 @@ function resultEntry(
         as,
         algorithm: run.algorithm,
         ...(isObject(run.params) ? { params: run.params } : {}),
-        engine: { name: String(context.generator.name), version: String(context.generator.version) },
+        engine: engineOf(context),
         seed,
         ...(typeof run.durationMs === "number" && run.durationMs >= 0 ? { durationMs: run.durationMs } : {}),
+        bindsTo: data.binding,
         fields: fieldsOf(run.fields),
-        caveats,
+        caveats: caveatsOf(caveats),
         ...(isObject(run.graph) ? { graph: run.graph } : {}),
         nodes: outputOf(nodes.columns, nodeRefs(nodes.ids, data)),
         edges: outputOf(isObject(run.edges) ? run.edges.columns : {}, edgeRefs),
@@ -730,26 +738,65 @@ function resultEntry(
 }
 
 /**
- * The results section: each version 1 run's record and outputs, keyed by run id.
+ * The layout record (spec 4.5 `layout`): the layout in force and the positions the arrangement
+ * holds for the nodes that are not pinned.
+ * @param context - The file.
+ * @param data - The data.
+ * @param positions - The arrangement's positions.
+ * @returns The record, or undefined when the file names no layout or holds no position.
+ */
+function layoutRecord(context: Context, data: MigratedData, positions: readonly Placed[]): JsonObject | undefined {
+    const layout = layoutOf(context.members.get("graphty-session"));
+    const free = positions.filter((each) => !each.pinned);
+    if (layout === undefined || free.length === 0) {
+        return undefined;
+    }
+
+    return {
+        ...layout,
+        seed: null,
+        versions: engineOf(context),
+        bindsTo: data.binding,
+        nodes: {
+            refs: free.map((each) => each.node),
+            columns: { x: free.map((each) => each.x), y: free.map((each) => each.y), z: free.map((each) => each.z) },
+        },
+    };
+}
+
+/**
+ * The results section: each version 1 run's record and outputs, keyed by run id, and the layout
+ * record.
  * @param runs - The version 1 runs.
  * @param context - The file.
  * @param data - The data.
- * @returns The section.
+ * @param layout - The layout record, if any.
+ * @returns The section, or undefined when there is nothing to hold.
  */
-function migrateResults(runs: readonly JsonObject[], context: Context, data: MigratedData): JsonObject {
+function migrateResults(
+    runs: readonly JsonObject[],
+    context: Context,
+    data: MigratedData,
+    layout: JsonObject | undefined,
+): JsonObject | undefined {
+    if (runs.length === 0 && layout === undefined) {
+        return undefined;
+    }
+
     const links = context.members.get("graphty-data");
     const graph = isObject(links?.graph) ? links.graph : {};
     const edgeCount = Array.isArray(graph.links) ? graph.links.length : 0;
     const edgeRefs = Array.from({ length: edgeCount }, (_, at) => data.edgeAt(at));
     const out: JsonObject = {};
-    for (const run of runs.filter((each) => typeof each.id === "string" && typeof each.algorithm === "string")) {
+    for (const run of runs) {
         const { namespace, as } = runKey(String(run.id), run.derived === true);
-        out[`${namespace}__${as}`] = resultEntry(run, { namespace, as }, context, data, edgeRefs);
+        out[`${namespace}__${as}`] = resultEntry(run, context, data, edgeRefs);
     }
 
     return {
-        ...header("results", context, { bindsTo: { data: data.dataId, ...data.binding } }),
+        ...header("results", context, { bindsTo: { data: data.dataId } }),
         runs: out,
+        ...(layout === undefined ? {} : { layout }),
     };
 }
 
@@ -762,10 +809,14 @@ function migrateResults(runs: readonly JsonObject[], context: Context, data: Mig
  * no reader knows, so it reads unsupported and is written back (spec 4.6).
  * @param target - The version 1 target.
  * @param data - The data.
- * @param runId - A version 1 run id's version 2 id.
+ * @param context - The file.
  * @returns The target.
  */
-function noteTarget(target: JsonObject, data: MigratedData, runId: (id: unknown) => string): JsonObject {
+function noteTarget(target: JsonObject, data: MigratedData, context: Context): JsonObject {
+    const runId = (id: unknown): string => {
+        const { namespace, as } = runKey(String(id), context.derived.get(String(id)) ?? false);
+        return `${namespace}__${as}`;
+    };
     if (target.node !== undefined) {
         const node = data.nodeRef(target.node);
         return node === undefined ? { "version-1": target } : { node };
@@ -784,7 +835,7 @@ function noteTarget(target: JsonObject, data: MigratedData, runId: (id: unknown)
         return { item: { result: runId(target.item.run ?? target.item.result), key: target.item.key } };
     }
 
-    return target;
+    return renameSets(target, context);
 }
 
 /**
@@ -795,28 +846,37 @@ function noteTarget(target: JsonObject, data: MigratedData, runId: (id: unknown)
  * @returns The section.
  */
 function migrateNotes(notes: JsonObject, context: Context, data: MigratedData): JsonObject {
-    const runId = (id: unknown): string => {
-        const { namespace, as } = runKey(String(id), context.derived.get(String(id)) ?? false);
-        return `${namespace}__${as}`;
-    };
     return {
         ...header("notes", context, { bindsTo: { data: data.dataId } }),
         notes: objectsOf(notes.notes).map((note) => ({
             ...note,
-            targets: objectsOf(note.targets).map((target) => noteTarget(target, data, runId)),
+            targets: objectsOf(note.targets).map((target) => noteTarget(target, data, context)),
             ...(Array.isArray(note.cites)
-                ? { cites: objectsOf(note.cites).map((cite) => ({ result: runId(cite.run ?? cite.result) })) }
+                ? {
+                      cites: objectsOf(note.cites).map((cite) => {
+                          const id = String(cite.run ?? cite.result);
+                          const { namespace, as } = runKey(id, context.derived.get(id) ?? false);
+                          return { result: `${namespace}__${as}` };
+                      }),
+                  }
                 : {}),
         })),
     };
 }
 
 // ---------------------------------------------------------------------------------------------
-// settings (4.4), recipe (4.3) and view (4.7) from the session member
+// settings (4.4) and view (4.7) from the session member
 // ---------------------------------------------------------------------------------------------
 
-/** Config keys a settings section never holds (spec 4.4 rule 1), or that the data section holds. */
+/** Config keys a settings section never holds (spec 4.4), or that the view holds. */
 const NOT_SETTINGS = new Set(["author", "name", "startingRows", "editableBase", "viewRotation", "framing"]);
+
+/** The `data` config keys the data section's mapping carries (migrationParts.ts `mappingOf`). */
+const MAPPED_FIELDS = new Set([
+    "data.knownFields.edgeIdPath",
+    "data.knownFields.edgeWeightPath",
+    "data.knownFields.timePath",
+]);
 
 /**
  * What a migration could not carry over, for a caller to tell the reader before the version 2
@@ -832,11 +892,13 @@ function leftOut(kind: string, pointer: string): DocumentProblem {
 /** Config keys whose value is one object, written whole. */
 const OBJECT_SETTINGS = new Set(["background", "selectionStyle", "pinnedStyle", "layoutTransition"]);
 
-/** The timeline playback members (spec 4.4 rule 2). */
+/** The timeline playback members (spec 4.4). */
 const PLAYBACK_MEMBERS = ["mode", "step", "missing", "outside", "timeZone", "ageFade", "results"];
 
 /**
- * The settings section: the session's config written flat, and the timeline playback.
+ * The settings section: the session's config written flat, and the timeline playback. No `data.`
+ * key is a setting: the known fields the data's mapping carries are left out quietly, the rest
+ * reported.
  * @param session - The session member.
  * @param context - The file.
  * @returns The section.
@@ -848,7 +910,16 @@ function migrateSettings(session: JsonObject, context: Context): JsonObject {
             for (const [key, entry] of Object.entries(value)) {
                 flatten(`${prefix}.${key}`, entry);
             }
-        } else if (value !== undefined) {
+        } else if (value === undefined) {
+            return;
+        } else if (prefix.startsWith("data.")) {
+            if (!(
+                context.data?.carried.has(prefix.slice("data.knownFields.".length)) === true &&
+                MAPPED_FIELDS.has(prefix)
+            )) {
+                context.problems.push(leftOut("graphty-session", `/config/${prefix.replaceAll(".", "/")}`));
+            }
+        } else {
             settings[prefix] = value;
         }
     };
@@ -864,53 +935,40 @@ function migrateSettings(session: JsonObject, context: Context): JsonObject {
 }
 
 /**
- * The recipe section: the rule sets naming no element, the runs a recipe holds, and the layout.
+ * The layout in force, exactly version 1's `{ id, engine, options, dimension }`.
  * @param session - The session member, if any.
- * @param context - The file.
- * @param parts - The set commands and the runs.
- * @param parts.sets - The `set.define` commands.
- * @param parts.runs - The placed runs.
- * @returns The section, or undefined when there is nothing to hold.
+ * @returns The layout record, or undefined for none.
  */
-function migrateRecipe(
-    session: JsonObject | undefined,
-    context: Context,
-    parts: { sets: JsonObject[]; runs: ReturnType<typeof migrateRuns> },
-): JsonObject | undefined {
+function layoutOf(session: JsonObject | undefined): JsonObject | undefined {
     const layout = isObject(session?.layout) ? session.layout : undefined;
-    const layoutSet =
-        layout === undefined || typeof layout.id !== "string"
-            ? []
-            : [
-                  {
-                      op: "layout.set",
-                      id: layout.id,
-                      ...(typeof layout.engine === "string" ? { engine: layout.engine } : {}),
-                      dimension: layout.dimension === "2d" ? 2 : 3,
-                      ...(isObject(layout.options) && Object.keys(layout.options).length > 0
-                          ? { options: layout.options }
-                          : {}),
-                  },
-              ];
-    const commands = [...parts.sets, ...parts.runs.commands, ...layoutSet];
-    if (commands.length === 0) {
+    if (layout === undefined || typeof layout.id !== "string" || layout.id === "") {
         return undefined;
     }
 
     return {
-        ...header("recipe", context),
-        ...(parts.runs.namespace === undefined ? {} : { namespace: parts.runs.namespace }),
-        commands,
+        id: layout.id,
+        ...(typeof layout.engine === "string" && layout.engine !== "" ? { engine: layout.engine } : {}),
+        dimension: layout.dimension === "2d" || layout.dimension === 2 ? 2 : 3,
+        ...(isObject(layout.options) && Object.keys(layout.options).length > 0 ? { options: layout.options } : {}),
     };
+}
+
+/** A placed node of the arrangement member. */
+interface Placed {
+    readonly node: NodeRef;
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly pinned: boolean;
 }
 
 /**
  * The placed nodes of the arrangement member: positions decoded from base64 into plain numbers.
  * @param arrangement - The arrangement member.
  * @param data - The data.
- * @returns The placed entries.
+ * @returns The placed nodes.
  */
-function placedOf(arrangement: JsonObject | undefined, data: MigratedData): JsonObject[] {
+function placedOf(arrangement: JsonObject | undefined, data: MigratedData): Placed[] {
     if (arrangement === undefined || !Array.isArray(arrangement.ids)) {
         return [];
     }
@@ -924,78 +982,61 @@ function placedOf(arrangement: JsonObject | undefined, data: MigratedData): Json
 
     return ids.flatMap((id, at) => {
         const node = data.nodeRef(id);
-        const position = [xs[at], ys[at], zs[at]];
-        return node === undefined || !position.every((value) => typeof value === "number")
+        const [x, y, z] = [xs[at], ys[at], zs[at]];
+        return node === undefined || typeof x !== "number" || typeof y !== "number" || typeof z !== "number"
             ? []
-            : [{ node, position, ...(pins.has(keyText(id)) ? { pinned: true } : {}) }];
+            : [{ node, x, y, z, pinned: pins.has(keyText(id)) }];
     });
 }
 
 /**
- * The view's visibility: the live filter with the keep and exclude conditions that are on folded
- * in (as a version 2 save writes them), the time window (`windowRaw` as its `raw`),
- * `showContext`, the select conditions and the hidden nodes, with element references. A condition
- * that is off, and filter steps with no condition beside them, are reported left out.
+ * The view's visibility (spec 4.7): the filter in force, the time window (no `raw`), `showContext`,
+ * every condition as one plain list and the hidden nodes, with element references. Filter steps
+ * are not written, and are reported.
  * @param visibility - The session member's visibility.
+ * @param context - The file.
  * @param data - The data.
- * @param problems - Collects what is left out.
  * @returns The visibility.
  */
-function visibilityOf(visibility: JsonObject, data: MigratedData, problems: DocumentProblem[]): JsonObject {
-    const conditions = isObject(visibility.conditions) ? objectsOf(visibility.conditions.list) : [];
-    const select = conditions.filter((each) => each.effect === "select").map((each) => boundRule(each.rule, data));
-    const folded: unknown[] = isObject(visibility.filter) ? [visibility.filter] : [];
-    conditions.forEach((condition, at) => {
-        if (condition.effect === "select") {
-            return;
-        }
-
-        if (condition.on === true && (condition.effect === "keep" || condition.effect === "exclude")) {
-            folded.push(condition.effect === "keep" ? condition.rule : { kind: "not", of: condition.rule });
-        } else {
-            problems.push(leftOut("graphty-session", `/visibility/conditions/list/${String(at)}`));
-        }
-    });
-    if (Array.isArray(visibility.steps) && visibility.steps.length > 0 && conditions.length === 0) {
-        problems.push(leftOut("graphty-session", "/visibility/steps"));
-    }
-
-    let filter: unknown = null;
-    if (folded.length === 1) {
-        [filter] = folded;
-    } else if (folded.length > 1) {
-        filter = { kind: "all", of: folded };
+function visibilityOf(visibility: JsonObject, context: Context, data: MigratedData): JsonObject {
+    const conditions = (isObject(visibility.conditions) ? objectsOf(visibility.conditions.list) : []).map((condition) =>
+        renameSets({ ...condition, rule: boundRule(condition.rule, data) }, context),
+    );
+    if (Array.isArray(visibility.steps) && visibility.steps.length > 0) {
+        context.problems.push(leftOut("graphty-session", "/visibility/steps"));
     }
 
     const window =
         isObject(visibility.window) && typeof visibility.window.attribute === "string"
-            ? { ...visibility.window, ...(visibility.windowRaw === true ? { raw: true } : {}) }
+            ? (({ raw: _raw, ...rest }) => rest)(visibility.window)
             : undefined;
     const hidden = nodeRefs(visibility.hidden, data);
     return {
-        filter: filter === null ? null : boundRule(filter, data),
+        filter: isObject(visibility.filter) ? renameSets(boundRule(visibility.filter, data), context) : null,
         ...(window === undefined ? {} : { window }),
         ...(typeof visibility.showContext === "boolean" ? { showContext: visibility.showContext } : {}),
-        ...(select.length === 0 ? {} : { select }),
+        ...(conditions.length === 0 ? {} : { conditions }),
         ...(hidden.length === 0 ? {} : { hidden }),
     };
 }
 
 /**
- * The view section: saved views, the selection, placed positions and pins, the sets and layers
- * that name elements, the visibility, hidden columns and the runs a recipe cannot hold.
+ * The view section: saved views, the selection, the pinned nodes, every set, the visibility,
+ * hidden columns, the layer order, the layers that name elements, every run and the layout.
  * @param context - The file.
  * @param data - The data.
- * @param parts - What the style, sets and runs placed here.
+ * @param parts - What the style, sets, runs and arrangement placed here.
  * @param parts.layers - The layers that name elements.
- * @param parts.sets - The sets that name elements.
+ * @param parts.order - Every layer id, bottom first.
+ * @param parts.sets - The sets.
  * @param parts.runs - The run records.
+ * @param parts.placed - The arrangement's placed nodes.
  * @returns The section.
  */
 function migrateView(
     context: Context,
     data: MigratedData,
-    parts: { layers: JsonObject[]; sets: JsonObject[]; runs: JsonObject },
+    parts: { layers: JsonObject[]; order: string[]; sets: JsonObject[]; runs: JsonObject[]; placed: Placed[] },
 ): JsonObject {
     const session = context.members.get("graphty-session");
     const config = isObject(session?.config) ? session.config : undefined;
@@ -1005,7 +1046,9 @@ function migrateView(
         const camera = isObject(view.camera) ? cameraJson(view.camera) : undefined;
         return camera === undefined ? [] : [{ name: typeof view.name === "string" ? view.name : "", camera }];
     });
-    const placed = placedOf(context.members.get("graphty-arrangement"), data);
+    const pinned = parts.placed
+        .filter((each) => each.pinned)
+        .map((each) => ({ node: each.node, position: { x: each.x, y: each.y, z: each.z } }));
     const columns =
         isObject(session?.columns) && Array.isArray(session.columns.hidden)
             ? (session.columns.hidden as unknown[])
@@ -1019,6 +1062,7 @@ function migrateView(
         const ref = typeof position === "number" ? data.edgeAt(position) : undefined;
         return ref === undefined ? [] : [ref];
     };
+    const layout = layoutOf(session);
     return {
         ...header("view", context, { bindsTo: { data: data.dataId } }),
         ...(views.length === 0 ? {} : { views }),
@@ -1030,22 +1074,22 @@ function migrateView(
                       edges: (Array.isArray(selection.edges) ? (selection.edges as unknown[]) : []).flatMap(edgeAt),
                   },
               }),
-        ...(placed.length === 0 ? {} : { placed }),
+        ...(pinned.length === 0 ? {} : { pinned }),
         ...(parts.sets.length === 0 ? {} : { sets: parts.sets }),
-        ...(isObject(session?.visibility)
-            ? { visibility: visibilityOf(session.visibility, data, context.problems) }
-            : {}),
+        ...(isObject(session?.visibility) ? { visibility: visibilityOf(session.visibility, context, data) } : {}),
         ...(config?.viewRotation === undefined ? {} : { viewRotation: config.viewRotation }),
         ...(config?.framing === undefined ? {} : { framing: config.framing }),
         ...(hiddenColumns.length === 0 ? {} : { hiddenColumns }),
+        ...(parts.order.length === 0 ? {} : { order: parts.order }),
         ...(parts.layers.length === 0 ? {} : { layers: parts.layers }),
-        ...(Object.keys(parts.runs).length === 0 ? {} : { runs: parts.runs }),
+        ...(parts.runs.length === 0 ? {} : { runs: parts.runs }),
+        ...(layout === undefined ? {} : { layout }),
     };
 }
 
 /**
- * A version 1 recipe document as a recipe section: recipe.md's commands, with `id` and
- * `recipeVersion` as `id` and `revision`, and every `algo.run` writing `style`. The snapshot
+ * A version 1 recipe document as a recipe section: recipe.md's commands, with `id` as `id`, and
+ * every `algo.run` writing `style`. `recipeVersion` is dropped and reported. The snapshot
  * `session.recipe()` wrote holds no commands and gives none.
  * @param recipe - The version 1 recipe.
  * @param context - The file.
@@ -1069,7 +1113,7 @@ function migrateRecipe1(recipe: JsonObject, context: Context): JsonObject | unde
         return command;
     });
     return {
-        ...header("recipe", context, identityOf(recipe, "recipeVersion")),
+        ...header("recipe", context, identityOf(recipe, "recipeVersion", "graphty-recipe", context.problems)),
         ...(typeof recipe.namespace === "string" ? { namespace: recipe.namespace } : {}),
         commands,
     };
@@ -1166,7 +1210,7 @@ function sectionsOf(
     const data =
         dataMember === undefined
             ? undefined
-            : migrateData({ data: dataMember, session, sources: members.get("graphty-sources"), generator });
+            : migrateData({ data: dataMember, session, sources: members.get("graphty-sources"), generator, problems });
     const runs = objectsOf(members.get("graphty-results")?.runs);
     const context: Context = {
         members,
@@ -1174,6 +1218,7 @@ function sectionsOf(
         data,
         derived: new Map(runs.map((run) => [String(run.id), run.derived === true])),
         sets: new Map(objectsOf(session?.sets).flatMap((set) => (typeof set.id === "string" ? [[set.id, set]] : []))),
+        setId: (id) => (SET_ID.test(id) ? id : `set_${ulidOf(`set\u0000${id}`)}`),
         problems,
     };
 
@@ -1186,27 +1231,31 @@ function sectionsOf(
     const styled = style === undefined ? undefined : migrateStyle(style, context);
     sections.style = styled?.section;
 
-    const sets = migrateSets(context);
-    const placedRuns = migrateRuns(runs, context);
+    // Opening restores the session: every set, run and the layout go to the view, never to a
+    // recipe, which applies only to new data. Only a version 1 recipe document becomes one.
     const recipe1 = members.get("graphty-recipe");
-    sections.recipe =
-        recipe1 === undefined
-            ? migrateRecipe(session, context, { sets: sets.commands, runs: placedRuns })
-            : migrateRecipe1(recipe1, context);
+    sections.recipe = recipe1 === undefined ? undefined : migrateRecipe1(recipe1, context);
     if (recipe1 !== undefined && sections.style === undefined && isObject(recipe1.styles)) {
         sections.style = migrateStyle(recipe1.styles, context).section;
     }
 
     sections.settings = session === undefined ? undefined : migrateSettings(session, context);
     if (data !== undefined) {
-        sections.results = runs.length === 0 ? undefined : migrateResults(runs, context, data);
+        const placed = placedOf(members.get("graphty-arrangement"), data);
+        sections.results = migrateResults(runs, context, data, layoutRecord(context, data, placed));
         const notes = members.get("graphty-notes");
         sections.notes = notes === undefined ? undefined : migrateNotes(notes, context, data);
         const viewed = ["graphty-session", "graphty-arrangement", "graphty-view-state"].some((kind) =>
             members.has(kind),
         );
         sections.view = viewed
-            ? migrateView(context, data, { layers: styled?.viewLayers ?? [], sets: sets.view, runs: placedRuns.view })
+            ? migrateView(context, data, {
+                  layers: styled?.viewLayers ?? [],
+                  order: styled?.order ?? [],
+                  sets: migrateSets(context, data),
+                  runs: migrateRuns(runs, context, data),
+                  placed,
+              })
             : undefined;
     }
 

@@ -87,7 +87,8 @@ export type DocumentCode =
     | "W_NODE_NAMED_ONLY"
     | "W_EDGE_END_MISSING"
     | "W_COLUMN_WIDENED"
-    | "W_MEMBER_LEFT_OUT";
+    | "W_MEMBER_LEFT_OUT"
+    | "W_RECIPE_NOT_APPLIED";
 
 /**
  * One report entry of a version 2 save or open: a code and plain values (spec 13). A reference
@@ -106,10 +107,6 @@ interface Generator {
 /** `bindsTo`: which data a bound section was written on (spec 6.4). */
 export interface BindsTo {
     readonly data: string;
-    /** Results only: each source's content hash by source id. */
-    readonly sources?: Readonly<Record<string, string>>;
-    /** Results only: `sha256:` plus hex, of the canonical JSON the spec defines. */
-    readonly fingerprint?: string;
 }
 
 /** The members every section begins with, in the order a writer writes them (spec 3). */
@@ -118,7 +115,6 @@ export const HEADER_MEMBERS = Object.freeze([
     "kind",
     "version",
     "id",
-    "revision",
     "name",
     "description",
     "created",
@@ -140,7 +136,6 @@ export interface SectionHeader {
     readonly kind: string;
     readonly version: number;
     readonly id?: string;
-    readonly revision?: string;
     readonly name?: string;
     readonly description?: string;
     readonly created?: string;
@@ -164,16 +159,7 @@ export interface SectionHeader {
 export type SectionHeaderInput = Partial<
     Pick<
         SectionHeader,
-        | "id"
-        | "revision"
-        | "name"
-        | "description"
-        | "authors"
-        | "license"
-        | "keywords"
-        | "language"
-        | "dependencies"
-        | "origin"
+        "id" | "name" | "description" | "authors" | "license" | "keywords" | "language" | "dependencies" | "origin"
     >
 >;
 
@@ -183,23 +169,14 @@ export interface NodeRef {
     readonly key: string;
 }
 
-/** An edge with a record key of its own. */
-interface KeyedEdgeRef {
-    readonly from: NodeRef;
-    readonly to: NodeRef;
+/**
+ * An edge reference (spec 6.2): `load` the source whose row made the edge, `key` its edge-id value,
+ * a minted ULID for a reader-added edge, or `<copy id>#<row from 0>` for a keyless row.
+ */
+export interface EdgeRef {
+    readonly load: string;
     readonly key: string;
 }
-
-/** An edge with no key: named by its ends, the hash of its row, and its place among equals. */
-interface HashedEdgeRef {
-    readonly from: NodeRef;
-    readonly to: NodeRef;
-    readonly h: string;
-    readonly n: number;
-}
-
-/** An edge reference (spec 6.2). */
-export type EdgeRef = KeyedEdgeRef | HashedEdgeRef;
 
 /**
  * Element references for the open data (spec 6): from the session's ids to references, and back.
@@ -243,19 +220,29 @@ interface CodecContext {
     dataId(): string | undefined;
     /** Every section this save writes, or this open loads. */
     readonly sections: ReadonlySet<DocumentSection>;
+    /**
+     * The open data's build stamp and each available source's copy id, as a results run's
+     * `bindsTo` records them (spec 6.4), or undefined when there is no data.
+     */
+    buildStamp?(): Promise<BuildStamp | undefined>;
+}
+
+/** A results run's `bindsTo`: the data's build stamp and each available source's copy id (spec 6.4). */
+export interface BuildStamp {
+    readonly build: string;
+    readonly sources: Readonly<Record<string, string>>;
 }
 
 /** What a codec's `write` is given. */
 export interface WriteContext extends CodecContext {
     /** The saver's choice per source id; a source with no entry is embedded. */
     readonly embed: Readonly<Record<string, SourceStorage>>;
+    /** Write the recipe from the session even when one was opened from a file (spec 8.1 rule 5). Default false. */
+    readonly rewriteRecipe?: boolean;
     /** Whether a run's id was minted by the element (its namespace is the element's own). */
     isDerived(id: RunId): boolean;
-    /**
-     * The `bindsTo` of a bound section. `full` adds the source hashes and the fingerprint a
-     * results section writes.
-     */
-    bindsTo(full: boolean): Promise<BindsTo | undefined>;
+    /** The `bindsTo` of a bound section: `{ data }` alone; a results run carries its own build stamp. */
+    bindsTo(): Promise<BindsTo | undefined>;
 }
 
 /** What a codec's `read` is given. */
@@ -264,6 +251,10 @@ export interface ReadContext extends CodecContext {
     readonly tx: TransactionScope;
     /** Whether the behaviors rerun (spec 8.4). Default true. */
     readonly rerun: boolean;
+    /** Apply a recipe section to the data (spec 8.2 rule 4); otherwise it is only kept. Default false. */
+    readonly applyRecipe?: boolean;
+    /** The caller's rerun choice for one run (spec 8.2 rule 3); `rerun` when absent or undefined. */
+    rerunOf?(id: RunId): boolean | undefined;
     /** Whether a data section replaces the open data or is added as another source (spec 8.2). */
     readonly dataMode: "replace" | "add";
     /** Collects the parts of the session that came back. */

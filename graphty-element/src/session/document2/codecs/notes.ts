@@ -33,11 +33,11 @@ import type {
     SectionHeaderInput,
     WriteContext,
 } from "../types";
+import { fileIdsOf, fileSetId } from "./viewParts";
 
 /** The header members this codec owns, kept as read so a re-save writes them back. */
 const OWN_HEADER = [
     "id",
-    "revision",
     "name",
     "description",
     "authors",
@@ -104,7 +104,7 @@ function rebound(target: NoteTarget, refs: ElementRefs): unknown {
         return ref === undefined ? target : { node: ref };
     }
 
-    if (isObject(raw.edge) && Object.hasOwn(raw.edge, "from")) {
+    if (isObject(raw.edge) && Object.hasOwn(raw.edge, "load")) {
         const id = refs.edge(raw.edge);
         const ref = id === undefined ? undefined : refs.edgeRef(id);
         return ref === undefined ? target : { edge: ref };
@@ -118,9 +118,10 @@ function rebound(target: NoteTarget, refs: ElementRefs): unknown {
  * @param target - The session target.
  * @param refs - The element references.
  * @param edgeId - The session id of an edge target's edge, worked out beforehand.
+ * @param session - The session, for the file id of a set.
  * @returns The target, or undefined when it names an element the graph does not hold.
  */
-function targetOut(target: NoteTarget, refs: ElementRefs, edgeId: EdgeId | undefined): unknown {
+function targetOut(target: NoteTarget, refs: ElementRefs, edgeId: EdgeId | undefined, session: object): unknown {
     if (!supportedTarget(target)) {
         return rebound(target, refs);
     }
@@ -133,6 +134,11 @@ function targetOut(target: NoteTarget, refs: ElementRefs, edgeId: EdgeId | undef
     if ("edge" in target) {
         const ref = edgeId === undefined ? undefined : refs.edgeRef(edgeId);
         return ref === undefined ? undefined : { edge: ref };
+    }
+
+    if ("set" in target) {
+        // A set is named by its file id, `set_` plus a ULID (spec 4.6).
+        return { set: fileSetId(session, target.set) };
     }
 
     if ("item" in target) {
@@ -158,7 +164,7 @@ function isUnboundRef(target: unknown, refs: ElementRefs): boolean {
         return refs.node(target.node) === undefined;
     }
 
-    return isObject(target.edge) && Object.hasOwn(target.edge, "from") && refs.edge(target.edge) === undefined;
+    return isObject(target.edge) && Object.hasOwn(target.edge, "load") && refs.edge(target.edge) === undefined;
 }
 
 /**
@@ -168,6 +174,7 @@ function isUnboundRef(target: unknown, refs: ElementRefs): boolean {
  * @param refs - The element references.
  * @param edgeIds - The session ids of its edge targets, by target index.
  * @param problems - Where unbound references are reported.
+ * @param session - The session, for set file ids.
  * @returns The note, or undefined when none of its targets can be written.
  */
 function noteOut(
@@ -176,12 +183,13 @@ function noteOut(
     refs: ElementRefs,
     edgeIds: ReadonlyMap<number, EdgeId | undefined>,
     problems: DocumentProblem[],
+    session: object,
 ): JsonObject | undefined {
     const read = originals.get(note);
     const was = read?.length === note.targets.length ? read : undefined;
     const targets: unknown[] = [];
     note.targets.forEach((target, t) => {
-        const out = targetOut(target, refs, edgeIds.get(t)) ?? was?.[t];
+        const out = targetOut(target, refs, edgeIds.get(t), session) ?? was?.[t];
         if (out === undefined) {
             // A session target on an element gone from the graph has no reference to write.
             problems.push(unbound(`${at}/targets/${String(t)}`, target));
@@ -242,7 +250,7 @@ function write(context: WriteContext): Promise<{ header: SectionHeaderInput; bod
     const out: JsonObject[] = [];
     notes.forEach((note, n) => {
         const pointer = `/notes/${String(out.length)}`;
-        const written = noteOut(note, pointer, refs, edgeIds[n], problems);
+        const written = noteOut(note, pointer, refs, edgeIds[n], problems, session);
         if (written === undefined) {
             problems.push(unbound(pointer, { note: note.id }));
         } else {
@@ -250,28 +258,6 @@ function write(context: WriteContext): Promise<{ header: SectionHeaderInput; bod
         }
     });
     return Promise.resolve({ header: headers.get(session) ?? {}, body: { notes: out } });
-}
-
-/**
- * Report each source replaced after the section was written (spec 6.4).
- * @param section - The notes section.
- * @param context - The open.
- */
-function reportReplaced(section: ReadSection, context: ReadContext): void {
-    const modified = Date.parse(section.header.modified ?? "");
-    const sources = context.other("data")?.body.sources;
-    if (Number.isNaN(modified) || !Array.isArray(sources)) {
-        return;
-    }
-
-    for (const source of sources) {
-        if (isObject(source) && typeof source.replaced === "string" && Date.parse(source.replaced) > modified) {
-            context.problems.push({
-                code: "W_REPLACED_SINCE",
-                params: { section: "notes", source: typeof source.id === "string" ? source.id : null },
-            });
-        }
-    }
 }
 
 /**
@@ -285,6 +271,12 @@ function reportReplaced(section: ReadSection, context: ReadContext): void {
 function targetIn(target: unknown, pointer: string, context: ReadContext): unknown {
     if (!isObject(target) || Object.keys(target).length !== 1) {
         return target;
+    }
+
+    if (typeof target.set === "string") {
+        // A file set id binds to the session set opened under it; any other stays as read.
+        const opened = [...fileIdsOf(context.session).sets].find(([, file]) => file === target.set);
+        return opened === undefined ? target : { set: opened[0] };
     }
 
     const refs = context.refs();
@@ -382,7 +374,6 @@ function read(section: ReadSection, context: ReadContext): Promise<void> {
         return Promise.resolve();
     }
 
-    reportReplaced(section, context);
     const translated = notes.map((note: unknown, n) => noteIn(note, `${base}/${String(n)}`, context));
     // An edge bound by position or by a made-up id is written by its place among its pair, as a
     // load of this graph counts it, so the merge binds it.

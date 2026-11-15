@@ -1,7 +1,7 @@
 /**
- * @file The open data as version 2 names it (spec 4.1, 6): its sources, record keys, element
- * references both ways, content hashes and the fingerprint. Owned by the data codec, used by every
- * bound section through the framing's context. Experimental (`save-files-v2`).
+ * @file The open data as version 2 names it (spec/README.md 4.1, 6): its sources and their copy
+ * ids, the build stamp, record keys and element references both ways. Owned by the data codec,
+ * used by every bound section through the framing's context. Experimental (`save-files-v2`).
  *
  * Everything here is derived from today's model (`session.data`), never from the data store of
  * design/data/data-store-options.md, which is not built. data.ts lists what that leaves out.
@@ -11,13 +11,17 @@
 
 import type { EdgeId, NodeId } from "../../../catalog/types";
 import { sha256Hex } from "../../../utils/sha256";
+import { COLUMNS_VALUE, type ColumnSettings } from "../../commands/data";
+import { dispatcherOf } from "../../dispatchers";
+import { ISSUES_VALUE, type IssueState } from "../../issues";
 import { redactedParams } from "../../sources/member";
 import type { EdgeRecord, GraphSession, LoadedSource, NodeRecord } from "../../types";
 import { projectMemory } from "../memory";
-import type { DocumentProblem, EdgeRef, ElementRefs, JsonObject, NodeRef, SourceStorage } from "../types";
+import type { BuildStamp, DocumentProblem, EdgeRef, ElementRefs, JsonObject, NodeRef, SourceStorage } from "../types";
+import { mintUlid } from "./viewParts";
 
 // ---------------------------------------------------------------------------------------------
-// Canonical JSON, hashes and key text
+// Plain JSON, key text and ids
 // ---------------------------------------------------------------------------------------------
 
 /**
@@ -55,6 +59,7 @@ export function jsonSafe(value: unknown): unknown {
 
 /**
  * RFC 8785 canonical JSON: members sorted by UTF-16 code units, numbers as ECMAScript writes them.
+ * Used to compare values, never written into a file and never a build input.
  * @param value - A JSON value; non-finite numbers are written as their string forms first.
  * @returns The canonical text.
  */
@@ -76,23 +81,30 @@ export function canonicalJson(value: unknown): string {
 }
 
 /**
- * `sha256:` plus the hex SHA-256 of a value's canonical JSON (spec 4.1.1 rule 6).
+ * `sha256:` plus the hex SHA-256 of a value's canonical JSON: what tells this writer a copy or a
+ * build input changed since it last minted an id for it. Never compared by a reader.
  * @param value - The value.
- * @returns The hash.
+ * @returns The digest.
  */
-export function hashOf(value: unknown): string {
+function digestOf(value: unknown): string {
     return `sha256:${sha256Hex(canonicalJson(value))}`;
 }
 
+/** A ULID: 26 Crockford base-32 characters. */
+export const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
+
+/** A source id: `src_` plus a ULID. */
+export const SOURCE_ID = /^src_[0-9A-HJKMNP-TV-Z]{26}$/;
+
 /**
- * A value as key text (spec 6.1): a string as it is (NFC), a number as ECMAScript writes it, a
+ * A value as key text (spec 11): a string as it is (NFC), a number as ECMAScript writes it, a
  * boolean as `true` or `false`.
  * @param value - The cell.
- * @returns The key text, or undefined for a value that cannot be a key.
+ * @returns The key text, or undefined for a value that cannot be a key (null, the empty string).
  */
 export function keyText(value: unknown): string | undefined {
     if (typeof value === "string") {
-        return value.normalize("NFC");
+        return value === "" ? undefined : value.normalize("NFC");
     }
 
     if (typeof value === "number" && Number.isFinite(value)) {
@@ -103,7 +115,7 @@ export function keyText(value: unknown): string | undefined {
 }
 
 /**
- * One map key for a record key.
+ * One map key for a node's record key.
  * @param space - The space.
  * @param key - The key text.
  * @returns The map key.
@@ -113,42 +125,12 @@ export function recordKey(space: string, key: string): string {
 }
 
 /**
- * The map key of an edge's two ends: ordered on a directed graph, an unordered pair otherwise.
- * @param from - The edge's from end.
- * @param to - The edge's to end.
- * @param directed - Whether the graph is directed.
+ * One map key for an edge's record key.
+ * @param ref - The reference.
  * @returns The map key.
  */
-function endsKey(from: NodeRef, to: NodeRef, directed: boolean): string {
-    const a = recordKey(from.space, from.key);
-    const b = recordKey(to.space, to.key);
-    return directed || a <= b ? `${a}\u0001${b}` : `${b}\u0001${a}`;
-}
-
-/**
- * Whether a column name is reserved (spec 6.2 rule 3).
- * @param name - The column.
- * @returns True for a `graphty.` or `_source.` column.
- */
-const RESERVED = (name: string): boolean => name.startsWith("graphty.") || name.startsWith("_source.");
-
-/**
- * The `h` of an edge (spec 6.2 rule 3): its row as parsed, by source column name, without its
- * edge-id and end columns, unset cells and reserved columns.
- * @param source - The minting source's id.
- * @param row - The row.
- * @param skip - The edge-id, source and target column names.
- * @returns The hash.
- */
-export function edgeRowHash(source: string, row: Readonly<JsonObject>, skip: ReadonlySet<string>): string {
-    const values: JsonObject = {};
-    for (const [name, value] of Object.entries(row)) {
-        if (!skip.has(name) && !RESERVED(name) && value !== null && value !== undefined) {
-            values[name] = value;
-        }
-    }
-
-    return hashOf({ source, row: values });
+export function edgeKey(ref: EdgeRef): string {
+    return `${ref.load}\u0000${ref.key.normalize("NFC")}`;
 }
 
 /**
@@ -177,85 +159,150 @@ export function nodeRefOf(value: unknown): NodeRef | undefined {
 }
 
 /**
- * An edge reference read from a file, checked (spec 6.2 rule 2): `from`, `to` and either `key`,
- * or `h` and `n`. Any other shape is unbound.
+ * An edge reference read from a file, checked (spec 6.2): exactly `load` and `key`, both strings.
  * @param value - What the file holds.
  * @returns The reference, or undefined.
  */
 export function edgeRefOf(value: unknown): EdgeRef | undefined {
-    if (!isPlainObject(value)) {
+    if (!isPlainObject(value) || Object.keys(value).length !== 2) {
         return undefined;
     }
 
-    const from = nodeRefOf(value.from);
-    const to = nodeRefOf(value.to);
-    const names = Object.keys(value).sort().join(","); // NOSONAR(S2871): a fixed spelling to compare
-    if (from === undefined || to === undefined) {
-        return undefined;
-    }
-
-    if (names === "from,key,to" && typeof value.key === "string") {
-        return { from, to, key: value.key.normalize("NFC") };
-    }
-
-    const { h, n } = value;
-    return names === "from,h,n,to" && typeof h === "string" && Number.isInteger(n) && (n as number) >= 0
-        ? { from, to, h, n: n as number }
+    const { load, key } = value;
+    return typeof load === "string" && typeof key === "string" && load.length > 0
+        ? { load, key: key.normalize("NFC") }
         : undefined;
 }
 
 // ---------------------------------------------------------------------------------------------
-// The data as version 2 names it, from today's model
+// What a session remembers between an open and the next save
 // ---------------------------------------------------------------------------------------------
 
 /** The reader source's id. */
 export const READER = "reader";
 
-/** One source of the open data, from today's load record. */
-interface ModelSource {
-    readonly id: string;
-    /** Today's load, or undefined for the reader source. */
-    readonly load?: LoadedSource;
-    /** The node records this source supplied, in graph order. */
-    readonly nodes: NodeRecord[];
-    /** The edge records this source minted (the first load that supplied each), in graph order. */
-    readonly edges: EdgeRecord[];
-    /** The node keys an earlier source in join order already gave, so its step merges. */
-    merges: boolean;
+/** The ids this writer minted or read for a session, so a save that changes nothing changes no id. */
+interface DataMemory {
+    /** Each load key's source id, when the key is not one already. */
+    readonly sourceIds: Map<string, string>;
+    /** Each source's copy id, and the digest of the copy it was given for. */
+    readonly copies: Map<string, { readonly digest: string; readonly copy: string }>;
+    /** Each reader-added element's minted key, by `n:<id>` or `e:<id>`. */
+    readonly readerKeys: Map<string, string>;
+    /**
+     * The build stamp, and the digest of the build inputs it was given for; after a read, the copy
+     * ids the read file stamped, kept while the build is.
+     */
+    build?: { readonly digest: string; readonly build: string; readonly sources?: Readonly<Record<string, string>> };
+    /** The type registry the last data section read held. */
+    types: readonly JsonObject[];
+    /** The records of the sources the last read could not fetch, written back as read. */
+    readonly unavailable: Map<string, JsonObject>;
+    /** Each node's record key as the data section that loaded it named it. */
+    readonly nodeRefs: Map<NodeId, NodeRef>;
+    /** The edge-id column the last data section read named, until settings say one. */
+    edgeIdColumn?: string;
 }
 
-/** The open data, named. */
-interface DataModel {
-    readonly directed: boolean;
-    /** The sources in join order; the reader source, when there is one, last. */
-    readonly sources: readonly ModelSource[];
-    readonly nodes: readonly NodeRecord[];
-    readonly edges: readonly EdgeRecord[];
-    /** Each node's source ids, join order. */
-    readonly nodeLoads: ReadonlyMap<NodeId, readonly string[]>;
-    /** Each edge's source ids, join order. */
-    readonly edgeLoads: ReadonlyMap<EdgeId, readonly string[]>;
-    /** The edge-id column, when one names each edge's own key. */
-    readonly edgeIdColumn?: string;
-    readonly nodeRefs: ReadonlyMap<NodeId, NodeRef>;
-    readonly edgeRefs: ReadonlyMap<EdgeId, EdgeRef>;
-}
-
-/** The edge-id column the last data section read named, per session, until settings say one. */
-const READ_EDGE_ID = projectMemory<string>();
+const MEMORY = projectMemory<DataMemory>();
 
 /**
- * Remember the edge-id column a data section read named, so references keep binding by key
- * before (or without) a settings section naming it.
+ * A session's data memory, made on first use.
  * @param session - The session.
- * @param column - The column, or undefined for none.
+ * @returns The memory.
  */
-export function rememberEdgeIdColumn(session: GraphSession, column: string | undefined): void {
-    if (column === undefined) {
-        READ_EDGE_ID.delete(session);
-    } else {
-        READ_EDGE_ID.set(session, column);
+function memoryOf(session: GraphSession): DataMemory {
+    let memory = MEMORY.get(session);
+    if (memory === undefined) {
+        memory = {
+            sourceIds: new Map(),
+            copies: new Map(),
+            readerKeys: new Map(),
+            types: [],
+            unavailable: new Map(),
+            nodeRefs: new Map(),
+        };
+        MEMORY.set(session, memory);
     }
+
+    return memory;
+}
+
+/**
+ * The id remembered for a digest, or a newly minted one remembered from now on.
+ * @param remembered - What is remembered.
+ * @param digest - The digest now.
+ * @param mint - Mints an id.
+ * @returns The id and what to remember.
+ */
+function stableId(
+    remembered: { readonly digest: string; readonly copy: string } | undefined,
+    digest: string,
+    mint: () => string,
+): { readonly digest: string; readonly copy: string } {
+    return remembered?.digest === digest ? remembered : { digest, copy: mint() };
+}
+
+/** What a data section read leaves the session to remember. */
+export interface DataRead {
+    readonly build: string;
+    /** Each source's copy id as read. */
+    readonly copies: Readonly<Record<string, string>>;
+    readonly types: readonly JsonObject[];
+    /** Each node's record key. */
+    readonly nodeRefs: readonly (readonly [NodeId, NodeRef])[];
+    /** Each reader-added edge's key, by its session id. */
+    readonly readerEdges: readonly (readonly [EdgeId, string])[];
+    /** The records of the sources that could not be fetched. */
+    readonly unavailable: readonly JsonObject[];
+    readonly edgeIdColumn?: string;
+}
+
+/**
+ * Remember what a data section read named, once its build is in the session: the record keys,
+ * the types and the sources it could not fetch, and its build stamp and copy ids for the data as
+ * the session now holds it, so a save that changes nothing writes them back unchanged.
+ * @param session - The session.
+ * @param read - What the read named.
+ */
+export function rememberRead(session: GraphSession, read: DataRead): void {
+    MEMORY.delete(session);
+    const memory = memoryOf(session);
+    for (const [id, ref] of read.nodeRefs) {
+        memory.nodeRefs.set(id, ref);
+    }
+
+    for (const [id, key] of read.readerEdges) {
+        memory.readerKeys.set(`e:${id}`, key);
+    }
+
+    for (const record of read.unavailable) {
+        memory.unavailable.set(String(record.id), record);
+    }
+
+    memory.types = read.types;
+    memory.edgeIdColumn = read.edgeIdColumn;
+    const model = dataModelOf(session);
+    for (const [id, copy] of model.copies) {
+        const known = read.copies[id];
+        if (known !== undefined) {
+            memory.copies.set(id, { digest: copy.digest, copy: known });
+        }
+    }
+
+    const reader = read.copies[READER];
+    if (reader !== undefined && model.reader !== undefined) {
+        memory.copies.set(READER, { digest: model.reader.digest, copy: reader });
+    }
+
+    // Built again, so the digest reads the copy ids just remembered.
+    // ponytail: reader edits are baked into the copies on open, so the reader copy id the file
+    // stamped is kept as read until the build changes, rather than derived from the session.
+    memory.build = {
+        digest: bodyOf(dataModelOf(session), {}, []).digest,
+        build: read.build,
+        sources: { ...read.copies },
+    };
 }
 
 /**
@@ -270,183 +317,80 @@ function edgeIdColumnOf(session: GraphSession): string | undefined {
         return configured;
     }
 
-    return READ_EDGE_ID.get(session);
+    return MEMORY.get(session)?.edgeIdColumn;
 }
 
 /**
- * A load key as a source id: unique, never `reader`, without `:`.
+ * A load's source id: the key itself when it is one (a source read from a version 2 file), else
+ * one minted once per load and remembered.
  * @param key - The load key.
- * @param taken - The ids already given.
+ * @param memory - The memory.
  * @returns The id.
  */
-function sourceIdOf(key: string, taken: Set<string>): string {
-    const base = key.replaceAll(":", "_") || "source";
-    let id = base === READER ? `${base}_1` : base;
-    let at = 2;
-    while (taken.has(id)) {
-        id = `${base}_${String(at)}`;
-        at++;
+function sourceIdOf(key: string, memory: DataMemory): string {
+    if (SOURCE_ID.test(key)) {
+        return key;
     }
 
-    taken.add(id);
+    let id = memory.sourceIds.get(key);
+    if (id === undefined) {
+        id = `src_${mintUlid()}`;
+        memory.sourceIds.set(key, id);
+    }
+
     return id;
 }
 
-/**
- * The attributes of an edge record that make up its row: everything but its element id.
- * @param edge - The record.
- * @returns The row by column name.
- */
-function edgeRowOf(edge: EdgeRecord): JsonObject {
-    const { id: _id, ...row } = edge;
-    return row;
+// ---------------------------------------------------------------------------------------------
+// The open data, named
+// ---------------------------------------------------------------------------------------------
+
+/** One source of the open data, from today's load record. */
+interface ModelSource {
+    readonly id: string;
+    readonly load: LoadedSource;
+    /** The node records this source supplied, in graph order. */
+    readonly nodes: NodeRecord[];
+    /** The edge records this source made (the first load that supplied each), in graph order. */
+    readonly edges: EdgeRecord[];
 }
 
-/**
- * Build the edge references of a graph (spec 6.2): by `key` when the edge's key is unique among
- * the edges between its ends, otherwise by `h` and `n`.
- * @param edges - Each edge's ends, key text, minting source and hash, in build order.
- * @param directed - Whether ends are ordered.
- * @returns The references, in the same order.
- */
-export function edgeRefsOf(
-    edges: readonly {
-        readonly from: NodeRef;
-        readonly to: NodeRef;
-        readonly key?: string;
-        readonly source: string;
-        readonly h: () => string;
-    }[],
-    directed: boolean,
-): EdgeRef[] {
-    const keyCounts = new Map<string, number>();
-    for (const edge of edges) {
-        if (edge.key !== undefined) {
-            const at = `${endsKey(edge.from, edge.to, directed)}\u0002${edge.key}`;
-            keyCounts.set(at, (keyCounts.get(at) ?? 0) + 1);
-        }
-    }
-
-    const seen = new Map<string, number>();
-    return edges.map((edge) => {
-        const ends = endsKey(edge.from, edge.to, directed);
-        if (edge.key !== undefined && keyCounts.get(`${ends}\u0002${edge.key}`) === 1) {
-            return { from: edge.from, to: edge.to, key: edge.key };
-        }
-
-        const h = edge.h();
-        const group = `${edge.source}\u0002${ends}\u0002${h}`;
-        const n = seen.get(group) ?? 0;
-        seen.set(group, n + 1);
-        return { from: edge.from, to: edge.to, h, n };
-    });
+/** A source's copy as this writer writes it: its tables, their declarations, its copy id. */
+interface Copy {
+    readonly tables: JsonObject;
+    readonly columns: JsonObject;
+    readonly digest: string;
+    readonly copy: string;
 }
 
-/** Each node's record key as the data section that loaded it named it, per session. */
-const READ_NODE_REFS = projectMemory<Map<NodeId, NodeRef>>();
-
-/**
- * Remember the record keys a data section gave the nodes it loaded, so references to them bind and
- * are written back in the file's spaces rather than `source:<id>` (types place nodes in spaces the
- * session has no model of yet).
- * @param session - The session.
- * @param refs - Each loaded node's id and record key.
- * @param replace - Whether the load replaced the data (forget the keys of the data before).
- */
-export function rememberNodeRefs(
-    session: GraphSession,
-    refs: Iterable<readonly [NodeId, NodeRef]>,
-    replace: boolean,
-): void {
-    const known = replace ? new Map<NodeId, NodeRef>() : (READ_NODE_REFS.get(session) ?? new Map());
-    for (const [id, ref] of refs) {
-        known.set(id, ref);
-    }
-
-    READ_NODE_REFS.set(session, known);
+/** The reader source: its operations and copy id. */
+interface ReaderCopy {
+    readonly operations: JsonObject[];
+    readonly digest: string;
+    readonly copy: string;
 }
 
-/**
- * The open data as version 2 names it: sources in join order, each node's record key and each
- * edge's reference, from today's loads and records.
- * @param session - The session.
- * @returns The model.
- */
-function dataModelOf(session: GraphSession): DataModel {
-    const taken = new Set<string>([READER]);
-    const loads = session.data.sources();
-    const byKey = new Map<string, ModelSource>();
-    const sources: ModelSource[] = loads.map((load) => {
-        const source: ModelSource = { id: sourceIdOf(load.key, taken), load, nodes: [], edges: [], merges: false };
-        byKey.set(load.key, source);
-        return source;
-    });
-    const reader: ModelSource = { id: READER, nodes: [], edges: [], merges: false };
-    const order = new Map(sources.map((source, at) => [source.id, at]));
-    const loadsOf = (keys: readonly string[]): ModelSource[] =>
-        keys
-            .map((key) => byKey.get(key))
-            .filter((source): source is ModelSource => source !== undefined)
-            .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-
-    const nodes = session.data.nodes().map(withoutSourceColumns);
-    const edges = session.data.edges().map(withoutSourceColumns);
-    const nodeLoads = new Map<NodeId, string[]>();
-    const nodeRefs = new Map<NodeId, NodeRef>();
-    for (const node of nodes) {
-        const supplied = loadsOf(session.data.sourcesOf(node.id));
-        const owners = supplied.length === 0 ? [reader] : supplied;
-        for (const [at, owner] of owners.entries()) {
-            owner.nodes.push(node);
-            owner.merges ||= at > 0;
-        }
-
-        nodeLoads.set(
-            node.id,
-            owners.map((owner) => owner.id),
-        );
-        nodeRefs.set(
-            node.id,
-            READ_NODE_REFS.get(session)?.get(node.id) ?? {
-                space: `source:${owners[0].id}`,
-                key: keyText(node.id) ?? String(node.id),
-            },
-        );
-    }
-
-    const { directed } = session.status;
-    const edgeIdColumn = edgeIdColumnOf(session);
-    const skip = new Set(["source", "target", ...(edgeIdColumn === undefined ? [] : [edgeIdColumn])]);
-    const edgeLoads = new Map<EdgeId, string[]>();
-    const named = edges.map((edge) => {
-        const supplied = loadsOf(session.data.sourcesOf(edge.id, { kind: "edge" }));
-        const minting = supplied[0] ?? reader;
-        minting.edges.push(edge);
-        edgeLoads.set(edge.id, supplied.length === 0 ? [READER] : supplied.map((source) => source.id));
-        const row = edgeRowOf(edge);
-        const key = edgeIdColumn === undefined ? undefined : keyText(row[edgeIdColumn]);
-        return {
-            from: nodeRefs.get(edge.source) ?? { space: `source:${minting.id}`, key: String(edge.source) },
-            to: nodeRefs.get(edge.target) ?? { space: `source:${minting.id}`, key: String(edge.target) },
-            ...(key === undefined ? {} : { key }),
-            source: minting.id,
-            h: () => edgeRowHash(minting.id, row, skip),
-        };
-    });
-    const refs = edgeRefsOf(named, directed);
-    const edgeRefs = new Map<EdgeId, EdgeRef>(edges.map((edge, at) => [edge.id, refs[at]]));
-
-    return {
-        directed,
-        sources: reader.nodes.length + reader.edges.length > 0 ? [...sources, reader] : sources,
-        nodes,
-        edges,
-        nodeLoads,
-        edgeLoads,
-        ...(edgeIdColumn === undefined ? {} : { edgeIdColumn }),
-        nodeRefs,
-        edgeRefs,
-    };
+/** The open data, named. */
+interface DataModel {
+    readonly session: GraphSession;
+    readonly directed: boolean;
+    /** The loads' sources, in join order. */
+    readonly sources: readonly ModelSource[];
+    readonly nodes: readonly NodeRecord[];
+    readonly edges: readonly EdgeRecord[];
+    /** Each node's source ids, join order; `reader` for a node no load supplied. */
+    readonly nodeLoads: ReadonlyMap<NodeId, readonly string[]>;
+    /** Each edge's source ids, join order; `reader` for an edge no load supplied. */
+    readonly edgeLoads: ReadonlyMap<EdgeId, readonly string[]>;
+    readonly edgeIdColumn?: string;
+    readonly nodeRefs: ReadonlyMap<NodeId, NodeRef>;
+    readonly edgeRefs: ReadonlyMap<EdgeId, EdgeRef>;
+    /** Each load source's copy, by source id. */
+    readonly copies: ReadonlyMap<string, Copy>;
+    /** The reader source, when the reader added anything. */
+    readonly reader?: ReaderCopy;
+    /** The sources that could not be fetched: their records as read. */
+    readonly unavailable: ReadonlyMap<string, JsonObject>;
 }
 
 /**
@@ -462,43 +406,13 @@ function withoutSourceColumns<T extends Readonly<JsonObject>>(record: T): T {
     return Object.fromEntries(Object.entries(record).filter(([name]) => !name.startsWith("_source."))) as T;
 }
 
-// ---------------------------------------------------------------------------------------------
-// The data body, written
-// ---------------------------------------------------------------------------------------------
-
-/** Today's load kinds as version 2 source kinds. A joined table's own origin is not kept. */
-const KINDS: Readonly<Record<LoadedSource["kind"], string>> = {
-    file: "file",
-    url: "url",
-    server: "network",
-    sample: "sample",
-    join: "file",
-};
-
-/** The graph-format dtype of a column whose set cells are all of one JavaScript type. */
+/**
+ * The graph-format dtype of a column whose set cells are all of one JavaScript type.
+ */
 const DTYPES = { number: "f64", boolean: "bool", string: "string" } as const;
 
 /**
- * Compare two values by their canonical JSON, as UTF-16 code units.
- * @param x - One value.
- * @param y - The other.
- * @returns Negative, zero or positive.
- */
-export function byCanonical(x: unknown, y: unknown): number {
-    const p = canonicalJson(x);
-    const q = canonicalJson(y);
-    if (p === q) {
-        return 0;
-    }
-
-    return p < q ? -1 : 1;
-}
-
-/** A timestamp as `toISOString` writes it (spec 3.5). */
-const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
-
-/**
- * A graph-format column declaration for a column's values (spec 4.1.1, `columns`).
+ * A graph-format column declaration for a column's values (spec 4.1.2 rule 3).
  * @param name - The column.
  * @param values - Its cells, `undefined` for unset.
  * @returns The declaration and the cells as written.
@@ -508,39 +422,30 @@ function columnOf(name: string, values: readonly unknown[]): { decl: JsonObject;
     const dtype = (["number", "boolean", "string"] as const).find((type) =>
         set.every((value) => typeof value === type),
     );
+    const cells = values.map((value) => (value === undefined ? null : jsonSafe(value)));
     if (dtype === undefined || set.includes(null)) {
         // A json column's null is literal; its unset rows are listed.
         const unset = values.flatMap((value, at) => (value === undefined ? [at] : []));
-        return {
-            decl: { name, dtype: "json", nullable: true, ...(unset.length === 0 ? {} : { unset }) },
-            cells: values.map((value) => (value === undefined ? null : jsonSafe(value))),
-        };
+        return { decl: { name, dtype: "json", nullable: true, ...(unset.length === 0 ? {} : { unset }) }, cells };
     }
 
-    return {
-        decl: { name, dtype: DTYPES[dtype], nullable: set.length < values.length },
-        cells: values.map((value) => (value === undefined ? null : jsonSafe(value))),
-    };
+    return { decl: { name, dtype: DTYPES[dtype], nullable: set.length < values.length }, cells };
 }
 
 /**
  * One table of a copy: equal-length value arrays by column, the given columns first.
  * @param rows - The rows.
  * @param first - The columns written first.
- * @param leaveOut - Columns not written.
  * @returns The table and its column declarations.
  */
 function tableOf(
     rows: readonly Readonly<JsonObject>[],
     first: readonly string[],
-    leaveOut: ReadonlySet<string>,
 ): { table: JsonObject; columns: JsonObject } {
     const names = new Set(first);
     for (const row of rows) {
         for (const name of Object.keys(row)) {
-            if (!leaveOut.has(name)) {
-                names.add(name);
-            }
+            names.add(name);
         }
     }
 
@@ -559,7 +464,326 @@ function tableOf(
 }
 
 /**
- * The type names a record's `kind` gives it: today's kinds are the only declared types.
+ * A node's key cell as a copy writes it: the session's id in a `source:` space (so `34` stays a
+ * number), its record key in any other space.
+ * @param ref - The node's record key.
+ * @param id - The node's id.
+ * @returns The cell.
+ */
+function keyCellOf(ref: NodeRef | undefined, id: unknown): unknown {
+    return ref === undefined || ref.space.startsWith("source:") ? id : ref.key;
+}
+
+/** Today's load kinds as version 2 source kinds. A joined table's own origin is not kept. */
+const KINDS: Readonly<Record<LoadedSource["kind"], string>> = {
+    file: "file",
+    url: "url",
+    server: "network",
+    sample: "sample",
+    join: "file",
+};
+
+/** The source kinds whose copy id is the digest of the copy, not a minted ULID. */
+const HASHED_KINDS = new Set(["file", "url", "sample"]);
+
+/**
+ * A source's copy: its node and edge tables, with the copy id this writer gives it.
+ * @param source - The source.
+ * @param refs - The node references.
+ * @param memory - The memory.
+ * @returns The copy.
+ */
+function copyOf(source: ModelSource, refs: ReadonlyMap<NodeId, NodeRef>, memory: DataMemory): Copy {
+    const nodes =
+        source.nodes.length > 0
+            ? tableOf(
+                  source.nodes.map((node) => ({ ...node, id: keyCellOf(refs.get(node.id), node.id) })),
+                  ["id"],
+              )
+            : undefined;
+    const edges =
+        source.edges.length > 0
+            ? tableOf(
+                  source.edges.map(({ id: _id, ...edge }) => ({
+                      ...edge,
+                      source: keyCellOf(refs.get(edge.source), edge.source),
+                      target: keyCellOf(refs.get(edge.target), edge.target),
+                  })),
+                  ["source", "target"],
+              )
+            : undefined;
+    const tables: JsonObject = {
+        ...(nodes === undefined ? {} : { nodes: nodes.table }),
+        ...(edges === undefined ? {} : { edges: edges.table }),
+    };
+    const columns: JsonObject = {
+        ...(nodes === undefined ? {} : { nodes: nodes.columns }),
+        ...(edges === undefined ? {} : { edges: edges.columns }),
+    };
+    if (nodes === undefined && edges === undefined) {
+        tables.nodes = { id: [] };
+        columns.nodes = { id: { name: "id", dtype: "string", nullable: false } };
+    }
+
+    const digest = digestOf(tables);
+    // ponytail: a file, url or sample copy id hashes the copy as written, not the bytes as read,
+    // since today's model keeps no bytes; hash them once loads keep their bytes' digest.
+    const hashed = HASHED_KINDS.has(KINDS[source.load.kind]);
+    const { copy } = stableId(memory.copies.get(source.id), digest, () => (hashed ? digest : mintUlid()));
+    memory.copies.set(source.id, { digest, copy });
+    return { tables, columns, digest, copy };
+}
+
+/**
+ * A reader-added element's key: the one it was read with or given, else a newly minted ULID.
+ * @param memory - The memory.
+ * @param slot - `n:<id>` or `e:<id>`.
+ * @returns The key.
+ */
+function readerKeyOf(memory: DataMemory, slot: string): string {
+    let key = memory.readerKeys.get(slot);
+    if (key === undefined) {
+        key = mintUlid();
+        memory.readerKeys.set(slot, key);
+    }
+
+    return key;
+}
+
+/**
+ * The open data as version 2 names it: sources in join order, their copies and copy ids, each
+ * node's record key and each edge's reference, from today's loads and records.
+ * @param session - The session.
+ * @returns The model.
+ */
+function dataModelOf(session: GraphSession): DataModel {
+    const memory = memoryOf(session);
+    const loads = session.data.sources();
+    const byKey = new Map<string, ModelSource>();
+    const sources: ModelSource[] = loads.map((load) => {
+        const source: ModelSource = { id: sourceIdOf(load.key, memory), load, nodes: [], edges: [] };
+        byKey.set(load.key, source);
+        return source;
+    });
+    const order = new Map(sources.map((source, at) => [source.id, at]));
+    const loadsOf = (keys: readonly string[]): ModelSource[] =>
+        keys
+            .map((key) => byKey.get(key))
+            .filter((source): source is ModelSource => source !== undefined)
+            .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+    // Today's loads share one id system: every node a load supplied is in the first load's space,
+    // so keys meet across loads exactly as today's ids do.
+    const shared = sources.length === 0 ? `source:${READER}` : `source:${sources[0].id}`;
+
+    const nodes = session.data.nodes().map(withoutSourceColumns);
+    const edges = session.data.edges().map(withoutSourceColumns);
+    const nodeLoads = new Map<NodeId, string[]>();
+    const nodeRefs = new Map<NodeId, NodeRef>();
+    const readerNodes: NodeRecord[] = [];
+    for (const node of nodes) {
+        const supplied = loadsOf(session.data.sourcesOf(node.id));
+        const known = memory.nodeRefs.get(node.id);
+        if (supplied.length === 0) {
+            readerNodes.push(node);
+            nodeLoads.set(node.id, [READER]);
+            const key = known !== undefined && ULID.test(known.key) ? known.key : readerKeyOf(memory, `n:${node.id}`);
+            nodeRefs.set(node.id, { space: known?.space ?? `source:${READER}`, key });
+            continue;
+        }
+
+        for (const source of supplied) {
+            source.nodes.push(node);
+        }
+
+        nodeLoads.set(
+            node.id,
+            supplied.map((source) => source.id),
+        );
+        nodeRefs.set(node.id, known ?? { space: shared, key: keyText(node.id) ?? String(node.id) });
+    }
+
+    const edgeLoads = new Map<EdgeId, string[]>();
+    const readerEdges: EdgeRecord[] = [];
+    for (const edge of edges) {
+        const supplied = loadsOf(session.data.sourcesOf(edge.id, { kind: "edge" }));
+        if (supplied.length === 0) {
+            readerEdges.push(edge);
+            edgeLoads.set(edge.id, [READER]);
+        } else {
+            supplied[0].edges.push(edge);
+            edgeLoads.set(
+                edge.id,
+                supplied.map((source) => source.id),
+            );
+        }
+    }
+
+    const copies = new Map(sources.map((source) => [source.id, copyOf(source, nodeRefs, memory)]));
+    const edgeIdColumn = edgeIdColumnOf(session);
+    const edgeRefs = new Map<EdgeId, EdgeRef>();
+    for (const source of sources) {
+        const copy = copies.get(source.id) as Copy;
+        source.edges.forEach((edge, row) => {
+            const key = edgeIdColumn === undefined ? undefined : keyText(edge[edgeIdColumn]);
+            edgeRefs.set(edge.id, { load: source.id, key: key ?? `${copy.copy}#${String(row)}` });
+        });
+    }
+
+    for (const edge of readerEdges) {
+        edgeRefs.set(edge.id, { load: READER, key: readerKeyOf(memory, `e:${edge.id}`) });
+    }
+
+    const reader = readerCopyOf(readerNodes, readerEdges, { nodeRefs, edgeRefs, memory });
+    return {
+        session,
+        directed: session.status.directed,
+        sources,
+        nodes,
+        edges,
+        nodeLoads,
+        edgeLoads,
+        ...(edgeIdColumn === undefined ? {} : { edgeIdColumn }),
+        nodeRefs,
+        edgeRefs,
+        copies,
+        ...(reader === undefined ? {} : { reader }),
+        unavailable: memory.unavailable,
+    };
+}
+
+/**
+ * The reader source's operations: today, only the elements no load supplied, each an `add`.
+ * @param nodes - The nodes no load supplied.
+ * @param edges - The edges no load supplied.
+ * @param named - The references and the memory.
+ * @param named.nodeRefs - Each node's reference.
+ * @param named.edgeRefs - Each edge's reference.
+ * @param named.memory - The memory.
+ * @returns The reader copy, or undefined when the reader added nothing.
+ */
+function readerCopyOf(
+    nodes: readonly NodeRecord[],
+    edges: readonly EdgeRecord[],
+    named: {
+        nodeRefs: ReadonlyMap<NodeId, NodeRef>;
+        edgeRefs: ReadonlyMap<EdgeId, EdgeRef>;
+        memory: DataMemory;
+    },
+): ReaderCopy | undefined {
+    if (nodes.length + edges.length === 0) {
+        return undefined;
+    }
+
+    const { nodeRefs, edgeRefs, memory } = named;
+    const operations: JsonObject[] = [
+        ...nodes.map(({ id, ...columns }) => ({ op: "add", node: nodeRefs.get(id), columns: jsonSafe(columns) })),
+        ...edges.map(({ id, source, target, ...columns }) => ({
+            op: "add",
+            edge: edgeRefs.get(id),
+            from: nodeRefs.get(source),
+            to: nodeRefs.get(target),
+            columns: jsonSafe(columns),
+        })),
+    ];
+    const digest = digestOf(operations);
+    const { copy } = stableId(memory.copies.get(READER), digest, mintUlid);
+    memory.copies.set(READER, { digest, copy });
+    return { operations, digest, copy };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The data body, written
+// ---------------------------------------------------------------------------------------------
+
+/** A timestamp as `toISOString` writes it (spec 3.5). */
+const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?Z$/;
+
+/**
+ * The space most of a list of references name, or undefined for none.
+ * @param refs - The references.
+ * @returns The space.
+ */
+function spaceOf(refs: readonly (NodeRef | undefined)[]): string | undefined {
+    // ponytail: a source whose rows name nodes in several spaces writes the first one; today's
+    // model never makes one, since every load shares one space.
+    return refs.find((ref) => ref !== undefined)?.space;
+}
+
+/**
+ * A source's `mapping` (spec 4.1.3): its node key and space, and its edge columns and end spaces.
+ * @param source - The source.
+ * @param model - The model.
+ * @param copy - Its copy.
+ * @returns The mapping.
+ */
+function mappingOf(source: ModelSource, model: DataModel, copy: Copy): JsonObject {
+    const { edgeIdColumn, nodeRefs } = model;
+    const own = spaceOf(source.nodes.map((node) => nodeRefs.get(node.id))) ?? `source:${model.sources[0].id}`;
+    const hasEdgeId =
+        edgeIdColumn !== undefined && source.edges.some((edge) => keyText(edge[edgeIdColumn]) !== undefined);
+    return {
+        ...(copy.tables.nodes === undefined ? {} : { nodes: { key: "id", space: own } }),
+        ...(source.edges.length === 0
+            ? {}
+            : {
+                  edges: {
+                      ...(hasEdgeId ? { edgeId: edgeIdColumn } : {}),
+                      source: "source",
+                      sourceSpace: spaceOf(source.edges.map((edge) => nodeRefs.get(edge.source))) ?? own,
+                      target: "target",
+                      targetSpace: spaceOf(source.edges.map((edge) => nodeRefs.get(edge.target))) ?? own,
+                  },
+              }),
+    };
+}
+
+/**
+ * One source record (spec 4.1.2), from its load.
+ * @param source - The source.
+ * @param model - The model.
+ * @param storage - Embedded or referenced.
+ * @param problems - Collects `W_SOURCE_NO_PATH`.
+ * @returns The record.
+ */
+function sourceRecordOf(
+    source: ModelSource,
+    model: DataModel,
+    storage: SourceStorage,
+    problems: DocumentProblem[],
+): JsonObject {
+    const { load } = source;
+    const copy = model.copies.get(source.id) as Copy;
+    const kind = KINDS[load.kind];
+    const options = redactedParams(load.config ?? {});
+    delete options.url;
+    const origin: JsonObject = {
+        copy: copy.copy,
+        ...(load.fileName === undefined ? {} : { name: load.fileName }),
+        ...(load.url === undefined ? {} : { url: load.url }),
+        ...(load.size === undefined ? {} : { size: load.size }),
+    };
+    const { choices } = load;
+    if (storage === "referenced" && kind === "file") {
+        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id } });
+    }
+
+    return {
+        id: source.id,
+        label: load.name ?? load.fileName ?? source.id,
+        kind,
+        ...(load.type === undefined ? {} : { format: load.type }),
+        ...(Object.keys(options).length === 0 ? {} : { options: jsonSafe(options) }),
+        origin,
+        mapping: mappingOf(source, model, copy),
+        settings: { duplicateIds: choices?.duplicateIds ?? "first", unmatched: choices?.unmatched ?? "add" },
+        ...(storage === "embedded" ? { copy: copy.tables, columns: copy.columns } : {}),
+        ...(load.loadedAt !== undefined && TIMESTAMP.test(load.loadedAt) ? { loaded: load.loadedAt } : {}),
+    };
+}
+
+/**
+ * The type names a record's `kind` column gives it: today's kinds are the only types the session
+ * makes itself.
  * @param record - The record.
  * @returns The type name, or undefined.
  */
@@ -568,212 +792,208 @@ function kindOf(record: Readonly<JsonObject>): string | undefined {
     return typeof kind === "string" && kind.length > 0 && kind.length <= 256 && !kind.includes(":") ? kind : undefined;
 }
 
-/** What writing the data body reports and gives. */
-export interface DataBody {
-    readonly body: JsonObject;
-    /** Each source's content hash, by id. */
-    readonly hashes: Readonly<Record<string, string>>;
-}
-
 /**
- * A node's key cell as a source's copy writes it: the session's id in a `source:` space (so `34`
- * stays a number), its record key in any other space (a type's), so the node reads back with the
- * key every reference names (`account:acct-1001` is written `acct-1001`).
- * @param id - The node's id.
+ * The type registry (spec 4.1.5): the types the last data section read declared, their rules on
+ * sources still open, then one type per node or edge `kind` value no read type names, each
+ * declared by the sources whose rows carry it in their `kind` column.
  * @param model - The model.
- * @returns The cell.
+ * @returns The entries.
  */
-function keyCellOf(id: unknown, model: DataModel): unknown {
-    const ref = model.nodeRefs.get(id as NodeId);
-    return ref === undefined || ref.space.startsWith("source:") ? id : ref.key;
-}
+function typesOf(model: DataModel): JsonObject[] {
+    const open = new Set(model.sources.map((source) => source.id));
+    const read = memoryOf(model.session).types.flatMap((type): JsonObject[] => {
+        const rules = (Array.isArray(type.rules) ? type.rules : []).filter(
+            (rule) => isPlainObject(rule) && open.has(String(rule.source)),
+        );
+        return rules.length === 0 ? [] : [{ ...type, rules }];
+    });
+    const taken = new Set(read.map((type) => `${String(type.kind)}:${String(type.name)}`));
+    const entries = new Map<string, { name: string; kind: string; sources: string[] }>();
+    const note = (kind: string, record: Readonly<JsonObject>, source: string): void => {
+        const name = kindOf(record);
+        const at = `${kind}:${String(name)}`;
+        if (name === undefined || taken.has(at)) {
+            return;
+        }
 
-/**
- * The space a source's mapping names for its nodes: its own `source:<id>` while every node it holds
- * is in a `source:` space (a node another source supplied first merges by key); the one space every
- * node is in when a data section placed them in a type's; otherwise none, and the type rules that
- * placed them place each row again on read.
- * @param source - The source.
- * @param model - The model.
- * @returns The space, or undefined.
- */
-function spaceOf(source: ModelSource, model: DataModel): string | undefined {
-    const spaces = new Set(source.nodes.map((node) => model.nodeRefs.get(node.id)?.space ?? `source:${source.id}`));
-    if ([...spaces].every((space) => space.startsWith("source:"))) {
-        return `source:${source.id}`;
+        const entry = entries.get(at) ?? { name, kind, sources: [] };
+        entries.set(at, entry);
+        if (!entry.sources.includes(source)) {
+            entry.sources.push(source);
+        }
+    };
+    for (const source of model.sources) {
+        for (const node of source.nodes) {
+            note("node", node, source.id);
+        }
+
+        for (const edge of source.edges) {
+            note("edge", edge, source.id);
+        }
     }
 
-    const [space] = spaces;
-    return spaces.size === 1 ? space : undefined;
-}
-
-/**
- * A source's `mapping`: its node key in the space its nodes are in, and its edge columns.
- * @param source - The source.
- * @param model - The model.
- * @param hasNodes - Whether its copy holds nodes.
- * @param hasEdges - Whether its copy holds edges.
- * @returns The mapping.
- */
-function mappingOf(source: ModelSource, model: DataModel, hasNodes: boolean, hasEdges: boolean): JsonObject {
-    const { edgeIdColumn } = model;
-    const hasEdgeId = edgeIdColumn !== undefined && source.edges.some((edge) => edge[edgeIdColumn] !== undefined);
-    return {
-        ...(hasNodes ? { nodes: nodeMappingOf(spaceOf(source, model)) } : {}),
-        ...(hasEdges
-            ? {
-                  edges: {
-                      ...(hasEdgeId ? { edgeId: edgeIdColumn } : {}),
-                      source: "source",
-                      target: "target",
-                      renamed: {},
-                  },
-              }
-            : {}),
-    };
-}
-
-/**
- * A source's node mapping.
- * @param space - The space its nodes are in, or undefined to leave them to the type rules.
- * @returns The mapping.
- */
-function nodeMappingOf(space: string | undefined): JsonObject {
-    return { key: "id", ...(space === undefined ? {} : { space }), renamed: {} };
-}
-
-/**
- * One source record (spec 4.1.1), from its load.
- * @param source - The source.
- * @param model - The model.
- * @param storage - Embedded or referenced.
- * @param problems - Collects `W_SOURCE_NO_PATH`.
- * @returns The record and its hash.
- */
-function sourceRecordOf(
-    source: ModelSource,
-    model: DataModel,
-    storage: SourceStorage,
-    problems: DocumentProblem[],
-): { record: JsonObject; hash: string } {
-    const load = source.load as LoadedSource;
-    const nodes =
-        source.nodes.length > 0
-            ? tableOf(
-                  source.nodes.map((node) => ({ ...node, id: keyCellOf(node.id, model) })),
-                  ["id"],
-                  new Set(),
-              )
-            : undefined;
-    const edges =
-        source.edges.length > 0
-            ? tableOf(
-                  source.edges.map((edge) => ({
-                      ...edgeRowOf(edge),
-                      source: keyCellOf(edge.source, model),
-                      target: keyCellOf(edge.target, model),
-                  })),
-                  ["source", "target"],
-                  new Set(["id"]),
-              )
-            : undefined;
-    const copy: JsonObject = {
-        ...(nodes === undefined ? {} : { nodes: nodes.table }),
-        ...(edges === undefined ? {} : { edges: edges.table }),
-    };
-    if (nodes === undefined && edges === undefined) {
-        copy.nodes = { id: [] };
-    }
-
-    const hash = hashOf(copy);
-    const kind = KINDS[load.kind];
-    const options = redactedParams(load.config ?? {});
-    delete options.url;
-    const origin: JsonObject = {
-        hash,
-        ...(load.fileName === undefined ? {} : { name: load.fileName }),
-        ...(load.url === undefined ? {} : { url: load.url }),
-        ...(load.size === undefined ? {} : { size: load.size }),
-    };
-    const mapping = mappingOf(source, model, copy.nodes !== undefined, edges !== undefined);
-    const { choices } = load;
-    const settings: JsonObject = {
-        ...(model.edges.length === 0 ? {} : { directed: model.directed }),
-        duplicateIds: choices?.duplicateIds ?? "first",
-        unmatched: choices?.unmatched ?? "add",
-        repeatedEdges: "keep",
-    };
-    if (storage === "referenced" && kind === "file") {
-        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id } });
-    }
-
-    const record: JsonObject = {
-        id: source.id,
-        label: load.name ?? load.fileName ?? source.id,
-        kind,
-        ...(load.type === undefined ? {} : { format: load.type }),
-        ...(Object.keys(options).length === 0 ? {} : { options: jsonSafe(options) }),
-        origin,
-        mapping,
-        settings,
-        ...(storage === "embedded"
-            ? {
-                  copy,
-                  columns: {
-                      ...(copy.nodes === undefined
-                          ? {}
-                          : { nodes: nodes?.columns ?? { id: { name: "id", dtype: "string", nullable: false } } }),
-                      ...(edges === undefined ? {} : { edges: edges.columns }),
-                  },
-              }
-            : {}),
-        ...(load.loadedAt !== undefined && TIMESTAMP.test(load.loadedAt) ? { loaded: load.loadedAt } : {}),
-    };
-    return { record, hash };
-}
-
-/**
- * The reader source (spec 4.1.1 rule 7): today, only the elements no load supplied, as `added`.
- * @param source - The reader's rows.
- * @param model - The model.
- * @returns The record and its hash.
- */
-function readerRecordOf(source: ModelSource, model: DataModel): { record: JsonObject; hash: string } {
-    const added = [
-        ...source.nodes.map((node) => {
-            const { id: _id, ...columns } = node;
-            return { node: model.nodeRefs.get(node.id), columns: jsonSafe(columns) };
-        }),
-        ...source.edges.map((edge) => {
-            const { id: _id, source: _from, target: _to, ...columns } = edge;
-            return { edge: model.edgeRefs.get(edge.id), columns: jsonSafe(columns) };
-        }),
+    return [
+        ...read,
+        ...[...entries.values()].map((entry) => ({
+            name: entry.name,
+            kind: entry.kind,
+            rules: entry.sources.map((source) => ({ source, column: "kind", values: [entry.name] })),
+            schema: { type: "object" },
+        })),
     ];
-    const copy = { edits: [], added, removed: [], merges: [] };
-    const sortedBy = (rows: readonly JsonObject[]): JsonObject[] =>
-        [...rows].sort((a, b) => byCanonical(a.node ?? a.edge ?? a.nodes, b.node ?? b.edge ?? b.nodes));
-    const hash = hashOf({ edits: [], added: sortedBy(added), removed: [], merges: [] });
-    return {
-        record: { id: READER, label: READER, kind: "reader", origin: { hash }, copy },
-        hash,
-    };
 }
 
 /**
- * The merged graph's nodes (node-link JSON), each one some embedded source supplied, and each
- * node's place among them.
- * @param model - The model.
- * @param embedded - The ids of the embedded sources.
- * @param typesFor - A node's type names.
- * @returns The nodes and their places by node id.
+ * Whether a type rule matches a row of a source (spec 4.1.5).
+ * @param rule - The rule.
+ * @param source - The source the row came from.
+ * @param row - The row.
+ * @param end - `source` or `target` for an edge row read for its end, else undefined.
+ * @returns True when it matches.
  */
-function graphNodesOf(
+function ruleMatches(rule: unknown, source: string, row: Readonly<JsonObject>, end?: string): boolean {
+    if (!isPlainObject(rule) || rule.source !== source || rule.end !== end) {
+        return false;
+    }
+
+    if (typeof rule.column !== "string") {
+        return true;
+    }
+
+    const cell = keyText(row[rule.column]);
+    return (
+        Array.isArray(rule.values) &&
+        rule.values.some((value) => typeof value === "string" && value.normalize("NFC") === cell)
+    );
+}
+
+/**
+ * Each element's types: a node every type a row supplying or naming it matches, an edge the first
+ * type in registry order its row matches.
+ * @param model - The model.
+ * @param types - The registry.
+ * @returns The types of each node and each edge.
+ */
+function elementTypesOf(
     model: DataModel,
-    embedded: ReadonlySet<string>,
-    typesFor: (node: Readonly<JsonObject>) => string[],
-): { handles: Map<NodeId, number>; graphNodes: JsonObject[] } {
+    types: readonly JsonObject[],
+): { nodes: Map<NodeId, string[]>; edges: Map<EdgeId, string[]> } {
+    const nodes = new Map<NodeId, string[]>();
+    const edges = new Map<EdgeId, string[]>();
+    const add = (id: NodeId, name: string): void => {
+        const list = nodes.get(id) ?? [];
+        nodes.set(id, list.includes(name) ? list : [...list, name]);
+    };
+    const rulesOf = (type: JsonObject): unknown[] => (Array.isArray(type.rules) ? type.rules : []);
+    const nodeTypes = types.filter((type) => type.kind === "node");
+    const edgeTypes = types.filter((type) => type.kind === "edge");
+    for (const source of model.sources) {
+        for (const node of source.nodes) {
+            for (const type of nodeTypes) {
+                if (rulesOf(type).some((rule) => ruleMatches(rule, source.id, node))) {
+                    add(node.id, String(type.name));
+                }
+            }
+        }
+
+        for (const edge of source.edges) {
+            for (const type of nodeTypes) {
+                for (const end of ["source", "target"] as const) {
+                    if (rulesOf(type).some((rule) => ruleMatches(rule, source.id, edge, end))) {
+                        add(edge[end], String(type.name));
+                    }
+                }
+            }
+
+            const first = edgeTypes.find((type) => rulesOf(type).some((rule) => ruleMatches(rule, source.id, edge)));
+            edges.set(edge.id, first === undefined ? [] : [String(first.name)]);
+        }
+    }
+
+    return { nodes, edges };
+}
+
+/**
+ * The type conversions (spec 4.1.6): each converted column's type, from today's column settings.
+ * @param session - The session.
+ * @returns The conversions.
+ */
+function conversionsOf(session: GraphSession): JsonObject[] {
+    const settings = dispatcherOf(session).state.graph.values.get(COLUMNS_VALUE) as ColumnSettings | undefined;
+    return Object.entries(settings?.types ?? {}).flatMap(([column, type]) => {
+        const at = column.indexOf(":");
+        const kind = column.slice(0, at);
+        return kind === "node" || kind === "edge" ? [{ kind, name: column.slice(at + 1), type }] : [];
+    });
+}
+
+/**
+ * The data issues (spec 4.1.7): the ignored issues by the parts of their ids, and the kept pairs
+ * as node references.
+ * @param model - The model.
+ * @returns The issues, or undefined when nothing was ignored or kept.
+ */
+function issuesOf(model: DataModel): JsonObject | undefined {
+    const state = dispatcherOf(model.session).state.graph.values.get(ISSUES_VALUE) as IssueState | undefined;
+    const ignored = (state?.ignored ?? []).flatMap((id) => {
+        const [code, kind, ...rest] = id.split(":");
+        if (kind !== "node" && kind !== "edge") {
+            return [];
+        }
+
+        const name = rest.join(":");
+        return [{ code, kind, ...(name.length === 0 ? {} : { name }) }];
+    });
+    const kept = (state?.kept ?? []).flatMap((pair) => {
+        let ends: unknown;
+        try {
+            ends = JSON.parse(pair) as unknown;
+        } catch {
+            return [];
+        }
+
+        const [from, to] = Array.isArray(ends) ? ends : [];
+        const refs = [from, to].map((end) => model.nodes.find((node) => String(node.id) === String(end)));
+        const a = refs[0] === undefined ? undefined : model.nodeRefs.get(refs[0].id);
+        const b = refs[1] === undefined ? undefined : model.nodeRefs.get(refs[1].id);
+        return a === undefined || b === undefined ? [] : [{ from: a, to: b }];
+    });
+    return ignored.length + kept.length === 0 ? undefined : { ignored, kept };
+}
+
+/** The node-link members graphty writes itself, never a user column of that name. */
+const NODE_MEMBERS = ["id", "graphty.space", "graphty.key", "graphty.types", "_source.loads"];
+const LINK_MEMBERS = ["source", "target", "key", "id", "graphty.load", "graphty.key", "graphty.types", "_source.loads"];
+
+/**
+ * A record's columns without the members node-link holds itself.
+ * @param columns - The record's columns.
+ * @param leaveOut - The names not written.
+ * @returns The columns.
+ */
+function userColumns(columns: Readonly<JsonObject>, leaveOut: readonly string[]): JsonObject {
+    const out: JsonObject = {};
+    for (const [name, value] of Object.entries(columns)) {
+        if (!leaveOut.includes(name) && value !== undefined) {
+            out[name] = jsonSafe(value);
+        }
+    }
+
+    return out;
+}
+
+/**
+ * The merged graph (spec 4.1.9): NetworkX node-link JSON of the elements an embedded source, or
+ * the reader, supplied.
+ * @param model - The model.
+ * @param embedded - The ids of the embedded sources, the reader's included.
+ * @param types - The registry.
+ * @returns The graph.
+ */
+function graphOf(model: DataModel, embedded: ReadonlySet<string>, types: readonly JsonObject[]): JsonObject {
+    const typed = elementTypesOf(model, types);
     const handles = new Map<NodeId, number>();
-    const graphNodes: JsonObject[] = [];
+    const nodes: JsonObject[] = [];
     for (const node of model.nodes) {
         const loads = model.nodeLoads.get(node.id) ?? [];
         if (!loads.some((id) => embedded.has(id))) {
@@ -781,86 +1001,20 @@ function graphNodesOf(
         }
 
         const ref = model.nodeRefs.get(node.id) as NodeRef;
-        const { id: _id, ...columns } = node;
-        handles.set(node.id, graphNodes.length);
-        graphNodes.push({
-            id: graphNodes.length,
+        handles.set(node.id, nodes.length);
+        nodes.push({
+            id: nodes.length,
             "graphty.space": ref.space,
             "graphty.key": ref.key,
-            "graphty.types": typesFor(node),
-            "_source.loads": loads.filter((id) => id !== READER),
-            ...(jsonSafe(
-                withoutNodeLink(columns, ["id", "graphty.space", "graphty.key", "graphty.types"]),
-            ) as JsonObject),
+            "graphty.types": typed.nodes.get(node.id) ?? [],
+            "_source.loads": loads,
+            ...userColumns(node, NODE_MEMBERS),
         });
     }
 
-    return { handles, graphNodes };
-}
-
-/**
- * Every source record, the reader source first, with each source's hash and the embedded ones.
- * @param model - The model.
- * @param embed - Embedded or referenced, per source id; embedded when absent.
- * @param problems - Collects what the save reports.
- * @returns The records, the hashes by source id, and the ids of the embedded sources.
- */
-function sourceRecordsOf(
-    model: DataModel,
-    embed: Readonly<Record<string, SourceStorage>>,
-    problems: DocumentProblem[],
-): { records: JsonObject[]; hashes: Record<string, string>; embedded: Set<string> } {
-    const records: JsonObject[] = [];
-    const hashes: Record<string, string> = {};
-    const embedded = new Set<string>([READER]);
-    for (const source of model.sources) {
-        const storage: SourceStorage = embed[source.id] ?? "embedded";
-        if (storage === "embedded") {
-            embedded.add(source.id);
-        }
-
-        const { record, hash } =
-            source.load === undefined
-                ? readerRecordOf(source, model)
-                : sourceRecordOf(source, model, storage, problems);
-        hashes[source.id] = hash;
-        // The reader source is first in the list, as it is first in precedence.
-        if (source.load === undefined) {
-            records.unshift(record);
-        } else {
-            records.push(record);
-        }
-    }
-
-    return { records, hashes, embedded };
-}
-
-/**
- * The data section's body (spec 4.1), from today's model.
- * @param session - The session.
- * @param embed - Embedded or referenced, per source id; embedded when absent.
- * @param problems - Collects what the save reports.
- * @returns The body and each source's hash.
- */
-export function dataBodyOf(
-    session: GraphSession,
-    embed: Readonly<Record<string, SourceStorage>>,
-    problems: DocumentProblem[],
-): DataBody {
-    const model = dataModelOf(session);
-    const { records, hashes, embedded } = sourceRecordsOf(model, embed, problems);
-
-    const types: JsonObject[] = typesOf(model);
-    const typeNames = new Set(types.map((type) => `${String(type.domain)}:${String(type.name)}`));
-    const typesFor = (domain: string, record: Readonly<JsonObject>): string[] => {
-        const kind = kindOf(record);
-        return kind !== undefined && typeNames.has(`${domain}:${kind}`) ? [kind] : [];
-    };
-
-    const { handles, graphNodes } = graphNodesOf(model, embedded, (node) => typesFor("node", node));
-
     const links: JsonObject[] = [];
     const pairs = new Map<string, number>();
+    const leaveOut = [...LINK_MEMBERS, ...(model.edgeIdColumn === undefined ? [] : [model.edgeIdColumn])];
     for (const edge of model.edges) {
         const loads = model.edgeLoads.get(edge.id) ?? [];
         const from = handles.get(edge.source);
@@ -872,155 +1026,145 @@ export function dataBodyOf(
         const ref = model.edgeRefs.get(edge.id) as EdgeRef;
         const pair = model.directed || from <= to ? `${String(from)}>${String(to)}` : `${String(to)}>${String(from)}`;
         pairs.set(pair, (pairs.get(pair) ?? 0) + 1);
-        const { id: _id, source: _source, target: _target, ...columns } = edge;
-        const skip = [
-            "source",
-            "target",
-            "key",
-            "graphty.types",
-            ...(model.edgeIdColumn === undefined ? [] : [model.edgeIdColumn]),
-        ];
         links.push({
             source: from,
             target: to,
-            ...("key" in ref ? { key: ref.key } : {}),
-            "graphty.types": typesFor("edge", edge),
-            "_source.loads": loads.filter((id) => id !== READER),
-            ...(jsonSafe(withoutNodeLink(columns, skip)) as JsonObject),
+            "graphty.load": ref.load,
+            "graphty.key": ref.key,
+            "graphty.types": typed.edges.get(edge.id) ?? [],
+            "_source.loads": loads,
+            ...userColumns(edge, leaveOut),
         });
     }
 
-    const joins = model.sources
-        .filter((source) => source.load !== undefined)
-        .map((source) => ({ op: source.merges ? "join.merge" : "join.add", source: source.id }));
     return {
-        body: {
-            sources: records,
-            types,
-            joins,
-            graph: {
-                directed: model.directed,
-                multigraph: [...pairs.values()].some((count) => count > 1),
-                graph: {},
-                nodes: graphNodes,
-                links,
-            },
-        },
-        hashes,
+        directed: model.directed,
+        multigraph: [...pairs.values()].some((count) => count > 1),
+        graph: {},
+        nodes,
+        links,
     };
 }
 
-/**
- * A record's columns without the members node-link holds itself.
- * @param columns - The record's columns.
- * @param leaveOut - The names not written.
- * @returns The columns.
- */
-function withoutNodeLink(columns: Readonly<JsonObject>, leaveOut: readonly string[]): JsonObject {
-    const out: JsonObject = {};
-    for (const [name, value] of Object.entries(columns)) {
-        if (!leaveOut.includes(name) && value !== undefined) {
-            out[name] = value;
-        }
-    }
-
-    return out;
+/** The data body as written, the digest of its build inputs, and its build stamp. */
+interface WrittenBody {
+    readonly body: JsonObject;
+    readonly digest: string;
+    readonly stamp: BuildStamp;
 }
 
 /**
- * The type registry (spec 4.1.3) from today's kinds: one entry per node or edge kind, in the order
- * the graph first shows it, each declared by the sources whose rows carry it in their `kind` column.
+ * Every source record, the reader source first, and the ids of the embedded ones.
  * @param model - The model.
- * @returns The entries.
+ * @param embed - Embedded or referenced, per source id; embedded when absent.
+ * @param problems - Collects what the save reports.
+ * @returns The records and the embedded ids.
  */
-function typesOf(model: DataModel): JsonObject[] {
-    const entries = new Map<string, { name: string; domain: string; sources: string[] }>();
-    const note = (domain: string, record: Readonly<JsonObject>, source: string): void => {
-        const kind = kindOf(record);
-        if (kind === undefined || source === READER) {
-            return;
-        }
-
-        const at = `${domain}:${kind}`;
-        const entry = entries.get(at) ?? { name: kind, domain, sources: [] };
-        entries.set(at, entry);
-        if (!entry.sources.includes(source)) {
-            entry.sources.push(source);
-        }
-    };
-    for (const node of model.nodes) {
-        for (const source of model.nodeLoads.get(node.id) ?? []) {
-            note("node", node, source);
-        }
+function sourceRecordsOf(
+    model: DataModel,
+    embed: Readonly<Record<string, SourceStorage>>,
+    problems: DocumentProblem[],
+): { records: JsonObject[]; embedded: Set<string> } {
+    const records: JsonObject[] = [];
+    const embedded = new Set<string>([READER]);
+    if (model.reader !== undefined) {
+        records.push({
+            id: READER,
+            label: "Your changes",
+            kind: "reader",
+            origin: { copy: model.reader.copy },
+            copy: { operations: model.reader.operations },
+        });
     }
 
     for (const source of model.sources) {
-        for (const edge of source.edges) {
-            note("edge", edge, source.id);
+        const unavailable = model.unavailable.get(source.id);
+        if (unavailable !== undefined && source.nodes.length + source.edges.length === 0) {
+            // Never fetched: written back as read, its reference kept.
+            records.push(unavailable);
+            continue;
         }
+
+        const storage: SourceStorage = embed[source.id] ?? "embedded";
+        if (storage === "embedded") {
+            embedded.add(source.id);
+        }
+
+        records.push(sourceRecordOf(source, model, storage, problems));
     }
 
-    return [...entries.values()].map((entry) => ({
-        name: entry.name,
-        domain: entry.domain,
-        rules: entry.sources.map((source) => ({ source, column: "kind", values: [entry.name] })),
-        schema: { type: "object" },
-    }));
+    return { records, embedded };
 }
 
 /**
- * The fingerprint of a data body (spec 6.4): over each source's hash, its reading settings, the
- * types without `plainName`, the kept pairs and the join history.
- * @param body - A data section's body.
- * @returns `bindsTo.sources` and `bindsTo.fingerprint`.
+ * The data section's body (spec 4.1) from a model, with its build stamp: the one remembered while
+ * the build inputs are unchanged, else a newly minted one.
+ * @param model - The model.
+ * @param embed - Embedded or referenced, per source id; embedded when absent.
+ * @param problems - Collects what the save reports.
+ * @returns The body, its digest and its stamp.
  */
-export function bindingOfBody(body: Readonly<JsonObject>): { sources: Record<string, string>; fingerprint: string } {
-    const records = (Array.isArray(body.sources) ? body.sources : []).filter(isPlainObject);
+function bodyOf(
+    model: DataModel,
+    embed: Readonly<Record<string, SourceStorage>>,
+    problems: DocumentProblem[],
+): WrittenBody {
+    const { records, embedded } = sourceRecordsOf(model, embed, problems);
+    const types = typesOf(model);
+    const conversions = conversionsOf(model.session);
+    const issues = issuesOf(model);
+    const joins = model.sources.map((source) => ({ op: "join.add", source: source.id }));
+    const digest = digestOf({
+        directed: model.directed,
+        sources: records.map(({ label: _label, loaded: _loaded, ...record }) => ({
+            ...record,
+            copy: (record.origin as JsonObject).copy,
+            columns: undefined,
+        })),
+        types: types.map(({ plainName: _plainName, ...type }) => type),
+        conversions,
+        kept: issues?.kept,
+        joins,
+    });
+    const memory = memoryOf(model.session);
+    if (memory.build?.digest !== digest) {
+        memory.build = { digest, build: mintUlid() };
+    }
+
     const sources: Record<string, string> = {};
-    const settings: JsonObject = {};
-    for (const source of records) {
-        const id = String(source.id);
-        const origin = isPlainObject(source.origin) ? source.origin : {};
-        sources[id] = String(origin.hash);
-        if (source.kind !== "reader") {
-            const entry: JsonObject = {};
-            for (const name of ["format", "options", "mapping", "settings"]) {
-                if (source[name] !== undefined) {
-                    entry[name] = source[name];
-                }
-            }
-
-            settings[id] = entry;
+    for (const record of records) {
+        if (!model.unavailable.has(String(record.id)) || embedded.has(String(record.id))) {
+            sources[String(record.id)] = String((record.origin as JsonObject).copy);
         }
     }
 
-    const types = (Array.isArray(body.types) ? body.types : [])
-        .filter(isPlainObject)
-        .map(({ plainName: _plainName, ...rest }) => rest);
-    const fingerprint = hashOf({ sources, settings, types, kept: keptPairsOf(body), joins: body.joins ?? [] });
-    return { sources, fingerprint };
+    const body: JsonObject = {
+        build: memory.build.build,
+        directed: model.directed,
+        sources: records,
+        types,
+        ...(conversions.length === 0 ? {} : { conversions }),
+        ...(issues === undefined ? {} : { issues }),
+        joins,
+        graph: graphOf(model, embedded, types),
+    };
+    return { body, digest, stamp: { build: memory.build.build, sources: memory.build.sources ?? sources } };
 }
 
 /**
- * A data body's kept pairs as the fingerprint reads them: each undirected pair's ends in canonical
- * order, the pairs sorted.
- * @param body - A data section's body.
- * @returns The pairs.
+ * The data section's body (spec 4.1), from today's model.
+ * @param session - The session.
+ * @param embed - Embedded or referenced, per source id; embedded when absent.
+ * @param problems - Collects what the save reports.
+ * @returns The body and its build stamp.
  */
-function keptPairsOf(body: Readonly<JsonObject>): JsonObject[] {
-    const issues = isPlainObject(body.issues) ? body.issues : {};
-    const directed = isPlainObject(body.graph) && body.graph.directed === true;
-    return (Array.isArray(issues.kept) ? issues.kept : [])
-        .filter(isPlainObject)
-        .map((pair) => {
-            if (directed) {
-                return pair;
-            }
-
-            const [a, b] = [pair.from, pair.to].sort(byCanonical);
-            return { from: a, to: b };
-        })
-        .sort(byCanonical);
+export function dataBodyOf(
+    session: GraphSession,
+    embed: Readonly<Record<string, SourceStorage>>,
+    problems: DocumentProblem[],
+): { readonly body: JsonObject; readonly stamp: BuildStamp } {
+    const { body, stamp } = bodyOf(dataModelOf(session), embed, problems);
+    return { body, stamp };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1041,21 +1185,9 @@ export function elementRefsOf(session: GraphSession): ElementRefs {
 
     const edges = new Map<string, EdgeId>();
     for (const [id, ref] of model.edgeRefs) {
-        edges.set(edgeLookupKey(ref, model.directed), id);
-    }
-
-    // A key unique among its ends binds by key even where it is written as `h` (a later save).
-    const { edgeIdColumn } = model;
-    if (edgeIdColumn !== undefined) {
-        for (const edge of model.edges) {
-            const key = keyText(edge[edgeIdColumn]);
-            const ref = model.edgeRefs.get(edge.id);
-            if (key !== undefined && ref !== undefined) {
-                const at = edgeLookupKey({ from: ref.from, to: ref.to, key }, model.directed);
-                if (!edges.has(at)) {
-                    edges.set(at, edge.id);
-                }
-            }
+        const at = edgeKey(ref);
+        if (!edges.has(at)) {
+            edges.set(at, id);
         }
     }
 
@@ -1068,30 +1200,17 @@ export function elementRefsOf(session: GraphSession): ElementRefs {
         },
         edge(ref) {
             const checked = edgeRefOf(ref);
-            return checked === undefined ? undefined : edges.get(edgeLookupKey(checked, model.directed));
+            return checked === undefined ? undefined : edges.get(edgeKey(checked));
         },
     };
 }
 
 /**
- * One map key for an edge reference.
- * @param ref - The reference.
- * @param directed - Whether ends are ordered.
- * @returns The key.
- */
-export function edgeLookupKey(ref: EdgeRef, directed: boolean): string {
-    const ends = endsKey(ref.from, ref.to, directed);
-    return "key" in ref ? `${ends}\u0002k\u0002${ref.key}` : `${ends}\u0002h\u0002${ref.h}\u0002${String(ref.n)}`;
-}
-
-/**
- * The content hash of every source, the reader source included, and the fingerprint (spec 6.4).
+ * The open data's build stamp and each available source's copy id, the reader source included
+ * (spec 6.4): a results run's `bindsTo`.
  * @param session - The session.
- * @returns `bindsTo.sources` and `bindsTo.fingerprint` of a results section.
+ * @returns The stamp.
  */
-export function dataBindingOf(
-    session: GraphSession,
-): Promise<{ readonly sources: Readonly<Record<string, string>>; readonly fingerprint: string }> {
-    // The hashes do not depend on embedding: every source hashes the copy it would write.
-    return Promise.resolve(bindingOfBody(dataBodyOf(session, {}, []).body));
+export function dataBindingOf(session: GraphSession): Promise<BuildStamp> {
+    return Promise.resolve(dataBodyOf(session, {}, []).stamp);
 }

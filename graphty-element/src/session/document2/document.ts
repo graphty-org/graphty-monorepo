@@ -12,16 +12,18 @@ import type { TransactionOptions } from "../project/Dispatcher";
 import type { CannedOutcomes } from "../projectFile";
 import { ENGINE_VERSIONS } from "../runs";
 import type { GraphSession, ProjectSlice } from "../types";
-import { canonicalJson, dataBindingOf, elementRefsOf } from "./codecs/dataRefs";
+import { dataBindingOf, elementRefsOf } from "./codecs/dataRefs";
 import {
     assembleSection,
     assembleWrapper,
+    canonicalText,
     type DocumentState,
     documentStateOf,
     type HeldSection,
     isJsonObject,
     newDocumentId,
     type ParsedDocument,
+    plainNumbers,
     rememberOpened,
     rememberUnknownMembers,
 } from "./framing";
@@ -45,7 +47,10 @@ import {
 
 /** What a version 2 save writes. */
 export interface SaveChoices {
-    /** The sections to write; default every section but results. */
+    /**
+     * The sections to write; default every section but results, and results too when the file the
+     * project was opened from had them (spec 8.1 rule 5).
+     */
     readonly sections?: readonly DocumentSection[];
     /** `"section"` writes one section as a section file; default `"full"`. */
     readonly form?: "full" | "section";
@@ -55,6 +60,8 @@ export interface SaveChoices {
     readonly embed?: Readonly<Record<string, SourceStorage>>;
     /** The caller's extensions, already checked. */
     readonly extensions?: Readonly<JsonObject>;
+    /** Write the recipe from the session even when one was opened from a file; default false. */
+    readonly rewriteRecipe?: boolean;
 }
 
 /** What a version 2 open loads. */
@@ -63,6 +70,10 @@ export interface OpenChoices {
     readonly sections?: readonly DocumentSection[];
     /** Whether the behaviors rerun; default true. */
     readonly rerun?: boolean;
+    /** The rerun choice per run id, over `rerun` (spec 8.2 rule 3). */
+    readonly runs?: Readonly<Record<string, boolean>>;
+    /** Apply a recipe section to the data instead of only keeping it (spec 8.2 rule 4); default false. */
+    readonly applyRecipe?: boolean;
     /** Whether a data section replaces the open data or is added; default `"replace"`. */
     readonly dataMode?: "replace" | "add";
     /** Load a bound section written on other data (spec 6.4, "No match"); default false. */
@@ -104,6 +115,7 @@ function lazyRefs(session: GraphSession): () => ElementRefs {
  * @param isDerived - Whether the element minted a run's id.
  * @param problems - Where the codecs report.
  * @param refs - The element references, built once per save.
+ * @param rewriteRecipe - Whether the saver asked for the recipe from the session.
  * @returns The context.
  */
 function writeContextOf(
@@ -114,6 +126,7 @@ function writeContextOf(
     isDerived: (id: RunId) => boolean,
     problems: DocumentProblem[],
     refs: () => ElementRefs = lazyRefs(session),
+    rewriteRecipe = false,
 ): WriteContext {
     return {
         session,
@@ -122,18 +135,16 @@ function writeContextOf(
         dataId: () => dataIdOf(state),
         sections,
         embed,
+        rewriteRecipe,
         isDerived,
-        async bindsTo(full: boolean): Promise<BindsTo> {
-            const data = dataIdOf(state);
-            return full ? { data, ...(await dataBindingOf(session)) } : { data };
-        },
+        bindsTo: (): Promise<BindsTo> => Promise.resolve({ data: dataIdOf(state) }),
+        buildStamp: () => dataBindingOf(session),
     };
 }
 
 /** The header members a codec owns (`SectionHeaderInput`), in the order the spec writes them. */
 const CODEC_HEADER = [
     "id",
-    "revision",
     "name",
     "description",
     "authors",
@@ -190,7 +201,7 @@ async function rememberBaselines(
 
         try {
             state.opened.set(name, {
-                baseline: canonicalJson(await codec.write(context)),
+                baseline: canonicalText(await codec.write(context)),
                 read: asWritten(section),
                 ...(section.header.bindsTo === undefined ? {} : { bindsTo: section.header.bindsTo }),
             });
@@ -203,12 +214,14 @@ async function rememberBaselines(
 /**
  * The sections a save writes, in file order.
  * @param choices - The saver's choices.
+ * @param state - The session's document state, for what the opened file held.
  * @returns The sections.
  * @throws A `GraphtyError` with `E_BAD_COMMAND` for a section file of other than one section, or
  *     a section name that is not one of the seven.
  */
-function sectionsToSave(choices: SaveChoices): DocumentSection[] {
-    const asked = choices.sections ?? DOCUMENT_SECTIONS.filter((name) => name !== "results");
+function sectionsToSave(choices: SaveChoices, state: DocumentState): DocumentSection[] {
+    const asked =
+        choices.sections ?? DOCUMENT_SECTIONS.filter((name) => name !== "results" || state.hadResults === true);
     const unknown = asked.find((name) => !DOCUMENT_SECTIONS.includes(name));
     if (unknown !== undefined) {
         throw new GraphtyError({
@@ -258,17 +271,16 @@ async function writeSection(
     const reported: DocumentProblem[] = [];
     let written = await codec.write({ ...context, problems: reported });
     const opened = state.opened.get(name);
-    const asRead = opened?.baseline === canonicalJson(written) ? opened : undefined;
+    const asRead = opened?.baseline === canonicalText(written) ? opened : undefined;
     if (asRead === undefined) {
         context.problems.push(...reported);
     } else {
         written = asRead.read;
     }
 
-    // A section written as read keeps the `bindsTo` it was read with while the data is the same
-    // data: it says what the data was when the section was written (spec 6.4).
-    const keptBinding = asRead?.bindsTo?.data === dataIdOf(state) ? asRead.bindsTo : undefined;
-    const bindsTo = codec.bound ? (keptBinding ?? (await context.bindsTo(name === "results"))) : undefined;
+    // A bound section's `bindsTo` is `{ data }` alone (spec 6.4); a results run carries its own
+    // build and copy ids.
+    const bindsTo = codec.bound ? await context.bindsTo() : undefined;
     return assembleSection(
         name,
         codec,
@@ -297,8 +309,8 @@ export async function saveDocument2(
     choices: SaveChoices,
     isDerived: (id: RunId) => boolean,
 ): Promise<{ document: JsonObject; written: string[]; problems: DocumentProblem[] }> {
-    const chosen = sectionsToSave(choices);
     const state = documentStateOf(session);
+    const chosen = sectionsToSave(choices, state);
     const now = new Date().toISOString();
     const problems: DocumentProblem[] = [];
     const sections: JsonObject = {};
@@ -327,6 +339,7 @@ export async function saveDocument2(
                 isDerived,
                 problems,
                 refs,
+                choices.rewriteRecipe === true,
             );
             sections[name] = await writeSection(name, codec, context, state, now);
         }
@@ -334,7 +347,7 @@ export async function saveDocument2(
 
     if (choices.form === "section") {
         const [name] = chosen;
-        return { document: sections[name] as JsonObject, written: [...chosen], problems };
+        return { document: plainNumbers(sections[name] as JsonObject), written: [...chosen], problems };
     }
 
     // Unknown sections an opened file held are written back in a full file.
@@ -355,7 +368,7 @@ export async function saveDocument2(
         sections,
         now,
     );
-    return { document, written: Object.keys(sections), problems };
+    return { document: plainNumbers(document), written: Object.keys(sections), problems };
 }
 
 /** What `openDocument2` needs from the project that is not the session. */
@@ -536,9 +549,12 @@ async function applyDocument(
                     // Built after the data loads, so the references are the new data's.
                     refs: lazyRefs(session),
                     dataId: () => openDataId ?? dataIdOf(state),
+                    buildStamp: () => dataBindingOf(session),
                     sections: loaded,
                     tx,
                     rerun: choices.rerun ?? true,
+                    rerunOf: (id) => choices.runs?.[id],
+                    applyRecipe: choices.applyRecipe === true,
                     dataMode,
                     restored,
                     other: (other) => chosen.get(other),

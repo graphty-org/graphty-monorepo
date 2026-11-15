@@ -1,5 +1,5 @@
 /**
- * @file Which style layers name elements (spec 4.2 rule 5): owned by the style codec, which
+ * @file Which style layers name elements or a dataset (spec 4.2 rule 5, spec 5 rule 5): owned by the style codec, which
  * leaves them out of a style section, and read by the view codec, which writes them in its
  * `layers`. Experimental (`save-files-v2`).
  */
@@ -114,6 +114,62 @@ function sourceNames(source: unknown, session: GraphSession): boolean {
     );
 }
 
+/** A run named in a path or an expression: `results.<run id>`. */
+const RESULT_PATH = /(?<![\w."])results\.([A-Za-z_][\w:-]*)/g;
+
+/** A run id made by a recipe step: `<namespace>__<as>` (spec 3.3). */
+const RECIPE_RUN = /^([a-z][a-z0-9_]{0,31}?)__([a-z][a-z0-9_]*)$/;
+
+/**
+ * Every run id a layer reads: through a `results.` path, or its run source.
+ * @param layer - The layer.
+ * @returns The run ids.
+ */
+function runsReadBy(layer: Loose): Set<string> {
+    const runs = new Set<string>();
+    const walk = (value: unknown): void => {
+        if (typeof value === "string") {
+            for (const match of value.matchAll(RESULT_PATH)) {
+                runs.add(match[1]);
+            }
+        } else if (Array.isArray(value) || isLoose(value)) {
+            Object.values(value).forEach(walk);
+        }
+    };
+    walk([layer.selector, layer.encode]);
+    if (isLoose(layer.source) && layer.source.by === "run" && typeof layer.source.runId === "string") {
+        runs.add(layer.source.runId);
+    }
+
+    return runs;
+}
+
+/**
+ * Whether a layer reads an open run a style section cannot name by `as` (spec 5 rule 5): one no
+ * recipe step made (its id is not `<namespace>__<as>`), or one whose `as` another open run shares.
+ * A name no open run has is already a run name, as a style section holds it.
+ * @param layer - The layer.
+ * @param session - The session, for its runs.
+ * @returns True when the layer belongs in the view section.
+ */
+function readsUnnamedRun(layer: Loose, session: GraphSession): boolean {
+    const read = runsReadBy(layer);
+    if (read.size === 0) {
+        return false;
+    }
+
+    const open = session.runs.list().map((run) => run.id);
+    const asOf = (id: string): string | undefined => RECIPE_RUN.exec(id)?.[2];
+    return [...read].some((id) => {
+        if (!open.includes(id)) {
+            return false;
+        }
+
+        const as = asOf(id);
+        return as === undefined || open.filter((each) => asOf(each) === as).length > 1;
+    });
+}
+
 /**
  * Whether a layer names elements: an `ids` selector, a `member` of a picked or path set, a rule
  * leaf naming an element, or a run source whose `params` name a node.
@@ -138,5 +194,5 @@ export function layerNamesElements(layer: unknown, session: GraphSession): boole
         }
     }
 
-    return sourceNames(layer.source, session);
+    return sourceNames(layer.source, session) || readsUnnamedRun(layer, session);
 }

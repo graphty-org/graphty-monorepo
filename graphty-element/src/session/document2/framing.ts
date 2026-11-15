@@ -9,7 +9,6 @@
 
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { GraphSession } from "../types";
-import { canonicalJson } from "./codecs/dataRefs";
 import { projectMemory, watchBoundaries } from "./memory";
 import { migrateSection } from "./migration";
 import {
@@ -42,10 +41,11 @@ const FIRST_VERSION: Readonly<Record<DocumentSection, number>> = {
 };
 
 /**
- * Why a section is held (spec 8.5); `unknown` is an unknown `sections` key and `malformed` a
- * section whose kind or version disagrees with its key, kept the same way (versions rule 3).
+ * Why a section is held (spec 8.4): a newer `version`, a required `extension`, `data` that cannot
+ * be built whole, a known key holding another `kind`, an `unknown` `sections` key, and a
+ * `malformed` value (not an object, or no integer version), kept the same way.
  */
-type HeldReason = "version" | "extension" | "data" | "unknown" | "malformed";
+type HeldReason = "version" | "extension" | "data" | "kind" | "unknown" | "malformed";
 
 /** A section kept verbatim and written back on save. */
 export interface HeldSection {
@@ -72,6 +72,125 @@ export interface ParsedDocument {
  */
 export function isJsonObject(value: unknown): value is JsonObject {
     return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A value as JSON text with object members sorted, for comparing two values in memory only; never
+ * written to a file.
+ * @param value - The value.
+ * @returns The text.
+ */
+export function canonicalText(value: unknown): string {
+    if (Array.isArray(value)) {
+        return `[${value.map((each: unknown) => canonicalText(each ?? null)).join(",")}]`;
+    }
+
+    if (isJsonObject(value)) {
+        const names = Object.keys(value)
+            .filter((name) => value[name] !== undefined)
+            .sort(); // NOSONAR(S2871): code-unit order is all a comparison needs
+        return `{${names.map((name) => `${JSON.stringify(name)}:${canonicalText(value[name])}`).join(",")}}`;
+    }
+
+    return JSON.stringify(value) ?? "null";
+}
+
+/**
+ * A value with every number plain JSON cannot carry written as its string (spec 11): `Infinity`,
+ * `-Infinity` and `NaN`. Every other value is the same; a copy is made only where one changed.
+ * @param value - The value about to be written.
+ * @returns The value, safe for `JSON.stringify`.
+ */
+export function plainNumbers<T>(value: T): T {
+    if (typeof value === "number") {
+        return (Number.isFinite(value) ? value : String(value)) as T;
+    }
+
+    if (Array.isArray(value)) {
+        const out = value.map((each: unknown) => plainNumbers(each));
+        return (out.some((each, at) => each !== value[at]) ? out : value) as T;
+    }
+
+    if (isJsonObject(value)) {
+        let changed = false;
+        const out: JsonObject = {};
+        for (const [member, each] of Object.entries(value)) {
+            out[member] = plainNumbers(each);
+            changed ||= out[member] !== each;
+        }
+
+        return (changed ? out : value) as T;
+    }
+
+    return value;
+}
+
+/**
+ * A number a file wrote as text because plain JSON cannot carry it (spec 11), read where the
+ * declared type is number: `"Infinity"`, `"-Infinity"` and `"NaN"` become numbers, anything else
+ * is returned as it is.
+ * @param value - The value as read.
+ * @returns The number, or the value.
+ */
+export function numberOf(value: unknown): unknown {
+    return value === "Infinity" || value === "-Infinity" || value === "NaN" ? Number(value) : value;
+}
+
+/**
+ * The first object member name a JSON text repeats within one object (I-JSON, RFC 7493, spec 1),
+ * which `JSON.parse` cannot see: it keeps the last.
+ * @param text - Text `JSON.parse` already accepted.
+ * @returns The repeated name, or undefined when every object's names are unique.
+ */
+export function duplicateMember(text: string): string | undefined {
+    // One entry per open container: an object's names so far, or null for an array.
+    const open: (Set<string> | null)[] = [];
+    let key = false;
+    for (let at = 0; at < text.length; at++) {
+        const char = text[at];
+        if (char === '"') {
+            let end = at + 1;
+            while (end < text.length && text[end] !== '"') {
+                end += text[end] === "\\" ? 2 : 1;
+            }
+
+            const names = open.at(-1);
+            if (key && names !== null && names !== undefined) {
+                const name = JSON.parse(text.slice(at, end + 1)) as string;
+                if (names.has(name)) {
+                    return name;
+                }
+
+                names.add(name);
+            }
+
+            key = false;
+            at = end;
+        } else if (char === "{") {
+            open.push(new Set());
+            key = true;
+        } else if (char === "[") {
+            open.push(null);
+        } else if (char === "}" || char === "]") {
+            open.pop();
+        } else if (char === ",") {
+            key = open.at(-1) !== null;
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * Refuse a text that is not I-JSON (spec 1): a duplicate member name in any object.
+ * @param text - Text `JSON.parse` already accepted.
+ * @throws A `GraphtyError` with `E_BAD_DOCUMENT` naming the member.
+ */
+export function assertIJson(text: string): void {
+    const member = duplicateMember(text);
+    if (member !== undefined) {
+        throw badDocument({ duplicate: member });
+    }
 }
 
 /**
@@ -174,15 +293,19 @@ function readSection(
     codec: SectionCodec,
     problems: DocumentProblem[],
 ): SectionOutcome {
-    if (
-        !isJsonObject(value) ||
-        value.kind !== `graphty-${name}` ||
-        !Number.isInteger(value.version) ||
-        (value.version as number) < 1
-    ) {
+    if (!isJsonObject(value) || !Number.isInteger(value.version) || (value.version as number) < 1) {
         // Refused, and kept as it is: the next save writes it back rather than dropping it.
         problems.push({ code: "E_BAD_DOCUMENT", params: { section: name } });
         return { hold: { value, reason: "malformed" } };
+    }
+
+    if (value.kind !== `graphty-${name}`) {
+        // The key decides (spec 2.2 rule 1): a known key holding another kind is held, never refused.
+        problems.push({
+            code: "W_SECTION_KEPT",
+            params: { section: name, version: value.version as number, reason: "kind" },
+        });
+        return { hold: { value, reason: "kind" } };
     }
 
     if ((value.version as number) < Math.min(...codec.reads)) {
@@ -340,6 +463,8 @@ interface Stamp {
 export interface DocumentState {
     /** The open data's id (spec 3.3); minted on first need. */
     dataId?: string;
+    /** Whether the file the project was opened from had a results section: a re-save keeps it (spec 8.1 rule 5). */
+    hadResults?: boolean;
     /** Sections no codec loaded, by key, written back on save (spec 8.5). */
     readonly held: Map<string, HeldSection>;
     /** Each loaded section's unknown top-level members, written back after its body. */
@@ -422,7 +547,7 @@ const UNSTAMPED = new Set(["$schema", "kind", "version", "created", "modified", 
 function contentDigest(section: Readonly<JsonObject>): Promise<string> {
     // Canonical, so a member order a file chose does not count as a change.
     return digestOf(
-        canonicalJson(Object.fromEntries(Object.entries(section).filter(([member]) => !UNSTAMPED.has(member)))),
+        canonicalText(Object.fromEntries(Object.entries(section).filter(([member]) => !UNSTAMPED.has(member)))),
     );
 }
 
@@ -457,6 +582,7 @@ export async function rememberOpened(
     held?: ReadonlyMap<string, HeldSection>,
 ): Promise<void> {
     if (held !== undefined) {
+        state.hadResults = parsed.sections.has("results") || parsed.held.has("results");
         state.held.clear();
         for (const [key, each] of held) {
             state.held.set(key, each);

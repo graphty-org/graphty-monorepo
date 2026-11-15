@@ -36,12 +36,13 @@ ajv.addSchema(readJson("schemas/common/v2.json"));
 ajv.addSchema(readJson("schemas/graphty-notes/v2.json"));
 
 const SPACE = "source:s1";
+const LOAD = "src_01JCBP1C9E2G4J6M8N0Q3S5V7Y";
 const NOTE_A = "note_01JCBQ4Z8N5V2W7XKD3M9RTF6A";
 const NOTE_B = "note_01JCBQ9H2C7YB4F0S6NWEX1KPD";
 
 /**
- * Stand-in element references: a node is (source:s1, its id as text), an edge is keyed by its
- * session id. Ids in `gone` act as elements the graph no longer holds.
+ * Stand-in element references: a node is (source:s1, its id as text), an edge is loaded by one
+ * source and keyed by its session id. Ids in `gone` act as elements the graph no longer holds.
  * @param session - The session.
  * @param gone - Ids to treat as absent.
  * @returns The references.
@@ -54,10 +55,7 @@ function standInRefs(session: GraphSession, gone: ReadonlySet<string> = new Set(
     return {
         nodeRef,
         edgeRef(id: EdgeId) {
-            const edge = gone.has(id) ? undefined : session.data.edge(id);
-            const from = edge && nodeRef(edge.source);
-            const to = edge && nodeRef(edge.target);
-            return from === undefined || to === undefined ? undefined : { from, to, key: id };
+            return gone.has(id) || session.data.edge(id) === undefined ? undefined : { load: LOAD, key: id };
         },
         node(ref: unknown) {
             const { space, key } = ref as { space?: unknown; key?: unknown };
@@ -107,15 +105,14 @@ async function save(
  * Open a notes section into a session through one transaction.
  * @param session - The session.
  * @param section - The section, header and body together.
- * @param options - The stand-in's absent ids and the data section the open also loads.
+ * @param options - The stand-in's absent ids.
  * @param options.gone - Ids the stand-in treats as absent.
- * @param options.data - The data section's body.
  * @returns The problems.
  */
 async function open(
     session: GraphSession,
     section: JsonObject,
-    options: { gone?: ReadonlySet<string>; data?: JsonObject } = {},
+    options: { gone?: ReadonlySet<string> } = {},
 ): Promise<DocumentProblem[]> {
     const problems: DocumentProblem[] = [];
     const { notes, ...header } = section;
@@ -131,10 +128,7 @@ async function open(
             rerun: true,
             dataMode: "replace",
             restored: new Set<ProjectSlice>(),
-            other: (name) =>
-                name === "data" && options.data !== undefined
-                    ? { header: { kind: "graphty-data", version: 2 }, body: options.data, pointer: "/sections/data" }
-                    : undefined,
+            other: () => undefined,
             canned: new Map() as CannedOutcomes,
             restoreDerived: () => undefined,
         };
@@ -172,7 +166,7 @@ function fileSection(edge: EdgeId): JsonObject {
                 targets: [
                     { node: ref("a") },
                     { node: ref("11") },
-                    { edge: { from: ref("a"), to: ref("b"), key: edge } },
+                    { edge: { load: LOAD, key: edge } },
                     { node: ref("nowhere") },
                 ],
                 text: "Both log in from **dev-9f3**.",
@@ -185,7 +179,7 @@ function fileSection(edge: EdgeId): JsonObject {
                 edited: "2026-11-14T17:59:10.000Z",
                 targets: [
                     { graph: true },
-                    { set: "set_suspects", name: "Suspects" },
+                    { set: "set_01JCBPX7K2M4Q8R1T5V9W3Y6ZA" },
                     { result: "fraud__rank" },
                     { item: { result: "fraud__rings", key: { field: "community", value: 3 } } },
                     { filterStep: "s1" },
@@ -240,7 +234,7 @@ describe("the version 2 notes codec", () => {
             notes.map((note) => note.targets),
             [
                 [{ node: ref("a") }, { node: ref("11") }],
-                [{ edge: { from: ref("a"), to: ref("b"), key: firstEdge(session) } }, { graph: true }],
+                [{ edge: { load: LOAD, key: firstEdge(session) } }, { graph: true }],
             ],
         );
         for (const note of notes) {
@@ -322,20 +316,14 @@ describe("the version 2 notes codec", () => {
         );
     });
 
-    it("reports W_REPLACED_SINCE for a source replaced after the section was written", async () => {
+    it("names a set by its file id, set_ plus a ULID", async () => {
         const session = await loaded();
-        const problems = await open(session, fileSection(firstEdge(session)), {
-            data: {
-                sources: [
-                    { id: "src_old", replaced: "2026-11-01T00:00:00.000Z" },
-                    { id: "src_new", replaced: "2026-11-15T00:00:00.000Z" },
-                ],
-            },
-        });
-        assert.deepEqual(
-            problems.filter((problem) => problem.code === "W_REPLACED_SINCE"),
-            [{ code: "W_REPLACED_SINCE", params: { section: "notes", source: "src_new" } }],
-        );
+        const set = session.sets.create({ kind: "rule", where: "data.x > `1`", reading: "induced" }, { name: "High" });
+        session.notes.add({ text: "the high ones", targets: [{ set }] });
+        const { section } = await save(session);
+        const [note] = section.notes as JsonObject[];
+        assert.match(String((note.targets as JsonObject[])[0].set), /^set_[0-9A-HJKMNP-TV-Z]{26}$/);
+        assert.deepEqual(invalid(section), []);
     });
 
     it("skips a note the schema refuses and adds the rest", async () => {

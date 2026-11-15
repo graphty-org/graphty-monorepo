@@ -4,15 +4,13 @@
  *
  * Placement of the `config.set` keys (spec 4.4 rule 1, spec 5 rule 7):
  * - here: `runAlgorithmsOnLoad`, `background`, `selectionStyle`, `pinnedStyle`, `runPlacement`,
- *   `layoutTransition`, every `layoutBehavior.*` key and every `data.*` key;
+ *   `layoutTransition` and every `layoutBehavior.*` key;
  * - in view: `viewRotation`, `framing`;
+ * - in the data section (the direction, a mapping role, `repeatedEdges`, the key rule): the
+ *   `data.*` keys with a home there, never written here;
+ * - refused on save and reported (`NO_HOME`): the `data.*` keys with no home, when not at their
+ *   default;
  * - never saved: `author`, `name`, `startingRows`, `editableBase`.
- *
- * KNOWN GAP (the open decision on sorting the remaining settings, version-2.md "Needs the owner"):
- * the `data.*` keys (the known fields, the direction, the on-load algorithms) and the
- * `layoutBehavior.*` keys are placed here because no other section holds them today. The known
- * fields may move to each source's `mapping` in the data section, and the on-load algorithms to
- * the recipe; when they do, they leave `SAVED_HERE` and this codec stops writing them.
  */
 
 import { GraphtyError } from "../../../errors/GraphtyError";
@@ -42,13 +40,34 @@ const NOT_HERE: ReadonlySet<string> = new Set([
 ]);
 
 /** The `config.set` keys this section holds, in the order it writes them. */
-const SAVED_HERE: readonly string[] = [...CONFIG_KEYS.keys()].filter((key) => !NOT_HERE.has(key));
+const SAVED_HERE: readonly string[] = [...CONFIG_KEYS.keys()].filter(
+    (key) => !NOT_HERE.has(key) && !key.startsWith("data."),
+);
+
+/**
+ * The `data.*` keys no section can hold (spec 5 rule 7): a value other than the default is
+ * refused on save and reported (spec 8.1 rule 2). `data.algorithms` is among them: the on-load
+ * algorithms have no version 2 home.
+ */
+const NO_HOME: readonly string[] = [
+    "data.algorithms",
+    "data.knownFields.idCoercion",
+    "data.knownFields.positionScale",
+    "data.knownFields.nodeTimeEndPath",
+    "data.knownFields.edgeTimeEndPath",
+    "data.knownFields.nodeTimeSpellsPath",
+    "data.knownFields.edgeTimeSpellsPath",
+    "data.knownFields.nodeTimeParseZone",
+    "data.knownFields.edgeTimeParseZone",
+];
 
 /** The members of `playback`, in the order it writes them (spec 4.4 rule 2). */
 const PLAYBACK_MEMBERS = ["mode", "step", "missing", "outside", "timeZone", "ageFade", "results"] as const;
 
 /** What a read kept that the session cannot hold, written back on the next save. */
 interface Kept {
+    /** The header members the section was read with (spec 8.1 rule 5). */
+    readonly header: JsonObject;
     /** `settings` keys this release does not know, in file order. */
     readonly settings: JsonObject;
     /** `playback` members this release does not know. */
@@ -96,25 +115,6 @@ function valueAt(root: unknown, path: string): unknown {
 }
 
 /**
- * The column a settings key names, with what its role says of it, or undefined for a key naming none.
- * @param key - The key.
- * @param value - Its value.
- * @returns The `dependencies.columns` entry.
- */
-function columnOf(key: string, value: unknown): JsonObject | undefined {
-    if (!key.startsWith("data.knownFields.") || !key.endsWith("Path") || typeof value !== "string" || value === "") {
-        return undefined;
-    }
-
-    // Only what the role says is written; the column's own type is the data's to declare.
-    if (/Time(End)?Path$/.test(key)) {
-        return { name: value, schema: { measurement: "time" } };
-    }
-
-    return { name: value, schema: key.endsWith("WeightPath") ? { measurement: "quantitative" } : {} };
-}
-
-/**
  * The session's playback settings as the section writes them, or undefined when none are set.
  * @param context - The save.
  * @param kept - What the last read kept.
@@ -145,17 +145,19 @@ function playbackOf(context: WriteContext, kept: Kept | undefined): JsonObject |
 function write(context: WriteContext): Promise<SectionWrite> {
     const kept = KEPT.get(context.session);
     const settings: JsonObject = {};
-    const columns = new Map<string, JsonObject>();
     for (const key of SAVED_HERE) {
         const value = valueAt(context.session.config, key);
-        if (value === undefined) {
-            continue;
+        if (value !== undefined) {
+            settings[key] = value;
         }
+    }
 
-        settings[key] = value;
-        const column = columnOf(key, value);
-        if (column !== undefined && !columns.has(String(column.name))) {
-            columns.set(String(column.name), column);
+    for (const key of NO_HOME) {
+        const value = valueAt(context.session.config, key);
+        const unset = CONFIG_KEYS.get(key)?.schema.safeParse(undefined);
+        const atDefault = value === undefined || value === null || (unset?.success === true && unset.data === value);
+        if (!atDefault && !(Array.isArray(value) && value.length === 0)) {
+            context.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "settings", field: key } });
         }
     }
 
@@ -166,10 +168,8 @@ function write(context: WriteContext): Promise<SectionWrite> {
         body.playback = playback;
     }
 
-    return Promise.resolve({
-        ...(columns.size === 0 ? {} : { header: { dependencies: { columns: [...columns.values()] } } }),
-        body,
-    });
+    // No key written here names a column, so `dependencies` is only what an opened file held.
+    return Promise.resolve({ header: kept?.header ?? {}, body });
 }
 
 /**
@@ -200,7 +200,7 @@ function patchOf(
     for (const [key, value] of Object.entries(settings)) {
         const at = `${pointer}/${token(key)}`;
         const known = CONFIG_KEYS.get(key);
-        if (known === undefined || NOT_HERE.has(key)) {
+        if (known === undefined || NOT_HERE.has(key) || key.startsWith("data.")) {
             context.problems.push({ code: "W_UNKNOWN_MEMBER", params: { section: "settings", pointer: at } });
             // A key of another section, or one never saved, is not written back here.
             if (known === undefined) {
@@ -265,19 +265,40 @@ function splitPlayback(
 async function read(section: ReadSection, context: ReadContext): Promise<void> {
     const { body, pointer } = section;
     const kept: KeptSettings = {
+        header: Object.fromEntries(
+            OWN_HEADER.flatMap((member) =>
+                section.header[member] === undefined ? [] : [[member, section.header[member]]],
+            ),
+        ),
         settings: {},
         playback: {},
     };
     KEPT.set(context.session, kept);
 
-    await readSettings(body.settings, `${pointer}/settings`, context, kept);
+    // Absent, `settings` is empty (its schema default): a file opened as a new session still
+    // sets every key to its default, and one added to an open project sets nothing.
+    await readSettings(body.settings ?? {}, `${pointer}/settings`, context, kept);
     if (body.playback !== undefined) {
         await readPlayback(body.playback, `${pointer}/playback`, context, kept);
     }
 }
 
+/** The header members this codec writes back as an opened section had them. */
+const OWN_HEADER = [
+    "id",
+    "name",
+    "description",
+    "authors",
+    "license",
+    "keywords",
+    "language",
+    "dependencies",
+    "origin",
+] as const;
+
 /** What the settings codec keeps from an open to write back. */
 interface KeptSettings {
+    header: JsonObject;
     settings: JsonObject;
     playback: JsonObject;
     heldPlayback?: JsonObject;
@@ -298,12 +319,16 @@ async function readSettings(settings: unknown, at: string, context: ReadContext,
 
     const { patch, unknown, count } = patchOf(settings, at, context);
     kept.settings = unknown;
-    if (count === 0) {
+    // Loading onto an open project sets only the keys the section holds; a file opened as a new
+    // session sets every absent key to its default (spec 4.4 rule 4).
+    const fresh = context.dataMode === "replace" && context.sections.has("data");
+    const defaults = fresh ? defaultsFor(settings) : {};
+    if (count === 0 && Object.keys(defaults).length === 0) {
         return;
     }
 
     try {
-        await context.tx.config.set(patch);
+        await context.tx.config.set(merge(defaults, patch));
         context.restored.add("config");
     } catch (error) {
         // Each key passed its own schema; one the settings refuse together is the file's fault.
@@ -312,6 +337,48 @@ async function readSettings(settings: unknown, at: string, context: ReadContext,
         }
         bad(context, at);
     }
+}
+
+/**
+ * Every key this section holds that a section leaves out, at its default, as a nested patch. A key
+ * whose default is no value (an optional one) is left as it is.
+ * @param settings - The `settings` member as read.
+ * @returns The patch.
+ */
+function defaultsFor(settings: JsonObject): JsonObject {
+    const patch: JsonObject = {};
+    for (const key of SAVED_HERE) {
+        const unset = CONFIG_KEYS.get(key)?.schema.safeParse(undefined);
+        if (key in settings || unset?.success !== true || unset.data === undefined) {
+            continue;
+        }
+
+        const parts = key.split(".");
+        const leaf = parts.pop() as string;
+        let parent = patch;
+        for (const part of parts) {
+            parent[part] ??= {};
+            parent = parent[part] as JsonObject;
+        }
+        parent[leaf] = unset.data;
+    }
+
+    return patch;
+}
+
+/**
+ * Two nested patches as one, the second winning.
+ * @param base - The first.
+ * @param over - The second.
+ * @returns The merged patch.
+ */
+function merge(base: JsonObject, over: JsonObject): JsonObject {
+    const out: JsonObject = { ...base };
+    for (const [key, value] of Object.entries(over)) {
+        out[key] = isObject(value) && isObject(out[key]) ? merge(out[key], value) : value;
+    }
+
+    return out;
 }
 
 /**

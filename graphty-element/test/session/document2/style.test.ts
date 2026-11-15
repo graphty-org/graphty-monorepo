@@ -66,15 +66,16 @@ async function saveStyle(session: GraphSession): Promise<{ section: JsonObject; 
  * Open a file into a session through the codecs.
  * @param session - The session.
  * @param file - A section file or a full file.
+ * @param applyRecipe - Whether the caller asks to apply a recipe the file holds.
  * @returns The problems.
  */
-async function open(session: GraphSession, file: JsonObject): Promise<DocumentProblem[]> {
+async function open(session: GraphSession, file: JsonObject, applyRecipe = false): Promise<DocumentProblem[]> {
     const parsed = parseDocument(file, CODECS);
     const opened = await openDocument2(
         session,
         CODECS,
         parsed,
-        {},
+        { applyRecipe },
         { canned: new Map(), restoreDerived: () => undefined, beforeReplace: () => undefined, name: null },
     );
     return opened.problems;
@@ -99,10 +100,8 @@ function ownLayers(session: GraphSession): object[] {
     return session.styles.toDocument().layers.map(({ source: _source, row: _row, ...rest }) => rest);
 }
 
-const pointerParams = (problems: readonly DocumentProblem[], code: string): unknown[] => {
-    console.log(JSON.stringify(problems));
-    return problems.filter((problem) => problem.code === code).map((problem) => problem.params.pointer);
-};
+const pointerParams = (problems: readonly DocumentProblem[], code: string): unknown[] =>
+    problems.filter((problem) => problem.code === code).map((problem) => problem.params.pointer);
 
 describe("the style codec writes", () => {
     it("layers with ids, carried built-in palettes, runs by name and dependencies, and validates", async () => {
@@ -354,7 +353,7 @@ describe("the style codec reads", () => {
         assert.deepEqual(saved.palettes, written.palettes);
     });
 
-    it("renames a run named by `as` to the id the recipe loaded alongside gives it", async () => {
+    it("binds a run named by `as` to the run a recipe applied alongside starts", async () => {
         const session = createGraphSession(ON);
         const style = file([
             layer({
@@ -369,16 +368,84 @@ describe("the style codec reads", () => {
             namespace: "team",
             commands: [{ op: "algo.run", algorithm: "degree", as: "hubs", style: false }],
         };
-        await open(session, {
-            kind: "graphty-document",
-            version: 2,
-            generator: { name: "test", version: "0" },
-            sections: { style, recipe },
-        });
+        await open(
+            session,
+            {
+                kind: "graphty-document",
+                version: 2,
+                generator: { name: "test", version: "0" },
+                sections: { style, recipe },
+            },
+            true,
+        );
         const [applied] = session.styles.list().filter((each) => !each.locked);
         assert.deepEqual(applied.selector, { match: "has", path: "results.team__hubs.value" });
         // Saved again, the run is named by its `as`.
         assert.deepEqual((await saveStyle(session)).section.layers, style.layers);
+    });
+});
+
+describe("the version 2 style section's own rules", () => {
+    it("writes no layer kind, value labels by path, and reports a layer kind read as unknown", async () => {
+        const session = createGraphSession(ON);
+        await session.data.addNodes([{ id: "a", mcc: "5947" }]);
+        await session.styles.add({
+            name: "A",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.size": 2 },
+        });
+        await session.data.setValueLabel("data.mcc", "5947", "Gift shops");
+        const { section } = await saveStyle(session);
+        assert.notProperty((section.layers as JsonObject[])[0], "kind");
+        assert.deepEqual(section.valueLabels, [{ path: "data.mcc", value: "5947", label: "Gift shops" }]);
+        assert.deepEqual(invalid(section), []);
+
+        const other = createGraphSession(ON);
+        const written = {
+            kind: "graphty-style",
+            version: 2,
+            generator: { name: "test", version: "0" },
+            layers: [{ id: "x", name: "X", kind: "base", selector: { match: "everything" }, set: { "node.size": 2 } }],
+        };
+        const problems = await open(other, written);
+        assert.deepEqual(pointerParams(problems, "W_UNKNOWN_MEMBER"), ["/layers/0/kind"]);
+        assert.deepEqual((await saveStyle(other)).section.layers, written.layers, "kept on re-save");
+    });
+
+    it("reports a run name no open run, or several, has, and leaves it as written", async () => {
+        const session = createGraphSession(ON);
+        const problems = await open(session, {
+            kind: "graphty-style",
+            version: 2,
+            generator: { name: "test", version: "0" },
+            layers: [
+                {
+                    id: "x",
+                    name: "X",
+                    selector: { match: "has", path: "results.pagerank.value" },
+                    set: { "node.size": 2 },
+                },
+            ],
+        });
+        assert.deepEqual(
+            problems.filter((problem) => problem.code === "W_REFERENCE_UNBOUND"),
+            [{ code: "W_REFERENCE_UNBOUND", params: { section: "style", pointer: "/layers/0", ref: "pagerank" } }],
+        );
+        const [applied] = session.styles.list().filter((each) => !each.locked);
+        assert.deepEqual(applied.selector, { match: "has", path: "results.pagerank.value" });
+    });
+
+    it("writes dependency columns with their table", async () => {
+        const session = createGraphSession(ON);
+        await session.styles.add({
+            name: "Big",
+            target: "edge",
+            selector: { match: "expression", where: "data.amount > `500`" },
+            set: { "edge.color": "#c62828" },
+        });
+        const { section } = await saveStyle(session);
+        assert.deepEqual((section.dependencies as JsonObject).columns, [{ kind: "edge", name: "amount", schema: {} }]);
     });
 });
 

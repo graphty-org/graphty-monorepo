@@ -8,7 +8,7 @@
 import { GraphtyError } from "../../errors/GraphtyError";
 import { sha256Hex } from "../../utils/sha256";
 import { canonicalJson as sharedCanonicalJson } from "./codecs/dataRefs";
-import type { EdgeRef, JsonObject, NodeRef } from "./types";
+import type { DocumentProblem, EdgeRef, JsonObject, NodeRef } from "./types";
 
 // ---------------------------------------------------------------------------------------------
 // Plain JSON
@@ -64,13 +64,22 @@ function canonicalJson(value: unknown): string {
     return sharedCanonicalJson(value);
 }
 
+/** Crockford's base 32. */
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
 /**
- * The content hash of a value: `sha256:` and the hex SHA-256 of its canonical JSON.
- * @param value - The value.
- * @returns The hash.
+ * A ULID derived from a seed: the same seed gives the same ULID, so migrating one version 1 file
+ * twice writes the same ids and a section document migrated beside its project file binds.
+ * @param seed - The seed.
+ * @returns The ULID.
  */
-function hashOf(value: unknown): string {
-    return `sha256:${sha256Hex(canonicalJson(value))}`;
+export function ulidOf(seed: string): string {
+    const hex = sha256Hex(seed);
+    // The first character holds 3 bits, as a ULID's 128 bits allow.
+    return Array.from({ length: 26 }, (_, at) => {
+        const digit = Number.parseInt(hex.slice(at * 2, at * 2 + 2), 16);
+        return CROCKFORD[at === 0 ? digit % 8 : digit % 32];
+    }).join("");
 }
 
 /**
@@ -158,6 +167,8 @@ export interface DataInputs {
     readonly sources?: JsonObject;
     /** The writer of the file, for every section's `generator`. */
     readonly generator: JsonObject;
+    /** Collects what could not be carried over. */
+    readonly problems: DocumentProblem[];
 }
 
 /** The migrated data: its section, and the references other sections name elements by. */
@@ -165,8 +176,8 @@ export interface MigratedData {
     readonly section: JsonObject;
     /** The data section's `id`, every bound section's `bindsTo.data`. */
     readonly dataId: string;
-    /** The results section's `bindsTo.sources` and `bindsTo.fingerprint` (spec 6.4). */
-    readonly binding: { readonly sources: Readonly<Record<string, string>>; readonly fingerprint: string };
+    /** A results run's `bindsTo`: the build stamp and each source's copy id (spec 6.4). */
+    readonly binding: { readonly build: string; readonly sources: Readonly<Record<string, string>> };
     /** The reference of a version 1 node id (kept even when the data does not hold it), or undefined for no id. */
     nodeRef(id: unknown): NodeRef | undefined;
     /** The reference of the edge at a position of version 1's `links`. */
@@ -178,9 +189,11 @@ export interface MigratedData {
     edgeBetween(source: unknown, target: unknown, id?: unknown, ordinal?: number): EdgeRef | undefined;
     /** Whether the graph is directed. */
     readonly directed: boolean;
+    /** The version 1 `data.knownFields` names the mapping carries as roles (`edgeIdPath`, ...). */
+    readonly carried: ReadonlySet<string>;
 }
 
-/** One table row, by source column name, and where it came from. */
+/** One table row, by column name, and where it came from. */
 interface Row {
     readonly values: Record<string, unknown>;
     /** Its position in the version 1 list. */
@@ -196,6 +209,16 @@ const PROVENANCE = "_source.loads";
 /** The names of the loads' options and mappings that say the loads used kinds. */
 const KIND_CHOICES = new Set(["kindIds", "kindName", "kind", "sourceKind", "targetKind"]);
 
+/** graphty-element's `ValueType`s, and the version 1 spellings that mean one. */
+const VALUE_TYPES: Readonly<Record<string, string>> = {
+    text: "text",
+    string: "text",
+    number: "number",
+    boolean: "boolean",
+    date: "date",
+    category: "category",
+};
+
 /**
  * Whether a value holds a key naming kinds, at any depth.
  * @param value - The value.
@@ -210,7 +233,7 @@ function namesKinds(value: unknown): boolean {
 }
 
 /**
- * The file-style columns (spec 5 rule 9) a session member's `fileStyles` holds, by element.
+ * The file-style columns (spec 4.1.2 rule 7) a session member's `fileStyles` holds, by element.
  * @param session - The session member.
  * @returns Per node key and per link position, each column's value.
  */
@@ -273,7 +296,7 @@ function dtypeOf(values: readonly unknown[], explicitNull: boolean): string {
     return present.every((value) => typeof value === "string") ? "string" : "json";
 }
 
-/** The most distinct columns, and cells, a migrated table allocates (data.ts holds the same caps). */
+/** The most distinct columns, and cells, a migrated table allocates. */
 const MAX_COLUMNS = 4096;
 const MAX_CELLS = 64 * 1024 * 1024;
 
@@ -327,95 +350,27 @@ function endsKey(from: string, to: string, directed: boolean): string {
     return directed || from <= to ? `${from}\u0000${to}` : `${to}\u0000${from}`;
 }
 
-/** What {@link edgeRefs} works out. */
-interface EdgeKeys {
-    /** Each edge row's reference, in copy order. */
-    readonly refs: EdgeRef[];
-    /** Each edge row's key, when it has one. */
-    readonly keys: (string | undefined)[];
-}
-
 /**
- * Every edge's reference (spec 6.2): its own key when the mapping's edge-id column gives one that
- * is unique between its ends, else `h` and `n`.
- * @param rows - The edge rows, in copy order.
- * @param context - The source, its node space, the edge-id column and the direction.
- * @param context.source - The source id.
- * @param context.space - The node space.
- * @param context.edgeId - The edge-id column, if any.
- * @param context.directed - Whether the graph is directed.
- * @returns The references.
- */
-function edgeRefs(
-    rows: readonly Row[],
-    context: { source: string; space: string; edgeId: string | undefined; directed: boolean },
-): EdgeKeys {
-    const { source, space, edgeId, directed } = context;
-    const ends = rows.map((row) => endsKey(keyText(row.values.source), keyText(row.values.target), directed));
-    const idOf = (row: Row): string | undefined => {
-        const id = edgeId === undefined ? undefined : row.values[edgeId];
-        return id === null || id === undefined ? undefined : keyText(id);
-    };
-    const idCounts = new Map<string, number>();
-    rows.forEach((row, at) => {
-        const id = idOf(row);
-        if (id !== undefined) {
-            const counted = `${ends[at]}\u0000${id}`;
-            idCounts.set(counted, (idCounts.get(counted) ?? 0) + 1);
-        }
-    });
-
-    const seen = new Map<string, number>();
-    const keys: (string | undefined)[] = [];
-    const refs = rows.map((row, at): EdgeRef => {
-        const from = { space, key: keyText(row.values.source) };
-        const to = { space, key: keyText(row.values.target) };
-        const id = idOf(row);
-        if (id !== undefined && idCounts.get(`${ends[at]}\u0000${id}`) === 1) {
-            keys.push(id);
-            return { from, to, key: id };
-        }
-
-        keys.push(undefined);
-        const hashed = Object.fromEntries(
-            Object.entries(row.values).filter(
-                ([name, value]) =>
-                    name !== "source" &&
-                    name !== "target" &&
-                    name !== edgeId &&
-                    value !== null &&
-                    value !== undefined &&
-                    !name.startsWith("graphty.") &&
-                    !name.startsWith("_source."),
-            ),
-        );
-        const h = hashOf({ source, row: hashed });
-        const counted = `${ends[at]}\u0000${h}`;
-        const n = seen.get(counted) ?? 0;
-        seen.set(counted, n + 1);
-        return { from, to, h, n };
-    });
-    return { refs, keys };
-}
-
-/**
- * The type registry (spec 4.1.3) a version 1 file's kinds give, when its loads used kinds: one
- * node type per `kind` value, declared by a rule on the `kind` column, its schema holding what the
- * session declared and converted for the columns its nodes carry.
+ * The type registry (spec 4.1.5) a version 1 file's kinds give, when its loads used kinds: one
+ * node type per `kind` value, declared by a rule on the `kind` column, its schema holding the
+ * measurement, unit and order the session declared for the columns its nodes carry. A declaration
+ * on a column no type carries has nowhere to go, and is reported.
  * @param rows - The node rows.
  * @param source - The source id.
- * @param session - The session member.
+ * @param inputs - The version 1 members, for the declarations and the report.
  * @returns The types, and each row's types.
  */
 function typesOf(
     rows: readonly Row[],
     source: string,
-    session: JsonObject | undefined,
+    inputs: DataInputs,
 ): { types: JsonObject[]; rowTypes: string[][] } {
+    const { session } = inputs;
+    const usesKinds = namesKinds(inputs.data.sources) || namesKinds(inputs.sources?.loads);
     const names: string[] = [];
     const rowTypes = rows.map((row) => {
         const { kind } = row.values;
-        if (typeof kind !== "string" || kind.length === 0 || kind.includes(":")) {
+        if (!usesKinds || typeof kind !== "string" || kind.length === 0 || kind.includes(":")) {
             return [];
         }
 
@@ -426,33 +381,35 @@ function typesOf(
         return [kind];
     });
 
-    const declared = new Map<string, JsonObject>();
     const declarations = isObject(session?.declarations) ? objectsOf(session.declarations.columns) : [];
-    for (const column of declarations.filter((each) => each.kind === "node" && typeof each.name === "string")) {
+    const carried = (name: string): Set<string> =>
+        new Set(rows.flatMap((row, at) => (rowTypes[at].includes(name) ? Object.keys(row.values) : [])));
+    const typed = new Set(names.flatMap((name) => [...carried(name)]));
+    const declared = new Map<string, JsonObject>();
+    declarations.forEach((column, at) => {
         const { measurement, unit, order } = column;
-        declared.set(String(column.name), {
+        const name = String(column.name);
+        if (column.kind !== "node" || !typed.has(name)) {
+            inputs.problems.push({
+                code: "W_MEMBER_LEFT_OUT",
+                params: { kind: "graphty-session", pointer: `/declarations/columns/${String(at)}` },
+            });
+            return;
+        }
+
+        declared.set(name, {
             ...(typeof measurement === "string" ? { measurement } : {}),
             ...(typeof unit === "string" ? { unit } : {}),
             ...(Array.isArray(order) ? { enum: order } : {}),
         });
-    }
-
-    const conversions = isObject(session?.columns) && isObject(session.columns.types) ? session.columns.types : {};
-    for (const [column, type] of Object.entries(conversions)) {
-        const [kind, name] = [column.slice(0, column.indexOf(":")), column.slice(column.indexOf(":") + 1)];
-        if (kind === "node" && (type === "number" || type === "string" || type === "boolean")) {
-            declared.set(name, { type, ...declared.get(name) });
-        }
-    }
+    });
 
     const types = names.map((name): JsonObject => {
-        const carried = new Set(
-            rows.flatMap((row, at) => (rowTypes[at].includes(name) ? Object.keys(row.values) : [])),
-        );
-        const properties = Object.fromEntries([...declared].filter(([column]) => carried.has(column)));
+        const columns = carried(name);
+        const properties = Object.fromEntries([...declared].filter(([column]) => columns.has(column)));
         return {
             name,
-            domain: "node",
+            kind: "node",
             rules: [{ source, column: "kind", values: [name] }],
             schema: { type: "object", ...(Object.keys(properties).length === 0 ? {} : { properties }) },
         };
@@ -461,51 +418,67 @@ function typesOf(
 }
 
 /**
- * The data issues (spec 4.1.6) of a session member's `issues`: the ignored issues by code and
- * column, the kept pairs as node references, the fixes as a record.
+ * The conversions (spec 4.1.6) of a session member's `columns.types`.
  * @param session - The session member.
+ * @returns The conversions.
+ */
+function conversionsOf(session: JsonObject | undefined): JsonObject[] {
+    const types = isObject(session?.columns) && isObject(session.columns.types) ? session.columns.types : {};
+    return Object.entries(types).flatMap(([column, type]) => {
+        const at = column.indexOf(":");
+        const kind = column.slice(0, at);
+        const valueType = VALUE_TYPES[String(type)];
+        return (kind === "node" || kind === "edge") && valueType !== undefined
+            ? [{ kind, name: column.slice(at + 1), type: valueType }]
+            : [];
+    });
+}
+
+/**
+ * The data issues (spec 4.1.7) of a session member's `issues`: the ignored issues by the parts of
+ * their ids, the kept pairs as node references. Fixes have no member and are reported.
+ * @param inputs - The version 1 members.
  * @param nodeRef - A version 1 node id's reference.
  * @returns The issues, or undefined when the file recorded none.
  */
-function issuesOf(
-    session: JsonObject | undefined,
-    nodeRef: (id: unknown) => NodeRef | undefined,
-): JsonObject | undefined {
-    const issues = session?.issues;
+function issuesOf(inputs: DataInputs, nodeRef: (id: unknown) => NodeRef | undefined): JsonObject | undefined {
+    const issues = inputs.session?.issues;
     if (!isObject(issues)) {
         return undefined;
     }
 
-    const issueOf = (id: unknown): JsonObject | undefined => {
-        if (typeof id !== "string" || id.length === 0) {
-            return undefined;
+    const ignored = (Array.isArray(issues.ignored) ? (issues.ignored as unknown[]) : []).flatMap((id) => {
+        const [code, kind, ...rest] = typeof id === "string" ? id.split(":") : [];
+        const name = rest.join(":");
+        return code && (kind === "node" || kind === "edge") ? [{ code, kind, ...(name ? { name } : {}) }] : [];
+    });
+    const kept = (Array.isArray(issues.kept) ? (issues.kept as unknown[]) : []).flatMap((pair) => {
+        let ends: unknown[] = [];
+        if (typeof pair === "string") {
+            try {
+                const parsed = JSON.parse(pair) as unknown;
+                ends = Array.isArray(parsed) ? parsed : [];
+            } catch {
+                ends = pair.split("\u0000");
+            }
         }
 
-        const [code, kind, ...rest] = id.split(":");
-        const name = rest.join(":");
-        return { code, ...((kind === "node" || kind === "edge") && name.length > 0 ? { column: { kind, name } } : {}) };
-    };
-    const ignored = (Array.isArray(issues.ignored) ? (issues.ignored as unknown[]) : []).flatMap(
-        (id) => issueOf(id) ?? [],
-    );
-    const kept = (Array.isArray(issues.kept) ? (issues.kept as unknown[]) : []).flatMap((pair) => {
-        const [from, to] = typeof pair === "string" ? pair.split("\u0000") : [];
-        const ends = [nodeRef(from), nodeRef(to)];
-        return ends[0] === undefined || ends[1] === undefined ? [] : [{ from: ends[0], to: ends[1] }];
+        const [from, to] = [nodeRef(ends[0]), nodeRef(ends[1])];
+        return from === undefined || to === undefined ? [] : [{ from, to }];
     });
-    const fixed = objectsOf(issues.fixed).flatMap((fix) => {
-        const issue = typeof fix.code === "string" ? { ...issueOf(fix.id), code: fix.code } : issueOf(fix.id);
-        const column = isObject(fix.column) ? { column: { kind: fix.column.kind, name: fix.column.name } } : {};
-        return issue === undefined || typeof fix.fixedBy !== "string"
-            ? []
-            : [{ ...issue, ...column, fixedBy: fix.fixedBy }];
-    });
-    return { ignored, kept, fixed };
+    if (objectsOf(issues.fixed).length > 0) {
+        inputs.problems.push({
+            code: "W_MEMBER_LEFT_OUT",
+            params: { kind: "graphty-session", pointer: "/issues/fixed" },
+        });
+    }
+
+    return ignored.length + kept.length === 0 ? undefined : { ignored, kept };
 }
 
 /**
- * The merged graph (spec 4.1.5) of the copy: NetworkX node-link JSON, with handles unique in the
- * file, each node's record key and types, and each keyed edge's key.
+ * The merged graph (spec 4.1.9) of the copy: NetworkX node-link JSON, with handles unique in the
+ * file, each node's record key and types, and each edge's record key.
  * @param tables - The rows, references and types.
  * @param tables.nodes - The node rows.
  * @param tables.edges - The edge rows.
@@ -524,7 +497,7 @@ function mergedGraph(tables: {
     space: string;
     source: string;
     rowTypes: readonly string[][];
-    edgeKeys: readonly (string | undefined)[];
+    edgeKeys: readonly string[];
     edgeId: string | undefined;
     directed: boolean;
     attributes: JsonObject;
@@ -534,7 +507,7 @@ function mergedGraph(tables: {
     const columns = (row: Row, leaveOut: readonly (string | undefined)[]): JsonObject =>
         Object.fromEntries(
             Object.entries(row.values)
-                .filter(([name, value]) => !leaveOut.includes(name) && value !== undefined)
+                .filter(([name, value]) => !leaveOut.includes(name) && value !== undefined && value !== null)
                 .map(([name, value]) => [name, documentValue(value)]),
         );
     const pairs = new Set<string>();
@@ -544,14 +517,14 @@ function mergedGraph(tables: {
         const pair = endsKey(from, to, directed);
         multigraph ||= pairs.has(pair);
         pairs.add(pair);
-        const key = edgeKeys[at];
         return {
             source: handle.get(from) ?? from,
             target: handle.get(to) ?? to,
-            ...(key === undefined ? {} : { key }),
+            "graphty.load": source,
+            "graphty.key": edgeKeys[at],
             "graphty.types": [],
             "_source.loads": [source],
-            ...columns(row, ["source", "target", "key", edgeId]),
+            ...columns(row, ["source", "target", "key", "id", edgeId]),
         };
     });
     return {
@@ -571,9 +544,59 @@ function mergedGraph(tables: {
 }
 
 /**
+ * The column a version 1 known field names, when the table holds it.
+ * @param fields - The `knownFields`.
+ * @param name - The field.
+ * @param table - The table.
+ * @returns The column, or undefined.
+ */
+function knownColumn(fields: JsonObject, name: string, table: Record<string, unknown[]>): string | undefined {
+    const column = fields[name];
+    return typeof column === "string" && column in table ? column : undefined;
+}
+
+/**
+ * The mapping (spec 4.1.3) of the one migrated source: node ids the key in its own space, the
+ * version 1 known fields as roles where the copy holds the column.
+ * @param fields - The `knownFields`.
+ * @param tables - The node and edge tables.
+ * @param tables.nodes - The node table.
+ * @param tables.edges - The edge table.
+ * @param space - The space.
+ * @returns The mapping, and the edge-id column.
+ */
+function mappingOf(
+    fields: JsonObject,
+    tables: { nodes: Record<string, unknown[]>; edges: Record<string, unknown[]> },
+    space: string,
+): { mapping: { nodes: JsonObject; edges: JsonObject }; edgeId: string | undefined } {
+    const edgeId = knownColumn(fields, "edgeIdPath", tables.edges);
+    const edgeWeight = knownColumn(fields, "edgeWeightPath", tables.edges);
+    const nodeTime = knownColumn(fields, "timePath", tables.nodes);
+    const edgeTime = knownColumn(fields, "timePath", tables.edges);
+    return {
+        mapping: {
+            nodes: { key: "id", space, ...(nodeTime === undefined ? {} : { time: nodeTime }) },
+            edges: {
+                ...(edgeId === undefined ? {} : { edgeId }),
+                source: "source",
+                sourceSpace: space,
+                target: "target",
+                targetSpace: space,
+                ...(edgeWeight === undefined ? {} : { weight: edgeWeight }),
+                ...(edgeTime === undefined ? {} : { time: edgeTime }),
+            },
+        },
+        edgeId,
+    };
+}
+
+/**
  * The version 1 data, its loads and its column settings, as one embedded `derived` source
- * (data-store-options.md 4.8): its copy is the version 1 merged graph as tables, its node ids the
- * key column in its own `source:<id>` space, its `metadata` the version 1 load records verbatim.
+ * (data-store-options.md 4.8): its copy is the version 1 merged graph as tables, rows in version 1
+ * order, its node ids the key column in its own `source:<id>` space, its `metadata` the version 1
+ * load records verbatim, and an empty reader source beside it. The ids it mints are derived from
+ * the copy, so migrating the same file twice writes the same ids.
  * @param inputs - The version 1 members.
  * @returns The data section and the references into it.
  */
@@ -584,40 +607,34 @@ export function migrateData(inputs: DataInputs): MigratedData {
     const styles = fileStyleValues(session);
     const v1Nodes = Array.isArray(graph.nodes) ? (graph.nodes as unknown[]) : [];
     const v1Links = Array.isArray(graph.links) ? (graph.links as unknown[]) : [];
-    const order = (key: (row: Row) => unknown) => (left: Row, right: Row) => {
-        const [a, b] = [canonicalJson(key(left)), canonicalJson(key(right))];
-        return a < b ? -1 : Number(a > b);
-    };
-    const nodeRows = v1Nodes
-        .flatMap((node, at): Row[] =>
-            isObject(node) ? [{ values: rowOf(node, styles.nodes.get(keyText(node.id))), at }] : [],
-        )
-        .sort(order((row) => keyText(row.values.id)));
-    const edgeRows = v1Links
-        .flatMap((link, at): Row[] => (isObject(link) ? [{ values: rowOf(link, styles.edges.get(at)), at }] : []))
-        .sort(order((row) => [keyText(row.values.source), keyText(row.values.target)]));
+    const nodeRows = v1Nodes.flatMap((node, at): Row[] =>
+        isObject(node) ? [{ values: rowOf(node, styles.nodes.get(keyText(node.id))), at }] : [],
+    );
+    const edgeRows = v1Links.flatMap((link, at): Row[] =>
+        isObject(link) ? [{ values: rowOf(link, styles.edges.get(at)), at }] : [],
+    );
 
     const nodeTable = tableOf(nodeRows);
     const edgeTable = tableOf(edgeRows);
-    const copy = { nodes: nodeTable.table, edges: edgeTable.table };
-    const hash = hashOf(copy);
-    const source = `src_v1_${hash.slice(7, 23)}`;
+    const copy = { nodes: nodeTable.table, ...(edgeRows.length === 0 ? {} : { edges: edgeTable.table }) };
+    const seed = canonicalJson(copy);
+    const source = `src_${ulidOf(`source\u0000${seed}`)}`;
+    const copyId = ulidOf(`copy\u0000${seed}`);
+    const readerCopy = ulidOf(`reader\u0000${seed}`);
+    const build = ulidOf(`build\u0000${seed}`);
+    const dataId = `data_v1_${sha256Hex(seed).slice(0, 32)}`;
     const space = `source:${source}`;
-    const dataId = `data_v1_${hash.slice(7, 39)}`;
 
     const config = isObject(session?.config) && isObject(session.config.data) ? session.config.data : {};
     const fields = isObject(config.knownFields) ? config.knownFields : {};
-    const edgeId =
-        typeof fields.edgeIdPath === "string" && fields.edgeIdPath in edgeTable.table ? fields.edgeIdPath : undefined;
-    const weight =
-        typeof fields.edgeWeightPath === "string" && fields.edgeWeightPath in edgeTable.table
-            ? fields.edgeWeightPath
-            : undefined;
-    const edges = edgeRefs(edgeRows, { source, space, edgeId, directed });
-    const usesKinds = namesKinds(data.sources) || namesKinds(sources?.loads);
-    const { types, rowTypes } = usesKinds
-        ? typesOf(nodeRows, source, session)
-        : { types: [], rowTypes: nodeRows.map((): string[] => []) };
+    const { mapping, edgeId } = mappingOf(fields, { nodes: nodeTable.table, edges: edgeTable.table }, space);
+    // A keyless row's key is `<copy id>#<row>`; rows are in version 1 order, so row is position.
+    const edgeKeys = edgeRows.map((row, at) => {
+        const id = edgeId === undefined ? undefined : row.values[edgeId];
+        return id === null || id === undefined || id === "" ? `${copyId}#${String(at)}` : keyText(id);
+    });
+    const refs: EdgeRef[] = edgeKeys.map((key) => ({ load: source, key }));
+    const { types, rowTypes } = typesOf(nodeRows, source, inputs);
 
     // A node the data does not hold keeps its reference all the same: it binds nowhere, and is kept
     // (spec 6.3).
@@ -625,13 +642,12 @@ export function migrateData(inputs: DataInputs): MigratedData {
         typeof id === "string" || typeof id === "number" || typeof id === "boolean"
             ? { space, key: keyText(id) }
             : undefined;
-    const byPosition = new Map(edgeRows.map((row, at) => [row.at, edges.refs[at]]));
+    const byPosition = new Map(edgeRows.map((row, at) => [row.at, refs[at]]));
     const edgeBetween = (from: unknown, to: unknown, id?: unknown, ordinal?: number): EdgeRef | undefined => {
         const ends = endsKey(keyText(from), keyText(to), directed);
         const between = edgeRows
             .map((row, at) => ({ row, at }))
-            .filter(({ row }) => endsKey(keyText(row.values.source), keyText(row.values.target), directed) === ends)
-            .sort((left, right) => left.row.at - right.row.at);
+            .filter(({ row }) => endsKey(keyText(row.values.source), keyText(row.values.target), directed) === ends);
         // By the file's id; else by position; else, for an id the element minted in a session
         // (`graphty:e<n>`, never in the file), the one edge between those ends.
         const byId =
@@ -642,7 +658,7 @@ export function migrateData(inputs: DataInputs): MigratedData {
             byId ??
             (ordinal === undefined ? undefined : between[ordinal]) ??
             (between.length === 1 && ordinal === undefined ? between[0] : undefined);
-        return found === undefined ? undefined : edges.refs[found.at];
+        return found === undefined ? undefined : refs[found.at];
     };
 
     const held = {
@@ -650,77 +666,68 @@ export function migrateData(inputs: DataInputs): MigratedData {
             ...(data.source === undefined ? {} : { source: data.source }),
             ...(data.sources === undefined ? {} : { sources: data.sources }),
             ...(sources === undefined ? {} : { loads: sources }),
-            ...(isObject(session?.columns) ? { columns: session.columns } : {}),
             ...(isObject(session?.issues) && session.issues.facts !== undefined ? { facts: session.issues.facts } : {}),
         },
     };
-    const mapping = {
-        nodes: { key: "id", space },
-        edges: { ...(edgeId === undefined ? {} : { edgeId }), source: "source", target: "target" },
-    };
-    const settings = {
-        ...(weight === undefined ? {} : { weight }),
-        ...(edgeRows.length === 0 ? {} : { directed }),
-        duplicateIds: "first",
-        unmatched: "add",
-        repeatedEdges: "keep",
-    };
     const record = {
         id: source,
-        label: "",
+        label: "Version 1 data",
         kind: "derived",
-        origin: { hash },
+        origin: { copy: copyId },
         mapping,
-        settings,
+        settings: { duplicateIds: "first", unmatched: "add" },
         ...(Object.keys(held["version-1"]).length === 0 ? {} : { metadata: held }),
         copy,
-        columns: { nodes: nodeTable.columns, edges: edgeTable.columns },
+        columns: { nodes: nodeTable.columns, ...(edgeRows.length === 0 ? {} : { edges: edgeTable.columns }) },
     };
-    const joins = [{ op: "join.add", source }];
-    const issues = issuesOf(session, nodeRef);
-    const kept = ((issues?.kept as { from: NodeRef; to: NodeRef }[] | undefined) ?? [])
-        .map((pair) => {
-            const ends = [pair.from, pair.to].sort((a, b) => (canonicalJson(a) < canonicalJson(b) ? -1 : 1));
-            return directed ? pair : { from: ends[0], to: ends[1] };
-        })
-        .sort((a, b) => (canonicalJson(a) < canonicalJson(b) ? -1 : 1));
-    const fingerprint = hashOf({
-        sources: { [source]: hash },
-        settings: { [source]: { mapping, settings } },
-        types: types.map(({ plainName: _plain, ...type }) => type),
-        kept,
-        joins,
-    });
-
+    const reader = {
+        id: "reader",
+        label: "Your changes",
+        kind: "reader",
+        origin: { copy: readerCopy },
+        copy: { operations: [] },
+    };
+    const conversions = conversionsOf(session);
+    const issues = issuesOf(inputs, nodeRef);
     const section: JsonObject = {
         $schema: "https://graphty.app/schema/documents/graphty-data/v2.json",
         kind: "graphty-data",
         version: 2,
         id: dataId,
         generator: inputs.generator,
-        sources: [record],
+        build,
+        directed,
+        sources: [reader, record],
         types,
-        joins,
+        ...(conversions.length === 0 ? {} : { conversions }),
+        ...(issues === undefined ? {} : { issues }),
+        joins: [{ op: "join.add", source }],
         graph: mergedGraph({
             nodes: nodeRows,
             edges: edgeRows,
             space,
             source,
             rowTypes,
-            edgeKeys: edges.keys,
+            edgeKeys,
             edgeId,
             directed,
             attributes: isObject(graph.graph) ? graph.graph : {},
         }),
-        ...(issues === undefined ? {} : { issues }),
     };
     return {
         section,
         dataId,
-        binding: { sources: { [source]: hash }, fingerprint },
+        binding: { build, sources: { reader: readerCopy, [source]: copyId } },
         nodeRef,
         edgeAt: (position) => byPosition.get(position),
         edgeBetween,
         directed,
+        carried: new Set(
+            [
+                ["edgeIdPath", edgeId],
+                ["edgeWeightPath", mapping.edges.weight],
+                ["timePath", mapping.nodes.time ?? mapping.edges.time],
+            ].flatMap(([name, column]) => (column === undefined ? [] : [String(name)])),
+        ),
     };
 }

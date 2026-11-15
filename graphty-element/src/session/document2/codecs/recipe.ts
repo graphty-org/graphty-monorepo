@@ -2,10 +2,12 @@
  * @file The `recipe` section codec, version 2: the replayable analysis steps (spec 4.3).
  * Experimental (`save-files-v2`).
  *
- * Written from the session's state: the exact filter steps as `graph.filter`, the rule sets that
- * name no element as `set.define`, each finished run a recipe can hold as `algo.run`, and the
- * layout as `layout.set`. What names an element stays out, reported, for the view to hold.
- * Read by replaying the commands in order through the open's transaction.
+ * A recipe opened from a file is kept and written back as read (spec 8.1 rule 5); it is applied to
+ * the data only when the caller asks (spec 8.2 rule 4), by replaying the commands in order through
+ * the open's transaction. Otherwise, or when the saver asks, it is written from the session's
+ * state: the exact filter steps as `graph.filter`, the rule sets that name no element as
+ * `set.define`, each finished run a recipe can hold as `algo.run`, and the layout as `layout.set`.
+ * What names an element stays out, reported, for the view to hold.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -48,10 +50,13 @@ import {
     unknownScopeMember,
 } from "./recipeCommands";
 import { restoredPositions } from "./results";
+import { fileIdsOf, fileSetId } from "./viewParts";
 
 /** The header members of an opened recipe that the session has no home for, kept for its re-save. */
-const IDENTITY = ["id", "revision", "name", "description", "authors", "license", "keywords", "language", "origin"];
-const openedHeaders = projectMemory<SectionHeaderInput>();
+const IDENTITY = ["id", "name", "description", "authors", "license", "keywords", "language", "origin"];
+
+/** The recipe section a session last opened, as read: written back unless the saver asks otherwise. */
+const opened = projectMemory<{ readonly header: SectionHeaderInput; readonly body: JsonObject }>();
 
 /** The option types whose values name elements (recipe.md, "Commands" rule 4). */
 const ELEMENT_OPTIONS = new Set(["node-id", "node-set", "ordering"]);
@@ -213,6 +218,7 @@ function setDefines(
 
         const { where, reading } = set.definition;
         const command = { op: "set.define", id: set.id, name: set.name, where, reading };
+        // The id is rewritten to the set's bare file id with every other set reference (writeRecipe).
         // A set reading a run's result is defined after the runs.
         (runsRead(where).length > 0 ? after : before).push(command);
     }
@@ -350,14 +356,34 @@ function writeRecipe(context: WriteContext): SectionWrite {
     };
 
     // Run ids become the recipe's names; a run the recipe does not hold keeps its id.
-    const commands = renameRuns([...filters, ...defines.before, ...runs, ...defines.after, layoutCommand], (name) =>
-        w.asOf.get(name),
+    // Sets are named by their bare file id (spec 5 rule 1), whatever namespace applied them.
+    const bare = (id: string): string => fileSetId(session, id).replace(/^set_[a-z][a-z0-9_]*\./, "set_");
+    const commands = renameSets(
+        renameRuns([...filters, ...defines.before, ...runs, ...defines.after, layoutCommand], (name) =>
+            w.asOf.get(name),
+        ),
+        (id) => (sets.has(id) ? bare(id) : id),
     );
     const dependencies = dependenciesOf(session, commands, w.attributes);
+    const { dependencies: _was, ...header } = opened.get(session)?.header ?? {};
     return {
-        header: { ...openedHeaders.get(session), ...(dependencies === undefined ? {} : { dependencies }) },
+        header: { ...header, ...(dependencies === undefined ? {} : { dependencies }) },
         body: { ...(namespace === undefined ? {} : { namespace }), commands },
     };
+}
+
+/**
+ * A value with every set id it names renamed: each `set` member holding a string, and each
+ * `set.define` command's `id`.
+ * @param value - The commands.
+ * @param rename - The new id of a set.
+ * @returns The value, copied.
+ */
+function renameSets<T>(value: T, rename: (id: string) => string): T {
+    return JSON.parse(JSON.stringify(value), function (this: JsonObject, key, held: unknown) {
+        const isSet = key === "set" || (key === "id" && this.op === "set.define");
+        return isSet && typeof held === "string" ? rename(held) : held;
+    }) as T;
 }
 
 /**
@@ -372,25 +398,38 @@ function dependenciesOf(
     commands: readonly JsonObject[],
     attributes: readonly string[],
 ): JsonObject | undefined {
-    const names = new Set<string>();
+    const known = session.data.attributes();
+    // Each column with the table it is read from: a filter on edges reads edges; a scope, a set
+    // rule and every other predicate read nodes; a run option reads the table that holds it.
+    const refs = new Map<string, { kind: "node" | "edge"; name: string }>();
+    const add = (kind: "node" | "edge", names: Iterable<string>): void => {
+        for (const name of names) {
+            refs.set(`${kind}:${name}`, { kind, name });
+        }
+    };
     const sources = new Set<string>();
     for (const command of commands) {
+        const names = new Set<string>();
         columnsRead(command.op === "algo.run" ? command.scope : command.where, names);
+        add(command.op === "graph.filter" && command.on === "edges" ? "edge" : "node", names);
         sourcesRead(command.where, sources);
     }
 
-    attributes.forEach((name) => names.add(name));
-    const known = session.data.attributes();
-    const columns = [...names].map((name) => {
-        const column = known.find((each) => each.name === name);
+    for (const name of attributes) {
+        const onNodes = known.some((each) => each.kind === "node" && each.name === name);
+        add(onNodes || !known.some((each) => each.name === name) ? "node" : "edge", [name]);
+    }
+
+    const columns = [...refs.values()].map(({ kind, name }) => {
+        const column = known.find((each) => each.kind === kind && each.name === name);
         const measurement = column?.measurementSource === "declared" ? column.measurement : undefined;
-        return { name, schema: column === undefined ? {} : columnSchema(column.type, measurement) };
+        return { kind, name, schema: column === undefined ? {} : columnSchema(column.type, measurement) };
     });
     const declared = new Set(commands.flatMap((command) => (command.op === "algo.run" ? [command.as as string] : [])));
     const results = runsRead(commands).filter((name) => declared.has(name));
     const dependencies: JsonObject = {
         ...(columns.length === 0 ? {} : { columns }),
-        ...(sources.size === 0 ? {} : { sources: [...sources].map((role) => ({ role })) }),
+        ...(sources.size === 0 ? {} : { sources: [...sources] }),
         ...(results.length === 0 ? {} : { results }),
     };
     return Object.keys(dependencies).length === 0 ? undefined : dependencies;
@@ -608,7 +647,13 @@ class Replay {
 
         try {
             const definition = { kind: "rule", where: this.bind(where), reading } as SetDefinitionInput;
-            this.setIds.set(id, this.context.tx.sets.create(definition, { name }));
+            const created = this.context.tx.sets.create(definition, { name });
+            this.setIds.set(id, created);
+            // Applied under the namespace, the set's file id is `set_<namespace>.<ULID>` (spec 4.3 rule 6).
+            if (/^set_[0-9A-HJKMNP-TV-Z]{26}$/.test(id)) {
+                fileIdsOf(this.context.session).sets.set(created, `set_${this.namespace}.${id.slice(4)}`);
+            }
+
             this.context.restored.add("sets");
         } catch (error) {
             this.report("E_BAD_DOCUMENT", `${at}`, { reason: isGraphtyError(error) ? error.code : "E_INTERNAL" });
@@ -756,14 +801,26 @@ export const recipeCodec: SectionCodec = {
     bound: false,
     members: ["namespace", "commands"],
     write(context) {
-        return Promise.resolve(writeRecipe(context));
+        const kept = opened.get(context.session);
+        // An opened recipe is written back as read unless the saver asks for the session's.
+        return Promise.resolve(kept !== undefined && context.rewriteRecipe !== true ? kept : writeRecipe(context));
     },
     async read(section, context) {
         const header = section.header as unknown as JsonObject;
-        openedHeaders.set(
-            context.session,
-            Object.fromEntries(IDENTITY.flatMap((member) => (member in header ? [[member, header[member]]] : []))),
-        );
+        opened.set(context.session, {
+            header: Object.fromEntries(
+                [...IDENTITY, "dependencies"].flatMap((member) => (member in header ? [[member, header[member]]] : [])),
+            ),
+            body: Object.fromEntries(
+                Object.entries(section.body).filter(([member]) => recipeCodec.members.includes(member)),
+            ),
+        });
+        if (context.applyRecipe !== true) {
+            // Opening never applies a recipe (spec 8.2 rule 4): it is kept, and the plan says so.
+            context.problems.push({ code: "W_RECIPE_NOT_APPLIED", params: { section: "recipe" } });
+            return;
+        }
+
         const { commands } = section.body;
         if (!Array.isArray(commands)) {
             context.problems.push({

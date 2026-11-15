@@ -1175,10 +1175,12 @@ export type GraphtyErrorCode =
 */
 | "E_AUTOSAVE_UNKNOWN_ENTRY"
 /**
-* Autosave's kept work could not be listed: another tab holds the browser's database and did
-* not let go within `details.afterMs` (a tab the browser suspended in the middle of a write).
-* `details.step` is `"list"`. Nothing is known about the kept work; the caller offers none and
-* asks again later.
+* Autosave's kept work could not be listed, or an entry could not be reopened: another tab
+* holds the browser's database and did not let go within `details.afterMs` (a tab the browser
+* suspended in the middle of a write), or the browser's storage stalled. `details.step` is
+* `"list"` (listing), `"read"` (reading the entry) or `"restore"` (writing the restore). For a
+* listing nothing is known about the kept work; the caller offers none and asks again later.
+* A refused restore leaves the entry as it was; the caller may restore it again later.
 */
 | "E_AUTOSAVE_STALLED"
 /**
@@ -2541,6 +2543,7 @@ export type RuleTree = {
     readonly percentile?: number;
     readonly from?: "high" | "low";
     readonly missing?: MissingValues;
+    readonly within?: "graph" | "visible";
 }
 /**
 * The elements whose text for one value passes a text test: "name contains bob", "id matches

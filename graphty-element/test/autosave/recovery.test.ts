@@ -373,6 +373,55 @@ describe("a restore that does not finish", () => {
         );
     });
 
+    it("restore(id) whose read the store never answers rejects with E_AUTOSAVE_STALLED and frees the entry (#8207)", async () => {
+        const memory = memoryAutosaveStore();
+        const { id } = await earlier(memory, (session) => session.config.set({ name: "Picked by hand" }));
+        let hung = true;
+        let reads = 0;
+        const store: AutosaveStore = Object.assign(Object.create(memory) as AutosaveStore, {
+            read: (entry: string) => {
+                reads++;
+                return hung ? new Promise<never>(() => undefined) : memory.read(entry);
+            },
+        });
+        const page = load(store);
+        const restoring = page.saver.restore(id, true).catch((error: unknown) => error);
+        await vi.waitFor(() => {
+            assert.strictEqual(reads, 1, "the restore reached the read");
+        });
+        page.clock.advance(10_000);
+        const error = (await restoring) as { code?: string; details?: unknown };
+        assert.strictEqual(error.code, "E_AUTOSAVE_STALLED");
+        assert.deepStrictEqual(error.details, { afterMs: 10_000, step: "read" });
+
+        // The store answers again: the same page reopens the entry, whose lock the stall released.
+        hung = false;
+        await page.saver.restore(id, true);
+        assert.strictEqual(page.session.project.name, "Picked by hand");
+    });
+
+    it("restore(id) whose attempt the store never commits rejects with E_AUTOSAVE_STALLED and leaves the entry (#8207)", async () => {
+        const memory = memoryAutosaveStore();
+        const { id } = await earlier(memory, (session) => session.config.set({ name: "Picked by hand" }));
+        const before = await raw(memory, id);
+        const store = faultAutosaveStore(memory);
+        store.stall();
+        const page = load(store);
+        const restoring = page.saver.restore(id, true).catch((error: unknown) => error);
+        await vi.waitFor(() => {
+            assert.strictEqual(store.commitCalls, 1, "the restore reached its commit");
+        });
+        page.clock.advance(10_000);
+        const error = (await restoring) as { code?: string; details?: unknown };
+        assert.strictEqual(error.code, "E_AUTOSAVE_STALLED");
+        assert.deepStrictEqual(error.details, { afterMs: 10_000, step: "restore" });
+        assert.deepStrictEqual(await raw(memory, id), before, "the aborted attempt wrote nothing");
+
+        store.heal();
+        await page.saver.restore(id, true);
+        assert.strictEqual(page.session.project.name, "Picked by hand");
+    });
+
     it("keeps the graph imported right after a clear cancels a restore(id) waiting in line (#3674)", async () => {
         const memory = memoryAutosaveStore();
         const { id } = await earlier(memory, (session) => session.config.set({ name: "Picked by hand" }));

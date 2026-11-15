@@ -1741,7 +1741,10 @@ function visNodeOpacityAndDashes(layer: VisLayer, put: PutRow, site: (property: 
  */
 function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) => CanonSite): void {
     if (layer.edgeOpacity !== undefined) {
-        put("opacity", canonOpacity(layer.edgeOpacity, "vis", site("opacity")));
+        // as on a node, only a hex or rgb() color takes it: a named color is drawn opaque (EdgeBase.getColor,
+        // overrideOpacity; json-vis-synth 42->52, "blue" at opacity 0.4)
+        const opacity = canonOpacity(layer.edgeOpacity, "vis", site("opacity"));
+        put("opacity", visTakesOpacity(layer.edgeColor) ? opacity : null);
     }
     if (layer.width !== undefined) {
         put("width", canonNumber(layer.width, site("width")));

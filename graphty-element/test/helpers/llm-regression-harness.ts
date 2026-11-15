@@ -10,7 +10,7 @@ import { appendFileSync } from "node:fs";
 import { basename } from "node:path";
 
 import { Color3 } from "@babylonjs/core";
-import { assert, expect } from "vitest";
+import { assert, expect, inject } from "vitest";
 
 import type { GraphSession } from "../../session";
 import {
@@ -37,6 +37,7 @@ import {
     getLlmRegressionGeminiTier,
     getLlmRegressionModel,
     getLlmRegressionProvider,
+    getLlmRegressionReasoningEffort,
     getSkipReason,
 } from "./llm-regression-env";
 import {
@@ -214,6 +215,8 @@ function geminiTransport(apiKey: string): GeminiTransport {
     shared.__LLM_REGRESSION_GEMINI__ ??= new GeminiTransport({
         apiKey,
         tier: getLlmRegressionGeminiTier(),
+        // The run's shared cache directory (global-setup.ts): a prefix is cached once per run, not once per file.
+        cacheDir: inject("llmRegressionCacheDir"),
         usageFile: process.env.LLM_REGRESSION_USAGE_FILE || undefined,
     });
     return shared.__LLM_REGRESSION_GEMINI__;
@@ -463,6 +466,8 @@ export class LlmRegressionTestHarness {
             apiKey,
             model,
             temperature: options.temperature ?? 0,
+            // Gemini's thinking capped (low by default): thinking tokens are billed as output.
+            ...(providerType === "google" && { reasoningEffort: getLlmRegressionReasoningEffort() }),
             // Google's requests go through the run's one transport: the cached prefix, the tier, the deadline, the cost.
             fetch: providerType === "google" ? geminiTransport(apiKey).fetch : undefined,
         });

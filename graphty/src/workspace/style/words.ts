@@ -1445,16 +1445,6 @@ export function firstValueWords(property: string): string {
     return `Not set yet: the first ${property.toLowerCase()} you pick makes the layer`;
 }
 
-/**
- * What a selection's Style tab says before its layer exists: the first style set makes it.
- * @param nodes - how many nodes are selected.
- * @param edges - how many edges are selected.
- * @returns the words.
- */
-export function firstStyleWords(nodes: number, edges: number): string {
-    return `The first style you set makes a layer for ${selectedWords(nodes, edges)}.`;
-}
-
 /** Which list a shader gallery opens for: a tab's Shaders, or the graph's Background. */
 export type ShaderTab = "node" | "edge" | "background";
 

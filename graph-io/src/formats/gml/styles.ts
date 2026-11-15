@@ -4,8 +4,9 @@
  *
  * GML has one syntax and many vocabularies. The `Creator` line (top level, or inside the graph as Gephi writes it,
  * quoted or not) names the writer: yEd and yFiles, Cytoscape, Gephi, OGDF and igraph are recognized; every other file
- * (NetworkX writes no `Creator`) is read with the keys of the GML draft (Graphlet). A recognized drawing program's
- * defaults go beneath the file's own values; igraph and unknown writers get none.
+ * (NetworkX writes no `Creator`) is read with the keys of the GML draft (Graphlet), drawn as the Tk canvas its graphics
+ * follow draws them. A recognized drawing program's defaults go beneath the file's own values; igraph and unknown
+ * writers get none.
  *
  * Writing: the yEd keys (`fill`, `outline`, `outlineWidth`, `outlineStyle`, `w`, `h`, `type`; edge `fill`, `width`,
  * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fill`, `fontSize`, `fontName`,
@@ -190,6 +191,58 @@ const GV2GML_WRITER: GmlWriter = {
 
 /** A file graphty wrote: yEd keys, and the `graphty.styles` block gives the rules. */
 const GRAPHTY_WRITER: GmlWriter = { ...WRITERS[0][1], tool: null };
+
+/**
+ * Whether a file's graphics are the GML draft's alone, no program's beneath: drawn as the draft says, by the Tk canvas
+ * its graphics are "modelled after" (A.4) -- Tk's colors, stipples, outline widths, picture items and smoothed lines.
+ * @param writer - the writer
+ * @returns true for the draft's keys with no program's defaults
+ */
+function drawnByDraft(writer: GmlWriter): boolean {
+    return writer.tool === null && writer.vocabulary === "graphlet";
+}
+
+/**
+ * Tk's gray stipples (Tk_GetBitmap, https://www.tcl.tk/man/tcl8.6/TkLib/GetBitmap.htm): the fraction of the bits on,
+ * where Tk draws the fill or line through the bitmap and nothing where a bit is off.
+ */
+const TK_STIPPLES: ReadonlyMap<string, number> = new Map([
+    ["gray12", 0.125],
+    ["gray25", 0.25],
+    ["gray50", 0.5],
+    ["gray75", 0.75],
+]);
+
+/**
+ * How much of a fill or line a draft file's `stipple` lets through, as an opacity.
+ * @param raw - the `stipple` value
+ * @param site - where it was read
+ * @returns the fraction, or null with no stipple or one Tk draws no gray with (noted)
+ */
+function tkStipple(raw: unknown, site: CanonSite): number | null {
+    if (raw === undefined) {
+        return null;
+    }
+    const name = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+    const fraction = TK_STIPPLES.get(name);
+    if (fraction === undefined) {
+        noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, sampleOf(raw));
+        return null;
+    }
+    return fraction;
+}
+
+/** The draft's node types Tk draws as a picture, a rectangle with no outline: A.4 image and bitmap. */
+const TK_PICTURES: ReadonlySet<string> = new Set(["image", "bitmap"]);
+
+/**
+ * A node `type`'s name, lowercase.
+ * @param type - the `type` value
+ * @returns the name, or "" when it is not text
+ */
+function typeName(type: unknown): string {
+    return typeof type === "string" ? type.trim().toLowerCase() : "";
+}
 
 /**
  * The graph key holding the `graphty.styles` block: the block's name under the GML writer's rule for names that are
@@ -421,17 +474,26 @@ function first(r: Rec, ...keys: string[]): unknown {
  * @param writer - the writer
  * @param put - receives the values
  * @param at - the sites
+ * @param stated - an opacity the file states apart from the color (a draft file's stipple), or null
  */
-function readColor(raw: unknown, property: string, opacity: string | null, writer: GmlWriter, put: Put, at: At): void {
+function readColor(
+    raw: unknown,
+    property: string,
+    opacity: string | null,
+    writer: GmlWriter,
+    put: Put,
+    at: At,
+    stated: number | null = null,
+): void {
     if (raw === undefined) {
         return;
     }
-    const c = canonColor(raw, writer.spelling, at(property));
+    const c = canonColor(raw, drawnByDraft(writer) ? "tk" : writer.spelling, at(property));
     if (c === null) {
         return;
     }
     put(property, c.color);
-    const alpha = colorOpacity(c, null, at(property), opacity !== null);
+    const alpha = colorOpacity(c, stated, at(property), opacity !== null);
     if (opacity !== null) {
         put(opacity, alpha);
     }
@@ -558,6 +620,9 @@ function readNodeShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
             noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, name.slice(0, MAX_STYLE_VALUE_LENGTH));
         }
         put("shape", shape ?? null);
+    } else if (drawnByDraft(writer) && TK_PICTURES.has(typeName(g.type))) {
+        // the picture, scaled to the node's size, draws the node (A.4 image and bitmap)
+        put("shape", "rectangle");
     } else if (g.type !== undefined) {
         readTypedShape(g, writer, put, at);
     } else if (v === "yed" && typeof g.customconfiguration === "string") {
@@ -749,6 +814,7 @@ function readNodeFill(g: Rec, writer: GmlWriter, put: Put, at: At): void {
             put(property, value);
         },
         at,
+        drawnByDraft(writer) ? tkStipple(g.stipple, at("fillOpacity")) : null,
     );
     if (g.fill2 === undefined) {
         return;
@@ -792,6 +858,13 @@ function readNodeOutline(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     readColor(v === "ogdf" ? first(g, "outline", "line") : g.outline, "borderColor", null, writer, put, at);
     const width = outlineWidthOf(g, v);
     const read = width === undefined ? null : canonNumber(width, at("borderWidth"));
+    if (drawnByDraft(writer)) {
+        // Tk draws a picture item with no outline, and any other outline at least one pixel wide (an X11 line of
+        // width 0 is a thin line)
+        const thin = read === null ? null : Math.max(read, 1);
+        put("borderWidth", TK_PICTURES.has(typeName(g.type)) ? 0 : thin);
+        return;
+    }
     put("borderWidth", writer.tool === "yed" ? yedDrawnWidth(read) : read);
 }
 
@@ -827,7 +900,8 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         readGv2gmlEdge(g, writer, put, at);
         return;
     }
-    readColor(g.fill, "color", "opacity", writer, put, at);
+    const draft = drawnByDraft(writer);
+    readColor(g.fill, "color", "opacity", writer, put, at, draft ? tkStipple(g.stipple, at("opacity")) : null);
     if (v === "cytoscape") {
         // Cytoscape's GML reader paints the whole edge with `fill`, its arrowheads too (gml-specimen-arrows-p4)
         readColor(g.fill, "sourceArrowColor", null, writer, put, at);
@@ -843,6 +917,24 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     readEdgeArrows(g, writer, put, at);
     if (v === "yed") {
         readYedCurve(g, put);
+    }
+    if (draft) {
+        readTkSmooth(g, put);
+    }
+}
+
+/**
+ * Reads a draft file's `smooth`: Tk draws a smoothed line as parabolic splines, one for each two segments, from its
+ * first point to its last (tkTrig.c TkMakeBezierCurve) -- a curve through the middle of each segment with the bends as
+ * its control points; a line of two points stays straight.
+ * @param g - the edge's `graphics` record
+ * @param put - receives the values
+ */
+function readTkSmooth(g: Rec, put: Put): void {
+    const points = isRec(g.Line) ? g.Line.point : undefined;
+    if (Number(g.smooth) === 1 && Array.isArray(points) && points.length > 2) {
+        put("curved", true);
+        put("bendCurve", "midpoints");
     }
 }
 

@@ -278,7 +278,7 @@ describe("FlatMap", () => {
         await tiles.answerAll();
         const changed = vi.fn();
         map.onChangedObservable.add(changed);
-        map.update(); // the loaded picture becomes a mesh, and its credit is drawn
+        map.update(); // the loaded picture becomes a mesh, and its credit is reported
         expect(changed).toHaveBeenCalledTimes(1);
         map.update(); // nothing new
         expect(changed).toHaveBeenCalledTimes(1);

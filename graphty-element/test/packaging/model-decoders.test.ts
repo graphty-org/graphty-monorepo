@@ -1,9 +1,9 @@
 /**
- * The model decoders ship inside graphty-element and nothing names Babylon's CDN for them: the
- * library build writes the Draco decoder and the KTX2 transcoders beside the chunks that load
- * them; the decoder chunks reference those files and no cdn.babylonjs.com address;
- * THIRD-PARTY-LICENSES.txt carries their notices. `./bundle`, one file, leaves both out
- * (vite.bundle.config.ts). Build first (`npm run build`).
+ * The model decoders are babylonjs-models' files, not graphty-element's: the library build leaves
+ * babylonjs-models to the consumer's installer (it is a dependency), so no decoder file is written
+ * beside graphty-element's chunks, and `./bundle`, one file, carries neither the Draco decoder nor
+ * the KTX2 transcoders (vite.bundle.config.ts). babylonjs-models' own tests check that it ships
+ * them. Build first (`npm run build`).
  */
 
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -14,55 +14,31 @@ import { assert, describe, it } from "vitest";
 
 const DIST = fileURLToPath(new URL("../../dist", import.meta.url));
 const CHUNKS = join(DIST, "chunks");
-const DECODER_FILES = [
-    "draco_decoder",
-    "draco_wasm_wrapper",
-    "msc_basis_transcoder",
-    "uastc_astc",
-    "uastc_bc7",
-    "uastc_r8_unorm",
-    "uastc_rg8_unorm",
-    "uastc_rgba8_srgb_v2",
-    "uastc_rgba8_unorm_v2",
-    "zstddec",
-];
+const DECODER_FILES = ["draco_decoder", "draco_wasm_wrapper", "msc_basis_transcoder", "uastc_", "zstddec"];
 
 describe("model decoders in the package", () => {
-    it("are written beside the library's chunks, and never beside ./bundle", () => {
+    it("are not copied beside the library's chunks or ./bundle", () => {
         assert.isTrue(existsSync(CHUNKS), "run npm run build first");
-        const chunks = readdirSync(CHUNKS);
-        const top = readdirSync(DIST);
+        const files = [...readdirSync(CHUNKS), ...readdirSync(DIST)];
         for (const name of DECODER_FILES) {
-            assert.isTrue(
-                chunks.some((f) => f.startsWith(`${name}-`)),
-                `dist/chunks holds ${name}`,
-            );
             assert.isFalse(
-                top.some((f) => f.startsWith(`${name}.`)),
-                `dist holds ${name} beside ./bundle`,
+                files.some((f) => f.startsWith(name)),
+                `dist holds ${name}`,
             );
         }
     });
 
-    it("are loaded from those files, never from Babylon's CDN", () => {
-        const chunks = readdirSync(CHUNKS);
-        for (const prefix of ["draco-", "meshopt-", "ktx2-"]) {
-            const file = chunks.find((f) => f.startsWith(prefix) && f.endsWith(".js"));
-            assert.isDefined(file, `a ${prefix} chunk`);
-            const code = readFileSync(join(CHUNKS, file), "utf8");
-            assert.notInclude(code, "babylonjs.com", file);
-            if (prefix === "meshopt-") {
-                // Registered when the chunk is imported: an empty chunk (a build told it is pure) registers nothing.
-                assert.include(code, "KHR_meshopt_compression", file);
-            } else {
-                assert.match(code, /new URL\("[\w-]+\.(?:wasm|js)", import\.meta\.url\)/, file);
-            }
-        }
+    it("are loaded through babylonjs-models, never from Babylon's CDN", () => {
+        const chunks = readdirSync(CHUNKS).filter((f) => f.endsWith(".js"));
+        const loading = chunks.filter((f) =>
+            readFileSync(join(CHUNKS, f), "utf8").includes('import("babylonjs-models")'),
+        );
+        assert.isNotEmpty(loading, "a chunk imports babylonjs-models when a model first draws");
     });
 
-    it("carry their notices in THIRD-PARTY-LICENSES.txt", () => {
-        const text = readFileSync(join(DIST, "THIRD-PARTY-LICENSES.txt"), "utf8");
-        assert.include(text, "src/models/decoders/licenses/draco");
-        assert.include(text, "src/models/decoders/licenses/ktx2");
+    it("are left out of ./bundle", () => {
+        const bundle = readFileSync(join(DIST, "graphty.bundle.js"), "utf8");
+        assert.notInclude(bundle, "draco_decoder.wasm");
+        assert.notInclude(bundle, "msc_basis_transcoder");
     });
 });

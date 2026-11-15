@@ -1,5 +1,5 @@
 /**
- * Every model variant in test/fixtures/models/variants (written by its generate.ts) through
+ * Every model variant in babylonjs-models/test/fixtures/variants (written by its generate.ts) through
  * `session.assets.add` in Node: accepted with the facts the manifest names (format, geometry,
  * encoding, compression, glTF version, warnings), or refused with its code. The browser test
  * test/browser/models/every-variant-draws.test.ts draws the same set.
@@ -13,7 +13,7 @@ import { assert, describe, it } from "vitest";
 
 import { createAssetsApi, type ModelCompression } from "../../src/session/assets/AssetsApi";
 
-const VARIANTS = join(dirname(fileURLToPath(import.meta.url)), "../fixtures/models/variants");
+const VARIANTS = join(dirname(fileURLToPath(import.meta.url)), "../../../babylonjs-models/test/fixtures/variants");
 
 /** One manifest entry (see generate.ts). */
 interface Variant {

@@ -205,10 +205,12 @@ What the element loads, and what to do with anything else:
 | A `.zip` holding any of the above                                                               | Loads                                                                                                                                                          |
 | `.fbx`, `.usd`, `.usdz`, `.dae`, `.blend`, `.3mf`, `.bvh`                                       | Not loaded (`E_MODEL_FORMAT_UNSUPPORTED`). Open it in a 3D program such as Blender and export it as `.glb`                                                     |
 
-Nothing is fetched from a CDN to read a model: the Draco decoder and the KTX2 transcoders are files
-of graphty-element's package, written beside its chunks by its build, and meshopt's decoder is the
-`meshoptimizer` dependency. A bundler copies them with the chunk that loads them, so a page that
-never loads a compressed model ships none of them. A file whose compressed data is damaged fails to
+Nothing is fetched from a CDN to read a model: graphty-element reads models through its
+`babylonjs-models` dependency, whose package holds the Draco decoder and the KTX2 transcoders, and
+meshopt's decoder is the `meshoptimizer` dependency. A bundler copies them with the code that loads
+them, so a page that never loads a compressed model ships none of them. With Vite, keep the package
+out of dependency pre-bundling, which moves its modules away from those files:
+`optimizeDeps: { exclude: ["babylonjs-models"] }`. A file whose compressed data is damaged fails to
 draw with `E_MODEL_DECODER_UNAVAILABLE` and `reason: "decode"`.
 
 `./bundle`, the single file for a page without a bundler, carries no WebAssembly beside it, so it

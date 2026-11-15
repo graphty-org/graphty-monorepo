@@ -9,9 +9,9 @@
 
 import { createHash } from "node:crypto";
 
+import { detectModelFormat } from "babylonjs-models/detect";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { detectModelFormat } from "../../src/catalog/detectModel";
 import { isGraphtyError } from "../../src/errors";
 import { type AssetRecord, type AssetsApi, createAssetsApi, isAssetId } from "../../src/session/assets/AssetsApi";
 import { canonicalFileSet, sha256Fallback, sha256Hex } from "../../src/session/assets/digest";

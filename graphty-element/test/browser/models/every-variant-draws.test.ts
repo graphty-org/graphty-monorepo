@@ -1,22 +1,22 @@
 /**
- * Every model variant in test/fixtures/models/variants (manifest.json, written by generate.ts)
+ * Every model variant in babylonjs-models/test/fixtures/variants (manifest.json, written by generate.ts)
  * added, pictured and drawn in a real browser: each accepted variant's thumbnail is drawn and,
  * for a colored one, shows its color; each draws as a model on every node of a layer; a refused
  * variant is refused with its code; a variant that passes intake but cannot be read fails its
  * picture with a coded error and settles `failed`.
  */
 
+import { unzipSync } from "fflate";
 import { assert, describe, it } from "vitest";
 
+import manifest from "../../../../babylonjs-models/test/fixtures/variants/manifest.json";
 import { isGraphtyError } from "../../../src/errors";
 import { operationQueueOf } from "../../../src/Graph";
-import { unzipModel } from "../../../src/session/assets/unzip";
-import manifest from "../../fixtures/models/variants/manifest.json";
 import { colorRow, colorShare, differingShare, drawnShare, type PictureColor } from "../../helpers/pictureFacts";
 import { drawnAsModel, mount, nextModelEvent } from "./helpers";
 
 /** Every fixture file, by its path below the variants folder. */
-const URLS = import.meta.glob<string>("../../fixtures/models/variants/*/**", {
+const URLS = import.meta.glob<string>("../../../../babylonjs-models/test/fixtures/variants/*/**", {
     query: "?url",
     import: "default",
     eager: true,
@@ -41,7 +41,7 @@ interface Variant {
 async function filesOf(variant: Variant): Promise<Map<string, Uint8Array>> {
     const files = new Map<string, Uint8Array>();
     for (const name of variant.files) {
-        const url = URLS[`../../fixtures/models/variants/${variant.id}/${name}`];
+        const url = URLS[`../../../../babylonjs-models/test/fixtures/variants/${variant.id}/${name}`];
         files.set(name, new Uint8Array(await (await fetch(url)).arrayBuffer()));
     }
     return files;
@@ -134,7 +134,7 @@ describe("every model variant draws", () => {
     it("an unbundled SOG whose meta file has another name", async () => {
         const sog = (manifest as Variant[]).find((v) => v.id === "sog") as Variant;
         const [bundle] = (await filesOf(sog)).values();
-        const files = await unzipModel(bundle, 64 * 1024 * 1024);
+        const files = new Map<string, Uint8Array>(Object.entries(unzipSync(bundle)));
         files.set("scene.json", files.get("meta.json") as Uint8Array);
         files.delete("meta.json");
         const element = await mount();

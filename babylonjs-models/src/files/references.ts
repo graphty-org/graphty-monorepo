@@ -1,0 +1,643 @@
+/**
+ * @file What every model check shares: the refusal a check throws, the reference allowlist, and
+ * image sizes read from their headers.
+ *
+ * A reference inside a model (a glTF buffer or image `uri`, an OBJ `mtllib`, an MTL `map_*` file)
+ * is a key in the file set after percent-decoding once and normalizing the path, or a `data:` URL
+ * of an image or of plain bytes. A web address (`http(s):`, `//host`) or a path that climbs above
+ * the set's top with `..` is a file outside the folder: it is held under the key
+ * {@link setKeyOf} gives it, and while the set lacks it, it is a missing part carrying its
+ * absolute `url` when one is known. Any other scheme (`blob:`, `javascript:`) is
+ * `E_MODEL_EXTERNAL_URL` (design/rendering/node-models.md section 3.3).
+ */
+
+import type { ModelFact, ModelFactParam, ModelPartRole } from "./types.js";
+
+/** The longest string param taken from a file. */
+const MAX_PARAM_LENGTH = 256;
+
+/** The largest texture side any GPU draws; a larger image is refused before it is decoded. */
+const MAX_IMAGE_SIDE = 16384;
+
+/**
+ * A string from a file, cut to 256 characters.
+ * @param value - The string.
+ * @returns At most 256 characters of it.
+ */
+export function cut(value: string): string {
+    return value.length > MAX_PARAM_LENGTH ? value.slice(0, MAX_PARAM_LENGTH) : value;
+}
+
+/**
+ * Why a model was refused or could not be loaded, as coded facts: `code` and `fact` are the first,
+ * `facts` every one (several when a model is missing several parts).
+ */
+export class ModelError extends Error {
+    /** The first fact's code, such as `"E_MODEL_MISSING_FILE"`. */
+    readonly code: string;
+    /** The first fact. */
+    readonly fact: ModelFact;
+    /** Every fact: several when a model is missing several parts. */
+    readonly facts: readonly ModelFact[];
+    /** The files fetched so far, for a model fetched by URL that is missing only parts: supply the rest and check again. */
+    held?: { readonly given: Map<string, Uint8Array>; readonly main?: string };
+
+    /**
+     * An error carrying one coded fact, and any more found with it.
+     * @param code - The `E_MODEL_*` code.
+     * @param params - Its params.
+     * @param more - Further facts, reported after the first.
+     */
+    constructor(code: string, params: Record<string, ModelFactParam>, more: readonly ModelFact[] = []) {
+        super(code);
+        this.name = "ModelError";
+        this.code = code;
+        this.fact = Object.freeze({ code, params: Object.freeze(params) });
+        this.facts = Object.freeze([this.fact, ...more]);
+    }
+}
+
+/**
+ * Throw a refusal carrying several facts.
+ * @param facts - The facts, at least one.
+ */
+export function refuseAll(facts: readonly ModelFact[]): never {
+    const [first, ...more] = facts;
+    throw new ModelError(first.code, { ...first.params }, more);
+}
+
+/**
+ * Throw a refusal.
+ * @param code - The `E_MODEL_*` code.
+ * @param params - Its params.
+ */
+export function refuse(code: string, params: Record<string, ModelFactParam>): never {
+    throw new ModelError(code, params);
+}
+
+/** What a reference resolved to: a file in the set, or the bytes of a `data:` URL. */
+export type Resolved = {
+    readonly path: string;
+    readonly bytes: Uint8Array;
+    /** `W_MODEL_PART_SUBSTITUTED`, when the path was found by case or base name. */
+    readonly substituted?: ModelFact;
+};
+
+/** Media types a `data:` URL may carry. glTF exporters write `application/gltf-buffer` for buffers. */
+const DATA_TYPES = /^(?:image\/[a-z0-9.+-]+|application\/octet-stream|application\/gltf-buffer)$/i;
+
+/**
+ * The directory part of a path, with its trailing slash.
+ * @param path - A path in the set.
+ * @returns "" for a file at the top.
+ */
+export function dirOf(path: string): string {
+    return path.slice(0, path.lastIndexOf("/") + 1);
+}
+
+/**
+ * Resolve "." and ".." in a slash-separated path.
+ * @param path - The path.
+ * @param clamp - Drop a ".." that would leave the top instead of giving up.
+ * @returns The normalized path, or undefined when ".." leaves the top and `clamp` is false.
+ */
+export function normalizePath(path: string, clamp = false): string | undefined {
+    const out: string[] = [];
+    for (const part of path.replaceAll("\\", "/").split("/")) {
+        if (part === "" || part === ".") {
+            continue;
+        }
+
+        if (part === "..") {
+            if (out.length === 0 && !clamp) {
+                return undefined;
+            }
+
+            out.pop();
+            continue;
+        }
+
+        out.push(part);
+    }
+
+    return out.join("/");
+}
+
+/** A web address as a model writes it: `http:`, `https:` or a network path (`//host`). */
+const WEB_ADDRESS = /^(?:https?:)?\/\//i;
+
+/** A web address inside a joined path: at its start or after a folder's slash, then a host. */
+const WEB_IN_PATH = /(?:^|\/)(?:https?:)?\/\/(?=[^/])/i;
+
+/**
+ * The key in a file set a reference is held under, from the folder of the file that names it
+ * joined to the reference (`folder + reference`, which is also what a loader asks the request
+ * guard for under a load's root): a web address is held as its host and path
+ * (`https://cdn.example/t/wood.png` as `cdn.example/t/wood.png`), and a path that climbs above
+ * the set's top drops the `..` that climb (`../textures/wood.png` as `textures/wood.png`).
+ * @param joined - The folder and the reference, percent-decoded once.
+ * @returns The key, or undefined when nothing is left of it.
+ */
+export function setKeyOf(joined: string): string | undefined {
+    const web = WEB_IN_PATH.exec(joined);
+    if (web !== null) {
+        const rest = joined.slice(web.index + web[0].length);
+        // An index search, not a `[?#].*$` regex: that one backtracks polynomially on many `?`s.
+        const end = rest.search(/[?#]/);
+        return normalizePath(end < 0 ? rest : rest.slice(0, end)) || undefined;
+    }
+
+    return normalizePath(joined) ?? normalizePath(joined, true);
+}
+
+/**
+ * The absolute address a reference outside the folder means: a web address as written (a network
+ * path takes the model's scheme), or a climbing path resolved against the address of the file
+ * that names it, when the model came from a web address.
+ * @param ref - The reference as the file wrote it.
+ * @param from - The path of the file that wrote it.
+ * @param base - The main file's web address, for a model fetched by URL.
+ * @returns The address without its fragment, or undefined when none is known.
+ */
+function outsideUrl(ref: string, from: string, base: string | undefined): string | undefined {
+    try {
+        let url: URL;
+        if (WEB_ADDRESS.test(ref)) {
+            url = new URL(ref, base ?? "https://host.invalid/");
+        } else if (base === undefined) {
+            return undefined;
+        } else {
+            url = new URL(ref, new URL(from.split("/").map(encodeURIComponent).join("/"), base));
+        }
+
+        url.hash = "";
+        return url.protocol === "https:" || url.protocol === "http:" ? url.href : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Whether a string starts like an address outside the file set.
+ * @param ref - The reference.
+ * @returns True for a scheme (`http:`, `blob:`), a network path or an absolute path.
+ */
+function looksExternal(ref: string): boolean {
+    return /^[a-z][a-z0-9+.-]*:/i.test(ref) || ref.startsWith("//") || ref.startsWith("\\\\") || ref.startsWith("/");
+}
+
+/**
+ * Whether a reference is a path on its author's own disk (`C:\Users\me\wood.png`,
+ * `/home/me/wood.png`, `file:///C:/wood.png`), which only its base name can mean in a file set.
+ * @param ref - The decoded reference.
+ * @returns True for a drive path, a rooted path (not `//host`) or a `file:` URL.
+ */
+function isLocalAbsolute(ref: string): boolean {
+    return /^[a-z]:[\\/]/i.test(ref) || /^file:/i.test(ref) || (ref.startsWith("/") && !ref.startsWith("//"));
+}
+
+/**
+ * The last segment of a path, by either slash.
+ * @param path - The path.
+ * @returns Its base name.
+ */
+export function baseName(path: string): string {
+    return path.slice(Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\")) + 1);
+}
+
+/** What tolerant matching found for one path. */
+export type SetMatch =
+    { readonly path: string; readonly substituted: boolean } | { readonly candidates: readonly string[] } | undefined;
+
+/**
+ * Order two strings by UTF-16 code units, as the default `sort` does.
+ * @param a - One string.
+ * @param b - The other.
+ * @returns Negative, zero or positive.
+ */
+function byCodeUnits(a: string, b: string): number {
+    return a < b ? -1 : Number(a > b);
+}
+
+/**
+ * Find a path in a file set (design 12.5): as written, then in any case, then by base name in any
+ * case anywhere in the set. The last two count only when exactly one file matches.
+ * @param path - A normalized path.
+ * @param files - The set.
+ * @param baseOnly - Match by base name only (a path from the author's disk).
+ * @returns The file, the candidates when several match, or undefined.
+ */
+export function matchInSet(path: string, files: ReadonlyMap<string, unknown>, baseOnly = false): SetMatch {
+    if (!baseOnly && files.has(path)) {
+        return { path, substituted: false };
+    }
+
+    const lower = path.toLowerCase();
+    const steps: ((key: string) => boolean)[] = [
+        (key) => key.toLowerCase() === lower,
+        (key) => baseName(key).toLowerCase() === baseName(lower),
+    ];
+    for (const step of baseOnly ? steps.slice(1) : steps) {
+        const found = [...files.keys()].filter(step);
+        if (found.length === 1) {
+            return { path: found[0], substituted: found[0] !== path };
+        }
+
+        if (found.length > 1) {
+            found.sort(byCodeUnits);
+            return { candidates: found };
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * Decode a `data:` URL's payload.
+ * @param ref - The URL.
+ * @returns The bytes, or undefined when it is malformed.
+ */
+function decodeDataUrl(ref: string): Uint8Array | undefined {
+    const comma = ref.indexOf(",");
+    if (comma < 0) {
+        return undefined;
+    }
+
+    const header = ref.slice(5, comma);
+    const payload = ref.slice(comma + 1);
+    try {
+        if (/;base64$/i.test(header)) {
+            const binary = atob(payload);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.codePointAt(i) ?? 0;
+            }
+
+            return bytes;
+        }
+
+        return new TextEncoder().encode(decodeURIComponent(payload));
+    } catch {
+        return undefined;
+    }
+}
+
+/** What a part is for a model: `geometry` (a glTF buffer), `materials` (an `.mtl`) or `texture`. */
+export type PartRole = Exclude<ModelPartRole, "model" | "other">;
+
+/**
+ * What a part is to its model, by its name: an `.mtl` is `materials`, a picture `texture`, and
+ * anything else `geometry`, which a model cannot be drawn without.
+ * @param name - The part's name.
+ * @returns Its role.
+ */
+export function roleOfName(name: string): PartRole {
+    if (/\.mtl$/i.test(name)) {
+        return "materials";
+    }
+
+    return /\.(?:png|jpe?g|webp|gif|bmp|tga|tiff?|ktx2?|dds|basis)$/i.test(name) ? "texture" : "geometry";
+}
+
+/** Where a reference sends a problem it does not throw: what tolerant matching substituted, and what is missing. */
+export interface Findings {
+    readonly warnings: ModelFact[];
+    readonly missing: ModelFact[];
+    /** Each reference found in the set, in the order the model names it, when the caller lists parts. */
+    readonly found?: { readonly name: string; readonly role: PartRole; readonly file: string }[];
+    /** The main file's web address, for a model fetched by URL: what a climbing path resolves against. */
+    readonly base?: string;
+}
+
+/**
+ * Resolve a reference, recording a missing or ambiguous part and a substitution instead of
+ * throwing.
+ * @param ref - The reference as the file wrote it.
+ * @param from - The path of the file that wrote it.
+ * @param files - The file set.
+ * @param role - What the part is for.
+ * @param findings - Where problems and warnings go.
+ * @returns The file, or undefined when it is missing or ambiguous.
+ */
+export function findReference(
+    ref: string,
+    from: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    role: PartRole,
+    findings: Findings,
+): Resolved | undefined {
+    try {
+        const resolved = resolveReference(ref, from, files, findings.base);
+        const used = resolved.substituted;
+        if (used !== undefined && !findings.warnings.some((w) => w.params.name === used.params.name)) {
+            findings.warnings.push(used);
+        }
+
+        if (resolved.path !== "") {
+            findings.found?.push({ name: String(used?.params.name ?? resolved.path), role, file: resolved.path });
+        }
+
+        return resolved;
+    } catch (error) {
+        if (
+            !(error instanceof ModelError) ||
+            (error.fact.code !== "E_MODEL_MISSING_FILE" && error.fact.code !== "E_MODEL_PART_AMBIGUOUS")
+        ) {
+            throw error;
+        }
+
+        if (!findings.missing.some((m) => m.params.name === error.fact.params.name)) {
+            findings.missing.push(
+                error.fact.code === "E_MODEL_MISSING_FILE"
+                    ? { code: error.fact.code, params: { ...error.fact.params, role, optional: role !== "geometry" } }
+                    : error.fact,
+            );
+        }
+
+        return undefined;
+    }
+}
+
+/**
+ * Check one reference and resolve it, tolerantly (design 12.5).
+ * @param ref - The reference as the file wrote it.
+ * @param from - The path of the file that wrote it.
+ * @param files - The file set.
+ * @param base - The main file's web address, for a model fetched by URL.
+ * @returns The file or the data URL's bytes.
+ * @throws ModelError `E_MODEL_EXTERNAL_URL` for a scheme other than `http(s):` and `data:`,
+ *     `E_MODEL_MISSING_FILE` for a file the set does not hold (with `url` for one outside the
+ *     folder whose address is known), `E_MODEL_PART_AMBIGUOUS` for one several files match.
+ */
+export function resolveReference(
+    ref: string,
+    from: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    base?: string,
+): Resolved {
+    if (/^data:/i.test(ref)) {
+        const type = ref.slice(5, ref.search(/[;,]/) < 0 ? undefined : ref.search(/[;,]/));
+        const bytes = DATA_TYPES.test(type) ? decodeDataUrl(ref) : undefined;
+        if (bytes === undefined) {
+            refuse("E_MODEL_EXTERNAL_URL", { url: cut(ref.slice(0, 64)) });
+        }
+
+        return { path: "", bytes };
+    }
+
+    let decoded: string;
+    try {
+        decoded = decodeURIComponent(ref);
+    } catch {
+        refuse("E_MODEL_EXTERNAL_URL", { url: cut(ref) });
+    }
+
+    // A path from the author's disk means only its base name; it is never requested as written.
+    const local = isLocalAbsolute(decoded);
+    const web = !local && (WEB_ADDRESS.test(ref) || WEB_ADDRESS.test(decoded));
+    if (!local && !web && (looksExternal(ref) || looksExternal(decoded))) {
+        refuse("E_MODEL_EXTERNAL_URL", { url: cut(ref) });
+    }
+
+    const joined = dirOf(from) + decoded;
+    let inside: string | undefined;
+    if (local) {
+        inside = baseName(decoded);
+    } else if (!web) {
+        inside = normalizePath(joined);
+    }
+
+    if (inside === undefined) {
+        return resolveOutside(ref, from, files, setKeyOf(joined), base);
+    }
+
+    const match = matchInSet(inside, files, local);
+    if (match === undefined) {
+        refuse("E_MODEL_MISSING_FILE", { name: cut(inside), referencedBy: cut(from) });
+    }
+
+    if ("candidates" in match) {
+        refuse("E_MODEL_PART_AMBIGUOUS", {
+            name: cut(inside),
+            referencedBy: cut(from),
+            candidates: match.candidates.map(cut),
+        });
+    }
+
+    return {
+        path: match.path,
+        bytes: files.get(match.path) as Uint8Array,
+        ...(match.substituted
+            ? {
+                  substituted: {
+                      code: "W_MODEL_PART_SUBSTITUTED",
+                      params: { name: cut(inside), used: cut(match.path), referencedBy: cut(from) },
+                  },
+              }
+            : {}),
+    };
+}
+
+/**
+ * Resolve a reference outside the main file's folder (a web address, or a path climbing above the
+ * set's top): the set holds it under its key exactly, or it is missing. No tolerant matching: a
+ * file of the same base name is not the one the address names, though a caller may `use` it.
+ * @param ref - The reference as the file wrote it.
+ * @param from - The path of the file that wrote it.
+ * @param files - The file set.
+ * @param key - Its key in the set.
+ * @param base - The main file's web address, for a model fetched by URL.
+ * @returns The file.
+ */
+function resolveOutside(
+    ref: string,
+    from: string,
+    files: ReadonlyMap<string, Uint8Array>,
+    key: string | undefined,
+    base: string | undefined,
+): Resolved {
+    if (key === undefined) {
+        refuse("E_MODEL_EXTERNAL_URL", { url: cut(ref) });
+    }
+
+    const bytes = files.get(key);
+    if (bytes !== undefined) {
+        return { path: key, bytes };
+    }
+
+    const url = outsideUrl(ref, from, base);
+    return refuse("E_MODEL_MISSING_FILE", {
+        name: cut(key),
+        referencedBy: cut(from),
+        ...(url === undefined ? {} : { url: cut(url) }),
+    });
+}
+
+/** An image's size in pixels. */
+type ImageSize = { width: number; height: number };
+
+/**
+ * A JPEG's size: walk the segments to the first start-of-frame.
+ * @param bytes - The image file, known to start with the JPEG marker.
+ * @param view - A view of the same bytes.
+ * @returns The size, or undefined when no frame header is found.
+ */
+function jpegSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
+    let at = 2;
+    while (at + 9 < bytes.length) {
+        if (bytes[at] !== 0xff) {
+            return undefined;
+        }
+
+        const marker = bytes[at + 1];
+        const length = view.getUint16(at + 2);
+        const isFrame = marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+        if (isFrame) {
+            return { width: view.getUint16(at + 7), height: view.getUint16(at + 5) };
+        }
+
+        at += 2 + length;
+    }
+
+    return undefined;
+}
+
+/**
+ * A WebP's size from its VP8, VP8L or VP8X chunk.
+ * @param bytes - The image file, known to be RIFF....WEBP of at least 30 bytes.
+ * @param view - A view of the same bytes.
+ * @returns The size, or undefined for another chunk.
+ */
+function webpSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
+    const chunk = String.fromCodePoint(bytes[12], bytes[13], bytes[14], bytes[15]);
+    if (chunk === "VP8 ") {
+        return { width: view.getUint16(26, true) & 0x3fff, height: view.getUint16(28, true) & 0x3fff };
+    }
+
+    if (chunk === "VP8L") {
+        const bits = view.getUint32(21, true);
+        return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+    }
+
+    if (chunk === "VP8X") {
+        const width = 1 + (bytes[24] | (bytes[25] << 8) | (bytes[26] << 16));
+        const height = 1 + (bytes[27] | (bytes[28] << 8) | (bytes[29] << 16));
+        return { width, height };
+    }
+
+    return undefined;
+}
+
+/**
+ * An image's width and height from its PNG, JPEG or WebP header, without decoding it.
+ * @param bytes - The image file.
+ * @returns The size, or undefined when the header is not one of those three.
+ */
+export function imageSize(bytes: Uint8Array): ImageSize | undefined {
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    // PNG: the signature, then IHDR with width and height.
+    if (bytes.length >= 24 && view.getUint32(0) === 0x89504e47 && view.getUint32(12) === 0x49484452) {
+        return { width: view.getUint32(16), height: view.getUint32(20) };
+    }
+
+    if (bytes.length >= 4 && bytes[0] === 0xff && bytes[1] === 0xd8) {
+        return jpegSize(bytes, view);
+    }
+
+    // WebP: RIFF....WEBP, then VP8, VP8L or VP8X.
+    if (bytes.length >= 30 && view.getUint32(0) === 0x52494646 && view.getUint32(8) === 0x57454250) {
+        return webpSize(bytes, view);
+    }
+
+    return otherImageSize(bytes, view);
+}
+
+/** The KTX2 identifier: `\xABKTX 20\xBB\r\n\x1A\n`. */
+const KTX2_MAGIC = [0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a];
+
+/**
+ * The size of a picture a model may name beyond PNG, JPEG and WebP: KTX2, AVIF, BMP, GIF, DDS, TGA.
+ * @param bytes - The picture.
+ * @param view - A view of it.
+ * @returns The size, or undefined.
+ */
+function otherImageSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
+    const ascii = (at: number, text: string): boolean =>
+        bytes.length >= at + text.length &&
+        Array.from(text, (c) => c.codePointAt(0)).every((c, i) => bytes[at + i] === c);
+    if (bytes.length >= 28 && KTX2_MAGIC.every((b, i) => bytes[i] === b)) {
+        return { width: view.getUint32(20, true), height: Math.max(view.getUint32(24, true), 1) };
+    }
+
+    if (ascii(4, "ftyp") && (ascii(8, "avif") || ascii(8, "avis") || ascii(8, "mif1"))) {
+        return avifSize(bytes, view);
+    }
+
+    if (ascii(0, "BM") && bytes.length >= 26) {
+        return { width: Math.abs(view.getInt32(18, true)), height: Math.abs(view.getInt32(22, true)) };
+    }
+
+    if (ascii(0, "GIF8") && bytes.length >= 10) {
+        return { width: view.getUint16(6, true), height: view.getUint16(8, true) };
+    }
+
+    if (ascii(0, "DDS ") && bytes.length >= 20) {
+        return { width: view.getUint32(16, true), height: view.getUint32(12, true) };
+    }
+
+    return tgaSize(bytes, view);
+}
+
+/**
+ * An AVIF's size, from its `ispe` (image spatial extent) property.
+ * @param bytes - The picture.
+ * @param view - A view of it.
+ * @returns The size, or undefined when it has none.
+ */
+function avifSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
+    const end = Math.min(bytes.length - 16, 65536);
+    for (let at = 4; at < end; at++) {
+        if (bytes[at] === 0x69 && bytes[at + 1] === 0x73 && bytes[at + 2] === 0x70 && bytes[at + 3] === 0x65) {
+            return { width: view.getUint32(at + 8), height: view.getUint32(at + 12) };
+        }
+    }
+
+    return undefined;
+}
+
+/**
+ * A TGA's size, which has no magic: a known image type and pixel depth decide.
+ * @param bytes - The picture.
+ * @param view - A view of it.
+ * @returns The size, or undefined when the header is not a TGA's.
+ */
+function tgaSize(bytes: Uint8Array, view: DataView): ImageSize | undefined {
+    if (bytes.length < 18 || bytes[1] > 1 || ![1, 2, 3, 9, 10, 11].includes(bytes[2])) {
+        return undefined;
+    }
+
+    return [8, 15, 16, 24, 32].includes(bytes[16])
+        ? { width: view.getUint16(12, true), height: view.getUint16(14, true) }
+        : undefined;
+}
+
+/**
+ * The decoded bytes an image will take on the GPU, refusing one that cannot be measured or is
+ * larger than any GPU draws.
+ * @param bytes - The image file.
+ * @param name - What to call it in a refusal.
+ * @returns `width x height x 4 x 4/3` (RGBA with mipmaps).
+ */
+export function textureBytesOf(bytes: Uint8Array, name: string): number {
+    const size = imageSize(bytes);
+    if (size === undefined) {
+        refuse("E_MODEL_STRUCTURE", { rule: "image", name: cut(name) });
+    }
+
+    const side = Math.max(size.width, size.height);
+    if (side > MAX_IMAGE_SIDE) {
+        refuse("E_MODEL_TOO_LARGE", { what: "textureSize", found: side, limit: MAX_IMAGE_SIDE, name: cut(name) });
+    }
+
+    return Math.ceil((size.width * size.height * 4 * 4) / 3);
+}

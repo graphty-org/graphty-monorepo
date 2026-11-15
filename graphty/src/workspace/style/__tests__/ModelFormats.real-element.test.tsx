@@ -1,7 +1,7 @@
 /**
  * Every model format and variant graphty-element reads, loaded through the Load custom model dialog
  * on the real element by real input (issue #3396). One test per entry of graphty-element's variant
- * table (`graphty-element/test/fixtures/models/variants/manifest.json`, written with its fixtures by
+ * table (`babylonjs-models/test/fixtures/variants/manifest.json`, written with its fixtures by
  * `generate.ts` there): the files, folder or .zip are chosen in the dialog; an accepted variant's
  * preview is drawn, not blank, in the variant's color, its caption names the variant, the element's
  * record and summary report the expected format and parts, and Add draws it on the layer's nodes; a
@@ -33,7 +33,7 @@ declare module "vitest/browser" {
 }
 
 /** graphty-element's variant fixtures, relative to the graphty project (as uploads take them). */
-const VARIANTS = "../graphty-element/test/fixtures/models/variants";
+const VARIANTS = "../babylonjs-models/test/fixtures/variants";
 
 /** One entry of the variant table (see generate.ts beside it). */
 interface Variant {

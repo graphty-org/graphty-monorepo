@@ -5,6 +5,7 @@
 ```ts
 
 import { AwsCredentials } from '@graphty/graph-io';
+import { BuiltInModelFormat } from 'babylonjs-models/detect';
 import { Credential as Credential_2 } from '@graphty/graph-io';
 import { CredentialKind } from '@graphty/graph-io';
 import { credentials } from '@graphty/graph-io';
@@ -32,6 +33,7 @@ import { LazySource } from '@graphty/graph-io';
 import { listSources } from '@graphty/graph-io';
 import { LoadFromSourceOptions } from '@graphty/graph-io';
 import { LOSS } from '@graphty/graph-io';
+import { ModelFormat } from 'babylonjs-models/detect';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import type { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { PAJEK_LOSS } from '@graphty/graph-io';
@@ -450,8 +452,7 @@ export interface BrowserProjectSaveOptions {
     readonly id?: string;
 }
 
-// @public
-export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "splat" | "spz" | "sog" | "babylon";
+export { BuiltInModelFormat }
 
 // @beta
 export interface BySizeLeaf {
@@ -3781,8 +3782,7 @@ export type ModelCompression = "draco" | "meshopt" | "ktx2" | "webp" | "avif";
 // @public
 export type ModelEncoding = "ascii" | "binary" | "binaryBigEndian";
 
-// @public
-export type ModelFormat = string;
+export { ModelFormat }
 
 // @public
 export type ModelGeometry = "mesh" | "points" | "splats";

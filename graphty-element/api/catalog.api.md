@@ -4,15 +4,23 @@
 
 ```ts
 
+import { assetFileExtensions } from 'babylonjs-models/detect';
+import { AssetKind } from 'babylonjs-models/detect';
+import { BuiltInModelFormat } from 'babylonjs-models/detect';
 import { DATASETS as DATASET_DESCRIPTORS } from '@graphty/graph-samples';
 import { DatasetMeta } from '@graphty/graph-samples';
 import { DEFAULT_DATASET_BASE_URL } from '@graphty/graph-samples';
+import { detectAssetKind } from 'babylonjs-models/detect';
+import { detectModelFormat } from 'babylonjs-models/detect';
 import { GENERATOR_CATALOG as GENERATOR_DESCRIPTORS } from '@graphty/graph-samples';
 import { GeneratorDescriptor } from '@graphty/graph-samples';
 import { GeneratorParamDescriptor } from '@graphty/graph-samples';
 import { GeneratorParams } from '@graphty/graph-samples/generators';
 import { GraphListing } from '@graphty/graph-io';
 import type { MapSourceId } from 'babylonjs-map';
+import { ModelDetection } from 'babylonjs-models/detect';
+import { ModelDetectionInput } from 'babylonjs-models/detect';
+import { ModelFormat } from 'babylonjs-models/detect';
 import { SourceInfo } from '@graphty/graph-io';
 import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
@@ -330,11 +338,9 @@ export interface AlgorithmDescriptor {
 // @public
 export type AlgorithmKey = KnownAlgorithm | (string & {});
 
-// @public
-export function assetFileExtensions(kind: AssetKind): readonly string[];
+export { assetFileExtensions }
 
-// @public
-export type AssetKind = "model" | "image";
+export { AssetKind }
 
 // @public
 export const ASSISTANT_TOOLS: readonly AssistantToolDescriptor[];
@@ -466,8 +472,7 @@ export interface BuiltInAlgorithmDescriptor extends AlgorithmDescriptor {
     readonly legacyKeys: readonly LegacyAlgorithmKey[];
 }
 
-// @public
-export type BuiltInModelFormat = "glb" | "gltf" | "obj" | "stl" | "ply" | "splat" | "spz" | "sog" | "babylon";
+export { BuiltInModelFormat }
 
 // @public
 export interface ByDesignWaiver {
@@ -695,8 +700,7 @@ export type DeprecatedAlgorithm = (typeof DEPRECATED_ALGORITHMS)[number];
 // @public
 export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
 
-// @public
-export function detectAssetKind(input: ModelDetectionInput): AssetKind | undefined;
+export { detectAssetKind }
 
 // @public
 export function detectFormat(input: DetectionInput): FormatId | null;
@@ -710,8 +714,7 @@ export interface DetectionInput {
     readonly sample?: string;
 }
 
-// @public
-export function detectModelFormat(input: ModelDetectionInput): ModelDetection | undefined;
+export { detectModelFormat }
 
 // @public
 export type DrawingMode = "2d" | "3d";
@@ -2147,20 +2150,11 @@ export interface ModelDescriptor {
     readonly thumbnail: string;
 }
 
-// @public
-export interface ModelDetection {
-    readonly format: ModelFormat;
-    readonly supported: boolean;
-}
+export { ModelDetection }
 
-// @public
-export interface ModelDetectionInput {
-    readonly filename?: string;
-    readonly head?: Uint8Array;
-}
+export { ModelDetectionInput }
 
-// @public
-export type ModelFormat = string;
+export { ModelFormat }
 
 // @public
 export const NODE_SHAPE_DESCRIPTORS: readonly GlyphDescriptor<NodeShape>[];

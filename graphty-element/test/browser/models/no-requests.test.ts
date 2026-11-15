@@ -28,6 +28,7 @@ import { afterEach, assert, describe, it, vi } from "vitest";
 
 import { operationQueueOf } from "../../../src/Graph";
 import { useBundledStandardShaders } from "../../../src/meshes/bundledStandardShaders";
+import { loadChunk, loadModel } from "../../../src/models/loadModel";
 
 const cleanups: (() => void)[] = [];
 
@@ -97,6 +98,16 @@ function recordRequests(): Recording {
             return urls;
         },
     };
+}
+
+/**
+ * Import the model chunk and babylonjs-models before a recording starts, so the dev server's
+ * module requests are not counted as the load's.
+ * @returns The model chunk.
+ */
+async function modelModules(): Promise<Awaited<ReturnType<typeof loadChunk>>> {
+    await import("babylonjs-models");
+    return await loadChunk();
 }
 
 /**
@@ -249,7 +260,12 @@ describe("the model chunk", () => {
         const drawn = recording.stop();
 
         const chunkUrls = (urls: string[]): string[] =>
-            urls.filter((url) => url.includes("/src/models/") || url.includes("babylonjs_loaders"));
+            urls.filter(
+                (url) =>
+                    url.includes("/src/models/") ||
+                    url.includes("babylonjs_loaders") ||
+                    url.includes("babylonjs-models"),
+            );
         assert.deepEqual(chunkUrls(drawn), [], "drawing a graph fetched nothing of the model chunk");
         // The chunk's code has not run on this page at all, from this test's imports or any other.
         assert.isFalse(SceneLoader.IsPluginForExtensionAvailable(".glb"), "no glTF loader is registered");
@@ -264,12 +280,12 @@ describe("the model chunk", () => {
     });
 
     it("loads a GLB with a PBR material and an embedded texture with no request", async () => {
-        const { loadModelContainer, neutralEnvironment } = await import("../../../src/models/chunk");
+        const { neutralEnvironment } = await modelModules();
         const scene = makeScene();
         const png = await pngBytes();
 
         const recording = recordRequests();
-        const container = await loadModelContainer(scene, glbBytes(png), ".glb");
+        const container = await loadModel(scene, new Map([["model.glb", glbBytes(png)]]), "model.glb", "glb");
         container.addAllToScene();
         const materials = scene.materials.filter((material) => material instanceof PBRMaterial);
         assert.lengthOf(materials, 1, "the glTF material loads as PBR");
@@ -285,13 +301,12 @@ describe("the model chunk", () => {
         assertNoNetwork(urls);
     });
 
-    it("loads an OBJ with its MTL and PNG from the caller's blob: URLs only", async () => {
-        const { loadModelContainer } = await import("../../../src/models/chunk");
+    it("loads an OBJ with its MTL and PNG from blob: URLs of its own files only", async () => {
+        await modelModules();
         const scene = makeScene();
-        const pngUrl = blobUrl(await pngBytes(), "image/png");
-        const mtlUrl = blobUrl(`newmtl paint\nKd 1 1 1\nmap_Kd ${pngUrl}\n`, "text/plain");
+        const mtl = new TextEncoder().encode("newmtl paint\nKd 1 1 1\nmap_Kd paint.png\n");
         const obj = [
-            `mtllib ${mtlUrl}`,
+            "mtllib paint.mtl",
             "v 0 0 0",
             "v 1 0 0",
             "v 0 1 0",
@@ -303,8 +318,14 @@ describe("the model chunk", () => {
             "",
         ].join("\n");
 
+        const files = new Map([
+            ["model.obj", new TextEncoder().encode(obj)],
+            ["paint.mtl", mtl],
+            ["paint.png", await pngBytes()],
+        ]);
+
         const recording = recordRequests();
-        const container = await loadModelContainer(scene, new TextEncoder().encode(obj), ".obj");
+        const container = await loadModel(scene, files, "model.obj", "obj");
         container.addAllToScene();
         await vi.waitFor(() => {
             assert.isTrue(scene.isReady(), "the scene compiled its shaders and loaded its texture");
@@ -313,14 +334,13 @@ describe("the model chunk", () => {
         const urls = recording.stop();
 
         assert.isAbove(container.meshes.length, 0, "the model has meshes");
-        assert.include(urls, mtlUrl, "the MTL was read from the caller's URL");
-        assert.include(urls, pngUrl, "the texture was read from the caller's URL");
+        assert.isNotEmpty(urls, "the MTL and the texture were read from blob: URLs, which the recorder sees");
         assert.lengthOf(container.textures, 1, "the MTL's texture belongs to the model");
         assertNoNetwork(urls);
     });
 
     it("loads a binary STL with no request", async () => {
-        const { loadModel } = await import("../../../src/models/loadModel");
+        await modelModules();
         const scene = makeScene();
 
         const recording = recordRequests();
@@ -336,8 +356,9 @@ describe("the model chunk", () => {
         assertNoNetwork(urls);
     });
 
-    it("refuses a decoder it does not bundle instead of fetching one", async () => {
-        const { loadModelContainer } = await import("../../../src/models/chunk");
+    it("refuses a decoder that is turned off instead of fetching one", async () => {
+        await modelModules();
+        const { configureDecoders } = await import("babylonjs-models");
         const scene = makeScene();
         const gltf = JSON.stringify({
             asset: { version: "2.0" },
@@ -345,10 +366,14 @@ describe("the model chunk", () => {
             extensionsRequired: ["KHR_draco_mesh_compression"],
         });
 
+        configureDecoders({ draco: false });
+        cleanups.push(() => {
+            configureDecoders({ draco: undefined });
+        });
         const recording = recordRequests();
         let failed = false;
         try {
-            await loadModelContainer(scene, new TextEncoder().encode(gltf), ".gltf");
+            await loadModel(scene, new Map([["model.gltf", new TextEncoder().encode(gltf)]]), "model.gltf", "gltf");
         } catch {
             failed = true;
         }
@@ -359,7 +384,7 @@ describe("the model chunk", () => {
     });
 
     it("refuses a model's own reference to Babylon's CDN, and leaves the hooks alone after", async () => {
-        const { loadModel } = await import("../../../src/models/loadModel");
+        await modelModules();
         const { Tools } = await import("@babylonjs/core/Misc/tools.js");
         const scene = makeScene();
         const cdn = "https://assets.babylonjs.com/environments/backgroundGround.png";
@@ -384,8 +409,7 @@ describe("the model chunk", () => {
     });
 
     it("lets a page's own babylonjs.com texture load while a model loads (issue #7437)", async () => {
-        const { loadModelFiles } = await import("../../../src/models/chunk");
-        const { guardRequests } = await import("../../../src/models/requestGuard");
+        await modelModules();
         const { Tools } = await import("@babylonjs/core/Misc/tools.js");
         const scene = makeScene();
         const png = await pngBytes();
@@ -411,19 +435,19 @@ describe("the model chunk", () => {
             Object.defineProperty(HTMLImageElement.prototype, "src", src);
         });
 
-        const load = guardRequests(new Map([["model.glb", blobUrl(glbBytes(png), "model/gltf-binary")]]));
-        let texture: Texture;
-        let loading: Promise<unknown>;
-        try {
-            loading = loadModelFiles(scene, load.root, "model.glb", ".glb");
-            // The model load is running: Babylon's CDN scripts are refused ...
-            assert.throws(() => Tools.ScriptPreprocessUrl("https://cdn.babylonjs.com/draco.js"), /Babylon's CDN/);
-            // ... and the page's own texture from a babylonjs.com host is requested all the same.
-            texture = new Texture(pageTexture, scene);
-            await loading;
-        } finally {
-            load.release();
-        }
+        // The loader starts once the model's files are under the request guard.
+        const started = new Promise<void>((resolve) => {
+            SceneLoader.OnPluginActivatedObservable.addOnce(() => {
+                resolve();
+            });
+        });
+        const loading = loadModel(scene, new Map([["model.glb", glbBytes(png)]]), "model.glb", "glb");
+        await started;
+        // The model load is running: Babylon's CDN scripts are refused ...
+        assert.throws(() => Tools.ScriptPreprocessUrl("https://cdn.babylonjs.com/draco.js"), /Babylon's CDN/);
+        // ... and the page's own texture from a babylonjs.com host is requested all the same.
+        const texture = new Texture(pageTexture, scene);
+        await loading;
 
         await vi.waitFor(() => {
             assert.isTrue(texture.isReady() || texture.loadingError, "the page texture settled");

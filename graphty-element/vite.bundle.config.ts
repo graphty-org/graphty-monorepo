@@ -42,32 +42,21 @@ function withoutProgram(): Plugin {
     };
 }
 
-const NO_DECODER = "\0graphty-no-decoder";
-
 /**
  * Leaves the Draco decoder and the KTX2 transcoders out of `./bundle`: one file cannot carry their
- * WebAssembly beside it, and inlined they would add close to 1 MB to every page. `DECODERS_IN_BUILD` is
- * false, so a model that needs one reports `E_MODEL_DECODER_UNAVAILABLE` with `reason: "missing"`
- * (a glTF that only uses KTX2 draws its fallback images). meshopt's decoder carries its WebAssembly
- * inside its JavaScript and stays.
+ * WebAssembly beside it, and inlined they would add close to 1 MB to every page. babylonjs-models'
+ * two decoder modules are replaced by ones that say `available = false`, so a model that needs one
+ * reports `E_MODEL_DECODER_UNAVAILABLE` with `reason: "missing"` (a glTF that only uses KTX2 draws
+ * its fallback images). meshopt's decoder carries its WebAssembly inside its JavaScript and stays.
  * @returns The plugin.
  */
 function withoutDecoders(): Plugin {
     return {
         name: "graphty-bundle-without-decoders",
-        enforce: "pre",
-        resolveId(source, importer): string | undefined {
-            return /^\.\/decoders\/(?:draco|ktx2)$/.test(source) &&
-                importer?.endsWith("/src/models/loadModel.ts") === true
-                ? NO_DECODER
-                : undefined;
-        },
         load(id): string | undefined {
-            if (id.endsWith("/src/models/decoders/inBuild.ts")) {
-                return "export const DECODERS_IN_BUILD = false;";
-            }
-
-            return id === NO_DECODER ? "export {};" : undefined;
+            return /\/babylonjs-models\/dist\/decoders\/(?:draco|ktx2)\.js$/.test(id)
+                ? "export const available = false;"
+                : undefined;
         },
     };
 }

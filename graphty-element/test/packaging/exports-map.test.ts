@@ -116,15 +116,6 @@ const SOURCE_ENTRY_MODULES = ["./index.ts", "./src/graphty-element.ts"];
 const DOC_EXAMPLE_MODULES = ["./docs/examples/**/*.ts"];
 
 /**
- * The model decoders (src/models/decoders/), each loaded with `import()` only for a model that
- * needs it. Draco's, meshopt's and KTX2's configure Babylon and register glTF extensions when
- * imported, and meshopt's and KTX2's export nothing a caller uses, so a build told they are pure
- * emits empty chunks for them: the library build did, and a meshopt or KTX2 model then failed to
- * draw from the package while every test of the source passed.
- */
-const DECODER_MODULES = ["./src/models/decoders/*.ts"];
-
-/**
  * Names that mean three incompatible things across this package and its siblings, so no barrel
  * may re-export one of them from a sibling package.
  */
@@ -307,13 +298,7 @@ describe("what the package promises about side effects and size", () => {
     it("declares a side effect for every published file that has one, and for nothing else", () => {
         assert.deepEqual(
             [...manifest.sideEffects].sort(),
-            [
-                ...SIDE_EFFECTFUL,
-                ...REGISTRATION_MODULES,
-                ...SOURCE_ENTRY_MODULES,
-                ...DOC_EXAMPLE_MODULES,
-                ...DECODER_MODULES,
-            ].sort(),
+            [...SIDE_EFFECTFUL, ...REGISTRATION_MODULES, ...SOURCE_ENTRY_MODULES, ...DOC_EXAMPLE_MODULES].sort(),
         );
     });
 

@@ -9,15 +9,16 @@ import { Engine } from "@babylonjs/core/Engines/engine.js";
 import { Scene } from "@babylonjs/core/scene.js";
 import { assert, describe, it, vi } from "vitest";
 
+import dracoUrl from "../../../../babylonjs-models/test/fixtures/variants/glb-draco/cube.glb?url";
+import binUrl from "../../../../babylonjs-models/test/fixtures/variants/gltf-ktx2/cube.bin?url";
+import gltfUrl from "../../../../babylonjs-models/test/fixtures/variants/gltf-ktx2/cube.gltf?url";
+import ktx2Url from "../../../../babylonjs-models/test/fixtures/variants/gltf-ktx2/cube.ktx2?url";
+import pngUrl from "../../../../babylonjs-models/test/fixtures/variants/gltf-textured/cube.png?url";
 import { loadModel, ModelLoadFailure } from "../../../src/models/loadModel";
-import dracoUrl from "../../fixtures/models/variants/glb-draco/cube.glb?url";
-import binUrl from "../../fixtures/models/variants/gltf-ktx2/cube.bin?url";
-import gltfUrl from "../../fixtures/models/variants/gltf-ktx2/cube.gltf?url";
-import ktx2Url from "../../fixtures/models/variants/gltf-ktx2/cube.ktx2?url";
-import pngUrl from "../../fixtures/models/variants/gltf-textured/cube.png?url";
 
-// Stands in for ./bundle, whose build replaces this module the same way (vite.bundle.config.ts).
-vi.mock("../../../src/models/decoders/inBuild", () => ({ DECODERS_IN_BUILD: false }));
+// Stands in for ./bundle, whose build replaces these modules the same way (vite.bundle.config.ts).
+vi.mock("../../../../babylonjs-models/dist/decoders/draco.js", () => ({ available: false }));
+vi.mock("../../../../babylonjs-models/dist/decoders/ktx2.js", () => ({ available: false }));
 
 const bytes = async (url: string): Promise<Uint8Array> => new Uint8Array(await (await fetch(url)).arrayBuffer());
 

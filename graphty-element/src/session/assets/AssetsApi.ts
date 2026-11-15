@@ -11,7 +11,9 @@
  * page's code and are never saved.
  */
 
-import type { ModelFormat } from "../../catalog/detectModel";
+import { baseName, cutParam, ModelError, type ModelFormat, normalizePath, roleOfName } from "babylonjs-models/detect";
+import type { RedirectGate } from "babylonjs-models/files";
+
 import type { LayerId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { isPrivateHost, type NetworkApiInternal } from "../network";
@@ -20,15 +22,13 @@ import type { SessionStylesApi } from "../styles";
 import type { ModelChange } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
 import { digestFileSet, sha256Fallback } from "./digest";
-import type { RedirectGate } from "./intake";
-import { baseName, cut, normalizePath, Refusal, roleOfName } from "./references";
 
 /**
  * The intake checks, loaded on the first add, so a page that never adds a model never
  * downloads them.
  * @returns The intake module.
  */
-const loadIntake = (): Promise<typeof import("./intake")> => import("./intake");
+const loadIntake = (): Promise<typeof import("babylonjs-models/files")> => import("babylonjs-models/files");
 
 /**
  * Where the sample models' files are, loaded when a layer first names a sample.
@@ -36,8 +36,8 @@ const loadIntake = (): Promise<typeof import("./intake")> => import("./intake");
  */
 const loadSamples = (): Promise<typeof import("./samples")> => import("./samples");
 
-export type { BuiltInModelFormat, ModelFormat } from "../../catalog/detectModel";
 export { type AssetId, isAssetId } from "./assetId";
+export type { BuiltInModelFormat, ModelFormat } from "babylonjs-models/detect";
 
 /** A File, or anything shaped like one: a name and its bytes. No DOM type is named. */
 export interface NamedBlob {
@@ -782,7 +782,7 @@ function skipStep(missing: readonly CodedFact[], name: string): Step {
     const part = partNamed(missing, name);
     const role = String(part?.params.role ?? roleOfName(name));
     if (role === "geometry") {
-        throw supplyError("E_MODEL_PART_REQUIRED", { name: cut(name), role });
+        throw supplyError("E_MODEL_PART_REQUIRED", { name: cutParam(name), role });
     }
 
     return part?.code === "E_MODEL_MISSING_FILE" ? { skip: String(part.params.name) } : { unused: name };
@@ -812,7 +812,7 @@ function useStep(
                 code: "E_BAD_COMMAND",
                 source: "data",
                 message: "The model's files hold no file by that path.",
-                details: { name: cut(answer.name), use: cut(answer.use) },
+                details: { name: cutParam(answer.name), use: cutParam(answer.use) },
             });
         }
 
@@ -891,7 +891,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         try {
             return await (await loadIntake()).unpackZip(given, limits);
         } catch (error) {
-            if (!(error instanceof Refusal)) {
+            if (!(error instanceof ModelError)) {
                 throw error;
             }
 
@@ -955,20 +955,20 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     ): Promise<{ settled: AssetRecord; summary?: ModelSummary }> => {
         const { id, digest, byteLength } = at;
         const intakeModule = await loadIntake();
-        const listed = intakeModule.partsOf(files, options, limits);
+        const listed = intakeModule.listParts(files, options, limits);
         const parts = listed === undefined ? {} : { parts: Object.freeze(listed) };
-        let checked: Awaited<ReturnType<Awaited<ReturnType<typeof loadIntake>>["checkAsset"]>>;
+        let checked: Awaited<ReturnType<Awaited<ReturnType<typeof loadIntake>>["checkModelFiles"]>>;
         try {
             const base = at.extra.url === undefined ? undefined : parseUrl(at.extra.url)?.href;
-            checked = await intakeModule.checkAsset(files, options, limits, base);
+            checked = await intakeModule.checkModelFiles(files, options, limits, base);
         } catch (error) {
-            if (!(error instanceof Refusal)) {
+            if (!(error instanceof ModelError)) {
                 throw error;
             }
 
             const problems = error.facts;
             // A model waiting for parts is named by its main file, as an accepted one is.
-            const main = onlyParts(problems) ? intakeModule.mainPathOf(files, options) : undefined;
+            const main = onlyParts(problems) ? intakeModule.mainFileOf(files, options) : undefined;
             const path = main === undefined ? {} : { path: main.slice(0, 256) };
             return {
                 settled: record({
@@ -1190,7 +1190,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     }
                 }
             } catch (error) {
-                if (!(error instanceof Refusal)) {
+                if (!(error instanceof ModelError)) {
                     throw error;
                 }
 
@@ -1236,7 +1236,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     ? undefined
                     : {
                           code: "E_MODEL_URL_BLOCKED",
-                          params: { hosts: [cut(to.host)], redirected: true, denied: true },
+                          params: { hosts: [cutParam(to.host)], redirected: true, denied: true },
                       },
             );
         };
@@ -1341,7 +1341,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      * @returns Why not, or undefined to fetch.
      */
     const refusalFor = async (held: Held, target: URL, part: CodedFact): Promise<CodedFact | undefined> => {
-        const params = { hosts: [cut(target.host)], part: cut(String(part.params.name)) };
+        const params = { hosts: [cutParam(target.host)], part: cutParam(String(part.params.name)) };
         // Refused before anyone is asked: only a web address is fetched, and never with a login.
         if (target.protocol !== "https:" && target.protocol !== "http:") {
             return { code: "E_MODEL_URL_BLOCKED", params: { ...params, scheme: target.protocol } };
@@ -1390,10 +1390,10 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         signal?: AbortSignal,
         decided?: Decided,
     ): Promise<Uint8Array | CodedFact> => {
-        const name = cut(String(part.params.name));
+        const name = cutParam(String(part.params.name));
         const target = parseUrl(address, held.url === undefined ? undefined : parseUrl(held.url)?.href);
         if (target === undefined) {
-            const url = cut(address.split(/[?#]/)[0]);
+            const url = cutParam(address.split(/[?#]/)[0]);
             return { code: "E_MODEL_FETCH", params: { url, status: null, offline: false, part: name } };
         }
 
@@ -1412,7 +1412,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             const gate = redirectGate(part.params.role === "texture" ? "texture" : "model", "supplied");
             [bytes] = (await intakeModule.fetchModel(target, { ...limits, maxBytes: room }, signal, gate)).values();
         } catch (error) {
-            if (!(error instanceof Refusal)) {
+            if (!(error instanceof ModelError)) {
                 throw error;
             }
 
@@ -1515,12 +1515,12 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      */
     const heldRecord = async (
         settled: AssetRecord,
-        held: NonNullable<Refusal["held"]>,
+        held: NonNullable<ModelError["held"]>,
         url: string,
     ): Promise<AssetRecord> => {
         const intakeModule = await loadIntake();
-        const main = intakeModule.mainPathOf(held.given, { main: held.main });
-        const parts = intakeModule.partsOf(held.given, { main: held.main }, limits);
+        const main = intakeModule.mainFileOf(held.given, { main: held.main });
+        const parts = intakeModule.listParts(held.given, { main: held.main }, limits);
         return record({
             ...settled,
             url,
@@ -1538,7 +1538,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     const partRefusal = (why: CodedFact, part: string | undefined): CodedFact =>
         part === undefined || why.params.part !== undefined
             ? why
-            : { code: why.code, params: { ...why.params, part: cut(part) } };
+            : { code: why.code, params: { ...why.params, part: cutParam(part) } };
 
     /**
      * One `supply` call, run in its model's turn.
@@ -1568,7 +1568,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         };
         const step = await stepFor(held, parts, answer, signal, decided);
         if ("unused" in step) {
-            const fact = { code: "W_MODEL_PART_UNUSED", params: { fileName: cut(step.unused) } };
+            const fact = { code: "W_MODEL_PART_UNUSED", params: { fileName: cutParam(step.unused) } };
             return record({ ...entry.record, problems: [...entry.record.problems, fact] });
         }
 
@@ -1681,7 +1681,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             const after = await supplyOne(entry, { name, file: found.bytes });
             if (
                 after === before ||
-                after.problems.some((p) => p.params.part === cut(name) && p.code.startsWith("E_"))
+                after.problems.some((p) => p.params.part === cutParam(name) && p.code.startsWith("E_"))
             ) {
                 // The picture would not do: the model waits for the reader as before.
                 entry.record = before;
@@ -1692,7 +1692,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             if (found.base) {
                 substituted.push({
                     code: "W_MODEL_PART_SUBSTITUTED",
-                    params: { name: cut(name), used: cut(found.used) },
+                    params: { name: cutParam(name), used: cutParam(found.used) },
                 });
             }
         }
@@ -1727,7 +1727,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
             const geometry = (options.skipped ?? []).find((name) => roleOfName(name) === "geometry");
             if (geometry !== undefined) {
-                throw supplyError("E_MODEL_PART_REQUIRED", { name: cut(geometry), role: "geometry" });
+                throw supplyError("E_MODEL_PART_REQUIRED", { name: cutParam(geometry), role: "geometry" });
             }
 
             options.signal?.throwIfAborted();
@@ -1746,11 +1746,11 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 return abortable(entry.settled, options.signal);
             }
 
-            let read: Awaited<ReturnType<typeof import("./intake").readSource>>;
+            let read: Awaited<ReturnType<typeof import("babylonjs-models/files").readModelFiles>>;
             try {
-                read = await (await loadIntake()).readSource(source, limits);
+                read = await (await loadIntake()).readModelFiles(source, limits);
             } catch (error) {
-                if (!(error instanceof Refusal)) {
+                if (!(error instanceof ModelError)) {
                     throw error;
                 }
 

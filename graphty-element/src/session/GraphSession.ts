@@ -23,7 +23,7 @@ import {
 import { sessionColumns } from "../algorithms/input/columns";
 import { shareInputs } from "../algorithms/input/ScopedInput";
 import type { CameraState } from "../camera/types";
-import { arrangedDimension, LAYOUT_CATALOG } from "../catalog/layouts";
+import { arrangedDimension, LAYOUT_CATALOG, LAYOUT_DESCRIPTORS } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
 import type {
     EdgeId,
@@ -58,13 +58,14 @@ import { GraphtyError, isGraphtyError } from "../errors";
 import type { FeatureId } from "../features/registry";
 import { type EnabledFeatures, featureOff, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
+import { GRAPHVIZ_PACKAGE } from "../layout/graphviz/engines";
 import { GraphtyLogger } from "../logging/GraphtyLogger";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
 import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
 import { readProjectConfig } from "./commands/config";
-import { declarationKey, FILE_GRAPH_VALUE, type FileGraphValue } from "./commands/data";
+import { declarationKey, REQUESTED_LAYOUT_VALUE, type RequestedLayoutValue } from "./commands/data";
 import { DEFAULT_LAYOUT } from "./commands/layout";
 import { loadNamedShaders } from "./commands/shaderCopies";
 import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
@@ -73,7 +74,7 @@ import { dispatcherOf, registerDispatcher } from "./dispatchers";
 import { englishRunLabel } from "./english";
 import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
-import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
+import { type LayoutRecommendation, recommendLayout } from "./layout";
 import { LayoutRunner } from "./layoutRunner";
 import { RenderLimits } from "./limits";
 import { loadLineOf } from "./loadLine";
@@ -824,12 +825,14 @@ class Session implements ElementSession {
             this.layoutDrive(),
         );
         // What an import asking for a recommended layout chooses, for the graph it loaded.
-        const fileGraph = (): FileGraphValue | undefined =>
-            this.dispatcher.state.graph.values.get(FILE_GRAPH_VALUE) as FileGraphValue | undefined;
+        const requested = (): RequestedLayoutValue | undefined =>
+            this.dispatcher.state.graph.values.get(REQUESTED_LAYOUT_VALUE) as RequestedLayoutValue | undefined;
         let graphviz: boolean | undefined;
         this.dispatcher.services.layoutPrepare = async () => {
-            const file = fileGraph();
-            if (graphviz === undefined && file !== undefined && graphvizEngineFor(file) !== null) {
+            // Probed only when the requested layout needs the Graphviz package.
+            const id = requested()?.layout;
+            const needs = LAYOUT_DESCRIPTORS.find((candidate) => candidate.id === id)?.requires?.package;
+            if (graphviz === undefined && needs === GRAPHVIZ_PACKAGE) {
                 graphviz = await graphvizAvailability().then(({ available }) => available);
             }
         };
@@ -839,7 +842,7 @@ class Session implements ElementSession {
             const groups = groupsOf(this.dispatcher.state.graph.values.get(GROUPS_VALUE));
             const advice = recommendLayout(this.data.statistics({ scope: "all" }), {
                 placedNodes: this.store.seededNodeCount + groups.length,
-                file: fileGraph(),
+                requested: requested(),
                 graphvizAvailable: graphviz === true,
             });
             if (advice === undefined) {

@@ -12,7 +12,7 @@
  */
 
 import { type DuplicatePolicy, INVALID_INDEX } from "@graphty/graph-format";
-import type { FileLayout } from "@graphty/graph-io";
+import type { RequestedLayout } from "@graphty/graph-io";
 
 import { unknownFormat } from "../../catalog/detect";
 import type { EdgeId, NodeId, SourceKey } from "../../catalog/types";
@@ -44,8 +44,8 @@ import {
     type DataImportCommand,
     type DataMutation,
     describeSource,
-    FILE_GRAPH_VALUE,
     type HeldRows,
+    REQUESTED_LAYOUT_VALUE,
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "../commands/data";
@@ -2334,7 +2334,7 @@ export class Ingest<K extends KnownEdge> {
                     progress,
                 );
 
-                keepFileGraph(reader, type, writer);
+                keepRequestedLayout(reader, writer);
 
                 this.drawMadeEndpoints(writer);
                 const errors = reader.getErrorAggregator();
@@ -2666,10 +2666,9 @@ function refuseEmptyOrPartial(
 function heldReader(held: HeldRows): ChunkReader {
     return {
         declaredDirection: held.declaredDirection,
-        // What the file said about the whole graph, from the source that read the rows, so a
-        // draft's load keeps it as `data.import` of the same file does.
-        declaredGraphValues: HELD_READERS.get(held)?.declaredGraphValues ?? null,
-        declaredFileLayout: HELD_READERS.get(held)?.declaredFileLayout ?? null,
+        // The layout the rows ask for, from the source that read them, so a draft's load keeps it
+        // as `data.import` of the same file does.
+        requestedLayout: HELD_READERS.get(held)?.requestedLayout ?? null,
         getErrorAggregator: () => {
             const errors = new ErrorAggregator(held.errorLimit);
             for (const error of held.errors) {
@@ -2683,23 +2682,14 @@ function heldReader(held: HeldRows): ChunkReader {
 }
 
 /**
- * Keep what the file said about the whole graph with the graph, where a layout chosen for the
- * file reads it.
+ * Keep the layout the reader requested with the graph, where a recommended layout reads it.
  * @param reader - The source, once its last chunk is read.
- * @param format - The format it read.
  * @param writer - The command's writer.
  */
-function keepFileGraph(reader: ChunkReader, format: string, writer: GraphWriter): void {
-    const attributes = reader.declaredGraphValues;
-    const layout = reader.declaredFileLayout;
-    if (attributes !== null && attributes !== undefined) {
-        writer.setGraphValues({
-            [FILE_GRAPH_VALUE]: Object.freeze({
-                format,
-                attributes,
-                ...(layout === null || layout === undefined ? {} : { layout }),
-            }),
-        });
+function keepRequestedLayout(reader: ChunkReader, writer: GraphWriter): void {
+    const layout = reader.requestedLayout;
+    if (layout !== null && layout !== undefined) {
+        writer.setGraphValues({ [REQUESTED_LAYOUT_VALUE]: layout });
     }
 }
 
@@ -2708,10 +2698,8 @@ interface ChunkReader {
     readonly declaredDirection: DeclaredDirection | null;
     /** Bytes of the file the source has read so far; absent for held rows. */
     readonly bytesRead?: number;
-    /** The file's graph-level attributes, once its last chunk is read; absent for held rows. */
-    readonly declaredGraphValues?: Readonly<Record<string, unknown>> | null;
-    /** The layout the file asks for, once its last chunk is read; absent for held rows. */
-    readonly declaredFileLayout?: FileLayout | null;
+    /** The layout the data asks for, once its last chunk is read. */
+    readonly requestedLayout?: RequestedLayout | null;
     getErrorAggregator(): ErrorAggregator;
     getData(): AsyncIterable<DataSourceChunk> | Iterable<DataSourceChunk>;
 }

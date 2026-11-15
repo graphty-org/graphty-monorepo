@@ -1,5 +1,5 @@
-import type { Column, GraphSnapshot } from "@graphty/graph-format";
-import { jsonImporter, jsonShapeOf, sniffJsonDialect } from "@graphty/graph-io";
+import type { Column } from "@graphty/graph-format";
+import { jsonImporter } from "@graphty/graph-io";
 import jmespath from "jmespath";
 import { z } from "zod";
 
@@ -14,13 +14,12 @@ import {
     aggregateErrors,
     columnsMapping,
     copiedPath,
-    copyColumns,
     importDocument,
     type ImportedGraph,
+    importJsonRecords,
     importRecords,
     importWhole,
     type ReaderImport,
-    type RecordMapping,
     rememberImport,
     toRecords,
 } from "./graph-io-import";
@@ -58,9 +57,9 @@ export const JsonDataSourceConfig = z.object({
     nodeIdPath: z.string().optional(),
     // An OBO Graphs document's ids: short prefixed ids (the default) or the IRIs the file holds.
     oboIds: z.enum(["curie", "iri"]).optional(),
-    // A graphology or Gephi JSON document's sigma.js settings (`{ renderEdgeLabels: true }`): the application's, never
-    // in the file, so a file is drawn under sigma's defaults unless they are given here. graph-io's `sigmaSettings`.
-    sigmaSettings: z.record(z.string(), z.unknown()).optional(),
+    // Options handed to graph-io's JSON importer as they are, unread here, for a document read whole (graph-io's
+    // JSON import options, such as the viewer settings a document was drawn under).
+    importOptions: z.record(z.string(), z.unknown()).optional(),
     edgeSrcIdPath: z.string().optional(),
     edgeDstIdPath: z.string().optional(),
     node: JsonNodeConfig,
@@ -126,69 +125,15 @@ function readDirectedKey(document: unknown): { directed: boolean; statedBy: stri
 /** The attribute a record's position in the file is carried to graph-io and back under. */
 const ROW_KEY = "graphty.row";
 
-/** The JSON dialects whose documents are read whole by graph-io rather than as plain node and edge arrays. */
-type ReadDialect = "cytoscape" | "graphology" | "vis";
-
-/** The suffix graph-io gives a Cytoscape `data` key or a graphology attribute named like one of its own columns. */
-const DATA_SUFFIX = "#data";
-
 /**
- * The record mapping for a Cytoscape.js document: each `data` key under its own name and `parent`
- * as the id of the parent node. The node's `position` is written by `toRecords`, as for every format.
- * @param snapshot - the imported graph
- * @returns the mapping
- */
-function cytoscapeMapping(snapshot: GraphSnapshot): RecordMapping {
-    const parent = snapshot.nodes.byRole("parent");
-    return {
-        node(row, record): void {
-            copyColumns(snapshot.nodes, row, record);
-            if (parent?.isSet(row)) {
-                record[parent.meta.name] = snapshot.ids.idOf(parent.value(row) as number);
-            }
-        },
-        edge(row, record): void {
-            copyColumns(snapshot.edges, row, record);
-        },
-        path: (kind, column) => (kind === "node" && column === parent ? null : copiedPath(kind, column)),
-    };
-}
-
-/** The suffix graph-io gives a key a dialect does not define, read from the element itself. */
-const ELEMENT_SUFFIX = "#element";
-
-/**
- * Where a graphology or vis.js record holds the value graph-io read into a column: a graphology
- * attribute under `attributes`, any other key at the top of the record. graph-io names a column
- * after its key, with `#data` for an attribute and `#element` for a top-level key that took a name
- * already used.
- * @param record - one record that holds a value of the column
- * @param name - the column's name
- * @returns the keys down to the value, or null when the record holds it under neither
- */
-function rawPath(record: Record<string, unknown>, name: string): string[] | null {
-    if (name.endsWith(ELEMENT_SUFFIX)) {
-        return [name.slice(0, -ELEMENT_SUFFIX.length)];
-    }
-
-    const attributes = isObject(record.attributes) ? record.attributes : null;
-    const key = name.endsWith(DATA_SUFFIX) ? name.slice(0, -DATA_SUFFIX.length) : name;
-    if (attributes !== null && Object.hasOwn(attributes, key)) {
-        return ["attributes", key];
-    }
-
-    return key === name && Object.hasOwn(record, name) ? [name] : null;
-}
-
-/**
- * The import a graphology or vis.js document's records came from, with each column's place on
- * the file's own records, found on the first record that holds a value of it.
+ * The import a document's records came from, each column at the top-level key of its own name on
+ * the first record that holds a value of it.
  * @param imported - graph-io's import of the document
  * @param nodes - the node records handed to the element
  * @param edges - the edge records handed to the element, one per edge graph-io kept, in order
  * @returns the reader import
  */
-function dialectImport(
+function recordsImport(
     imported: ImportedGraph,
     nodes: readonly Record<string, unknown>[],
     edges: readonly Record<string, unknown>[],
@@ -209,8 +154,8 @@ function dialectImport(
         }
     }
 
-    const paths = new Map<Column, string[] | null>();
     const find = (kind: "node" | "edge", column: Column): string[] | null => {
+        const { name } = column.meta;
         if (column.meta.role !== null || copiedPath(kind, column) === null) {
             return null;
         }
@@ -219,13 +164,13 @@ function dialectImport(
         for (let row = 0; row < rows; row++) {
             const record = kind === "node" ? byId.get(snapshot.ids.idOf(row)) : edgeRecords.get(row);
             if (record !== undefined && column.isSet(row)) {
-                return rawPath(record, column.meta.name);
+                return Object.hasOwn(record, name) ? [name] : null;
             }
         }
 
         return null;
     };
-
+    const paths = new Map<Column, string[] | null>();
     return {
         imported,
         path: (kind, name) => {
@@ -426,11 +371,14 @@ export class JsonDataSource extends DataSource {
             this.declareDirection(declared.directed, declared.statedBy);
         }
 
-        // the parsed document, never a head of its text: a vis-network or graphology document may hold
-        // more than any head of node records before its first edge or its `options`
-        const dialect = this.usesDefaultPaths() ? sniffJsonDialect(data) : null;
-        if (dialect === "cytoscape" || dialect === "graphology" || dialect === "vis") {
-            yield* this.readDialect(jsonString, data, dialect);
+        // A document graph-io reads as flat records (it knows where each one keeps its elements, ids
+        // and attributes) is read the same way whatever wrote it.
+        const records = this.usesDefaultPaths()
+            ? await importJsonRecords(jsonString, this.importOptions(), this.errorAggregator)
+            : null;
+        if (records !== null) {
+            rememberImport(this, () => ({ imported: records.imported, path: records.path }));
+            yield* this.chunkData(records.nodes as AdHocData[], records.edges as AdHocData[]);
             return true;
         }
 
@@ -518,7 +466,7 @@ export class JsonDataSource extends DataSource {
                 errorLimit: Number.POSITIVE_INFINITY,
             };
             rememberImport(this, async () =>
-                dialectImport(
+                recordsImport(
                     await importWhole(jsonImporter, jsonString, options, new ErrorAggregator(Number.MAX_SAFE_INTEGER)),
                     nodes as Record<string, unknown>[],
                     edges as Record<string, unknown>[],
@@ -561,6 +509,7 @@ export class JsonDataSource extends DataSource {
             jsonImporter,
             text,
             {
+                ...this.opts.importOptions,
                 ...choice,
                 ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }),
                 ...(this.opts.oboIds === undefined ? {} : { oboIds: this.opts.oboIds }),
@@ -611,6 +560,7 @@ export class JsonDataSource extends DataSource {
             jsonImporter,
             text,
             {
+                ...this.opts.importOptions,
                 dialect,
                 ids: "keep",
                 weightFrom: null,
@@ -624,98 +574,15 @@ export class JsonDataSource extends DataSource {
     }
 
     /**
-     * Read a Cytoscape.js, graphology or vis.js document through graph-io's reader for its dialect,
-     * which knows where each one keeps its elements, ids and attributes.
-     *
-     * A Cytoscape.js element becomes a record of its `data` keys, its `position` and its `classes`.
-     * A graphology or vis.js record is handed over as the file wrote it, as every node-link record
-     * is: a graphology node gains `id`, its key, and keeps its attributes under `attributes`. Every
-     * node record is handed over, so the element counts a repeated id; an edge is handed over when
-     * graph-io kept it.
-     * @param text - the document
-     * @param data - the parsed document
-     * @param dialect - the dialect graph-io recognised
-     * @yields DataSourceChunk objects containing the graph's nodes and edges
+     * The options a document read as records is imported with: the caller's `importOptions`, unread,
+     * under the element's own error limit.
+     * @returns the options
      */
-    private async *readDialect(
-        text: string,
-        data: unknown,
-        dialect: ReadDialect,
-    ): AsyncGenerator<DataSourceChunk, void, unknown> {
-        const imported = await importWhole(
-            jsonImporter,
-            text,
-            {
-                dialect,
-                ids: "keep",
-                weightFrom: null,
-                ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }),
-                ...(dialect === "graphology" && this.opts.sigmaSettings !== undefined
-                    ? { sigmaSettings: this.opts.sigmaSettings }
-                    : {}),
-            },
-            this.errorAggregator,
-            { firstDeclarationWins: true },
-        );
-        if (dialect === "cytoscape") {
-            const { nodes, edges } = toRecords(imported, cytoscapeMapping(imported.snapshot), this);
-            yield* this.chunkData(nodes, edges);
-            return;
-        }
-
-        const { snapshot } = imported;
-        const root = isObject(data) ? data : {};
-        const rawNodes = Array.isArray(root.nodes) ? root.nodes.filter(isObject) : [];
-        const nodes =
-            dialect === "graphology"
-                ? rawNodes.map((node) => ("id" in node || !("key" in node) ? node : { id: node.key, ...node }))
-                : rawNodes;
-        // The coordinates graph-io read (a graphology node keeps them under `attributes`) become
-        // each record's `position`, as for every other format.
-        applyFilePositions(nodes, filePositionsOf(imported), (record) =>
-            typeof record.id === "string" || typeof record.id === "number" ? snapshot.ids.indexOf(record.id) : -1,
-        );
-        const edges = this.keptEdges(snapshot, Array.isArray(root.edges) ? root.edges : [], dialect);
-        rememberImport(this, () => dialectImport(imported, nodes, edges));
-        yield* this.chunkData(nodes as AdHocData[], edges as AdHocData[]);
-    }
-
-    /**
-     * The edge records graph-io kept, in file order: each of its edges is matched to the next
-     * record that names the same two endpoints, which skips the records it refused.
-     * @param snapshot - the imported graph
-     * @param rawEdges - the document's edge records
-     * @param dialect - graphology or vis
-     * @returns the kept records
-     */
-    private keptEdges(
-        snapshot: GraphSnapshot,
-        rawEdges: readonly unknown[],
-        dialect: "graphology" | "vis",
-    ): Record<string, unknown>[] {
-        const shape = jsonShapeOf(snapshot);
-        const sourceKey = shape?.sourceKey ?? (dialect === "vis" ? "from" : "source");
-        const targetKey = shape?.targetKey ?? (dialect === "vis" ? "to" : "target");
-        const pair = snapshot.edges.byRole("pair");
-        const kept: Record<string, unknown>[] = [];
-        let next = 0;
-        for (let row = 0; row < snapshot.edgeCount; row++) {
-            if (pair?.isSet(row) && (pair.value(row) as number) < row) {
-                continue;
-            }
-
-            const source = String(snapshot.ids.idOf(snapshot.edgeSource(row)));
-            const target = String(snapshot.ids.idOf(snapshot.edgeTarget(row)));
-            while (next < rawEdges.length) {
-                const edge = rawEdges[next++];
-                if (isObject(edge) && String(edge[sourceKey]) === source && String(edge[targetKey]) === target) {
-                    kept.push(edge);
-                    break;
-                }
-            }
-        }
-
-        return kept;
+    private importOptions(): Record<string, unknown> {
+        return {
+            ...this.opts.importOptions,
+            ...(this.opts.errorLimit === undefined ? {} : { errorLimit: this.opts.errorLimit }),
+        };
     }
 
     /**

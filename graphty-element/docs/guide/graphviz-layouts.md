@@ -81,13 +81,16 @@ await element.session.data.import({ type: "dot", config: { url: "/graphs/pipelin
 A file whose nodes all carry `pos` keeps those positions instead. Only the first graph of a file
 holding several is read and laid out.
 
-The recommendation says which rule chose the layout, as a code
+The file's request is an ordinary layout request: a layout id and its options
+(`{ layout: "graphviz-neato", options: { ... } }`). Pass the same request to
+`recommendLayout(statistics, { requested })` and you get the same answer for a graph from any
+source. The recommendation says which rule chose the layout, as a code
 (`recommendLayout(...).fact.code`):
 
-| Code                             | When                                                                                                                  |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `recommend.graphviz-file`        | The file is a Graphviz file with no coordinates; `params.engine` names the engine                                     |
-| `recommend.graphviz-unavailable` | The file asked for a Graphviz engine but `@hpcc-js/wasm-graphviz` is not installed, so the next rule's layout is used |
+| Code                                     | When                                                                                                                                                       |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `recommend.requested-layout`             | The requested layout is drawn; `params.layout` names it                                                                                                    |
+| `recommend.requested-layout-unavailable` | The requested layout cannot be used, so the next rule's layout is; `params.unavailable` is `"package"` (`@hpcc-js/wasm-graphviz` missing), `"size"` or `"layout"` |
 
 To ask whether the layouts can run on this page:
 

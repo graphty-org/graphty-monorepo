@@ -278,7 +278,9 @@ describe("the issue loop's throughput rules (#7810)", () => {
     it("sets the slot count in the shared .count file by measured memory, keeping the 10 GB stop rule", () => {
         const flatIssue = issueRound.replace(/\s*\n\s*>?\s*/g, " ");
         assert.match(flatIssue, /tmp\/test-slots\/\.count/);
-        assert.match(flatIssue, /at least 22 GB available/);
+        assert.match(flatIssue, /`node tools\/test-slots\.mjs recount`/);
+        assert.match(flatIssue, /steps one slot at a time between 4 and 6/);
+        assert.match(flatIssue, /at least 17 GB available/);
         assert.match(flatIssue, /under 10 GB available/);
         assert.match(flatIssue, /`some avg300` in `\/proc\/pressure\/memory` is under 1/);
         assert.match(flatIssue, /`some avg60` exceeds 5/);

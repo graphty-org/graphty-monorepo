@@ -113,13 +113,13 @@ export interface ZenodoLink {
 export function parseZenodoUrl(url: string | URL): ZenodoLink {
     const { protocol, host, parts } = readLink(url, "Zenodo", ZENODO_SOURCE_ID);
     if (protocol === "https:" && host === "doi.org") {
-        const record =
-            parts.length === 2 && parts[0] === "10.5281" ? /^zenodo\.(\d+)$/i.exec(parts[1])?.[1] : undefined;
-        return record === undefined ? refuseLink("Zenodo", ZENODO_SOURCE_ID, "format") : { record };
+        return doiRecord(parts);
     }
     // an API link: drop the leading `api` and a trailing `content`
-    const api = parts[0] === "api";
-    const page = api ? parts.slice(1, parts.at(-1) === "content" ? -1 : undefined) : parts;
+    let page = parts;
+    if (parts[0] === "api") {
+        page = parts.at(-1) === "content" ? parts.slice(1, -1) : parts.slice(1);
+    }
     const [kind, record = "", files, ...file] = page;
     const recordPage =
         protocol === "https:" &&
@@ -132,4 +132,14 @@ export function parseZenodoUrl(url: string | URL): ZenodoLink {
     return recordPage && files === "files" && file.length > 0
         ? { record, file: file.join("/") }
         : refuseLink("Zenodo", ZENODO_SOURCE_ID, "format");
+}
+
+/**
+ * The record a Zenodo DOI (`10.5281/zenodo.<id>`) names.
+ * @param parts - the DOI link's path parts
+ * @returns the record
+ */
+function doiRecord(parts: readonly string[]): ZenodoLink {
+    const record = parts.length === 2 && parts[0] === "10.5281" ? /^zenodo\.(\d+)$/i.exec(parts[1])?.[1] : undefined;
+    return record === undefined ? refuseLink("Zenodo", ZENODO_SOURCE_ID, "format") : { record };
 }

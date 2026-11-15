@@ -382,6 +382,16 @@ const PICTURE_TYPES: Readonly<Record<string, string>> = {
 const refusedPictures = new WeakMap<object, string[] | null>();
 
 /**
+ * Emulate the reader's reduced-motion preference, or clear it (test/browser/reduced-motion.test.ts). In the `browser`
+ * project's `commands`.
+ * @param ctx - the browser command context
+ * @param reduce - true for `prefers-reduced-motion: reduce`, false for no preference
+ */
+const emulateReducedMotion: BrowserCommand<[reduce: boolean]> = async (ctx, reduce) => {
+    await ctx.page.emulateMedia({ reducedMotion: reduce ? "reduce" : "no-preference" });
+};
+
+/**
  * The commands the style fidelity harness (test/fidelity/mount.ts) runs around loading a sample, in the `commands` of
  * every project that runs a test file using it (`fidelity`, `browser`, `minimum-work`).
  */
@@ -1059,7 +1069,7 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: { ...mapTileCommands, ...samplePictureCommands },
+                        commands: { ...mapTileCommands, ...samplePictureCommands, emulateReducedMotion },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),

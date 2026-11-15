@@ -473,6 +473,17 @@ every node without one; a node without one is drawn as before. Loading a file wi
 as the program that wrote it draws it. Each distinct value is its own source mesh, so use a few
 levels on a large graph. A 3D view draws by real depth and ignores it.
 
+The numbers behind the default look -- the default edge width
+(`EDGE_CONSTANTS.DEFAULT_LINE_WIDTH`), arrow sizes, line pattern spacing and node shape
+proportions (`SHAPE_CONSTANTS`) -- are exported from `@graphty/graphty-element/schema`, which loads
+no 3D engine, so a settings panel, a test or a Node script can read them:
+
+```typescript
+import { EDGE_CONSTANTS } from "@graphty/graphty-element/schema";
+
+const defaultEdgeWidth = EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+```
+
 A border is a ring drawn outside the node's outline, so it never covers the fill, and an edge
 ends at its outer edge. Its width is in the units of `node.size`, so it scales with the node:
 
@@ -867,6 +878,29 @@ element.session.styles.counts(layerId); // how many elements one layer covers an
 ```
 
 See [Counting What a Layer Paints](./layer-counts) for `counts()`.
+
+### A legend on the graph
+
+The `legend` attribute draws `styles.legend()` over the graph: a color chip per value for a
+categorical encoding, a ramp between the domain's ends for a continuous one. It follows every
+change to the layers and the data, and hides while no layer binds a value. It is off by default.
+
+```html
+<graphty-element legend legend-position="bottom-left" legend-label="Leyenda"></graphty-element>
+<style>
+    graphty-element::part(legend) {
+        font-size: 14px; /* sizes are in em, so this scales the whole key */
+        max-width: 240px;
+    }
+</style>
+```
+
+`legend-position` is `top-left` (the default), `top-right`, `bottom-left` or `bottom-right`;
+`legend-label` is the name a screen reader announces, in your page's language; unset, the
+legend has no name of its own and each field in it is named by the field's name. The overlay is HTML,
+so a screen reader reads each field's name and each value. Its words are the data's: the field's
+name, the values, and the names readers gave them. A screenshot draws the same key with
+`captureScreenshot({ legend: { position: element.legendPosition } })`.
 
 `explain()` answers the question a screenshot cannot: which layer decided each channel of one
 element, and what the layers under it had said before it did.

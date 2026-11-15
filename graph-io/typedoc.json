@@ -19,6 +19,7 @@
         "./src/sources/rest/index.ts",
         "./src/sources/sparql/index.ts",
         "./src/sources/github/index.ts",
+        "./src/sources/gremlin/index.ts",
         "./src/styles/index.ts",
         "./src/positions/index.ts",
         "./src/index.ts"

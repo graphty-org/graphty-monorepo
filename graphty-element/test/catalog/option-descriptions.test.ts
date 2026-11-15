@@ -78,3 +78,45 @@ describe("option descriptors carry no English sentences", () => {
         assert.deepEqual(sentences, []);
     });
 });
+
+describe("catalogue descriptors carry a stable descriptionId beside their sentence", () => {
+    const described: { where: string; descriptor: { description?: string; descriptionId?: string } }[] = [
+        ...BUILT_IN_ALGORITHMS.map((descriptor) => ({ where: `algorithm ${descriptor.key}`, descriptor })),
+        ...LAYOUT_CATALOG.flatMap(({ descriptor, implementations }) => [
+            { where: `layout ${descriptor.id}`, descriptor },
+            ...implementations.map((implementation) => ({
+                where: `layout ${descriptor.id}:${implementation.engine}`,
+                descriptor: implementation,
+            })),
+        ]),
+        ...CAMERA_DESCRIPTORS.map((descriptor) => ({ where: `camera ${descriptor.id}`, descriptor })),
+        ...LOG_SINK_DESCRIPTORS.map((descriptor) => ({ where: `logSink ${descriptor.id}`, descriptor })),
+        ...FORMAT_DESCRIPTORS.map((descriptor) => ({ where: `format ${descriptor.id}`, descriptor })),
+    ];
+
+    it("pairs every description with a descriptionId, unique across the catalogue", () => {
+        const missing = described
+            .filter(({ descriptor }) => descriptor.description !== undefined && descriptor.descriptionId === undefined)
+            .map(({ where }) => where);
+        assert.deepEqual(missing, []);
+        const ids = described.map(({ descriptor }) => descriptor.descriptionId).filter((id) => id !== undefined);
+        assert.strictEqual(new Set(ids).size, ids.length);
+    });
+
+    it("names each by its catalogue and id", () => {
+        const pagerank = BUILT_IN_ALGORITHMS.find((descriptor) => descriptor.key === "pagerank");
+        const force = LAYOUT_CATALOG.find(({ descriptor }) => descriptor.id === "force");
+        assert.strictEqual(pagerank?.descriptionId, "algorithm.pagerank");
+        assert.strictEqual(force?.descriptor.descriptionId, "layout.force");
+        assert.include(
+            force?.implementations.map((implementation) => implementation.descriptionId) ?? [],
+            "layout.force:d3",
+        );
+        assert.strictEqual(CAMERA_DESCRIPTORS[0]?.descriptionId, `camera.${CAMERA_DESCRIPTORS[0]?.id}`);
+        assert.strictEqual(LOG_SINK_DESCRIPTORS[0]?.descriptionId, `logSink.${LOG_SINK_DESCRIPTORS[0]?.id}`);
+        assert.strictEqual(
+            FORMAT_DESCRIPTORS.find((descriptor) => descriptor.id === "graphty")?.descriptionId,
+            "format.graphty",
+        );
+    });
+});

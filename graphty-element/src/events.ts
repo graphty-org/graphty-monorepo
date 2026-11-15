@@ -81,6 +81,7 @@ export type GraphEvent =
     | GraphDataClearedEvent
     | GraphLayoutInitializedEvent
     | CameraStateChangedEvent
+    | OverviewChangedEvent
     | GraphGenericEvent
     | DataLoadingProgressEvent
     | DataLoadingErrorEvent
@@ -260,6 +261,14 @@ export interface CameraStateChangedEvent {
         pan?: { x: number; y: number };
         [key: string]: unknown;
     };
+}
+
+/**
+ * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at
+ * most once per drawn frame, never per node; read `getOverview()` in the listener.
+ */
+export interface OverviewChangedEvent {
+    type: "overview-changed";
 }
 
 // Generic events for internal manager communication

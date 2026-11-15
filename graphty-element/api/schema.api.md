@@ -178,6 +178,40 @@ export const defaultNodeStyle: NodeStyleConfig;
 // @public
 export const defaultRichTextLabelStyle: RichTextStyleType;
 
+// @public (undocumented)
+export const EDGE_CONSTANTS: {
+    readonly DEFAULT_LINE_WIDTH: 8;
+    readonly DEFAULT_LINE_COLOR: "#FFFFFF";
+    readonly DEFAULT_ARROW_WIDTH: 1.25;
+    readonly DEFAULT_ARROW_LENGTH: 0.5;
+    readonly NORMAL_ARROW_ASPECT: 0.8;
+    readonly ARROW_CAP_WIDTH_MULTIPLIER: 20;
+    readonly ARROW_CAP_WIDTH_MINIMUM: 4;
+    readonly ARROW_CAP_LENGTH_MINIMUM: 0.5;
+    readonly MOVING_LINE_BASE_COLOR: "#D3D3D3";
+    readonly MOVING_LINE_DEFAULT_COLOR: "#FF0000";
+    readonly MOVING_TEXTURE_U_SCALE: 5;
+    readonly MOVING_TEXTURE_ANIMATION_SPEED: 0.04;
+    readonly DEFAULT_ARROW_OPACITY: 1;
+    readonly DEFAULT_LINE_OPACITY: 1;
+    readonly ARROW_DOT_RADIUS_MULTIPLIER: 0.15;
+    readonly ARROW_SPHERE_DOT_DIAMETER_RATIO: 0.25;
+    readonly ARROW_DIAMOND_ASPECT_RATIO: 1.5;
+    readonly ARROW_BOX_ASPECT_RATIO: 1;
+    readonly ARROW_CROW_FORK_ANGLE: 30;
+    readonly ARROW_VEE_ANGLE: 60;
+    readonly ARROW_HALF_OPEN_RATIO: 0.5;
+    readonly DASH_LENGTH_MULTIPLIER: 3;
+    readonly DASH_GAP_MULTIPLIER: 2;
+    readonly SINEWAVE_AMPLITUDE_MULTIPLIER: 2;
+    readonly SINEWAVE_FREQUENCY_DEFAULT: 0.5;
+    readonly ZIGZAG_AMPLITUDE_MULTIPLIER: 2;
+    readonly ZIGZAG_FREQUENCY_DEFAULT: 1;
+    readonly BEZIER_CONTROL_POINT_OFFSET: 0.3;
+    readonly BEZIER_POINT_DENSITY: 8;
+    readonly BEZIER_MAX_SEGMENTS: 64;
+};
+
 // @public
 export const EdgeArrowTypes: z.ZodEnum<{
     none: "none";
@@ -3077,6 +3111,40 @@ export type PathKind = "simple" | "trail" | "walk" | "cycle";
 // @public
 export const PLASMA_COLORS: readonly ["#0d0887", "#5302a3", "#8b0aa5", "#b83289", "#db5c68", "#f48849", "#febd2a", "#f0f921"];
 
+// @public (undocumented)
+export enum PolyhedronType {
+    // (undocumented)
+    DODECAHEDRON = 2,
+    // (undocumented)
+    ELONGATED_PENTAGONAL_CUPOLA = 14,
+    // (undocumented)
+    ELONGATED_PENTAGONAL_DIPYRAMID = 13,
+    // (undocumented)
+    ELONGATED_SQUARE_DIPYRAMID = 12,
+    // (undocumented)
+    HEXAGONAL_PRISM = 7,
+    // (undocumented)
+    ICOSAHEDRON = 3,
+    // (undocumented)
+    OCTAHEDRON = 1,
+    // (undocumented)
+    PENTAGONAL_DIPYRAMID = 11,
+    // (undocumented)
+    PENTAGONAL_PRISM = 6,
+    // (undocumented)
+    PENTAGONAL_PYRAMID = 9,
+    // (undocumented)
+    RHOMBICUBOCTAHEDRON = 4,
+    // (undocumented)
+    SQUARE_PYRAMID = 8,
+    // (undocumented)
+    TETRAHEDRON = 0,
+    // (undocumented)
+    TRIANGULAR_DIPYRAMID = 10,
+    // (undocumented)
+    TRIANGULAR_PRISM = 5
+}
+
 // @public
 export const PURPLE_GREEN_COLORS: readonly ["#762a83", "#9970ab", "#c2a5cf", "#e7d4e8", "#f7f7f7", "#d9f0d3", "#a6dba0", "#5aae61", "#1b7837"];
 
@@ -3668,6 +3736,18 @@ export interface ShaderUse {
     readonly place?: ShaderPlace;
     readonly shader: string;
 }
+
+// @public (undocumented)
+export const SHAPE_CONSTANTS: {
+    readonly GOLDEN_RATIO: 1.618;
+    readonly DEFAULT_NODE_SIZE: 1;
+    readonly TORUSKNOT_RADIUS_MULTIPLIER: 0.3;
+    readonly TORUSKNOT_TUBE_MULTIPLIER: 0.2;
+    readonly TORUSKNOT_RADIAL_SEGMENTS: 128;
+    readonly ICOSPHERE_RADIUS_MULTIPLIER: 0.75;
+    readonly CAPSULE_RADIUS_MULTIPLIER: 0.25;
+    readonly TORUS_THICKNESS_MULTIPLIER: 0.5;
+};
 
 // @public
 export function simulateDeuteranopia(hex: string): string;

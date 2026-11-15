@@ -10,6 +10,7 @@ import { resolveEndpoints } from "./endpoints";
 import { type DataLoadingError, ErrorAggregator } from "./ErrorAggregator";
 import { applyFilePositions, filePositionsOf } from "./filePositions";
 import {
+    addErrorOrStop,
     aggregateErrors,
     columnsMapping,
     copiedPath,
@@ -483,7 +484,7 @@ export class JsonDataSource extends DataSource {
                 errorLimit: this.opts.errorLimit,
             },
         );
-        aggregateErrors(imported.report, this.errorAggregator, true);
+        aggregateErrors(imported.report, this.errorAggregator, JsonDataSource.type);
 
         // An edge naming a node the file never declared adds that node to the import, with no
         // position; the element materialises such an endpoint itself, and has never been handed a
@@ -824,9 +825,7 @@ export class JsonDataSource extends DataSource {
      * @param error - the error
      */
     private addError(error: DataLoadingError): void {
-        if (!this.errorAggregator.addError(error)) {
-            throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
-        }
+        addErrorOrStop(this.errorAggregator, error, JsonDataSource.type);
     }
 
     /**
@@ -838,31 +837,23 @@ export class JsonDataSource extends DataSource {
      */
     private isValidNode(node: unknown, index: number): boolean {
         if (node === null || node === undefined) {
-            const canContinue = this.errorAggregator.addError({
+            this.addError({
                 message: `Node at index ${index} is null or undefined`,
                 category: "validation-error",
                 field: "nodes",
                 line: index,
             });
 
-            if (!canContinue) {
-                throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
-            }
-
             return false;
         }
 
         if (typeof node !== "object") {
-            const canContinue = this.errorAggregator.addError({
+            this.addError({
                 message: `Node at index ${index} is not an object (got ${typeof node})`,
                 category: "validation-error",
                 field: "nodes",
                 line: index,
             });
-
-            if (!canContinue) {
-                throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
-            }
 
             return false;
         }
@@ -881,16 +872,12 @@ export class JsonDataSource extends DataSource {
             const expectedFields = customIdPath
                 ? `'id', 'name', 'key', 'label', or '${customIdPath}'`
                 : "'id', 'name', 'key', or 'label'";
-            const canContinue = this.errorAggregator.addError({
+            this.addError({
                 message: `Node at index ${index} is missing identifier field (expected ${expectedFields})`,
                 category: "missing-value",
                 field: "nodes.id",
                 line: index,
             });
-
-            if (!canContinue) {
-                throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
-            }
 
             return false;
         }
@@ -907,31 +894,23 @@ export class JsonDataSource extends DataSource {
      */
     private isValidEdge(edge: unknown, index: number): boolean {
         if (edge === null || edge === undefined) {
-            const canContinue = this.errorAggregator.addError({
+            this.addError({
                 message: `Edge at index ${index} is null or undefined`,
                 category: "validation-error",
                 field: "edges",
                 line: index,
             });
 
-            if (!canContinue) {
-                throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
-            }
-
             return false;
         }
 
         if (typeof edge !== "object") {
-            const canContinue = this.errorAggregator.addError({
+            this.addError({
                 message: `Edge at index ${index} is not an object (got ${typeof edge})`,
                 category: "validation-error",
                 field: "edges",
                 line: index,
             });
-
-            if (!canContinue) {
-                throw new Error(`Too many errors (${this.errorAggregator.getErrorCount()}), aborting parse`);
-            }
 
             return false;
         }

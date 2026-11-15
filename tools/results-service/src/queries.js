@@ -118,29 +118,44 @@ export async function trackedIssues(db, family, now) {
     return rows.map((r) => r.issue);
 }
 
-// Failures master's own runs of the asked variants saw on exactly `base`, or with the same variant and
-// inputs key (6.3). Another variant's failure (flags=on for a flags=off run) excuses nothing.
+// Failures master's own runs of the asked variants saw on exactly `base`, with the same variant and inputs key, or
+// in the variant's newest full run (6.3): a master break shows there before any base check runs on a pull
+// request's own base (#8051). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
-    // 1 + 3 parameters a variant: chunks of 30 stay under D1's 100 (an everything run asks about ~55 variants)
+    // 1 + 4 parameters a variant: chunks of 24 stay under D1's 100 (an everything run asks about ~55 variants)
     const rows = [];
-    for (let i = 0; i < pairs.length; i += 30)
-        rows.push(...(await failingOnBaseChunk(db, base, pairs.slice(i, i + 30))));
-    return rows.filter((r) => !changed.has(r.file)); // rule 1, the file itself; its import closure is the client's
+    for (let i = 0; i < pairs.length; i += 24)
+        rows.push(...(await failingOnBaseChunk(db, base, pairs.slice(i, i + 24))));
+    return rows.filter((r) => !changed.has(r.file)); // rule 1: a changed test file is never excused
 }
 
+// The newest full run's failures are a second SELECT driven from each variant's newest full commit, joined by the
+// inv_sha index. As a third OR term with a correlated subquery, the newest commit was looked up again for every
+// failed master invocation of the variants, and the read held the single-threaded D1 database long enough that
+// half of pull request plan reads answered HTTP 500 (#8208). UNION keeps DISTINCT across both halves.
 async function failingOnBaseChunk(db, base, pairs) {
     const variants = pairs.map(([v]) => v);
     const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
+    const columns = "i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue";
     return all(
         db,
-        `SELECT DISTINCT i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
+        `SELECT ${columns}
          FROM failure f JOIN invocation i ON i.id = f.invocation
          LEFT JOIN tracked_issue t ON t.signature = f.signature
          WHERE i.kind IN ${MASTER_EVIDENCE} AND i.outcome = 'failed'
-           AND ((i.sha = ? AND i.variant IN (${placeholders(variants)}))${same})`,
+           AND ((i.sha = ? AND i.variant IN (${placeholders(variants)}))${same})
+         UNION
+         SELECT ${columns}
+         FROM (SELECT variant, sha, max(started_at) FROM invocation
+               WHERE kind = 'full' AND variant IN (${placeholders(variants)}) GROUP BY variant) n
+         JOIN invocation i ON i.sha = n.sha AND i.variant = n.variant
+         JOIN failure f ON f.invocation = i.id
+         LEFT JOIN tracked_issue t ON t.signature = f.signature
+         WHERE i.kind = 'full' AND i.outcome = 'failed'`,
         base ?? "",
         ...variants,
         ...pairs.flat(),
+        ...variants,
     );
 }
 

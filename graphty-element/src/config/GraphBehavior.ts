@@ -34,12 +34,8 @@ const NodeBehaviorOpts = z
         depthIndependentSize: z.boolean().optional(),
 
         /*
-         * How wide every node outline is drawn, as a multiple of the renderer's own stroke (about
-         * four device pixels at 1).
-         *
-         * ONE WIDTH FOR EVERY OUTLINE, which is why it is a graph setting and not a style channel:
-         * the renderer draws all outlines in one full-screen pass, and the stroke's width belongs
-         * to that pass (see the `node.outline` channel's caveat). Unset, the renderer's own width.
+         * How wide a node outline is drawn when its style sets no width (the `node.outlineWidth`
+         * channel), as a multiple of the ring's own band. Unset, the ring's own width (1).
          */
         outlineWidth: z.number().positive().max(10).optional(),
     })
@@ -107,7 +103,9 @@ const CameraBehaviorOpts = z
          * pivot: the 3D camera glides to look at it and orbits, spins and zooms about it, the 2D view
          * glides to center it, and in VR or AR the reader's turns and scaling happen about it without
          * moving the reader. The pivot follows the selected nodes while they move, and stays where it
-         * is when the selection is cleared.
+         * is when the selection is cleared. A selection made by a right-click or a touch-and-hold
+         * (a request for a context menu, including one the page's own `contextmenu` handler makes)
+         * leaves the camera where it is, so a menu opened at the pointer stays beside its node.
          */
         pivotOnSelection: z.boolean().default(false),
         /*
@@ -133,6 +131,18 @@ const CameraBehaviorOpts = z
          * when the layout and the styles are, however the camera moves.
          */
         autoRotate: z.number().min(0).default(0),
+        /*
+         * How long `autoRotate` waits after the reader last moved the camera -- a press or drag on
+         * the canvas, a pinch, a wheel, a camera key, a node drag -- before it turns again, in
+         * milliseconds of frames drawn, or "never".
+         *
+         * 0 BY DEFAULT, so the turning carries on as soon as the reader lets go. A number waits
+         * that long once they stop, and every move of theirs starts the wait again. "never" stops
+         * the turning at the reader's first move until `autoRotate` or this setting is changed.
+         * Only read while `autoRotate` is above 0. The element's own framing (zoom-to-fit, a glide
+         * to the pivot) and `setCameraState` are not the reader's moves and never start a wait.
+         */
+        autoRotateResume: z.union([z.number().min(0), z.literal("never")]).default(0),
         /*
          * Room, in CSS pixels, that framing the graph leaves clear at each edge of the canvas, for
          * a page that draws its own panels over the graph.
@@ -272,27 +282,18 @@ const GraphLayoutOpts = z.strictObject({
     groupsFollowMembers: z.boolean().optional(),
 
     /*
-     * Whether a layout runs over only what the visibility filter shows.
+     * Whether a layout runs over only what is shown: the working graph, what the filters leave
+     * shown. The time window is never part of it: a window step, a play and its pause hide
+     * elements by drawing and lay nothing out.
      *
-     * True: a node the filter hides takes no part in the layout -- it pushes and pulls nothing,
-     * its edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot
-     * -- and it stays where it was, so taking the filter away shows it where it was. The layout
-     * runs again whenever what the filter shows changes, and when this is switched. Every layout
-     * honours it. Unset or false, the default, a layout runs over the whole graph, hidden nodes
-     * included.
+     * True: a node a filter hides takes no part in the layout -- it pushes and pulls nothing, its
+     * edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot -- and
+     * it stays where it was, so taking the filter away shows it where it was. The layout runs again
+     * whenever a filter changes what is shown, and when this is switched. Every layout honours it.
+     * False: a layout runs over the whole graph, hidden nodes included. Unset, the default: as the
+     * session's `workingGraph` option says.
      */
     visibleOnly: z.boolean().optional(),
-
-    /*
-     * What `visibleOnly` does while time plays, when the moving time window changes what the
-     * filter shows every frame.
-     *
-     * "follow": it runs again at every change, as it does when time is still -- a full layout per
-     * frame, thrown away by the next one. "hold": the layout keeps the nodes where they are while
-     * time plays and runs again once, over what is shown, when the play pauses or ends. Unset means
-     * "follow". A layout over the whole graph ignores it.
-     */
-    visibleOnlyWhilePlaying: z.enum(["hold", "follow"]).optional(),
 });
 
 /** How the element drives a layout, as the behaviour configuration resolves it. */

@@ -91,6 +91,8 @@ export interface RowContext {
     readonly many?: ManyRows;
     /** Which of the row's fields a layer above covers, where the row is a tree row. */
     readonly paintedOver?: (channel: Channel) => PaintedOver | undefined;
+    /** `"listbox"`: a choice property picks from a named, searchable list with the graph's values first. */
+    readonly pickers?: "listbox";
 }
 
 /** Several rows edited as one: each write reaches every row, one undo step. */
@@ -799,6 +801,7 @@ function fieldControl(props: FieldControlProps): React.ReactNode {
                 waiting={fresh}
                 swatches={ctx.documentColors}
                 extraChoices={extraChoices}
+                listbox={ctx.pickers === "listbox" ? ctx.session : undefined}
                 onChange={pick}
             />
         );
@@ -881,6 +884,7 @@ function OneValue({
                 value={value}
                 shown={value}
                 extraChoices={extraChoices}
+                listbox={ctx.pickers === "listbox" ? ctx.session : undefined}
                 onChange={pick}
             />
         );

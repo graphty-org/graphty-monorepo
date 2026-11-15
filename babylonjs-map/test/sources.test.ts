@@ -84,10 +84,11 @@ describe("resolveSource", () => {
         expect(plan.rect({ z: 0, x: 0, y: 0 })).toEqual({ x0: 0.25, y0: 0.125, x1: 0.5, y1: 0.25 });
     });
 
-    it("gives every named source an attribution and a max zoom", () => {
+    it("gives every named tile source an attribution and every named source a max zoom", () => {
         for (const [id, source] of Object.entries(mapSources)) {
             const resolved = resolveSource(source);
-            expect(resolved.attribution, id).not.toBe("");
+            // The bundled Natural Earth picture is public domain and carries no credit.
+            expect(resolved.attribution === "", id).toBe(!("tiles" in source));
             expect(resolved.maxZoom, id).toBeGreaterThanOrEqual(0);
         }
     });

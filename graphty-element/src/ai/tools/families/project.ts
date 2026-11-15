@@ -6,11 +6,20 @@
 import { z } from "zod";
 
 import type { MeasurementDeclaration } from "../../../catalog/types";
+import { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "../../../session/backgroundImage";
 import { CONFIG_KEYS, unwrap } from "../../../session/configKeys";
 import type { ProjectConfigPatch } from "../../../session/types";
 import { MAX_STRING, text } from "../fields";
 import { toJson } from "../shape";
-import { type ActionContext, type ActionSpec, type ToolDefinition, ToolRefusal } from "../types";
+import {
+    type ActionContext,
+    type ActionSpec,
+    gated,
+    GateHold,
+    type JsonObject,
+    type ToolDefinition,
+    ToolRefusal,
+} from "../types";
 import { coded, ok } from "./common";
 
 /** The longest run name `runs.rename` takes. */
@@ -30,6 +39,7 @@ export const SETTING_GROUPS = Object.freeze({
     name: "The project's name.",
     framing: "How the camera frames the graph.",
     layoutTransition: "How nodes move to a new layout.",
+    minMarkSize: "The smallest size nodes and edges are drawn.",
     pinnedStyle: "How pinned nodes are drawn.",
     runPlacement: "Where a run's style layers go in the stack.",
     startingRows: "The style rows a new project starts with.",
@@ -97,13 +107,65 @@ const settings = Object.fromEntries(
     ]),
 );
 
+/**
+ * The longest side a background picture may be kept at on this device: the background image
+ * default, or the GPU's own texture limit when it is smaller.
+ * @param graph - The renderer, when there is one.
+ * @returns Pixels.
+ */
+function backgroundSizeLimit(graph: unknown): number {
+    const caps = (graph as { engine?: { getCaps?: () => { maxTextureSize?: number } } }).engine?.getCaps?.();
+    return Math.min(DEFAULT_BACKGROUND_IMAGE_SIZE, caps?.maxTextureSize ?? DEFAULT_BACKGROUND_IMAGE_SIZE);
+}
+
+/**
+ * Make a picture with the provider's image model and set it as the background. The reader is
+ * asked first (gate `"paid"`, preview `{ provider, model, costUsd }`), since the provider bills it;
+ * once made it is drawn at once, and one undo of the message brings the previous background back.
+ * @param context - The action's context.
+ * @param prompt - What the picture shows.
+ * @returns What was made: its size as stored, the model and the cost.
+ */
+async function generateBackground(context: ActionContext, prompt: string): Promise<JsonObject> {
+    const { host, message, tx, signal } = context;
+    const provider = host.provider ?? "";
+    if (host.image === undefined) {
+        // The procedural alternative, offered by name: a background shader (`shaders` add).
+        throw new ToolRefusal("AI_NOT_AVAILABLE", {
+            name: "generate_background",
+            requirement: "image-model",
+            provider,
+            alternative: "shaders",
+        });
+    }
+
+    const quote = { provider, model: host.image.model.id, costUsd: host.image.model.costUsd };
+    if (gated(message, "paid")) {
+        throw new GateHold("paid", quote);
+    }
+
+    const made = await host.image.generate(prompt, signal);
+    if (made.code !== "AI_COMPLETED") {
+        throw new ToolRefusal(made.code, made.params);
+    }
+
+    const prepared = await prepareBackgroundImage(made.image, { maxSize: backgroundSizeLimit(context.graph) });
+    if (!prepared.ok) {
+        throw new ToolRefusal(prepared.problem.code, prepared.problem.params as JsonObject);
+    }
+
+    await coded(() => tx.config.set({ background: { backgroundType: "skybox", data: prepared.data } }));
+    const { width, height, scaled } = prepared;
+    return { ...quote, width, height, scaled, bytes: prepared.data.length };
+}
+
 /** The `project` tool. */
 export const projectTool: ToolDefinition = {
     name: "project",
     plainName: "Project",
     core: false,
     description:
-        "Project settings (background, selection style, layout behavior, data columns, direction), its name, what a column measures, and whether it has unsaved changes. Saving is the reader's application's. The data source's own name is import_data rename_source.",
+        "Project settings (background, selection style, layout behavior, data columns, direction), its name, what a column measures, and whether it has unsaved changes; a background picture made from a prompt. Saving is the reader's application's. The data source's own name is import_data rename_source.",
     example: { action: "settings", data: { knownFields: { nodeLabelPath: "name" } } },
     actions: [
         {
@@ -125,6 +187,16 @@ export const projectTool: ToolDefinition = {
                 await coded(() => tx.config.set(patch as ProjectConfigPatch));
                 return ok(undefined, { changed: Object.keys(patch).join(",") });
             },
+        },
+        {
+            name: "generate_background",
+            summary:
+                "Make a picture from a prompt with the provider's image model and set it as the background (a photo dome around the graph). The provider bills each picture; the reader approves the cost first. Without an image model, a background shader (shaders) draws one instead.",
+            fields: { prompt: z.string().min(1).max(MAX_STRING).describe("What the picture shows.") },
+            effect: "write",
+            keywords: ["image", "picture", "photo", "skybox", "wallpaper", "backdrop"],
+            reaches: [{ op: "config.set" }, { door: "SessionConfig.set" }],
+            run: async (context, args) => ok(undefined, await generateBackground(context, text(args.prompt))),
         },
         {
             name: "rename",

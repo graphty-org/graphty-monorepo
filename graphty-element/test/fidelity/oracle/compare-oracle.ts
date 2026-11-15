@@ -1952,6 +1952,11 @@ const fillOf = (b: PBox, width: number, height: number): number =>
  *     random placement, Cytoscape desktop's load layout, vis-network's physics against graphty's force layout): where
  *     those layouts are unrelated, where a node sits and how large the nodes are beside the spacing are each
  *     program's layout and not the file's, and are not judged
+ * @param options.labelsAvoidOverlap - the program hides a node's label where it would overlap another (Gephi's
+ *     Preview `node.label.avoidOverlap`, on by default): which labels it hides follows its own layout, so where each
+ *     side laid the file out itself (`ownLayouts`, unrelated layouts) a label the oracle does not show and graphty
+ *     does is not counted missing (gexf-hsk-chars, #8013: Gephi hides 38 to 50 of 868 labels on its own random
+ *     placement, different ones each run). A label the oracle shows and graphty does not still fails.
  * @param options.judges - which judgments to keep (default: all): a sheet judged per setting keeps, against each
  *     reference, only the properties of the settings that reference draws (`judges.ts`)
  * @returns the report, rounded
@@ -1961,7 +1966,13 @@ export function compareOracle(
     oracleScene: PScene,
     graphtyScene: PScene,
     association: unknown = null,
-    options: { mirror?: boolean; standIn?: boolean; ownLayouts?: boolean; judges?: OracleJudges } = {},
+    options: {
+        mirror?: boolean;
+        standIn?: boolean;
+        ownLayouts?: boolean;
+        labelsAvoidOverlap?: boolean;
+        judges?: OracleJudges;
+    } = {},
 ): OracleReport {
     const oracle = withoutCaptions(oracleScene, graphtyScene);
     const graphty = withoutCaptions(graphtyScene, oracleScene);
@@ -2097,6 +2108,8 @@ export function compareOracle(
     // Two layouts of a file that stores no positions, each its program's own and unrelated: neither where a node sits
     // nor its size beside the spacing is the file's
     const layoutJudged = !(options.ownLayouts === true && (transform?.unrelatedLayout ?? false));
+    // which node labels a program that avoids label overlap hides is its own layout's, not the file's
+    const oracleMayHideLabels = options.labelsAvoidOverlap === true && !layoutJudged;
     /** A size judged against each side's own spacing and extent, which the fitted scale cannot hide. */
     const layoutRelative = (p: "node.sizeToSpacing" | "node.sizeToExtent" | "edge.arrowToSpacing"): number | null => {
         // each program's own layout settles at its own spacing, so the extent and an arrowhead beside the spacing are
@@ -2255,6 +2268,8 @@ export function compareOracle(
                 ? null
                 : { kind: "box", o: outerBox(o, ow, oh), g: outerBox(g, gw0, gh0), vec: vecToOracle, pixel },
             oracle.labelGeometry !== false,
+            true,
+            oracleMayHideLabels,
         );
     }
 
@@ -2347,6 +2362,14 @@ export function compareOracle(
         at: PNode | undefined,
         end: Pt | undefined,
     ): [PNode | undefined, PNode | undefined] => {
+        // a node the program drew no body for but says where it drew (`PNode.drawnBox`: vis-network's text and icon
+        // nodes, whose lines it runs to their middle) is cut at that box, and graphty's line at its own node's box
+        if (on?.drawnBox === true && at !== undefined) {
+            return [
+                { ...on, shape: "rect" },
+                { ...at, figure: undefined, ...(bodied(at) ? {} : { shape: "rect" }) },
+            ];
+        }
         if (!bodied(on) || !bodied(at)) {
             return [undefined, undefined];
         }
@@ -3752,6 +3775,7 @@ function judgeLabel(
     place: LabelPlace | null,
     geometry: boolean,
     words = true,
+    oracleMayHide = false,
 ): void {
     const T = ORACLE_TOLERANCES;
     // A label under one render pixel is no label to a reader, on graphty's side (extract-scene.ts) and the oracle's.
@@ -3761,6 +3785,10 @@ function judgeLabel(
     // and graphty's by the same measure, for a text the scene keeps however small: a node's further texts
     // (`shape.texts`, Cytoscape's chart item labels at their default 1 px, xgmml-specimen-images-charts-p5)
     const g = graphty !== null && (graphty.sizePx === 0 || graphty.sizePx >= T.legibleFontPx) ? graphty : null;
+    // the oracle hid it by its own choice (overlap avoidance on an unrelated layout): nothing to judge
+    if (oracle === null && oracleMayHide) {
+        return;
+    }
     if (words) {
         j.add("label.present", kind, id, (o === null) === (g === null) ? 0 : 1, o?.content ?? null, g?.content ?? null);
     }

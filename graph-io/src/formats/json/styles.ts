@@ -21,6 +21,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { itemAt } from "../../common/text.js";
+import { flipY } from "../../positions/convert.js";
 import { canonColor } from "../../styles/canon/color.js";
 import { canonEnum } from "../../styles/canon/enums.js";
 import { canonBoolean, canonNumber, canonOpacity } from "../../styles/canon/number.js";
@@ -288,6 +289,28 @@ function directedArrows(snapshot: GraphSnapshot): {
 function cells(snapshot: GraphSnapshot, target: StyleTarget, name: string): ((i: number) => unknown) | null {
     const table = target === "node" ? snapshot.nodes : snapshot.edges;
     return table.has(name) ? (i: number) => plainCell(table.value(name, i)) : null;
+}
+
+/**
+ * vis.js: each node's `x` and `y` as the file wrote them: the role-`position` column the importer made of numeric ones
+ * (its y flipped back to down), else the plain `x` / `y` cells (text vis-network parses as a number).
+ * @param snapshot - the graph
+ * @returns the x and y readers
+ */
+function visPlaces(
+    snapshot: GraphSnapshot,
+): readonly [((i: number) => unknown) | null, ((i: number) => unknown) | null] {
+    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    const position = snapshot.nodes.byRole("position");
+    if (position === null) {
+        return [xs, ys];
+    }
+    const down = (k: 0 | 1, v: number): number => (k === 1 ? flipY(v) : v);
+    const at =
+        (k: 0 | 1, plain: ((i: number) => unknown) | null) =>
+        (i: number): unknown =>
+            position.isSet(i) ? down(k, (position.value(i) as ArrayLike<number>)[k]) : plain?.(i);
+    return [at(0, xs), at(1, ys)];
 }
 
 /**
@@ -1028,6 +1051,21 @@ function visIcon(layer: VisLayer, site: CanonSite): Row {
 }
 
 /**
+ * How far below an icon node's center vis-network centers its label (vis-network 9.1.9 Icon.draw): half its height,
+ * `icon.size` (50) plus its top and bottom margins (5 unless given), then 5 more (`iconTextSpacing`), the label's
+ * lines centered there on a "middle" baseline (Label.calculateLabelSize).
+ * @param layer - the node's merged layer
+ * @returns the distance down
+ */
+function visIconLabelDrop(layer: VisLayer): number {
+    const size = typeof layer.iconSize === "number" && layer.iconSize >= 0 ? layer.iconSize : 50;
+    const m = layer.margin;
+    const side = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : VIS_MARGIN);
+    const [top, bottom] = isJsonObject(m) ? [side(m.top), side(m.bottom)] : [side(m), side(m)];
+    return (size + top + bottom) / 2 + 5;
+}
+
+/**
  * vis-network's `imagePadding`: one number for every side, or `{ top, right, bottom, left }` (each 0 unless given).
  * @param raw - the option
  * @returns the four sides, or null for no padding
@@ -1493,7 +1531,8 @@ function visRunAlign(layer: VisLayer, target: StyleTarget): "baseline" | "hangin
         );
     }
     const shape = typeof layer.shape === "string" ? layer.shape : "ellipse";
-    return VIS_SIZED.has(shape) ? "hanging" : "middle";
+    // an icon's label is drawn on a "middle" baseline (Icon.draw passes none to Label.draw)
+    return VIS_SIZED.has(shape) && shape !== "icon" ? "hanging" : "middle";
 }
 
 /**
@@ -1655,9 +1694,10 @@ type PutRow = (p: string, v: StyleValue | null) => void;
 function visNodeValues(layer: VisLayer, sized: boolean, put: PutRow, site: (property: string) => CanonSite): void {
     if (layer.shape !== undefined) {
         put("shape", canonEnum("shape", layer.shape, "vis", site("shape")));
-        // vis-network draws a label inside the shapes sized by their label and below the shapes sized by `size`
+        // vis-network draws a label inside the shapes sized by their label and below the shapes sized by `size`; an
+        // icon's label is centered a fixed distance below its center (visIconLabelDrop), so it is placed from there
         if (typeof layer.shape === "string") {
-            put("labelPosition", VIS_SIZED.has(layer.shape) ? "bottom" : "center");
+            put("labelPosition", VIS_SIZED.has(layer.shape) && layer.shape !== "icon" ? "bottom" : "center");
         }
     }
     if (sized && layer.size !== undefined) {
@@ -1701,7 +1741,10 @@ function visNodeOpacityAndDashes(layer: VisLayer, put: PutRow, site: (property: 
  */
 function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) => CanonSite): void {
     if (layer.edgeOpacity !== undefined) {
-        put("opacity", canonOpacity(layer.edgeOpacity, "vis", site("opacity")));
+        // as on a node, only a hex or rgb() color takes it: a named color is drawn opaque (EdgeBase.getColor,
+        // overrideOpacity; json-vis-synth 42->52, "blue" at opacity 0.4)
+        const opacity = canonOpacity(layer.edgeOpacity, "vis", site("opacity"));
+        put("opacity", visTakesOpacity(layer.edgeColor) ? opacity : null);
     }
     if (layer.width !== undefined) {
         put("width", canonNumber(layer.width, site("width")));
@@ -1958,7 +2001,7 @@ function visNodeRow(
     const shaped = sized
         ? visSizedShape(merged, shape, visRadius(merged, range, site), site)
         : visFitShape(merged, shape);
-    if (sized && merged.label !== undefined) {
+    if (sized && shape !== "icon" && merged.label !== undefined) {
         const size =
             visLabelScaled(merged, range) ?? (typeof merged.fontSize === "number" ? merged.fontSize : VIS_FONT_SIZE);
         // a label in runs below the node hangs lower by half of what its larger runs make its lines taller
@@ -2039,7 +2082,11 @@ function visSizedShape(merged: VisLayer, shape: string, radius: number, site: (p
     Object.assign(row, visImage(merged, shape, { width: 2 * radius, height: 2 * radius }));
     if (shape === "icon") {
         // an icon node is its glyph alone: vis-network draws no body, no fill and no border for it (Icon.draw)
-        Object.assign(row, { shape: "none" }, visIcon(merged, site("glyphColor")));
+        Object.assign(
+            row,
+            { shape: "none", labelOffsetY: visIconLabelDrop(merged) },
+            visIcon(merged, site("glyphColor")),
+        );
     }
     // vis-network's triangleDown: its triangle turned over, a corner down
     if (shape === "triangleDown") {
@@ -2530,7 +2577,7 @@ function visGeometry(snapshot: GraphSnapshot, nodeValues: Values, shapes: readon
         }
         return typeof v === "number" && Number.isFinite(v) ? Math.trunc(v) : Number.NaN;
     };
-    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    const [xs, ys] = visPlaces(snapshot);
     const num = (v: StyleValue | null | undefined): number | null => (typeof v === "number" && v > 0 ? v : null);
     return {
         at: (i) => {
@@ -2845,7 +2892,7 @@ function visSupport(physics: unknown, layout: unknown, placed: boolean): Row | n
  * @returns true when every node is placed
  */
 function visPlacesAll(snapshot: GraphSnapshot): boolean {
-    const [xs, ys] = [cells(snapshot, "node", "x"), cells(snapshot, "node", "y")];
+    const [xs, ys] = visPlaces(snapshot);
     // as visGeometry reads a place: a number, or a string vis-network parses as one
     const at = (cell: ((i: number) => unknown) | null, i: number): boolean => {
         const v = cell?.(i);

@@ -11,7 +11,7 @@ import { userEvent } from "vitest/browser";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
-import { click, type Point, press, release } from "../helpers/real-input";
+import { click, type Point, press, release, wheel } from "../helpers/real-input";
 
 const WIDTH = 400;
 const HEIGHT = 300;
@@ -30,10 +30,12 @@ afterEach(() => {
 /**
  * A mounted element holding a small graph at fixed places, drawn.
  * @param viewMode - The view mode.
+ * @param before - Settings made before the element is attached and the graph loads.
  * @returns The element.
  */
-async function mounted(viewMode: "2d" | "3d"): Promise<Graphty> {
+async function mounted(viewMode: "2d" | "3d", before?: (element: Graphty) => void): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    before?.(element);
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
     element.style.height = `${String(HEIGHT)}px`;
@@ -133,6 +135,124 @@ describe("camera.autoRotate", () => {
         await drawnFrames(element.graph.getScene(), 10);
 
         assert.strictEqual(camera(element), before);
+    });
+});
+
+/**
+ * The frame time the element is handed, added up from now, as it turns the camera by: each frame's
+ * time capped at the 100 ms `autoRotate` turns for at most, and uncapped, as `autoRotateResume` counts.
+ * @param element - The element.
+ * @returns The time so far, capped and uncapped, in milliseconds.
+ */
+function frameTime(element: Graphty): () => { capped: number; raw: number } {
+    const { graph } = element;
+    const original = graph.update.bind(graph);
+    const total = { capped: 0, raw: 0 };
+    graph.update = (frameMs: number): void => {
+        total.capped += Math.min(frameMs, 100);
+        total.raw += frameMs;
+        original(frameMs);
+    };
+    cleanups.push(() => {
+        graph.update = original;
+    });
+    return () => ({ ...total });
+}
+
+/**
+ * The angle turned between two camera states about the vertical axis, in radians, wrapped to (-pi, pi].
+ * @param from - The earlier state.
+ * @param to - The later state.
+ * @returns The angle.
+ */
+function turnedBetween(from: ReturnType<Graphty["getCameraState"]>, to: ReturnType<Graphty["getCameraState"]>): number {
+    const raw = angleAround(to) - angleAround(from);
+    return Math.atan2(Math.sin(raw), Math.cos(raw));
+}
+
+describe("camera.autoRotate speed and resume", () => {
+    it("turns by the speed times the frame time, however long the frames take", async () => {
+        const element = await mounted("3d");
+        element.layoutBehavior = { camera: { autoRotate: 0.5 } };
+        await drawnFrames(element.graph.getScene(), 2);
+        const elapsed = frameTime(element);
+        const before = element.getCameraState();
+
+        await drawnFrames(element.graph.getScene(), 20);
+
+        const after = element.getCameraState();
+        const expected = (0.5 * elapsed().capped) / 1000;
+        assert.isAbove(expected, 0, "frames were drawn");
+        assert.closeTo(Math.abs(turnedBetween(before, after)), expected, expected * 0.15 + 0.01);
+    });
+
+    it("waits after a wheel for the time autoRotateResume sets, then turns again", async () => {
+        const element = await mounted("3d", (el) => {
+            el.layoutBehavior = { camera: { autoRotate: 1, autoRotateResume: 400 } };
+        });
+        await drawnFrames(element.graph.getScene(), 2);
+
+        // Counted from before the wheel, so the count is never behind the element's own wait.
+        const elapsed = frameTime(element);
+        await wheel(element, EMPTY, 100);
+        await drawnFrames(element.graph.getScene(), 2);
+        const held = camera(element);
+        const samples: { ms: number; camera: string }[] = [];
+        while (elapsed().raw < 700) {
+            await drawnFrames(element.graph.getScene(), 1);
+            samples.push({ ms: elapsed().raw, camera: camera(element) });
+        }
+
+        for (const sample of samples.filter((s) => s.ms < 300)) {
+            assert.strictEqual(sample.camera, held, `still at ${String(sample.ms)} ms after the wheel`);
+        }
+        assert.notStrictEqual(samples.at(-1)?.camera, held, "turning again once the reader left it alone");
+    });
+
+    it("stops for good at a key press with autoRotateResume never, until the setting changes", async () => {
+        const element = await mounted("3d");
+        // Focus for the key, before the turning starts: the click is a press of the reader's too.
+        await click(element, EMPTY);
+        element.layoutBehavior = { camera: { autoRotate: 1, autoRotateResume: "never" } };
+        await drawnFrames(element.graph.getScene(), 2);
+        const turning = camera(element);
+        await drawnFrames(element.graph.getScene(), 2);
+        assert.notStrictEqual(camera(element), turning, "turning before the key");
+
+        await userEvent.keyboard("{ArrowLeft}");
+        await drawnFrames(element.graph.getScene(), 12);
+        const held = camera(element);
+        await drawnFrames(element.graph.getScene(), 20);
+        assert.strictEqual(camera(element), held, "no turning after the reader's move");
+
+        element.layoutBehavior = { camera: { autoRotate: 2 } };
+        await drawnFrames(element.graph.getScene(), 5);
+        assert.notStrictEqual(camera(element), held, "a new speed starts it again");
+    });
+
+    it("still frames the graph when it loads with autoRotate on", async () => {
+        const distance = (element: Graphty): number => {
+            const { position, target } = element.getCameraState();
+            assert.isDefined(position);
+            assert.isDefined(target);
+            return Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
+        };
+        const still = await mounted("3d", (el) => {
+            el.layoutBehavior = { camera: { fitBounds: "turning" } };
+        });
+        const framed = distance(still);
+        still.remove();
+
+        const turning = await mounted("3d", (el) => {
+            el.layoutBehavior = { camera: { autoRotate: 1, fitBounds: "turning" } };
+        });
+
+        assert.closeTo(distance(turning), framed, framed * 0.02, "framed as far out as without turning");
+        for (const id of ["a", "b", "c"]) {
+            const at = turning.nodeScreenPosition(id);
+            assert.isDefined(at);
+            assert.isTrue(at.x >= 0 && at.x <= WIDTH && at.y >= 0 && at.y <= HEIGHT, `${id} is on the canvas`);
+        }
     });
 });
 

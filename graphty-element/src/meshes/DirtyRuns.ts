@@ -1,6 +1,6 @@
 import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import type { Mesh } from "@babylonjs/core";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 
 /**
  * The most runs one upload sends: past it, the runs nearest each other are joined into one.

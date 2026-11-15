@@ -95,9 +95,9 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
 /**
  * The pull request rules (results-service.md 6.1, 6.3) as runShard()'s `judge`. Quarantined tests pass loudly. A
  * test that failed and then passed fails as `[NEW-FLAKY]` when the pull request touched it, else passes as
- * `[FLAKY-UNRELATED]`. A test that failed every time fails when touched; untouched, it passes as `[KNOWN]` only
- * when master's own runs failed it the same way on the base (`failingOnBase`, same family and key), else passes
- * loudly as `[UNRELATED]` (#3925: a failure with another source must not block a merge; the full run with bisect and
+ * `[FLAKY-UNRELATED]`. A test that failed every time passes as `[KNOWN]` when master's own runs failed it the
+ * same way (`failingOnBase`, same family, flags and key) and the pull request did not change its file (`changed`,
+ * or not touched at all); else it fails when touched and, untouched, passes loudly as `[UNRELATED]` (#3925: a failure with another source must not block a merge; the full run with bisect and
  * revert is the net), with a job summary line. GPU families are never excused. Each untouched case names its base-check.yml dispatch, and with `out` also writes it to
  * `<out>/<shard>.jsonl` as one JSON line `{ base, file, variant, repeat }`, which ci.yml's base-checks job dispatches: the base check's master
  * records are what quarantine a flaky test and file its issue, so nobody has to read the warning to dispatch it.
@@ -120,6 +120,12 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
         (b) => b.variant.split("|")[0] === family && flagsOf(b.variant) === flagsOf(variant),
     );
     const known = (f) => onBase.find((b) => b.file === f.file && b.name === f.name && b.key === keyOf(f));
+    // #8051: the same failure (same key) master already has is not this pull request's, even when the pull request
+    // changed the test's imports; never when it changed the test file itself, and never without the plan's
+    // `changed` list to tell the two apart (a screenshot plan, where every test counts as touched)
+    const changed = plan?.changed ? new Set(plan.changed) : null;
+    const gpu = /^webgpu-graph-algorithms/.test(family); // never excused (CLAUDE.md, WebGPU)
+    const excusable = (f) => !gpu && (!touched(f) || (changed !== null && !changed.has(f.file)));
     const list = storeList(plan);
     const check = (f, repeat) => {
         if (out) {
@@ -156,7 +162,7 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
         // "every time" only when a retry ran: a failure that was not retried failed once (#5128)
         const how = unretried ? `failed (${unretried})` : "failed every time";
         for (const f of d.failing) {
-            const k = !touched(f) && known(f);
+            const k = excusable(f) && known(f);
             if (k) warn(`[KNOWN] ${shard}: ${idOf(f)} fails the same way on master ${k.sha}, ${issue(k)}`);
             else if (touched(f)) fail(f, `[FAIL] ${shard}: ${idOf(f)} ${how}`);
             else {
@@ -236,7 +242,9 @@ function readPlanFile(file) {
  */
 export async function refreshPlan(plan, { cfg, sha, family, variant }) {
     if (!cfg || !plan?.base) return plan;
-    const variants = [...new Set([`${family}|flags=off|whole`, `${family}|flags=off|selected`, variant])];
+    // an On twin's master evidence is recorded under flags=on (#7847), so ask under the job's own flags
+    const flags = variant.split("|")[1] ?? "flags=off";
+    const variants = [...new Set([`${family}|${flags}|whole`, `${family}|${flags}|selected`, variant])];
     try {
         const r = await fetchPlan(cfg, { sha, base: plan.base, variants, inputs: variants.map(() => "-") });
         if (!r.ok || !r.data) {
@@ -719,10 +727,14 @@ export async function runGroup(
     return code;
 }
 
+/** A command that runs the On projects (tools/features-on.mjs ON_ENV; it reads graphty-element, so no import). */
+const ON_COMMAND = /(^|\s)GRAPHTY_FEATURES_ON=1\s/u;
+
 /**
  * A group's flags, run shape and variant. The flags are "on" for an On shard (its SHARDS entry says
- * `flags: "on"`, tools/ci-test-matrix.mjs FEATURES_ON_SHARDS) or under GRAPHTY_FLAGS=on, else "off";
- * RESULTS_VARIANT overrides the variant.
+ * `flags: "on"`, tools/ci-test-matrix.mjs FEATURES_ON_SHARDS), for a pull request's bin of one (its command sets
+ * GRAPHTY_FEATURES_ON=1, and its name, `<family>-<n>`, need not be a shard's), or under GRAPHTY_FLAGS=on, else
+ * "off"; RESULTS_VARIANT overrides the variant.
  * @param o the facts
  * @param o.shardName the shard
  * @param o.shard its SHARDS entry, or undefined
@@ -731,7 +743,8 @@ export async function runGroup(
  * @returns `{ flags, selected, variant }`
  */
 export function groupShape({ shardName, shard, command, env }) {
-    const flags = shard?.flags === "on" || env.GRAPHTY_FLAGS === "on" ? "on" : "off";
+    const on = shard?.flags === "on" || ON_COMMAND.test(command ?? "") || env.GRAPHTY_FLAGS === "on";
+    const flags = on ? "on" : "off";
     const selected = command !== undefined && command !== shard?.["test-command"];
     const variant = env.RESULTS_VARIANT || `${groupFamily(shardName, env)}|flags=${flags}|${runShape(env, selected)}`;
     return { flags, selected, variant };

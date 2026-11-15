@@ -16,6 +16,7 @@ import type { RunId } from "../catalog/types";
 import { GraphtyError } from "../errors/GraphtyError";
 import type { SessionCommand } from "./planning";
 import type { ExecutedCommand } from "./project/Dispatcher";
+import { plainRecords } from "./project/recordMap";
 import { reportCaught } from "./project/strict";
 import type { EngineVersions } from "./runs/types";
 
@@ -101,8 +102,10 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.setFileStyles": "data",
     "shader.set": "style",
     "data.columns": "data",
+    "data.derive": "data",
     "layout.scope": "layout",
     "layout.set": "layout",
+    "layout.rerun": "layout",
     "layout.transport": "layout",
     "note.add": "note",
     "note.merge": "note",
@@ -125,6 +128,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "view.remove": "view",
     "view.save": "view",
     "visibility.context": "filter",
+    "visibility.hide": "filter",
     "visibility.set": "filter",
     "visibility.steps": "filter",
     "visibility.conditions": "filter",
@@ -212,7 +216,7 @@ export function createJournal(options: {
                 id: `journal_${String(next++)}`,
                 at: new Date(now()).toISOString(),
                 kind: KINDS[op],
-                command: command as SessionCommand,
+                command: plainCommand(command as SessionCommand),
                 ...(coalesceKey === null ? {} : { coalesceKey }),
                 durationMs,
                 // `algo.run` resolves with the id of the run it finished.
@@ -243,4 +247,25 @@ export function createJournal(options: {
             return entry;
         },
     };
+}
+
+/**
+ * The command as the journal keeps it: a batched `importColumns`' adds hold their records as
+ * columns (row-renderer.md 4.6), handed out as a plain array built on read; any other command as
+ * it ran.
+ * @param command - The command.
+ * @returns The command to keep.
+ */
+function plainCommand(command: SessionCommand): SessionCommand {
+    if (command.op !== "data.apply" || !("records" in command.mutation)) {
+        return command;
+    }
+
+    const records = plainRecords(command.mutation.records);
+    if (!("get" in records)) {
+        return command;
+    }
+
+    const mutation = Object.defineProperty({ ...command.mutation }, "records", records);
+    return Object.freeze({ ...command, mutation: Object.freeze(mutation) });
 }

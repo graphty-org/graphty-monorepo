@@ -288,6 +288,35 @@ const unmatched = await draft.rows("edges", { only: "unmatched", choices, limit:
 A rejected row here is one the mapping cannot turn into a node or an edge; a row the format's own
 reader refused is not one, and is in `errors` instead.
 
+### Why a row was rejected or unmatched
+
+Each row `only: "rejected"` or `only: "unmatched"` reads carries a `reason`, `{ code, params }`,
+with no words in it, so you can word it for your reader. The same rows stay readable after the
+load, in `session.data.lastImport().rows`:
+
+```ts
+await draft.load();
+const report = element.session.data.lastImport();
+for (const row of report?.rows?.rejected ?? []) {
+    console.log(row.line, row.reason?.code, row.reason?.params); // 3 "refused-row" { rowsAre: "nodes" }
+}
+for (const row of report?.rows?.unmatched ?? []) {
+    console.log(row.line, row.reason?.params); // 4 { ends: ["target"], ids: ["z"] }
+}
+const more = (report?.counts.rejected ?? 0) - (report?.rows?.rejected.length ?? 0);
+```
+
+| `reason.code`   | The row                                                                   | `params`                                                    |
+| --------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `"refused-row"` | Its id, or an edge row's end, is absent, blank, or not a string or number | `rowsAre` (`"nodes"` or `"edges"`); for an edge row, `ends` |
+| `"unknown-end"` | An edge row names a node no node row holds (nor the graph, for a merge)   | `ends` (`"source"`, `"target"`) and the `ids` they name     |
+
+`report.rows` keeps the first `IMPORT_ROWS_KEPT` (100) rows of each kind; `counts.rejected` and
+`unmatched.rows` count them all, so the difference is how many more there were. To page through
+every one, read them from the draft before the load. A row's `line` is the line `draft.rows`
+gives it for a load from a draft, and its position among the load's node (or edge) records
+otherwise. `rows` is absent when the load rejected nothing and every edge end matched.
+
 ## Joining onto the graph
 
 A second file often describes the graph already loaded: an expression table with one row per
@@ -342,6 +371,41 @@ again, with new choices or, after the graph changed, with its own (`join.choices
 A plain merge can update the nodes it names too: `import(source, { mode: "merge", existing:
 "update" })` writes the incoming values onto nodes the graph already holds, where the default,
 `"keep"`, leaves them as they are.
+
+## Changing the columns after a load
+
+A reader who picked the wrong id or weight column can change it without picking the file again.
+`session.data.remap({ mapping })` takes the same mapping `report` and `load` take and reads the
+rows the load already holds again under it, as one undoable step:
+
+```ts
+import "@graphty/graphty-element";
+
+const element = document.querySelector("graphty-element")!;
+const { session } = element;
+
+// The people were keyed by their row number; the links name them by email.
+await session.data.import(
+    { config: { nodeFile: peopleFile, edgeFile: linksFile } },
+    { mapping: { tables: { nodes: { key: "row" } } } },
+);
+
+await session.data.remap({ mapping: { tables: { nodes: { key: "email" }, edges: { weight: "trips" } } } });
+
+await session.undo(); // the old columns and the old graph, exactly
+```
+
+A role you leave out keeps the column it had. A new id column makes the nodes anew, and the edges
+find their ends among them. Style layers, filters and finished analyses stay; an analysis whose
+numbers came from the old graph reads as stale (`run.stale.reason === "data-changed"`) and is not
+run again by itself.
+
+When the graph holds more than one load, name the one to change with `source`, a key from
+`session.data.sources()`. A load in a project opened from a saved file cannot be re-mapped (its
+`reloadable` is absent), since the file itself is never saved. `remap` refuses with the codes in the
+table below, and with `E_BAD_COMMAND` whose `details.reason` is `"which-source"` (several loads,
+none named; `details.known` lists them) or `"no-mapping"`, `E_SOURCE_UNKNOWN` for a key
+`sources()` does not list, and `E_UNSUPPORTED` with `details.reason: "not-reloadable"`.
 
 ## Errors
 

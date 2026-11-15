@@ -1,6 +1,6 @@
 # Closing graphty-element's three largest gaps to cosmos.gl
 
-Status: design, not built. Code read at origin/master 5de23d248a (2026-11-08). Paths are under `graphty-element/src/` unless
+Status: measured at the row renderer's close-out on 2026-11-15 (section 5.5). Code read at origin/master 5de23d248a (2026-11-08). Paths are under `graphty-element/src/` unless
 named otherwise. This document extends `design/rendering/row-renderer.md` (the row renderer, whose stages are named here by
 their number there, for example "stage 26, lazy `Node`") and draws on `design/ui/framework/research/cosmos-gl.md`. Its own
 stages are named G1, G2 and so on.
@@ -387,6 +387,16 @@ off) tenfold and adding the fixed cost back gives **about 8.5-14.5 s at 1M + 10k
 stage 30's 6 s target. That assumes linear growth; garbage collection may grow faster. Heap is the row renderer's estimate, 850-920 MB before 20-byte batches, against
 an 800 MB target; G9 measures it and G11 exists for a miss. **It stops** at the per-row work the session keeps: the
 derivation pass over a million rows, the style repaint's column writes, the position repack and the builder.
+
+### 5.5 Measured at the close-out (2026-11-15)
+
+Row renderer stage 38 measured every projection above in one session, interleaved with cosmos.gl
+(`benchmarks/results/close-out/summary.md`, "The three gaps to cosmos.gl"). As ratios to cosmos.gl: first load at
+100k + 1M is 6.2x from record arrays and 7.2x through the column door (projected 7.5-10x and 5.6-8x), at 100k + 1k 4.0x
+(projected 8-12x), at 1M + 10k 9.7x (projected 13-22x); the 100k + 1M still frame is 2.55x (projected 2.5-3.2x) and the
+1M + 1M still frame 2.6x (projected 77-92 ms, measured 76.3 ms). Every load is ahead of its projection and every frame on
+track. Against the projection, the column door loads slower than record arrays at every size but 1M + 1M, while holding
+less heap.
 
 ## 6. Public API
 

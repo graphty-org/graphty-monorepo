@@ -76,6 +76,10 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.modelSourceUp": "Model",
     "node.modelTurn": "Model",
     "node.modelTint": "Model",
+    "node.modelDoubleSided": "Model",
+    "node.modelAnimation": "Model",
+    "node.modelAnimationSpeed": "Model",
+    "node.modelAnimationOffset": "Model",
     "node.modelFit": "Model",
     "node.modelCenter": "Model",
     "node.texture": "Texture",
@@ -97,6 +101,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.tooltipStyle": "Tooltip",
     "node.opacity": "Opacity",
     "node.outline": "Outline",
+    "node.outlineWidth": "Outline",
     "node.glow": "Glow",
     "node.glowStrength": "Glow",
     "node.halo": "Halo",
@@ -509,26 +514,26 @@ export function directionNote(statistics: GraphStatistics): string {
 }
 
 /**
- * An edge by its two ends' names (the element's `data.name`, else the id): "Ava -> Kofi" on a
- * directed graph, "Ava -- Kofi" otherwise.
+ * An edge by its two ends' names (the element's `data.edgeName`): "Ava -> Kofi" on a directed
+ * graph, "Ava -- Kofi" otherwise.
  * @param session - the session, which names the ends and says whether the graph is directed.
  * @param edge - the edge's record.
  * @returns the words.
  */
 export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
-    const end = (id: EdgeRecord["source"]): string => session.data.name(id) ?? String(id);
-    return `${end(edge.source)}${edgeJoiner(session)}${end(edge.target)}`;
+    const { source, target } = session.data.edgeName(edge);
+    return `${source.name}${edgeJoiner(session)}${target.name}`;
 }
 
 /**
  * What the status line calls one selected node: the label graphty-element gives it
- * (`session.data.name`, the label column's value), else its id.
+ * (`session.data.nodeName`, the label column's value), else its id.
  * @param session - the session.
  * @param id - the node id.
  * @returns such as "Nebraska", or "74" when the graph has no label column.
  */
 export function nodeName(session: GraphSession, id: EdgeRecord["source"]): string {
-    return session.data.name(id) ?? String(id);
+    return session.data.nodeName(id).name;
 }
 
 /**
@@ -567,6 +572,18 @@ export function neighborhoodWords(center: string, around: number, hops = 1): str
 
 /** What a node's Degree row does: it changes the selection. */
 export const DEGREE_ROW_WORDS = "Select this node and its neighbors";
+
+/**
+ * What a degree is called where it is read: among what is shown while a filter or the time window
+ * hides something ("Degree showing", as "Nodes showing"), else plain "Degree".
+ * @param session - the element's session.
+ * @param name - the degree's name ("Degree", "In-degree").
+ * @returns the label.
+ */
+export function degreeLabel(session: GraphSession, name = "Degree"): string {
+    const { visibleNodes, totalNodes } = session.visibility.summary;
+    return visibleNodes < totalNodes ? `${name} showing` : name;
+}
 
 /** What Filter to neighbors does, and where it is turned off. */
 export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its card in Filters turns it off";

@@ -27,14 +27,6 @@ describe("a style field nothing draws", () => {
         assert.strictEqual(parsed.texture?.image, "https://example.com/marble.png");
     });
 
-    it("is not an outline width", () => {
-        // An outline is a ring whose width is a fixed share of the node's size, so a width
-        // would be accepted and ignored.
-        assert.throws(() => {
-            NodeStyle.parse({ effect: { outline: { color: "#FF0000", width: 3 } } });
-        }, /width/);
-    });
-
     it("is not motion blur, depth of field or screen-space reflections", () => {
         for (const effects of [{ motionBlur: 0.5 }, { depthOfField: 1 }, { screenSpaceReflections: true }]) {
             assert.throws(() => {
@@ -43,10 +35,11 @@ describe("a style field nothing draws", () => {
         }
     });
 
-    it("leaves the outline colour, which IS drawn, alone", () => {
-        const parsed = NodeStyle.parse({ effect: { outline: { color: "#FF0000" } } });
+    it("leaves the outline colour and width, which ARE drawn, alone", () => {
+        const parsed = NodeStyle.parse({ effect: { outline: { color: "#FF0000", width: 3 } } });
 
         assert.strictEqual(parsed.effect?.outline?.color, "#FF0000");
+        assert.strictEqual(parsed.effect?.outline?.width, 3);
     });
 
     it("leaves the node icon, which IS drawn, alone", () => {

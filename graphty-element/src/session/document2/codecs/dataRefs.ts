@@ -119,7 +119,7 @@ export function recordKey(space: string, key: string): string {
  * @param directed - Whether the graph is directed.
  * @returns The map key.
  */
-export function endsKey(from: NodeRef, to: NodeRef, directed: boolean): string {
+function endsKey(from: NodeRef, to: NodeRef, directed: boolean): string {
     const a = recordKey(from.space, from.key);
     const b = recordKey(to.space, to.key);
     return directed || a <= b ? `${a}\u0001${b}` : `${b}\u0001${a}`;
@@ -212,7 +212,7 @@ export function edgeRefOf(value: unknown): EdgeRef | undefined {
 export const READER = "reader";
 
 /** One source of the open data, from today's load record. */
-export interface ModelSource {
+interface ModelSource {
     readonly id: string;
     /** Today's load, or undefined for the reader source. */
     readonly load?: LoadedSource;
@@ -225,7 +225,7 @@ export interface ModelSource {
 }
 
 /** The open data, named. */
-export interface DataModel {
+interface DataModel {
     readonly directed: boolean;
     /** The sources in join order; the reader source, when there is one, last. */
     readonly sources: readonly ModelSource[];
@@ -297,7 +297,7 @@ function sourceIdOf(key: string, taken: Set<string>): string {
  * @param edge - The record.
  * @returns The row by column name.
  */
-export function edgeRowOf(edge: EdgeRecord): JsonObject {
+function edgeRowOf(edge: EdgeRecord): JsonObject {
     const { id: _id, ...row } = edge;
     return row;
 }
@@ -372,7 +372,7 @@ export function rememberNodeRefs(
  * @param session - The session.
  * @returns The model.
  */
-export function dataModelOf(session: GraphSession): DataModel {
+function dataModelOf(session: GraphSession): DataModel {
     const taken = new Set<string>([READER]);
     const loads = session.data.sources();
     const byKey = new Map<string, ModelSource>();
@@ -563,7 +563,7 @@ function tableOf(
  * @param record - The record.
  * @returns The type name, or undefined.
  */
-export function kindOf(record: Readonly<JsonObject>): string | undefined {
+function kindOf(record: Readonly<JsonObject>): string | undefined {
     const { kind } = record;
     return typeof kind === "string" && kind.length > 0 && kind.length <= 256 && !kind.includes(":") ? kind : undefined;
 }

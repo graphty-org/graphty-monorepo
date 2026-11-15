@@ -27,8 +27,8 @@ import {
 } from "./types";
 
 /** The wrapper's kind and the only wrapper version this reader knows. */
-export const WRAPPER_KIND = "graphty-document";
-export const WRAPPER_VERSION = 2;
+const WRAPPER_KIND = "graphty-document";
+const WRAPPER_VERSION = 2;
 
 /** The first version of each section kind that is a version 2 section (spec 9 rule 2). */
 const FIRST_VERSION: Readonly<Record<DocumentSection, number>> = {
@@ -45,7 +45,7 @@ const FIRST_VERSION: Readonly<Record<DocumentSection, number>> = {
  * Why a section is held (spec 8.5); `unknown` is an unknown `sections` key and `malformed` a
  * section whose kind or version disagrees with its key, kept the same way (versions rule 3).
  */
-export type HeldReason = "version" | "extension" | "data" | "unknown" | "malformed";
+type HeldReason = "version" | "extension" | "data" | "unknown" | "malformed";
 
 /** A section kept verbatim and written back on save. */
 export interface HeldSection {
@@ -89,7 +89,7 @@ export function schemaUrl(kind: string, version: number): string {
  * @param kind - The kind.
  * @returns The section, or undefined.
  */
-export function sectionOfKind(kind: unknown): DocumentSection | undefined {
+function sectionOfKind(kind: unknown): DocumentSection | undefined {
     if (typeof kind !== "string" || !kind.startsWith("graphty-")) {
         return undefined;
     }
@@ -419,7 +419,7 @@ const UNSTAMPED = new Set(["$schema", "kind", "version", "created", "modified", 
  * @param section - The section.
  * @returns The digest.
  */
-export function contentDigest(section: Readonly<JsonObject>): Promise<string> {
+function contentDigest(section: Readonly<JsonObject>): Promise<string> {
     // Canonical, so a member order a file chose does not count as a change.
     return digestOf(
         canonicalJson(Object.fromEntries(Object.entries(section).filter(([member]) => !UNSTAMPED.has(member)))),

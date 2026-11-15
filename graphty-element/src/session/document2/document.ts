@@ -207,7 +207,7 @@ async function rememberBaselines(
  * @throws A `GraphtyError` with `E_BAD_COMMAND` for a section file of other than one section, or
  *     a section name that is not one of the seven.
  */
-export function sectionsToSave(choices: SaveChoices): DocumentSection[] {
+function sectionsToSave(choices: SaveChoices): DocumentSection[] {
     const asked = choices.sections ?? DOCUMENT_SECTIONS.filter((name) => name !== "results");
     const unknown = asked.find((name) => !DOCUMENT_SECTIONS.includes(name));
     if (unknown !== undefined) {

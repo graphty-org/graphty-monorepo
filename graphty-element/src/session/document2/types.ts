@@ -98,7 +98,7 @@ export type DocumentProblem = CodedFact<
 >;
 
 /** `generator`: the software that wrote a section or a file (spec 3.1). */
-export interface Generator {
+interface Generator {
     readonly name: string;
     readonly version: string;
 }
@@ -184,14 +184,14 @@ export interface NodeRef {
 }
 
 /** An edge with a record key of its own. */
-export interface KeyedEdgeRef {
+interface KeyedEdgeRef {
     readonly from: NodeRef;
     readonly to: NodeRef;
     readonly key: string;
 }
 
 /** An edge with no key: named by its ends, the hash of its row, and its place among equals. */
-export interface HashedEdgeRef {
+interface HashedEdgeRef {
     readonly from: NodeRef;
     readonly to: NodeRef;
     readonly h: string;

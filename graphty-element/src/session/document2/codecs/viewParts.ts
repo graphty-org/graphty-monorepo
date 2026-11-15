@@ -22,7 +22,7 @@ import { READER_NAMESPACE, runIdOf, runNameOf, SESSION_NAMESPACE } from "./resul
 // ---------------------------------------------------------------------------------------------
 
 /** One member as it was read, and what the session gave back for it right after the open. */
-export interface KeptMember {
+interface KeptMember {
     /** The canonical text of the member as written from the session just after the open. */
     readonly applied: string;
     /** The member as the file held it. */
@@ -112,7 +112,7 @@ const DEFAULT_FOV = 0.8;
 const POSE = new Set(["position", "target", "fov", "pan", "zoom", "rotation"]);
 
 /** The controller graphty-element drives each dimension with. */
-export const DEFAULT_CONTROLLER: Readonly<Record<2 | 3, string>> = Object.freeze({ 2: "2d", 3: "orbit" });
+const DEFAULT_CONTROLLER: Readonly<Record<2 | 3, string>> = Object.freeze({ 2: "2d", 3: "orbit" });
 
 type Xyz = { readonly x: number; readonly y: number; readonly z: number };
 
@@ -297,7 +297,7 @@ export function runKeyOf(id: string, derived = true): { readonly namespace: stri
  * @param derived - Whether the element minted it; default true.
  * @returns `<namespace>__<as>`.
  */
-export function fileRunId(id: string, derived = true): string {
+function fileRunId(id: string, derived = true): string {
     const { namespace, as } = runKeyOf(id, derived);
     return `${namespace}__${as}`;
 }
@@ -499,7 +499,7 @@ export function ruleNamesElements(rule: unknown, namesSet: (id: string) => boole
  * @param member - The member.
  * @returns The edge id, or undefined when it binds no single edge.
  */
-export function edgeOfMember(session: TransactionScope, member: EdgeMember): EdgeId | undefined {
+function edgeOfMember(session: TransactionScope, member: EdgeMember): EdgeId | undefined {
     const snapshot = session.data.snapshot();
     const row = edgeRowsOf(snapshot, [member])[0];
     return row === undefined || row < 0 ? undefined : edgeSpaceOf(snapshot).idOf(row);

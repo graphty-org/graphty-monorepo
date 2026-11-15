@@ -60,7 +60,7 @@ export function documentValue(value: unknown): unknown {
  * @param value - The value.
  * @returns The canonical text.
  */
-export function canonicalJson(value: unknown): string {
+function canonicalJson(value: unknown): string {
     return sharedCanonicalJson(value);
 }
 
@@ -69,7 +69,7 @@ export function canonicalJson(value: unknown): string {
  * @param value - The value.
  * @returns The hash.
  */
-export function hashOf(value: unknown): string {
+function hashOf(value: unknown): string {
     return `sha256:${sha256Hex(canonicalJson(value))}`;
 }
 

@@ -1873,10 +1873,10 @@ export interface SessionDataApi {
      * });
      * ```
      * @param columns - The columns; see {@link ImportColumnsInput}.
-     * @returns Settles once the rows are in the graph and drawn.
+     * @returns The load's report (as `lastImport()` then answers), once the rows are in the graph and drawn.
      * @throws `E_BAD_COMMAND` when the columns do not line up; nothing is added.
      */
-    importColumns(columns: ImportColumnsInput): Promise<void>;
+    importColumns(columns: ImportColumnsInput): Promise<LoadReport>;
     /**
      * Change some attributes of existing nodes, as one undoable step. Keys not named are kept; an
      * id the graph does not hold is skipped.
@@ -3400,7 +3400,7 @@ export interface ProjectConfig {
     /**
      * Whether the project draws with its default rows: Everything (pinned to the bottom, writing
      * nothing), Selected (pinned to the top, drawing a solid node halo and edge band in the selection
-     * settings' colors and sizes, a gold ring and a blue band by default) and Hovered (pinned to the
+     * settings' colors and sizes, a blue ring and band by default) and Hovered (pinned to the
      * top, writing nothing). False by default. Turning it on writes the rows once, in the same step,
      * and the selection settings ({@link ProjectConfig.selectionStyle}) draw nothing themselves.
      * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too; with the timeline on, a

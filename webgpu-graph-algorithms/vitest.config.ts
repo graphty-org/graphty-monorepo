@@ -67,8 +67,8 @@ const noiseFloorWrite = process.env.GRAPHTY_NOISE_FLOOR_WRITE ?? "";
 /**
  * A project's name. A noise-floor recording (GRAPHTY_NOISE_FLOOR_WRITE=1, started by hand to rewrite the
  * committed noise fixtures) is a measurement, not a test run: its writer cases measure the unscaled fixtures
- * for up to tens of minutes. So every project is then named bench-<name> (`--project=bench-node`), and a
- * bench project runs with no time limit, outside the one hang guard (tools/test-wait-guard.mjs).
+ * for up to tens of minutes. So every project is then named bench-<name> (`--project=bench-node`). A bench
+ * project still carries the one hang guard (tools/test-wait-guard.mjs), which ends only a hang.
  * @param name - The project's name in a test run.
  * @returns The name for this run.
  */

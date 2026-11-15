@@ -61,6 +61,15 @@ async function lesMis(): Promise<GraphSession> {
 }
 
 /**
+ * The Ghost row, which the starting rows include only with the timeline experiment on.
+ * @param session - The session.
+ * @returns The Ghost row's name and pin, or nothing with the timeline off.
+ */
+function ghost(session: GraphSession): [string, string][] {
+    return session.features.enabled.includes("timeline") ? [["Ghost", "top"]] : [];
+}
+
+/**
  * A top-level row by name.
  * @param session - The session.
  * @param name - The row's name.
@@ -104,11 +113,7 @@ describe("the starting rows", () => {
 
         assert.deepStrictEqual(
             session.styles.tree().map((each) => [each.name, each.pin]),
-            [
-                ["Everything", "bottom"],
-                ["Selected", "top"],
-                ["Hovered", "top"],
-            ],
+            [["Everything", "bottom"], ...ghost(session), ["Selected", "top"], ["Hovered", "top"]],
             "bottom first",
         );
         assert.strictEqual(
@@ -126,7 +131,7 @@ describe("the starting rows", () => {
         });
         assert.deepStrictEqual(
             session.styles.tree().map((each) => each.name),
-            ["Everything", "Mine", "Selected", "Hovered"],
+            ["Everything", "Mine", ...ghost(session).map(([name]) => name), "Selected", "Hovered"],
         );
 
         await session.undo();
@@ -149,7 +154,7 @@ describe("the starting rows", () => {
         assert.strictEqual(session.styles.counts(node).matched, 1);
         assert.strictEqual(session.styles.counts(node).painted["node.haloColor"], 1);
         assert.deepStrictEqual(session.styles.get(node)?.set, {
-            "node.haloColor": "#FFD700",
+            "node.haloColor": "#0077BB",
             "node.haloScale": 1.45,
             "node.haloOpacity": 1,
         });
@@ -194,10 +199,7 @@ describe("the starting rows", () => {
         await session.config.set({ startingRows: true, selectionStyle: { color: "#ff0000" } });
         assert.deepStrictEqual(
             session.styles.tree().map((each) => [each.name, each.pin]),
-            [
-                ["Everything", "bottom"],
-                ["Pointer", "top"],
-            ],
+            [["Everything", "bottom"], ...ghost(session), ["Pointer", "top"]],
         );
         assert.strictEqual(session.styles.get(part(session, "Everything", "node"))?.set?.["node.color"], "#00ff00");
 
@@ -207,7 +209,7 @@ describe("the starting rows", () => {
         await session.undo();
         assert.deepStrictEqual(
             session.styles.tree().map((each) => each.name),
-            ["Everything", "Selected", "Hovered"],
+            ["Everything", ...ghost(session).map(([name]) => name), "Selected", "Hovered"],
         );
     });
 });

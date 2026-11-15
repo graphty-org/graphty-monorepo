@@ -299,7 +299,8 @@ describe("data section version 2", () => {
         }
 
         assert.include(byEid.get("x")?.[0], '"key":"x"', "a key unique among its ends names the edge");
-        assert.notInclude(byEid.get("y")?.[0], '"key"', "a repeated key does not");
+        // The ends are node references, which hold a `key` of their own: look at the edge's members.
+        assert.notProperty(JSON.parse(byEid.get("y")?.[0] ?? "{}") as object, "key", "a repeated key does not");
         assert.include(byEid.get("y")?.[1], '"n":1');
 
         assert.strictEqual(refs.node(refs.nodeRef("Ava")), "Ava");

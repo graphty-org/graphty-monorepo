@@ -146,8 +146,7 @@ export function cameraJson(state: CameraState): JsonObject | undefined {
     );
     const own = (controller: string): JsonObject => (Object.keys(extra).length === 0 ? {} : { [controller]: extra });
     if (state.zoom !== undefined || state.pan !== undefined) {
-        if (state.zoom === undefined || !(state.zoom > 0)) {
-            // NOSONAR(S1940): !(x > 0) also refuses NaN
+        if (state.zoom === undefined || Number.isNaN(state.zoom) || state.zoom <= 0) {
             return undefined;
         }
 

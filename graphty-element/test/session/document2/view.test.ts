@@ -114,7 +114,8 @@ async function save(session: GraphSession): Promise<JsonObject> {
         dataId: () => DATA_ID,
         sections: new Set(["view"]),
         embed: {},
-        isDerived: () => false,
+        // The runs these tests start are named by the element, so they are written under `session`.
+        isDerived: () => true,
         bindsTo: () => Promise.resolve({ data: DATA_ID }),
     };
     const { body } = await viewCodec.write(context);
@@ -178,7 +179,6 @@ async function fullSession(): Promise<GraphSession> {
         { kind: "rule", where: { kind: "neighborhood", seeds: ["c"], depth: 1 }, reading: "induced" },
         { name: "Around c" },
     );
-    session.sets.create({ kind: "rule", where: { kind: "degree", min: 1 }, reading: "induced" }, { name: "Linked" });
     await session.selection.apply({ nodes: ["a", "c"], edges: [ab.id] });
     await session.positions.set([{ id: "b", x: 1, y: 2, z: 0 }]);
     await session.positions.pin(["b"]);

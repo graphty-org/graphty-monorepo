@@ -57,6 +57,7 @@ import {
     READER,
     recordKey,
     rememberEdgeIdColumn,
+    rememberNodeRefs,
 } from "./dataRefs";
 
 // ---------------------------------------------------------------------------------------------
@@ -754,8 +755,10 @@ function assignIds(nodes: readonly BuiltNode[], held: ReadonlySet<NodeId>): void
             id = `${space}:${key}`;
         }
 
-        for (let at = 2; used.has(id); at++) {
+        let at = 2;
+        while (used.has(id)) {
             id = `${space}:${key}#${String(at)}`;
+            at++;
         }
 
         used.add(id);
@@ -816,6 +819,11 @@ async function apply(built: Built, context: ReadContext): Promise<void> {
     }
 
     assignIds(built.nodes, adding ? new Set(tx.data.nodes().map((node) => node.id)) : new Set());
+    rememberNodeRefs(
+        context.session,
+        built.nodes.map((node) => [node.id, node.ref] as const),
+        !adding,
+    );
     const edgesBefore = tx.data.edges().length;
     await tx.execute({
         op: "data.apply",

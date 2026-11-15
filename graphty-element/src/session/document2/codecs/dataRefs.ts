@@ -341,6 +341,30 @@ export function edgeRefsOf(
     });
 }
 
+/** Each node's record key as the data section that loaded it named it, per session. */
+const READ_NODE_REFS = new WeakMap<GraphSession, Map<NodeId, NodeRef>>();
+
+/**
+ * Remember the record keys a data section gave the nodes it loaded, so references to them bind and
+ * are written back in the file's spaces rather than `source:<id>` (types place nodes in spaces the
+ * session has no model of yet).
+ * @param session - The session.
+ * @param refs - Each loaded node's id and record key.
+ * @param replace - Whether the load replaced the data (forget the keys of the data before).
+ */
+export function rememberNodeRefs(
+    session: GraphSession,
+    refs: Iterable<readonly [NodeId, NodeRef]>,
+    replace: boolean,
+): void {
+    const known = replace ? new Map<NodeId, NodeRef>() : (READ_NODE_REFS.get(session) ?? new Map());
+    for (const [id, ref] of refs) {
+        known.set(id, ref);
+    }
+
+    READ_NODE_REFS.set(session, known);
+}
+
 /**
  * The open data as version 2 names it: sources in join order, each node's record key and each
  * edge's reference, from today's loads and records.
@@ -380,7 +404,13 @@ export function dataModelOf(session: GraphSession): DataModel {
             node.id,
             owners.map((owner) => owner.id),
         );
-        nodeRefs.set(node.id, { space: `source:${owners[0].id}`, key: keyText(node.id) ?? String(node.id) });
+        nodeRefs.set(
+            node.id,
+            READ_NODE_REFS.get(session)?.get(node.id) ?? {
+                space: `source:${owners[0].id}`,
+                key: keyText(node.id) ?? String(node.id),
+            },
+        );
     }
 
     const { directed } = session.status;

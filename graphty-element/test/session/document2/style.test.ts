@@ -202,7 +202,8 @@ describe("the style codec round-trips", () => {
         await first.styles.add({
             name: "Score",
             target: "node",
-            selector: { match: "top", path: "data.score", n: 3 },
+            // A `top` selector ranks a run's field; the element refuses one over a column.
+            selector: { match: "top", path: "results.degree.value", n: 3 },
             encode: { "node.size": { by: "data.score", scale: "linear", range: [1, 4] } },
         });
         const { section } = await saveStyle(first);
@@ -238,8 +239,10 @@ describe("the style codec round-trips", () => {
         const example = readJson("examples/card-fraud.graphty-style.json");
         const session = createGraphSession(ON);
         const problems = await open(session, example);
-        // The `type` selector waits on the data store's types: that layer is kept, not applied.
-        assert.deepEqual(pointerParams(problems, "W_UNKNOWN_MEMBER"), ["/layers/1"]);
+        // The `type` selector waits on the data store's types, and the element does not yet read a
+        // bare number in an expression (style.md, "Expressions" rule 1): both layers are kept, not
+        // applied.
+        assert.deepEqual(pointerParams(problems, "W_UNKNOWN_MEMBER"), ["/layers/1", "/layers/2"]);
         assert.notInclude(
             session.styles.list().map((layer) => layer.name),
             "Merchants",

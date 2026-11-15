@@ -258,8 +258,12 @@ describe("the version 2 notes codec", () => {
         const other = await loaded();
         const problems = await open(other, section);
         assert.deepEqual(problems, []);
+        // A note read from a document also says when that document was opened (`status.source`).
         const strip = (s: GraphSession): unknown =>
-            s.notes.list().map(({ id, time, text, done }) => ({ id, time, text, done, status: s.notes.status(id) }));
+            s.notes.list().map(({ id, time, text, done }) => {
+                const { source: _source, ...status } = s.notes.status(id) ?? {};
+                return { id, time, text, done, status };
+            });
         assert.deepEqual(strip(other), strip(session));
         // The targets name the same elements: the other session writes the same section.
         assert.deepEqual((await save(other)).section, section);

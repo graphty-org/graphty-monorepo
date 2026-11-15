@@ -255,16 +255,16 @@ async function writeSection(
     const reported: DocumentProblem[] = [];
     let written = await codec.write({ ...context, problems: reported });
     const opened = state.opened.get(name);
-    const asRead = opened !== undefined && canonicalJson(written) === opened.baseline;
-    if (asRead) {
-        written = opened.read;
-    } else {
+    const asRead = opened?.baseline === canonicalJson(written) ? opened : undefined;
+    if (asRead === undefined) {
         context.problems.push(...reported);
+    } else {
+        written = asRead.read;
     }
 
     // A section written as read keeps the `bindsTo` it was read with while the data is the same
     // data: it says what the data was when the section was written (spec 6.4).
-    const keptBinding = asRead && opened.bindsTo?.data === dataIdOf(state) ? opened.bindsTo : undefined;
+    const keptBinding = asRead?.bindsTo?.data === dataIdOf(state) ? asRead.bindsTo : undefined;
     const bindsTo = codec.bound ? (keptBinding ?? (await context.bindsTo(name === "results"))) : undefined;
     return assembleSection(
         name,

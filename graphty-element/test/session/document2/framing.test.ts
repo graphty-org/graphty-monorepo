@@ -236,9 +236,13 @@ describe("saving version 2", () => {
         assert.strictEqual(await codeOf(session.project.save({ format: 2, form: "section" })), "E_BAD_COMMAND");
     });
 
-    it("calls the section codecs, which are stubs until written", async () => {
+    it("writes a section through its codec", async () => {
         const session = createGraphSession(ON);
-        assert.strictEqual(await codeOf(session.project.save({ format: 2, sections: ["settings"] })), "E_UNSUPPORTED");
+        const saved = JSON.parse(
+            (await session.project.save({ format: 2, sections: ["settings"] })).text,
+        ) as JsonObject;
+        assert.deepEqual(Object.keys(saved.sections as JsonObject), ["settings"]);
+        assert.deepEqual(invalid(saved), []);
     });
 
     it("writes the header in order, the same section in both forms, and keeps modified while nothing changes", async () => {

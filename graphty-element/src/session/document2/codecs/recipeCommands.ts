@@ -130,13 +130,8 @@ function trimUnderscores(text: string): string {
  * @returns The namespace.
  */
 export function namespaceFromId(id: unknown): string {
-    const last =
-        typeof id === "string"
-            ? (id
-                  .split(/[./:]/)
-                  .filter((part) => part !== "")
-                  .at(-1) ?? "") // NOSONAR(S7750): findLast needs ES2023, the package's lib is ES2022
-            : "";
+    const parts = typeof id === "string" ? id.split(/[./:]/).filter((part) => part !== "") : [];
+    const last = parts[parts.length - 1] ?? "";
     const name = trimUnderscores(
         last
             .toLowerCase()

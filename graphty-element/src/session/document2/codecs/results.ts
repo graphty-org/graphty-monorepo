@@ -778,10 +778,6 @@ async function readRun(reading: Reading, key: string, entry: JsonObject): Promis
     });
     const outcome: RunOutcome = { result, summary: result.summary(), caveats, fields };
     kept.set(key, { entry, result });
-    if (name.namespace === SESSION_NAMESPACE) {
-        context.restoreDerived(id);
-    }
-
     context.restored.add("runs");
     if (elsewhere) {
         // The recipe or the view starts it, after this section; the outcome waits for it.
@@ -799,6 +795,11 @@ async function readRun(reading: Reading, key: string, entry: JsonObject): Promis
         await startSaved(context, id, start);
     } finally {
         context.canned.delete(id);
+    }
+
+    // Marked once the run exists: the element marks only a run it holds.
+    if (name.namespace === SESSION_NAMESPACE) {
+        context.restoreDerived(id);
     }
 }
 

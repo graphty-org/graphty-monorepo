@@ -34,6 +34,7 @@ import type {
     WriteContext,
 } from "../types";
 import { layerNamesElements } from "./elementNaming";
+import { SESSION_NAMESPACE } from "./results";
 import {
     cameraJson,
     cameraOf,
@@ -265,11 +266,11 @@ function scopeJson(w: Writer, run: Run): unknown {
     if (spec === "visible" && visibleNarrowed(w.session)) {
         const { visibility } = w.session;
         const { filter } = liveFilter(w.session);
-        const hidden = [...w.session.hidden.ids];
+        const { hidden } = mapRefs({ hidden: [...w.session.hidden.ids] }, w.mapper, "") as { hidden: unknown[] };
         return {
             ...(visibility.window === null ? {} : { window: windowJson(visibility.window) }),
             ...(filter === null ? {} : { filter: mapRefs(filter, w.mapper, "") }),
-            ...(hidden.length === 0 ? {} : { hidden: mapRefs({ hidden }, w.mapper, "") }),
+            ...(hidden.length === 0 ? {} : { hidden }),
         };
     }
 
@@ -736,7 +737,8 @@ async function readVisibility(r: Reader, visibility: JsonObject): Promise<void> 
         }
 
         if (typeof read.showContext === "boolean") {
-            tx.visibility.showContext = read.showContext;
+            // Awaited, so the open's step holds it (the property setter dispatches without waiting).
+            await tx.execute({ op: "visibility.context", show: read.showContext });
         }
 
         if (Array.isArray(read.hidden)) {
@@ -910,6 +912,11 @@ async function readRun(r: Reader, fileId: string, record: unknown): Promise<void
         });
         if (typeof record.name === "string") {
             await context.tx.runs.rename(id, record.name);
+        }
+
+        if (fileId.startsWith(`${SESSION_NAMESPACE}__`)) {
+            // A run the element minted is marked so again, once it exists.
+            context.restoreDerived(id);
         }
 
         context.restored.add("runs");

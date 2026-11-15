@@ -118,6 +118,69 @@ export function slotCount(env = process.env, cores = cpus().length, now = Date.n
 }
 
 /**
+ * The limits `recount` steps the count by (#8053). One slot holder peaks at about 5 GB (a vitest run and its
+ * Chromium; 2.2 to 5.1 GB per holder's process tree measured 2026-11-14, 21 GB for 4 on 2026-11-13), and a host
+ * process is killed once available memory falls to about 8 GB, so the floor is 10 GB. A step up needs one more
+ * slot's peak plus a 2 GB margin above the floor (17 GB); the step down sits under the ~12 GB a raised count is
+ * expected to leave, so a normal round does not flip back.
+ */
+export const STEP = { max: 6, floorGB: 10, upGB: 17, downGB: 11, upSome300: 1, downSome60: 5 };
+
+/**
+ * The next slot count, one step at a time between the default and STEP.max: up one when every slot is held, a
+ * run waits, `upGB` is available and memory pressure is low; straight to the default under the floor; down one
+ * under `downGB` or on sustained stalling; else unchanged.
+ * @param m the measurement
+ * @param m.count the count now
+ * @param m.min the default count (one per 8 cores)
+ * @param m.held runs holding a slot
+ * @param m.waiting runs waiting for one
+ * @param m.availGB MemAvailable in GB
+ * @param m.some60 `some avg60` of /proc/pressure/memory
+ * @param m.some300 `some avg300` of /proc/pressure/memory
+ * @returns the count to write
+ */
+export function nextCount({ count, min, held, waiting, availGB, some60, some300 }) {
+    if (availGB < STEP.floorGB) return min;
+    if (availGB < STEP.downGB || some60 > STEP.downSome60) return Math.max(min, count - 1);
+    const roomy = availGB >= STEP.upGB && some300 < STEP.upSome300;
+    if (roomy && held >= count && waiting > 0) return Math.min(STEP.max, count + 1);
+    return Math.min(STEP.max, Math.max(min, count));
+}
+
+/**
+ * `node tools/test-slots.mjs recount`: measures memory and the queue, writes the next count to `.count` (every
+ * round rewrites it, so it never lapses while a round runs) and says why.
+ * @param dir the ticket directory
+ * @returns the line to print
+ */
+function recount(dir = slotDir()) {
+    const min = Math.max(2, Math.floor(cpus().length / 8));
+    const count = slotCount({ ...process.env, GRAPHTY_TEST_SLOTS: "" });
+    mkdirSync(dir, { recursive: true });
+    const live = liveTickets(dir);
+    const held = live.filter((t) => t.granted).length;
+    const kb = Number(/MemAvailable:\s+(\d+)/.exec(readFileSync("/proc/meminfo", "utf8"))[1]);
+    const some = readFileSync("/proc/pressure/memory", "utf8").split("\n")[0]; // "some avg10=.. avg60=.. avg300=.."
+    const avg = (n) => Number(new RegExp(`avg${n}=([\\d.]+)`).exec(some)[1]);
+    const m = {
+        count,
+        min,
+        held,
+        waiting: live.length - held,
+        availGB: kb / 1048576,
+        some60: avg(60),
+        some300: avg(300),
+    };
+    const next = nextCount(m);
+    writeFileSync(join(dir, ".count"), `${next}\n`);
+    return (
+        `test-slots: count ${count} -> ${next} (held ${m.held}, waiting ${m.waiting}, ` +
+        `${m.availGB.toFixed(1)} GB available, some avg60 ${m.some60}, avg300 ${m.some300})`
+    );
+}
+
+/**
  * How many workers one Node vitest run may use: its share of the machine, so that `slotCount()`
  * runs side by side ask for about one worker per core between them instead of one per core each.
  * Every package's vitest config sets it as the root `maxWorkers`; a browser project's own
@@ -576,10 +639,14 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         console.log(statusLines().join("\n"));
         process.exit(0);
     }
+    if (process.argv[2] === "recount") {
+        console.log(recount());
+        process.exit(0);
+    }
     const single = { "--gpu": "gpu", "--lint": "lint" }[process.argv[2]];
     const [cmd, ...args] = process.argv.slice(single ? 3 : 2);
     if (!cmd) {
-        console.error("usage: node tools/test-slots.mjs [--gpu | --lint] <command...>");
+        console.error("usage: node tools/test-slots.mjs [--gpu | --lint] <command...> | status | recount");
         process.exit(2);
     }
     const label = labelOf([cmd, ...args]);

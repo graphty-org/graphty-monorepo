@@ -140,6 +140,10 @@ export {
     VIEW_MODE_VALUES,
 } from "./src/config/index";
 
+// The numbers behind the default look: the default edge width (`EDGE_CONSTANTS.DEFAULT_LINE_WIDTH`),
+// arrow sizes, line pattern spacing and node shape proportions. Also exported from the root entry.
+export { EDGE_CONSTANTS, PolyhedronType, SHAPE_CONSTANTS } from "./src/constants/meshConstants";
+
 // ---------------------------------------------------------------------------------------------
 // The palettes themselves, and the colour maths that reads them
 // ---------------------------------------------------------------------------------------------

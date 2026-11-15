@@ -58,7 +58,7 @@ npm run lint:fix      # Auto-fix lint issues
 ### Coverage Preview (HTTP servers)
 
 `pnpm run coverage:preview:<package>` for any package (algorithms, layout, graphty-element, graphty,
-graph-format, graph-io, webgpu-graph-algorithms, graph-samples, cytoscape-extensions, babylonjs-map).
+graph-format, graph-io, webgpu-graph-algorithms, graph-samples, cytoscape-extensions, babylonjs-map, babylonjs-models).
 Each package also has its own `npm run coverage:preview`.
 
 ## Shared Configuration
@@ -153,6 +153,19 @@ function you edit that scores 16 to 20 comes down to 15 or below in the same cha
 The existing backlog is burned down in separate small pull requests, one rule or one package at a time, never as
 part of feature work.
 
+**SonarQube MCP.** The machine runs one shared SonarQube MCP server (SonarSource's jar in
+`~/.local/share/sonarqube-mcp/`, in its HTTP transport on 127.0.0.1) instead of one Java process of about
+0.3-0.5 GB per Claude session. `.mcp.json`'s `sonarqube` entry runs `tools/sonarqube-mcp/shim.mjs`, a small stdio
+proxy that sends each request to it with `SONAR_TOKEN`. The shared server runs under servherd from the main checkout
+and writes its URL to `tmp/sonarqube-mcp/url`; if the shim reports it is not running, start it:
+
+```jsonc
+servherd_start({ name: "sonarqube-mcp", cwd: "<main checkout>",
+  command: "node tools/sonarqube-mcp/server.mjs", env: { PORT: "{{port}}" } })
+```
+
+`sonar-gate.mjs` does not use the MCP server.
+
 ### Starting Servers
 
 No server has a fixed port. Every dev server, Storybook, docs server and coverage preview reads
@@ -204,11 +217,17 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 ### Test Projects by Package
 
 Each package's test projects are listed in its own CLAUDE.md ("Test projects", or its testing
-section). The two packages without a CLAUDE.md:
+section). The packages without a CLAUDE.md:
 
 **babylonjs-map:**
 
 - Single test project (Node.js); shard `babylonjs-map`, in the `small-node` group
+
+**babylonjs-models:**
+
+- Single test project (Node.js) over the Babylon-free half (`src/files/`, `src/detect/`) and the built package
+  (build it first); shard `babylonjs-models`, in the `small-node` group. Its Babylon half draws in graphty-element's
+  browser tests, which load every model variant in `babylonjs-models/test/fixtures/variants/`
 
 **cytoscape-extensions:**
 
@@ -223,8 +242,9 @@ section). The two packages without a CLAUDE.md:
 ### Coverage Thresholds
 
 At least 80% lines, functions and statements and 75% branches in every package; graph-format, graph-io,
-graph-samples, babylonjs-map, algorithms and layout require 90% in all four. Every package is moving to 90
-(issue #3043); a package's thresholds rise to 90 in the pull request that brings it there.
+graph-samples, babylonjs-map, cytoscape-extensions, algorithms, layout, remote-logger and webgpu-graph-algorithms
+require 90% in all four. Every package is moving to 90 (issue #3043); a package's thresholds rise to 90 in the pull
+request that brings it there.
 
 ## Testing
 
@@ -438,6 +458,7 @@ graphty-monorepo/
 |-- webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
 |-- babylonjs-map/        # babylonjs-map (unscoped): maps and globes for Babylon.js, plus Babylon-free projections and location parsers
+|-- babylonjs-models/     # babylonjs-models (unscoped): load 3D models into Babylon.js, plus Babylon-free file checks
 |-- cytoscape-extensions/    # @graphty/cytoscape-extensions: graphty layouts and algorithms as Cytoscape.js extensions
 |-- algorithms/           # @graphty/algorithms package
 |-- layout/               # @graphty/layout package (depends on graph-format, graph-samples)

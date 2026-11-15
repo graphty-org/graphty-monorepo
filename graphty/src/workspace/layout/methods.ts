@@ -125,7 +125,6 @@ function withEngine(descriptor: LayoutDescriptor, implementation: LayoutImplemen
         engine: implementation.engine,
         options: implementation.options,
         maxDimensions: implementation.maxDimensions,
-        description: implementation.description,
         ...(implementation.requires === undefined ? {} : { requires: implementation.requires }),
     };
 }

@@ -693,6 +693,7 @@ jobs:
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
                       babylonjs-map/dist/
+                      babylonjs-models/dist/
                       algorithms/dist/
                       layout/dist/
                       cytoscape-extensions/dist/
@@ -747,6 +748,13 @@ jobs:
               with:
                   name: build-babylonjs-map
                   path: babylonjs-map/dist/
+                  retention-days: 1
+
+            - name: Upload babylonjs-models build
+              uses: actions/upload-artifact@v7
+              with:
+                  name: build-babylonjs-models
+                  path: babylonjs-models/dist/
                   retention-days: 1
 
             - name: Upload algorithms build
@@ -1208,6 +1216,12 @@ jobs:
               env:
                   VITE_BASE_PATH: /
 
+            # What the built graphty app asks a browser to download, against graphty/size-budgets.json (issue #8018).
+            # Here because this is the only pull-request job that builds the app: the Build job's artifact leaves it out.
+            - name: Bundle size (graphty app, PR, when affected)
+              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              run: pnpm --filter @graphty/graphty run size
+
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -1226,6 +1240,12 @@ jobs:
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 20
+        # issues and pull requests: read, for the style fidelity known failures' tracking issues below
+        permissions:
+            contents: read
+            checks: write
+            issues: read
+            pull-requests: read
         steps:
             - uses: actions/checkout@v7
               with:
@@ -1326,7 +1346,7 @@ jobs:
                   BASE_REF: ${{ github.base_ref }}
               run: |
                   if [[ "$FULL" == "true" ]]; then
-                      printf '%s=true\n' format-all bundle api datasource cytoscape >> "$GITHUB_OUTPUT"
+                      printf '%s=true\n' format-all bundle api datasource cytoscape fidelity >> "$GITHUB_OUTPUT"
                       exit 0
                   fi
                   changed=$(git diff --name-only "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD)
@@ -1336,6 +1356,11 @@ jobs:
                   out api graphty-element '^tools/api-report'
                   out datasource graphty-element '^tools/check-data-source-migration'
                   out cytoscape cytoscape-extensions '^cytoscape-extensions/'
+                  if grep -qE '^graphty-element/(test/fidelity/|scripts/fidelity-)' <<<"$changed"; then
+                      echo "fidelity=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "fidelity=false" >> "$GITHUB_OUTPUT"
+                  fi
                   if grep -qE '(^|/)(\.prettierrc|\.prettierignore|prettier\.config|\.editorconfig|\.gitignore)|^package\.json$|^pnpm-lock\.yaml$' <<<"$changed"; then
                       echo "format-all=true" >> "$GITHUB_OUTPUT"
                   else
@@ -1377,6 +1402,17 @@ jobs:
             # no experimental item is in the public API report. The same check runs in tools/check-quick.sh.
             - name: Feature flags
               run: pnpm run check:features
+
+            # Every style fidelity known failure (graphty-element/test/fidelity/oracle-known-failures.json and
+            # baseline-scores.json) names an open issue: a reason citing none, or only closed issues, fails (#7015).
+            # One GraphQL query. The full run checks it, and a pull request that changes the lists or the harness;
+            # other pull requests and the master push build (the light run) skip it, so closing an issue fails
+            # neither every open pull request nor the next master build, only the next full run.
+            - name: Style fidelity known failures tracked
+              if: steps.scope.outputs.fidelity == 'true' && needs.packages.outputs.light != 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: pnpm --filter @graphty/graphty-element run fidelity:issues
 
             - name: Declared build tools
               run: pnpm run check:declared-tools
@@ -2218,7 +2254,11 @@ jobs:
     # shards) skips them. They need only the build, not the tests, so they run beside the shards and
     # never hold up the end of a full run (design/ci/channels-pipeline/channels.md section 5).
     # Advisory: release.yml, deploy-pages.yml and coverage.yml read the run's conclusion, and a
-    # measurement with no pass/fail role must not hold them.
+    # measurement with no pass/fail role must not hold them. continue-on-error absorbs a failed job but not a
+    # cancelled one, and a job that reaches its timeout-minutes is cancelled, which makes the whole run conclude
+    # cancelled (issue #7986). So the benchmarks stop themselves first: each runs under tools/before-deadline.sh,
+    # which fails its step at DEADLINE (44 minutes in), and the steps after them carry their own
+    # timeout-minutes, all inside the job's 50.
     performance:
         name: Performance Benchmarks
         needs: packages
@@ -2231,6 +2271,9 @@ jobs:
             contents: read
             id-token: write
         steps:
+            - name: Note when the benchmarks must end
+              run: echo "DEADLINE=$(( $(date +%s) + 44 * 60 ))" >> "$GITHUB_ENV"
+
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
@@ -2268,7 +2311,7 @@ jobs:
 
             - name: Run the algorithms benchmarks
               id: algorithms-bench
-              run: pnpm exec nx run algorithms:benchmark
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec nx run algorithms:benchmark
               env:
                   CI: "true"
                   NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
@@ -2317,7 +2360,7 @@ jobs:
             - name: Run the graphty-element browser timing benchmarks
               if: ${{ !cancelled() }}
               working-directory: graphty-element
-              run: pnpm exec vitest run --project=browser-bench
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=browser-bench
 
             # The repaint's frame budget and undo's cost against a load, timed without coverage. A
             # stopwatch measures whatever else the machine is doing, so these never gate a push;
@@ -2325,7 +2368,31 @@ jobs:
             - name: Run the graphty-element timing benchmarks
               if: ${{ !cancelled() }}
               working-directory: graphty-element
-              run: pnpm exec vitest run --project=bench
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=bench
+
+            # The built app's landing page timed in Chromium (graphty/bench/load-time.bench.test.ts): usable, its graph's
+            # first frame and first settled frame, medians of 15 first visits. The element's own connect-to-settled
+            # rows were written by the bench project above (test/load/load-time.bench.test.ts). Issue #8018.
+            - name: Run the graphty app load-time benchmark
+              if: ${{ !cancelled() }}
+              working-directory: graphty
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=bench
+
+            # Fails the job when a median and its minimum both regressed past tools/load-time.mjs's margin against the
+            # baseline of this runner's CPU model (benchmarks/results/load-time.json); a CPU model with no baseline
+            # prints every row as new.
+            - name: Compare the load times with the baseline
+              id: load-time
+              if: ${{ !cancelled() }}
+              timeout-minutes: 2
+              run: node tools/load-time.mjs
+
+            - name: Post the load times to the health dashboard
+              if: ${{ !cancelled() }}
+              timeout-minutes: 2
+              env:
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node tools/results/post-benchmarks.mjs graphty-load benchmarks/out/load-time-*.json
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the

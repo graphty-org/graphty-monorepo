@@ -45,6 +45,7 @@ import {
 import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand, AlgoRenameCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
+import type { DataDeriveCommand } from "./commands/derive";
 import type { BatchCommand } from "./commands/index";
 import type { LayoutCommand, LayoutSetCommand } from "./commands/layout";
 import type { NoteCommand } from "./commands/notes";
@@ -131,6 +132,7 @@ export type SessionCommand =
     | AlgoMoveCommand
     | AlgoRenameCommand
     | DataCommand
+    | DataDeriveCommand
     | DataIssuesCommand
     | SourceExpandOpCommand
     | StyleCommand

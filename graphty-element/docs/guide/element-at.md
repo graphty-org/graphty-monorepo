@@ -56,4 +56,26 @@ whatever is behind it, usually `null`. The result's `kind` already includes `"ed
 edges can be returned there later without a breaking change. Handle the `"edge"` case now, as the
 example does, and your code keeps working when they arrive.
 
-The `ElementAtResult` and `NodeId` types are exported from `@graphty/graphty-element`.
+## Where hover found the node
+
+The pointer's own hover reports the node it found, with where that node was drawn, on the
+session's `selection:hover-changed` event:
+
+```ts
+element.session.on("selection:hover-changed", ({ after, drawn }) => {
+    if (after !== null && drawn !== undefined) {
+        // drawn.x and drawn.y: the node's center; drawn.radius: the radius hover picks it within.
+        readout.textContent = `Node ${String(after)} at ${drawn.x.toFixed(0)}, ${drawn.y.toFixed(0)}`;
+    }
+});
+```
+
+`drawn` is in the same CSS pixels as `elementAt`. It is where the node stood in the frame the
+pointer found it in, which on WebGPU can be a frame or two before the event arrives: while a layout
+runs, `element.graph.nodeScreenPosition(after)` may already have moved on. Its `radius` is the
+radius the node is drawn at, but never under 1.5 device pixels, so a node drawn smaller than a
+pixel can still be pointed at. It is absent when no node is hovered and when a script calls
+`session.selection.hover(id)`.
+
+The `ElementAtResult` and `NodeId` types are exported from `@graphty/graphty-element`, and
+`HoverDrawn` from `@graphty/graphty-element/session`.

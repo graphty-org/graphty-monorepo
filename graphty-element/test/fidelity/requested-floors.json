@@ -1971,37 +1971,25 @@
     "allowedDrops": {
         "cx-syn-bypass/labelPosition": {
             "floor": 1,
-            "to": 0.8688524590163934,
+            "to": 0.9180327868852459,
             "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8689, 2026-10-20)",
             "date": "2026-11-13"
         },
         "cx2-syn-bypass/labelPosition": {
             "floor": 1,
-            "to": 0.8688524590163934,
+            "to": 0.9180327868852459,
             "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8689, 2026-10-20)",
             "date": "2026-11-13"
         },
         "cx2-syn-mappings/labelPosition": {
             "floor": 1,
-            "to": 0.14583333333333334,
+            "to": 0.5833333333333334,
             "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.1458, 2026-10-20)",
-            "date": "2026-11-13"
-        },
-        "cx2-synthetic-lethal/labelPosition": {
-            "floor": 1,
-            "to": 0,
-            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.0000, 2026-10-20)",
-            "date": "2026-11-13"
-        },
-        "cx2-u2os-hierarchy/labelPosition": {
-            "floor": 1,
-            "to": 0,
-            "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.0000, 2026-10-20)",
             "date": "2026-11-13"
         },
         "cys-syn-bypass/labelPosition": {
             "floor": 1,
-            "to": 0.8793103448275862,
+            "to": 0.9137931034482759,
             "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8793, 2026-10-20)",
             "date": "2026-11-13"
         },
@@ -2469,7 +2457,7 @@
         },
         "xgmml-syn-bypass/labelPosition": {
             "floor": 1,
-            "to": 0.8793103448275862,
+            "to": 0.9137931034482759,
             "reason": "measured against the sample's reference scene, which is an earlier reading of the file and not the program's own drawing; the file now reads as the program draws it, and the oracle report (oracle-report.test.ts, against the program's SVG) judges this property (graph-io/test/fidelity/oracles/ISSUES.md) (0.8793, 2026-10-20)",
             "date": "2026-11-13"
         }

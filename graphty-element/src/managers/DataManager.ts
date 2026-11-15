@@ -417,6 +417,11 @@ export const dataManagerInternals = {} as {
     /** Build the `Node` of every row stored with no `Node` yet, then the `Edge` of every edge stored with none. */
     buildAll(manager: DataManager): void;
     /**
+     * Every node as an array, building none until its element is read (see `Graph.getNodes`), in
+     * the order `nodes` walks them.
+     */
+    nodeList(manager: DataManager): Node[];
+    /**
      * How the current layout engine is handed a row stored with no `Node`: a function given the
      * ids of each arrival's such rows (a no-op for an engine that reads every row of the
      * snapshot), or null for an engine that lays out only `Node`s, for which every row gets one.
@@ -495,6 +500,45 @@ interface UnbuiltRows<K, V> {
     /** Their ids, as a fresh array. */
     ids(): K[];
     build(id: K): V | undefined;
+}
+
+/**
+ * An array of `built` followed by one element per id in `ids`, each made by `make` the first time it
+ * is read (by index, a walk, an array method or a property check) and kept in the array after.
+ * @param built - The elements there already.
+ * @param ids - The ids of the elements made on demand, in order after `built`.
+ * @param make - Makes an id's element; undefined for an id gone since.
+ * @returns The array.
+ */
+function lazyArray<K, V>(built: V[], ids: readonly K[], make: (id: K) => V | undefined): V[] {
+    const offset = built.length;
+    const target = built;
+    target.length = offset + ids.length;
+    const fill = (key: string | symbol): void => {
+        if (typeof key !== "string") {
+            return;
+        }
+
+        const index = Number(key);
+        if (Number.isInteger(index) && index >= offset && index < offset + ids.length && !Object.hasOwn(target, key)) {
+            // An id removed since the array was made reads as undefined, as it would after removal.
+            target[index] = make(ids[index - offset]) as V;
+        }
+    };
+    return new Proxy(target, {
+        get(t, key, receiver) {
+            fill(key);
+            return Reflect.get(t, key, receiver) as unknown;
+        },
+        has(t, key) {
+            fill(key);
+            return Reflect.has(t, key);
+        },
+        getOwnPropertyDescriptor(t, key) {
+            fill(key);
+            return Reflect.getOwnPropertyDescriptor(t, key);
+        },
+    });
 }
 
 /**
@@ -581,9 +625,27 @@ class LazyView<K, V> extends Map<K, V> {
         }
     }
 
+    /**
+     * Every id, building nothing: the built objects' ids, then the unbuilt rows' in row order, the
+     * order a walk that built them would give.
+     * @returns They.
+     */
     override keys(): MapIterator<K> {
-        this.#buildAll();
-        return super.keys();
+        const ids = this.#rows?.ids() ?? [];
+        return ids.length === 0 ? super.keys() : [...super.keys(), ...ids].values();
+    }
+
+    /**
+     * Every object as an array, building none now: an unbuilt row's object is built the first time
+     * its element is read, so the array of a million rows stored with none costs its ids, not a
+     * million objects. Walking the whole array still builds every one. The order is that of
+     * {@link LazyView.values}.
+     * @returns The array.
+     */
+    lazyValues(): V[] {
+        const built = [...super.values()];
+        const ids = this.#rows?.ids() ?? [];
+        return ids.length === 0 ? built : lazyArray(built, ids, (id) => this.get(id));
     }
 
     override values(): MapIterator<V> {
@@ -705,6 +767,7 @@ export class DataManager implements Manager {
             return row === undefined ? undefined : manager.recordOf(row.id, row.record);
         };
         dataManagerInternals.buildRow = (manager, id) => manager.buildRow(id);
+        dataManagerInternals.nodeList = (manager) => manager.nodeMap.lazyValues();
         dataManagerInternals.buildAll = (manager) => {
             for (const id of manager.unbuiltRows.ids()) {
                 manager.buildRow(id);
@@ -1022,6 +1085,17 @@ export class DataManager implements Manager {
      */
     get directed(): boolean {
         return this.store.directed;
+    }
+
+    /**
+     * Whether the edge on a snapshot row is directed: its own direction in a graph whose edges
+     * state one (a GraphML or GEXF file that mixes both), the graph's otherwise.
+     * @param row - The edge's row.
+     * @returns true when the edge is directed
+     * @internal
+     */
+    edgeDirected(row: number): boolean {
+        return this.store.edgeDirected(row);
     }
 
     /**

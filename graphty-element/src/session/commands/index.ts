@@ -14,6 +14,7 @@ import type { HistoryCode } from "../types";
 import { ALGO_DEFINITIONS } from "./algo";
 import { CONFIG_DEFINITIONS } from "./config";
 import { DATA_DEFINITIONS } from "./data";
+import { DERIVE_DEFINITIONS } from "./derive";
 import { LAYOUT_DEFINITIONS } from "./layout";
 import { NOTE_DEFINITIONS } from "./notes";
 import { POSITIONS_DEFINITIONS } from "./positions";
@@ -96,6 +97,7 @@ export const DEFINITIONS: readonly CommandDefinition<SessionCommand>[] = [
     ...ALGO_DEFINITIONS,
     batch,
     ...DATA_DEFINITIONS,
+    ...DERIVE_DEFINITIONS,
     ...ISSUE_DEFINITIONS,
     ...SOURCE_LOAD_DEFINITIONS,
     ...SOURCE_EXPAND_DEFINITIONS,

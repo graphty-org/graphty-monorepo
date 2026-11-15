@@ -53,9 +53,7 @@ describe('a layout started under renderPath "batched" on unchanged data', () => 
     it("reads the frozen snapshot, derives its undirected view once, and gathers the rows once", async () => {
         const element = await mounted();
         const { graph } = element;
-        const { dataManager } = graph as unknown as {
-            dataManager: Parameters<typeof dataManagerInternals.builtNodes>[0];
-        };
+        const dataManager = graph.getDataManager();
         // The premise: a batched load builds no `Node`, so every row is one drawn without one.
         assert.strictEqual([...dataManagerInternals.builtNodes(dataManager)].length, 0);
         // The snapshot the layout reads: the data manager's, which the load froze.

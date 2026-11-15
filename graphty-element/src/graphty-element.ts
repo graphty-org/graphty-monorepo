@@ -14,6 +14,7 @@ import type {
     AutosaveRestored,
     AutosaveStatus,
 } from "./autosave/types";
+import type { GraphOverview, OverviewOptions } from "./camera/overview";
 import type { CameraViewExtent, ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type {
@@ -56,7 +57,8 @@ import type { PixelRatio, RendererRequest, RendererStatus } from "./managers/Ren
 import type { RenderPath, RowCounts } from "./meshes/NodeBatch";
 import type { ModelThumbnailOptions, NodeThumbnailOptions } from "./meshes/NodeThumbnail";
 import { antialiasDefault } from "./meshes/PulledLineBatch";
-import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
+import { exportFigure, type FigureOptions, type FigureResult } from "./screenshot/figure.js";
+import type { ScreenshotLegendPosition, ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import type { GraphSession } from "./session";
 import {
     describeSource,
@@ -98,6 +100,8 @@ import type {
     TransactionScope,
 } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
+import { LegendOverlay } from "./ui/Legend";
+import { Minimap } from "./ui/Minimap";
 import { downloadBlob } from "./utils/download";
 
 /**
@@ -193,6 +197,21 @@ export class Graphty extends LitElement {
            anywhere on the page; see the constructor. */
         [data-pointer-focus] canvas:focus-visible {
             outline: none;
+        }
+
+        /* The minimap's defaults: small, in a corner, plain. Restyle it from the page with
+           ::part(minimap); its points and viewport rectangle are drawn in its color. */
+        [part="minimap"] {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            width: 160px;
+            height: 160px;
+            box-sizing: border-box;
+            border: 1px solid #888;
+            background: rgb(255 255 255 / 75%);
+            color: #444;
+            touch-action: none;
         }
     `;
 
@@ -797,6 +816,10 @@ export class Graphty extends LitElement {
 
         this.#wired = true;
         this.renderRoot.appendChild(this.#element);
+        if (this.#minimapOn) {
+            this.#minimapView.attach(this.renderRoot);
+        }
+
         this.#reportStrayObjectAttributes();
 
         // Autosave reads its key and options in the task after connecting, so a script that sets
@@ -857,6 +880,10 @@ export class Graphty extends LitElement {
             this.#mirrorVisibilityChange(change);
         });
         this.#screenReader.connect(this.renderRoot);
+        if (this.#legendOn) {
+            this.#legendView.connect(this.renderRoot);
+        }
+
         // A note written from a panel, a console or an undo: plain values, as the other mirrors.
         this.#unwatchNotes ??= session.on("note:changed", ({ id, change, fields, cause }) => {
             this.dispatchEvent(
@@ -1120,6 +1147,125 @@ export class Graphty extends LitElement {
         this.requestUpdate("accessibleNodeList", oldValue);
     }
 
+    /** Whether the legend is shown; see {@link Graphty.legend}. */
+    #legendOn = false;
+    /** The corner it sits in; see {@link Graphty.legendPosition}. */
+    #legendCorner: ScreenshotLegendPosition = "top-left";
+    /** Its accessible name; see {@link Graphty.legendLabel}. */
+    #legendName: string | undefined;
+    /** The legend overlay, built on first use. */
+    #legendDrawn: LegendOverlay | undefined;
+
+    /**
+     * The legend overlay, built on first use.
+     * @returns The overlay.
+     */
+    get #legendView(): LegendOverlay {
+        if (this.#legendDrawn === undefined) {
+            this.#legendDrawn = new LegendOverlay({
+                legend: () => this.#graph.getSession().styles.legend(),
+                onDerived: (listener) => this.#graph.getSession().on("project:derived", listener),
+            });
+            this.#legendDrawn.setPosition(this.#legendCorner);
+            this.#legendDrawn.setLabel(this.#legendName);
+        }
+
+        return this.#legendDrawn;
+    }
+
+    /**
+     * Whether a legend is drawn over the graph: a key for every style layer that binds a value,
+     * read from `session.styles.legend()` -- a row with a color chip per category, or a color ramp
+     * between the ends of a continuous domain. It follows every change to the layers and the data,
+     * and hides while no layer binds a value. Every word in it is the data's: the field's name,
+     * the values and the names readers gave them.
+     * @remarks
+     * A preference of this view, not part of the project: switching it records no undo step. Off
+     * by default. It is HTML in the shadow root, exposed as `::part(legend)`, so a screen reader
+     * reads its sections and rows; set its size, border, background and color from the page (its
+     * sizes are in `em`, so `font-size` scales the whole key). The corner is
+     * {@link Graphty.legendPosition}. A screenshot draws the same key with
+     * `captureScreenshot({ legend: { position: element.legendPosition } })`. To draw a legend of
+     * your own instead, read `session.styles.legend()` on the session's `project:derived` event.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element legend legend-position="bottom-left"></graphty-element>
+     * <style>
+     *     graphty-element::part(legend) { font-size: 14px; max-width: 240px; }
+     * </style>
+     * ```
+     * @returns True when the legend is shown
+     */
+    @property({ attribute: "legend", type: Boolean, reflect: true })
+    get legend(): boolean {
+        return this.#legendOn;
+    }
+    /**
+     * Shows or hides the legend.
+     */
+    set legend(value: boolean) {
+        const oldValue = this.#legendOn;
+        this.#legendOn = value;
+        if (!value) {
+            this.#legendDrawn?.disconnect();
+        } else if (this.#wired) {
+            this.#legendView.connect(this.renderRoot);
+        }
+
+        this.requestUpdate("legend", oldValue);
+    }
+
+    /**
+     * The corner of the graph the legend sits in: `"top-left"` (the default), `"top-right"`,
+     * `"bottom-left"` or `"bottom-right"`.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element legend legend-position="top-right"></graphty-element>
+     * ```
+     * @returns The corner
+     */
+    @property({ attribute: "legend-position" })
+    get legendPosition(): ScreenshotLegendPosition {
+        return this.#legendCorner;
+    }
+    /**
+     * Moves the legend to another corner.
+     */
+    set legendPosition(value: ScreenshotLegendPosition) {
+        const oldValue = this.#legendCorner;
+        this.#legendCorner = value;
+        this.#legendDrawn?.setPosition(value);
+        this.requestUpdate("legendPosition", oldValue);
+    }
+
+    /**
+     * The legend's accessible name, which a screen reader announces, in the page's own words.
+     * Unset by default: the legend then has no name of its own, and each field in it is still
+     * named by the field's name.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element legend legend-label="Leyenda"></graphty-element>
+     * ```
+     * @returns The name
+     */
+    @property({ attribute: "legend-label" })
+    get legendLabel(): string | undefined {
+        return this.#legendName;
+    }
+    /**
+     * Sets the legend's accessible name.
+     */
+    set legendLabel(value: string | undefined) {
+        const oldValue = this.#legendName;
+        // Removing the attribute sets null: that is no name, as unset is.
+        this.#legendName = value ?? undefined;
+        this.#legendDrawn?.setLabel(this.#legendName);
+        this.requestUpdate("legendLabel", oldValue);
+    }
+
     /**
      * The facts a description of the drawing is phrased from, as numbers, the legend and the
      * selection: what {@link Graphty.accessibleDescription} receives, for a page that words the
@@ -1300,6 +1446,7 @@ export class Graphty extends LitElement {
         this.#unwatchVisibility?.();
         this.#unwatchVisibility = null;
         this.#screenReader.disconnect();
+        this.#legendDrawn?.disconnect();
         this.#unwatchHistory?.();
         this.#unwatchHistory = null;
         this.#unwatchProjectStatus?.();
@@ -3207,6 +3354,91 @@ export class Graphty extends LitElement {
         this.requestUpdate("labelDeclutter", oldValue);
     }
 
+    /** Whether the minimap is shown; see {@link Graphty.minimap}. */
+    #minimapOn = false;
+
+    /** The minimap overlay, built on first use. */
+    #minimapDrawn: Minimap | undefined;
+
+    /** The accessible name the minimap carries; see {@link Graphty.minimapLabel}. */
+    #minimapName = "minimap";
+
+    /**
+     * The minimap overlay, built on first use.
+     * @returns The overlay.
+     */
+    get #minimapView(): Minimap {
+        if (this.#minimapDrawn === undefined) {
+            this.#minimapDrawn = new Minimap(this);
+            this.#minimapDrawn.setLabel(this.#minimapName);
+        }
+
+        return this.#minimapDrawn;
+    }
+
+    /**
+     * Whether a minimap is drawn over the graph: every node seen from where the camera looks (a
+     * density heatmap above 5,000 nodes) and the rectangle the view shows. A click on it centres
+     * the view there, a drag scrubs, and with it focused the arrow keys step the view.
+     * @remarks
+     * A preference of this view, not part of the project: switching it, and moving the camera with
+     * it, records no undo step. Off by default. It is a canvas in the shadow root, exposed as
+     * `::part(minimap)`: set its size, place, border and background from the page, and the color
+     * its points and rectangle are drawn in with `color`. To draw a minimap of your own instead,
+     * see {@link Graphty.getOverview}.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element minimap></graphty-element>
+     * <style>
+     *     graphty-element::part(minimap) { left: 8px; right: auto; width: 200px; color: teal; }
+     * </style>
+     * ```
+     * @returns True when the minimap is shown
+     */
+    @property({ attribute: "minimap", type: Boolean, reflect: true })
+    get minimap(): boolean {
+        return this.#minimapOn;
+    }
+    /**
+     * Shows or hides the minimap.
+     */
+    set minimap(value: boolean) {
+        const oldValue = this.#minimapOn;
+        this.#minimapOn = value;
+        if (!value) {
+            this.#minimapDrawn?.detach();
+        } else if (this.#wired) {
+            this.#minimapView.attach(this.renderRoot);
+        }
+
+        this.requestUpdate("minimap", oldValue);
+    }
+
+    /**
+     * The minimap's accessible name, which a screen reader announces. `"minimap"` unless set;
+     * a page in another language sets its own word.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element minimap minimap-label="Carte"></graphty-element>
+     * ```
+     * @returns The name
+     */
+    @property({ attribute: "minimap-label" })
+    get minimapLabel(): string {
+        return this.#minimapName;
+    }
+    /**
+     * Sets the minimap's accessible name.
+     */
+    set minimapLabel(value: string) {
+        const oldValue = this.#minimapName;
+        this.#minimapName = value;
+        this.#minimapDrawn?.setLabel(value);
+        this.requestUpdate("minimapLabel", oldValue);
+    }
+
     /**
      * How fast the 3D view turns on its own, in radians per second.
      * @remarks
@@ -3783,6 +4015,45 @@ export class Graphty extends LitElement {
     }
 
     /**
+     * Whether the graph reduces motion for its reader.
+     * @remarks
+     * True: every camera move (fitting the graph, a preset view, the glide to a picked node)
+     * jumps to its end, `autoRotate` holds still, a layout transition is skipped, and a running
+     * layout is drawn once it has settled instead of moving into place. `"auto"`: the same while
+     * the platform asks for reduced motion (`prefers-reduced-motion: reduce`), following it as it
+     * changes. False (the default): nothing changes. As an attribute, `reduced-motion` alone or
+     * `reduced-motion="true"` is true, and `reduced-motion="auto"` is `"auto"`. A preference of
+     * this view, not saved with the project.
+     * @since 3.54.0
+     * @example
+     * ```html
+     * <graphty-element reduced-motion="auto"></graphty-element>
+     * ```
+     * @returns true, false or "auto"
+     */
+    @property({
+        attribute: "reduced-motion",
+        converter: (value: string | null): boolean | "auto" => {
+            if (value === "auto") {
+                return "auto";
+            }
+
+            return value !== null && value !== "false";
+        },
+    })
+    get reducedMotion(): boolean | "auto" {
+        return this.#graph.getReducedMotion();
+    }
+    /**
+     * Sets whether the graph reduces motion.
+     */
+    set reducedMotion(value: boolean | "auto") {
+        const oldValue = this.reducedMotion;
+        this.#graph.setReducedMotion(value);
+        this.requestUpdate("reducedMotion", oldValue);
+    }
+
+    /**
      * How far the camera starts from the graph, in scene units.
      * @remarks
      * Set, it places the 3D camera at this distance from the orbit center (never closer than the
@@ -4147,6 +4418,33 @@ export class Graphty extends LitElement {
      */
     async captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult> {
         return this.#graph.captureScreenshot(options);
+    }
+
+    /**
+     * Export the graph as it is drawn now as a vector figure, an SVG file for a paper or a slide.
+     *
+     * Every visible node is a filled shape where the canvas draws it, in its color; every visible
+     * edge is a line; every label on screen is text, not pixels, so it can be edited and searched;
+     * and `legend` draws the same key `captureScreenshot` draws, as text too. The figure is the
+     * canvas's size in CSS pixels and lines up with a screenshot taken at the same moment. It waits
+     * for the finished picture first, as {@link Graphty.waitForStableFrame} does, and rejects as it
+     * does.
+     * @param options - The format (`"svg"`), the key, the background and an optional download.
+     * @returns The file as a Blob of type `image/svg+xml`, its size, and whether it was downloaded.
+     * @throws A `GraphtyError`: `E_BAD_COMMAND` for a format other than `"svg"` (`details.field`
+     *   is `"format"`), `E_CAPTURE_FAILED` when there is no camera to draw from.
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * const figure = await element.exportFigure({ legend: true });
+     * const svg = await figure.blob.text();
+     * // or hand it straight to the reader:
+     * await element.exportFigure({ legend: true, download: true, downloadFilename: "figure.svg" });
+     * ```
+     */
+    async exportFigure(options?: FigureOptions): Promise<FigureResult> {
+        await this.#graph.waitForStableFrame();
+        return exportFigure(this.#graph, options);
     }
 
     /**
@@ -5121,6 +5419,10 @@ export class Graphty extends LitElement {
 
     /**
      * Get all nodes in the graph.
+     *
+     * On the `"batched"` render path a node's `Node` is built when its element of the array is
+     * first read: the call and `length` stay cheap at a million nodes, but walking the whole array
+     * builds every `Node`. Walk {@link getNodeIds} instead to enumerate a large graph.
      * @returns Array of all nodes
      * @since 1.5.0
      * @example
@@ -5131,6 +5433,23 @@ export class Graphty extends LitElement {
      */
     getNodes(): import("./Node").Node[] {
         return this.#graph.getNodes();
+    }
+
+    /**
+     * Get the id of every node, building no `Node` object: the way to enumerate the nodes of a
+     * large graph on the `"batched"` render path, where walking all of {@link getNodes} builds a
+     * `Node` for every row.
+     * @returns The ids, in the order `getNodes()` returns the nodes.
+     * @since 3.40.0
+     * @example
+     * ```typescript
+     * for (const id of element.getNodeIds()) {
+     *     console.log(id);
+     * }
+     * ```
+     */
+    getNodeIds(): (string | number)[] {
+        return this.#graph.getNodeIds();
     }
 
     /**
@@ -5900,6 +6219,55 @@ export class Graphty extends LitElement {
      */
     screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
         return this.#graph.screenToWorld(screenPos);
+    }
+
+    /**
+     * Everything a minimap needs: every placed node seen along the current view direction, laid
+     * flat in a unit frame (x right, y down, 0 to 1, the same scale on both axes), and `viewport`,
+     * the part of that frame the camera shows. {@link Graphty.minimap} draws a minimap from this; to
+     * draw your own, read it and redraw on `overview-changed`.
+     *
+     * Up to `maxPoints` placed nodes (default 5000) it returns one point per node; above that a
+     * `gridSize` by `gridSize` density grid (default 64) instead, so the result stays small.
+     * Reading costs one pass over the nodes after the nodes or the view direction moved, and
+     * nothing more while only the viewport moved (a 2D pan or zoom).
+     * @param options - `maxPoints` and `gridSize`.
+     * @returns The overview; empty, with a zero viewport, while no node is placed.
+     * @example
+     * ```ts
+     * element.addEventListener("overview-changed", () => {
+     *     const { points, viewport } = element.getOverview();
+     *     ctx.clearRect(0, 0, 150, 150);
+     *     for (let i = 0; i < points.length; i += 2) ctx.fillRect(points[i] * 150, points[i + 1] * 150, 2, 2);
+     *     ctx.strokeRect(viewport.x * 150, viewport.y * 150, viewport.width * 150, viewport.height * 150);
+     * });
+     * ```
+     */
+    getOverview(options?: OverviewOptions): GraphOverview {
+        return this.#graph.getOverview(options);
+    }
+
+    /**
+     * Move the camera so the view is centred on a point of the overview frame, keeping its zoom
+     * and direction: click-to-centre and drag-to-scrub on a minimap. It changes only the camera,
+     * so it is not an undo step. Does nothing while no node is placed.
+     * @param point - The point, in the frame {@link Graphty.getOverview} returns (0 to 1, y down).
+     * @param point.x - Frame x.
+     * @param point.y - Frame y.
+     * @param options - Animation options, as for `setCameraState`.
+     * @returns Resolves once the camera is there.
+     * @example
+     * ```ts
+     * minimap.addEventListener("pointerdown", (e) => {
+     *     void element.centerOnOverview({ x: e.offsetX / 150, y: e.offsetY / 150 });
+     * });
+     * ```
+     */
+    async centerOnOverview(
+        point: { x: number; y: number },
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.centerOnOverview(point, options);
     }
 
     /**

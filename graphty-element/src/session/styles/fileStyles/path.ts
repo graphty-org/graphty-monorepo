@@ -11,6 +11,7 @@
  */
 
 import type { Path } from "../../../catalog/types";
+import type { FieldWords } from "../legend";
 
 /** The root of every file-style path. */
 const STYLE_ROOT = "graphty.style.";
@@ -100,6 +101,32 @@ export function parseFileStylePath(path: Path): FileStylePathParts | undefined {
     }
 
     return { namespace, kind, key };
+}
+
+/**
+ * The names a file-style column goes by, for a pill, a legend or a key card that would otherwise
+ * show its path: the column of style classes a file's rules sort elements into is "Style class",
+ * every other column a file's styles are read from is "File style". The technical name is
+ * the column's key (`copy.bends`, `class`).
+ * @param path - Any path.
+ * @returns The names, or undefined for a path that is not a file-style path.
+ * @example
+ * ```ts
+ * fileStyleWords("graphty.style.graphml.edge.copy.bends");
+ * // { plainName: "File style", technicalName: "copy.bends" }
+ * ```
+ * @experimental file-styles
+ */
+export function fileStyleWords(path: Path): FieldWords | undefined {
+    const parts = parseFileStylePath(path);
+    if (parts === undefined) {
+        return undefined;
+    }
+
+    return Object.freeze({
+        plainName: parts.key === "class" ? "Style class" : "File style",
+        technicalName: parts.key,
+    });
 }
 
 /**

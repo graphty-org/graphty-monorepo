@@ -1841,6 +1841,37 @@ function tipsMiddle(p: Prim, e: PEdge): boolean {
     );
 }
 
+/** How far past its node's far side, in px along its line, a shape may reach and still be that line's head there. */
+const PAST_NODE_SLACK = 1;
+
+/**
+ * Whether a shape runs on from a line's end through that end's node and out past its far side. A head at a line's end
+ * reaches the node's outline at most, so such a shape is no head of that line there: it is a long head of another edge,
+ * drawn alone across the node (cx-syn-mappings: 189->192, drawn with no line between 189 and 192, its circle and its
+ * half arrow running back through 192 from 192->201's source end, were read as that line's heads).
+ * @param shape - the shape's points
+ * @param e - the line
+ * @param end - which end
+ * @param n - the node at that end
+ * @returns true for a shape through the node
+ */
+function runsThroughNode(shape: readonly Pt[], e: PEdge, end: "source" | "target", n: PNode | undefined): boolean {
+    const q = endOf(e, end);
+    const r = end === "source" ? (e.points[1] ?? q) : (e.points.at(-2) ?? q);
+    const len = Math.hypot(r[0] - q[0], r[1] - q[1]);
+    if (n === undefined || len < 1e-9 || e.source === e.target || shape.length === 0) {
+        return false;
+    }
+    // outward, from the line into the node
+    const [ux, uy] = [(q[0] - r[0]) / len, (q[1] - r[1]) / len];
+    const depth = (v: Pt): number => (v[0] - q[0]) * ux + (v[1] - q[1]) * uy;
+    // a line between nodes nearer than their outlines runs back from one outline to the other, away from its own node
+    // (cx-radiation-bibliography 164->169), whose heads cross over: only a line leaving its node is judged
+    const center = depth([n.cx, n.cy]);
+    const farSide = center + (Math.abs(ux) * n.w + Math.abs(uy) * n.h) / 2;
+    return center > 0 && Math.max(...shape.map(depth)) > farSide + PAST_NODE_SLACK;
+}
+
 /**
  * The geometric edge end a closed shape caps as an arrowhead, or null when it caps none. An
  * arrowhead sits at the end (its box within reach of the end point), is small beside its edge
@@ -1893,7 +1924,15 @@ export function arrowheadEdge(
     // across a long line's middle, and is that other edge's.
     const reach = size * 1.5 + 3;
     const from = (q: Pt): number => Math.hypot(c[0] - q[0], c[1] - q[1]);
-    const near = nearestEnd(edges, (e, end) => from(endOf(e, end)), reach, ["source", "target"]);
+    const mid = (p.closed ? areaCentroid(p.points) : null) ?? c;
+    const pastNode = (e: PEdge, end: "source" | "target"): boolean =>
+        runsThroughNode(p.points, e, end, nodeById(nodes, end === "source" ? e.source : e.target));
+    const near = nearestEnd(
+        edges,
+        (e, end) => (pastNode(e, end) ? Number.POSITIVE_INFINITY : from(endOf(e, end))),
+        reach,
+        ["source", "target"],
+    );
     // How far a shape reaches back along a line from its end, inward: about 0 for a cap whose base the line stops at
     // (Cytoscape desktop stops every line at its arrowhead's base), its length for one the line runs on under.
     const behind = (e: PEdge, end: "source" | "target"): number => {
@@ -1948,7 +1987,6 @@ export function arrowheadEdge(
     // the head is the line's it lies along, its middle on that line, never one it merely touches (json-vis-siblings:
     // the nearest tip gave 23 heads to a neighbor's line, leaving 20 lines headless); lines it lies on alike (two
     // edges drawn over one another, a line's two ends) go by the nearest tip
-    const mid = (p.closed ? areaCentroid(p.points) : null) ?? c;
     // both searches below measure the same tips and the same distances off each line: each is measured once
     const tips = new Map<PEdge, Partial<Record<string, number>>>();
     const tipOf = (e: PEdge, end: "source" | "target", across: boolean): number => {
@@ -1971,7 +2009,7 @@ export function arrowheadEdge(
     const touching = (across: boolean): { e: PEdge; end: ArrowEnd } | null => {
         const onLine = nearestEnd(
             edges,
-            (e, end) => (tipOf(e, end, across) <= 3 ? offOf(e) : Number.POSITIVE_INFINITY),
+            (e, end) => (tipOf(e, end, across) <= 3 && !pastNode(e, end) ? offOf(e) : Number.POSITIVE_INFINITY),
             Number.MAX_VALUE,
             ["source", "target"],
         );
@@ -1981,7 +2019,9 @@ export function arrowheadEdge(
                   edges,
                   (e, end) => {
                       const tip = tipOf(e, end, across);
-                      return tip <= 3 && offOf(e) <= onLine.d + 0.5 ? tip : Number.POSITIVE_INFINITY;
+                      return tip <= 3 && offOf(e) <= onLine.d + 0.5 && !pastNode(e, end)
+                          ? tip
+                          : Number.POSITIVE_INFINITY;
                   },
                   3,
                   ["source", "target"],
@@ -3460,7 +3500,9 @@ export function associate(
             // the arrowheads drawn with its line cap its ends, whatever line of a neighbor's ends nearer them
             for (const [i, hs] of own.entries()) {
                 const end = i === 0 ? "source" : "target";
-                hs.forEach((h) => ownCaps.set(h, { e: edge, end }));
+                hs.filter((h) => !runsThroughNode(h.points, edge, end, end === "source" ? a : b)).forEach((h) =>
+                    ownCaps.set(h, { e: edge, end }),
+                );
             }
         } else if (
             box === undefined &&

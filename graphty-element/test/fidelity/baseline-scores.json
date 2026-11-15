@@ -208,9 +208,9 @@
             "labelPosition": 1,
             "visible": 1,
             "zOrder": 1,
-            "edgeColor": 0.9803921568627451,
+            "edgeColor": 1,
             "edgeOpacity": 1,
-            "edgeWidth": 0.9921568627450981,
+            "edgeWidth": 1,
             "lineStyle": 1,
             "arrows": 1,
             "edgePath": 1,
@@ -244,8 +244,8 @@
             "fillOpacity": ["https://identifiers.org/aop.events/1880","https://identifiers.org/aop.events/201","https://identifiers.org/aop.events/875","https://identifiers.org/aop.events/888"]
         },
         "cyjs-genemania": {
-            "edgeColor": ["107","160","223","248","98"],
-            "edgeWidth": ["223","98"]
+            "edgeColor": [],
+            "edgeWidth": []
         },
         "cys-annotation-example": {
             "edgePath": ["YPL248C->YML051W","YPL248C->YML051W#1"],

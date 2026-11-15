@@ -20,7 +20,14 @@ import { type Column, GraphFormatError, type GraphSnapshot } from "@graphty/grap
 import { type ChildrenCsr, childrenCsr } from "../../children.js";
 import { type PairFolding, pairFolding } from "../../common/direction.js";
 import { isWritableDotText, quoteDotId } from "../../common/escape.js";
-import { capabilities, checkCapabilities, countMixedEdges, LOSS, sanitizeIds } from "../../common/export.js";
+import {
+    capabilities,
+    checkCapabilities,
+    countMixedEdges,
+    LOSS,
+    type SanitizedIds,
+    sanitizeIds,
+} from "../../common/export.js";
 import { formatDecimal, formatF32, formatF64, formatInteger, idText } from "../../common/format.js";
 import { canonicalId } from "../../common/ids.js";
 import { type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
@@ -309,6 +316,7 @@ export const dotExporter: GraphExporter<DotExportOptions> = Object.freeze({
 function checkPlain(snapshot: GraphSnapshot, options?: DotExportOptions & CommonExportOptions): LossNote[] {
     const resolved = resolveExportOptions(options);
     const notes = checkCapabilities(snapshot, CAPABILITIES, resolved, {
+        idsAsText: true,
         positionDtype: "f64",
         roles: KEPT_ROLES,
         roleNames: ROLE_NAMES,
@@ -1176,13 +1184,17 @@ class ExportPlan {
     }
 
     /**
-     * The id text of a node.
+     * The id text of a node: String(id), with a suffix for an id whose text an earlier id has (sanitizeIds).
      * @param i - the node index
-     * @returns String(id)
+     * @returns the text
      */
     private idText(i: number): string {
-        return idText(this.snapshot.ids.idOf(i));
+        this.written ??= sanitizeIds(this.snapshot, CAPABILITIES.idCharset, this.resolved.sanitizeIds);
+        return idText(this.written.idAt(i));
     }
+
+    /** The node ids to write, made on first use. */
+    private written: SanitizedIds | null = null;
 }
 
 /**

@@ -30,6 +30,7 @@ export const ENTRIES = Object.freeze({
     "sources-rest": "src/sources/rest/index.ts",
     "sources-sparql": "src/sources/sparql/index.ts",
     "sources-github": "src/sources/github/index.ts",
+    "sources-gremlin": "src/sources/gremlin/index.ts",
     styles: "src/styles/index.ts",
     positions: "src/positions/index.ts",
 });

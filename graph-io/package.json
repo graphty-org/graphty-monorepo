@@ -92,6 +92,11 @@
             "import": "./dist/sources-rest.js",
             "default": "./dist/sources-rest.js"
         },
+        "./sources/gremlin": {
+            "types": "./dist/sources-gremlin.d.ts",
+            "import": "./dist/sources-gremlin.js",
+            "default": "./dist/sources-gremlin.js"
+        },
         "./sources/sparql": {
             "types": "./dist/sources-sparql.d.ts",
             "import": "./dist/sources-sparql.js",

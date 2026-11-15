@@ -31,6 +31,7 @@ import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
 import { defineLayout } from "../../src/simple/defineLayout";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
+import { meshAnnouncementsDelivered } from "../helpers/mesh-announcements";
 import { click, drag, hover, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 import { nextModelEvent } from "./models/helpers";
@@ -916,6 +917,8 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         });
         try {
             await loaded(element, "3d");
+            // a mesh built during the load is announced from a timer after it
+            await meshAnnouncementsDelivered();
         } finally {
             onNode.remove();
             onMesh.remove();

@@ -11,6 +11,7 @@
  */
 
 export { EXPORT_LOSS_CODES } from "../data/exportLossCodes";
+export type { DrawnAnnotation, DrawnAnnotations } from "./annotations";
 export type {
     AddAssetOptions,
     AssetId,
@@ -62,20 +63,10 @@ export {
     FILE_STYLE_ISSUE,
     FILE_STYLE_TRANSLATION_ISSUE,
 } from "./styles/fileStyles/codes";
-export type {
-    FileStyleMappingKind,
-    FileStyleMeaning,
-    FileStyleOrigin,
-    FileStyleReason,
-    FileStyleRole,
-    FileStyleRuleOrigin,
-} from "./styles/fileStyles/origin";
-export { FILE_STYLE_REASONS, fileStyleOf } from "./styles/fileStyles/origin";
 export type { FileStyleKind } from "./styles/fileStyles/path";
-export { fileStyleWords } from "./styles/fileStyles/path";
 export type { FileStyleShapeTable } from "./styles/fileStyles/shapes";
 export { FILE_STYLE_SHAPES } from "./styles/fileStyles/shapes";
-export type { FileStyleColumnValues, FileStyleLoadValues, FileStyleScalar } from "./styles/fileStyles/store";
+export type { FileStyleScalar, StyleValueColumn, StyleValueSet } from "./styles/fileStyles/store";
 export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
 export type {
     ColumnHistogram,
@@ -198,6 +189,7 @@ export type {
     RowReasonCode,
     RowUpdate,
     RunPlacement,
+    SessionAnnotations,
     SessionAttributes,
     SessionCapabilities,
     SessionCatalogApi,

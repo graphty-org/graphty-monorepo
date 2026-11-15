@@ -97,12 +97,12 @@ export interface SelectorSourceParts {
     /**
      * One column of a file's style values, by element id, for the `graphty.style.*` paths. Absent,
      * or answering undefined, those paths read nothing.
-     * @param namespace - The load's namespace.
+     * @param namespace - The style value set's name.
      * @param kind - Nodes or edges.
      * @param key - The column's key.
-     * @returns The values by element id, or undefined when no load holds that column.
+     * @returns The values by element id, or undefined when no set holds that column.
      */
-    readonly fileStyles?: (
+    readonly styleValues?: (
         namespace: string,
         kind: SelectorTarget,
         key: string,
@@ -540,7 +540,7 @@ function isPresent(value: unknown): boolean {
  * ```
  */
 export function createSelectorSource(parts: SelectorSourceParts): SessionSelectorSource {
-    const { snapshot: readSnapshot, records, notes, fileStyles } = parts;
+    const { snapshot: readSnapshot, records, notes, styleValues } = parts;
     const readResult = parts.results;
     const paths = new Map<Path, PathEntry>();
     let frame: Frame | null = null;
@@ -711,7 +711,7 @@ export function createSelectorSource(parts: SelectorSourceParts): SessionSelecto
             return undefined;
         }
 
-        const column = fileStyles?.(entry.runId, target, entry.key);
+        const column = styleValues?.(entry.runId, target, entry.key);
         if (column === undefined) {
             return undefined;
         }

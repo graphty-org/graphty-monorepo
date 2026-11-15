@@ -1,9 +1,11 @@
 /**
  * @file A file's styles applied by the load that read the file, inside its `data.import` step: the
- * previous file's layers swept on a replacing load, the style values written to the load's
- * namespace, the layers checked one by one and added above the element's base layers, the hidden
- * elements given to the visibility filter and the background to the configuration. One load is
- * one undo step, and redo puts all of it back without reading the file again.
+ * layers the previous load added removed on a replacing load (those the reader left as they were),
+ * the style values written to a new set of the style value store, the layers checked one by one
+ * and added above the element's base layers, the hidden elements given to the visibility filter,
+ * the background to the configuration and the annotations through `annotations.set`, each through
+ * the same command any caller uses. Nothing it writes records that a load wrote it. One load is one
+ * undo step, and redo puts all of it back without reading the file again.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -22,18 +24,47 @@ import type { LoadReport } from "../../../data/report";
 import type { DataImportCommand } from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
 import type { TimeField } from "../../time/TimeApi";
-import type { CompiledLayer } from "../Layer";
-import { quotePath } from "../predicate";
-import { ANNOTATIONS_VALUE, type DrawnAnnotations } from "./annotations";
+import { type CompiledLayer, specOf } from "../Layer";
+import { deepEquals, quotePath } from "../predicate";
 import { FILE_STYLE_TRANSLATION_ISSUE } from "./codes";
 import { dataPaths, elementIdsOf, type ReaderColumnPath } from "./columns";
 import { withLabelGrid } from "./labelGrid";
-import { fileStyleNamespace, fileStylePath } from "./path";
-import { asFileStyleStore, FILE_STYLES_VALUE, type FileStyleColumnValues, fileStyleValuesOf } from "./store";
+import { fileStylePath } from "./path";
+import {
+    asStyleValueStore,
+    nextStyleValueSetName,
+    STYLE_VALUES_VALUE,
+    type StyleValueColumn,
+    styleValueSetsOf,
+} from "./store";
 import { type FileStyleNote, type FileStyleOptions, translateFileStyles, type Translation } from "./translate";
 
-/** The template a file's layers are filed under: `file:<importId>`. */
-const FILE_TEMPLATE_PREFIX = "file:";
+/**
+ * The graph value holding the layers the loads since the last replacing one added, each as it was
+ * added: session state the next replacing load reads to remove them, never saved and never on a layer.
+ */
+const IMPORTED_LAYERS_VALUE = "importedLayers";
+
+/** A layer a load added, as it was added. */
+export interface ImportedLayer {
+    readonly id: LayerId;
+    readonly spec: LayerSpec;
+}
+
+/**
+ * The layers the loads since the last replacing one added, read before a load replaces the graph
+ * (which sweeps its values).
+ * @param state - The project state.
+ * @param state.graph - Its graph slice.
+ * @param state.graph.values - Its graph values.
+ * @returns The layers, as they were added.
+ */
+export function importedLayersOf(state: {
+    readonly graph: { readonly values: ReadonlyMap<string, unknown> };
+}): readonly ImportedLayer[] {
+    const held = state.graph.values.get(IMPORTED_LAYERS_VALUE);
+    return Array.isArray(held) ? (held as readonly ImportedLayer[]) : [];
+}
 
 /** A file's styles, as the data source that read the file gives them. */
 export interface FileStylesRead {
@@ -43,8 +74,6 @@ export interface FileStylesRead {
     readonly snapshot: GraphSnapshot;
     /** Where the reader put each column on its records. */
     readonly path: ReaderColumnPath;
-    /** The graph-io format id or JSON dialect the file was read as. */
-    readonly format: string;
     /**
      * How many of the styles' px lengths one unit of the file's stored positions is, when the
      * positions are in another known unit (Graphviz input inches: 72); absent when they share it.
@@ -166,16 +195,6 @@ export function asksFileStyles(command: {
 }
 
 /**
- * Whether a layer was made from a file's styles.
- * @param entry - The layer.
- * @returns True for a layer filed under a `file:` template.
- */
-function isFileLayer(entry: CompiledLayer): boolean {
-    const { source } = entry.layer;
-    return source.by === "template" && source.templateId.startsWith(FILE_TEMPLATE_PREFIX);
-}
-
-/**
  * What the element's own base layers paint, per kind.
  * @param stack - The layer stack.
  * @returns The base values.
@@ -197,6 +216,8 @@ function baseValues(stack: readonly CompiledLayer[]): Record<"node" | "edge", Pa
  * @param command - The import.
  * @param outcome - What the load left.
  * @param ctx - The import's context.
+ * @param previous - The layers the loads before this one added ({@link importedLayersOf}), read
+ *     before the import replaced the graph.
  * @returns The scene units one unit of the file's lengths was drawn as, which the file's stored
  *     positions take too (1 when the load keeps file lengths); null when no file styles were drawn,
  *     the file gives no length to scale by, or the load merged into a graph whose positions are in
@@ -206,19 +227,23 @@ export async function applyFileStyles(
     command: DataImportCommand,
     outcome: ImportOutcome | null,
     ctx: UndoableContext,
+    previous: readonly ImportedLayer[] = [],
 ): Promise<number | null> {
     const { styles, options } = choiceOf(command);
     const loaded = outcome !== null && command.measure === undefined;
     const replacing = loaded && command.mode !== "merge";
-    const stack = ctx.state.styles;
     if (replacing) {
-        const ids = stack.filter(isFileLayer).map((entry) => entry.layer.id);
-        if (ids.length > 0) {
-            await ctx.inline({ op: "style.patch", action: "removeBySource", ids });
+        // Only what the previous loads added and the reader left as it was: an edited layer is the reader's now.
+        for (const id of untouched(previous, ctx.state.styles)) {
+            await ctx.inline({ op: "style.patch", action: "remove", id });
         }
     }
 
     if (!loaded || styles !== "file") {
+        if (replacing && previous.length > 0) {
+            ctx.services.data?.values?.({ [IMPORTED_LAYERS_VALUE]: undefined }, ctx.draft);
+        }
+
         return null;
     }
 
@@ -235,6 +260,12 @@ export async function applyFileStyles(
     if (read !== null) {
         const applied = await applyRead(outcome, read, options, ctx, replacing);
         layers.push(...applied.layers);
+        const added = applied.layers.flatMap((id) => {
+            const entry = ctx.state.styles.find((each) => each.layer.id === id);
+            return entry === undefined ? [] : [{ id, spec: specOf(entry.layer) }];
+        });
+        const kept = replacing ? [] : previous;
+        ctx.services.data?.values?.({ [IMPORTED_LAYERS_VALUE]: Object.freeze([...kept, ...added]) }, ctx.draft);
         notes.push(...applied.notes);
         sceneScale = replacing ? applied.sceneScale : null;
         ({ lengthScale } = applied);
@@ -321,9 +352,8 @@ async function applyRead(
     ctx: UndoableContext,
     replacing: boolean,
 ): Promise<LoadStyleReport & { readonly sceneScale: number | null }> {
-    const held = replacing ? [] : fileStyleValuesOf(asFileStyleStore(ctx.state.graph.values.get(FILE_STYLES_VALUE)));
-    const namespace = fileStyleNamespace(read.format, new Set(held.map((load) => load.namespace)));
-    const importId = namespace;
+    const held = replacing ? [] : styleValueSetsOf(asStyleValueStore(ctx.state.graph.values.get(STYLE_VALUES_VALUE)));
+    const namespace = nextStyleValueSetName(new Set(held.map((set) => set.name)));
     const viewport = ctx.services.viewport?.() ?? null;
     const pxPerUnit = labelPxPerUnit(read.positionFit, viewport);
     const fit = read.positionFit;
@@ -335,8 +365,6 @@ async function applyRead(
         extracted: withLabelGrid(read.extracted, read.snapshot, frame),
         snapshot: read.snapshot,
         namespace,
-        format: read.format,
-        importId,
         options,
         base: baseValues(ctx.state.styles),
         dataPath: dataPaths(read.path),
@@ -349,8 +377,7 @@ async function applyRead(
     const ids = elementIdsOf(read.snapshot, outcome.edgeIds, (id) => outcome.heldNode(id));
     const columns = keptColumns(translation.columns, ids);
 
-    const load = { importId, namespace, format: read.format, columns };
-    await ctx.inline({ op: "data.setFileStyles", loads: [...held, load] });
+    await ctx.inline({ op: "data.setStyleValues", sets: [...held, { name: namespace, columns }] });
 
     const accepted = acceptedLayers(translation.layers, ctx.services.styles, notes);
 
@@ -359,8 +386,7 @@ async function applyRead(
         const value = (await ctx.inline({
             op: "style.template",
             document: { version: 1, layers: accepted },
-            templateId: `${FILE_TEMPLATE_PREFIX}${importId}`,
-            at: positionOf(ctx.state.styles, replacing),
+            at: "aboveBase",
         })) as { result?: { applied?: readonly LayerId[]; unbound?: readonly { layerId: LayerId }[] } } | undefined;
         layers.push(...(value?.result?.applied ?? []), ...(value?.result?.unbound ?? []).map((entry) => entry.layerId));
     }
@@ -397,8 +423,7 @@ async function applyRead(
         ...(read.annotations ?? []),
     ];
     if (replacing && annotations.length > 0) {
-        const value: DrawnAnnotations = Object.freeze({ scale: sceneScale ?? 1, annotations });
-        ctx.services.data?.values?.({ [ANNOTATIONS_VALUE]: value }, ctx.draft);
+        await ctx.inline({ op: "annotations.set", annotations, scale: sceneScale ?? 1 });
     }
 
     return { layers, notes, sceneScale, lengthScale: translation.sceneScale ?? 1 };
@@ -441,8 +466,8 @@ function labelPxPerUnit(
 function keptColumns(
     translated: Readonly<Record<"node" | "edge", ReadonlyMap<string, readonly (string | number | boolean | null)[]>>>,
     ids: Readonly<Record<"node" | "edge", readonly (NodeId | EdgeId | null | undefined)[]>>,
-): FileStyleColumnValues[] {
-    const columns: FileStyleColumnValues[] = [];
+): StyleValueColumn[] {
+    const columns: StyleValueColumn[] = [];
     for (const kind of ["node", "edge"] as const) {
         for (const [key, values] of translated[kind]) {
             const keptIds: (NodeId | EdgeId)[] = [];
@@ -461,28 +486,17 @@ function keptColumns(
 }
 
 /**
- * Where a load's layers go: directly above the element's base layers, or, beside another file's
- * layers, directly above the last of them.
- * @param stack - The stack before the load's layers are added.
- * @param replacing - Whether the load replaced the graph (and swept every file's layers).
- * @returns The position.
+ * The layers a previous load added that the stack still holds exactly as they were added.
+ * @param previous - The layers, as they were added.
+ * @param stack - The stack now.
+ * @returns Their ids.
  */
-function positionOf(stack: readonly CompiledLayer[], replacing: boolean): "aboveBase" | "top" | { before: LayerId } {
-    let last = -1;
-    if (!replacing) {
-        stack.forEach((entry, at) => {
-            if (isFileLayer(entry)) {
-                last = at;
-            }
-        });
-    }
-
-    if (last === -1) {
-        return "aboveBase";
-    }
-
-    const next = stack[last + 1] as CompiledLayer | undefined;
-    return next === undefined ? "top" : { before: next.layer.id };
+function untouched(previous: readonly ImportedLayer[], stack: readonly CompiledLayer[]): LayerId[] {
+    const byId = new Map(stack.map((entry) => [entry.layer.id, entry.layer]));
+    return previous.flatMap(({ id, spec }) => {
+        const layer = byId.get(id);
+        return layer !== undefined && deepEquals(specOf(layer), spec) ? [id] : [];
+    });
 }
 
 /**

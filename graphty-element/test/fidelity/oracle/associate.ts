@@ -430,6 +430,9 @@ const FACE_COVERED = 0.9;
  */
 const PART_OF_BODY = 0.499;
 
+/** An icon glyph: one private-use character, as FontAwesome and its kind draw their icons. */
+const iconGlyph = (t: PText): boolean => /^[\uE000-\uF8FF]$/u.test(t.content);
+
 /** A node built from the primitives that draw it. */
 function nodeFrom(
     id: string,
@@ -460,9 +463,13 @@ function nodeFrom(
     const outline =
         sorted.find((s) => s.kind !== "image" && s.tag !== PAINTED_OUTLINE) ?? sorted.find((s) => s.kind !== "image");
     // and a table's rows, however short each is: the table is their union (#5347)
+    // a node drawn as an icon glyph and words (vis-network's icon node) is the glyph's size and the words' label, as
+    // graphty reads its own glyph node (drawnPrimitives)
+    const glyph = drawn.length === 0 ? texts.find(iconGlyph) : undefined;
+    const words = texts.filter((t) => t !== glyph);
     const drawnBox = body
         ? union(sorted.filter((s) => area(s.box) >= PART_OF_BODY * area(body.box) || rows.has(s)).map((s) => s.box))
-        : union(texts.map((t) => t.box));
+        : union((glyph === undefined ? texts : [glyph]).map((t) => t.box));
     // its body's, and half the wave's line round it, as any border drawn on the body's outline reaches
     const grow = (all.find((s) => s.tag === PAINTED_OUTLINE && swings(s))?.stroke?.width ?? 0) / 2;
     const box = {
@@ -534,7 +541,7 @@ function nodeFrom(
                           (bh(ringPrim.box) + ringPrim.stroke.width - bh(box)) / 2,
                       ),
                   },
-        label: mergeTexts(texts),
+        label: mergeTexts(words),
         // a node the program draws as its words alone (Graphviz's unfilled plain, plaintext and none: a `<g
         // class="node">` holding one `<text>`) is a text-only node, read as graphty's are (`facelessAsTexts`): its words,
         // no node, unless the other side draws a node there (dot-real-happiness c, dot-real-linux-kernel LKD)
@@ -2356,10 +2363,15 @@ export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[
         p.box.x0 >= b.x0 - 1 && p.box.x1 <= b.x1 + 1 && p.box.y0 >= b.y0 - 1 && p.box.y1 <= b.y1 + 1;
     const centered = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
         Math.abs(cx(p.box) - n.x) <= 1 + 0.1 * n.w && Math.abs(cy(p.box) - n.y) <= 1 + 0.1 * n.h;
+    // an icon glyph (one private-use character, FontAwesome's and its kind's) centered on a drawn node is its body
+    // whatever its box holds, and the words in that box are its label below it (json-vis-synth 14, vis-network's icon
+    // node); a word on a dot's center stays unnamed
+    const glyph = (p: Prim): boolean => p.text !== null && iconGlyph(p.text);
+    const iconOf = new Set(drawn.nodes.filter((n) => prims.some((p) => glyph(p) && centered(p, n))));
     const on = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
-        (p.kind === "shape" || p.kind === "image"
+        (p.kind === "shape" || p.kind === "image" || glyph(p)
             ? centered(p, n)
-            : labelInside(n) && (centered(p, n) || (n.box !== undefined && inBox(p, n.box)))) &&
+            : (labelInside(n) || iconOf.has(n)) && (centered(p, n) || (n.box !== undefined && inBox(p, n.box)))) &&
         bw(p.box) <= 1.5 * n.w + 2 &&
         bh(p.box) <= 1.5 * n.h + 2;
     return prims.map((p) => {
@@ -2369,6 +2381,43 @@ export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[
         const at = drawn.nodes.filter((n) => on(p, n));
         return at.length === 1 ? { ...p, hint: { role: "node", id: at[0].id, key: at[0].id } } : p;
     });
+}
+
+/**
+ * A node the program names but drew no body for (vis-network's text node, its words alone) takes its place and size
+ * from where the program says it drew it, not from its words: vis-network runs each line to its center and ends the
+ * arrowhead at that box, its words and a 5 px margin each side (json-vis-synth 3 -> 4). A box holding a label drawn
+ * off the center reaches out from the center only as far as it does on its nearer side.
+ * @param nodes - the nodes named so far, changed in place
+ * @param drawn - where the program drew each node, if it said
+ * @param resolveId - the drawn id as graphty's
+ */
+function drawnBodyless(
+    nodes: Map<string, PNode>,
+    drawn: DrawnNodes | undefined,
+    resolveId: (raw: string) => string,
+): void {
+    for (const d of drawn?.nodes ?? []) {
+        const id = resolveId(d.id);
+        const n = nodes.get(id);
+        if (
+            n === undefined ||
+            d.box === undefined ||
+            n.shape !== null ||
+            n.fill !== null ||
+            n.stroke !== null ||
+            (n.pictures?.length ?? 0) > 0 ||
+            // an icon node's glyph is its body (nodeFrom), its box also holding the label below it
+            n.faceless?.some(iconGlyph) === true
+        ) {
+            continue;
+        }
+        const hw = Math.min(d.x - d.box.x0, d.box.x1 - d.x);
+        const hh = Math.min(d.y - d.box.y0, d.box.y1 - d.y);
+        if (hw > 0 && hh > 0) {
+            nodes.set(id, { ...n, cx: d.x, cy: d.y, w: 2 * hw, h: 2 * hh, drawnBox: true });
+        }
+    }
 }
 
 /** The line classes a band along a line is drawn in; a pattern drawn as a shape is a line of its own. */
@@ -2610,6 +2659,8 @@ export function foldBevelHalves(prims: readonly Prim[]): Prim[] {
  * @param options - what is known of graphty's drawing
  * @param options.ownLayout - graphty placed no node where the file did (the file stores no positions): its layout is
  *     its own, so the two drawings' extents relate no node to any body, and only ids or labels can pair them
+ * @param options.drawn - where the program says it drew each node (`nameDrawnNodes`): a node it names but drew no body
+ *     for is as large as the program drew it (`drawnBodyless`)
  * @returns the oracle scene
  */
 export function associate(
@@ -2617,7 +2668,7 @@ export function associate(
     width: number,
     height: number,
     guide: PScene,
-    options: { ownLayout?: boolean } = {},
+    options: { ownLayout?: boolean; drawn?: DrawnNodes } = {},
 ): Association {
     const prims = foldBevelHalves(foldRaisedBorders(primitives));
     const kept = new Set(prims.map((p) => p.index));
@@ -2682,6 +2733,7 @@ export function associate(
             ps.forEach(take);
         }
     }
+    drawnBodyless(nodes, options.drawn, resolveId);
     const edgeCount = new Map<string, number>();
     for (const key of keys) {
         const [role, id] = key.split("\u0000");

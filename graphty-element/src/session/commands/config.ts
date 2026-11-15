@@ -211,6 +211,15 @@ const configSet: UndoableDefinition<ConfigSetCommand> = {
 };
 
 /**
+ * An object's keys whose values are set, so an unset setting is absent rather than `undefined`.
+ * @param values - The values.
+ * @returns The same object less its `undefined` keys.
+ */
+function definedOnly<T extends object>(values: T): Partial<T> {
+    return Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined)) as Partial<T>;
+}
+
+/**
  * The project settings a slice holds, with every absent key at its default.
  * @param slice - The `config` slice.
  * @param base - The data configuration an absent `data.` key reads from: the element's defaults,
@@ -238,6 +247,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
     const layoutTransition = read("layoutTransition") as LayoutTransitionConfig | undefined;
     const viewRotation = read("viewRotation") as number | undefined;
     const framing = read("framing") as GraphFraming | undefined;
+    const minMarkSize = read("minMarkSize") as ProjectConfig["minMarkSize"];
     const pinned = slice.has("pinnedStyle") ? (read("pinnedStyle") as GraphSelectionStyleConfig) : undefined;
     return Object.freeze({
         data: Object.freeze(data) as SessionDataConfig,
@@ -254,9 +264,7 @@ export function readProjectConfig(slice: ReadonlyMap<string, unknown>, base: Ses
             stepMultiplier: read("layoutBehavior.stepMultiplier") as number,
             minDelta: read("layoutBehavior.minDelta") as number,
         }),
-        ...(layoutTransition === undefined ? {} : { layoutTransition }),
-        ...(viewRotation === undefined ? {} : { viewRotation }),
-        ...(framing === undefined ? {} : { framing }),
+        ...definedOnly({ layoutTransition, viewRotation, framing, minMarkSize }),
         ...(typeof author === "string" ? { author } : {}),
         ...(typeof name === "string" ? { name } : {}),
     });

@@ -125,7 +125,7 @@ describe("per-value entries", () => {
         harness.session.dispose();
     });
 
-    it("moves an entry, a hidden value and a hand layer's rule to the community sharing most members on a re-run", async () => {
+    it("keeps an entry, a hidden value and a hand layer's rule on the community sharing most members on a re-run", async () => {
         const { harness, layer } = await louvainSession();
         const { styles, runs } = harness.session;
         await styles.setValueEntry(layer.id, "node.color", 3, "#123456");
@@ -152,23 +152,36 @@ describe("per-value entries", () => {
         assert.strictEqual(styles.counts(hand.id).matched, 3, "a rule over a run's value holds that group");
 
         membership = SECOND;
-        await runs.start("louvain", {}, { style: false, seed: 7 });
+        const run = await runs.start("louvain", {}, { style: false, seed: 7 });
         await styles.settled();
 
+        // The re-run numbered the same communities afresh; each keeps the number it had.
+        const result = runs.get(run.runId)?.result;
+        assert.deepStrictEqual(
+            ["a", "d", "f", "g", "i"].map((id) => result?.node(id)?.group),
+            [0, 1, 4, 2, 3],
+            "each community keeps its number, and the one f moved to takes a number no community had",
+        );
+        assert.deepInclude(
+            runs.get(run.runId)?.caveats.facts ?? [],
+            { code: "groups.split", params: { field: "group", group: 1, into: [4] } },
+            "f's new community is reported as split from community 1",
+        );
         const after = styles.get(layer.id);
         const color = after?.encode?.["node.color"] as { map?: unknown; hidden?: unknown };
-        assert.deepStrictEqual(color.map, { 1: "#123456" }, "old community 3 (i, j, k) is new community 1");
-        assert.deepStrictEqual(color.hidden, [2], "old community 0 (a, b, c) is new community 2");
-        assert.strictEqual(colorOf(harness, layer, 1), "#123456");
+        assert.deepStrictEqual(color.map, { 3: "#123456" }, "community 3 (i, j, k) keeps its entry");
+        assert.deepStrictEqual(color.hidden, [0], "community 0 (a, b, c) stays hidden");
+        assert.strictEqual(colorOf(harness, layer, 3), "#123456");
         assert.deepStrictEqual(
             (styles.get(hand.id)?.selector as { where?: unknown }).where,
-            { kind: "categories", attribute: "results.louvain.group", values: ["1"] },
-            "the hand layer's rule follows community 3 too",
+            { kind: "categories", attribute: "results.louvain.group", values: ["3"] },
+            "the hand layer's rule names community 3 still",
         );
+        assert.strictEqual(styles.counts(hand.id).matched, 3, "and holds the same three members");
         assert.deepStrictEqual(
             (styles.get(item.id)?.selector as { where?: unknown }).where,
-            { kind: "item", item: { result: "louvain", key: { field: "group", value: 3 } } },
-            "an item of the run's current result follows its group",
+            { kind: "item", item: { result: "louvain", key: { field: "group", value: 2 } } },
+            "an item of the run's current result names its group still",
         );
         assert.deepStrictEqual(
             after?.unmatched,

@@ -156,12 +156,22 @@ import { beneathAuthored, placementLayers } from "./autoApply";
 import {
     channelDescriptor,
     isChannel,
+    labelStyleFieldChannels,
     mergeShaderUses,
     placeOfUse,
     readRenamedChannels,
     toColorValue,
 } from "./channels";
-import { colorsOf, replaceColorPatch, type StyleColor } from "./colors";
+import {
+    colorsOf,
+    DEFAULT_GRAY_THRESHOLD,
+    grayCollisionsOf,
+    grayUsesOf,
+    replaceColorPatch,
+    type StyleColor,
+    type StyleGrayCollision,
+    type StyleGrayCollisionOptions,
+} from "./colors";
 import {
     type BindingPreview,
     type PreparedBinding,
@@ -417,6 +427,26 @@ export interface LayerReach {
     readonly locked: boolean;
     /** The channels its layers set or encode. */
     readonly sets: readonly Channel[];
+    /**
+     * Every channel its layers write: what {@link LayerReach.sets} lists, and for each label style
+     * value it sets (`node.labelStyle`, `node.tooltipStyle`, `node.xlabelStyle`, an arrow
+     * caption's style), each field it holds as the channel that writes that field on its own: a
+     * `node.labelStyle` of `{ font: "Georgia" }` writes `node.labelFont` too. What a style editor
+     * reads to tell which of its rows a layer fills.
+     * @since 3.40.0
+     */
+    readonly writes: readonly Channel[];
+}
+
+/**
+ * How many drawn elements carry one value of a channel: see {@link StylesApi.drawnValues}.
+ * @since 3.40.0
+ */
+export interface DrawnValue {
+    /** The value, as {@link StylesApi.explain} reports it for one element. */
+    readonly value: unknown;
+    /** How many drawn elements carry it. */
+    readonly count: number;
 }
 
 /**
@@ -675,6 +705,26 @@ export interface StylesApi {
      * @since 3.26.0
      */
     replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
+    /**
+     * The pairs of colours in use that fall on the same gray: what a grayscale print, or a reader
+     * who sees no colour, cannot tell apart. Every colour the shown layers draw is checked, on
+     * every colour channel (fills, outlines, edges, glows, label colours), fixed colours and each
+     * row of a category palette alike; a colour ramp is left out, as its steps are meant to blend.
+     * A row painted over by a layer above, or a layer that paints nothing now, is not in use.
+     *
+     * Lightness is CIE L* (0 black to 100 white, D65), and two colours collide when theirs differ
+     * by less than `threshold` (default 10).
+     *
+     * ```ts
+     * for (const { colors: [a, b], difference } of session.styles.grayCollisions()) {
+     *     console.log(a.color, b.color, difference.toFixed(1));
+     * }
+     * ```
+     * @param options - The threshold.
+     * @returns Each pair once, closest first; empty when every colour in use stands apart.
+     * @since 3.40.0
+     */
+    grayCollisions(options?: StyleGrayCollisionOptions): readonly StyleGrayCollision[];
     /**
      * The layer rows some rows of the tree reach, folders walked through at every depth: what an
      * edit of "these rows" would write to, and what it would leave alone.
@@ -1050,6 +1100,22 @@ export interface StylesApi {
      * @since 3.16.0
      */
     counts(id: LayerId): StyleCounts;
+    /**
+     * The values one channel is drawn with across the graph, and how many drawn elements carry
+     * each, most first: what a value picker lists as "in this graph". Elements a filter hides and
+     * elements nothing paints on the channel are left out; one value decided by several layers is
+     * one entry. Read through the same walk as {@link StylesApi.agreement}, so the two never
+     * disagree, and kept until the stack, the data, a run or an element's state changes.
+     *
+     * ```ts
+     * session.styles.drawnValues("node.shape"); // [{ value: "box", count: 40 }, { value: "sphere", count: 2 }]
+     * ```
+     * @param channel - The channel.
+     * @returns One entry per value, most elements first.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` when `channel` names no channel.
+     * @since 3.40.0
+     */
+    drawnValues(channel: Channel): readonly DrawnValue[];
     /**
      * How many of the elements a layer's rule matches are drawn now: `counts(id).matched` less those
      * a filter hides.
@@ -2758,13 +2824,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /**
      * The stack as it paints: a hidden row's layers read as disabled, and so do the element's own
-     * base layers while the Everything row holds the base look.
+     * base layers while the Everything row holds the base look. A branches view suspends the
+     * Everything row with every other layer, so under one the base layers paint the base look
+     * again: without it every node would be drawn unstyled, a new mesh for each of them, and again
+     * for each when the view ends.
      * @param stack - The stack.
      * @returns The stack the repaint and every reading of it use.
      */
     const painting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
-        const painted = basePainting(stack);
-        const shown = branchesShown === null ? painted : previewStack(painted, branchesShown.layers);
+        const shown =
+            branchesShown === null ? basePainting(stack) : previewStack(paintedStack(stack), branchesShown.layers);
         const specs = sources.transient?.() ?? [];
         return specs.length === 0 ? shown : [...shown, ...transientLayers(specs)];
     };
@@ -5033,6 +5102,34 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return { ...styleAgreement(every, floor, channel), readOver: "everyElement" };
     };
 
+    /**
+     * Count what one layer covers and where it wins: {@link StylesApi.counts}, read fresh.
+     * @param id - The layer.
+     * @returns The counts.
+     */
+    const countsOf = (id: LayerId): StyleCounts => {
+        const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+
+        // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
+        const counts = {
+            ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision),
+            visible: amongDrawn(id),
+        };
+        // Groups past the outline cap draw nothing; said here, never dropped silently.
+        const left = groupOutlinesOf(api)
+            .filter((each) => each.layer === id)
+            .reduce((sum, each) => sum + each.left, 0);
+        return left === 0
+            ? counts
+            : {
+                  ...counts,
+                  undrawn: Object.freeze([
+                      ...counts.undrawn,
+                      { code: "shader.group-cap" as const, params: { left, limit: GROUP_OUTLINE_CAP } },
+                  ]),
+              };
+    };
+
     const api: SessionStylesApi = {
         list(): readonly Layer[] {
             return listLayers();
@@ -5260,6 +5357,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return edit<readonly Layer[]>("update", `Replace ${from} with ${to}`, { batch }, options);
         },
 
+        grayCollisions(options: StyleGrayCollisionOptions = {}): readonly StyleGrayCollision[] {
+            const uses = legendSources
+                .layers()
+                .flatMap((layer) => (buildLayerLegend(legendSources, layer.id) ?? []).flatMap(grayUsesOf));
+            return grayCollisionsOf(uses, options.threshold ?? DEFAULT_GRAY_THRESHOLD);
+        },
+
         layersUnder(rowIds: readonly StyleRowId[]): readonly LayerReach[] {
             const stack = current();
             const rows = rowsOf(stack);
@@ -5298,11 +5402,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                             ...(Object.keys(layer.encode ?? {}) as Channel[]),
                         ]),
                     );
+                    const writes = new Set<Channel>(sets);
+                    for (const layer of parts) {
+                        for (const [channel, value] of Object.entries(layer.set ?? {})) {
+                            for (const field of labelStyleFieldChannels(channel as Channel, value)) {
+                                writes.add(field);
+                            }
+                        }
+                    }
                     return Object.freeze({
                         row: key,
                         layers: Object.freeze(parts.map((layer) => layer.id)),
                         ...(reached.get(key) as { hidden: boolean; locked: boolean }),
                         sets: Object.freeze([...sets]),
+                        writes: Object.freeze([...writes]),
                     });
                 }),
             );
@@ -5779,30 +5892,46 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         counts(id: LayerId): StyleCounts {
-            const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
-
-            // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
-            const counts = {
-                ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision),
-                visible: amongDrawn(id),
-            };
-            // Groups past the outline cap draw nothing; said here, never dropped silently.
-            const left = groupOutlinesOf(api)
-                .filter((each) => each.layer === id)
-                .reduce((sum, each) => sum + each.left, 0);
-            return left === 0
-                ? counts
-                : {
-                      ...counts,
-                      undrawn: Object.freeze([
-                          ...counts.undrawn,
-                          { code: "shader.group-cap" as const, params: { left, limit: GROUP_OUTLINE_CAP } },
-                      ]),
-                  };
+            // Kept while nothing it reads moves, as `agreement` is: a read walks the layer's kind of
+            // element, and the graphty app's panels read the same layer several times a render
+            // (issue #7966).
+            return kept(JSON.stringify(["counts", id]), () => countsOf(id));
         },
 
         drawnCount(id: LayerId): number {
             return selectsAmongDrawn(id).count;
+        },
+
+        drawnValues(channel: Channel): readonly DrawnValue[] {
+            requireChannel(channel);
+            return kept(JSON.stringify(["drawnValues", channel]), () => {
+                const drawn = elementsOf(DRAWN);
+                // Only the channel's own kind: the walk over the other kind would paint nothing on it.
+                const own = [...(channel.startsWith("node.") ? drawn.nodes : drawn.edges)];
+                const elements = channel.startsWith("node.") ? { nodes: own, edges: [] } : { nodes: [], edges: own };
+                const answer = styleAgreement(elements, countSources(), channel).channels[0];
+                if (answer === undefined) {
+                    return Object.freeze([]);
+                }
+                const shares =
+                    answer.state === "agree"
+                        ? [{ value: answer.value, count: own.length - answer.unpainted }]
+                        : answer.breakdown;
+                const byValue = new Map<string, { value: unknown; count: number }>();
+                for (const { value, count } of shares) {
+                    const key = JSON.stringify([typeof value, value]);
+                    const held = byValue.get(key);
+                    if (held === undefined) {
+                        byValue.set(key, { value, count });
+                    } else {
+                        held.count += count;
+                    }
+                }
+                // A stable sort: equal counts keep the order the walk met them in.
+                return Object.freeze(
+                    [...byValue.values()].sort((a, b) => b.count - a.count).map((entry) => Object.freeze(entry)),
+                );
+            });
         },
 
         setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): Promise<void> {

@@ -71,6 +71,7 @@ import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { dispatcherOf, registerDispatcher } from "./dispatchers";
 import { englishRunLabel } from "./english";
+import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
 import { LayoutRunner } from "./layoutRunner";
@@ -184,7 +185,7 @@ import {
 } from "./styles";
 import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
-import { isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
+import { fileStyleWords, isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
 import { asFileStyleStore, FILE_STYLES_VALUE, fileStyleColumn, type FileStyleStore } from "./styles/fileStyles/store";
 import { createHoverSource } from "./styles/hover";
 import { readsWholeColumn } from "./styles/labelTemplate";
@@ -205,6 +206,7 @@ import {
     edgeEndpointOf,
     type SessionSelectorSource,
     STRUCTURE_PATHS,
+    STRUCTURE_VALUES,
 } from "./styles/sources";
 import { paintingOf, repaintFailure } from "./styles/StylesApi";
 import { drawsOutsideWindow } from "./styles/tree";
@@ -393,6 +395,7 @@ const TX_PARTS = [
     "scope",
     "sets",
     "notes",
+    "groups",
     "selection",
     "visibility",
     "styles",
@@ -575,6 +578,7 @@ class Session implements ElementSession {
     readonly notes: NotesApi;
     readonly assets: AssetsApiInternal;
     readonly network: NetworkApiInternal;
+    readonly groups: GroupsApi;
     readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
@@ -704,6 +708,32 @@ class Session implements ElementSession {
         this.unwatchCeilings = this.ceilings.onChange(changed);
         let version = 0;
         this.dispatcher = parts.dispatcher;
+        // A collapse is worked out from the graph once the loads ahead of it have landed.
+        // Inside a transaction or a command (`tx.groups`, a project opening) the steps join it at
+        // once, as a door called through a routed facade does; on their own they are one step,
+        // taken in line with the loads.
+        this.groups = createGroupsApi(this, async (build) => {
+            if (this.dispatcher.routing) {
+                const send = this.dispatcher.capturedDispatch();
+                for (const command of (await build()).steps) {
+                    await send(command);
+                }
+                return;
+            }
+
+            await loadLineOf(this.dispatcher).edit(async () => {
+                const { label, fact, steps } = await build();
+                await this.dispatcher.transaction(
+                    label,
+                    async (tx) => {
+                        for (const command of steps) {
+                            await tx.dispatch(command);
+                        }
+                    },
+                    { fact, moves: true },
+                );
+            }, undefined);
+        });
         // Chained: the kept sets hear each change after it, to tell `set:changed`.
         const beside = this.dispatcher.events.project;
         this.dispatcher.events.project = (change) => {
@@ -1972,6 +2002,9 @@ function configOf(
         get framing() {
             return read().framing;
         },
+        get minMarkSize() {
+            return read().minMarkSize;
+        },
         // Read from the controller, not from a value frozen at construction: the policy and the
         // threshold are changed at runtime through the session's accessors and the element's
         // attributes.
@@ -2686,7 +2719,13 @@ function fieldWordsOf(
             }
         }
 
-        return undefined;
+        // The values graphty-element keeps itself: a node's degrees and a file's style columns.
+        const structure = target === "node" ? STRUCTURE_VALUES.find((each) => each.path === path) : undefined;
+        if (structure !== undefined) {
+            return { plainName: structure.plainName, technicalName: structure.technicalName };
+        }
+
+        return parseFileStylePath(path)?.kind === target ? fileStyleWords(path) : undefined;
     };
 }
 
@@ -3062,7 +3101,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Set once the stack exists; until then no layer reads the pointer.
     let repaintHover = (): void => undefined;
     let repaintPeek = (_dirty: ElementIndices): void => undefined;
-    // Moves whenever the selection, or an element's state a `{match:"state"}` layer reads, moves:
+    // Moves whenever the selection, the filter, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
     // Set once the selection and the filter exist: what a `state` leaf and a state layer read.
@@ -3169,6 +3208,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 new Set<NodeId | EdgeId>(
                     target === "node" ? requireQuery(query).nodes(where) : requireQuery(query).edges(where),
                 ),
+            valuesWhere: (where, target, overlay) => requireQuery(query).values(where, target, overlay),
+            unresolvedWhere: (where) => requireQuery(query).unresolvedPathsOf(where),
             // Read through calls: the runs are built below.
             run: (id: RunId) => runs.get(id),
             runIds: () => runs.list().map((run) => run.id),
@@ -3191,6 +3232,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     if (store.store instanceof GraphStore) {
         dispatcher.services.data = headlessDataService(store.store, dispatcher, readData, ceilings);
     }
+    // The computed columns, brought up to date by what moves their inputs (`commands/derive.ts`).
+    dispatcher.services.derive = () => data.derivedRefresh();
 
     const components = componentLabelsOf(data);
     // Kept sets, published as `session.sets`.
@@ -3469,6 +3512,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
         onChange: (change) => {
+            // What the filter keeps is read by the style stack's kept readings (`styles.counts`,
+            // `drawnValues`): moved before anyone hears of the change, so a reader answers fresh.
+            stateRevision++;
             notifier.notify({ kind: "visibility" });
             timeline()?.visibilityChanged(change);
             repaintGhosts();
@@ -3900,7 +3946,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 onHandSelection?.();
             }
         },
-        onHover: (before, after) => {
+        onHover: (before, after, drawn) => {
             const nodes = [before, after].flatMap((id) => {
                 const at = id === null ? undefined : nodeIndex(id);
                 return at === undefined ? [] : [at];
@@ -3912,7 +3958,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             repaintStates({ node: nodes, edge: [] }, HOVER_STATES);
             // The pointer moved to another node, or off every node: repaint what a hover layer paints.
             repaintHover();
-            publish(watchers, "selection:hover-changed", { before, after });
+            publish(
+                watchers,
+                "selection:hover-changed",
+                drawn === undefined ? { before, after } : { before, after, drawn },
+            );
         },
         onHoverPreview: (ids) => {
             advanceTick();

@@ -2203,20 +2203,64 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * this safe to run at every load: an existing arrangement survives and only the rows a freeze
      * added are placed, inside the box the rest of the graph already occupies. The array is the
      * SIMULATION'S, which `#adoptPositions` has just filled from the element's.
+     *
+     * ONE EXCEPTION: A FLAT START IN 3D. When every placed row shares one z -- the graph was last
+     * laid out in 2D -- no force ever has a z component, so a 3D run would stay on the plane
+     * forever (issue #7965). The z of every row the layout may move is drawn again, around that
+     * plane; x and y, and every pinned or held row, keep what they had.
      * @param snapshot - The graph being loaded.
      * @param positions - The simulation's array, exactly `3 * nodeCount` long.
      */
     #seed(snapshot: GraphSnapshot, positions: F32): void {
         const { seed, dim, scale, center } = this.#options.model;
+        const dimensions = dim ?? this.#options.dim ?? 3;
+        if (dimensions === 3) {
+            this.#unflatten(snapshot.nodeCount, positions);
+        }
+
         seedPositions(
             snapshot,
             positions,
             seed ?? null,
-            dim ?? this.#options.dim ?? 3,
+            dimensions,
             scale ?? this.#options.scale ?? 1,
             center ?? this.#options.center ?? null,
             this.simulationType === "forceatlas2" ? "fa2" : "fr",
         );
+    }
+
+    /**
+     * Clears the z of every free row when every placed row lies on one plane of z, so
+     * `seedPositions` draws it again (see {@link SimulationLayoutEngine.#seed}).
+     * @param nodeCount - The graph being loaded.
+     * @param positions - The simulation's array, exactly `3 * nodeCount` long.
+     */
+    #unflatten(nodeCount: number, positions: F32): void {
+        let plane: number | null = null;
+        let placed = 0;
+        for (let i = 0; i < nodeCount; i += 1) {
+            const z = positions[3 * i + 2];
+            if (Number.isFinite(z)) {
+                if (plane !== null && z !== plane) {
+                    return;
+                }
+
+                plane = z;
+                placed += 1;
+            }
+        }
+
+        // One placed row is not a plane; none is left for `seedPositions` as it is.
+        if (placed < 2) {
+            return;
+        }
+
+        const pins = this.#dataManager[WRITABLE_LANE].pinnedView(nodeCount);
+        for (let i = 0; i < nodeCount; i += 1) {
+            if (pins[i] !== 1 && !this.isHeld(i)) {
+                positions[3 * i + 2] = Number.NaN;
+            }
+        }
     }
 
     /**

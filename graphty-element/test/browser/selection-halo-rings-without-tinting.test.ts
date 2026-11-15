@@ -36,6 +36,9 @@ describe("the selection halo rings a node without tinting it", () => {
         document.body.appendChild(container);
         graph = new Graph(container);
         await graph.init();
+        // The ring these read is told apart from a black node and the light background by its
+        // gold at 40%; the default ring is solid blue (#811), so that look is set.
+        graph.setSelectionStyle({ color: "#FFD700", opacity: 0.4 });
 
         await graph.addNodes(NODES);
         await graph.getSession().styles.add({

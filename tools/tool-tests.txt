@@ -25,6 +25,7 @@ tools/check-figma-lock.test.mjs
 tools/check-packed-exports.test.mjs
 tools/check-published-deps.test.mjs
 tools/check-quick.test.mjs
+tools/load-time.test.mjs
 tools/check-saved-format-allowlist.test.mjs
 tools/check-site.test.mjs
 tools/check-test-integrity.test.mjs
@@ -44,6 +45,7 @@ tools/features-on.test.mjs
 tools/full-run.test.mjs
 tools/gate-inputs.test.mjs
 tools/health-owner-sweep.test.mjs
+tools/idle-servers.test.mjs
 tools/issue-queue.test.mjs
 tools/lfs-pre-push.test.mjs
 tools/lint-base-drift.test.mjs
@@ -78,6 +80,7 @@ tools/shard-verdict.test.mjs
 tools/ship-risks.test.mjs
 tools/sonar/sonar-baseline.test.mjs
 tools/sonar/sonar-gate.test.mjs
+tools/sonarqube-mcp/lib.test.mjs
 tools/step-log.test.mjs
 tools/storybook-brand-theme.test.mjs
 tools/test-changed.test.mjs

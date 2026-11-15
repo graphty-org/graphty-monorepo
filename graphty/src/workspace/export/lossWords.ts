@@ -128,6 +128,7 @@ const LABELS: Readonly<Record<string, Label>> = {
     W_TEXT_INFERRED: ["Text reads back as numbers"],
     W_ID_TEXT_TYPE: ["Ids read back as another type", N],
     E_ID_TEXT_COLLISION: ["Ids collide as text", N],
+    W_ID_TEXT_RENAMED: ["Ids renamed to stay apart", N],
     W_WEIGHTS_DROPPED: ["Weights not written", E],
     W_WEIGHT_KEY_CLASH: ["Reads back as the edge weight"],
     W_MUTUAL_EXPANDED: ["Mutual pairs written as two edges", E],

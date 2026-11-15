@@ -88,9 +88,12 @@ export interface ProgressChange {
      * a load: a first change before anything is read, the rows read so far, and an end with its
      * `outcome`.
      *
+     * `"asset"` is a model or picture being read by `session.assets` (`AddAssetOptions.onProgress`),
+     * counted in bytes.
+     *
      * OPEN UNION: later releases add tasks. Show a generic bar for one you do not know.
      */
-    readonly task: "load" | "prepare" | "run";
+    readonly task: "load" | "prepare" | "run" | "asset";
     /** The run, when `task` is `"run"`. */
     readonly run?: RunId;
     /** Whether the work is still going, or has stopped. */
@@ -126,4 +129,16 @@ export interface ProgressChange {
      * `limit`, `count` and `of`).
      */
     readonly error?: { readonly code: string; readonly details: Readonly<Record<string, unknown>> };
+    /**
+     * For an `"asset"` change: which step is under way, `"downloading"` a URL, `"reading"` files
+     * or `"unpacking"` a zip, and the file being read, by its name in the set.
+     *
+     * OPEN UNION: later releases may add stages.
+     */
+    readonly asset?: {
+        readonly stage: "downloading" | "reading" | "unpacking";
+        readonly part?: string;
+    };
+    /** What `completed` and `total` count, when it is not records or rows: `"bytes"` for an asset. */
+    readonly unit?: "bytes";
 }

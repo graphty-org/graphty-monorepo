@@ -68,7 +68,8 @@ export type UiGlyphName =
     | "text"
     | "component"
     | "group"
-    | "upload";
+    | "upload"
+    | "folder";
 
 /**
  * Every glyph name in the closed field register, in register order.
@@ -138,6 +139,7 @@ export const UI_GLYPH_NAMES: readonly UiGlyphName[] = [
     "component",
     "group",
     "upload",
+    "folder",
 ];
 
 /**
@@ -498,6 +500,10 @@ const UI_GLYPH_SHAPES: Record<UiGlyphName, React.JSX.Element> = {
             <polyline points="5,5.5 8,2.5 11,5.5" />
             <path d="M2.5 10.5v2a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1v-2" />
         </>
+    ),
+    // Lucide's Folder, drawn on this set's 16-unit grid.
+    folder: (
+        <path d="M13 13a1.33 1.33 0 0 0 1.33-1.33V5.33A1.33 1.33 0 0 0 13 4H7.73a1.33 1.33 0 0 1-1.13-.6l-.53-.8A1.33 1.33 0 0 0 4.95 2H2.67a1.33 1.33 0 0 0-1.34 1.33V11.67A1.33 1.33 0 0 0 2.67 13Z" />
     ),
 };
 

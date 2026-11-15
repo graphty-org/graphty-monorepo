@@ -62,7 +62,8 @@ export interface BrowserProjects {
      */
     list(): Promise<StoredProject[]>;
     /**
-     * Save the whole session into browser storage, as `project.save` writes it. `project.dirty`
+     * Save the whole session into browser storage, as `project.save` writes it (a version 2 full
+     * file with the `save-files-v2` experiment on, EXPERIMENTAL). `project.dirty`
      * clears only once the write has committed; a failed write leaves the project dirty. The first
      * save asks the browser to keep its storage (`navigator.storage.persist()`).
      * @param session - The session to save, such as `element.session`.
@@ -238,6 +239,9 @@ export const browserProjects: BrowserProjects = Object.freeze({
         const { nodes, edges } = session.status.counts;
         const saved = await session.project.save({
             markSaved: false,
+            // With the `save-files-v2` experiment on, a stored project is a version 2 full file,
+            // its default sections, as a file save of version 2 writes it.
+            ...(session.features.has("save-files-v2") ? { format: 2 as const } : {}),
             ...(options.assets === undefined ? {} : { assets: options.assets }),
         });
         const record: ProjectRecord = {

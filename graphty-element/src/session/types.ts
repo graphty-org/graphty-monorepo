@@ -3441,7 +3441,7 @@ export interface ProjectConfig {
     /**
      * Whether the project draws with its default rows: Everything (pinned to the bottom, writing
      * nothing), Selected (pinned to the top, drawing a solid node halo and edge band in the selection
-     * settings' colors and sizes, a gold ring and a blue band by default) and Hovered (pinned to the
+     * settings' colors and sizes, a blue ring and band by default) and Hovered (pinned to the
      * top, writing nothing). False by default. Turning it on writes the rows once, in the same step,
      * and the selection settings ({@link ProjectConfig.selectionStyle}) draw nothing themselves.
      * With {@link ProjectConfig.pinnedStyle} set, a Pinned row comes too; with the timeline on, a

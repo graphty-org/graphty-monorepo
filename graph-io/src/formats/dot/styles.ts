@@ -2079,7 +2079,7 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     readCommon(get, tokens, scheme, cx.names, put, at);
     readColor(nonEmpty(get("color")), scheme, "edge", "color", "opacity", put, at);
     readEdgeSegments(nonEmpty(get("color")), scheme, put, at);
-    readEdgeLine(get, tokens, put, at);
+    readEdgeLine(get, tokens, cx, put, at);
     readEdgeArrows(get, cx, put, at);
     for (const [attribute, property] of [
         [LABEL_ATTRIBUTE, "label"],
@@ -2385,10 +2385,11 @@ export function graphvizRouteBends(
  * Reads an edge's line: its width and dashes.
  * @param get - its attributes
  * @param tokens - its style tokens
+ * @param cx - its direction
  * @param put - receives the values
  * @param at - the sites
  */
-function readEdgeLine(get: Attr, tokens: readonly string[], put: Put, at: At): void {
+function readEdgeLine(get: Attr, tokens: readonly string[], cx: EdgeContext, put: Put, at: At): void {
     const width = nonEmpty(get("penwidth")) ?? setLineWidth(tokens);
     if (width !== null) {
         put("width", penWidth(width, get("penwidth") !== null, at("width")));
@@ -2403,6 +2404,13 @@ function readEdgeLine(get: Attr, tokens: readonly string[], put: Put, at: At): v
         put("lineStyle", "solid");
     } else if (tokens.includes("tapered")) {
         put("lineStyle", "other:tapered");
+        // Graphviz narrows a tapered line by its direction (lib/common/emit.c, taperfun): forward from the pen's width
+        // at the tail to a point at the head; back and both (a point at the tail, or at both ends) are no width ratio
+        // and stay a line of one width
+        const dir = (nonEmpty(get("dir")) ?? (cx.directed ? "forward" : "none")).trim().toLowerCase();
+        if (dir === "forward") {
+            put("taper", 0);
+        }
     }
 }
 

@@ -43,6 +43,25 @@ function withoutProgram(): Plugin {
 }
 
 /**
+ * Leaves the Draco decoder and the KTX2 transcoders out of `./bundle`: one file cannot carry their
+ * WebAssembly beside it, and inlined they would add close to 1 MB to every page. babylonjs-models'
+ * two decoder modules are replaced by ones that say `available = false`, so a model that needs one
+ * reports `E_MODEL_DECODER_UNAVAILABLE` with `reason: "missing"` (a glTF that only uses KTX2 draws
+ * its fallback images). meshopt's decoder carries its WebAssembly inside its JavaScript and stays.
+ * @returns The plugin.
+ */
+function withoutDecoders(): Plugin {
+    return {
+        name: "graphty-bundle-without-decoders",
+        load(id): string | undefined {
+            return /\/babylonjs-models\/dist\/decoders\/(?:draco|ktx2)\.js$/.test(id)
+                ? "export const available = false;"
+                : undefined;
+        },
+    };
+}
+
+/**
  * The self-contained build behind the `./bundle` export.
  *
  * `vite.config.ts` builds the library the way a library is built: every declared dependency is
@@ -62,7 +81,7 @@ function withoutProgram(): Plugin {
 export default defineConfig({
     // The AI providers' SDKs are built in; this one needs its Node-only toolset stubbed (vite.config.ts).
     // Everything is copied in here, so its license list is the package's whole list.
-    plugins: [stubAnthropicNodeToolset(), thirdPartyLicenses(), withoutProgram()],
+    plugins: [stubAnthropicNodeToolset(), thirdPartyLicenses(), withoutProgram(), withoutDecoders()],
     // Relative, so the Graphviz Worker's file is found beside the bundle wherever it is served.
     base: "./",
     // The Graphviz Worker stays a file of its own and imports the optional package by name, which

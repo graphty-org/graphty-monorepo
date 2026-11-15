@@ -58,7 +58,7 @@ npm run lint:fix      # Auto-fix lint issues
 ### Coverage Preview (HTTP servers)
 
 `pnpm run coverage:preview:<package>` for any package (algorithms, layout, graphty-element, graphty,
-graph-format, graph-io, webgpu-graph-algorithms, graph-samples, cytoscape-extensions, babylonjs-map).
+graph-format, graph-io, webgpu-graph-algorithms, graph-samples, cytoscape-extensions, babylonjs-map, babylonjs-models).
 Each package also has its own `npm run coverage:preview`.
 
 ## Shared Configuration
@@ -111,6 +111,7 @@ The `tools/` directory holds the build, test, CI and pipeline scripts. The ones 
 | `check-committed-images.mjs`        | Fails a push that adds more than 20 images or 20 MB outside the folders that hold them; an `Images-Approved: <reason>` trailer passes a deliberate addition                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `check-figma-lock.mjs`              | Fails a commit that changes compact-mantine's Figma spec, tests or token values without the owner's `Figma-Approved: <reason>` trailer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `check-special-layers.mjs`          | The ratchet on style layers treated as special (#5905): `graphty/special-layers-baseline.json` may only shrink, and its lint and API rows may not go stale. The layer equality and panel parity tests read the same file                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `check-working-graph.mjs`           | The ratchet on readers that ignore the working graph: `graphty-element/working-graph-whole-readers.json`, the session readers that read the whole graph by the owner's agreement, may only shrink and every row names its case. `graphty-element/test/contracts/working-graph-readers.test.ts` reads the same file and proves every other reader reads the view                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `visual-preview.sh`                 | `<pr>`: captures a pull request's screenshots on this machine, so the owner can review them before CI's capture lands                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `claude-no-foreground-wait.mjs`     | Claude Code hook that refuses a foreground Bash wait (sleep loops, `watch`, `tail -f`, ...); run waits in the background                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `claude-no-questions-in-rounds.mjs` | Claude Code hook that refuses AskUserQuestion in a session running issue-round or pipeline-round, so a question never stops the loop                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
@@ -218,11 +219,17 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 ### Test Projects by Package
 
 Each package's test projects are listed in its own CLAUDE.md ("Test projects", or its testing
-section). The two packages without a CLAUDE.md:
+section). The packages without a CLAUDE.md:
 
 **babylonjs-map:**
 
 - Single test project (Node.js); shard `babylonjs-map`, in the `small-node` group
+
+**babylonjs-models:**
+
+- Single test project (Node.js) over the Babylon-free half (`src/files/`, `src/detect/`) and the built package
+  (build it first); shard `babylonjs-models`, in the `small-node` group. Its Babylon half draws in graphty-element's
+  browser tests, which load every model variant in `babylonjs-models/test/fixtures/variants/`
 
 **cytoscape-extensions:**
 
@@ -453,6 +460,7 @@ graphty-monorepo/
 |-- webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
 |-- babylonjs-map/        # babylonjs-map (unscoped): maps and globes for Babylon.js, plus Babylon-free projections and location parsers
+|-- babylonjs-models/     # babylonjs-models (unscoped): load 3D models into Babylon.js, plus Babylon-free file checks
 |-- cytoscape-extensions/    # @graphty/cytoscape-extensions: graphty layouts and algorithms as Cytoscape.js extensions
 |-- algorithms/           # @graphty/algorithms package
 |-- layout/               # @graphty/layout package (depends on graph-format, graph-samples)

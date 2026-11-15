@@ -202,12 +202,13 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/algorithms` | **algorithms** | - |
 | `@graphty/layout` | **layout** | - |
 | `@graphty/graph-format` | **graph-format** | "format", "snapshot package" |
-| `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: json, graphml, gexf, csv, gml, dot, pajek, neo4j, xgmml, cx2, cx, obo, cys) | **graph-io** | "io", "importers" |
-| `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
-| `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
-| `@graphty/gazetteer` (and `/countries`, `/regions`, `/cities` subpaths) | **gazetteer** | "geocoder", "place names" |
+| `@graphty/graph-io` (and a `@graphty/graph-io/<format>` subpath per format) | **graph-io** | "io", "importers" |
+| `@graphty/webgpu-graph-algorithms` (and `/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
+| `@graphty/graph-samples` (and `/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
+| `@graphty/gazetteer` (and `/countries`, `/regions`, `/cities`) | **gazetteer** | "geocoder", "place names" |
 | `@graphty/cytoscape-extensions`, in `cytoscape-extensions/` | **cytoscape-extensions** | "the adapter", "cytoscape" (that is the third-party library) |
-| `babylonjs-map` (unscoped; and the `babylonjs-map/location` and `babylonjs-map/projection` subpaths), in `babylonjs-map/` | **babylonjs-map** | "the map package", "@graphty/babylonjs-map" (it has no scope) |
+| `babylonjs-map` (unscoped; and `/location`, `/projection` subpaths), in `babylonjs-map/` | **babylonjs-map** | "the map package", "@graphty/babylonjs-map" (it has no scope) |
+| `babylonjs-models` (unscoped; `/files` and `/detect` subpaths), in `babylonjs-models/` | **babylonjs-models** | "@graphty/babylonjs-models" (no scope) |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -222,9 +223,10 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-io` | `graph-io/` | 0.3.20 | Importers and exporters for 13 formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) for the graph-format snapshot; subpath exports per format |
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators as typed arrays for the graph-format snapshot, and classic sample datasets downloaded from graphty.app on demand (no dataset's data is in the package) |
-| `@graphty/gazetteer` | `gazetteer/` | 0.1.0 | Place names with coordinates, offline: Natural Earth countries and regions, GeoNames cities15000, one ES module per layer; graphty-element's optional peer for maps by place name |
-| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets (downloaded from graphty.app) and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
+| `@graphty/gazetteer` | `gazetteer/` | 0.1.0 | Offline place names with coordinates (Natural Earth countries and regions, GeoNames cities); graphty-element's optional peer for maps by place name |
+| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus generators, sample datasets and file import/export, loaded on first use; WebGPU on demand |
 | `babylonjs-map` | `babylonjs-map/` | 0.0.0 | Maps and globes for Babylon.js scenes (unscoped, knows nothing about graphs); `/projection` and `/location` never load Babylon.js |
+| `babylonjs-models` | `babylonjs-models/` | 0.0.0 | 3D models into Babylon.js scenes from URLs, files, folders or zips (unscoped, no graphs) |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |

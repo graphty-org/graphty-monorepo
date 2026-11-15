@@ -453,6 +453,20 @@ describe("per-tool readers", () => {
             label: { position: "below" },
         });
         expect(s.nodes[0].fillOpacity).toBeCloseTo(128 / 255);
+        // a centered label's offset is read: one moved past the node's edge sits on the side it went furthest
+        // (cx-ddram's "BCDX2 subcomplex", #8152); one that stays inside is inside
+        const offset = (position: string) =>
+            sceneFromCyrest({
+                nodes: [{ ...row(1, 0, "A"), NODE_LABEL_POSITION: position }],
+                edges: [],
+                topology: { elements: { nodes: [{ data: { SUID: 1, name: "a" } }], edges: [] } },
+                background: "#FFFFFF",
+                annotations: [],
+                locked: false,
+            }).nodes[0].label?.position;
+        expect(offset("C,C,c,-86.98,10.00")).toBe("left");
+        expect(offset("C,C,c,6.69,191.97")).toBe("below");
+        expect(offset("C,C,c,20.00,-10.00")).toBe("inside");
         // a gradient custom graphic is painted over the second node's fill; the first has none
         expect(s.nodes.map((n) => n.paintedOver)).toEqual([undefined, true]);
         expect(s.edges[0]).toMatchObject({

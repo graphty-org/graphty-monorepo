@@ -237,10 +237,12 @@ export type GraphtyErrorCode =
      */
     | "E_AUTOSAVE_UNKNOWN_ENTRY"
     /**
-     * Autosave's kept work could not be listed: another tab holds the browser's database and did
-     * not let go within `details.afterMs` (a tab the browser suspended in the middle of a write).
-     * `details.step` is `"list"`. Nothing is known about the kept work; the caller offers none and
-     * asks again later.
+     * Autosave's kept work could not be listed, or an entry could not be reopened: another tab
+     * holds the browser's database and did not let go within `details.afterMs` (a tab the browser
+     * suspended in the middle of a write), or the browser's storage stalled. `details.step` is
+     * `"list"` (listing), `"read"` (reading the entry) or `"restore"` (writing the restore). For a
+     * listing nothing is known about the kept work; the caller offers none and asks again later.
+     * A refused restore leaves the entry as it was; the caller may restore it again later.
      */
     | "E_AUTOSAVE_STALLED"
     /**
@@ -673,11 +675,11 @@ export type GraphtyErrorCode =
      */
     | "E_MODEL_TOO_LARGE"
     /**
-     * A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+     * A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
      */
     | "E_MODEL_STRUCTURE"
     /**
-     * A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+     * A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
      * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
      */
     | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -719,7 +721,7 @@ export type GraphtyErrorCode =
      */
     | "E_MODEL_EXTERNAL_URL"
     /**
-     * A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+     * A model's compressed data could not be decoded. `params.reason`: `missing` when this build of graphty-element leaves the decoder out (the single-file `./bundle` carries no Draco or KTX2 decoder), `load` when the decoder's files could not be loaded, `decode` when the data is damaged. `params.extension` names the glTF extension when known. Every other build ships the Draco, meshopt and KTX2 decoders; nothing is fetched from a CDN.
      */
     | "E_MODEL_DECODER_UNAVAILABLE"
     /**
@@ -881,6 +883,34 @@ export type GraphtyWarningCode =
     | "W_MODEL_UP_GUESSED"
     /** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
     | "W_MODEL_HAS_ANIMATIONS"
+    /**
+     * A glTF uses an extension that is drawn without: the transmission family
+     * (`KHR_materials_transmission`, `_volume`, `_dispersion`, `_diffuse_transmission`,
+     * `_volume_scatter`), whose parts are drawn opaque. `params.extension` names it; one fact per
+     * extension.
+     */
+    | "W_MODEL_EXTENSION_IGNORED"
+    /**
+     * `node.modelAnimation` names a clip the model does not have: its nodes hold the first frame
+     * of its first clip. `params.name` is the name asked for, `params.available` every clip's name.
+     */
+    | "W_MODEL_ANIMATION_UNKNOWN"
+    /**
+     * A model's clips were sampled at fewer frames a second than 30 to keep their texture within
+     * 16 MB: they play less smoothly. `params.fps`, `params.clips`.
+     */
+    | "W_MODEL_ANIMATION_REDUCED"
+    /**
+     * Part of a model's animation is not played: `params.reason` is `"morph"` for shape keys
+     * (morph targets), whose parts keep their rest shape while the rest moves.
+     */
+    | "W_MODEL_ANIMATION_PARTIAL"
+    /**
+     * A point cloud or Gaussian splat model is drawn as small solids, one per point: a splat's
+     * size, opacity falloff and rotation are not drawn, and more points than are drawn were thinned
+     * evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
+     */
+    | "W_MODEL_POINTS_APPROXIMATED"
     /**
      * A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
      * `params.layerIds` names the layers that write `node.color`.

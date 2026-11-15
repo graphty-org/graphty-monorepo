@@ -16,7 +16,7 @@ beforeAll(() => {
 
 /** Four nodes in a line, each at its step; nodes 1 and 2 are tagged. */
 async function line(): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     await session.data.addNodes(
         ["a", "b", "c", "d"].map((id, step) => ({ id, step, tagged: step < 2 ? "yes" : "no" })),
     );
@@ -212,7 +212,7 @@ describe("a project on a state", () => {
         const { text } = await saved.project.save();
         saved.dispose();
 
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         await session.project.open(text);
         const of = (name: string): string => {
             const layer = session.styles.list().find((each) => each.name === name && each.target === "node");

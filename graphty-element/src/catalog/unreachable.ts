@@ -397,6 +397,19 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
             "requires the typeface, the panel colour and the size a layer asked for to be the " +
             "ones drawn.",
     },
+    ...(["node.modelAnimationSpeed", "node.modelAnimationOffset"] as const).map((channel): UnpaintedChannel => ({
+        kind: "by-design",
+        channel,
+        reason:
+            "A MODEL'S CLIP IS PLAYED AT THIS SPEED AND FROM THIS START TIME, so this waiver is about " +
+            "the reading and not about the capability. Both set where a playing clip is on its own " +
+            "clock: they change nothing on a node without a model that has clips, which is what this " +
+            "gate's resting scene draws, and on one that plays, two frames of the same layer already " +
+            "differ because time moved, so before and after cannot tell the write apart. " +
+            "`test/browser/models/model-animation.test.ts` is where they are proved: speed 0 holds " +
+            "the pose at its start time, another start time draws another pose, and a playing clip " +
+            "draws new pictures.",
+    })),
     ...GROUP_SIZING_CHANNELS.map((channel): UnpaintedChannel => ({
         kind: "by-design",
         channel,

@@ -39,7 +39,7 @@ import { addStep, editBranch, newSelection } from "../selection/model";
 import { type SelectionMenuItem, SelectionMenuItems } from "../selection/SelectionMenu";
 import { useSteps } from "../selection/useSteps";
 import { filterSelection, type PickSection, ruleOfField, sideOf } from "../selection/values";
-import { cardsWords, rowTest, rowWords, stepWords, VERB_WORDS } from "../selection/words";
+import { cardsWords, rowTest, rowWords, shownWords, stepWords, VERB_WORDS } from "../selection/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { type CardField, cardFields, type Side } from "../style/cards";
@@ -63,30 +63,25 @@ import { filterFailureWords } from "./words";
 /** The name of the time window, in the "+" list, its card and the inspector. */
 const TIME_WINDOW = "Time window";
 
-/**
- * Where focus goes once the Filters section draws next: a card (or its on box), or `PLUS` for "+"
- * (or the "Filter +" row), inside the section `root` holds.
- */
-let pendingFocus: { readonly target: string; readonly onBox?: boolean; readonly root: HTMLElement | null } | null =
-    null;
+/** Where focus goes once the Filters section draws next: a card (or its on box), or `PLUS` for "+". */
+let pendingFocus: { readonly target: string; readonly onBox?: boolean } | null = null;
 
 /** While a new card is taken back, its removal is no filter change to say: "Filter not added" says it. */
 let takingBack = 0;
 
-/** The control that opens a new filter card and stays on screen: "+", or the "Filter +" row. */
+/** The control that opens a new filter card and stays on screen: "+". */
 const OPENS_FILTERS = "[data-filters-plus] [data-add]";
 
 /** A card's on box, inside the card. */
 const ON_BOX = ".dp-filter-on input[type=checkbox]";
 
 /**
- * Focuses a card in a Filters section, its on box, or the section's "+" (or its "Filter +" row).
+ * Focuses a card in the Filters section, its on box, or the section's "+".
  * @param target - a card's id, or `PLUS`.
  * @param onBox - the card's on box rather than the card.
- * @param root - the section to look in: with two or more loads, each has its own "+".
  * @returns whether that control is on the page.
  */
-function focusCard(target: string, onBox: boolean, root: ParentNode | null): boolean {
+function focusCard(target: string, onBox = false): boolean {
     const card = `[role=list][aria-label="Filters"] [data-id="${CSS.escape(target)}"]`;
     let selector = card;
     if (target === PLUS) {
@@ -94,7 +89,7 @@ function focusCard(target: string, onBox: boolean, root: ParentNode | null): boo
     } else if (onBox) {
         selector = `${card} ${ON_BOX}`;
     }
-    const control = (root ?? document).querySelector<HTMLElement>(selector);
+    const control = document.querySelector<HTMLElement>(selector);
     control?.focus();
     return control !== null;
 }
@@ -189,11 +184,12 @@ export function FiltersSection({
         });
     }, [ids]);
     const counts = session?.visibility.conditionCounts() ?? [];
-    // The section's own controls: focus lands on this section's "+" or row, not another load's.
-    const root = useRef<HTMLDivElement>(null);
-    // With the selection workspace on, a section with no filter is one "Filter +" row instead of an
-    // empty header; the header comes back with its first card.
-    const workspaceOn = session !== null && selectionWorkspaceOn(session);
+
+    useEffect(() => {
+        if (pendingFocus !== null && focusCard(pendingFocus.target, pendingFocus.onBox)) {
+            pendingFocus = null;
+        }
+    }, [version]);
 
     // The control that opened the newest card, kept only when it is one that opens filters (the
     // "Add filter"): focus returns to it when the new card goes (Cancel,
@@ -219,7 +215,7 @@ export function FiltersSection({
             to.focus();
             return;
         }
-        focusCard(PLUS, false, root.current);
+        focusCard(PLUS);
     }, [goingBack, covered]);
     const backToOpener = (): void => {
         setGoingBack({ to: openedFrom.current });
@@ -308,7 +304,7 @@ export function FiltersSection({
                               glyph: GLYPHS.time,
                               onPick: () => {
                                   onPicked();
-                                  pendingFocus = { target: TIME_ROW, root: root.current };
+                                  pendingFocus = { target: TIME_ROW };
                                   store.set({ timeWindowCard: true });
                                   session.time.pause();
                                   session.time.window({}).then(() => {
@@ -323,17 +319,11 @@ export function FiltersSection({
     const fresh = waiting.map((each) => ({ id: each.id, condition: undefined, draft: each }));
     // In the selection workspace the newest filter is on top, a new one's row first, as Figma lists
     // layers; it stays there once written.
-    const cards = workspaceOn ? [...fresh, ...written.toReversed()] : [...written, ...fresh];
+    const cards =
+        session !== null && selectionWorkspaceOn(session)
+            ? [...fresh, ...written.toReversed()]
+            : [...written, ...fresh];
     const empty = cards.length === 0 && !timed;
-    // Drawn again empty (the last card gone), the section's "+" or row is what takes focus.
-    useEffect(() => {
-        if (
-            pendingFocus?.root === root.current &&
-            focusCard(pendingFocus.target, pendingFocus.onBox === true, root.current)
-        ) {
-            pendingFocus = null;
-        }
-    }, [version, empty]);
     // What the cards together leave, on the header: "Passes none" when they empty the picture.
     // A load's section says what its filters leave of that load.
     let summary = session?.visibility.summary ?? null;
@@ -352,100 +342,59 @@ export function FiltersSection({
             </Text>
         );
 
-    if (empty && workspaceOn) {
-        return (
-            <div ref={root} className="dp-filters-root">
-                <div className="dp-filter-plus-row" data-filters-plus="">
-                    <Button
-                        size="compact-xs"
-                        variant="subtle"
-                        data-add
-                        aria-label="Add filter"
-                        leftSection={<GLYPHS.filter size={14} aria-hidden />}
-                        rightSection={<GLYPHS.add size={14} aria-hidden />}
-                        onClick={() => {
-                            open("node");
-                        }}
-                    >
-                        Filter
-                    </Button>
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div ref={root} className="dp-filters-root">
-            <ControlSection
-                label="Filters"
-                headingLevel={headingLevel}
-                actions={
-                    <Group gap={4} wrap="nowrap">
-                        {together}
-                        {plus}
-                    </Group>
-                }
-                empty={empty}
-            >
-                {empty || session === null ? null : (
-                    <Stack
-                        component="ul"
-                        role="list"
-                        aria-label="Filters"
-                        gap={workspaceOn ? 2 : 6}
-                        className="dp-filters"
-                    >
-                        {cards.map((each) => (
-                            // One list, keyed by id: a draft written keeps its card (and focus) as the condition.
-                            <FilterCard
-                                key={each.id}
-                                session={session}
-                                store={store}
-                                id={each.id}
-                                condition={each.condition}
-                                count={counts.find((c) => c.id === each.id)}
-                                draft={each.draft}
-                                source={source}
-                                timePick={timePick}
-                                open={openId === each.id}
-                                onOpen={(next) => {
-                                    setOpenId(next ? each.id : null);
-                                }}
-                                onDiscard={() => {
-                                    setDrafts((now) => now.filter((draft) => draft.id !== each.id));
-                                    backToOpener();
-                                }}
-                                onDuplicate={(copy) => {
-                                    setOpenId(copy);
-                                }}
-                                onRemoved={() => {
-                                    const at = conditions.findIndex((c) => c.id === each.id);
-                                    pendingFocus = {
-                                        target: conditions[at + 1]?.id ?? conditions[at - 1]?.id ?? PLUS,
-                                        root: root.current,
-                                    };
-                                }}
-                            />
-                        ))}
-                        {timed && (
-                            <TimeRow
-                                session={session}
-                                store={store}
-                                onRemoved={() => {
-                                    // With no card left, the section draws again empty: the "Filter +"
-                                    // row, or the empty header's "+", takes focus once it has.
-                                    if (cards.length === 0) {
-                                        pendingFocus = { target: PLUS, root: root.current };
-                                    } else {
-                                        focusCard(PLUS, false, root.current);
-                                    }
-                                }}
-                            />
-                        )}
-                    </Stack>
-                )}
-            </ControlSection>
-        </div>
+        <ControlSection
+            label="Filters"
+            headingLevel={headingLevel}
+            actions={
+                <Group gap={4} wrap="nowrap">
+                    {together}
+                    {plus}
+                </Group>
+            }
+            empty={empty}
+        >
+            {empty || session === null ? null : (
+                <Stack
+                    component="ul"
+                    role="list"
+                    aria-label="Filters"
+                    gap={selectionWorkspaceOn(session) ? 2 : 6}
+                    className="dp-filters"
+                >
+                    {cards.map((each) => (
+                        // One list, keyed by id: a draft written keeps its card (and focus) as the condition.
+                        <FilterCard
+                            key={each.id}
+                            session={session}
+                            store={store}
+                            id={each.id}
+                            condition={each.condition}
+                            count={counts.find((c) => c.id === each.id)}
+                            draft={each.draft}
+                            source={source}
+                            timePick={timePick}
+                            open={openId === each.id}
+                            onOpen={(next) => {
+                                setOpenId(next ? each.id : null);
+                            }}
+                            onDiscard={() => {
+                                setDrafts((now) => now.filter((draft) => draft.id !== each.id));
+                                backToOpener();
+                            }}
+                            onDuplicate={(copy) => {
+                                setOpenId(copy);
+                            }}
+                            onRemoved={() => {
+                                const at = conditions.findIndex((c) => c.id === each.id);
+                                pendingFocus = { target: conditions[at + 1]?.id ?? conditions[at - 1]?.id ?? PLUS };
+                            }}
+                        />
+                    ))}
+                    {timed && <TimeRow session={session} store={store} />}
+                </Stack>
+            )}
+        </ControlSection>
     );
 }
 
@@ -486,7 +435,7 @@ function CountChips({
             {halves.map(([kind, half]) =>
                 half === null ? null : (
                     <EntityChip key={kind} kind={kind}>
-                        {`${formatNumber(staying(effect, half))} of ${formatNumber(half.total)}`}
+                        {`${formatNumber(staying(effect, half))} of ${formatNumber(half.total)}${effect === "keep" ? shownWords({ count: half.matched, shown: half.shown }) : ""}`}
                     </EntityChip>
                 ),
             )}
@@ -718,7 +667,12 @@ function FilterCard({
               ]),
         { id: "delete", label: "Delete", icon: "delete", group: "remove", key: "Delete", onRun: remove },
     ];
-    const total = selection === null ? undefined : `${formatNumber(matched)} of ${formatNumber(reading.total.of)}`;
+    // A card that removes its matches shows none of them; only the others say how many are shown.
+    const shownSuffix = condition?.effect === "exclude" ? "" : shownWords(reading.total);
+    const ofAll = `${formatNumber(matched)} of ${formatNumber(reading.total.of)}`;
+    const total = selection === null ? undefined : `${ofAll}${shownSuffix}`;
+    // Spoken, the kind of thing counted follows the count, before what is shown: "12 of 77 nodes, 0 shown".
+    const spoken = selection === null ? undefined : `${ofAll} ${things}${shownSuffix}`;
     // While a card's workspace is open the other cards keep their rows but drop their counts.
     const editing = useWorkspaceState((state) => state.selectionWorkspace?.host === "filter");
 
@@ -729,7 +683,7 @@ function FilterCard({
                 role="group"
                 data-id={id}
                 tabIndex={-1}
-                aria-label={total === undefined ? name : `${name}, ${total} ${things}`}
+                aria-label={spoken === undefined ? name : `${name}, ${spoken}`}
                 className="ws-card dp-filter"
                 data-off={on ? undefined : ""}
                 data-open={open ? "" : undefined}
@@ -850,7 +804,7 @@ function FilterCard({
                                         ? ["Edit", ...(on ? [] : ["off"])].join(", ")
                                         : [
                                               title,
-                                              ...(total === undefined ? [] : [`${total} ${things}`]),
+                                              ...(spoken === undefined ? [] : [spoken]),
                                               ...(on ? [] : ["off"]),
                                           ].join(", ")
                                 }
@@ -1002,14 +956,9 @@ function cardName(
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.store - the chrome store
- * @param props.onRemoved - called when the reader removes it, to move focus
  * @returns the card
  */
-function TimeRow({
-    session,
-    store,
-    onRemoved,
-}: Readonly<{ session: GraphSession; store: WorkspaceStore; onRemoved: () => void }>): React.JSX.Element {
+function TimeRow({ session, store }: Readonly<{ session: GraphSession; store: WorkspaceStore }>): React.JSX.Element {
     const { time } = session;
     const window = time.current;
     const words = window === null ? null : windowWords(window, unitOf(session), session.time.timeZone);
@@ -1019,7 +968,7 @@ function TimeRow({
     const inside =
         window === null || extent === null
             ? undefined
-            : time.bins({ count: 1, from: Number(window.from), to: Number(window.to) })?.[0]?.[side];
+            : time.bins({ count: 1, from: Number(window.from), to: Number(window.to), scope: "all" })?.[0]?.[side];
     const name = words === null ? TIME_WINDOW : `${TIME_WINDOW} ${words}`;
     const apply = (on: boolean): void => {
         time.pause();
@@ -1064,7 +1013,7 @@ function TimeRow({
                                 if (window !== null) {
                                     apply(false);
                                 }
-                                onRemoved();
+                                focusCard(PLUS);
                             }}
                         />
                     </Tooltip>

@@ -25,7 +25,7 @@ import type { GraphSession } from "../../session";
 import type { NodeStyleConfig } from "../../src/config/NodeStyle";
 import { labelFitExtent } from "../../src/meshes/labelFit";
 import { labelLetterHeight, SCENE_PER_UNIT } from "../../src/session/styles/fileStyles/translate";
-import { arrowClassOf, colorOf, labelPositionOf, lineStyleOf, shapeClassOf } from "./extract-scene";
+import { arrowClassOf, colorOf, comparerEdgeIds, labelPositionOf, lineStyleOf, shapeClassOf } from "./extract-scene";
 
 /** The properties a requested scene can judge. */
 export const REQUESTED_PROPERTIES: readonly Property[] = [
@@ -219,17 +219,14 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
                           text,
                           fontSize: sizePx,
                           color: colorOf(labelStyle.color ?? channel(merged, "node.labelColor"))?.hex ?? "#000000",
-                          // a bodiless node's label is where its offset takes it (an icon node's, vis-network's);
-                          // a body's offset label stays read by its location (cx-ddram's, #8152)
-                          position: bodiless
-                              ? offsetPlace(
-                                    labelPositionOf(labelStyle.location),
-                                    num(labelStyle.offsetX, 0),
-                                    num(labelStyle.offsetY, 0),
-                                    w,
-                                    h,
-                                )
-                              : labelPositionOf(labelStyle.location),
+                          // a label is where its offset takes it (an icon node's, vis-network's; cx-ddram's, #8152)
+                          position: offsetPlace(
+                              labelPositionOf(labelStyle.location),
+                              num(labelStyle.offsetX, 0),
+                              num(labelStyle.offsetY, 0),
+                              w,
+                              h,
+                          ),
                           visible: labelStyle.enabled !== false,
                       }
                     : null,
@@ -237,12 +234,14 @@ export function requestedScene(session: GraphSession, sourceSha256: string, comm
             z: num(merged["node.zIndex"], 0),
         };
     });
-    const edges: SceneEdge[] = session.data.edges().map((record) => {
+    const edgeRecords = session.data.edges();
+    const edgeIds = comparerEdgeIds(edgeRecords);
+    const edges: SceneEdge[] = edgeRecords.map((record) => {
         const merged = styleOf({ edge: record.id });
         const color = colorOf(channel(merged, "edge.color"));
         const label = merged["edge.label"];
         return {
-            id: record.id,
+            id: edgeIds.get(record.id) ?? record.id,
             source: String(record.source),
             target: String(record.target),
             points: [],

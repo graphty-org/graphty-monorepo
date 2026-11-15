@@ -101,7 +101,10 @@ import {
     RectangleGoggles,
     Redo2,
     RefreshCw,
+    Rotate3d,
+    RotateCcwSquare,
     RotateCw,
+    RotateCwSquare,
     Route,
     Scan,
     Search,
@@ -328,6 +331,10 @@ export const GLYPHS = {
     noPicture: Waypoints,
     // A node drawn as a 3D model, and a picture drawn on a node (the node-models experiment).
     model: Box,
+    // The Load custom model dialog's rotate buttons: a quarter turn about the up axis, and a tip.
+    turnLeft: RotateCcwSquare,
+    turnRight: RotateCwSquare,
+    tip: Rotate3d,
     picture: Image,
     gpu: Zap,
     developer: Code,

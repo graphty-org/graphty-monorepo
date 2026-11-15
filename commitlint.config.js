@@ -13,6 +13,7 @@ export default {
                 "graph-samples",
                 "gazetteer",
                 "babylonjs-map",
+                "babylonjs-models",
                 "webgpu-graph-algorithms",
                 "algorithms",
                 "layout",

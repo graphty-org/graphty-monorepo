@@ -105,6 +105,9 @@ function resolveRelative(specifier: string, importer: string): string | null {
     return candidates.find((candidate) => existsSync(candidate) && statSync(candidate).isFile()) ?? null;
 }
 
+/** Every source file each walked entry point reaches, package-relative, keyed by entry. */
+const FILES = new Map<string, readonly string[]>();
+
 /** One package this entry point pulls in, and the shortest chain of files that reaches it. */
 interface Reached {
     specifier: string;
@@ -167,6 +170,11 @@ function importGraph(entry: string): Reached[] {
         return chain.reverse();
     }
 
+    FILES.set(
+        entry,
+        [...parent.keys()].map((file) => file.replace(PACKAGE_ROOT, "")),
+    );
+
     return [...reached.entries()].flatMap(([specifier, importers]) =>
         importers.map((importer) => ({ specifier, chain: chainTo(importer) })),
     );
@@ -205,6 +213,30 @@ describe("the Node-safe entry points", () => {
             );
         },
     );
+
+    // The catalogue describes every built-in algorithm and layout from engine-facts.json; the
+    // implementations load only where a run or a layout needs them (#890).
+    it.each(["session.ts", "catalog.ts"])("%s reaches no algorithm or layout implementation", (entry) => {
+        graphOf(entry);
+        const implementations = (FILES.get(entry) ?? []).filter((file) =>
+            /^src\/(algorithms\/\w+Algorithm|layout\/\w+LayoutEngine)\.ts$/.test(file),
+        );
+        const engines = graphOf(entry).filter((found) => /^(d3-force-3d|ngraph\.)/.test(found.specifier));
+
+        assert.deepEqual(implementations, []);
+        assert.deepEqual(
+            engines.map((found) => `${found.specifier} via ${found.chain.join(" -> ")}`),
+            [],
+        );
+    });
+
+    it("sees what is really there: the root entry point does reach the algorithm and layout classes", () => {
+        graphOf("index.ts");
+        const files = FILES.get("index.ts") ?? [];
+
+        assert.include(files, "src/algorithms/PageRankAlgorithm.ts");
+        assert.include(files, "src/layout/NGraphLayoutEngine.ts");
+    });
 
     it("sees what is really there: the root entry point does reach Babylon.js and Lit", () => {
         // Without this, a walker that silently resolved nothing would pass every case above.

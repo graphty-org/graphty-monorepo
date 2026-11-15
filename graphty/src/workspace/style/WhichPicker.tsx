@@ -467,9 +467,11 @@ export function WhichPicker({
     // A card that changes the count says so -- also when the key that changed it (Enter in a
     // number box) closed the cards. The count the picker opens with is not news, nor is a count
     // still being worked out ("of 24 nodes", ""). The screen follows each keystroke; the count is
-    // spoken once, when typing pauses.
+    // spoken once, when typing pauses. While a keystroke's write is on its way the count is still the
+    // old text's, so it waits: each keystroke starts the pause again, however slow the machine.
     const head = useHead(session, rows, side, held?.cards);
-    const [settled] = useDebouncedValue(head, SPEAK_AFTER_MS);
+    const [writing, setWriting] = useState(false);
+    const [settled] = useDebouncedValue(writing ? "" : head, SPEAK_AFTER_MS);
     // Under an open selection workspace only the workspace says its count: this row is covered (or
     // beside it), and its count is often over another base (tier 5 round 1). It stays quiet until its
     // count settles after the workspace closes, so a change made in the workspace is not said twice.
@@ -495,7 +497,13 @@ export function WhichPicker({
         <div className="ws-which" data-testid="which-picker" data-side={side}>
             {selection !== null && (
                 // The outline is the layer's recipe at rest: it is always drawn, never folded.
-                <StyleSelection session={session} layer={rows[0].layer} name={rows[0].name} side={side} />
+                <StyleSelection
+                    session={session}
+                    layer={rows[0].layer}
+                    name={rows[0].name}
+                    side={side}
+                    onWriting={setWriting}
+                />
             )}
             {selection === null && open && (
                 <Cards
@@ -509,6 +517,7 @@ export function WhichPicker({
                     adding={adding}
                     onElsewhere={onElsewhere}
                     onClose={close}
+                    onWriting={setWriting}
                     onLeave={() => {
                         setOpen(false);
                         setOnCards(false);
@@ -794,6 +803,7 @@ type OnCard = (next: Card) => void;
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
  * @param props.onClose - closes the cards, handing focus back to the Which row
  * @param props.onLeave - closes the cards where focus has already gone elsewhere
+ * @param props.onWriting - told whether an edit is still on its way to the layers
  * @returns The region
  */
 function Cards({
@@ -808,6 +818,7 @@ function Cards({
     onElsewhere,
     onClose,
     onLeave,
+    onWriting,
 }: Readonly<{
     session: GraphSession;
     rows: readonly PickRow[];
@@ -820,6 +831,7 @@ function Cards({
     onElsewhere?: (field: CardField) => void;
     onClose: () => void;
     onLeave: () => void;
+    onWriting: (on: boolean) => void;
 }>): React.JSX.Element {
     const { store } = useWorkspace();
     // Focus that left the cards for another control closes them, as every pop-out does; the
@@ -847,14 +859,19 @@ function Cards({
     // Named for the act, as other style steps are ("changing node size on Hubs"), so Undo reads
     // "Undid changing the conditions on Group 1."
     const changed = rows.length === 1 ? rows[0].name : `${String(rows.length)} layers`;
-    const writer = useStepWriter(session, `changing the conditions on ${changed}`, () => {
-        for (const row of drawn.current) {
-            const now = session.styles.get(row.layer.id);
-            if (now !== undefined) {
-                held.current.set(row.layer.id, now.selector);
+    const writer = useStepWriter(
+        session,
+        `changing the conditions on ${changed}`,
+        () => {
+            for (const row of drawn.current) {
+                const now = session.styles.get(row.layer.id);
+                if (now !== undefined) {
+                    held.current.set(row.layer.id, now.selector);
+                }
             }
-        }
-    });
+        },
+        onWriting,
+    );
     // A held rule (a filter step) speaks both kinds at once, so it lists Data source once, with the nodes.
     const sourceTwice = holder !== undefined && side === "edge";
     // The columns follow the data: one that arrives while the picker is open is listed, so they

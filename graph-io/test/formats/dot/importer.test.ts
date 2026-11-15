@@ -344,7 +344,7 @@ describe("dot importer: the grammar", () => {
         expect(report.warningCount).toBe(0);
         expect(snapshot.ids.toArray()).toEqual(["a", "b"]);
         expect(snapshot.meta.name).toBe("my graph");
-        expect(snapshot.meta.extra).toEqual({ dot: { strict: true } });
+        expect(snapshot.meta.extra).toEqual({ dot: { strict: true, html: [] } });
     });
 
     it("reads every id spelling: bare, numeral, quoted with escapes and continuations, concatenated, HTML", async () => {

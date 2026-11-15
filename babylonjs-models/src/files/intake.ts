@@ -1313,10 +1313,26 @@ export function listParts(
         }
     }
 
-    const skipped = new Set(options.skipped ?? []);
-    const parts: ModelPart[] = [{ name: main.path, role: "model", state: "found", file: main.path }];
-    const used = new Set([main.path]);
-    const named = new Set([main.path]);
+    return partsFound(main.path, findings, files, new Set(options.skipped ?? []));
+}
+
+/**
+ * The parts list of {@link listParts}, from what the lookups found.
+ * @param main - The main file's path.
+ * @param findings - What the lookups found.
+ * @param files - The set.
+ * @param skipped - The parts loaded without.
+ * @returns The main file, the found parts, the missing ones, then the files nothing names.
+ */
+function partsFound(
+    main: string,
+    findings: Findings,
+    files: ReadonlyMap<string, Uint8Array>,
+    skipped: ReadonlySet<string>,
+): ModelPart[] {
+    const parts: ModelPart[] = [{ name: main, role: "model", state: "found", file: main }];
+    const used = new Set([main]);
+    const named = new Set([main]);
     for (const part of findings.found ?? []) {
         used.add(part.file);
         if (!named.has(part.name)) {
@@ -1327,11 +1343,8 @@ export function listParts(
 
     for (const fact of findings.missing) {
         const name = String(fact.params.name);
-        let state: ModelPart["state"] = fact.code === "E_MODEL_PART_AMBIGUOUS" ? "ambiguous" : "missing";
-        if (skipped.has(name)) {
-            state = "skipped";
-        }
-        parts.push({ name, role: roleOfName(name), state });
+        const missing = fact.code === "E_MODEL_PART_AMBIGUOUS" ? "ambiguous" : "missing";
+        parts.push({ name, role: roleOfName(name), state: skipped.has(name) ? "skipped" : missing });
     }
 
     for (const path of files.keys()) {

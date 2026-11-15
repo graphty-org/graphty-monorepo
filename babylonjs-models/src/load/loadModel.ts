@@ -206,6 +206,28 @@ async function importDecoder(kind: keyof typeof DECODERS): Promise<{ readonly av
 }
 
 /**
+ * Import a decoder a glTF cannot be drawn without.
+ * @param kind - The decoder.
+ * @param extension - The glTF extension it decodes, named when it is turned off or left out.
+ * @returns The module.
+ * @throws {ModelError} `E_MODEL_DECODER_UNAVAILABLE` when it is off, left out or failed to load.
+ */
+async function requireDecoder(
+    kind: keyof typeof DECODERS,
+    extension: string,
+): Promise<{ readonly available: boolean }> {
+    const found = await importDecoder(kind);
+    if (typeof found === "string") {
+        throw new ModelError("E_MODEL_DECODER_UNAVAILABLE", {
+            ...(found === "missing" ? { extension } : {}),
+            reason: found,
+        });
+    }
+
+    return found;
+}
+
+/**
  * Load the decoder modules a glTF's extensions need.
  * @param used - The extensions it uses.
  * @param required - The extensions it requires. When the KTX2 decoder is off, left out or does not
@@ -214,33 +236,17 @@ async function importDecoder(kind: keyof typeof DECODERS): Promise<{ readonly av
  */
 async function loadDecoders(used: readonly string[], required: readonly string[]): Promise<DracoModule | undefined> {
     const needed = new Set(DECODER_EXTENSIONS.filter(([name]) => used.includes(name)).map(([, kind]) => kind));
-    let draco: DracoModule | undefined;
-    if (needed.has("draco")) {
-        const module = await importDecoder("draco");
-        if (typeof module === "string") {
-            throw new ModelError("E_MODEL_DECODER_UNAVAILABLE", {
-                ...(module === "missing" ? { extension: "KHR_draco_mesh_compression" } : {}),
-                reason: module,
-            });
-        }
-
-        draco = module as DracoModule;
-    }
-
+    const draco = needed.has("draco")
+        ? ((await requireDecoder("draco", "KHR_draco_mesh_compression")) as DracoModule)
+        : undefined;
     if (needed.has("meshopt")) {
-        const module = await importDecoder("meshopt");
-        if (typeof module === "string") {
-            throw new ModelError("E_MODEL_DECODER_UNAVAILABLE", {
-                ...(module === "missing" ? { extension: "EXT_meshopt_compression" } : {}),
-                reason: module,
-            });
-        }
+        await requireDecoder("meshopt", "EXT_meshopt_compression");
     }
 
     if (needed.has("ktx2")) {
-        const module = await importDecoder("ktx2");
-        if (typeof module === "string" && required.includes("KHR_texture_basisu")) {
-            throw new ModelError("E_MODEL_DECODER_UNAVAILABLE", { extension: "KHR_texture_basisu", reason: module });
+        const found = await importDecoder("ktx2");
+        if (typeof found === "string" && required.includes("KHR_texture_basisu")) {
+            throw new ModelError("E_MODEL_DECODER_UNAVAILABLE", { extension: "KHR_texture_basisu", reason: found });
         }
     }
 

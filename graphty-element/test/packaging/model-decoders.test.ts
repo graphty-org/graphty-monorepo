@@ -29,11 +29,15 @@ describe("model decoders in the package", () => {
     });
 
     it("are loaded through babylonjs-models, never from Babylon's CDN", () => {
-        const chunks = readdirSync(CHUNKS).filter((f) => f.endsWith(".js"));
-        const loading = chunks.filter((f) =>
-            readFileSync(join(CHUNKS, f), "utf8").includes('import("babylonjs-models")'),
-        );
-        assert.isNotEmpty(loading, "a chunk imports babylonjs-models when a model first draws");
+        const built = [
+            ...readdirSync(CHUNKS).map((f) => join(CHUNKS, f)),
+            ...readdirSync(DIST).map((f) => join(DIST, f)),
+        ].filter((f) => f.endsWith(".js") && !f.endsWith("graphty.bundle.js"));
+        const loading = built.filter((f) => readFileSync(f, "utf8").includes('import("babylonjs-models")'));
+        assert.isNotEmpty(loading, "the library imports babylonjs-models when a model first draws");
+        for (const file of built) {
+            assert.notInclude(readFileSync(file, "utf8"), "cdn.babylonjs.com", file);
+        }
     });
 
     it("are left out of ./bundle", () => {

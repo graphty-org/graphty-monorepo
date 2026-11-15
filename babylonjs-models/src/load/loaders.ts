@@ -50,7 +50,7 @@ import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_lights_punctual.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_node_visibility.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/KHR_xmp_json_ld.js";
 import "@babylonjs/loaders/glTF/2.0/Extensions/MSFT_sRGBFactors.js";
-// Read as thin instances, which src/models/prepareTemplate.ts bakes into copies.
+// Read as thin instances of the mesh they copy.
 import "@babylonjs/loaders/glTF/2.0/Extensions/EXT_mesh_gpu_instancing.js";
 // What the glTF loader would otherwise import lazily.
 import "@babylonjs/core/Materials/PBR/pbrMaterial.js";

@@ -282,31 +282,18 @@ const GraphLayoutOpts = z.strictObject({
     groupsFollowMembers: z.boolean().optional(),
 
     /*
-     * Whether a layout runs over only what the visibility filter shows.
+     * Whether a layout runs over only what is shown: the working graph, what the filters leave
+     * shown. The time window is never part of it: a window step, a play and its pause hide
+     * elements by drawing and lay nothing out.
      *
-     * True: a node the filter hides takes no part in the layout -- it pushes and pulls nothing,
-     * its edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot
-     * -- and it stays where it was, so taking the filter away shows it where it was. The layout
-     * runs again whenever what the filter shows changes, and when this is switched. Every layout
-     * honours it. The time window is not a filter here: what lies outside it is hidden by style
-     * and still takes part, so playing the timeline moves no node. Unset or false, the default, a
-     * layout runs over the whole graph, hidden nodes included.
+     * True: a node a filter hides takes no part in the layout -- it pushes and pulls nothing, its
+     * edges pull nothing, and a circle, a grid or any other one-pass layout gives it no slot -- and
+     * it stays where it was, so taking the filter away shows it where it was. The layout runs again
+     * whenever a filter changes what is shown, and when this is switched. Every layout honours it.
+     * False: a layout runs over the whole graph, hidden nodes included. Unset, the default: as the
+     * session's `workingGraph` option says.
      */
     visibleOnly: z.boolean().optional(),
-
-    /*
-     * What `visibleOnly` does while time plays, when the moving time window changes what the
-     * filter shows every frame.
-     *
-     * "follow": it runs again at every change, as it does when time is still -- a full layout per
-     * frame, thrown away by the next one. "hold": the layout keeps the nodes where they are while
-     * time plays and runs again once, over what is shown, when the play pauses or ends. Unset means
-     * "follow". A layout over the whole graph ignores it.
-     *
-     * The time window now hides by style and never changes what `visibleOnly` lays out, so a play
-     * moves nothing this option governs; it is kept so existing configurations stay valid.
-     */
-    visibleOnlyWhilePlaying: z.enum(["hold", "follow"]).optional(),
 });
 
 /** How the element drives a layout, as the behaviour configuration resolves it. */

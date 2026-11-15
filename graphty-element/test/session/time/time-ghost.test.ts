@@ -26,7 +26,7 @@ beforeAll(() => {
  *   designated on nodes and edges.
  */
 async function trace(startingRows = true, look?: "hidden" | "ghost"): Promise<ElementSession> {
-    const session = createGraphSession() as ElementSession;
+    const session = createGraphSession({ workingGraph: false }) as ElementSession;
     if (startingRows) {
         await session.config.set({ startingRows: true, ...(look === undefined ? {} : { timelineHiddenLook: look }) });
     }
@@ -123,7 +123,7 @@ describe("timeline ghosts", () => {
         const { summary } = visibility;
         const nodeMask = [...visibility.nodeMask()];
         const edgeMask = [...visibility.edgeMask()];
-        const kept = visibility.keptIds();
+        const kept = [...visibility.keptMasks.nodes().bytes()];
         const nodes = await shownRows(session, "nodes");
         const edges = await shownRows(session, "edges");
 
@@ -135,7 +135,7 @@ describe("timeline ghosts", () => {
         assert.deepStrictEqual([...visibility.nodeMask()], nodeMask);
         assert.deepStrictEqual([...visibility.edgeMask()], edgeMask);
         assert.lengthOf([...visibility.nodes], 10);
-        assert.strictEqual(visibility.keptIds(), kept, "the layout's input never moved");
+        assert.deepStrictEqual([...visibility.keptMasks.nodes().bytes()], kept, "the layout's input never moved");
         assert.sameMembers([...session.selection.nodes], ["s0", "s5"]);
         assert.deepStrictEqual(await shownRows(session, "nodes"), nodes);
         assert.deepStrictEqual(await shownRows(session, "edges"), edges);

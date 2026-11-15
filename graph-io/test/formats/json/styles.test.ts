@@ -485,6 +485,18 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "shapePoints")[4]).toBe("-1,1 0,-1 1,1");
     });
 
+    it("fades a vis.js edge by color.opacity only where its color is hex or rgb(), as vis-network does", async () => {
+        const r = await load({
+            nodes: [{ id: "a" }, { id: "b" }],
+            edges: [
+                { from: "a", to: "b", color: { color: "#0000ff", opacity: 0.4 } },
+                { from: "a", to: "b", color: { color: "blue", opacity: 0.4 } },
+                { from: "a", to: "b", color: { color: "rgb(0,0,255)", opacity: 0.4 } },
+            ],
+        });
+        expect(values(r, "edge", "opacity")).toEqual([0.4, null, 0.4]);
+    });
+
     it("draws a vis.js icon node's code as its glyph, in vis-network's FontAwesome, 50 px and blue unless given", async () => {
         const r = await load({
             nodes: [

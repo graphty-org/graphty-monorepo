@@ -25,9 +25,11 @@
 //
 // It never fails the pull request: an API error lets the run proceed, and so does a GITHUB_TOKEN with under
 // MIN_RATE_LEFT requests left this hour (the token's 1,000 an hour are shared by every workflow). Waiting its
-// turn has no time limit of its own (giving up let the slowest runs join the backlog exactly when it was
-// longest); the job's timeout in ci.yml is the last resort. A run k places from its turn checks every
-// k x POLL_SECONDS (at most 5 minutes), so a long queue costs few calls. The wait goes in the job summary.
+// turn is long (giving up early let the slowest runs join the backlog exactly when it was longest), but it ends
+// at MAX_WAIT_MINUTES, before the job's timeout in ci.yml: a job that reaches its timeout is cancelled, which
+// continue-on-error does not cover, so Build and every job after it were skipped and the pull request went red
+// (#8219: a 2-hour backlog on 2026-11-14 failed #7878 that way). Past the limit the run proceeds. A run k
+// places from its turn checks every k x POLL_SECONDS (at most 5 minutes), so a long queue costs few calls. The wait goes in the job summary.
 //
 // BUDGET is the repository variable CI_PR_JOB_BUDGET (default DEFAULT_BUDGET, the ~180 jobs GitHub runs at once
 // less the full run's RELEASE_SHARE: 180 - 30 = 150 since the full run went to 24 Test jobs, #7849), and CAP is CI_PR_RUN_CAP (default 2), both read in ci.yml's "Run cap" job:
@@ -40,6 +42,8 @@ import { appendFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 export const POLL_SECONDS = 60;
+// the longest wait for a turn, below the Run cap job's timeout-minutes in ci.yml (ci-run-cap.test.mjs checks it)
+export const MAX_WAIT_MINUTES = 110;
 const MAX_POLL_SECONDS = 300;
 export const MIN_RATE_LEFT = 300;
 const ACTIVE = new Set(["queued", "in_progress", "requested", "pending", "waiting"]);
@@ -187,9 +191,19 @@ export async function check({ me, cap, budget, api }) {
  * @param opts.sleep ms -> a promise that resolves after them
  * @param opts.now the clock, in ms
  * @param opts.log where the progress lines go
+ * @param opts.maxWaitSeconds the longest wait, after which the run proceeds
  * @returns waitedSeconds, outcome and the number of checks made
  */
-export async function waitTurn({ cap, budget = null, api, runId, sleep, now = Date.now, log = console.log }) {
+export async function waitTurn({
+    cap,
+    budget = null,
+    api,
+    runId,
+    sleep,
+    now = Date.now,
+    log = console.log,
+    maxWaitSeconds = MAX_WAIT_MINUTES * 60,
+}) {
     const start = now();
     let checks = 0;
     if (cap === null && budget === null) return { waitedSeconds: 0, outcome: "no cap", checks };
@@ -200,8 +214,14 @@ export async function waitTurn({ cap, budget = null, api, runId, sleep, now = Da
             const turn = await check({ me, cap, budget, api });
             const waited = Math.round((now() - start) / 1000);
             if (!turn) return { waitedSeconds: waited, outcome: "proceeded", checks };
+            const left = maxWaitSeconds - waited;
+            if (left <= 0) {
+                log(`::warning::Run cap: still waiting (${turn.why}) after ${waited} s; proceeding`);
+                return { waitedSeconds: waited, outcome: "wait limit", checks };
+            }
             log(`waiting: ${turn.why}`);
-            await sleep(Math.max(POLL_SECONDS, Math.min(turn.places * POLL_SECONDS, MAX_POLL_SECONDS)) * 1000);
+            const pause = Math.max(POLL_SECONDS, Math.min(turn.places * POLL_SECONDS, MAX_POLL_SECONDS));
+            await sleep(Math.min(pause, left) * 1000);
         }
     } catch (e) {
         log(`::warning::Run cap: ${e.message}; proceeding without waiting further`);

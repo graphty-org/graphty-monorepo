@@ -125,12 +125,12 @@ for tiles and `equirectangular` for pictures. A picture in the other projection 
 
 ## Credits
 
-Every tile service requires its credit to be visible while its tiles are. `map.attribution` lists
-the credits of the sources that drew a tile; `map.credits` gives each with the page it links to
-(`attributionUrl` on a source of your own). Show them over the canvas.
+The map draws nothing but the map. `map.attribution` lists the credits of the sources that drew a
+tile; `map.credits` gives each with the page it links to (`attributionUrl` on a source of your
+own). Show them wherever your page chooses, for example in an About dialog.
 
 ```ts
-creditElement.textContent = map.attribution.join(" | ");
+aboutCredits.textContent = map.attribution.join(" | ");
 ```
 
 ## Loading and level of detail

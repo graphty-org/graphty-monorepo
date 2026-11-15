@@ -81,13 +81,16 @@ import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import { asFileStyleStore, FILE_STYLES_VALUE } from "../session/styles/fileStyles/store";
 import type { EdgeRecord, GraphSession, GroupTableOptions, NodeRecord } from "../session/types";
+import { wholeGraph } from "../session/working/graphs";
 import { writtenPositions } from "./filePositions";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 
 /**
- * Which nodes and edges an export writes, beside the whole graph (no `scope`):
+ * Which nodes and edges an export writes. With no `scope`, the whole graph, or, while the
+ * session's `workingGraph` option is on, what is shown:
  *
+ * - `"all"`: the whole graph, whatever is shown.
  * - `"shown"`: what the visibility filter leaves showing; a time window, which only changes how
  *   elements are drawn, narrows nothing.
  * - `"selection"`: the selected nodes and the edges between them.
@@ -98,14 +101,15 @@ export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
  * An edge is written only when both its ends are.
  */
 export type ExportScope =
-    RuleTree | "shown" | "selection" | { readonly set: SetId } | { readonly nodes: readonly NodeId[] };
+    RuleTree | "all" | "shown" | "selection" | { readonly set: SetId } | { readonly nodes: readonly NodeId[] };
 
 /**
  * Options of one export: the writer's own, graph-io's common ones, and the element's `scope`
- * (which nodes and edges, {@link ExportScope}; the whole graph when absent), `columns` (which
- * attribute columns, by name, `data.<name>` or result path; every column when absent -- the id,
- * the ends of an edge, positions and styles are always written) and `groupTable` (write one row
- * per group instead of the graph, {@link ExportGroupTable}).
+ * (which nodes and edges, {@link ExportScope}; when absent, the whole graph, or what is shown
+ * while `workingGraph` is on), `columns` (which attribute columns, by name, `data.<name>` or
+ * result path; every column when absent -- the id, the ends of an edge, positions and styles are
+ * always written) and `groupTable` (write one row per group instead of the graph,
+ * {@link ExportGroupTable}).
  */
 export type ExportGraphOptions = Readonly<Record<string, unknown>> &
     CommonExportOptions & {
@@ -383,21 +387,23 @@ interface ExportRows {
 }
 
 /**
- * The rows of the session a scope covers, or every row without one.
+ * The rows of the session a scope covers; with none, what `exportGraph` writes with none.
  * @param session - The session.
  * @param scope - The scope.
  * @returns The rows.
  */
 function exportRows(session: GraphSession, scope: ExportScope | undefined): ExportRows {
     const all = (count: number): number[] => Array.from({ length: count }, (_value, row) => row);
-    const nodes = session.data.nodes();
-    const edges = session.data.edges();
-    if (scope === undefined) {
+    const nodes = session.data.nodes({ scope: "graph" });
+    const edges = session.data.edges({ scope: "graph" });
+    // No scope reads what every reader naming none reads: the working graph while it is on.
+    const named = scope ?? (session.workingGraph ? "shown" : "all");
+    if (named === "all") {
         return { nodes: all(nodes.length), edges: all(edges.length) };
     }
 
     const resolver = scopeResolverOfSession(session);
-    const resolved = resolver.resolveNow(resolver.canonical(scopeInputOf(scope)));
+    const resolved = resolver.resolveNow(resolver.canonical(scopeInputOf(named)));
     const rowsIn = (
         records: readonly { readonly id: NodeId | EdgeId }[],
         ids: ReadonlySet<NodeId | EdgeId>,
@@ -419,7 +425,7 @@ function exportRows(session: GraphSession, scope: ExportScope | undefined): Expo
  * @param scope - The export scope.
  * @returns The scope.
  */
-function scopeInputOf(scope: ExportScope): ScopeInput {
+function scopeInputOf(scope: Exclude<ExportScope, "all">): ScopeInput {
     if (scope === "shown") {
         return "visible";
     }
@@ -484,7 +490,7 @@ function writeNotes(
     // `list()` is newest first, so each row's texts arrive in the order they are written.
     const notes = session.notes.list();
     const texts = { node: new Map<number, string[]>(), edge: new Map<number, string[]>() };
-    rowsOf(notes, session.data.snapshot()).forEach((targets, at) => {
+    rowsOf(notes, wholeGraph(session.data.store)).forEach((targets, at) => {
         const seen = { node: new Set<number>(), edge: new Set<number>() };
         targets.forEach((sessionRow, position) => {
             const kind = "node" in notes[at].targets[position] ? "node" : "edge";
@@ -590,7 +596,7 @@ export function buildExportSnapshot(
     const notes: LossNote[] = [];
     const guard = formulaGuard(options.neutraliseFormulas === true);
     const { cell } = guard;
-    const current = session.data.snapshot();
+    const current = wholeGraph(session.data.store);
     const builder = new GraphBuilder({
         directed: current.directed,
         duplicateEdges: "keep",
@@ -599,9 +605,9 @@ export function buildExportSnapshot(
         weightDtype: "f64",
     });
 
-    const allNodes = session.data.nodes();
-    const allEdges = session.data.edges();
-    const rows = options.rows ?? exportRows(session, undefined);
+    const allNodes = session.data.nodes({ scope: "graph" });
+    const allEdges = session.data.edges({ scope: "graph" });
+    const rows = options.rows ?? exportRows(session, "all");
     const nodes = rows.nodes.map((row) => allNodes[row]);
     const edges = rows.edges.map((row) => allEdges[row]);
     const kept = columnTest(options.columns);
@@ -921,7 +927,7 @@ interface ResultColumns {
 function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote[], groupRanks: boolean): void {
     // A field only a directed graph can tell apart (a degree's in and out halves) means nothing on
     // an undirected one, so it is left out there, as the readable fields leave it out.
-    const { directed } = session.data.snapshot();
+    const { directed } = wholeGraph(session.data.store);
     for (const root of session.results.roots) {
         const result = session.results.get(root.runId);
         if (result === undefined) {
@@ -1262,8 +1268,8 @@ function sessionStyles(
 ): StylesToWrite {
     const block = exporter.styles?.capabilities.block;
     const { state } = dispatcherOf(session);
-    const allNodes = session.data.nodes();
-    const allEdges = session.data.edges();
+    const allNodes = session.data.nodes({ scope: "graph" });
+    const allEdges = session.data.edges({ scope: "graph" });
     const nodes = rows.nodes.map((row) => allNodes[row]);
     const edges = rows.edges.map((row) => allEdges[row]);
     const nodeMask = session.visibility.nodeMask();

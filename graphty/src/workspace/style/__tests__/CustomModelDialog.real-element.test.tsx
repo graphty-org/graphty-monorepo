@@ -15,7 +15,7 @@ import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, describe, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { commands, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
@@ -154,7 +154,7 @@ describe("the Load custom model dialog, on the real element", () => {
             "true",
             "nothing to add yet",
         );
-        await choose(dialog, "Choose files", [quadFile()]);
+        await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
         await addModel(dialog);
         await waitFor(() => {
@@ -170,7 +170,7 @@ describe("the Load custom model dialog, on the real element", () => {
     it("lists police.glb's missing picture, and takes it from the row's Choose", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [await fixture(policeUrl, "police.glb")]);
+        await choose(dialog, "Choose file", [await fixture(policeUrl, "police.glb")]);
         const files = await within(dialog).findByTestId("model-files");
         await waitFor(() => {
             assert.equal(within(dialog).getByRole("button", { name: "Files" }).getAttribute("aria-expanded"), "true");
@@ -192,7 +192,8 @@ describe("the Load custom model dialog, on the real element", () => {
     it("maps a picture named otherwise to the missing one with Use file", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [
+        // Several files at once come by a drop: the chooser takes the model's own file.
+        dropOn(within(dialog).getByTestId("custom-model"), [
             await fixture(policeUrl, "police.glb"),
             await fixture(colormapUrl, "paint.png"),
         ]);
@@ -200,6 +201,9 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.isNotNull(await within(files).findByText("Not used"));
         await userEvent.click(within(files).getByRole("combobox", { name: "File for colormap.png" }));
         await userEvent.click(await screen.findByRole("option", { name: "paint.png" }));
+        await waitFor(() => {
+            assert.isNull(within(files).queryByRole("combobox", { name: "File for colormap.png" }), "answered");
+        });
         await previewOf(dialog, "police");
         const record = session.assets.list().find((r) => r.path === "police.glb" && r.state === "accepted");
         assert.deepEqual(
@@ -214,7 +218,7 @@ describe("the Load custom model dialog, on the real element", () => {
     it("asks which file is the model for a set of two, and loads the one picked", async () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [quadFile(), await fixture(policeUrl, "police.glb")]);
+        dropOn(within(dialog).getByTestId("custom-model"), [quadFile(), await fixture(policeUrl, "police.glb")]);
         const files = await within(dialog).findByTestId("model-files");
         await userEvent.click(await within(files).findByRole("combobox", { name: "Which file is the model" }));
         await userEvent.click(await screen.findByRole("option", { name: "quad.glb" }));
@@ -224,19 +228,18 @@ describe("the Load custom model dialog, on the real element", () => {
     it("hands files that are not a model to the model waiting, and replaces it with a model", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [await fixture(policeUrl, "police.glb")]);
+        await choose(dialog, "Choose file", [await fixture(policeUrl, "police.glb")]);
         await within(dialog).findByRole("group", { name: "colormap.png" });
-        // Two pictures at once: graphty-element matches colormap.png to the part, paint.png to none.
-        await userEvent.click(within(dialog).getByRole("button", { name: "Replace..." }));
-        await choose(dialog, "Choose files", [
-            await fixture(colormapUrl, "colormap.png"),
-            await fixture(colormapUrl, "paint.png"),
-        ]);
+        // Two pictures dropped at once: graphty-element matches colormap.png to the part, paint.png to none.
+        const body = within(dialog).getByTestId("custom-model");
+        dropOn(body, [await fixture(colormapUrl, "colormap.png"), await fixture(colormapUrl, "paint.png")]);
+        await waitFor(() => {
+            assert.isNull(within(dialog).queryByRole("group", { name: "colormap.png" }), "the part is answered");
+        });
         await previewOf(dialog, "police");
 
-        // A model chosen now replaces police, which the dialog lets go of.
-        await userEvent.click(within(dialog).getByRole("button", { name: "Replace..." }));
-        await choose(dialog, "Choose files", [quadFile()]);
+        // A model dropped now replaces police, which the dialog lets go of.
+        dropOn(body, [quadFile()]);
         await previewOf(dialog, "quad");
         await waitFor(() => {
             assert.deepEqual(models(session), ["quad.glb"]);
@@ -246,10 +249,9 @@ describe("the Load custom model dialog, on the real element", () => {
     it("replaces police waiting for its picture with another model", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [await fixture(policeUrl, "police.glb")]);
+        await choose(dialog, "Choose file", [await fixture(policeUrl, "police.glb")]);
         await within(dialog).findByRole("group", { name: "colormap.png" });
-        await userEvent.click(within(dialog).getByRole("button", { name: "Replace..." }));
-        await choose(dialog, "Choose files", [quadFile()]);
+        dropOn(within(dialog).getByTestId("custom-model"), [quadFile()]);
         await previewOf(dialog, "quad");
         assert.isUndefined(
             session.assets.waiting().find((w) => w.path === "police.glb"),
@@ -257,10 +259,90 @@ describe("the Load custom model dialog, on the real element", () => {
         );
     });
 
+    it("takes the loaded model out with the x beside its name, back to the empty dialog", async () => {
+        const { session, tab, store } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [quadFile()]);
+        await previewOf(dialog, "quad");
+        const name = within(dialog).getByRole("textbox", { name: "Name" });
+        await userEvent.clear(name);
+        await userEvent.type(name, "Panel");
+        await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
+        await userEvent.click(within(dialog).getByRole("button", { name: "Remove quad.glb" }));
+
+        await within(dialog).findByRole("button", { name: "Choose file" });
+        assert.isNull(within(dialog).queryByRole("textbox", { name: "Name" }), "no Name");
+        assert.isNull(within(dialog).queryByRole("button", { name: "More options" }), "no More options");
+        assert.isNull(within(dialog).queryByTestId("model-source"), "no file line");
+        assert.equal(within(dialog).getByTestId("model-preview").childElementCount, 0, "a blank preview");
+        assert.equal(store.get().announcement, "quad.glb removed");
+        await waitFor(() => {
+            assert.deepEqual(models(session), [], "what nothing uses is let go");
+        });
+        assert.equal(within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"), "true");
+
+        // Loading again starts fresh: the file's own name, More options closed.
+        await choose(dialog, "Choose file", [quadFile()]);
+        await previewOf(dialog, "quad");
+        assert.equal(within(dialog).getByRole<HTMLInputElement>("textbox", { name: "Name" }).value, "quad");
+        assert.equal(
+            within(dialog).getByRole("button", { name: "More options" }).getAttribute("aria-expanded"),
+            "false",
+        );
+    });
+
+    it("draws a model waiting for a picture or a material, while Files still asks for it", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [await fixture(policeUrl, "police.glb")]);
+        await previewOf(dialog, "police");
+        assert.isNotNull(within(dialog).getByRole("group", { name: "colormap.png" }), "the picture is still asked for");
+        assert.equal(within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"), "true");
+
+        await userEvent.click(await within(dialog).findByRole("button", { name: "Remove police.glb" }));
+        await choose(dialog, "Choose file", [`${VARIANTS}/obj-mtl-png/cube.obj`]);
+        await previewOf(dialog, "cube");
+        assert.isNotNull(within(dialog).getByRole("group", { name: "cube.mtl" }), "the material is still asked for");
+    });
+
+    it("chooses the model's own file first, then asks for its parts with a chooser that filters nothing", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [`${VARIANTS}/obj-mtl-png/cube.obj`]);
+        const main = await commands.lastFileChooser();
+        assert.isFalse(main?.multiple, "one file");
+        const offered = String(main?.accept).split(",");
+        assert.includeMembers(offered, [".obj", ".glb", ".gltf", ".zip"]);
+        for (const part of [".mtl", ".bin", ".json", ".png"]) {
+            assert.notInclude(offered, part, `${part} is asked for after the model`);
+        }
+
+        const row = await within(dialog).findByRole("group", { name: "cube.mtl" });
+        await choose(row, "Choose cube.mtl", [`${VARIANTS}/obj-mtl-png/cube.mtl`]);
+        assert.isNull((await commands.lastFileChooser())?.accept ?? null, "an .mtl is offered whatever its type");
+        const picture = await within(dialog).findByRole("group", { name: "cube.png" });
+        await choose(picture, "Choose cube.png", [`${VARIANTS}/obj-mtl-png/cube.png`]);
+        await waitFor(() => {
+            assert.equal(within(dialog).getByRole("button", { name: "Add model" }).getAttribute("aria-disabled"), null);
+        });
+        await previewOf(dialog, "cube");
+    });
+
+    it("keeps the cube and its missing chip for a .gltf waiting for its .bin", async () => {
+        const { tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [`${VARIANTS}/gltf-bin/cube.gltf`]);
+        await within(dialog).findByRole("group", { name: "cube.bin" });
+        const preview = within(dialog).getByTestId("model-preview");
+        assert.isNotNull(within(preview).getByText("1 missing"));
+        assert.isNull(within(preview).queryByRole("img"), "nothing to draw without its geometry");
+        assert.isNull(within(dialog).queryByTestId("model-refusal"), "and no refusal said");
+    });
+
     it("lets go of what it loaded on Cancel and on Escape, but keeps a model the project had", async () => {
         const { session, tab } = await openShapes();
         let dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [quadFile()]);
+        await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
         await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
         await waitFor(() => {
@@ -269,7 +351,7 @@ describe("the Load custom model dialog, on the real element", () => {
         assert.deepEqual(models(session), [], "Cancel let it go");
 
         dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [quadFile()]);
+        await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -279,7 +361,7 @@ describe("the Load custom model dialog, on the real element", () => {
 
         await session.assets.add(quadFile());
         dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [quadFile()]);
+        await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
         await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
         await waitFor(() => {
@@ -291,7 +373,7 @@ describe("the Load custom model dialog, on the real element", () => {
     it("keeps the reader's name for the model", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [quadFile()]);
+        await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
         const name = within(dialog).getByRole("textbox", { name: "Name" });
         await userEvent.clear(name);
@@ -308,7 +390,7 @@ describe("the Load custom model dialog, on the real element", () => {
     it("keeps More options closed, redraws the preview for Up, and writes it with the model in one step", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [quadFile()]);
+        await choose(dialog, "Choose file", [quadFile()]);
         const before = (await previewOf(dialog, "quad")).src;
         const more = within(dialog).getByRole("button", { name: "More options" });
         assert.equal(more.getAttribute("aria-expanded"), "false");
@@ -335,7 +417,7 @@ describe("the Load custom model dialog, on the real element", () => {
     it("shows the model's Details as table rows, closed until asked", async () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [quadFile()]);
+        await choose(dialog, "Choose file", [quadFile()]);
         await previewOf(dialog, "quad");
         const details = within(dialog).getByRole("button", { name: "Details" });
         assert.equal(details.getAttribute("aria-expanded"), "false");
@@ -349,7 +431,7 @@ describe("the Load custom model dialog, on the real element", () => {
     it("draws the preview right of the name once loaded, and its rotate buttons write Up and Turn", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [quadFile()]);
+        await choose(dialog, "Choose file", [quadFile()]);
         const preview = await previewOf(dialog, "quad");
         const name = within(dialog).getByRole("textbox", { name: "Name" }).getBoundingClientRect();
         const box = preview.getBoundingClientRect();
@@ -373,7 +455,7 @@ describe("the Load custom model dialog, on the real element", () => {
     it("writes Color, a clip and the Pose it holds (Speed 0) with the model, redrawing the preview", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [`${VARIANTS}/gltf-animated/cube.glb`]);
+        await choose(dialog, "Choose file", [`${VARIANTS}/gltf-animated/cube.glb`]);
         await previewOf(dialog, "cube");
         await userEvent.click(within(dialog).getByRole("combobox", { name: /^Color, / }));
         await userEvent.click(await screen.findByRole("option", { name: "Node color on top" }));
@@ -428,7 +510,7 @@ describe("the Load custom model dialog, on the real element", () => {
         await userEvent.click(within(dialog).getByRole("button", { name: "Cancel load" }));
         await waitFor(() => {
             assert.isFalse(
-                within(dialog).getByRole<HTMLButtonElement>("button", { name: "Choose files" }).disabled,
+                within(dialog).getByRole<HTMLButtonElement>("button", { name: "Choose file" }).disabled,
                 "back to the start",
             );
         });
@@ -455,7 +537,7 @@ describe("the Load custom model dialog, on the real element", () => {
     it("names a point cloud's variant under its preview and flags it Approximated on the Details line", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [await fixture(pointsPlyUrl, "points.ply")]);
+        await choose(dialog, "Choose file", [await fixture(pointsPlyUrl, "points.ply")]);
         await previewOf(dialog, "points");
         assert.equal(within(dialog).getByTestId("model-variant").textContent, "PLY, binary, point cloud");
         const details = within(dialog).getByRole("button", { name: "Details" });
@@ -469,7 +551,7 @@ describe("the Load custom model dialog, on the real element", () => {
     it("shows why graphty-element could not draw an accepted model, and blocks Add", async () => {
         const { tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [await fixture(damagedPlyUrl, "cube.ply")]);
+        await choose(dialog, "Choose file", [await fixture(damagedPlyUrl, "cube.ply")]);
         const preview = await within(dialog).findByTestId("model-preview");
         assert.isNotNull(await within(preview).findByText("Not loaded"));
         assert.isNull(preview.querySelector("img"));
@@ -480,7 +562,7 @@ describe("the Load custom model dialog, on the real element", () => {
     it("offers a lone picture as the layer's picture", async () => {
         const { session, tab } = await openShapes();
         const dialog = await openCustom(tab);
-        await choose(dialog, "Choose files", [new File([dotPng()], "colormap.png")]);
+        dropOn(within(dialog).getByTestId("custom-model"), [new File([dotPng()], "colormap.png")]);
         assert.isNotNull(await within(dialog).findByText(/^colormap is a picture, not a 3D model/));
         await userEvent.click(within(dialog).getByRole("button", { name: "Use colormap as picture" }));
         await waitFor(() => {

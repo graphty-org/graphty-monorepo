@@ -27,6 +27,7 @@ import {
     type ResultShape,
     type RuleTree,
     type RunId,
+    type Scope,
     type Selector,
     type SetDefinitionInput,
     type StyleDocument,
@@ -87,6 +88,7 @@ import { valueLabelOf } from "./valueLabels";
 import { CONDITIONS_VERSION, readSavedConditions } from "./visibility/conditions";
 import { assertVisibility, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 import type { SessionVisibilityApi } from "./visibility/VisibilityApi";
+import { wholeGraph } from "./working/graphs";
 
 /** The container's `kind`. */
 const DOCUMENT_KIND = "graphty-document";
@@ -692,7 +694,7 @@ export function graphIdsOf(session: GraphSession): GraphIds {
         return { nodes: expanded.nodes.map((node) => node.id), edges: expanded.edges.map((edge) => edge.id) };
     }
 
-    const snapshot = session.data.snapshot();
+    const snapshot = wholeGraph(session.data.store);
     const space = edgeSpaceOf(snapshot);
     return {
         nodes: snapshot.ids.toArray(),
@@ -757,15 +759,16 @@ export function dataMember(
         new Set(derived.filter((column) => column.kind === kind).map((column) => column.name));
     const nodeKeys = computed("node");
     const edgeKeys = computed("edge");
-    const nodes = (expanded?.nodes ?? session.data.nodes()).map((node) =>
+    const nodes = (expanded?.nodes ?? session.data.nodes({ scope: "graph" })).map((node) =>
         withLoads(withoutKeys(node, nodeKeys), session.data.sourcesOf(node.id)),
     );
-    const edges = (expanded?.edges ?? session.data.edges().map((edge) => ({ id: edge.id, record: edge }))).map(
-        ({ id, record }) => ({
-            ...withLoads(withoutKeys(record, edgeKeys), session.data.sourcesOf(id, { kind: "edge" })),
-            id,
-        }),
-    );
+    // The whole graph, as the nodes are: the file is the original, not what a filter shows.
+    const edges = (
+        expanded?.edges ?? session.data.edges({ scope: "graph" }).map((edge) => ({ id: edge.id, record: edge }))
+    ).map(({ id, record }) => ({
+        ...withLoads(withoutKeys(record, edgeKeys), session.data.sourcesOf(id, { kind: "edge" })),
+        id,
+    }));
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
     const source = session.data.source();
     const sources = session.data.sources();
@@ -1045,6 +1048,9 @@ export function runEntry(sources: ProjectSources, id: RunId, ids: GraphIds): Rec
         shape: result.shape,
         fields: result.fields,
         measured: result.measured,
+        // How many elements it ran over, so an open restores it over the same ones (current) or
+        // marks it out of date, whichever the filter the file holds makes it.
+        ranOn: { nodes: entry.record.scope.nodes, edges: entry.record.scope.edges },
         graph: result.graph,
         caveats: entry.record.caveats,
         durationMs: entry.record.durationMs ?? 0,
@@ -1635,7 +1641,7 @@ async function importInto(
     sources: unknown,
     provenance?: unknown,
 ): Promise<(EdgeId | undefined)[]> {
-    const before = tx.data.edges().length;
+    const before = tx.data.edges({ scope: "graph" }).length;
     await tx.execute({ op: "data.apply", mutation: { kind: "add-nodes", records: graph.nodes, idPath: "id" } });
     await tx.execute({
         op: "data.apply",
@@ -1648,7 +1654,7 @@ async function importInto(
         },
     });
     const edgeIds = tx.data
-        .edges()
+        .edges({ scope: "graph" })
         .slice(before)
         .map((edge) => edge.id);
     if (isObject(source)) {
@@ -1786,6 +1792,8 @@ interface Opening {
     readonly services: Dispatcher["services"];
     /** Marks a restored run as one whose id the element minted. */
     readonly restoreDerived: (id: RunId) => void;
+    /** How many elements a run over a scope (absent: the default run scope) would hold now. */
+    readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
 }
 
 /**
@@ -1944,6 +1952,68 @@ async function addStylesAndNotes(
 }
 
 /**
+ * Put the saved positions and pins back, for the nodes the opened graph holds.
+ * @param opening - The open.
+ * @param arrangement - The file's arrangement member, if it has one.
+ * @param nodeIds - The opened graph's nodes.
+ */
+async function readArrangement(
+    opening: Opening,
+    arrangement: Record<string, unknown> | undefined,
+    nodeIds: ReadonlySet<NodeId>,
+): Promise<void> {
+    if (arrangement === undefined) {
+        return;
+    }
+
+    const { tx } = opening;
+    await attempt(opening, "arrangement", async () => {
+        const ids = arrangement.ids as NodeId[];
+        const [xs, ys, zs] = [arrangement.x, arrangement.y, arrangement.z].map((column) =>
+            decodeColumn(column, ids.length),
+        );
+        await tx.positions.set(
+            ids.flatMap((id, at) =>
+                nodeIds.has(id) ? [{ id, x: xs[at] as number, y: ys[at] as number, z: zs[at] as number }] : [],
+            ),
+        );
+        await tx.positions.pin((arrangement.pins as NodeId[]).filter((id) => nodeIds.has(id)));
+        opening.restored.add("pins");
+    });
+}
+
+/**
+ * Put the saved selection back, for the elements the opened graph holds; a refusal is a problem.
+ * @param opening - The open.
+ * @param saved - The view-state member's selection, if it has one.
+ * @param nodeIds - The opened graph's nodes.
+ * @param edgeIds - The opened graph's edge ids, by the file's edge position.
+ */
+async function readSelection(
+    opening: Opening,
+    saved: unknown,
+    nodeIds: ReadonlySet<NodeId>,
+    edgeIds: readonly (EdgeId | undefined)[],
+): Promise<void> {
+    const view = saved as { nodes?: NodeId[]; edges?: number[] } | undefined;
+    if (view === undefined) {
+        return;
+    }
+
+    try {
+        await opening.tx.selection.apply({
+            nodes: (view.nodes ?? []).filter((node) => nodeIds.has(node)),
+            edges: (view.edges ?? []).flatMap((at) => edgeIds[at] ?? []),
+        });
+    } catch (error) {
+        opening.problems.push({
+            code: isGraphtyError(error) ? error.code : "E_INTERNAL",
+            params: { kind: "graphty-view-state" },
+        });
+    }
+}
+
+/**
  * Read a project's settings: the style member's shaders first, so the background never names one
  * the project lacks, then the settings themselves.
  * @param opening - The open.
@@ -1998,7 +2068,7 @@ async function readProject(
 ): Promise<void> {
     // A sources member that was read says where the data came from; else the data member's own fields do.
     const { source, sources, provenance } = openedLoads(loads, doc.members.get("graphty-data")?.[0] ?? {});
-    const { tx, problems } = opening;
+    const { tx } = opening;
     const first = (kind: MemberKind): Record<string, unknown> => doc.members.get(kind)?.[0] ?? {};
     const state = first("graphty-session");
 
@@ -2008,7 +2078,7 @@ async function readProject(
         loads.graph === undefined ? graph : { ...graph, nodes: loads.graph.nodes, links: loads.graph.links };
     const edgeIds = await importInto(tx, records, source, sources, provenance);
     opening.restored.add("graph");
-    const nodeIds = new Set(tx.data.nodes().map((node) => node.id));
+    const nodeIds = new Set(tx.data.nodes({ scope: "graph" }).map((node) => node.id));
     await readDeclarations(opening, state.declarations);
     await readColumnSettings(opening, state.columns);
 
@@ -2036,41 +2106,11 @@ async function readProject(
         });
     }
 
-    const arrangement = doc.members.get("graphty-arrangement")?.[0];
-    if (arrangement !== undefined) {
-        await attempt(opening, "arrangement", async () => {
-            const ids = arrangement.ids as NodeId[];
-            const [xs, ys, zs] = [arrangement.x, arrangement.y, arrangement.z].map((column) =>
-                decodeColumn(column, ids.length),
-            );
-            await tx.positions.set(
-                ids.flatMap((id, at) =>
-                    nodeIds.has(id) ? [{ id, x: xs[at] as number, y: ys[at] as number, z: zs[at] as number }] : [],
-                ),
-            );
-            await tx.positions.pin((arrangement.pins as NodeId[]).filter((id) => nodeIds.has(id)));
-            opening.restored.add("pins");
-        });
-    }
-
+    await readArrangement(opening, doc.members.get("graphty-arrangement")?.[0], nodeIds);
     await restoreHidden(opening, state.visibility, nodeIds);
 
     // Before the runs: a run over the selection reads it. The selection is not project state.
-    const view = doc.members.get("graphty-view-state")?.[0]?.selection as
-        { nodes?: NodeId[]; edges?: number[] } | undefined;
-    if (view !== undefined) {
-        try {
-            await tx.selection.apply({
-                nodes: (view.nodes ?? []).filter((node) => nodeIds.has(node)),
-                edges: (view.edges ?? []).flatMap((at) => edgeIds[at] ?? []),
-            });
-        } catch (error) {
-            problems.push({
-                code: isGraphtyError(error) ? error.code : "E_INTERNAL",
-                params: { kind: "graphty-view-state" },
-            });
-        }
-    }
+    await readSelection(opening, doc.members.get("graphty-view-state")?.[0]?.selection, nodeIds, edgeIds);
 
     // Sets before the runs, so a run over a set finds it. A set is minted a new id when the session
     // has already issued its old one, so every `{ set }` the file names is rewritten to the new id.
@@ -2094,15 +2134,35 @@ async function readProject(
         }
     });
 
+    // Each run is restored over the elements it ran on: a run made before the filter (its scope
+    // held as many elements as it holds with no filter; a filter only takes elements away) before
+    // the filter, so it comes back out of date as it was saved;
+    // the rest after it, so a run over what the file shows comes back current. A file written
+    // before runs saved their counts restores them all before the filter, as it always did. A
+    // filter naming a set that waits for a run's result waits with it.
+    const restoreVisibility = (): Promise<void> => restoreVisibilityOf(opening, state, remap);
+
     const results = first("graphty-results");
     const sameData = results.fingerprint === tx.data.fingerprint();
+    const restoreRun = (run: SavedRun): Promise<void> =>
+        attempt(opening, "runs", () => readRun(opening, run, { sameData, nodeIds, edgeIds, remap }, canned), run.id);
+    const ranBefore = (run: SavedRun): boolean =>
+        run.ranOn === undefined || sameCount(run.ranOn, opening.scopeCountOf(remap(run).scope));
+    const after: SavedRun[] = [];
     for (const run of (results.runs ?? []) as SavedRun[]) {
-        await attempt(
-            opening,
-            "runs",
-            () => readRun(opening, run, { sameData, nodeIds, edgeIds, remap }, canned),
-            run.id,
-        );
+        if (waiting.length > 0 || ranBefore(run)) {
+            await restoreRun(run);
+        } else {
+            after.push(run);
+        }
+    }
+
+    if (waiting.length === 0) {
+        await restoreVisibility();
+    }
+
+    for (const run of after) {
+        await restoreRun(run);
     }
 
     // After the runs, whose results a computed column may read; before what may read it.
@@ -2123,46 +2183,14 @@ async function readProject(
     // The collapses, made again once the runs they group by are back, inside the open's own step.
     await readGroups(opening, state.groups);
 
-    const visibility = state.visibility as Record<string, unknown> | undefined;
-    if (visibility !== undefined) {
-        await attempt(opening, "visibility", async () => {
-            if (visibility.filter !== null && visibility.filter !== undefined) {
-                await tx.visibility.set(remap(visibility.filter) as never);
-            }
-
-            if (visibility.window !== null && visibility.window !== undefined) {
-                await (tx.visibility as SessionVisibilityApi).restoreWindow(
-                    visibility.window as TimeWindow,
-                    visibility.windowRaw === true,
-                );
-            }
-
-            await readFilterConditions(opening, visibility, remap);
-        });
-        // Read on their own, so a filter that cannot be read never loses them.
-        await attempt(opening, "visibility", async () => {
-            if (typeof visibility.playback === "object" && visibility.playback !== null) {
-                // How what lies outside the window draws lives in the style layers now (below); with
-                // the timeline off the playback stays whole, as saved.
-                const { outside: _outside, ...playback } = visibility.playback as Record<string, unknown>;
-                const kept = timelineOn(tx) ? playback : visibility.playback;
-                await (tx.visibility as SessionVisibilityApi).restorePlayback(
-                    Object.keys(kept).length === 0 ? null : kept,
-                );
-            }
-
-            // Dispatched and awaited, not set through `showContext`, whose setter cannot hand back its
-            // promise: an open aborted meanwhile (the element disposed) left that promise rejected
-            // with no one to catch it.
-            const show = visibility.showContext === true;
-            if (tx.visibility.showContext !== show) {
-                await tx.execute({ op: "visibility.context", show });
-            }
-        });
+    if (waiting.length > 0) {
+        await restoreVisibility();
     }
 
     await addStylesAndNotes(opening, doc.members, remap, name);
-    await attempt(opening, "styles", () => outsideWindowLayers(tx, visibility));
+    await attempt(opening, "styles", () =>
+        outsideWindowLayers(tx, state.visibility as Readonly<Record<string, unknown>> | undefined),
+    );
 
     for (const named of (state.valueLabels ?? []) as { path: string; value: string; label: string }[]) {
         await attempt(opening, "valueLabels", () => tx.data.setValueLabel(named.path, named.value, named.label));
@@ -2174,6 +2202,57 @@ async function readProject(
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
     }
+}
+
+/**
+ * Restore the filter, the time window and the filter conditions a `graphty-session` member holds.
+ * @param opening - The open.
+ * @param state - The `graphty-session` member.
+ * @param remap - Rewrites the set ids a rule names to the ones this session gave.
+ */
+async function restoreVisibilityOf(
+    opening: Opening,
+    state: Readonly<Record<string, unknown>>,
+    remap: <T>(value: T) => T,
+): Promise<void> {
+    const { tx } = opening;
+    const visibility = state.visibility as Record<string, unknown> | undefined;
+    if (visibility === undefined) {
+        return;
+    }
+
+    await attempt(opening, "visibility", async () => {
+        if (visibility.filter !== null && visibility.filter !== undefined) {
+            await tx.visibility.set(remap(visibility.filter) as never);
+        }
+
+        if (visibility.window !== null && visibility.window !== undefined) {
+            await (tx.visibility as SessionVisibilityApi).restoreWindow(
+                visibility.window as TimeWindow,
+                visibility.windowRaw === true,
+            );
+        }
+
+        await readFilterConditions(opening, visibility, remap);
+    });
+    // Read on their own, so a filter that cannot be read never loses them.
+    await attempt(opening, "visibility", async () => {
+        if (typeof visibility.playback === "object" && visibility.playback !== null) {
+            // How what lies outside the window draws lives in the style layers now
+            // (`outsideWindowLayers`); with the timeline off the playback stays whole, as saved.
+            const { outside: _outside, ...playback } = visibility.playback as Record<string, unknown>;
+            const kept = timelineOn(tx) ? playback : visibility.playback;
+            await (tx.visibility as SessionVisibilityApi).restorePlayback(Object.keys(kept).length === 0 ? null : kept);
+        }
+
+        // Dispatched and awaited, not set through `showContext`, whose setter cannot hand back its
+        // promise: an open aborted meanwhile (the element disposed) left that promise rejected
+        // with no one to catch it.
+        const show = visibility.showContext === true;
+        if (tx.visibility.showContext !== show) {
+            await tx.execute({ op: "visibility.context", show });
+        }
+    });
 }
 
 /**
@@ -2634,6 +2713,22 @@ async function readRun(opening: Opening, run: SavedRun, reading: RunReading, can
 }
 
 /** One finished run as a results member keeps it. */
+/** How many nodes and edges a scope holds. */
+interface ElementCount {
+    readonly nodes: number;
+    readonly edges: number;
+}
+
+/**
+ * Whether two counts are the same.
+ * @param a - One.
+ * @param b - The other, or null for a scope that does not resolve.
+ * @returns True when both sides agree.
+ */
+function sameCount(a: ElementCount, b: ElementCount | null): boolean {
+    return b !== null && a.nodes === b.nodes && a.edges === b.edges;
+}
+
 interface SavedRun {
     readonly id: RunId;
     /** Whether the element minted the id rather than the author naming it. */
@@ -2647,6 +2742,8 @@ interface SavedRun {
     readonly shape: ResultShape;
     readonly fields: readonly FieldDescriptor[];
     readonly measured: { readonly nodes: number; readonly edges: number };
+    /** How many elements its scope held when it ran; absent in files written before it was saved. */
+    readonly ranOn?: ElementCount;
     readonly graph: Readonly<Record<string, unknown>>;
     readonly caveats: Caveats | Omit<Caveats, "facts">;
     readonly durationMs: number;
@@ -2770,6 +2867,7 @@ function projectIdOf(value: unknown): string | undefined {
  * @param hooks.announce - Publishes `project:status`.
  * @param hooks.isDerived - Whether the element minted a run's id.
  * @param hooks.restoreDerived - Marks a restored run's id as minted by the element.
+ * @param hooks.scopeCountOf - How many elements a run over a scope would hold now.
  * @param hooks.sources - Writes and restores the loads from network sources.
  * @param hooks.projectChanged - Called once an open has read the project's id, before anything is
  *     fetched, and again once its source loads are restored.
@@ -2783,11 +2881,12 @@ export function projectOf(
         readonly announce: (change: ProjectStatus) => void;
         readonly isDerived: (id: RunId) => boolean;
         readonly restoreDerived: (id: RunId) => void;
+        readonly scopeCountOf: (spec?: Scope) => ElementCount | null;
         readonly sources?: NetworkSourceRecords;
         readonly projectChanged?: () => void;
     },
 ): ProjectApi {
-    const { announce, isDerived, restoreDerived, sources: networkSources, projectChanged } = hooks;
+    const { announce, isDerived, restoreDerived, scopeCountOf, sources: networkSources, projectChanged } = hooks;
     let id = newProjectId();
     // Clean means: the history's cursor is on the save point's step (null: the baseline), and
     // nothing has been merged into that step or cleared from under it. A save made with
@@ -2955,6 +3054,7 @@ export function projectOf(
                             playback: dispatcher.state.visibility.playback,
                             services: dispatcher.services,
                             restoreDerived,
+                            scopeCountOf,
                         },
                         doc,
                         graph,
@@ -2993,13 +3093,21 @@ export function projectOf(
         starts: boolean,
     ): Promise<void> => {
         const data = doc.members.get("graphty-data")?.[0];
-        const graph = data === undefined || session.data.nodes().length > 0 ? undefined : nodeLinkOf(data);
+        const graph =
+            data === undefined || session.data.nodes({ scope: "graph" }).length > 0 ? undefined : nodeLinkOf(data);
         await restoreAssetsOf(session, doc, problems);
         fresh = false;
         await session.transaction(
             "Open document",
             async (tx) => {
-                const opening = { tx, problems, restored, services: dispatcher.services, restoreDerived };
+                const opening = {
+                    tx,
+                    problems,
+                    restored,
+                    services: dispatcher.services,
+                    restoreDerived,
+                    scopeCountOf,
+                };
                 if (graph !== undefined) {
                     await importInto(tx, graph, data?.source, data?.sources);
                     restored.add("graph");

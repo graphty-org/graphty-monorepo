@@ -1,9 +1,8 @@
 /**
  * A section's "+" on the REAL graphty-element, driven by real clicks and keys: adding a property
  * writes nothing, so the drawing and the key stay as they are until the reader picks a value. Its
- * line shows what the row's elements draw now. Covered: a node a layer draws as a cube (Shape and
- * Fill on the node's own Style tab, and Escape taking a waiting line back), an existing layer's
- * Shape, and a selection over a size binding.
+ * line shows what the row's elements draw now. Covered: an existing layer's Shape, and a selection
+ * over a size binding, whose Style tab edits the selected layer.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -15,7 +14,6 @@ import { page, userEvent } from "vitest/browser";
 
 import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
-import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -111,44 +109,6 @@ async function lineOf(channel: string): Promise<HTMLElement> {
 }
 
 describe("a section's '+' waits for a value", () => {
-    it("on a node a layer draws as a cube: Shape and Fill change nothing until a shape is picked", async () => {
-        const session = await openScene();
-        await session.styles.add({
-            name: "Cubes",
-            target: "node",
-            selector: { match: "ids", nodes: ["1", "2"] },
-            set: { "node.shape": "box" },
-        });
-        await session.styles.settled();
-        await styleSelection(session, ["1"]);
-        const before = drawing(session);
-
-        await plus("shape", "Shape");
-        const shape = await lineOf("node.shape");
-        // The line starts at the cube the node draws now: the field is named for it.
-        within(shape).getByRole("combobox", { name: /Box$/ });
-        // With the node-models experiment on, Fill also offers Picture, so its "+" opens a menu.
-        await plus("fill", nodeModelsOn(session) ? "Color" : undefined);
-        const fill = await lineOf("node.color");
-        await session.styles.settled();
-        assert.strictEqual(drawing(session), before, "the drawing and the key are unchanged");
-        await waitFor(() => {
-            assert.isTrue(fill.contains(document.activeElement), "focus in the new Fill line");
-        });
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNull(screen.getByTestId("style-tab").querySelector('[data-line="node.color"]'), "Escape drops it");
-        });
-        assert.strictEqual(drawing(session), before, "still nothing written");
-
-        await userEvent.click(within(shape).getByRole("combobox"));
-        await userEvent.keyboard("Torus{Enter}");
-        await waitFor(() => {
-            assert.strictEqual(session.styles.explain({ node: "1" }).merged["node.shape"], "torus");
-        });
-        assert.strictEqual(session.styles.explain({ node: "2" }).merged["node.shape"], "box");
-    });
-
     it("on a layer's own row: Shape writes nothing and the key gains no entry until a shape is picked", async () => {
         const session = await openScene();
         const layer = await session.styles.add({
@@ -181,7 +141,7 @@ describe("a section's '+' waits for a value", () => {
         );
     });
 
-    it("on a selection over a size binding: Size keeps the bound sizes and the size key", async () => {
+    it("on a selection over a size binding: Size on the selected layer keeps the bound sizes and the size key", async () => {
         const session = await openScene();
         await session.styles.add({
             name: "By weight",
@@ -189,7 +149,11 @@ describe("a section's '+' waits for a value", () => {
             selector: { match: "everything" },
             encode: { "node.size": { by: "data.weight" } },
         });
+        await session.styles.addRow({ name: "Paint", target: "node", selector: { match: "everything" } });
         await session.styles.settled();
+        // A selection's Style tab edits the layer selected in the tree (#3409).
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Paint, / }));
         await styleSelection(session, ["1", "5"]);
         const before = drawing(session);
 

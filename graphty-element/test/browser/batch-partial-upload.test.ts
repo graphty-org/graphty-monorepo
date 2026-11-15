@@ -417,6 +417,13 @@ describe("the element's switch", () => {
         const scene = element.graph.getScene();
         await element.session.time.setField({ edges: { start: "t" } });
         await element.session.time.ready;
+        // A window hides by style: a layer selecting what lies outside it hides it.
+        await element.session.styles.add({
+            name: "Outside the window",
+            target: "edge",
+            selector: { match: "state", state: "outsideWindow" },
+            set: { "edge.visible": false },
+        });
         await drawn(element);
         const { on } = batchUploadFrames.rangedUploads(scene);
         assert.isFalse(on, "no window yet");
@@ -536,6 +543,9 @@ describe("a context lost while a window is in force", () => {
 
     it("draws every line and cap again after a dirty run at slot 0", async () => {
         const element = document.createElement("graphty-element");
+        // The working graph off: an uncommitted seek keeps drawing what the committed window
+        // showed, which the working graph does not draw.
+        element.workingGraph = false;
         element.style.display = "block";
         element.style.width = "400px";
         element.style.height = "300px";
@@ -563,6 +573,13 @@ describe("a context lost while a window is in force", () => {
         });
         await element.session.time.setField({ edges: { start: "t" } });
         await element.session.time.ready;
+        // A window hides by style: a layer selecting what lies outside it hides it.
+        await element.session.styles.add({
+            name: "Outside the window",
+            target: "edge",
+            selector: { match: "state", state: "outsideWindow" },
+            set: { "edge.visible": false },
+        });
         await element.session.time.window({ from: 0, to: 20, step: 5, nodes: "ends" });
         await element.session.time.seek(20, { commit: false });
         await drawn(element);

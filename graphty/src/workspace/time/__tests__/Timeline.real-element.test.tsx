@@ -685,7 +685,7 @@ describe("the Overview and the import of time", () => {
             .find((layer) => layer.name === "Timeline Hidden" && layer.target === "node");
         assert.isDefined(ghostLayer);
         // What the Timeline Hidden layer selects: every node outside the window.
-        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "").matched;
+        const ghosts = (): number => session.styles.counts(ghostLayer?.id ?? "", { scope: "graph" }).matched;
         // What lies outside the window: the window narrows only the drawing, never the visible count.
         const outsideCount = (): number => graph.nodeCount - (session.time.inside?.nodes ?? graph.nodeCount);
         // Hidden by default: the layer selects what lies outside and leaves it undrawn.
@@ -697,6 +697,7 @@ describe("the Overview and the import of time", () => {
         });
         // The window narrows nothing visible: every node stays in the visible count.
         assert.equal(session.visibility.summary.visibleNodes, graph.nodeCount);
+        assert.deepEqual(session.visibility.notDrawn, [], "nothing asked for is kept from drawing");
 
         // Scrub: step forward, and what the row selects follows the window.
         const first = Number(session.time.current?.from);

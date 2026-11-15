@@ -19,7 +19,16 @@ import { GLYPHS, KIND_GLYPHS } from "../glyphs";
 import { orNotice } from "../graph-place/actions";
 import { KindGlyph } from "../graph-place/KindGlyph";
 import { RowMenuItems } from "../graph-place/RowMenu";
-import { findTreeRow, layerKindWords, placeOf, rowName, rowsHeading, runRowKind } from "../graph-place/rows";
+import {
+    findTreeRow,
+    layerKindWords,
+    paintsOf,
+    paintsWords,
+    placeOf,
+    rowName,
+    rowsHeading,
+    runRowKind,
+} from "../graph-place/rows";
 import { LayerRowPanel } from "../graph-place/StyleTree";
 import { NoteList } from "../notes/NotesPlace";
 import { notesAbout } from "../notes/words";
@@ -814,7 +823,8 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
                 // A node is called by its label, else its id.
                 name: nodeName(session, resolved.node),
                 swatch: swatchOf(session, { node: resolved.node }),
-                // A node a filter hides is still selected; the header says why it is not drawn.
+                // A node inspected while hidden (one the time window hides stays selected); the
+                // header says why it is not drawn.
                 ...(session.visibility.isVisible(resolved.node) ? {} : { kind: "Node, hidden by a filter" }),
             };
         // The center node's own header: its name and the color it is drawn in.
@@ -845,8 +855,18 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
             return { name: "Everything" };
         case "selection-row":
             return { name: "Selection" };
-        case "layer-row":
-            return { name: rowName(session, resolved.layer), kind: layerKindWords(session, resolved.layer) };
+        case "layer-row": {
+            const name = rowName(session, resolved.layer);
+            const kind = layerKindWords(session, resolved.layer);
+            const row = findTreeRow(session.styles.tree(), resolved.layer)?.row;
+            // Spoken as its tree row says it, with how many it paints: where focus lands as a
+            // project opens on its Everything row.
+            const spoken =
+                row === undefined
+                    ? undefined
+                    : `${name}, ${(kind ?? "Layer").toLowerCase()}, ${paintsWords(paintsOf(session, row))}`;
+            return { name, kind, spoken };
+        }
         case "folder-row":
             return { name: rowName(session, resolved.row) };
         case "rows":

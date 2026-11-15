@@ -813,7 +813,8 @@ export interface EdgeStyleValues {
     readonly wavePeriod: number;
     /**
      * The line's width at the target as a multiple of its width at the source (`width`): 1 (the default) draws it the
-     * same width all along, 0 narrows it to a point at the target (Graphviz's `style=tapered`, `dir=forward`).
+     * same width all along, 0 narrows it to a point at the target (Graphviz's `style=tapered`, `dir=forward`;
+     * Cytoscape.js's `curve-style: straight-triangle`).
      */
     readonly taper: number;
     /** The arrow at the source end. */
@@ -1136,6 +1137,8 @@ export type StyleDialect =
     | "css"
     /** X11 color names (`gray` is `#bebebe`). */
     | "x11"
+    /** The GML draft's Tk colors: CSS, then Tk's `#RRRGGGBBB`, `#RRRRGGGGBBBB` and X11 names written with spaces. */
+    | "tk"
     /** Graphviz: X11 and SVG names, color schemes and `/scheme/name`, `#rrggbbaa`, HSV triples, inches. */
     | "graphviz"
     /** Java's `java.awt.Color` names and `#rrggbb`. */

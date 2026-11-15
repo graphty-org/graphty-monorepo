@@ -114,7 +114,7 @@ describe("styles.counts grouped by look", () => {
 });
 
 describe("styles.counts kept between reads", () => {
-    it("follows a filter, a window slide and a selection, and is read once while nothing moves", async () => {
+    it("follows a filter and a selection, not a window slide, and is read once while nothing moves", async () => {
         const session = await looks();
         const everything = session.styles
             .list()
@@ -129,8 +129,9 @@ describe("styles.counts kept between reads", () => {
         assert.strictEqual(countCounters.walks, walks, "and walks nothing");
 
         await session.time.window({ from: 11, to: 50 });
-        assert.notStrictEqual(drawn(), first.visible?.matched, "the slide changed what is visible");
-        assert.strictEqual(session.styles.counts(id).visible?.matched, drawn(), "a slide moves it");
+        // A timeline window hides by style: it changes nothing visible, so nothing the count reads.
+        assert.strictEqual(drawn(), first.visible?.matched, "the slide changed nothing visible");
+        assert.strictEqual(session.styles.counts(id).visible?.matched, drawn(), "nor the count");
 
         await session.visibility.set({ kind: "member", of: { nodes: ["n12", "n13", "n14"] } });
         assert.strictEqual(session.styles.counts(id).visible?.matched, drawn(), "a filter moves it");
@@ -140,15 +141,15 @@ describe("styles.counts kept between reads", () => {
         await session.selection.apply({ ids: ["n12"] });
         assert.notStrictEqual(session.styles.counts(selected?.id ?? "").matched, before, "a selection moves it");
 
-        // With nothing ghosted, a dragged window hides and shows: that moves it too.
+        // A dragged window, outside hidden, still only changes the drawing.
         await session.visibility.set(null);
         await session.time.setSettings({ outside: "hide" });
         const hidden = session.styles.counts(id).visible?.matched;
         await session.time.seek(45, { commit: false });
-        assert.notStrictEqual(drawn(), hidden, "the step changed what is visible");
-        assert.strictEqual(session.styles.counts(id).visible?.matched, drawn(), "a step moves it");
+        assert.strictEqual(drawn(), hidden, "the step changed nothing visible");
+        assert.strictEqual(session.styles.counts(id).visible?.matched, drawn(), "nor the count");
 
-        // With nothing ghosted, a filter changes no ghost: it moves it all the same.
+        // A filter moves it.
         await session.visibility.set({ kind: "member", of: { nodes: ["n40", "n41"] } });
         assert.strictEqual(session.styles.counts(id).visible?.matched, drawn(), "a filter alone moves it");
         session.dispose();

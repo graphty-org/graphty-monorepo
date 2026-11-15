@@ -54,6 +54,8 @@ async function settle(element: Graphty): Promise<void> {
  */
 async function trace(startingRows = true, look?: "hidden" | "ghost"): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    // Ghosts are drawn with the working graph off; on, nothing outside the window is drawn.
+    element.workingGraph = false;
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";
@@ -197,9 +199,13 @@ describe("timeline ghosts on the canvas", () => {
     });
 
     it("takes a pinned node's halo away with it outside the window, and draws it again as a ghost", async () => {
-        const element = await trace();
+        // The Pinned row is a starting row only when its look is set with them, or before.
+        const element = await trace(false);
         const { time } = element.session;
-        await element.session.config.set({ pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 } });
+        await element.session.config.set({
+            startingRows: true,
+            pinnedStyle: { color: "#868e96", scale: 1.12, opacity: 1 },
+        });
         await element.session.positions.pin(["s4"]);
         await settle(element);
         assert.isTrue(haloOn(element, "s4"), "the Pinned row rings s4");

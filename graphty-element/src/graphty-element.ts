@@ -3904,7 +3904,8 @@ export class Graphty extends LitElement {
     /**
      * What the map under the `location-map` layout is doing: its source, `state` (`off`, `loading`,
      * `ready`, or `fallback` when its pictures failed and the bundled world image shows instead), and
-     * `attribution`, the credits of everything drawn, which must be visible whenever the map is.
+     * `attribution`, the credits of everything drawn, as data: the element never draws them over the
+     * canvas, and a page may show them elsewhere (an About dialog).
      * @since 3.31.0
      * @returns The status
      */
@@ -3923,37 +3924,6 @@ export class Graphty extends LitElement {
     get mapFrame(): MapFrameFact | null {
         return this.#graph.mapFrame;
     }
-
-    /**
-     * How far above the canvas's bottom edge the map's credits sit, in CSS pixels.
-     * @remarks
-     * The element draws the credits of the map under the `location-map` layout in the canvas's
-     * bottom-right corner, as every map source's terms require. A page that draws its own controls
-     * over that edge sets this to their height, so the credits stay in sight. 0 (the default) is
-     * the corner. A preference of this view, not saved with the project.
-     * @since 3.31.0
-     * @example
-     * ```html
-     * <graphty-element attribution-offset="56"></graphty-element>
-     * ```
-     * @returns The offset
-     */
-    @property({ attribute: "attribution-offset", type: Number })
-    get attributionOffset(): number {
-        return this.#attributionOffset;
-    }
-    /**
-     * Moves the map's credits up from the corner.
-     */
-    set attributionOffset(value: number) {
-        const oldValue = this.#attributionOffset;
-        this.#attributionOffset = Number.isFinite(value) ? Math.max(0, value) : 0;
-        this.#graph.setAttributionOffset(this.#attributionOffset);
-        this.requestUpdate("attributionOffset", oldValue);
-    }
-
-    /** See {@link attributionOffset}. */
-    #attributionOffset = 0;
 
     /**
      * How the globe under the `location-map` layout looks beyond its map.
@@ -4473,7 +4443,8 @@ export class Graphty extends LitElement {
      *     (`node.color` and the `node.model*` settings) as a layer's `set` holds them.
      * @returns The picture as a PNG data URL.
      * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected model or one waiting for parts, its first problem's code and params.
+     *     rejected model or one waiting for parts, its first problem's code and params (with
+     *     `standInMissing`, a model waiting only for pictures or materials is drawn without them).
      * @example
      * ```typescript
      * const asset = await element.session.assets.add(input.files);
@@ -7075,6 +7046,41 @@ export class Graphty extends LitElement {
         // attribute, `session.acceleration` and the hardware cannot disagree about the policy.
         this.#graph.getSession().acceleration = value;
         this.requestUpdate("acceleration", oldValue);
+    }
+
+    /**
+     * Whether the graph's readers read only what is shown: the part of the graph the filters leave
+     * visible. The time window is not part of it: a window step hides elements by drawing and never
+     * moves the layout.
+     * @remarks
+     * On by default, since a filter means the subset you work with: a reader that names no scope
+     * reads the working graph. Off, every reader reads
+     * the whole graph, as before this option existed. The graph itself is not copied or
+     * changed -- edits, undo and the project file act on all of it, hidden nodes keep their
+     * positions, styles and results, and a reader that names the whole graph still reads all of it.
+     * A session setting, the same one as `session.workingGraph`: it records no undo step and is not
+     * saved in a project file.
+     * @returns True when on.
+     * @since 3.40.0
+     * @example HTML attribute
+     * ```html
+     * <graphty-element working-graph="false"></graphty-element>
+     * ```
+     */
+    @property({
+        attribute: "working-graph",
+        converter: { fromAttribute: (value: string | null): boolean => value !== "false" },
+    })
+    get workingGraph(): boolean {
+        return this.#graph.getSession().workingGraph;
+    }
+    /**
+     * Switches the working graph on or off.
+     */
+    set workingGraph(value: boolean) {
+        const oldValue = this.workingGraph;
+        this.#graph.getSession().workingGraph = value;
+        this.requestUpdate("workingGraph", oldValue);
     }
 
     /**

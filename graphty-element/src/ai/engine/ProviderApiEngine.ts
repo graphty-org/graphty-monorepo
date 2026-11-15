@@ -355,7 +355,8 @@ export class ProviderApiEngine implements AiEngine {
         }
 
         try {
-            const url = `${(settings.baseUrl ?? GEMINI_API).replace(/\/+$/, "")}/models/${encodeURIComponent(model)}:generateContent`;
+            const base = settings.baseUrl ?? GEMINI_API;
+            const url = `${base.endsWith("/") ? base.slice(0, -1) : base}/models/${encodeURIComponent(model)}:generateContent`;
             const init: RequestInit = {
                 method: "POST",
                 headers: { "content-type": "application/json", "x-goog-api-key": settings.apiKey },
@@ -378,7 +379,7 @@ export class ProviderApiEngine implements AiEngine {
                 return { code: "AI_NO_RESPONSE", params: { provider: settings.provider } };
             }
 
-            const bytes = Uint8Array.from(atob(inline.data), (char) => char.charCodeAt(0));
+            const bytes = Uint8Array.from(atob(inline.data), (char) => char.codePointAt(0) ?? 0);
             return {
                 code: "AI_COMPLETED",
                 params: {},

@@ -147,6 +147,13 @@ export class FakeLiveConnection implements LiveConnection {
     }
 }
 
+/** The image model `scriptImage` stands in for when a test names none. */
+const FAKE_IMAGE_MODEL: AiImageModelDescriptor = Object.freeze({
+    id: "fake-image",
+    plainName: "Fake image",
+    costUsd: 0.01,
+});
+
 /**
  * An engine that plays a script. Like a provider that cannot, it has no `transcribe`, `speak` or
  * `openLive` until a test scripts them (`scriptVoice`, `scriptLive`).
@@ -230,7 +237,7 @@ export class FakeEngine implements AiEngine {
      */
     scriptImage(
         image: Blob | Exclude<GeneratedImage, { code: "AI_COMPLETED" }>,
-        model: AiImageModelDescriptor = { id: "fake-image", plainName: "Fake image", costUsd: 0.01 },
+        model: AiImageModelDescriptor = FAKE_IMAGE_MODEL,
     ): void {
         this.imageModel = model;
         this.generateImage = (prompt) => {

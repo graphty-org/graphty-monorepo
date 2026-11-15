@@ -137,11 +137,11 @@ function fileLayers(session: GraphSession): Layer[] {
 }
 
 /**
- * What the element's own base layers paint, per kind, as the load's translation reads them.
+ * What the element's own default layers paint, per kind, as the load's translation reads them.
  * @param session - The session.
- * @returns The base values.
+ * @returns The default values.
  */
-function baseValues(session: GraphSession): Record<"node" | "edge", Record<string, unknown>> {
+function elementDefaults(session: GraphSession): Record<"node" | "edge", Record<string, unknown>> {
     const out: Record<"node" | "edge", Record<string, unknown>> = { node: {}, edge: {} };
     for (const layer of session.styles.list()) {
         if (layer.source.by === "element" && layer.source.reason === "default" && layer.target !== undefined) {
@@ -212,8 +212,8 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
         snapshot,
         namespace: "values",
         options: {},
-        base: baseValues(session),
         dataPath: dataPaths(read.path),
+        elementDefaults: elementDefaults(session),
     });
     const layers = fileLayers(session);
     assert.deepEqual(

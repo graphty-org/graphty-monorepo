@@ -129,7 +129,6 @@ import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
-import type { StyleTool } from '@graphty/graph-io/styles';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
@@ -985,6 +984,10 @@ export abstract class DataSource {
     // @internal
     fileStyles(options?: {
         readonly toolDefaults?: boolean;
+        readonly viewport?: {
+            readonly width: number;
+            readonly height: number;
+        } | null;
         readonly signal?: AbortSignal;
     }): Promise<FileStylesRead | null>;
     static fromImporter<Opts>(importer: GraphImporter<Opts>, descriptor: FormatDescriptor, options?: ImporterSourceOptions<Opts>): ImporterDataSourceClass;

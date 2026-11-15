@@ -654,6 +654,9 @@ function readRule(v: unknown): StyleRule {
         origin: name(r.origin),
         where: predicate(r.where),
     };
+    if (r.name !== undefined) {
+        rule.name = name(r.name);
+    }
     if (r.set !== undefined) {
         rule.set = values(r.set);
     }

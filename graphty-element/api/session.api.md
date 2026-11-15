@@ -78,7 +78,6 @@ import { SourceRuntime } from '@graphty/graph-io';
 import { SourceRuntimeReason } from '@graphty/graph-io';
 import { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
-import type { StyleTool } from '@graphty/graph-io/styles';
 import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
 
@@ -1388,9 +1387,6 @@ export const FILE_STYLE_ISSUE: Readonly<{
 }>;
 
 // @public
-export const FILE_STYLE_SHAPES: FileStyleShapeTable;
-
-// @public
 export const FILE_STYLE_TRANSLATION_ISSUE: Readonly<{
     NOT_DRAWN: "W_STYLE_NOT_DRAWN";
     NO_COUNTERPART: "W_STYLE_NO_COUNTERPART";
@@ -1427,7 +1423,6 @@ export interface FileStyleOptions {
     readonly labelLayers?: number;
     readonly labelSizes?: "proportional" | "file";
     readonly lengths?: "median" | "file" | "spacing";
-    readonly shapes?: FileStyleShapeTable;
     readonly toolDefaults?: boolean;
 }
 
@@ -1435,17 +1430,10 @@ export interface FileStyleOptions {
 export type FileStyleScalar = string | number | boolean;
 
 // @public
-export type FileStyleShapeTable = Readonly<Record<string, string>>;
-
-// @public
 export interface FileStyleSummary {
     readonly edgeRules: number;
     readonly nodeRules: number;
-    readonly tool: FileStyleTool | null;
 }
-
-// @public
-export type FileStyleTool = StyleTool;
 
 // @public
 export type FileStyleTranslationCode = (typeof FILE_STYLE_TRANSLATION_ISSUE)[keyof typeof FILE_STYLE_TRANSLATION_ISSUE];

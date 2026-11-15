@@ -66,8 +66,6 @@ export {
     FILE_STYLE_TRANSLATION_ISSUE,
 } from "./styles/fileStyles/codes";
 export type { FileStyleKind } from "./styles/fileStyles/path";
-export type { FileStyleShapeTable } from "./styles/fileStyles/shapes";
-export { FILE_STYLE_SHAPES } from "./styles/fileStyles/shapes";
 export type { FileStyleScalar, StyleValueColumn, StyleValueSet } from "./styles/fileStyles/store";
 export type { FileStyleNote, FileStyleOptions } from "./styles/fileStyles/translate";
 export type {
@@ -96,7 +94,6 @@ export type {
     ElementSession,
     Endpoint,
     FileStyleSummary,
-    FileStyleTool,
     FindAtLeastRow,
     FindContainsRow,
     FindEnd,

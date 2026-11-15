@@ -87,7 +87,7 @@ describe("the choice in the source's own options", () => {
             type: "gexf",
             config: { data: MISERABLES, styles: "file", styleOptions: { lengths: "file" } },
         });
-        assert.include(fileLayers(session), "node.by.Modularity Class");
+        assert.include(fileLayers(session), "By Modularity Class");
         for (const node of session.data.nodes()) {
             const size = (session.styles.explain({ node: node.id }).merged as Record<string, unknown>)["node.size"];
             // Lengths as the file has them: no node of this file is smaller than 8.
@@ -110,9 +110,10 @@ describe("a draft", () => {
         const draft = await session.data.prepare({ type: "gexf", config: { data: MISERABLES } });
         assert.strictEqual(draft.styles?.declared, true);
         assert.isAbove(draft.styles?.summary.nodeRules ?? 0, 0);
-        assert.strictEqual(draft.styles?.summary.tool, "gephi");
+        // the summary names no program: a loaded file is drawn the same way whatever wrote it
+        assert.notProperty(draft.styles?.summary ?? {}, "tool");
         await draft.load({ styles: "file" });
-        assert.include(fileLayers(session), "node.by.Modularity Class");
+        assert.include(fileLayers(session), "By Modularity Class");
         session.dispose();
     });
 

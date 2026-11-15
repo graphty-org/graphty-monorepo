@@ -209,6 +209,8 @@ const TRIANGLE_PROPORTIONS: ReadonlySet<string> = new Set([
     "triangle",
     "triangle-open",
     "vee",
+    // an open vee has the vee's proportions
+    "other:open-vee",
     "inverted",
     "diamond",
     "diamond-open",
@@ -366,27 +368,6 @@ function changed(
         ...(rule.map === undefined && Object.keys(map).length === 0 ? {} : { map: map }),
     };
     return withMark(out, { ...mark, was });
-}
-
-/**
- * A rule with a property written again under another name, where it does not write that name already; for resolving
- * what a program draws, never kept.
- * @param rule - the rule
- * @param from - the property it writes
- * @param to - the name it is copied to
- * @returns the rule
- */
-function copied(rule: StyleRule, from: string, to: string): StyleRule {
-    if (!writes(rule, from) || writes(rule, to)) {
-        return rule;
-    }
-    const value = rule.set?.[from as StyleProperty];
-    const mapping = rule.map?.[from as StyleProperty];
-    return {
-        ...rule,
-        ...(value === undefined ? {} : { set: { ...rule.set, [to]: value } }),
-        ...(mapping === undefined ? {} : { map: { ...rule.map, [to]: mapping } }),
-    };
 }
 
 /** The rules and columns being settled. */
@@ -750,16 +731,28 @@ function drawing(
         return Array.from({ length: n }, (_unused, i) => (columns.some((c) => c[i] !== null) ? value : null));
     };
     const screen = defaults?.labelSizeOnScreen?.value === true;
-    // every program draws an edge's end captions in its label's face, size, color, weight and opacity
+    // every program draws an edge's end captions in its label's face, size, color, weight and opacity: rule by rule,
+    // bottom to top, an end's own value where the rule gives one and the label's elsewhere, the topmost winning
     const fields = ["Size", "Color", "Font", "Weight", "Opacity"];
-    const captionRules = work.rules.map((rule) =>
-        rule.target === "edge"
-            ? fields.reduce(
-                  (r, f) => copied(copied(r, `label${f}`, `targetLabel${f}`), `label${f}`, `sourceLabel${f}`),
-                  rule,
-              )
-            : rule,
-    );
+    const edges = snapshot.edgeCount;
+    const caption = (property: string, from: string): (StyleValue | null)[] => {
+        const now = current(extracted, work);
+        const out = new Array<StyleValue | null>(edges).fill(null);
+        for (const rule of work.rules) {
+            if (rule.target !== "edge" || (!writes(rule, property) && !writes(rule, from))) {
+                continue;
+            }
+            const own = writes(rule, property) ? resolveRule(now, rule, property as StyleProperty, snapshot) : null;
+            const label = writes(rule, from) ? resolveRule(now, rule, from as StyleProperty, snapshot) : null;
+            for (let i = 0; i < edges; i++) {
+                const value = own?.[i] ?? label?.[i] ?? null;
+                if (value !== null) {
+                    out[i] = value;
+                }
+            }
+        }
+        return out;
+    };
     const node: Record<string, readonly (StyleValue | null)[]> = {};
     const edge: Record<string, readonly (StyleValue | null)[]> = {};
     if (writer("node", ["width", "height", "shape"])) {
@@ -789,21 +782,14 @@ function drawing(
                 continue;
             }
             const property = `${end}Label${f}`;
-            const drawn = resolved(extracted, snapshot, work, "edge", property, captionRules);
+            const drawn = caption(property, `label${f}`);
             const own = resolved(extracted, snapshot, work, "edge", property);
             if (drawn.some((value, i) => value !== own[i])) {
                 edge[property] = drawn.map((value, i) => (value === own[i] ? null : value));
             }
         }
         if (screen) {
-            edge[`${end}LabelScreenSize`] = resolved(
-                extracted,
-                snapshot,
-                work,
-                "edge",
-                `${end}LabelSize`,
-                captionRules,
-            );
+            edge[`${end}LabelScreenSize`] = caption(`${end}LabelSize`, "labelSize");
         }
     }
     if (screen) {

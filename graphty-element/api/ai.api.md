@@ -68,7 +68,6 @@ import type { SourceListQuery } from '@graphty/graph-io';
 import type { SourceProbe } from '@graphty/graph-io';
 import type { SourceValidators } from '@graphty/graph-io';
 import { StyleNoteCode } from '@graphty/graph-io/styles';
-import type { StyleTool } from '@graphty/graph-io/styles';
 import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';

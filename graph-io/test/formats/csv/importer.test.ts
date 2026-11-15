@@ -849,6 +849,19 @@ describe("csvImporter: node tables", () => {
         expect(report.counts.skippedNodes).toBe(1);
     });
 
+    it("keeps blank-id rows under blankIdPrefix, numbered by row", async () => {
+        const { snapshot, report } = await load("id,age\na,30\n,5\nb,7\n,6\n", {
+            table: "nodes",
+            blankIdPrefix: "~",
+        });
+        expect(snapshot.ids.toArray()).toEqual(["a", "~1", "b", "~3"]);
+        expect(column(snapshot, "nodes", "age")).toEqual([30, 5, 7, 6]);
+        expect(report.issues).toEqual([]);
+        await expect(load("id\na\n", { table: "nodes", blankIdPrefix: 1 as unknown as string })).rejects.toMatchObject({
+            code: "E_UNSUPPORTED",
+        });
+    });
+
     it("resolves the id column by candidates or by option, and fails without one", async () => {
         const named = await load("source,target\n1,2\n", { nodes: "name,x\n1,a\n2,b\n" });
         expect(column(named.snapshot, "nodes", "x")).toEqual(["a", "b"]);

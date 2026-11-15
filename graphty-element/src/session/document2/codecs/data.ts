@@ -605,38 +605,40 @@ function takeColumns(
     }
 }
 
+/** One source's per-load choices, as a build reads them. */
+interface Choices {
+    readonly duplicates: string;
+    readonly unmatched: string;
+}
+
 /**
- * Build one `join.add` or `join.merge` step: the source's node rows by key in its space, then its
- * edge rows between the nodes their ends name (spec 4.1.3, 6.1).
+ * A keyed row's record key, or undefined for a keyless one.
+ * @param space - The source's node space, undefined when it maps no key.
+ * @param key - The row's key text, undefined for a null or empty cell.
+ * @returns The record key.
+ */
+function keyedRef(space: string | undefined, key: string | undefined): NodeRef | undefined {
+    return space === undefined || key === undefined ? undefined : { space, key };
+}
+
+/**
+ * Build a source's node rows by key in its space. A row with no key, or a null or empty key cell,
+ * is keyless (spec 4.1.4): it keeps its row, in the space `source:<source id>`.
  * @param source - The source.
  * @param into - The build so far.
+ * @param nodeMap - Its node mapping.
+ * @param duplicates - Its `duplicateIds`.
  */
-function buildSource(source: ReadSource, into: Building): void {
-    const { record, id, copyId } = source;
-    const mapping = isPlainObject(record.mapping) ? record.mapping : {};
-    const settings = isPlainObject(record.settings) ? record.settings : {};
-    const duplicates = typeof settings.duplicateIds === "string" ? settings.duplicateIds : "first";
-    const unmatched = typeof settings.unmatched === "string" ? settings.unmatched : "add";
-    const nodeMap = isPlainObject(mapping.nodes) ? mapping.nodes : {};
-    const edgeMap = isPlainObject(mapping.edges) ? mapping.edges : undefined;
+function buildNodes(source: ReadSource, into: Building, nodeMap: JsonObject, duplicates: string): void {
+    const { id, copyId, nodes } = source;
     const keyColumn = typeof nodeMap.key === "string" ? nodeMap.key : undefined;
-    const edgeId = typeof edgeMap?.edgeId === "string" ? edgeMap.edgeId : undefined;
-    if (duplicates === "refuse" && (repeatsKey(source.nodes, keyColumn) || repeatsKey(source.edges, edgeId))) {
-        into.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "data", pointer: `/sources/${id}` } });
-        return;
-    }
-
     const keyedSpace = keyColumn === undefined ? undefined : String(nodeMap.space).normalize("NFC");
     const seen = new Set<BuiltNode>();
-    for (let row = 0; source.nodes !== undefined && row < source.nodes.length; row++) {
-        const values = rowOf(source.nodes, row);
+    for (let row = 0; nodes !== undefined && row < nodes.length; row++) {
+        const values = rowOf(nodes, row);
         const cell = keyColumn === undefined ? undefined : values[keyColumn];
-        const keyed = keyText(cell);
-        // A row with no key, or a null or empty key cell, is keyless (spec 4.1.4): it keeps its row.
-        const ref =
-            keyedSpace === undefined || keyed === undefined
-                ? { space: `source:${id}`, key: `${copyId}#${String(row)}` }
-                : { space: keyedSpace, key: keyed };
+        const keyed = keyedSpace === undefined ? undefined : keyText(cell);
+        const ref = keyedRef(keyedSpace, keyed) ?? { space: `source:${id}`, key: `${copyId}#${String(row)}` };
         const node = nodeAt(into, ref, keyed === undefined ? ref.key : cell);
         const repeated = seen.has(node);
         if (repeated && duplicates === "first") {
@@ -649,18 +651,27 @@ function buildSource(source: ReadSource, into: Building): void {
             node.loads.push(id);
         }
     }
+}
 
-    if (edgeMap === undefined || source.edges === undefined) {
-        return;
-    }
-
+/**
+ * Build a source's edge rows between the nodes their ends name. An edge from several rows keeps
+ * the first row's values, and so its type; under `merge` a later row only fills a column the first
+ * left unset (spec 4.1.8).
+ * @param source - The source.
+ * @param into - The build so far.
+ * @param edgeMap - Its edge mapping.
+ * @param choices - Its `duplicateIds` and `unmatched`.
+ */
+function buildEdges(source: ReadSource, into: Building, edgeMap: JsonObject, choices: Choices): void {
+    const { id, copyId, edges } = source;
+    const edgeId = typeof edgeMap.edgeId === "string" ? edgeMap.edgeId : undefined;
     const [from, to] = [String(edgeMap.source), String(edgeMap.target)];
     const [fromSpace, toSpace] = [String(edgeMap.sourceSpace), String(edgeMap.targetSpace)].map((each) =>
         each.normalize("NFC"),
     );
     const own = new Set<BuiltEdge>();
-    for (let row = 0; row < source.edges.length; row++) {
-        const values = rowOf(source.edges, row);
+    for (let row = 0; edges !== undefined && row < edges.length; row++) {
+        const values = rowOf(edges, row);
         const [a, b] = [keyText(values[from]), keyText(values[to])];
         if (a === undefined || b === undefined) {
             continue;
@@ -669,31 +680,52 @@ function buildSource(source: ReadSource, into: Building): void {
         const key = (edgeId === undefined ? undefined : keyText(values[edgeId])) ?? `${copyId}#${String(row)}`;
         const ref: EdgeRef = { load: id, key };
         // Every working column is the edge's, its end columns included (spec 4.1.9).
-        const columns = { ...values };
+        const columns: JsonObject = { ...values };
         const existing = into.edges.get(edgeKey(ref));
-        if (existing !== undefined && own.has(existing)) {
-            // An edge from several rows keeps the first row's values, and so its type; a later
-            // row only fills a column the first left unset (spec 4.1.8).
-            if (duplicates === "merge") {
-                for (const [name, value] of Object.entries(columns)) {
-                    if (existing.columns[name] === undefined || existing.columns[name] === null) {
-                        existing.columns[name] = value;
-                    }
-                }
+        if (existing === undefined || !own.has(existing)) {
+            const edge: BuiltEdge = {
+                from: nodeAt(into, { space: fromSpace, key: a }, values[from]),
+                to: nodeAt(into, { space: toSpace, key: b }, values[to]),
+                columns,
+                ref,
+                unmatched: choices.unmatched,
+            };
+            own.add(edge);
+            into.edges.set(edgeKey(ref), edge);
+        } else if (choices.duplicates === "merge") {
+            for (const [name, value] of Object.entries(columns)) {
+                existing.columns[name] ??= value;
             }
-
-            continue;
         }
+    }
+}
 
-        const edge: BuiltEdge = {
-            from: nodeAt(into, { space: fromSpace, key: a }, values[from]),
-            to: nodeAt(into, { space: toSpace, key: b }, values[to]),
-            columns,
-            ref,
-            unmatched,
-        };
-        own.add(edge);
-        into.edges.set(edgeKey(ref), edge);
+/**
+ * Build one `join.add` or `join.merge` step: the source's node rows by key in its space, then its
+ * edge rows between the nodes their ends name (spec 4.1.3, 6.1).
+ * @param source - The source.
+ * @param into - The build so far.
+ */
+function buildSource(source: ReadSource, into: Building): void {
+    const { record, id } = source;
+    const mapping = isPlainObject(record.mapping) ? record.mapping : {};
+    const settings = isPlainObject(record.settings) ? record.settings : {};
+    const choices: Choices = {
+        duplicates: typeof settings.duplicateIds === "string" ? settings.duplicateIds : "first",
+        unmatched: typeof settings.unmatched === "string" ? settings.unmatched : "add",
+    };
+    const nodeMap = isPlainObject(mapping.nodes) ? mapping.nodes : {};
+    const edgeMap = isPlainObject(mapping.edges) ? mapping.edges : undefined;
+    const keyColumn = typeof nodeMap.key === "string" ? nodeMap.key : undefined;
+    const edgeId = typeof edgeMap?.edgeId === "string" ? edgeMap.edgeId : undefined;
+    if (choices.duplicates === "refuse" && (repeatsKey(source.nodes, keyColumn) || repeatsKey(source.edges, edgeId))) {
+        into.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: "data", pointer: `/sources/${id}` } });
+        return;
+    }
+
+    buildNodes(source, into, nodeMap, choices.duplicates);
+    if (edgeMap !== undefined) {
+        buildEdges(source, into, edgeMap, choices);
     }
 }
 

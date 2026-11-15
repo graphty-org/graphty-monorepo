@@ -1091,6 +1091,20 @@ function ruleMatches(rule: unknown, source: string, row: Readonly<JsonObject>, e
 }
 
 /**
+ * An edge row's type: the first in registry order its row matches.
+ * @param edgeTypes - The edge types, in registry order.
+ * @param source - The row's source id.
+ * @param edge - The row.
+ * @returns The type, as the one-entry list an edge holds, or empty.
+ */
+function edgeTypeOf(edgeTypes: readonly JsonObject[], source: string, edge: Readonly<JsonObject>): string[] {
+    const first = edgeTypes.find(
+        (type) => Array.isArray(type.rules) && type.rules.some((rule) => ruleMatches(rule, source, edge)),
+    );
+    return first === undefined ? [] : [String(first.name)];
+}
+
+/**
  * Each element's types: a node every type a row supplying or naming it matches, an edge the first
  * type in registry order its row matches.
  * @param model - The model.
@@ -1129,12 +1143,7 @@ function elementTypesOf(
             }
 
             // An edge built from several rows takes the type of the first row read (spec 4.1.8).
-            if (!edges.has(edge.id)) {
-                const first = edgeTypes.find((type) =>
-                    rulesOf(type).some((rule) => ruleMatches(rule, source.id, edge)),
-                );
-                edges.set(edge.id, first === undefined ? [] : [String(first.name)]);
-            }
+            edges.set(edge.id, edges.get(edge.id) ?? edgeTypeOf(edgeTypes, source.id, edge));
         }
     }
 
@@ -1374,12 +1383,8 @@ function foldedOperations(model: DataModel): Set<string> {
     const applied = history.steps.slice(0, history.position);
     const ops = new Set(memoryOf(model.session).folded);
     // Walked newest first, up to the last load.
-    for (const step of applied.reverse()) {
-        if (LOAD_STEPS.has(step.fact.code)) {
-            break;
-        }
-
-        const op = FOLDED_STEPS[step.fact.code];
+    for (let at = applied.length - 1; at >= 0 && !LOAD_STEPS.has(applied[at].fact.code); at--) {
+        const op = FOLDED_STEPS[applied[at].fact.code];
         if (op !== undefined) {
             ops.add(op);
         }

@@ -103,6 +103,7 @@ import {
     LOAD_ROLES,
     type ReadSource,
     readSource,
+    SIMILARITY_COLUMNS,
 } from "./draft";
 import type { LaneStore } from "./GraphSession";
 import { RESTORE as GROUP_RESTORE } from "./groups";
@@ -371,6 +372,12 @@ interface PageSources {
      * @returns The count, or undefined.
      */
     timeParsed?(kind: "node" | "edge", column: string): number | undefined;
+    /**
+     * The columns whose values read as time, most read first (`session.time.candidates()`), empty
+     * with the timeline off.
+     * @returns the candidates
+     */
+    timeCandidates?(): readonly { readonly kind: "node" | "edge"; readonly column: string }[];
     /**
      * Whether the timeline experiment is on; absent reads on.
      * @returns true when it is
@@ -4847,6 +4854,47 @@ export class SessionData implements SessionDataApi {
                 details: { type, types: [...VALUE_TYPES] },
             });
         }
+    }
+
+    /**
+     * The column the element would read a role from, when one is obvious; see the public docs.
+     * @param kind - nodes or edges
+     * @param role - the role
+     * @returns the column's name, or null
+     */
+    roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null {
+        // A column that already plays a role, or that a run or a formula made, is never offered.
+        const free = this.attributes().filter(
+            (a) =>
+                a.kind === kind &&
+                a.roles === undefined &&
+                a.hidden !== true &&
+                (a.origin === "imported" || a.origin === "joined"),
+        );
+        const has = (name: string): boolean => free.some((a) => a.name === name);
+        const times = (this.pages.timeCandidates?.() ?? []).filter((each) => each.kind === kind);
+        if (role === "time") {
+            return times.find((each) => has(each.column))?.column ?? null;
+        }
+
+        if (role === "label") {
+            const text = free.filter((a) => a.type === "string" || a.type === "category");
+            return LABEL_COLUMNS.find((name) => text.some((a) => a.name === name)) ?? null;
+        }
+
+        if (role === "weight") {
+            // As a load reads one: a column named for a strength, else the only number column.
+            const numbers = free
+                .filter(
+                    (a) =>
+                        (a.type === "number" || a.type === "integer") && !times.some((each) => each.column === a.name),
+                )
+                .map((a) => a.name);
+            const named = numbers.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
+            return named ?? (numbers.length === 1 ? numbers[0] : null);
+        }
+
+        return null;
     }
 
     /**

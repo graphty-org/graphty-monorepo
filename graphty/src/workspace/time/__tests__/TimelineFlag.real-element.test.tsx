@@ -258,8 +258,8 @@ describe("the timeline's switch in the app", () => {
         assert.deepEqual(session.features.enabled, ["timeline"]);
 
         await userEvent.click(await dataPlace().findByRole("button", { name: "Add to edge attributes" }));
+        // "sent" reads as time: Time is added with it.
         await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
-        await userEvent.click(await screen.findByRole("option", { name: "sent" }));
 
         await screen.findByRole("button", { name: "Timeline" });
         assert.deepEqual(session.time.field, { edges: { start: "sent" } });

@@ -1684,6 +1684,33 @@ export interface SessionDataApi {
      */
     setRole(column: ColumnRef, role: ColumnRole | null): Promise<void>;
     /**
+     * The column the element would read a role from, when one is obvious: what to offer before
+     * a reader picks one for {@link SessionDataApi.setRole}. Changes nothing. Only a column with
+     * no role yet, not hidden and not made by a run or a formula is offered.
+     *
+     * - `time`: the column whose values read as time best (`session.time.candidates()`), with
+     *   the `timeline` experiment on.
+     * - `label`: the first of `label`, `Label`, `name`, `Name`, `title` and `Title` holding text,
+     *   as a load names its nodes.
+     * - `weight`: as a load reads one -- a number column named `confidence`, `score` or
+     *   `strength`, else the only number column that does not read as time; null when there are
+     *   several.
+     * - Any other role (`key`, `source`, `target`, `edgeId`, `kind` and the location kinds, which
+     *   `session.layout.locationColumns()` detects): null.
+     *
+     * ```ts
+     * const column = session.data.roleCandidate("edge", "time"); // "released"
+     * if (column !== null) {
+     *     await session.data.setRole({ kind: "edge", name: column }, "time");
+     * }
+     * ```
+     * @param kind - nodes or edges
+     * @param role - the role
+     * @returns the column's name, or null when no column is obvious
+     * @since 3.40.0
+     */
+    roleCandidate(kind: "node" | "edge", role: ColumnRole): string | null;
+    /**
      * What converting a column to a type would do: how many values convert and how many become
      * blank, with examples. Changes nothing.
      *

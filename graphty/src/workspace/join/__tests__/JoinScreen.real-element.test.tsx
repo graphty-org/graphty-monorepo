@@ -549,8 +549,8 @@ describe("every kind of joining, from the sample files", () => {
         ] as const) {
             await userEvent.click(within(within(place).getByRole("listitem", { name: row })).getAllByRole("button")[0]);
             await userEvent.click(await within(place).findByRole("button", { name: "Add to node attributes" }));
-            await userEvent.click(await screen.findByRole("menuitem", { name: "Kind of node" }));
-            await userEvent.click(await screen.findByRole("option", { name: kind }));
+            await userEvent.hover(await screen.findByRole("menuitem", { name: "Kind of node" }));
+            await userEvent.click(await screen.findByRole("menuitem", { name: kind }));
             await waitFor(() => {
                 assert.strictEqual(session.data.node(node)?.kind, kind);
             });

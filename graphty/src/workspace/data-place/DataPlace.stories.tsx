@@ -125,8 +125,9 @@ async function addField(
 ): Promise<void> {
     const place = within(within(canvasElement).getByRole("region", { name: "Data place" }));
     await userEvent.click(await place.findByRole("button", { name: `Add to ${side} attributes` }));
-    await userEvent.click(await within(document.body).findByRole("menuitem", { name: kind }));
-    await userEvent.click(await within(document.body).findByRole("option", { name: column }));
+    // With no obvious column, the kind opens a submenu of its columns.
+    await userEvent.hover(await within(document.body).findByRole("menuitem", { name: kind }));
+    await userEvent.click(await within(document.body).findByRole("menuitem", { name: column }));
 }
 
 /** The edge "+" open on an event table: the kinds of field not listed yet. */

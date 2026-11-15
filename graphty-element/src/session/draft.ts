@@ -534,7 +534,7 @@ const NEARLY_UNIQUE = 0.95;
 const REPEATING_MIN = 3;
 
 /** Column names whose numbers measure how alike or how strongly tied two ends are. */
-const SIMILARITY_COLUMNS: ReadonlySet<string> = new Set(["confidence", "score", "strength"]);
+export const SIMILARITY_COLUMNS: ReadonlySet<string> = new Set(["confidence", "score", "strength"]);
 
 /** Column names a node's label is read from when no label path is configured. */
 export const LABEL_COLUMNS: readonly string[] = ["label", "Label", "name", "Name", "title", "Title"];

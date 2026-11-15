@@ -256,10 +256,13 @@ describe("the Data place's sidebar on the real element", () => {
         const session = await openDataPlace();
         await loadLog(session);
         await userEvent.click(within(fieldsGroup()).getByRole("button", { name: "Add to edge attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
-        const options = (await screen.findAllByRole("option")).map((option) => option.textContent);
+        // Two number columns: neither is obvious, so Weight opens a submenu, those first.
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Weight" }));
+        await screen.findByRole("menuitem", { name: "bytes" });
+        const options = screen.getAllByRole("menuitem").map((option) => option.textContent);
         assert.includeMembers(options, ["time", "bytes"]);
         assert.notInclude(options, "user");
+        await userEvent.keyboard("{Escape}");
         await userEvent.keyboard("{Escape}");
     });
 

@@ -16,7 +16,7 @@ import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
 import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
 import type { Effect } from "@babylonjs/core/Materials/effect.js";
-import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { type Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
 import { Observable } from "@babylonjs/core/Misc/observable.js";
@@ -671,8 +671,33 @@ export interface NodeScreenPosition {
     bounds: { left: number; top: number; right: number; bottom: number };
 }
 
-/** A row number no row has: no batch draws it. */
-const INVALID_ROW = -1;
+/**
+ * The eight corners of an unturned box, in the world.
+ * @param centre - Its centre, in the transform it is drawn in.
+ * @param half - Its half extents.
+ * @param half.x - Along x.
+ * @param half.y - Along y.
+ * @param half.z - Along z.
+ * @param world - That transform's world matrix, or undefined for the world itself.
+ * @returns The corners.
+ */
+function boxCorners(
+    centre: Vector3,
+    half: Readonly<{ x: number; y: number; z: number }>,
+    world: Matrix | undefined,
+): Vector3[] {
+    const corners: Vector3[] = [];
+    for (let i = 0; i < 8; i++) {
+        const corner = new Vector3(
+            centre.x + ((i & 1) === 0 ? -half.x : half.x),
+            centre.y + ((i & 2) === 0 ? -half.y : half.y),
+            centre.z + ((i & 4) === 0 ? -half.z : half.z),
+        );
+        corners.push(world === undefined ? corner : Vector3.TransformCoordinates(corner, world));
+    }
+
+    return corners;
+}
 
 /**
  * Where one node is drawn, read from its `Node` or, on the `"batched"` path, from the row a batch
@@ -6954,16 +6979,7 @@ export class Graph implements GraphContext {
             // A batched row is never turned: its box is its half extents about its place.
             const local = columnCenter(table, row);
             const half = column.drawnHalfExtents;
-            const corners: Vector3[] = [];
-            for (let i = 0; i < 8; i++) {
-                const corner = new Vector3(
-                    local.x + ((i & 1) === 0 ? -half.x : half.x),
-                    local.y + ((i & 2) === 0 ? -half.y : half.y),
-                    local.z + ((i & 4) === 0 ? -half.z : half.z),
-                );
-                corners.push(world === undefined ? corner : Vector3.TransformCoordinates(corner, world));
-            }
-
+            const corners = boxCorners(local, half, world);
             const centre = world === undefined ? local : Vector3.TransformCoordinates(local, world);
             const worldRadius = Math.max(half.x, half.y, half.z) * rootScale;
             const at = this.#screenSpot(centre, worldRadius, corners, !table.isHidden(row));
@@ -9243,50 +9259,74 @@ export class Graph implements GraphContext {
     #measuredNodes(nodeIds?: Iterable<string | number>): { nodes: Node[]; columns: ColumnFraming | undefined } {
         const columns = this.updateManager.columnFraming();
         if (nodeIds === undefined) {
-            const nodes = [...dataManagerInternals.builtNodes(this.dataManager)];
-            const unbuilt = dataManagerInternals.unbuiltRows(this.dataManager);
-            const batches = this.#nodeBatches;
-            if (unbuilt.length > (batches?.columnRowCount ?? 0)) {
-                // A row no batch draws yet (its paint has not been applied): only its `Node` knows
-                // where it is and how big, so it gets one, as every row did before #8204.
-                for (const row of unbuilt) {
-                    const id =
-                        batches?.columnRowOf(row) === undefined
-                            ? dataManagerInternals.unbuiltAt(this.dataManager, row)
-                            : undefined;
-                    const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
-                    if (node !== undefined) {
-                        nodes.push(node);
-                    }
-                }
-            }
-
-            return { nodes, columns };
+            return {
+                nodes: [...dataManagerInternals.builtNodes(this.dataManager), ...this.#unpaintedNodes()],
+                columns,
+            };
         }
 
         const nodes: Node[] = [];
         const rows: number[] = [];
-        const batches = this.#nodeBatches;
         for (const asked of nodeIds) {
-            // Either spelling of an id (`"1"` for `1`), as `getNode` finds it.
-            const id = dataManagerInternals.storedIdOf(this.dataManager, asked);
-            const node = id === undefined ? undefined : dataManagerInternals.builtNode(this.dataManager, id);
-            const row =
-                id === undefined || node !== undefined ? INVALID_ROW : dataManagerInternals.rowOf(this.dataManager, id);
-            if (node !== undefined) {
-                nodes.push(node);
-            } else if (columns !== undefined && batches?.columnRowOf(row) !== undefined) {
-                rows.push(row);
-            } else if (id !== undefined) {
-                // A row no batch draws yet: only its `Node` knows where it is.
-                const built = this.getNode(id);
-                if (built !== undefined) {
-                    nodes.push(built);
-                }
+            const measured = this.#measuredNode(asked, columns !== undefined);
+            if (typeof measured === "number") {
+                rows.push(measured);
+            } else if (measured !== undefined) {
+                nodes.push(measured);
             }
         }
 
         return { nodes, columns: columns === undefined ? undefined : { ...columns, rows } };
+    }
+
+    /**
+     * How one node is measured: by its `Node`, or by the row a batch draws with none.
+     * @param asked - Its id, either spelling (`"1"` for `1`), as `getNode` finds it.
+     * @param byRow - Whether a row drawn with no `Node` may be measured by row.
+     * @returns Its `Node`, its row, or undefined for an id the graph does not hold.
+     */
+    #measuredNode(asked: string | number, byRow: boolean): Node | number | undefined {
+        const id = dataManagerInternals.storedIdOf(this.dataManager, asked);
+        if (id === undefined) {
+            return undefined;
+        }
+
+        const node = dataManagerInternals.builtNode(this.dataManager, id);
+        if (node !== undefined) {
+            return node;
+        }
+
+        const row = dataManagerInternals.rowOf(this.dataManager, id);
+        // A row no batch draws yet: only its `Node` knows where it is.
+        return byRow && this.#nodeBatches?.columnRowOf(row) !== undefined ? row : this.getNode(id);
+    }
+
+    /**
+     * The `Node` of every row stored with no `Node` that no batch draws yet (its paint has not been
+     * applied): only its `Node` knows where it is and how big, so it gets one, as every row did
+     * before #8204.
+     * @returns The `Node`s.
+     */
+    #unpaintedNodes(): Node[] {
+        const unbuilt = dataManagerInternals.unbuiltRows(this.dataManager);
+        const batches = this.#nodeBatches;
+        const nodes: Node[] = [];
+        if (unbuilt.length <= (batches?.columnRowCount ?? 0)) {
+            return nodes;
+        }
+
+        for (const row of unbuilt) {
+            const id =
+                batches?.columnRowOf(row) === undefined
+                    ? dataManagerInternals.unbuiltAt(this.dataManager, row)
+                    : undefined;
+            const node = id === undefined ? undefined : dataManagerInternals.buildRow(this.dataManager, id);
+            if (node !== undefined) {
+                nodes.push(node);
+            }
+        }
+
+        return nodes;
     }
 
     private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {

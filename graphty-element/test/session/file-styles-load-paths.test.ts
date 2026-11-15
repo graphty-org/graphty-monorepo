@@ -10,8 +10,9 @@ import { gmlImporter } from "@graphty/graph-io/gml";
 import { assert, describe, it } from "vitest";
 
 import { DataSource, type FormatDescriptor } from "../../extend";
-import { createGraphSession, fileStyleOf, type GraphSession } from "../../session";
+import { createGraphSession, type GraphSession } from "../../session";
 import { fileStylesOn } from "../helpers/file-styles-on";
+import { loadedLayers } from "../helpers/loaded-layers";
 
 fileStylesOn();
 
@@ -25,10 +26,7 @@ const GML = readFileSync(join(CORPUS, "gml", "generated", "graphics-mix.gml"), "
  * @returns Their names.
  */
 function fileLayers(session: GraphSession): string[] {
-    return session.styles
-        .list()
-        .filter((layer) => fileStyleOf(layer) !== null)
-        .map((layer) => layer.name);
+    return loadedLayers(session).map((layer) => layer.name);
 }
 
 /**

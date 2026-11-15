@@ -1,6 +1,6 @@
 /**
- * @file The paths of the values graphty-element keeps per element beside the data: a file's style
- * values (`graphty.style.<namespace>.<kind>.<key>`) and the live degrees (`graphty.degree`,
+ * @file The paths of the values graphty-element keeps per element beside the data: the style
+ * value store (`graphty.style.<set>.<kind>.<key>`) and the live degrees (`graphty.degree`,
  * `graphty.inDegree`, `graphty.outDegree`).
  *
  * Every such path is built and parsed HERE and nowhere else. A proposal to move every per-element
@@ -11,7 +11,6 @@
  */
 
 import type { Path } from "../../../catalog/types";
-import type { FieldWords } from "../legend";
 
 /** The root of every file-style path. */
 const STYLE_ROOT = "graphty.style.";
@@ -37,7 +36,7 @@ const COMPUTED_BY_PATH: ReadonlyMap<Path, ComputedValue> = new Map(
     (Object.entries(COMPUTED_PATHS) as [ComputedValue, Path][]).map(([value, path]) => [path, value]),
 );
 
-/** A namespace: the format id or JSON dialect, lowercase, with no dot, and `-2`, `-3`... after a repeat. */
+/** A set name: lowercase, with no dot (`values`, `values-2`). */
 const NAMESPACE = /^[a-z0-9][a-z0-9_-]*$/;
 
 /** A file-style path, parsed. */
@@ -57,9 +56,8 @@ export function isFileStyleNamespace(namespace: string): boolean {
 }
 
 /**
- * The path a layer reads one file-style column at.
- * @param namespace - The load's namespace: the graph-io format id or JSON dialect (`gexf`,
- *     `cytoscape-js`), `gexf-2` for a second load of one format kept beside the first.
+ * The path a layer reads one style value column at.
+ * @param namespace - The set's name (`values`, `values-2`).
  * @param kind - Nodes or edges.
  * @param key - The column's key, which may hold dots (`member.3`).
  * @returns `graphty.style.<namespace>.<kind>.<key>`.
@@ -101,61 +99,6 @@ export function parseFileStylePath(path: Path): FileStylePathParts | undefined {
     }
 
     return { namespace, kind, key };
-}
-
-/**
- * The names a file-style column goes by, for a pill, a legend or a key card that would otherwise
- * show its path: the column of style classes a file's rules sort elements into is "Style class",
- * every other column a file's styles are read from is "File style". The technical name is
- * the column's key (`copy.bends`, `class`).
- * @param path - Any path.
- * @returns The names, or undefined for a path that is not a file-style path.
- * @example
- * ```ts
- * fileStyleWords("graphty.style.graphml.edge.copy.bends");
- * // { plainName: "File style", technicalName: "copy.bends" }
- * ```
- * @experimental file-styles
- */
-export function fileStyleWords(path: Path): FieldWords | undefined {
-    const parts = parseFileStylePath(path);
-    if (parts === undefined) {
-        return undefined;
-    }
-
-    return Object.freeze({
-        plainName: parts.key === "class" ? "Style class" : "File style",
-        technicalName: parts.key,
-    });
-}
-
-/**
- * The namespace a new load of one format takes: the format itself, or the first of `<format>-2`,
- * `<format>-3`... that no other load holds.
- * @param format - The graph-io format id or JSON dialect.
- * @param taken - The namespaces the session's loads already hold.
- * @returns The namespace.
- */
-export function fileStyleNamespace(format: string, taken: ReadonlySet<string>): string {
-    // A format id of any spelling (a registered reader's own) becomes a valid namespace: no
-    // leading `_` or `-`, at most 56 characters so a `-N` suffix still fits in 64, `file` when
-    // nothing is left.
-    const base =
-        format
-            .toLowerCase()
-            .replaceAll(/[^a-z0-9_-]/g, "-")
-            .replace(/^[_-]+/, "")
-            .slice(0, 56) || "file";
-    if (!taken.has(base)) {
-        return base;
-    }
-
-    let n = 2;
-    while (taken.has(`${base}-${String(n)}`)) {
-        n++;
-    }
-
-    return `${base}-${String(n)}`;
 }
 
 /**

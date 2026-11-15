@@ -9,7 +9,7 @@
 
 import type { ExportLoss } from "@graphty/graphty-element";
 import { CHANNEL_DESCRIPTORS, type FormatDescriptor } from "@graphty/graphty-element/catalog";
-import { EXPORT_STYLE_LOSS_CODES, type FileStyleReason } from "@graphty/graphty-element/session";
+import { EXPORT_STYLE_LOSS_CODES, type ExportFlattenReason } from "@graphty/graphty-element/session";
 
 /** A loss's params. */
 type Params = ExportLoss["params"];
@@ -70,7 +70,7 @@ function target(params: Params): Kind {
 }
 
 /** Why a layer is written as its values, by the reason code `W_STYLE_LAYER_FLATTENED` carries. */
-const FLATTENED_BECAUSE: Readonly<Record<Extract<FileStyleReason, "SCALE" | "RESULT_PATH">, string>> = {
+const FLATTENED_BECAUSE: Readonly<Record<ExportFlattenReason, string>> = {
     SCALE: "palette not kept",
     RESULT_PATH: "reads a result",
 };

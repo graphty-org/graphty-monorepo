@@ -1739,6 +1739,7 @@ function result(
         styles = extractStyles(chosen.importer, frozen.snapshot, report, {
             signal: options.signal,
             toolDefaults: typeof wanted === "object" ? wanted.toolDefaults : undefined,
+            viewport: typeof wanted === "object" ? wanted.viewport : undefined,
         });
     }
     const read =

@@ -1,33 +1,24 @@
 /**
- * The file-style store: per-element style values kept beside the data and read by layers at
- * `graphty.style.<namespace>.<kind>.<key>`, the live degree paths, where a style document's
- * layers land, and the typed facts of a layer made from a file.
+ * The style value store: per-element style values kept beside the data in named sets and read by
+ * layers at `graphty.style.<set>.<kind>.<key>`, the live degree paths, where a style document's
+ * layers land, and older projects' format-named store read back in today's shape.
  */
 import { assert, describe, it } from "vitest";
 
-import {
-    createGraphSession,
-    type FileStyleLoadValues,
-    fileStyleOf,
-    fileStyleWords,
-    type GraphSession,
-    type Layer,
-    quotePath,
-} from "../../../session";
+import { createGraphSession, type GraphSession, type Layer, quotePath, type StyleValueSet } from "../../../session";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import {
     computedOf,
     computedPath,
-    fileStyleNamespace,
     fileStylePath,
-    isFileStyleNamespace,
     parseFileStylePath,
 } from "../../../src/session/styles/fileStyles/path";
+import { nextStyleValueSetName } from "../../../src/session/styles/fileStyles/store";
 import { fileStylesOn } from "../../helpers/file-styles-on";
 
 fileStylesOn();
 
-const MEMBER = fileStylePath("gexf", "node", "member.3");
+const MEMBER = fileStylePath("values", "node", "member.3");
 
 /**
  * A session over five nodes and two edges, with one load's values: nodes b and d are members of
@@ -42,16 +33,14 @@ async function loaded(): Promise<GraphSession> {
         { source: "b", target: "c" },
     ]);
     const [first] = session.data.edges();
-    const load: FileStyleLoadValues = {
-        importId: "i1",
-        namespace: "gexf",
-        format: "gexf",
+    const set: StyleValueSet = {
+        name: "values",
         columns: [
             { kind: "node", key: "member.3", ids: ["b", "d"], values: [true, true] },
             { kind: "edge", key: "width", ids: [first.id], values: [4] },
         ],
     };
-    await session.execute({ op: "data.setFileStyles", loads: [load] });
+    await session.execute({ op: "data.setStyleValues", sets: [set] });
     return session;
 }
 
@@ -87,8 +76,8 @@ function painted(session: GraphSession, layer: Layer, channel: string): string[]
 
 describe("the file-style paths", () => {
     it("are built and parsed by one helper each, with dots allowed in the key", () => {
-        assert.strictEqual(MEMBER, "graphty.style.gexf.node.member.3");
-        assert.deepEqual(parseFileStylePath(MEMBER), { namespace: "gexf", kind: "node", key: "member.3" });
+        assert.strictEqual(MEMBER, "graphty.style.values.node.member.3");
+        assert.deepEqual(parseFileStylePath(MEMBER), { namespace: "values", kind: "node", key: "member.3" });
         assert.isUndefined(parseFileStylePath("graphty.style.gexf.vertex.x"));
         assert.isUndefined(parseFileStylePath("graphty.style.gexf.node"));
         assert.isUndefined(parseFileStylePath("graphty.notes.count"));
@@ -97,18 +86,14 @@ describe("the file-style paths", () => {
         assert.isUndefined(computedOf("graphty.degrees"));
     });
 
-    it("go by readable names in a legend, never by their paths", async () => {
-        assert.deepEqual(fileStyleWords(MEMBER), { plainName: "File style", technicalName: "member.3" });
-        assert.strictEqual(fileStyleWords(fileStylePath("gexf", "node", "class"))?.plainName, "Style class");
-        assert.isUndefined(fileStyleWords("data.weight"));
-
+    it("go by their keys in a legend, never by their paths", async () => {
         const session = await loaded();
         await session.data.addEdges([{ source: "c", target: "a" }]);
         const copied = await session.styles.add({
             name: "Copied width",
             target: "edge",
-            selector: { match: "has", path: fileStylePath("gexf", "edge", "width") },
-            encode: { "edge.width": { by: fileStylePath("gexf", "edge", "width"), scale: "passthrough" } },
+            selector: { match: "has", path: fileStylePath("values", "edge", "width") },
+            encode: { "edge.width": { by: fileStylePath("values", "edge", "width"), scale: "passthrough" } },
         });
         const degree = await session.styles.add({
             name: "By in-degree",
@@ -120,30 +105,15 @@ describe("the file-style paths", () => {
         const fieldOf = (id: string): string | undefined =>
             session.styles.legendOf(id).find((block) => block.field !== undefined)?.field?.plainName;
 
-        assert.strictEqual(fieldOf(copied.id), "File style");
+        assert.strictEqual(fieldOf(copied.id), "width");
         assert.strictEqual(fieldOf(degree.id), "In-degree");
         session.dispose();
     });
 
-    it("give a second load of one format its own namespace", () => {
-        assert.strictEqual(fileStyleNamespace("gexf", new Set()), "gexf");
-        assert.strictEqual(fileStyleNamespace("gexf", new Set(["gexf"])), "gexf-2");
-        assert.strictEqual(fileStyleNamespace("gexf", new Set(["gexf", "gexf-2"])), "gexf-3");
-        assert.strictEqual(fileStyleNamespace("cytoscape-js", new Set(["gexf"])), "cytoscape-js");
-    });
-
-    it("turn any format id into a namespace the store accepts", () => {
-        for (const format of ["", "_x", "-x", "__", "My Format!", "f".repeat(80)]) {
-            const taken = new Set<string>();
-            for (let i = 0; i < 3; i++) {
-                const namespace = fileStyleNamespace(format, taken);
-                assert.isTrue(isFileStyleNamespace(namespace), `${format} -> ${namespace}`);
-                taken.add(namespace);
-            }
-        }
-
-        assert.strictEqual(fileStyleNamespace("", new Set()), "file");
-        assert.strictEqual(fileStyleNamespace("_x", new Set()), "x");
+    it("name each new set by its place, never by where its values came from", () => {
+        assert.strictEqual(nextStyleValueSetName(new Set()), "values");
+        assert.strictEqual(nextStyleValueSetName(new Set(["values"])), "values-2");
+        assert.strictEqual(nextStyleValueSetName(new Set(["values", "values-2"])), "values-3");
     });
 });
 
@@ -175,8 +145,8 @@ describe("the file-style store", () => {
         await session.styles.add({
             name: "Copied width",
             target: "edge",
-            selector: { match: "has", path: fileStylePath("gexf", "edge", "width") },
-            encode: { "edge.width": { by: fileStylePath("gexf", "edge", "width"), scale: "passthrough" } },
+            selector: { match: "has", path: fileStylePath("values", "edge", "width") },
+            encode: { "edge.width": { by: fileStylePath("values", "edge", "width"), scale: "passthrough" } },
         });
         const crossed = await session.styles.add({
             name: "Node path on edges",
@@ -194,13 +164,34 @@ describe("the file-style store", () => {
         session.dispose();
     });
 
-    it("never puts its values in the data records, pages or attributes", async () => {
+    it("never puts its values in the data records or pages", async () => {
         const session = await loaded();
         const text = JSON.stringify([session.data.nodes(), session.data.edges(), session.data.nodePage().records]);
 
         assert.notInclude(text, "member");
         assert.notInclude(text, "graphty.style");
-        assert.isFalse(session.data.attributes().some((attribute) => attribute.path.includes("graphty.style")));
+        session.dispose();
+    });
+
+    it("lists its columns as readable values, named by key, which a hand-made layer binds", async () => {
+        const session = await loaded();
+        const listed = session.data.readableValues().filter((value) => value.path.startsWith("graphty.style."));
+        assert.deepEqual(
+            listed.map((value) => [value.path, value.on, value.plainName]),
+            [
+                [MEMBER, "node", "member.3"],
+                [fileStylePath("values", "edge", "width"), "edge", "width"],
+            ],
+        );
+
+        const width = listed[1];
+        const layer = await session.styles.add({
+            name: "By width",
+            target: "edge",
+            selector: { match: "has", path: width.path },
+            encode: { "edge.width": { by: width.path, scale: "passthrough" } },
+        });
+        assert.strictEqual(session.styles.counts(layer.id).matched, 1);
         session.dispose();
     });
 
@@ -213,15 +204,8 @@ describe("the file-style store", () => {
             set: { "node.color": "#ff0000" },
         });
         await session.execute({
-            op: "data.setFileStyles",
-            loads: [
-                {
-                    importId: "i1",
-                    namespace: "gexf",
-                    format: "gexf",
-                    columns: [{ kind: "node", key: "member.3", ids: ["a"], values: [true] }],
-                },
-            ],
+            op: "data.setStyleValues",
+            sets: [{ name: "values", columns: [{ kind: "node", key: "member.3", ids: ["a"], values: [true] }] }],
         });
         await session.styles.settled();
         assert.deepEqual(painted(session, layer, "node.color"), ["a"]);
@@ -236,37 +220,23 @@ describe("the file-style store", () => {
 
     it("refuses malformed values before writing anything", async () => {
         const session = await loaded();
-        for (const loads of [
-            [{ importId: "x", namespace: "has.dot", format: "gexf", columns: [] }],
+        for (const sets of [
+            [{ name: "has.dot", columns: [] }],
+            [{ name: "values", columns: [{ kind: "vertex", key: "k", ids: [], values: [] }] }],
+            [{ name: "values", columns: [{ kind: "node", key: "k", ids: ["a"], values: [] }] }],
             [
-                {
-                    importId: "x",
-                    namespace: "gexf",
-                    format: "gexf",
-                    columns: [{ kind: "vertex", key: "k", ids: [], values: [] }],
-                },
-            ],
-            [
-                {
-                    importId: "x",
-                    namespace: "gexf",
-                    format: "gexf",
-                    columns: [{ kind: "node", key: "k", ids: ["a"], values: [] }],
-                },
-            ],
-            [
-                { importId: "x", namespace: "gexf", format: "gexf", columns: [] },
-                { importId: "y", namespace: "gexf", format: "gexf", columns: [] },
+                { name: "values", columns: [] },
+                { name: "values", columns: [] },
             ],
         ]) {
             let code: unknown;
             try {
-                await session.execute({ op: "data.setFileStyles", loads: loads as never });
+                await session.execute({ op: "data.setStyleValues", sets: sets as never });
             } catch (error) {
                 ({ code } = error as { code?: unknown });
             }
 
-            assert.strictEqual(code, "E_BAD_COMMAND", JSON.stringify(loads));
+            assert.strictEqual(code, "E_BAD_COMMAND", JSON.stringify(sets));
         }
 
         assert.strictEqual(drawn(session, "b", "node.color"), drawn(session, "a", "node.color"));
@@ -283,13 +253,17 @@ describe("the file-style store", () => {
     it("is swept when the data is cleared", async () => {
         const session = await loaded();
         await session.data.clear();
-        assert.isUndefined(dispatcherOf(session).state.graph.values.get("fileStyles"));
+        assert.isUndefined(dispatcherOf(session).state.graph.values.get("styleValues"));
         session.dispose();
     });
 
     it("reads nothing at an unknown graphty. path, or a namespace no load holds", async () => {
         const session = await loaded();
-        for (const path of ["graphty.unknown", "graphty.style.dot.node.member.3", "graphty.style.gexf.node.member.4"]) {
+        for (const path of [
+            "graphty.unknown",
+            "graphty.style.other.node.member.3",
+            "graphty.style.values.node.member.4",
+        ]) {
             const layer = await session.styles.add({
                 name: path,
                 target: "node",
@@ -358,8 +332,8 @@ describe("the file styles in a project file", () => {
         await saved.styles.add({
             name: "Copied width",
             target: "edge",
-            selector: { match: "has", path: fileStylePath("gexf", "edge", "width") },
-            encode: { "edge.width": { by: fileStylePath("gexf", "edge", "width"), scale: "passthrough" } },
+            selector: { match: "has", path: fileStylePath("values", "edge", "width") },
+            encode: { "edge.width": { by: fileStylePath("values", "edge", "width"), scale: "passthrough" } },
         });
         const { text } = await saved.project.save();
 
@@ -385,12 +359,12 @@ describe("the file styles in a project file", () => {
         const saved = createGraphSession();
         await saved.data.addNodes([{ id: "a" }]);
         const { text } = await saved.project.save();
-        assert.notInclude(text, "fileStyles");
+        assert.notInclude(text, "styleValues");
 
         const opened = createGraphSession();
         const report = await opened.project.open(text);
         assert.deepEqual(report.problems, []);
-        assert.isUndefined(dispatcherOf(opened).state.graph.values.get("fileStyles"));
+        assert.isUndefined(dispatcherOf(opened).state.graph.values.get("styleValues"));
         saved.dispose();
         opened.dispose();
     });
@@ -417,7 +391,7 @@ describe("where applyTemplate puts a document's layers", () => {
             selector: { match: "everything" },
             set: { "node.color": "#123456" },
         });
-        const report = await session.styles.applyTemplate(document, { templateId: "file:i1", at: "aboveBase" });
+        const report = await session.styles.applyTemplate(document, { at: "aboveBase" });
         const ids = session.styles.list().map((layer) => layer.id);
         const bases = session.styles.list().filter((layer) => layer.locked).length;
 
@@ -454,58 +428,113 @@ describe("where applyTemplate puts a document's layers", () => {
     });
 });
 
-describe("fileStyleOf", () => {
-    it("reads the facts a layer carries, through a userData update and a saved document", async () => {
+describe("a layer's specification", () => {
+    it("keeps no facts about where a layer came from: a fileStyle field is dropped", async () => {
         const session = await loaded();
-        const origin = {
-            format: "gexf",
-            importId: "i1",
-            ruleId: "node.class.3",
-            role: "group",
-            origin: "inferred",
-            column: MEMBER,
-            meanings: [{ value: 3, name: "kinase" }],
-            elements: 2,
-            classes: 1,
-            reason: "STYLE_CLASS",
-        };
         const layer = await session.styles.add({
-            name: "node.class.3",
+            name: "Class 3",
             target: "node",
             selector: { match: "has", path: MEMBER },
             set: { "node.color": "#ff0000" },
-            fileStyle: origin,
-        });
+            fileStyle: { format: "gexf", importId: "i1", ruleId: "r", role: "group", origin: "inferred" },
+        } as never);
 
-        assert.deepEqual(fileStyleOf(layer), origin);
-        // the consumer's own bag is the consumer's: replacing it keeps the facts
-        const updated = await session.styles.update(layer.id, { userData: { mine: true } });
-        assert.deepEqual(fileStyleOf(updated), origin);
-        assert.deepEqual(updated.userData, { mine: true });
-        const reread = JSON.parse(JSON.stringify(session.styles.toDocument())) as {
-            layers: { fileStyle?: unknown }[];
-        };
-        assert.deepEqual(fileStyleOf(reread.layers.at(-1) ?? {}), origin);
+        assert.notProperty(layer, "fileStyle");
+        assert.notInclude(JSON.stringify(session.styles.toDocument()), "fileStyle");
         session.dispose();
     });
+});
 
-    it("answers null for a layer not made from a file, and drops a malformed optional fact", () => {
-        assert.isNull(fileStyleOf({}));
-        assert.isNull(fileStyleOf({ fileStyle: { format: "gexf" } }));
-        assert.isNull(fileStyleOf({ userData: { "graphty.fileStyle": { format: "gexf" } } } as never));
-        const read = fileStyleOf({
-            fileStyle: {
-                format: "gexf",
-                importId: "i1",
-                ruleId: "r",
-                role: "defaults",
-                origin: "tool",
-                elements: -1,
-                meanings: [{ value: {}, name: "x" }],
-            },
+/**
+ * Walk a parsed project file, calling `visit` on every object in it.
+ * @param value - The value.
+ * @param visit - What to call.
+ */
+function walk(value: unknown, visit: (node: Record<string, unknown>) => void): void {
+    if (Array.isArray(value)) {
+        for (const each of value) {
+            walk(each, visit);
+        }
+    } else if (typeof value === "object" && value !== null) {
+        visit(value as Record<string, unknown>);
+        for (const each of Object.values(value)) {
+            walk(each, visit);
+        }
+    }
+}
+
+describe("an older project's format-named store", () => {
+    it("opens, draws the same, and is saved again with no trace of the format", async () => {
+        const saved = await loaded();
+        await saved.styles.add({
+            name: "Class 3",
+            target: "node",
+            selector: { match: "expression", where: `${quotePath(MEMBER)} == \`true\`` },
+            set: { "node.color": "#ff0000" },
         });
-        assert.isNotNull(read);
-        assert.notProperty(read, "elements");
-        assert.notProperty(read, "meanings");
+        await saved.styles.add({
+            name: "Copied width",
+            target: "edge",
+            selector: { match: "has", path: fileStylePath("values", "edge", "width") },
+            encode: { "edge.width": { by: fileStylePath("values", "edge", "width"), scale: "passthrough" } },
+        });
+        const today = (await saved.project.save()).text;
+
+        // The same project as an older element wrote it: the store under `fileStyles`, one load per
+        // format, paths named by the format, and facts and a `file:` template on its layers.
+        const older = JSON.parse(
+            today.replaceAll("graphty.style.values.", 'graphty.style.\\"cytoscape-js\\".'),
+        ) as unknown;
+        walk(older, (node) => {
+            if (Array.isArray(node.styleValues)) {
+                node.fileStyles = (node.styleValues as { columns: unknown }[]).map((set) => ({
+                    importId: "i1",
+                    namespace: "cytoscape-js",
+                    format: "cytoscape-js",
+                    columns: set.columns,
+                }));
+                delete node.styleValues;
+            }
+
+            if (typeof node.selector === "object" && typeof node.name === "string" && node.name !== "") {
+                node.fileStyle = {
+                    format: "cytoscape-js",
+                    importId: "i1",
+                    ruleId: "r",
+                    role: "group",
+                    origin: "inferred",
+                };
+                node.source = { by: "template", templateId: "file:i1" };
+            }
+
+            for (const key of ["by", "path"]) {
+                if (typeof node[key] === "string") {
+                    node[key] = node[key].replaceAll('"cytoscape-js"', "cytoscape-js");
+                }
+            }
+        });
+        const olderText = JSON.stringify(older);
+        assert.include(olderText, "fileStyles");
+        assert.include(olderText, "file:i1");
+
+        const opened = createGraphSession();
+        const report = await opened.project.open(olderText);
+        assert.deepEqual(report.problems, []);
+        await opened.styles.settled();
+        assert.strictEqual(drawn(opened, "d", "node.color"), "#ff0000");
+        assert.strictEqual(drawn(opened, "a", "node.color"), drawn(saved, "a", "node.color"));
+        const [first] = opened.data.edges();
+        assert.strictEqual(
+            (opened.styles.explain({ edge: first.id }).merged as Record<string, unknown>)["edge.width"],
+            4,
+        );
+
+        const again = (await opened.project.save()).text;
+        for (const trace of ["cytoscape-js", "fileStyles", "fileStyle", "file:i1", "importId"]) {
+            assert.notInclude(again, trace);
+        }
+        assert.include(again, "styleValues");
+        saved.dispose();
+        opened.dispose();
     });
 });

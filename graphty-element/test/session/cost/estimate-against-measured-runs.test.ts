@@ -372,7 +372,8 @@ const ROWS: readonly Row[] = [
     },
     // Eigenvector's model charges every pass of its 1,000-pass bound, so it is held to both bounds
     // where the graph runs them all: a small grid and a sparse random graph, whose many small
-    // components keep it from converging (both throw).
+    // components keep it from converging (both throw). The grid stays in a core's cache and the
+    // random graph does not, so between them they hold both ends of the model's cache term.
     { key: "eigenvector", sizes: [10_000], shape: grid, shapeName: "grid", run: eigenvector },
     {
         key: "eigenvector",

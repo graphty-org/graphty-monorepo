@@ -166,6 +166,7 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemapOptions,
     RemoveSourceResult,
     ReplaceCounts,
     ReplaceReport,
@@ -186,6 +187,7 @@ export type {
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHidden,
     SessionHistory,
     SessionLayout,
     SessionPositions,
@@ -217,7 +219,15 @@ export { createGraphSession } from "./src/session";
  */
 export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export type { EndpointSpelling } from "./src/data/endpoints";
-export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export type {
+    ImportReport,
+    LoadError,
+    LoadPath,
+    LoadPathReason,
+    LoadReport,
+    RepeatedEdgeCounts,
+    TooLargeDetails,
+} from "./src/data/report";
 export { IMPORT_ROWS_KEPT } from "./src/data/report";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 export type {
@@ -320,6 +330,7 @@ export {
     FILE_STYLE_SHAPES,
     FILE_STYLE_TRANSLATION_ISSUE,
     fileStyleOf,
+    fileStyleWords,
 } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -507,7 +518,9 @@ export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal"
 // ---------------------------------------------------------------------------------------------
 
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./src/session";
+export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./src/session";
 export { browserProjects } from "./src/session";
+export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./src/session";
 export type {
     AssetStorage,
     ProjectApi,
@@ -738,6 +751,7 @@ export type {
     ChannelShare,
     ColorWrite,
     ColumnEncodingSpec,
+    DrawnValue,
     ElementLayerSpec,
     EncodingOptions,
     EncodingProposal,

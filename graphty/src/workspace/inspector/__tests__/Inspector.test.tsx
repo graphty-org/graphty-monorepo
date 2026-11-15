@@ -447,16 +447,17 @@ describe("the inspector", () => {
         act(() => {
             store.set({ inspected: { kind: "measure-row", id: second.id } });
         });
-        assert.include((await screen.findByRole("status")).textContent, "Queued, 1st");
+        // The state bar's live region; the Values tab's table has a live region of its own.
+        const queued = await screen.findByText(/^Queued, 1st/);
+        assert.equal(queued.getAttribute("role"), "status");
 
         act(() => {
             store.set({ inspected: { kind: "measure-row", id: first.id } });
         });
-        await waitFor(() => {
-            assert.include(screen.getByRole("status").textContent, "Running");
-        });
         // The live region holds the words alone: "Running", not "RunningCancel".
-        assert.equal(screen.getByRole("status").textContent, "Running");
+        const running = await screen.findByText("Running");
+        assert.equal(running.getAttribute("role"), "status");
+        assert.equal(running.textContent, "Running");
         await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
         await waitFor(() => {
             assert.equal(on.runs.get(first.id)?.status, "canceled");
@@ -478,6 +479,8 @@ describe("the inspector", () => {
         const bar = await screen.findByText("The run failed: it did not settle on an answer");
         assert.equal(bar.getAttribute("role"), "status");
         assert.notInclude(bar.textContent, "E_");
+        assert.isNull(screen.queryByRole("tab", { name: "Style" }), "nothing to style, so no Style tab");
+        assert.strictEqual(screen.getByRole("tab", { name: "Values" }).getAttribute("aria-selected"), "true");
     });
 
     it("names the Everything row once in its header, not again as its kind", async () => {

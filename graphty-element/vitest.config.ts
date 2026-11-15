@@ -96,6 +96,7 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/a-layer-added-later-paints.test.ts",
     "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
     "test/browser/label-textures-fit-across-frames.test.ts",
+    "test/browser/branches-view-scaling.test.ts",
 ];
 
 /**
@@ -1144,6 +1145,10 @@ const config = defineConfig({
                             },
                         }),
                         instances: [{ browser: "chromium" }],
+                        // The page a visual capture loads (VIEWPORT in visual-review/capture/capture.mjs):
+                        // a story laid out for it -- AiControl's Send, right of the graph in the 800 px
+                        // host -- is off Vitest's default 414 px viewport, where no pointer reaches it.
+                        viewport: { width: 1200, height: 900 },
                     },
                 },
             },

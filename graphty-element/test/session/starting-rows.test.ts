@@ -1,6 +1,6 @@
 /**
  * @file The starting rows (Everything, Selected and Hovered) behind the `startingRows` project
- * setting, the `{ match: "state" }` selector they read, `styles.restoreStartingRows()`, and the
+ * setting, the `{ match: "state" }` selector they read, that they are ordinary rows, and the
  * `runPlacement` setting that puts a run's layer on top of the reader's rows.
  */
 
@@ -61,6 +61,15 @@ async function lesMis(): Promise<GraphSession> {
 }
 
 /**
+ * The Ghost row, which the starting rows include only with the timeline experiment on.
+ * @param session - The session.
+ * @returns The Ghost row's name and pin, or nothing with the timeline off.
+ */
+function ghost(session: GraphSession): [string, string][] {
+    return session.features.enabled.includes("timeline") ? [["Ghost", "top"]] : [];
+}
+
+/**
  * A top-level row by name.
  * @param session - The session.
  * @param name - The row's name.
@@ -104,11 +113,7 @@ describe("the starting rows", () => {
 
         assert.deepStrictEqual(
             session.styles.tree().map((each) => [each.name, each.pin]),
-            [
-                ["Everything", "bottom"],
-                ["Selected", "top"],
-                ["Hovered", "top"],
-            ],
+            [["Everything", "bottom"], ...ghost(session), ["Selected", "top"], ["Hovered", "top"]],
             "bottom first",
         );
         assert.strictEqual(
@@ -126,7 +131,7 @@ describe("the starting rows", () => {
         });
         assert.deepStrictEqual(
             session.styles.tree().map((each) => each.name),
-            ["Everything", "Mine", "Selected", "Hovered"],
+            ["Everything", "Mine", ...ghost(session).map(([name]) => name), "Selected", "Hovered"],
         );
 
         await session.undo();
@@ -149,7 +154,7 @@ describe("the starting rows", () => {
         assert.strictEqual(session.styles.counts(node).matched, 1);
         assert.strictEqual(session.styles.counts(node).painted["node.haloColor"], 1);
         assert.deepStrictEqual(session.styles.get(node)?.set, {
-            "node.haloColor": "#FFD700",
+            "node.haloColor": "#0077BB",
             "node.haloScale": 1.45,
             "node.haloOpacity": 1,
         });
@@ -180,41 +185,31 @@ describe("the starting rows", () => {
         assert.strictEqual(session.styles.counts(node).matched, 0);
     });
 
-    it("deleting Selected and restoring it are one undo step each, and it comes back in its place", async () => {
+    it("are ordinary rows: any may be deleted or changed, and no setting brings one back", async () => {
         const session = await lesMis();
         await session.config.set({ startingRows: true });
         const steps = session.history.steps.length;
 
         await session.styles.deleteRow(row(session, "Selected").id);
-        assert.strictEqual(session.history.steps.length, steps + 1);
-        assert.deepStrictEqual(
-            session.styles.tree().map((each) => each.name),
-            ["Everything", "Hovered"],
-        );
+        await session.styles.renameRow(row(session, "Hovered").id, "Pointer");
+        await session.styles.writeRow(row(session, "Everything").id, { set: { "node.color": "#00ff00" } });
+        assert.strictEqual(session.history.steps.length, steps + 3, "one ordinary step each");
 
-        const added = await session.styles.restoreStartingRows();
-        assert.strictEqual(session.history.steps.length, steps + 2);
-        assert.deepStrictEqual(
-            added.map((each) => each.name),
-            ["Selected"],
-        );
+        // Writing the settings again, or the selection look, re-adds and rewrites nothing.
+        await session.config.set({ startingRows: true, selectionStyle: { color: "#ff0000" } });
         assert.deepStrictEqual(
             session.styles.tree().map((each) => [each.name, each.pin]),
-            [
-                ["Everything", "bottom"],
-                ["Selected", "top"],
-                ["Hovered", "top"],
-            ],
+            [["Everything", "bottom"], ...ghost(session), ["Pointer", "top"]],
         );
+        assert.strictEqual(session.styles.get(part(session, "Everything", "node"))?.set?.["node.color"], "#00ff00");
 
-        // Nothing missing: no step.
-        await session.styles.restoreStartingRows();
-        assert.strictEqual(session.history.steps.length, steps + 2);
-
+        await session.undo();
+        await session.undo();
+        await session.undo();
         await session.undo();
         assert.deepStrictEqual(
             session.styles.tree().map((each) => each.name),
-            ["Everything", "Hovered"],
+            ["Everything", ...ghost(session).map(([name]) => name), "Selected", "Hovered"],
         );
     });
 });

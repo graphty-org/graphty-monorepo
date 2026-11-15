@@ -118,14 +118,15 @@ export async function trackedIssues(db, family, now) {
     return rows.map((r) => r.issue);
 }
 
-// Failures master's own runs of the asked variants saw on exactly `base`, or with the same variant and
-// inputs key (6.3). Another variant's failure (flags=on for a flags=off run) excuses nothing.
+// Failures master's own runs of the asked variants saw on exactly `base`, with the same variant and inputs key, or
+// in the variant's newest full run (6.3): a master break shows there before any base check runs on a pull
+// request's own base (#8051). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
-    // 1 + 3 parameters a variant: chunks of 30 stay under D1's 100 (an everything run asks about ~55 variants)
+    // 1 + 4 parameters a variant: chunks of 24 stay under D1's 100 (an everything run asks about ~55 variants)
     const rows = [];
-    for (let i = 0; i < pairs.length; i += 30)
-        rows.push(...(await failingOnBaseChunk(db, base, pairs.slice(i, i + 30))));
-    return rows.filter((r) => !changed.has(r.file)); // rule 1, the file itself; its import closure is the client's
+    for (let i = 0; i < pairs.length; i += 24)
+        rows.push(...(await failingOnBaseChunk(db, base, pairs.slice(i, i + 24))));
+    return rows.filter((r) => !changed.has(r.file)); // rule 1: a changed test file is never excused
 }
 
 async function failingOnBaseChunk(db, base, pairs) {
@@ -137,10 +138,13 @@ async function failingOnBaseChunk(db, base, pairs) {
          FROM failure f JOIN invocation i ON i.id = f.invocation
          LEFT JOIN tracked_issue t ON t.signature = f.signature
          WHERE i.kind IN ${MASTER_EVIDENCE} AND i.outcome = 'failed'
-           AND ((i.sha = ? AND i.variant IN (${placeholders(variants)}))${same})`,
+           AND ((i.sha = ? AND i.variant IN (${placeholders(variants)}))${same}
+             OR (i.kind = 'full' AND i.variant IN (${placeholders(variants)}) AND i.sha = (SELECT n.sha FROM invocation n
+                 WHERE n.kind = 'full' AND n.variant = i.variant ORDER BY n.started_at DESC LIMIT 1)))`,
         base ?? "",
         ...variants,
         ...pairs.flat(),
+        ...variants,
     );
 }
 

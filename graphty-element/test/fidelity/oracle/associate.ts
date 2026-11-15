@@ -430,6 +430,9 @@ const FACE_COVERED = 0.9;
  */
 const PART_OF_BODY = 0.499;
 
+/** An icon glyph: one private-use character, as FontAwesome and its kind draw their icons. */
+const iconGlyph = (t: PText): boolean => /^[\uE000-\uF8FF]$/u.test(t.content);
+
 /** A node built from the primitives that draw it. */
 function nodeFrom(
     id: string,
@@ -460,9 +463,13 @@ function nodeFrom(
     const outline =
         sorted.find((s) => s.kind !== "image" && s.tag !== PAINTED_OUTLINE) ?? sorted.find((s) => s.kind !== "image");
     // and a table's rows, however short each is: the table is their union (#5347)
+    // a node drawn as an icon glyph and words (vis-network's icon node) is the glyph's size and the words' label, as
+    // graphty reads its own glyph node (drawnPrimitives)
+    const glyph = drawn.length === 0 ? texts.find(iconGlyph) : undefined;
+    const words = texts.filter((t) => t !== glyph);
     const drawnBox = body
         ? union(sorted.filter((s) => area(s.box) >= PART_OF_BODY * area(body.box) || rows.has(s)).map((s) => s.box))
-        : union(texts.map((t) => t.box));
+        : union((glyph === undefined ? texts : [glyph]).map((t) => t.box));
     // its body's, and half the wave's line round it, as any border drawn on the body's outline reaches
     const grow = (all.find((s) => s.tag === PAINTED_OUTLINE && swings(s))?.stroke?.width ?? 0) / 2;
     const box = {
@@ -534,7 +541,7 @@ function nodeFrom(
                           (bh(ringPrim.box) + ringPrim.stroke.width - bh(box)) / 2,
                       ),
                   },
-        label: mergeTexts(texts),
+        label: mergeTexts(words),
         // a node the program draws as its words alone (Graphviz's unfilled plain, plaintext and none: a `<g
         // class="node">` holding one `<text>`) is a text-only node, read as graphty's are (`facelessAsTexts`): its words,
         // no node, unless the other side draws a node there (dot-real-happiness c, dot-real-linux-kernel LKD)
@@ -2356,10 +2363,15 @@ export function nameDrawnNodes(prims: readonly Prim[], drawn: DrawnNodes): Prim[
         p.box.x0 >= b.x0 - 1 && p.box.x1 <= b.x1 + 1 && p.box.y0 >= b.y0 - 1 && p.box.y1 <= b.y1 + 1;
     const centered = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
         Math.abs(cx(p.box) - n.x) <= 1 + 0.1 * n.w && Math.abs(cy(p.box) - n.y) <= 1 + 0.1 * n.h;
+    // an icon glyph (one private-use character, FontAwesome's and its kind's) centered on a drawn node is its body
+    // whatever its box holds, and the words in that box are its label below it (json-vis-synth 14, vis-network's icon
+    // node); a word on a dot's center stays unnamed
+    const glyph = (p: Prim): boolean => p.text !== null && iconGlyph(p.text);
+    const iconOf = new Set(drawn.nodes.filter((n) => prims.some((p) => glyph(p) && centered(p, n))));
     const on = (p: Prim, n: DrawnNodes["nodes"][number]): boolean =>
-        (p.kind === "shape" || p.kind === "image"
+        (p.kind === "shape" || p.kind === "image" || glyph(p)
             ? centered(p, n)
-            : labelInside(n) && (centered(p, n) || (n.box !== undefined && inBox(p, n.box)))) &&
+            : (labelInside(n) || iconOf.has(n)) && (centered(p, n) || (n.box !== undefined && inBox(p, n.box)))) &&
         bw(p.box) <= 1.5 * n.w + 2 &&
         bh(p.box) <= 1.5 * n.h + 2;
     return prims.map((p) => {
@@ -2394,7 +2406,9 @@ function drawnBodyless(
             n.shape !== null ||
             n.fill !== null ||
             n.stroke !== null ||
-            (n.pictures?.length ?? 0) > 0
+            (n.pictures?.length ?? 0) > 0 ||
+            // an icon node's glyph is its body (nodeFrom), its box also holding the label below it
+            n.faceless?.some(iconGlyph) === true
         ) {
             continue;
         }

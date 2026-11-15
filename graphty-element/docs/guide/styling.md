@@ -159,7 +159,7 @@ selection never disagree about which elements are the top `n`.
 
 An expression is a declared **subset of JMESPath**, compiled once when the layer is added and
 then run as a closure. It supports paths, comparisons (`==`, `!=`, `<`, `<=`, `>`, `>=`), `&&`,
-`||`, `!` and parentheses.
+`||`, `!`, arithmetic (`+`, `-`, `*`, `/` and a leading minus) and parentheses.
 
 It supports **no functions at all** -- no `starts_with`, no `length`, no projections, slices,
 pipes, multi-selects or wildcards. Everything outside the subset is refused where it was typed,
@@ -179,6 +179,19 @@ Two spelling rules catch everyone once:
 reaches, whatever keys the edge record used for them (`src`/`dst` by default). So
 `data.source == 'A'` selects the edges leaving `A`, and `{ match: "has", path: "data.target" }`
 matches every edge.
+
+**Arithmetic** is the one addition to JMESPath. It binds tighter than the comparisons, `*` and `/`
+tighter than `+` and `-`, each left to right, so `` data.in / data.out >= `2` `` compares the
+ratio, and parentheses group as usual. A leading minus takes the whole path after it:
+`-data.change` is minus `data.change`.
+
+- It works on **numbers only**, with no conversion: if either side is not a number (a string such
+  as `'3'`, `true`, a list, or no value at all), the answer is `null`.
+- **Dividing by zero gives `null`**, as does any answer that is not a finite number. `null` is no
+  value: a selector does not match the element, and a computed column leaves it without one.
+- A `-` written between two names with no space (`results.min-cut.x`) is refused with
+  `reason: "minus-needs-spaces"` rather than read as a subtraction: quote a hyphenated name
+  (`results."min-cut".x`, which `quotePath` writes for you) or put spaces round the minus.
 
 The same expression works outside a style layer, and matches the same elements there:
 `session.scope.count({ where })`, `session.selection.apply({ where })` and a visibility filter

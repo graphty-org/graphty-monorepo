@@ -3090,7 +3090,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // Set once the stack exists; until then no layer reads the pointer.
     let repaintHover = (): void => undefined;
     let repaintPeek = (_dirty: ElementIndices): void => undefined;
-    // Moves whenever the selection, or an element's state a `{match:"state"}` layer reads, moves:
+    // Moves whenever the selection, the filter, or an element's state a `{match:"state"}` layer reads, moves:
     // the style stack keeps its readings until it does.
     let stateRevision = 0;
     // Set once the selection and the filter exist: what a `state` leaf and a state layer read.
@@ -3501,6 +3501,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         values: valueSourceOf(records, snapshot, fieldKinds, () => elements),
         supplied: suppliedNow,
         onChange: (change) => {
+            // What the filter keeps is read by the style stack's kept readings (`styles.counts`,
+            // `drawnValues`): moved before anyone hears of the change, so a reader answers fresh.
+            stateRevision++;
             notifier.notify({ kind: "visibility" });
             timeline()?.visibilityChanged(change);
             repaintGhosts();

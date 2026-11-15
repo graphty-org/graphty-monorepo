@@ -3634,6 +3634,20 @@ export interface LoadMappingRead {
 }
 
 // @public
+export type LoadPath = {
+    readonly code: "PATH_COLUMNS";
+    readonly params: Readonly<Record<string, never>>;
+} | {
+    readonly code: "PATH_RECORDS";
+    readonly params: {
+        readonly reason: LoadPathReason;
+    };
+};
+
+// @public
+export type LoadPathReason = "objects" | "duplicateIds" | "repeatedEdges" | "endpoints" | "weights" | "records";
+
+// @public
 export interface LoadReport extends ImportReport {
     readonly duplicates: {
         readonly rows: number;
@@ -3644,6 +3658,7 @@ export interface LoadReport extends ImportReport {
         readonly sharedIds: number;
         readonly byKind: Readonly<Record<string, number>>;
     };
+    readonly path?: LoadPath;
     readonly rows?: {
         readonly rejected: readonly DraftRow[];
         readonly unmatched: readonly DraftRow[];
@@ -6083,7 +6098,7 @@ export interface SessionDataApi {
     ignoreIssue(issue: IssueId | Pick<DataIssue, "id">, ignored?: boolean): Promise<void>;
     ignoreIssues(issues: readonly (IssueId | Pick<DataIssue, "id">)[], ignored?: boolean): Promise<void>;
     import(source: DataSourceInput, options?: LoadChoices & SourceLoadOptions): Promise<void>;
-    importColumns(columns: ImportColumnsInput): Promise<void>;
+    importColumns(columns: ImportColumnsInput): Promise<LoadReport>;
     issues(options?: {
         readonly includeIgnored?: boolean;
         readonly includeFixed?: boolean;

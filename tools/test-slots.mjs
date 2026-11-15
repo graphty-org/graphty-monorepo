@@ -341,6 +341,44 @@ export const laneOf = (env) => (env.GRAPHTY_SLOT_PRIORITY === "low" ? LOW : "");
 const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(ms / 60_000)}m`);
 
 /**
+ * Gives a test slot back once its holder stops using the CPU (IDLE), and tells the holder.
+ * @param hold the hold
+ * @param hold.release the hold's release (and its `free`)
+ * @param hold.pid the holding process
+ * @param hold.granted when the slot was granted (epoch milliseconds)
+ * @param hold.idle the limits and the CPU reader (IDLE)
+ * @param hold.label what the run is
+ * @param hold.what its package or shard family, for the wait log
+ * @param hold.log where the line telling the holder goes
+ * @param hold.waitLog records the early release
+ * @returns the release, which also stops the watch
+ */
+function watchIdle({ release, pid, granted, idle, label, what, log, waitLog }) {
+    const stalled = progressWatch(() => idle.cpu(pid), granted, idle);
+    const timer = setInterval(() => {
+        if (!stalled(Date.now())) return;
+        clearInterval(timer);
+        release.free();
+        log(
+            `test-slots: ${label} used under ${idle.cpuMs / 1000} s of CPU in ${idle.ms / 60_000} minutes, ` +
+                `so it gave its test slot back to the runs waiting for one. It keeps running without a ` +
+                `slot; if it is hung (a page that never loads, a wait on nothing), end it.`,
+        );
+        waitLog({ kind: "test-slot-idle", start: granted, waiter: label, extra: { what } });
+    }, idle.every);
+    timer.unref();
+    const stop = (code) => {
+        clearInterval(timer);
+        release(code);
+    };
+    stop.free = () => {
+        clearInterval(timer);
+        release.free();
+    };
+    return stop;
+}
+
+/**
  * Wait for a slot.
  * @param options the run
  * @param options.label what the run is, for the waiting message of others
@@ -435,32 +473,8 @@ export async function acquire({
                 waitLog({ kind: `${kind}-slot-held`, start: granted, waiter: label, extra: { what, exit } });
             };
             release.free = free;
-            if (kind === "test" && idle) {
-                // A holder that stops using the CPU gives its slot back (#8041); the run itself goes on.
-                const stalled = progressWatch(() => idle.cpu(pid), granted, idle);
-                const timer = setInterval(() => {
-                    if (!stalled(Date.now())) return;
-                    clearInterval(timer);
-                    free();
-                    log(
-                        `test-slots: ${label} used under ${idle.cpuMs / 1000} s of CPU in ${idle.ms / 60_000} minutes, ` +
-                            `so it gave its test slot back to the runs waiting for one. It keeps running without a ` +
-                            `slot; if it is hung (a page that never loads, a wait on nothing), end it.`,
-                    );
-                    waitLog({ kind: `${kind}-slot-idle`, start: granted, waiter: label, extra: { what } });
-                }, idle.every);
-                timer.unref();
-                const done = release;
-                const stop = (code) => {
-                    clearInterval(timer);
-                    done(code);
-                };
-                stop.free = () => {
-                    clearInterval(timer);
-                    free();
-                };
-                return stop;
-            }
+            // A holder that stops using the CPU gives its slot back (#8041); the run itself goes on.
+            if (kind === "test" && idle) return watchIdle({ release, pid, granted, idle, label, what, log, waitLog });
             return release;
         }
         if (!holders) {

@@ -316,7 +316,7 @@ const NAMED_LOADS: ReadonlySet<string> = new Set(["kindName", "sourceKind", "tar
 /**
  * What "+" offers for an entry not listed yet: the entry itself, added with the column the element
  * finds obvious for its role (`data.roleCandidate`) or the only kind name offered, or a submenu of
- * its columns. Each key is the
+ * its columns. Time is always a submenu, the obvious column first. Each key is the
  * entry's id and the column, as `id=column`. An entry with no column to offer is left out.
  * @param session - the element's session.
  * @param kind - node or edge.
@@ -340,7 +340,11 @@ function addOption(
         best = session.data.roleCandidate(kind, entry.role);
     }
     if (best !== null && items.some((item) => item.value === best)) {
-        return [{ key: `${entry.id}=${best}`, label: entry.name }];
+        if (entry.id !== "time") {
+            return [{ key: `${entry.id}=${best}`, label: entry.name }];
+        }
+        // Time always asks, as it turns the timeline on: the element's best column leads the submenu.
+        items.sort((a, b) => Number(b.value === best) - Number(a.value === best));
     }
     if (items.length === 0) {
         return [];
@@ -426,8 +430,8 @@ function designateTime(
  * entries -- only the kinds of field the element reports (a role a column has, a location it
  * reads), so a detected one is listed with no action from the reader and nothing detected leaves
  * the list empty. "+" offers the kinds not listed yet: one with a column the element finds obvious
- * for it (`data.roleCandidate`) is added with that column, and any other opens a submenu of its
- * columns, the entry added once one is picked. Either way focus goes to the new entry's column.
+ * for it (`data.roleCandidate`) is added with that column, and any other (and Time always, its
+ * obvious column first) opens a submenu of its columns, the entry added once one is picked. Either way focus goes to the new entry's column.
  * The minus takes the role away through the element, focus then going to "+".
  * @param props - Component props
  * @param props.side - nodes or edges

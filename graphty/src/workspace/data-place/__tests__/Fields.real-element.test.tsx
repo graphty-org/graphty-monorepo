@@ -241,7 +241,7 @@ describe("Data > Fields as a + list on the real element", () => {
         await userEvent.keyboard("{Escape}");
     });
 
-    it("adds Time on edges with the column the element reads as time, one undo step, and undo takes it away", async () => {
+    it("adds Time on edges from a submenu led by the column read as time, one undo step, and undo takes it away", async () => {
         const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
         render(<Workspace store={store} />);
         const element = await loadSample(store, "Marvel films");
@@ -254,8 +254,26 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.isNull(session.time.field);
         const steps = session.history.steps.length;
 
-        await userEvent.click(section.getByRole("button", { name: "Add to edge attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
+        const plus = section.getByRole("button", { name: "Add to edge attributes" });
+        await userEvent.click(plus);
+        // Time asks for its column, as Weight does, the one the element reads as time first.
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
+        const released = await screen.findByRole("menuitem", { name: /^released/ });
+        const submenu = released.closest<HTMLElement>('[role="menu"]');
+        assert.isNotNull(submenu);
+        assert.strictEqual(within(submenu).getAllByRole("menuitem")[0], released, "best column first");
+        assert.isNull(session.time.field, "nothing while the submenu is open");
+        // Leaving the menu adds nothing.
+        await userEvent.keyboard("{Escape}");
+        await userEvent.keyboard("{Escape}");
+        await waitFor(() => {
+            assert.isNull(screen.queryByRole("menu"));
+        });
+        assert.isNull(session.time.field, "nothing left behind");
+        assert.equal(session.history.steps.length, steps, "no undo step");
+
+        await userEvent.click(plus);
+        await pickFromSubmenu("Time", /^released/);
         await waitFor(() => {
             assert.deepEqual(session.time.field, { edges: { start: "released" } });
             assert.equal(shown(section, "Edge time"), "released");
@@ -341,8 +359,7 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.notInclude(entries(section, "nodes"), "time");
 
         await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
-        // The column that reads as time is obvious: picking the kind adds it with that column.
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
+        await pickFromSubmenu("Time", /^year/);
         await waitFor(() => {
             assert.equal(element.session.time.field?.nodes?.start, "year");
             assert.equal(shown(section, "Node time"), "year");
@@ -398,7 +415,7 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.equal(typeOf(), "string", "the days load as text");
         const section = await fields();
         await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
+        await pickFromSubmenu("Time", /^opened/);
         await waitFor(() => {
             assert.equal(session.time.field?.nodes?.start, "opened");
             // The column's kind and the timeline say the same thing: dates.

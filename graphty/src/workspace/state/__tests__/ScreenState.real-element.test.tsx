@@ -35,8 +35,8 @@ describe("screen state across a reload of this tab", () => {
         const place = within(await screen.findByRole("region", { name: "Data place" }));
         const fields = within(place.getByRole("group", { name: "Attributes" }));
         await userEvent.click(await fields.findByRole("button", { name: "Add to node attributes" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
-        await userEvent.click(await screen.findByRole("option", { name: "year" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Time" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^year/ }));
 
         // The canvas toolbar's Timeline and Table buttons.
         await userEvent.click(await screen.findByRole("button", { name: "Timeline" }));

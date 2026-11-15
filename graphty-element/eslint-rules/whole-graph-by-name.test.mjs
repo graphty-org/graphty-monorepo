@@ -11,7 +11,6 @@ import rule from "./whole-graph-by-name.mjs";
 
 RuleTester.describe = describe;
 RuleTester.it = it;
-RuleTester.itOnly = it.only;
 
 const tester = new RuleTester({
     languageOptions: { parser: tseslint.parser, ecmaVersion: 2024, sourceType: "module" },

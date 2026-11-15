@@ -339,6 +339,7 @@ describe("what an export cannot keep", () => {
         const unwritten = result.losses
             .filter((loss) => loss.code === "W_STYLE_NOT_WRITTEN")
             .map((loss) => `${String(loss.params.target)} ${String(loss.params.property)}`);
+        // The writers spell a node outline as the borderColor a program draws it with.
         for (const property of ["node fill", "node width", "node opacity", "node borderColor", "edge color"]) {
             assert.include(unwritten, property);
         }

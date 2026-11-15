@@ -92,3 +92,15 @@ export const EXPORT_STYLE_LOSS_CODES = Object.freeze([
  * @experimental file-styles
  */
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
+
+/**
+ * Why an export writes a layer as the values it paints (the `reason` param of `W_STYLE_LAYER_FLATTENED`):
+ * `SCALE`, a palette or a scale the format cannot express; `RESULT_PATH`, it reads an algorithm result.
+ */
+export const EXPORT_FLATTEN_REASONS = Object.freeze(["SCALE", "RESULT_PATH"] as const);
+
+/**
+ * A reason an export writes a layer as its values: one of {@link EXPORT_FLATTEN_REASONS}.
+ * @experimental file-styles
+ */
+export type ExportFlattenReason = (typeof EXPORT_FLATTEN_REASONS)[number];

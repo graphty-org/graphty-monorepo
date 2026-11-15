@@ -43,6 +43,8 @@ export interface ReadableInput {
     readonly runs: readonly Run[];
     /** The layers that read a path on a half now, in stack order; a data column brings its own `usedBy`. */
     readonly layersReading?: (path: string, on: "node" | "edge") => readonly AttributeUse[];
+    /** The style value store's columns (`data.setStyleValues`), listed after the data's own and never read at an edge's end. */
+    readonly styleValues?: readonly AttributeDescriptor[];
 }
 
 /** The channel kinds a value can be listed as fitting, in the order they are listed. */
@@ -259,6 +261,10 @@ export function readableValues(input: ReadableInput): readonly ReadableValue[] {
         if (column.kind === "node") {
             nodeColumns.push([column, "data", declaration]);
         }
+    }
+
+    for (const column of input.styleValues ?? []) {
+        values.push(entryOf(column, "data", undefined, input.layersReading?.(column.path, column.kind)));
     }
 
     for (const run of input.runs) {

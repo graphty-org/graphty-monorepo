@@ -45,18 +45,11 @@ import { parseArrowStack } from "../../../meshes/arrowStack";
 import { toColorValue } from "../channels";
 import type { ExplainTarget, StyleExplanation } from "../explain";
 import type { CompiledLayer } from "../Layer";
+import type { ExportFlattenReason } from "./codes";
 import { computedOf, parseFileStylePath } from "./path";
-import {
-    ARROW_RUNS,
-    ARROW_SHAPES,
-    ARROW_SHAPES_NEAREST,
-    FILE_STYLE_SHAPES,
-    LINE_STYLES,
-    LINE_STYLES_NEAREST,
-    TOOL_ARROW_SHAPES,
-} from "./shapes";
-import { fileStyleColumn, type FileStyleStore } from "./store";
-import { arrowRunStack, LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
+import { ARROW_SHAPES, LINE_STYLES, LINE_STYLES_NEAREST, NODE_SHAPES } from "./shapes";
+import { styleValueColumn, type StyleValueStore } from "./store";
+import { LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
 
 /** What turning the stack into neutral styles needs. */
 export interface LayersToStylesInput {
@@ -71,7 +64,7 @@ export interface LayersToStylesInput {
     /** Per node row, and per edge row, whether the element is hidden. */
     readonly hidden: { readonly node: readonly boolean[]; readonly edge: readonly boolean[] };
     /** The session's file-style values. */
-    readonly fileStyles: FileStyleStore;
+    readonly fileStyles: StyleValueStore;
     /** The format being written, for the styles' source. */
     readonly format: string;
     /**
@@ -90,7 +83,7 @@ interface FlattenedLayer {
     /** The property written as values. */
     readonly property: string;
     /** Why. */
-    readonly reason: StyleRuleReason;
+    readonly reason: ExportFlattenReason;
     /** How many elements carry a value. */
     readonly count: number;
 }
@@ -159,31 +152,8 @@ function inverse(
     return out;
 }
 
-const SHAPE_OF = inverse(Object.entries(FILE_STYLE_SHAPES));
 const LINE_OF = inverse(LINE_STYLES, LINE_STYLES_NEAREST);
-// a cap only one program's arrow is drawn as (Cytoscape's half barb, vis-network's crow) writes that arrow back
-const ARROW_OF = inverse(
-    [ARROW_SHAPES, ...TOOL_ARROW_SHAPES.values()].flatMap((table) => [...table]),
-    ARROW_SHAPES_NEAREST,
-);
-
-/**
- * A stack without its sizes, which grow with the line.
- * @param stack - An end cap's `stack` value.
- * @returns Its caps and their widths.
- */
-const stackShape = (stack: string): string => stack.replaceAll(/\*[^x\s]+/g, "");
-
-/** The formats whose writers spell yEd's arrows; every other format writes the end cap, which it has a name for. */
-const YED_ARROW_FORMATS: ReadonlySet<string> = new Set(["graphml", "gml"]);
-
-// yEd's arrows of several pieces share end caps, so `ARROW_OF` names only one of them: the whole row names each
-const ARROW_ROWS = new Map(
-    [...ARROW_RUNS].map(([shape, run]) => [
-        `${String(ARROW_SHAPES.get(shape))} ${stackShape(arrowRunStack(run.parts, 1))}`,
-        shape,
-    ]),
-);
+const ARROW_OF = inverse(ARROW_SHAPES);
 
 /**
  * An end cap's `stack` as a neutral `targetArrowParts` value.
@@ -221,17 +191,17 @@ const plan = (toNeutral: PropertyPlan["toNeutral"], ...properties: string[]): Pr
 });
 
 /**
- * What DOT's writer needs beyond the end cap to spell a Graphviz arrow's whole name: each channel's neutral property,
- * its end cap, and its value there. In every other format a cap's side stays `graphty:<channel>`.
+ * What an arrow holds beyond its end cap, as neutral properties: the stack of caps behind it and the cap's side, each
+ * channel's neutral property and its end cap. Written for every format; each format's writer spells them its own way.
  */
 const ARROW_NAME_CHANNELS: ReadonlyMap<
     string,
-    { readonly property: string; readonly cap: string; readonly toNeutral: PropertyPlan["toNeutral"] }
+    { readonly property: string; readonly toNeutral: PropertyPlan["toNeutral"] }
 > = new Map([
-    ["edge.arrowHeadStack", { property: "targetArrowParts", cap: "edge.arrowHead", toNeutral: stackParts }],
-    ["edge.arrowTailStack", { property: "sourceArrowParts", cap: "edge.arrowTail", toNeutral: stackParts }],
-    ["edge.arrowHeadSide", { property: "targetArrowSide", cap: "edge.arrowHead", toNeutral: text }],
-    ["edge.arrowTailSide", { property: "sourceArrowSide", cap: "edge.arrowTail", toNeutral: text }],
+    ["edge.arrowHeadStack", { property: "targetArrowParts", toNeutral: stackParts }],
+    ["edge.arrowTailStack", { property: "sourceArrowParts", toNeutral: stackParts }],
+    ["edge.arrowHeadSide", { property: "targetArrowSide", toNeutral: text }],
+    ["edge.arrowTailSide", { property: "sourceArrowSide", toNeutral: text }],
 ]);
 
 /**
@@ -242,7 +212,6 @@ const ARROW_NAME_CHANNELS: ReadonlyMap<
 const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = {
     node: new Map([
         ["node.color", plan(color, "fill")],
-        ["node.outline", plan(color, "borderColor")],
         ["node.label", plan(text, "label")],
         ["node.tooltip", plan(text, "tooltip")],
         ["node.xlabel", plan(text, "xlabel")],
@@ -263,7 +232,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["node.labelMinNodeScreenSize", plan(number, "labelMinNodeScreenSize")],
         // Only the size order has a neutral spelling (Gephi's and sigma.js's).
         ["node.labelDeclutter", plan((value) => (value === "size" ? true : null), "labelAvoidOverlap")],
-        ["node.shape", plan(table(SHAPE_OF), "shape")],
+        ["node.shape", plan(table(NODE_SHAPES), "shape")],
         ["node.size", plan(number, "width", "height")],
         ["node.opacity", plan(opacity, "opacity")],
     ]),
@@ -398,8 +367,6 @@ class KindExport {
     readonly #n: number;
     /** Per layer id, per channel, what the layer painted each element. */
     readonly #painted = new Map<string, Map<string, unknown[]>>();
-    /** Per row, everything the element is drawn with, whichever layers painted it. */
-    readonly #merged: Readonly<Record<string, unknown>>[] = [];
     readonly #columns = new Map<string, StyleColumn>();
     /** Per file-style path, the key it is written under. */
     readonly #fileKeys = new Map<string, string>();
@@ -422,8 +389,7 @@ class KindExport {
         this.#n = ids.length;
         ids.forEach((id, row) => {
             const target: ExplainTarget = kind === "node" ? { node: id } : { edge: id as EdgeId };
-            const { merged, contributions } = input.explain(target);
-            this.#merged[row] = merged;
+            const { contributions } = input.explain(target);
             for (const contribution of contributions) {
                 let channels = this.#painted.get(contribution.layerId);
                 if (channels === undefined) {
@@ -553,7 +519,7 @@ class KindExport {
             return { style: known };
         }
 
-        const held = fileStyleColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
+        const held = styleValueColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
         // Two loads' columns of one key cannot both keep it: the second is not carried as itself.
         if (held === undefined || this.#columns.has(parts.key)) {
             return null;
@@ -648,9 +614,7 @@ class KindExport {
     #neutral(channel: string, values: readonly unknown[]): NeutralChannel | null {
         const known = PLANS[this.#kind].get(channel);
         if (known !== undefined) {
-            const converted = values.map((value, row) =>
-                value === null ? null : (this.#arrowRow(channel, value, row) ?? known.toNeutral(value)),
-            );
+            const converted = values.map((value) => (value === null ? null : known.toNeutral(value)));
             if (converted.every((value, i) => value !== null || values[i] === null)) {
                 return { properties: known.properties, values: converted, convert: known.toNeutral };
             }
@@ -665,38 +629,18 @@ class KindExport {
     }
 
     /**
-     * The arrow of several pieces an end cap is the first of, read from the whole stack the element is drawn with: the
-     * stack may come from another layer than the cap.
-     * @param channel - The channel.
-     * @param cap - The channel's value.
-     * @param row - The element.
-     * @returns The neutral arrow, or undefined when the channel is no end cap of such an arrow or the format has none.
-     */
-    #arrowRow(channel: string, cap: unknown, row: number): string | undefined {
-        const stack = this.#merged[row]?.[`${channel}Stack`];
-        return YED_ARROW_FORMATS.has(this.#input.format) && typeof stack === "string" && typeof cap === "string"
-            ? ARROW_ROWS.get(`${cap} ${stackShape(stack)}`)
-            : undefined;
-    }
-
-    /**
-     * What a channel adds to a Graphviz arrow name, for DOT alone: a stack behind an end cap, or that cap's side. yEd's
-     * rows are stacks too, but DOT writes their end cap.
+     * What a channel adds to an arrow beyond its end cap: the stack of caps behind it, or the cap's side.
      * @param channel - The channel.
      * @param drawn - What it painted.
      * @returns The neutral property and its values by row, or null when the channel adds nothing.
      */
     #arrowName(channel: string, drawn: readonly unknown[]): { property: string; values: StyleColumn } | null {
         const end = ARROW_NAME_CHANNELS.get(channel);
-        if (end === undefined || this.#input.format !== "dot") {
+        if (end === undefined) {
             return null;
         }
 
-        const values = drawn.map((value, row) => {
-            const stack = this.#merged[row]?.[`${end.cap}Stack`];
-            const yed = ARROW_ROWS.has(`${String(this.#merged[row]?.[end.cap])} ${stackShape(String(stack))}`);
-            return value === null || yed ? null : end.toNeutral(value);
-        });
+        const values = drawn.map((value) => (value === null ? null : end.toNeutral(value)));
         return values.some((value) => value !== null) ? { property: end.property, values } : null;
     }
 
@@ -736,6 +680,7 @@ class KindExport {
         const spec = this.#specOf(entry);
         this.#rules.push({
             id,
+            name: layer.name,
             target: this.#kind,
             role: roleOf(layer.kind, Object.keys(map).length > 0),
             origin: "declared",
@@ -783,7 +728,7 @@ class KindExport {
                 continue;
             }
 
-            const why: StyleRuleReason =
+            const why: ExportFlattenReason =
                 binding !== undefined && "by" in binding && this.#refOf(binding.by) === null ? "RESULT_PATH" : "SCALE";
             body.reason ??= why;
             flat ??= this.#keep(`layer.${String(at.at)}.${property}`, written.values);
@@ -1020,7 +965,7 @@ class KindExport {
             return selector;
         }
 
-        const held = fileStyleColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
+        const held = styleValueColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
         const ids = this.#input.ids[this.#kind];
         if (held === undefined || !ids.every((id) => held.get(id) !== null && held.get(id) !== undefined)) {
             return selector;

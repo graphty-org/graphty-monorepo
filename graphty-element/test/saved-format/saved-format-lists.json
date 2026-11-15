@@ -97,7 +97,7 @@
             "paths": [],
             "catalogs": ["basemaps"],
             "issue": 6513,
-            "finding": "A map layout names its basemap by MapSourceId, and no map means the bundled world image."
+            "finding": "Kept on purpose: the owner decided on 2026-11-13 that code-backed built-ins are named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "default-palette",

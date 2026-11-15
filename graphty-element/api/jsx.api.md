@@ -113,6 +113,7 @@ export interface GraphtyElementJSXProps {
     "layout-2d"?: boolean;
     "layout-config"?: string;
     "layout-scope"?: string;
+    "minimap-label"?: string;
     "node-data"?: string;
     "node-id-path"?: string;
     "node-label-path"?: string;
@@ -261,6 +262,7 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     // (undocumented)
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
+    "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
     // (undocumented)
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
     "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
@@ -329,6 +331,8 @@ export interface GraphtyElementJSXProps {
     layoutScope?: Graphty["layoutScope"];
     lighting?: Graphty["lighting"];
     limits?: Graphty["limits"];
+    minimap?: Graphty["minimap"];
+    minimapLabel?: Graphty["minimapLabel"];
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];

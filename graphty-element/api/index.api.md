@@ -2631,6 +2631,23 @@ export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles" | "node-models";
 
 // @public
+export interface FigureOptions {
+    download?: boolean;
+    downloadFilename?: string;
+    format?: "svg";
+    legend?: ScreenshotOptions["legend"];
+    transparentBackground?: boolean;
+}
+
+// @public
+export interface FigureResult {
+    blob: Blob;
+    downloaded: boolean;
+    height: number;
+    width: number;
+}
+
+// @public
 export interface FindAtLeastRow {
     readonly count: number;
     readonly kind: FindKind;
@@ -3453,6 +3470,7 @@ export class Graphty extends LitElement {
     exitXR(): Promise<void>;
     exportAiConversation(id: string): Promise<string | null>;
     exportCameraPresets(): Record<string, CameraState>;
+    exportFigure(options?: FigureOptions): Promise<FigureResult>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     get features(): readonly string[] | undefined;
     set features(value: readonly string[] | string | null | undefined);
@@ -4519,7 +4537,7 @@ export type GraphtyErrorCode =
 /**
 * A screenshot, a video or a clipboard copy was started and could not be finished: the
 * renderer, the image encoder, the media recorder or the clipboard write failed, or there was
-* no camera to draw from. `details.media` is `"image"` or `"video"`, `details.destination` is
+* no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
 * `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
 * @since 3.40.0
 */

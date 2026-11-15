@@ -1055,6 +1055,12 @@ export function defineShader(definition: ShaderDefinition, options?: RegisterOpt
 export { defineSource }
 
 // @public
+export type DocumentCode = "W_SCHEMA_MISMATCH" | "W_SECTION_KEPT" | "W_EXTENSION_REQUIRED" | "W_SECTION_UPGRADED" | "W_ELEMENT_NAMING_LEFT_OUT" | "W_SOURCE_NO_PATH" | "W_SOURCE_UNAVAILABLE" | "W_REFERENCE_UNBOUND" | "W_DATA_CHANGED" | "W_DATA_MISMATCH" | "W_REPLACED_SINCE" | "W_JOIN_HISTORY_DIFFERS" | "W_CAMERA_CONTROLLER_UNKNOWN" | "W_RUN_NOT_RUN" | "W_RESULTS_DIFFER" | "W_EDGE_MATCH_AMBIGUOUS" | "W_SOURCE_IDS_SEQUENTIAL" | "W_SOURCE_UNKEYED" | "W_NODE_NAMED_ONLY" | "W_EDGE_END_MISSING" | "W_COLUMN_WIDENED";
+
+// @public
+export type DocumentSection = "data" | "style" | "recipe" | "settings" | "results" | "notes" | "view";
+
+// @public
 export interface DrawnShaders {
     readonly groupOutlines: readonly {
         readonly layer: LayerId;
@@ -2626,7 +2632,7 @@ export type ExportScope = RuleTree | "shown" | "selection" | {
 export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
-export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles" | "node-models";
+export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles" | "node-models" | "save-files-v2";
 
 // @public
 export interface FindAtLeastRow {
@@ -7284,6 +7290,8 @@ export function projectFileName(name: string | null | undefined): string;
 
 // @public
 export interface ProjectOpenOptions {
+    readonly bindOtherData?: boolean;
+    readonly dataMode?: "replace" | "add";
     readonly discard?: boolean;
     readonly draft?: {
         readonly onto?: "graph";
@@ -7295,7 +7303,10 @@ export interface ProjectOpenOptions {
     readonly limits?: {
         readonly fileBytes?: number;
     };
+    readonly migrate?: boolean;
     readonly ownWork?: boolean;
+    readonly rerun?: boolean;
+    readonly sections?: readonly DocumentSection[];
 }
 
 // @public
@@ -7309,14 +7320,19 @@ export interface ProjectOpenReport {
 }
 
 // @public
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved">;
 
 // @public
 export interface ProjectSaveOptions {
     readonly assets?: Readonly<Record<string, AssetStorage>>;
+    readonly embed?: Readonly<Record<string, SourceStorage>>;
     readonly extensions?: Readonly<Record<string, unknown>>;
+    readonly form?: "full" | "section";
+    readonly format?: 1 | 2;
     readonly leaveOut?: readonly ("graphty-style" | "graphty-notes" | "graphty-view-state")[];
     readonly markSaved?: boolean;
+    readonly results?: boolean;
+    readonly sections?: readonly DocumentSection[];
 }
 
 // @public
@@ -8199,6 +8215,9 @@ export const SOURCES_MEMBER_VERSION = 2;
 export type SourceSettings = Pick<SourceLoadRecord, "source" | "endpoint" | "config" | "expand"> & {
     readonly limits?: SourceLimitOptions;
 };
+
+// @public
+export type SourceStorage = "embedded" | "referenced";
 
 export { SourceValidators }
 

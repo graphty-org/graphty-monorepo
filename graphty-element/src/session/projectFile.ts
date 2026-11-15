@@ -32,6 +32,7 @@ import { DEFAULT_SELECTION_STYLE } from "../config/GraphStyle";
 import { otherIdSpelling } from "../data/nodeIdSpelling";
 import { type GraphtyErrorCode, type GraphtyWarningCode } from "../errors/codes";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
+import { featureOff } from "../features/resolve";
 import type { AssetsApiInternal } from "./assets/AssetsApi";
 import {
     assetChoices,
@@ -45,6 +46,11 @@ import {
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { shaderIdsIn } from "./commands/shaderCopies";
 import type { SessionData } from "./data";
+import { openDocument2, saveDocument2 } from "./document2/document";
+import { isJsonObject, isVersion2, parseDocument } from "./document2/framing";
+import { migrateDocument1 } from "./document2/migration";
+import { SECTION_CODECS } from "./document2/registry";
+import type { DocumentCode, DocumentProblem, DocumentSection, SourceStorage } from "./document2/types";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
 import { projectBoundary } from "./project/boundary";
@@ -147,9 +153,12 @@ const EXTENSION_NAME = /^(?!graphty(\.|$))[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
  * member's position in the file), `kind` (the member's kind), `found` (a version), `needs` (the
  * paths a layer reads that nothing answers) and `pointer` (a JSON pointer inside a member).
  */
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
+export type ProjectProblem = CodedFact<
+    GraphtyErrorCode | GraphtyWarningCode | DocumentCode | "shader.unknown" | "shader.not-saved"
+>;
 
 export type { AssetStorage, ProjectAssetChoice } from "./assets/projectMember";
+export type { DocumentCode, DocumentSection, SourceStorage } from "./document2/types";
 
 /** How `project.save` writes the file. */
 export interface ProjectSaveOptions {
@@ -178,6 +187,35 @@ export interface ProjectSaveOptions {
      * that had an entry for it), else embedded.
      */
     readonly assets?: Readonly<Record<string, AssetStorage>>;
+    /**
+     * The file format: `1` (the default) or `2`, the version 2 format of `spec/README.md` in the
+     * package. `2` needs the `save-files-v2` experiment, and is refused with `E_FEATURE_OFF`
+     * without it. EXPERIMENTAL: version 2 may change until it is released.
+     * @since 3.40.0
+     */
+    readonly format?: 1 | 2;
+    /**
+     * Version 2 only: the sections to write. Default every section but `results`.
+     * @since 3.40.0
+     */
+    readonly sections?: readonly DocumentSection[];
+    /**
+     * Version 2 only: `"full"` (the default) writes a full file holding the sections;
+     * `"section"` writes the one section in `sections` as a section file.
+     * @since 3.40.0
+     */
+    readonly form?: "full" | "section";
+    /**
+     * Version 2 only: also write the results section. Default false: opening reruns the runs.
+     * @since 3.40.0
+     */
+    readonly results?: boolean;
+    /**
+     * Version 2 only: per source id, whether its rows are written into the file (`"embedded"`,
+     * the default) or fetched again on open (`"referenced"`).
+     * @since 3.40.0
+     */
+    readonly embed?: Readonly<Record<string, SourceStorage>>;
 }
 
 /** What the session lends the project file for the loads. */
@@ -280,6 +318,37 @@ export interface ProjectOpenOptions {
         /** The largest file to read, in bytes. Default 256 MiB. */
         readonly fileBytes?: number;
     };
+    /**
+     * Version 2 only (`save-files-v2` experiment): the sections of a full file to load. Default
+     * all. EXPERIMENTAL.
+     * @since 3.40.0
+     */
+    readonly sections?: readonly DocumentSection[];
+    /**
+     * Version 2 only: whether layouts and algorithms run again on open. Default true; false
+     * restores the saved results instead. EXPERIMENTAL.
+     * @since 3.40.0
+     */
+    readonly rerun?: boolean;
+    /**
+     * Version 2 only: whether a data section replaces the open data (`"replace"`, the default,
+     * opening a project) or is added as another source (`"add"`). EXPERIMENTAL.
+     * @since 3.40.0
+     */
+    readonly dataMode?: "replace" | "add";
+    /**
+     * Version 2 only: load a results, notes or view section written on other data, binding its
+     * references by key. Default false: it is reported as `W_DATA_MISMATCH` and not loaded.
+     * EXPERIMENTAL.
+     * @since 3.40.0
+     */
+    readonly bindOtherData?: boolean;
+    /**
+     * With the `save-files-v2` experiment on: open a version 1 file through its migration to
+     * version 2. Default false: a version 1 file is read as before. EXPERIMENTAL.
+     * @since 3.40.0
+     */
+    readonly migrate?: boolean;
 }
 
 /** What `project.open` did. Frozen. */
@@ -1352,6 +1421,38 @@ function graphtyDocumentOf(text: string): ReadDocument | undefined {
 
         return undefined;
     }
+}
+
+/**
+ * A file as a version 2 document, when it is one (the `save-files-v2` experiment): within the
+ * depth limit, and either version 2 already or, when asked, a version 1 file its migration reads.
+ * @param text - The file's text.
+ * @param migrate - Whether to migrate a version 1 file (`ProjectOpenOptions.migrate`).
+ * @returns The document and what its migration reported, or undefined to read the file as before.
+ */
+function version2Of(
+    text: string,
+    migrate: boolean,
+): { readonly value: Record<string, unknown>; readonly problems: DocumentProblem[] } | undefined {
+    let value: unknown;
+    try {
+        value = JSON.parse(text);
+    } catch {
+        return undefined;
+    }
+
+    checkTree(value, 1);
+    if (isVersion2(value)) {
+        return { value, problems: [] };
+    }
+
+    if (!migrate || !isJsonObject(value)) {
+        return undefined;
+    }
+
+    const problems: DocumentProblem[] = [];
+    const migrated = migrateDocument1(value, problems);
+    return migrated === undefined ? undefined : { value: migrated, problems };
 }
 
 /**
@@ -2709,6 +2810,127 @@ export function projectOf(
         );
     };
 
+    /**
+     * Freeze a written document into the file `save` returns, and move the save point.
+     * @param document - The document.
+     * @param written - The member kinds or section keys written, in file order.
+     * @param leftOut - What the save could not write.
+     * @param options - The save's options.
+     * @returns The file and its report.
+     */
+    const finishSave = (
+        document: Record<string, unknown>,
+        written: readonly string[],
+        leftOut: readonly ProjectProblem[],
+        options: ProjectSaveOptions,
+    ): SavedProject => {
+        // What this save was told is how the next save without a choice keeps the same URL,
+        // once its file is written: now, or at `markSaved` for a save that waits on its write.
+        // A copy that is never marked saved, or a write that failed, changes nothing.
+        const remember = (): void => {
+            for (const [url, storage] of Object.entries(options.assets ?? {})) {
+                (session.assets as AssetsApiInternal).rememberStorage(url, storage);
+            }
+        };
+
+        const text = JSON.stringify(document);
+        const saved: SavedProject = Object.freeze({
+            text,
+            report: Object.freeze({ bytes: new TextEncoder().encode(text).length, written, leftOut }),
+        });
+        fresh = false;
+        if (options.markSaved === false) {
+            const waited = pointNow();
+            waiting.add(waited);
+            pointOf.set(saved, waited);
+            rememberOf.set(saved, remember);
+        } else {
+            adopt(pointNow());
+            remember();
+        }
+
+        return saved;
+    };
+
+    /**
+     * Save the session as a version 2 document (the `save-files-v2` experiment).
+     * @param options - The save's options.
+     * @returns The file and its report.
+     */
+    const saveVersion2 = async (options: ProjectSaveOptions): Promise<SavedProject> => {
+        const extensions = checkedExtensions(options.extensions ?? {});
+        const { document, written, problems } = await saveDocument2(
+            session,
+            SECTION_CODECS,
+            {
+                ...(options.sections === undefined ? {} : { sections: options.sections }),
+                ...(options.form === undefined ? {} : { form: options.form }),
+                ...(options.results === undefined ? {} : { results: options.results }),
+                ...(options.embed === undefined ? {} : { embed: options.embed }),
+                extensions,
+            },
+            isDerived,
+        );
+        return finishSave(document, written, problems, options);
+    };
+
+    /**
+     * Open a version 2 document over the session (the `save-files-v2` experiment): a data section
+     * in replace mode opens a project, with a fresh history; anything else is one undoable step.
+     * @param value - The parsed file.
+     * @param options - The open's options.
+     * @param fileName - The file's name, if it had one.
+     * @param before - What a migration to version 2 reported.
+     * @returns The report.
+     */
+    const openVersion2 = async (
+        value: Record<string, unknown>,
+        options: ProjectOpenOptions,
+        fileName: unknown,
+        before: readonly DocumentProblem[],
+    ): Promise<ProjectOpenReport> => {
+        const parsed = parseDocument(value, SECTION_CODECS);
+        const wrapperId = projectIdOf(parsed.wrapper.id);
+        const wrapperName = typeof parsed.wrapper.name === "string" ? parsed.wrapper.name : null;
+        const outcome = await openDocument2(
+            session,
+            SECTION_CODECS,
+            parsed,
+            {
+                ...(options.sections === undefined ? {} : { sections: options.sections }),
+                ...(options.rerun === undefined ? {} : { rerun: options.rerun }),
+                ...(options.dataMode === undefined ? {} : { dataMode: options.dataMode }),
+                ...(options.bindOtherData === undefined ? {} : { bindOtherData: options.bindOtherData }),
+            },
+            {
+                canned,
+                restoreDerived,
+                beforeReplace: () => {
+                    refuseUnsaved(isDirty(), options.discard);
+                    (session.assets as AssetsApiInternal).forgetProjectStorage();
+                    projectBoundary(session, "open");
+                    id = wrapperId ?? newProjectId();
+                    projectChanged?.();
+                },
+                name: wrapperName ?? nameOfFile(typeof fileName === "string" ? fileName : undefined),
+            },
+        );
+        fresh = false;
+        if (outcome.replaced) {
+            // Saved at the baseline: anything the reader did while it opened is a change.
+            adopt({ ...pointNow(), step: null });
+        }
+
+        const { extensions } = parsed.wrapper;
+        return Object.freeze({
+            opened: outcome.replaced ? ("project" as const) : ("document" as const),
+            name: nameNow(),
+            restored: Object.freeze(outcome.restored),
+            problems: Object.freeze([...before, ...outcome.problems]),
+            extensions: isJsonObject(extensions) ? extensions : {},
+        });
+    };
+
     return {
         get name() {
             return nameNow();
@@ -2726,37 +2948,23 @@ export function projectOf(
             return assetChoices(session);
         },
         save(options = {}) {
-            const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
-            // What this save was told is how the next save without a choice keeps the same URL,
-            // once its file is written: now, or at `markSaved` for a save that waits on its write.
-            // A copy that is never marked saved, or a write that failed, changes nothing.
-            const remember = (): void => {
-                for (const [url, storage] of Object.entries(options.assets ?? {})) {
-                    (session.assets as AssetsApiInternal).rememberStorage(url, storage);
+            if (options.format === 2) {
+                if (!session.features.has("save-files-v2")) {
+                    return Promise.reject(featureOff("save-files-v2", "project.save"));
                 }
-            };
 
-            const text = JSON.stringify(document);
-            const saved: SavedProject = Object.freeze({
-                text,
-                report: Object.freeze({
-                    bytes: new TextEncoder().encode(text).length,
-                    written: (document.members as { kind: string }[]).map((member) => member.kind),
-                    leftOut,
-                }),
-            });
-            fresh = false;
-            if (options.markSaved === false) {
-                const waited = pointNow();
-                waiting.add(waited);
-                pointOf.set(saved, waited);
-                rememberOf.set(saved, remember);
-            } else {
-                adopt(pointNow());
-                remember();
+                return saveVersion2(options);
             }
 
-            return Promise.resolve(saved);
+            const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
+            return Promise.resolve(
+                finishSave(
+                    document,
+                    (document.members as { kind: string }[]).map((member) => member.kind),
+                    leftOut,
+                    options,
+                ),
+            );
         },
         markSaved(saved) {
             rememberOf.get(saved)?.();
@@ -2774,15 +2982,26 @@ export function projectOf(
             const turn = line.join();
             let doc: ReturnType<typeof graphtyDocumentOf>;
             let text: string;
+            let version2: ReturnType<typeof version2Of>;
             try {
                 text = await textOf(source, options.limits?.fileBytes ?? DEFAULT_FILE_BYTES);
-                doc = graphtyDocumentOf(text);
+                // With the experiment on, a version 2 file (or, asked to, a migrated version 1
+                // file) opens through the version 2 codecs; every other file reads as before.
+                version2 = session.features.has("save-files-v2")
+                    ? version2Of(text, options.migrate === true)
+                    : undefined;
+                doc = version2 === undefined ? graphtyDocumentOf(text) : undefined;
             } catch (error) {
                 // An unreadable or refused file gives its place up, so nothing waits behind it.
                 turn.leave();
                 throw error;
             }
             const fileName = options.fileName ?? (source as { name?: unknown }).name;
+            if (version2 !== undefined) {
+                const { value, problems } = version2;
+                return line.opening(turn, () => openVersion2(value, options, fileName, problems));
+            }
+
             if (doc === undefined) {
                 // Not a graphty document: a data file, read the way session.data.prepare reads one.
                 // Nothing is loaded until its draft is, which takes a place of its own.

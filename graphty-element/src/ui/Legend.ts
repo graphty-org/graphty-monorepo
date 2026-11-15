@@ -78,7 +78,6 @@ export class LegendOverlay {
         this.element.hidden = true;
         this.#style.textContent = CSS;
         this.setPosition("top-left");
-        this.setLabel("legend");
     }
 
     /**
@@ -107,11 +106,15 @@ export class LegendOverlay {
     }
 
     /**
-     * The accessible name, which the consumer chooses.
-     * @param label - The name.
+     * The accessible name, which the consumer chooses; none when unset.
+     * @param label - The name, or undefined for none.
      */
-    setLabel(label: string): void {
-        this.element.setAttribute("aria-label", label);
+    setLabel(label: string | undefined): void {
+        if (label === undefined) {
+            this.element.removeAttribute("aria-label");
+        } else {
+            this.element.setAttribute("aria-label", label);
+        }
     }
 
     /**

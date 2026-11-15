@@ -77,7 +77,7 @@ describe("LegendOverlay", () => {
         assert.isFalse(el.hidden);
         assert.strictEqual(el.getAttribute("part"), "legend");
         assert.strictEqual(el.getAttribute("role"), "group");
-        assert.strictEqual(el.getAttribute("aria-label"), "legend");
+        assert.isNull(el.getAttribute("aria-label"), "no name of the element's own");
         const group = el.querySelector("[role=group]");
         assert.exists(group);
         const titleId = group?.getAttribute("aria-labelledby") ?? "";
@@ -128,6 +128,8 @@ describe("LegendOverlay", () => {
         view.setLabel("Leyenda");
         assert.strictEqual(view.element.dataset.position, "bottom-right");
         assert.strictEqual(view.element.getAttribute("aria-label"), "Leyenda");
+        view.setLabel(undefined);
+        assert.isNull(view.element.getAttribute("aria-label"));
 
         view.disconnect();
         assert.isNull(view.element.parentNode);

@@ -73,6 +73,13 @@ test("a layer change updates the legend, and with no bound layer it is hidden", 
     assert.exists(legend);
     assert.isTrue(legend?.hidden, "no layer binds a value");
     assert.strictEqual(legend?.dataset.position, "bottom-right");
+    assert.isNull(legend?.getAttribute("aria-label"), "no name unless the page gives one");
+    host.setAttribute("legend-label", "Leyenda");
+    await host.updateComplete;
+    assert.strictEqual(legend?.getAttribute("aria-label"), "Leyenda");
+    host.removeAttribute("legend-label");
+    await host.updateComplete;
+    assert.isNull(legend?.getAttribute("aria-label"));
 
     next = derived(host);
     const layer = await host.session.styles.encode({

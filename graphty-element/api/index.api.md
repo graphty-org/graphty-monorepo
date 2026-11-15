@@ -3510,8 +3510,8 @@ export class Graphty extends LitElement {
     set layoutScope(value: ScopeInput | undefined);
     get legend(): boolean;
     set legend(value: boolean);
-    get legendLabel(): string;
-    set legendLabel(value: string);
+    get legendLabel(): string | undefined;
+    set legendLabel(value: string | undefined);
     get legendPosition(): ScreenshotLegendPosition;
     set legendPosition(value: ScreenshotLegendPosition);
     get lighting(): Lighting;

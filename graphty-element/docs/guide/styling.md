@@ -875,7 +875,7 @@ categorical encoding, a ramp between the domain's ends for a continuous one. It 
 change to the layers and the data, and hides while no layer binds a value. It is off by default.
 
 ```html
-<graphty-element legend legend-position="bottom-left" legend-label="Key"></graphty-element>
+<graphty-element legend legend-position="bottom-left" legend-label="Leyenda"></graphty-element>
 <style>
     graphty-element::part(legend) {
         font-size: 14px; /* sizes are in em, so this scales the whole key */
@@ -885,7 +885,8 @@ change to the layers and the data, and hides while no layer binds a value. It is
 ```
 
 `legend-position` is `top-left` (the default), `top-right`, `bottom-left` or `bottom-right`;
-`legend-label` is the name a screen reader announces (`"legend"` unless set). The overlay is HTML,
+`legend-label` is the name a screen reader announces, in your page's language; unset, the
+legend has no name of its own and each field in it is named by the field's name. The overlay is HTML,
 so a screen reader reads each field's name and each value. Its words are the data's: the field's
 name, the values, and the names readers gave them. A screenshot draws the same key with
 `captureScreenshot({ legend: { position: element.legendPosition } })`.

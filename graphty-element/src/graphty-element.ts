@@ -1130,7 +1130,7 @@ export class Graphty extends LitElement {
     /** The corner it sits in; see {@link Graphty.legendPosition}. */
     #legendCorner: ScreenshotLegendPosition = "top-left";
     /** Its accessible name; see {@link Graphty.legendLabel}. */
-    #legendName = "legend";
+    #legendName: string | undefined;
     /** The legend overlay, built on first use. */
     #legendDrawn: LegendOverlay | undefined;
 
@@ -1219,8 +1219,9 @@ export class Graphty extends LitElement {
     }
 
     /**
-     * The legend's accessible name, which a screen reader announces. `"legend"` unless set; a page
-     * in another language sets its own word.
+     * The legend's accessible name, which a screen reader announces, in the page's own words.
+     * Unset by default: the legend then has no name of its own, and each field in it is still
+     * named by the field's name.
      * @since 3.40.0
      * @example
      * ```html
@@ -1229,16 +1230,17 @@ export class Graphty extends LitElement {
      * @returns The name
      */
     @property({ attribute: "legend-label" })
-    get legendLabel(): string {
+    get legendLabel(): string | undefined {
         return this.#legendName;
     }
     /**
      * Sets the legend's accessible name.
      */
-    set legendLabel(value: string) {
+    set legendLabel(value: string | undefined) {
         const oldValue = this.#legendName;
-        this.#legendName = value;
-        this.#legendDrawn?.setLabel(value);
+        // Removing the attribute sets null: that is no name, as unset is.
+        this.#legendName = value ?? undefined;
+        this.#legendDrawn?.setLabel(this.#legendName);
         this.requestUpdate("legendLabel", oldValue);
     }
 

@@ -96,6 +96,7 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/a-layer-added-later-paints.test.ts",
     "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
     "test/browser/label-textures-fit-across-frames.test.ts",
+    "test/browser/branches-view-scaling.test.ts",
 ];
 
 /**
@@ -378,6 +379,16 @@ const PICTURE_TYPES: Readonly<Record<string, string>> = {
  * shares one context across its files, and the map tile guard must keep seeing its own requests).
  */
 const refusedPictures = new WeakMap<object, string[] | null>();
+
+/**
+ * Emulate the reader's reduced-motion preference, or clear it (test/browser/reduced-motion.test.ts). In the `browser`
+ * project's `commands`.
+ * @param ctx - the browser command context
+ * @param reduce - true for `prefers-reduced-motion: reduce`, false for no preference
+ */
+const emulateReducedMotion: BrowserCommand<[reduce: boolean]> = async (ctx, reduce) => {
+    await ctx.page.emulateMedia({ reducedMotion: reduce ? "reduce" : "no-preference" });
+};
 
 /**
  * The commands the style fidelity harness (test/fidelity/mount.ts) runs around loading a sample, in the `commands` of
@@ -1057,7 +1068,7 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: { ...mapTileCommands, ...samplePictureCommands },
+                        commands: { ...mapTileCommands, ...samplePictureCommands, emulateReducedMotion },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),

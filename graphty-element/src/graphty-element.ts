@@ -14,6 +14,7 @@ import type {
     AutosaveRestored,
     AutosaveStatus,
 } from "./autosave/types";
+import type { GraphOverview, OverviewOptions } from "./camera/overview";
 import type { CameraViewExtent, ViewInsets } from "./camera/types";
 import { layoutDescriptor, layoutIdForEngine } from "./catalog/layouts";
 import type {
@@ -98,6 +99,7 @@ import type {
     TransactionScope,
 } from "./session/types";
 import type { VisibilityChange } from "./session/visibility";
+import { Minimap } from "./ui/Minimap";
 import { downloadBlob } from "./utils/download";
 
 /**
@@ -193,6 +195,21 @@ export class Graphty extends LitElement {
            anywhere on the page; see the constructor. */
         [data-pointer-focus] canvas:focus-visible {
             outline: none;
+        }
+
+        /* The minimap's defaults: small, in a corner, plain. Restyle it from the page with
+           ::part(minimap); its points and viewport rectangle are drawn in its color. */
+        [part="minimap"] {
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            width: 160px;
+            height: 160px;
+            box-sizing: border-box;
+            border: 1px solid #888;
+            background: rgb(255 255 255 / 75%);
+            color: #444;
+            touch-action: none;
         }
     `;
 
@@ -797,6 +814,10 @@ export class Graphty extends LitElement {
 
         this.#wired = true;
         this.renderRoot.appendChild(this.#element);
+        if (this.#minimapOn) {
+            this.#minimapView.attach(this.renderRoot);
+        }
+
         this.#reportStrayObjectAttributes();
 
         // Autosave reads its key and options in the task after connecting, so a script that sets
@@ -3205,6 +3226,91 @@ export class Graphty extends LitElement {
         this.requestUpdate("labelDeclutter", oldValue);
     }
 
+    /** Whether the minimap is shown; see {@link Graphty.minimap}. */
+    #minimapOn = false;
+
+    /** The minimap overlay, built on first use. */
+    #minimapDrawn: Minimap | undefined;
+
+    /** The accessible name the minimap carries; see {@link Graphty.minimapLabel}. */
+    #minimapName = "minimap";
+
+    /**
+     * The minimap overlay, built on first use.
+     * @returns The overlay.
+     */
+    get #minimapView(): Minimap {
+        if (this.#minimapDrawn === undefined) {
+            this.#minimapDrawn = new Minimap(this);
+            this.#minimapDrawn.setLabel(this.#minimapName);
+        }
+
+        return this.#minimapDrawn;
+    }
+
+    /**
+     * Whether a minimap is drawn over the graph: every node seen from where the camera looks (a
+     * density heatmap above 5,000 nodes) and the rectangle the view shows. A click on it centres
+     * the view there, a drag scrubs, and with it focused the arrow keys step the view.
+     * @remarks
+     * A preference of this view, not part of the project: switching it, and moving the camera with
+     * it, records no undo step. Off by default. It is a canvas in the shadow root, exposed as
+     * `::part(minimap)`: set its size, place, border and background from the page, and the color
+     * its points and rectangle are drawn in with `color`. To draw a minimap of your own instead,
+     * see {@link Graphty.getOverview}.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element minimap></graphty-element>
+     * <style>
+     *     graphty-element::part(minimap) { left: 8px; right: auto; width: 200px; color: teal; }
+     * </style>
+     * ```
+     * @returns True when the minimap is shown
+     */
+    @property({ attribute: "minimap", type: Boolean, reflect: true })
+    get minimap(): boolean {
+        return this.#minimapOn;
+    }
+    /**
+     * Shows or hides the minimap.
+     */
+    set minimap(value: boolean) {
+        const oldValue = this.#minimapOn;
+        this.#minimapOn = value;
+        if (!value) {
+            this.#minimapDrawn?.detach();
+        } else if (this.#wired) {
+            this.#minimapView.attach(this.renderRoot);
+        }
+
+        this.requestUpdate("minimap", oldValue);
+    }
+
+    /**
+     * The minimap's accessible name, which a screen reader announces. `"minimap"` unless set;
+     * a page in another language sets its own word.
+     * @since 3.40.0
+     * @example
+     * ```html
+     * <graphty-element minimap minimap-label="Carte"></graphty-element>
+     * ```
+     * @returns The name
+     */
+    @property({ attribute: "minimap-label" })
+    get minimapLabel(): string {
+        return this.#minimapName;
+    }
+    /**
+     * Sets the minimap's accessible name.
+     */
+    set minimapLabel(value: string) {
+        const oldValue = this.#minimapName;
+        this.#minimapName = value;
+        this.#minimapDrawn?.setLabel(value);
+        this.requestUpdate("minimapLabel", oldValue);
+    }
+
     /**
      * How fast the 3D view turns on its own, in radians per second.
      * @remarks
@@ -3778,6 +3884,45 @@ export class Graphty extends LitElement {
             value === undefined || value === null || !Number.isFinite(value) ? undefined : value,
         );
         this.requestUpdate("cameraTransitionDuration", oldValue);
+    }
+
+    /**
+     * Whether the graph reduces motion for its reader.
+     * @remarks
+     * True: every camera move (fitting the graph, a preset view, the glide to a picked node)
+     * jumps to its end, `autoRotate` holds still, a layout transition is skipped, and a running
+     * layout is drawn once it has settled instead of moving into place. `"auto"`: the same while
+     * the platform asks for reduced motion (`prefers-reduced-motion: reduce`), following it as it
+     * changes. False (the default): nothing changes. As an attribute, `reduced-motion` alone or
+     * `reduced-motion="true"` is true, and `reduced-motion="auto"` is `"auto"`. A preference of
+     * this view, not saved with the project.
+     * @since 3.54.0
+     * @example
+     * ```html
+     * <graphty-element reduced-motion="auto"></graphty-element>
+     * ```
+     * @returns true, false or "auto"
+     */
+    @property({
+        attribute: "reduced-motion",
+        converter: (value: string | null): boolean | "auto" => {
+            if (value === "auto") {
+                return "auto";
+            }
+
+            return value !== null && value !== "false";
+        },
+    })
+    get reducedMotion(): boolean | "auto" {
+        return this.#graph.getReducedMotion();
+    }
+    /**
+     * Sets whether the graph reduces motion.
+     */
+    set reducedMotion(value: boolean | "auto") {
+        const oldValue = this.reducedMotion;
+        this.#graph.setReducedMotion(value);
+        this.requestUpdate("reducedMotion", oldValue);
     }
 
     /**
@@ -5898,6 +6043,55 @@ export class Graphty extends LitElement {
      */
     screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
         return this.#graph.screenToWorld(screenPos);
+    }
+
+    /**
+     * Everything a minimap needs: every placed node seen along the current view direction, laid
+     * flat in a unit frame (x right, y down, 0 to 1, the same scale on both axes), and `viewport`,
+     * the part of that frame the camera shows. {@link Graphty.minimap} draws a minimap from this; to
+     * draw your own, read it and redraw on `overview-changed`.
+     *
+     * Up to `maxPoints` placed nodes (default 5000) it returns one point per node; above that a
+     * `gridSize` by `gridSize` density grid (default 64) instead, so the result stays small.
+     * Reading costs one pass over the nodes after the nodes or the view direction moved, and
+     * nothing more while only the viewport moved (a 2D pan or zoom).
+     * @param options - `maxPoints` and `gridSize`.
+     * @returns The overview; empty, with a zero viewport, while no node is placed.
+     * @example
+     * ```ts
+     * element.addEventListener("overview-changed", () => {
+     *     const { points, viewport } = element.getOverview();
+     *     ctx.clearRect(0, 0, 150, 150);
+     *     for (let i = 0; i < points.length; i += 2) ctx.fillRect(points[i] * 150, points[i + 1] * 150, 2, 2);
+     *     ctx.strokeRect(viewport.x * 150, viewport.y * 150, viewport.width * 150, viewport.height * 150);
+     * });
+     * ```
+     */
+    getOverview(options?: OverviewOptions): GraphOverview {
+        return this.#graph.getOverview(options);
+    }
+
+    /**
+     * Move the camera so the view is centred on a point of the overview frame, keeping its zoom
+     * and direction: click-to-centre and drag-to-scrub on a minimap. It changes only the camera,
+     * so it is not an undo step. Does nothing while no node is placed.
+     * @param point - The point, in the frame {@link Graphty.getOverview} returns (0 to 1, y down).
+     * @param point.x - Frame x.
+     * @param point.y - Frame y.
+     * @param options - Animation options, as for `setCameraState`.
+     * @returns Resolves once the camera is there.
+     * @example
+     * ```ts
+     * minimap.addEventListener("pointerdown", (e) => {
+     *     void element.centerOnOverview({ x: e.offsetX / 150, y: e.offsetY / 150 });
+     * });
+     * ```
+     */
+    async centerOnOverview(
+        point: { x: number; y: number },
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        return this.#graph.centerOnOverview(point, options);
     }
 
     /**

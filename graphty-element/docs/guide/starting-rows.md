@@ -33,10 +33,19 @@ console.log(session.styles.counts(hovered.id).matched); // 1
 | Hovered    | the node under the pointer   | top    | nothing                                     |
 
 The Selected ring is a solid halo and the band a solid band, both in the `selectionStyle` colors
-and sizes (a gold ring and a blue band by default). The gold ring stands out on the dark
-backgrounds and on dark node colors; on the light default background and light node colors it is
-faint, so set `selectionStyle` (or edit the Selected row) to a darker color, or add a glow to the
-row, if your graph needs more contrast there.
+and sizes (blue, `#0077BB`, by default). That blue stands at least 3:1 off the light default
+background and off dark ones such as `#202020`, the contrast WCAG 1.4.11 asks of a state
+indicator. On a mid-gray background, or for a ring that also stands off the node it surrounds, set
+`selectionStyle` (or edit the Selected row) to a color of your own, or add a glow or border to the
+row.
+
+To stop drawing the selection, delete the Selected row (or hide it); the selection itself is
+unchanged:
+
+```ts
+const selected = session.styles.tree().find((row) => row.name === "Selected")!;
+await session.styles.deleteRow(selected.id);
+```
 
 Selected and Hovered use the selector `{ match: "state", state: "selected" }` (or `"hovered"`),
 which you can use in any layer of your own. They follow the selection and the pointer as they

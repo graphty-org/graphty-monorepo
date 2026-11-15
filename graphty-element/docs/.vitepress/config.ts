@@ -84,6 +84,7 @@ export default defineConfig({
                         { text: "Renderer", link: "/guide/renderer" },
                         { text: "Algorithms", link: "/guide/algorithms" },
                         { text: "Result Columns", link: "/guide/result-columns" },
+                        { text: "Computed Columns", link: "/guide/computed-columns" },
                         { text: "What a Run Painted", link: "/guide/run-painting" },
                         { text: "Filter Conditions", link: "/guide/filter-conditions" },
                         { text: "Hidden Nodes", link: "/guide/hidden-nodes" },

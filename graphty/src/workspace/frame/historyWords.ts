@@ -175,6 +175,7 @@ const WORDS: Readonly<Record<HistoryCode, (params: Params, session: GraphSession
     "data.set-type": () => "changing a column's type",
     "data.hide-columns": () => "hiding columns",
     "data.show-columns": () => "showing columns",
+    "data.derive": (p) => (typeof p.column === "string" ? `computing ${p.column}` : "updating the computed columns"),
     "style.add-layer": (p, s) => `adding the layer ${layerWords(s, p)}`,
     "style.update-layer": (p, s) => {
         const what = channels(p.channels);

@@ -398,17 +398,26 @@ const ASSET_FILE_EXTENSIONS: Readonly<Record<AssetKind, readonly string[]>> = Ob
     image: Object.freeze([...IMAGE_EXTENSIONS].map((ext) => `.${ext}`)),
 });
 
+/** A model's own files and a .zip, without the parts it may come with. */
+const MAIN_MODEL_EXTENSIONS: readonly string[] = Object.freeze(
+    [...Object.keys(BUILT_IN_EXTENSIONS), "zip"].map((ext) => `.${ext}`),
+);
+
 /**
  * The file extensions this package reads for a model or a picture, with the dot, for a file
  * chooser's `accept`: a picture's formats, or a model's with the parts it may come with (glTF
  * buffers, OBJ materials, its pictures) and a .zip holding them.
  * @param kind - `"model"` or `"image"`.
+ * @param options - `parts: false` lists a model's own files and a .zip only, for a chooser that
+ *     takes the model first and asks for its parts after (a browser may grey out a part's
+ *     extension, such as `.mtl`, that it has no file type for). Default: `parts: true`.
+ * @param options.parts - Whether a model's parts are listed.
  * @returns The extensions, lower case.
  * @example
  * ```ts
  * input.accept = assetFileExtensions("model").join(",");
  * ```
  */
-export function assetFileExtensions(kind: AssetKind): readonly string[] {
-    return ASSET_FILE_EXTENSIONS[kind];
+export function assetFileExtensions(kind: AssetKind, options: { readonly parts?: boolean } = {}): readonly string[] {
+    return kind === "model" && options.parts === false ? MAIN_MODEL_EXTENSIONS : ASSET_FILE_EXTENSIONS[kind];
 }

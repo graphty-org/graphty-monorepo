@@ -48,6 +48,8 @@ async function settle(element: Graphty): Promise<void> {
  */
 async function trace(): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    // Ghosts are drawn with the working graph off; on, nothing outside the window is drawn.
+    element.workingGraph = false;
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";

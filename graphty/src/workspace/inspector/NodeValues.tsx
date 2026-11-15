@@ -25,6 +25,7 @@ import {
     attributeSummary,
     count,
     DEGREE_ROW_WORDS,
+    degreeLabel,
     edgeName,
     formatNumber,
     groupName,
@@ -187,7 +188,7 @@ export function NodeValues({ id }: Readonly<{ id: NodeId }>): React.JSX.Element 
                     <Tooltip label={DEGREE_ROW_WORDS} position="left">
                         <div ref={degree}>
                             <DataRow
-                                name="Degree"
+                                name={degreeLabel(session)}
                                 value={connections}
                                 description={DEGREE_ROW_WORDS}
                                 trailing={<UiGlyph name="chevronRight" size={PANEL_GRID.GLYPH} />}
@@ -670,7 +671,11 @@ export function SeveralValues({ version }: Readonly<{ version: number }>): React
                     <DataRow stat name="Edges joining these nodes" value={statistics.inducedEdges} />
                 )}
                 {statistics.degree !== undefined && (
-                    <DataRow stat name="Degree" value={rangeWords(statistics.degree.min, statistics.degree.max)} />
+                    <DataRow
+                        stat
+                        name={degreeLabel(session)}
+                        value={rangeWords(statistics.degree.min, statistics.degree.max)}
+                    />
                 )}
                 {summaryRows(session, statistics).map(({ path, name, value }) => (
                     <DataRow key={path} stat name={name} value={value} />

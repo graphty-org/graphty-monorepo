@@ -1170,6 +1170,26 @@ never drawn and the texture rested on the old landing. The table now remembers t
 Counted in `shared-device-drawn.test.ts` ("draws a layout switched to while a landing is owed on the card": the
 texture equals the CPU copy after the switch; worst difference 57.8 before the fix).
 
+As built (cosmos-gap stage 128): the same owed publish now covers a renderer that does not share the layout's device
+(WebGL, or WebGPU on its own device), under renderPath "batched" only. Before, every landing there ran the CPU publish:
+`publishColumn` over every row, the repack and the upload, about 43 ms of a 134 ms layout frame at 1M + 1M. Now
+`Graph.getDrawnTarget` offers the table on any renderer under "batched", with `device` null when it is not shared; the
+simulation sets its drawn ring with `readBack: true` (`DrawnOutput.readBack` in webgpu-graph-algorithms), so the ring is
+filled on the layout's own device exactly as on a shared one and each batch adds its landed slot to the same mapped
+readback as the scene rows (one map a batch, 16 more bytes a row), offered as `landedDrawnRows`. The publish hands those
+rows to `RowTable.uploadLanded`, which sends them to the `rowPosition` texture as they came (two `updateTextureData`
+calls, whole lines and the last partial one) without writing the CPU copy, and marks the lane's `changes` as copied, as
+`copyLanded` does; the lane is then owed the publish exactly as in the paragraph above, and the told-row resend, skip
+mask, transform and owed box are the same code. A shared engine whose device is not ready still gets no target, so it
+publishes by upload. Counted in `test/gpu-loss/separate-device-drawn.test.ts` (WebGL renderer, GPU layout on its own
+device): across three landings `ElementPositions.changes`, `RowTable.repackedRows` and the engine's `rowsWalked` do not
+move while `RowTable.landedUploads` does; a node read publishes the rows and the texture equals the CPU copy; a layout
+switched to while a landing is owed is drawn; under "objects" there is no table and every landing writes the lane.
+What is left per landing on the CPU is the envelope (two read-only passes over the read-back, about 15 ms a frame at
+1M rows, the next cost to move to the GPU) and the readback's own copy. Measured on WebGL, interleaved against
+origin/master with the GPU lock held, load average 11-35: the 1M + 1M layout frame median went from 134, 172 and 176 ms
+to 97, 99 and 104 ms, short of the 90 ms target by the envelope's share.
+
 ### 4.6 Columns and load (#3249)
 
 - **Lazy objects.** Under `"batched"`, `buildNode` and `buildEdge` stop running at load for eligible rows. `nodes`, `edges`, `edgesByIndex`,

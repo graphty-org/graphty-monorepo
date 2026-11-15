@@ -648,6 +648,57 @@ function pointedAt(event: React.PointerEvent<HTMLElement>, min: number, max: num
 }
 
 /**
+ * The selection's count in each bin, for the line over the bars.
+ * @param profile - the selection's bins, or null with no selection.
+ * @param countOf - what a bin counts.
+ * @returns the counts, or null when there is no line to draw.
+ */
+function profileCounts(profile: readonly TimeBin[] | null, countOf: (bin: TimeBin) => number): number[] | null {
+    return profile === null || profile.length === 0 ? null : profile.map(countOf);
+}
+
+/**
+ * The chart's tooltip: the words of the bin under the pointer.
+ * @param props - Component props
+ * @param props.binAt - the bin at a value on the axis.
+ * @param props.binWords - a bin's words.
+ * @param props.min - the axis's start.
+ * @param props.max - the axis's end.
+ * @param props.children - the chart.
+ * @returns the chart with its tooltip.
+ */
+function ChartTooltip({
+    binAt,
+    binWords,
+    min,
+    max,
+    children,
+}: Readonly<{
+    binAt: (value: number) => TimeBin | undefined;
+    binWords: (bin: TimeBin) => string;
+    min: number;
+    max: number;
+    children: React.ReactNode;
+}>): React.JSX.Element {
+    const [at, setAt] = useState<number | null>(null);
+    const bin = at === null ? undefined : binAt(at);
+    return (
+        <Tooltip.Floating label={bin === undefined ? "" : binWords(bin)} disabled={bin === undefined}>
+            <div
+                onPointerMove={(event) => {
+                    setAt(pointedAt(event, min, max));
+                }}
+                onPointerLeave={() => {
+                    setAt(null);
+                }}
+            >
+                {children}
+            </div>
+        </Tooltip.Floating>
+    );
+}
+
+/**
  * The dock, or nothing while no time field is designated.
  * @returns the dock.
  */
@@ -660,8 +711,6 @@ export function TimeDock(): React.JSX.Element | null {
     const [drag, setDrag] = useState<[number, number] | null>(null);
     // A brush gesture under way; a whole-window drag's release commits it as its own step.
     const hold = useRef<BrushHold | null>(null);
-    // Where on the axis the pointer rests over the chart, for its tooltip.
-    const [hoverAt, setHoverAt] = useState<number | null>(null);
     const { ref, width } = useBoxSize();
     const phone = useMediaQuery(PHONE_WIDTH, false, { getInitialValueInEffect: false });
     const maxCount = Math.max(10, Math.floor((width > 0 ? width : 300) / PX_PER_BIN));
@@ -705,7 +754,7 @@ export function TimeDock(): React.JSX.Element | null {
             ? null
             : time.bins({ ...view, maxCount, of: { nodes, edges, incident: true } });
     const step = window?.step;
-    const selected = profile === null || profile.length === 0 ? null : profile.map(countOf);
+    const selected = profileCounts(profile, countOf);
     // A bin's words, as its tooltip, its row for a screen reader and a thumb's name: what it holds,
     // and with a selection, how many of those are the selection's.
     const binWords = (bin: TimeBin): string =>
@@ -740,7 +789,6 @@ export function TimeDock(): React.JSX.Element | null {
     const legend = <SelectionLegend shown={selected !== null} />;
     const viewButtons = <ViewButtons session={session} store={store} zoomed={view !== null} reset={reset} />;
     const allTime = <AllTimeButton session={session} store={store} />;
-    const hovered = hoverAt === null ? undefined : binAt(hoverAt);
     // Always the bar's last button, at its right end, whatever comes and goes before it.
     const settingsButton = (
         <div className="tl-settings">
@@ -749,53 +797,44 @@ export function TimeDock(): React.JSX.Element | null {
     );
     const chart = (
         <div className="tl-chart" data-panel-start="" ref={chartRef}>
-            <Tooltip.Floating label={hovered === undefined ? "" : binWords(hovered)} disabled={hovered === undefined}>
-                <div
-                    onPointerMove={(event) => {
-                        setHoverAt(pointedAt(event, min, max));
+            <ChartTooltip binAt={binAt} binWords={binWords} min={min} max={max}>
+                <HistogramRow
+                    label={label}
+                    bins={all.map((bin, index) => {
+                        const inside = window !== null && overlaps(bin, range);
+                        const shown = countOf(visible[index]);
+                        return {
+                            label: binWords(bin),
+                            count: shown,
+                            ghost: countOf(bin),
+                            from: bin.start,
+                            to: bin.end,
+                            // Lit only for a bin holding something the window shows; outside it, dimmed.
+                            highlighted: inside && shown > 0,
+                            dimmed: window !== null && !inside,
+                        };
+                    })}
+                    minLabel={minLabel}
+                    maxLabel={maxLabel}
+                    {...(selected === null ? {} : { overlay: { label: "Selection over time", values: selected } })}
+                    brush={{
+                        min,
+                        max,
+                        step: Math.min(brushStep(first?.step), brushStep(step)),
+                        value: range,
+                        startLabel: "Window start",
+                        endLabel: "Window end",
+                        bodyLabel: "Window",
+                        valueText,
+                        rangeText: (value) => rangeWords(value[0], value[1], unit, step, zone),
+                        thumbLabel: (value) => {
+                            const bin = binAt(value);
+                            return bin === undefined ? instantWords(value, unit, step, zone) : binWords(bin);
+                        },
+                        ...brushGesture(session, store, setDrag, hold, pinched, shown),
                     }}
-                    onPointerLeave={() => {
-                        setHoverAt(null);
-                    }}
-                >
-                    <HistogramRow
-                        label={label}
-                        bins={all.map((bin, index) => {
-                            const inside = window !== null && overlaps(bin, range);
-                            const shown = countOf(visible[index]);
-                            return {
-                                label: binWords(bin),
-                                count: shown,
-                                ghost: countOf(bin),
-                                from: bin.start,
-                                to: bin.end,
-                                // Lit only for a bin holding something the window shows; outside it, dimmed.
-                                highlighted: inside && shown > 0,
-                                dimmed: window !== null && !inside,
-                            };
-                        })}
-                        minLabel={minLabel}
-                        maxLabel={maxLabel}
-                        {...(selected === null ? {} : { overlay: { label: "Selection over time", values: selected } })}
-                        brush={{
-                            min,
-                            max,
-                            step: Math.min(brushStep(first?.step), brushStep(step)),
-                            value: range,
-                            startLabel: "Window start",
-                            endLabel: "Window end",
-                            bodyLabel: "Window",
-                            valueText,
-                            rangeText: (value) => rangeWords(value[0], value[1], unit, step, zone),
-                            thumbLabel: (value) => {
-                                const bin = binAt(value);
-                                return bin === undefined ? instantWords(value, unit, step, zone) : binWords(bin);
-                            },
-                            ...brushGesture(session, store, setDrag, hold, pinched, shown),
-                        }}
-                    />
-                </div>
-            </Tooltip.Floating>
+                />
+            </ChartTooltip>
         </div>
     );
 

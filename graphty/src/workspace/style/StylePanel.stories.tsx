@@ -695,8 +695,10 @@ export const CustomModelUrlError: Story = nodeModelsStory(
         const dialog = await openCustomModel();
         const address = within(dialog).getByRole("textbox", { name: "Model address" });
         await userEvent.type(address, "https://example.invalid/no-such-model/police.glb{Enter}");
+        // While it loads the dialog takes its two-column layout, so the field it comes back to is a new one.
         await waitFor(() => {
-            expect(address.getAttribute("aria-invalid")).toBe("true");
+            const field = within(dialog).getByRole("textbox", { name: "Model address" });
+            expect(field.getAttribute("aria-invalid")).toBe("true");
         });
     }),
     "Custom model, address error",

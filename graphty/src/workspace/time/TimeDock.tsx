@@ -600,6 +600,44 @@ function SettingsButton(): React.JSX.Element {
 }
 
 /**
+ * What the line over the bars is, while it is drawn: a swatch of it and its name.
+ * @param props - Component props
+ * @param props.shown - whether the line is drawn.
+ * @returns the legend, or nothing.
+ */
+function SelectionLegend({ shown }: Readonly<{ shown: boolean }>): React.JSX.Element | null {
+    if (!shown) {
+        return null;
+    }
+    return (
+        <Group gap={4} wrap="nowrap" className="tl-legend">
+            <svg width="16" height="8" aria-hidden="true">
+                <line x1="0" y1="4" x2="16" y2="4" />
+            </svg>
+            <Text size="xs" c="dimmed">
+                Selection
+            </Text>
+        </Group>
+    );
+}
+
+/**
+ * Where on the axis the pointer rests over the chart, for its tooltip: nowhere over a bar the
+ * brush leaves uncovered, which has its own.
+ * @param event - the pointer's move.
+ * @param min - the axis's start, at the chart's left edge.
+ * @param max - the axis's end, at its right edge.
+ * @returns the value there, or null.
+ */
+function pointedAt(event: React.PointerEvent<HTMLElement>, min: number, max: number): number | null {
+    const box = event.currentTarget.getBoundingClientRect();
+    if ((event.target as Element).hasAttribute("title") || box.width === 0) {
+        return null;
+    }
+    return min + ((event.clientX - box.left) / box.width) * (max - min);
+}
+
+/**
  * The dock, or nothing while no time field is designated.
  * @returns the dock.
  */
@@ -689,28 +727,11 @@ export function TimeDock(): React.JSX.Element | null {
         </Text>
     );
     // What the line over the bars is, while it is drawn: a swatch of it and its name.
-    const legend =
-        selected === null ? null : (
-            <Group gap={4} wrap="nowrap" className="tl-legend">
-                <svg width="16" height="8" aria-hidden="true">
-                    <line x1="0" y1="4" x2="16" y2="4" />
-                </svg>
-                <Text size="xs" c="dimmed">
-                    Selection
-                </Text>
-            </Group>
-        );
+    const legend = <SelectionLegend shown={selected !== null} />;
     const viewButtons = <ViewButtons session={session} store={store} zoomed={view !== null} reset={reset} />;
     const allTime = <AllTimeButton session={session} store={store} />;
-    // Always the bar's last button, at its right end, whatever comes and goes before it.
     const hovered = hoverAt === null ? undefined : binAt(hoverAt);
-    // A bar the brush leaves uncovered has its own tooltip; elsewhere over the chart, this names the
-    // bin under the pointer.
-    const hover = (event: React.PointerEvent<HTMLDivElement>): void => {
-        const box = event.currentTarget.getBoundingClientRect();
-        const covered = !(event.target as Element).hasAttribute("title");
-        setHoverAt(covered && box.width > 0 ? min + ((event.clientX - box.left) / box.width) * (max - min) : null);
-    };
+    // Always the bar's last button, at its right end, whatever comes and goes before it.
     const settingsButton = (
         <div className="tl-settings">
             <SettingsButton />
@@ -720,7 +741,9 @@ export function TimeDock(): React.JSX.Element | null {
         <div className="tl-chart" data-panel-start="" ref={chartRef}>
             <Tooltip.Floating label={hovered === undefined ? "" : binWords(hovered)} disabled={hovered === undefined}>
                 <div
-                    onPointerMove={hover}
+                    onPointerMove={(event) => {
+                        setHoverAt(pointedAt(event, min, max));
+                    }}
                     onPointerLeave={() => {
                         setHoverAt(null);
                     }}

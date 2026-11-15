@@ -18,13 +18,14 @@ import { gunzipSync } from "node:zlib";
 
 import { assert, describe, it } from "vitest";
 
-import { createGraphSession, FILE_STYLE_ISSUE, fileStyleOf, type GraphSession, type LayerSpec } from "../../session";
+import { createGraphSession, FILE_STYLE_ISSUE, type GraphSession, type LayerSpec } from "../../session";
 import { type ExportResult, exportSession } from "../../src/data/export";
 import { GraphtyError } from "../../src/errors";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import type { ExplainTarget } from "../../src/session/styles/explain";
 import { fileStylesOn } from "../helpers/file-styles-on";
+import { loadedLayers } from "../helpers/loaded-layers";
 
 fileStylesOn();
 
@@ -377,7 +378,7 @@ async function corpusSession(type: string, path: string): Promise<GraphSession |
     const stored = new Uint8Array(readFileSync(path));
     const data = path.endsWith(".gz") ? new Uint8Array(gunzipSync(stored)) : stored;
     await session.data.import({ type, config: { data } }, { styles: "file" });
-    if (!session.styles.list().some((layer) => fileStyleOf(layer) !== null)) {
+    if (loadedLayers(session).length === 0) {
         session.dispose();
         return null;
     }

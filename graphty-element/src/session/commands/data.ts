@@ -11,8 +11,8 @@
  *   `<kind>:<name>` so it is saved and undone like any other project change.
  * - `data.setSource`: the source the graph was loaded from, the `source` graph value
  *   `data.source()` reads: a new name for it, or the source a project file recorded.
- * - `data.setFileStyles`: the per-element style values the layers made from files read at
- *   `graphty.style.<namespace>.<kind>.<key>`, kept beside the data and never in its records.
+ * - `data.setStyleValues`: the per-element style values layers read at
+ *   `graphty.style.<set>.<kind>.<key>`, kept beside the data and never in its records.
  * - `data.columns`: the column settings -- hidden columns, value types, renames -- kept as the
  *   `columns` graph value, and with a rename the column's declaration moved to its new name.
  *
@@ -46,8 +46,8 @@ import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
 import { type Provenance, PROVENANCE_VALUE } from "../sources/provenance";
-import { applyFileStyles, asksFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
-import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
+import { applyFileStyles, asksFileStyles, importedLayersOf, type ImportOutcome } from "../styles/fileStyles/apply";
+import { STYLE_VALUES_VALUE, type StyleValueSet, styleValueStoreOf } from "../styles/fileStyles/store";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { Selector } from "../styles/selector";
@@ -468,13 +468,13 @@ interface DataLabelCommand {
 }
 
 /**
- * `data.setFileStyles`: replace the per-element style values the layers made from files read, one
- * entry per load. An empty list removes them all.
+ * `data.setStyleValues`: replace the per-element style values layers read, one entry per named set.
+ * An empty list removes them all. Any caller may write them; a load writes its file's values here.
  * @experimental file-styles
  */
-interface DataSetFileStylesCommand {
-    readonly op: "data.setFileStyles";
-    readonly loads: readonly FileStyleLoadValues[];
+interface DataSetStyleValuesCommand {
+    readonly op: "data.setStyleValues";
+    readonly sets: readonly StyleValueSet[];
 }
 
 /**
@@ -518,7 +518,7 @@ export type DataCommand =
     | DataExpandCommand
     | DataDeclareCommand
     | DataSetSourceCommand
-    | DataSetFileStylesCommand
+    | DataSetStyleValuesCommand
     | DataLabelCommand
     | DataColumnsCommand;
 
@@ -1008,6 +1008,8 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
 
         const replacing = command.mode !== "merge" && command.measure === undefined;
         const picked = replacing ? pickedEdges(ctx) : [];
+        // Read before the import replaces the graph, whose values it sweeps.
+        const previousLayers = importedLayersOf(ctx.state);
         const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
         refreshDerivedAfter(ctx);
         if (outcome !== null && outcome !== undefined) {
@@ -1017,7 +1019,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         // The time field the file declares, designated in this same step.
         await designateDeclaredTime(outcome?.reader?.declaredTime, ctx);
         // The file's styles, and the previous file's layers swept, in this same step.
-        sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
+        sceneScale = await applyFileStyles(command, outcome ?? null, ctx, previousLayers);
         if (layoutChoiceOf(command) === "recommended") {
             // Whether a Graphviz engine can draw the file is a question for a Worker, so it is
             // asked here, before the step seals and the recommendation is read.
@@ -1268,28 +1270,28 @@ const dataSetSource: UndoableDefinition<DataSetSourceCommand> = {
     },
 };
 
-const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
-    op: "data.setFileStyles",
+const dataSetStyleValues: UndoableDefinition<DataSetStyleValuesCommand> = {
+    op: "data.setStyleValues",
     undo: {
         kind: "undoable",
-        label: () => "Set the style values of loaded files",
+        label: () => "Set style values",
         fact: (command) => ({
-            code: "data.set-file-styles",
-            params: { loads: Array.isArray(command.loads) ? command.loads.length : 0 },
+            code: "data.set-style-values",
+            params: { sets: Array.isArray(command.sets) ? command.sets.length : 0 },
         }),
     },
     moves: false,
-    keys: () => [`graph/v:${FILE_STYLES_VALUE}`],
+    keys: () => [`graph/v:${STYLE_VALUES_VALUE}`],
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
-        // Writing a file's style values is the file styles experiment; only a project open restores
-        // saved ones with it off, so reopening and saving a project keeps them.
+        // Writing style values is the file styles experiment; only a project open restores saved
+        // ones with it off, so reopening and saving a project keeps them.
         if (ctx.services.fileStyles?.() === false && ctx.services.restoringFileStyles !== true) {
-            throw featureOff("file-styles", "data.setFileStyles");
+            throw featureOff("file-styles", "data.setStyleValues");
         }
 
         // Checked before anything is written: the values may come from a file anyone edited.
-        const store = fileStyleStoreOf(command.loads);
+        const store = styleValueStoreOf(command.sets);
         const service = serviceOf(ctx.services.data);
         if (service.values === undefined) {
             throw new GraphtyError({
@@ -1299,7 +1301,7 @@ const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
             });
         }
 
-        service.values({ [FILE_STYLES_VALUE]: store.loads.length === 0 ? undefined : store }, ctx.draft);
+        service.values({ [STYLE_VALUES_VALUE]: store.sets.length === 0 ? undefined : store }, ctx.draft);
     },
 };
 
@@ -1439,7 +1441,7 @@ export const DATA_DEFINITIONS = [
     dataExpand,
     dataDeclare,
     dataSetSource,
-    dataSetFileStyles,
+    dataSetStyleValues,
     dataLabel,
     dataColumns,
 ] as const;

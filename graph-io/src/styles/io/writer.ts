@@ -14,6 +14,7 @@ import { toolDefaults } from "../defaults.js";
 import { styleFingerprint } from "../plan/features.js";
 import { drawnAnyway } from "../plan/plan.js";
 import { canonicalFor, dataCell, degreeValues, plainCell, resolveStyles } from "../plan/resolve.js";
+import { unsettledStyles } from "../settle.js";
 import type {
     ExtractedStyles,
     Mapping,
@@ -83,16 +84,18 @@ const TARGETS: readonly StyleTarget[] = ["node", "edge"];
  * `options.styles`, and the snapshot to write.
  * @param snapshot - the graph being written
  * @param exporter - the format's exporter
- * @param given - the styles
+ * @param settled - the styles, as `extractStyles()` gave them or built for this graph
  * @param plain - the export's other options, which decide what the format loses of the graph's data
  * @returns what to write and what is lost
  */
 export function prepareStyleExport(
     snapshot: GraphSnapshot,
     exporter: GraphExporter,
-    given: ExtractedStyles,
+    settled: ExtractedStyles,
     plain?: Readonly<Record<string, unknown>>,
 ): PreparedStyleExport {
+    // write what the file read, not what was settled for drawing: the program's own spellings and no derived values
+    const given = unsettledStyles(settled);
     const fp = styleFingerprint(snapshot);
     const want = given.fingerprint;
     if (fp.nodes !== want.nodes || fp.edges !== want.edges || fp.ids !== want.ids) {

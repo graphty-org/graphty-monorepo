@@ -948,7 +948,6 @@ export abstract class DataSource {
             return null;
         }
 
-        const { format, dialect } = extracted.styles.source;
         const positions = filePositionsOf(imported);
         const pxPerUnit = positions?.pxPerUnit;
         const fit = positions?.viewerFit;
@@ -959,8 +958,6 @@ export abstract class DataSource {
             snapshot: imported.snapshot,
             ...(annotations.length === 0 ? {} : { annotations }),
             path: (kind, column) => held.path(kind, column),
-            // A JSON dialect graph-io names (it names none for plain JSON) keeps its styles under its own name.
-            format: format === "json" && dialect !== null ? dialect : format,
             ...(pxPerUnit === undefined ? {} : { positionPxPerUnit: pxPerUnit }),
             positionsStored: positions?.usable === true,
             ...(fit === undefined || box === null || box === undefined

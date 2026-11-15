@@ -12,12 +12,13 @@ import { join } from "node:path";
 import { assert, describe, it } from "vitest";
 
 import { channelsFor } from "../../catalog";
-import { createGraphSession, fileStyleOf, type GraphSession } from "../../session";
+import { createGraphSession, type GraphSession } from "../../session";
 import { FORMAT_DESCRIPTORS } from "../../src/catalog/formats";
 import { exportSession } from "../../src/data/export";
 import { isGraphtyError } from "../../src/errors";
 import { FILE_STYLE_CHANNELS } from "../../src/features/fileStyles";
 import { SESSION_CATALOG_TABLES } from "../../src/session/catalog";
+import { loadedLayers } from "../helpers/loaded-layers";
 
 const OFF = { features: [] };
 const ON = { features: ["file-styles"] };
@@ -104,7 +105,7 @@ function valuesOf(session: GraphSession, channel: string): string[] {
  * @returns How many there are.
  */
 function fileLayers(session: GraphSession): number {
-    return session.styles.list().filter((layer) => fileStyleOf(layer) !== null).length;
+    return loadedLayers(session).length;
 }
 
 describe("the file styles experiment off", () => {
@@ -140,7 +141,7 @@ describe("the file styles experiment off", () => {
         session.dispose();
     });
 
-    it("refuses an export with styles and data.setFileStyles, and a plain export names no style loss", async () => {
+    it("refuses an export with styles and data.setStyleValues, and a plain export names no style loss", async () => {
         const session = createGraphSession(OFF);
         await session.data.import(GEXF);
         await session.styles.add({
@@ -155,10 +156,10 @@ describe("the file styles experiment off", () => {
         });
         const plain = exportSession(session, "gexf");
         assert.isFalse(plain.losses.some((loss) => loss.code.startsWith("W_STYLE")));
-        const set = await refusal(() => session.execute({ op: "data.setFileStyles", loads: [] }));
+        const set = await refusal(() => session.execute({ op: "data.setStyleValues", sets: [] }));
         assert.strictEqual(set?.code, "E_FEATURE_OFF");
         const inTransaction = await refusal(() =>
-            session.transaction("Set styles", (tx) => tx.execute({ op: "data.setFileStyles", loads: [] })),
+            session.transaction("Set styles", (tx) => tx.execute({ op: "data.setStyleValues", sets: [] })),
         );
         assert.strictEqual(inTransaction?.code, "E_FEATURE_OFF");
         session.dispose();
@@ -257,8 +258,8 @@ describe("the file styles experiment off", () => {
     it("opens a project saved with the experiment on with the styles it was saved with", async () => {
         const saved = createGraphSession(ON);
         await saved.data.import(GEXF, { styles: "file" });
-        const layers = fileLayers(saved);
-        assert.isAbove(layers, 0);
+        const layers = loadedLayers(saved).map((layer) => layer.name);
+        assert.isNotEmpty(layers);
         const node = saved.data.nodes()[0].id;
         const color = (session: GraphSession): unknown =>
             (session.styles.explain({ node }).merged as Record<string, unknown>)["node.color"];
@@ -266,7 +267,10 @@ describe("the file styles experiment off", () => {
 
         const opened = createGraphSession(OFF);
         await opened.project.open(text, { discard: true });
-        assert.strictEqual(fileLayers(opened), layers);
+        assert.includeMembers(
+            opened.styles.list().map((layer) => layer.name),
+            layers,
+        );
         assert.deepStrictEqual(color(opened), color(saved));
         saved.dispose();
         opened.dispose();

@@ -81,7 +81,6 @@ const INVENTORY: Record<string, Covered> = {
             "prepareBackgroundImage decodes a chosen picture and hands its data URL to the caller; it draws " +
             "nothing itself; the skybox the caller then writes is drawn by the render manager",
     },
-    "src/session/assets/unzip.ts": { count: 1, kind: "load", reason: "unzipping a file being loaded" },
     "src/session/assets/AssetsApi.ts": {
         count: 3,
         kind: "model",
@@ -89,8 +88,13 @@ const INVENTORY: Record<string, Covered> = {
             "an asset read for a model or a picture; the model and picture caches hold the frame until it is on " +
             "its nodes (the intake and samples modules draw nothing)",
     },
-    "src/models/loadModel.ts": { count: 2, kind: "model", reason: "a model's loader chunk and text formats" },
-    "src/models/chunk.ts": { count: 2, kind: "model", reason: "a model's asset container load" },
+    "src/models/loadModel.ts": {
+        count: 2,
+        kind: "model",
+        reason:
+            "a model's chunk and babylonjs-models, inside its load; babylonjs-models' container load, readers, " +
+            "unzipping and decoders all run inside that load",
+    },
     "src/models/TextureCache.ts": { count: 1, kind: "picture", reason: "a node's picture decoded into a texture" },
     "src/meshes/pictureSize.ts": {
         count: 2,

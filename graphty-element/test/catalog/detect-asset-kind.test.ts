@@ -70,7 +70,31 @@ describe("assetFileExtensions", () => {
         assert.deepEqual([...assetFileExtensions("image")], [".png", ".jpg", ".jpeg", ".webp"]);
         assert.deepEqual(
             [...assetFileExtensions("model")],
-            [".glb", ".gltf", ".obj", ".stl", ".ply", ".bin", ".mtl", ".zip", ".png", ".jpg", ".jpeg", ".webp"],
+            [
+                ".glb",
+                ".gltf",
+                ".obj",
+                ".stl",
+                ".ply",
+                ".splat",
+                ".spz",
+                ".sog",
+                ".babylon",
+                ".bin",
+                ".mtl",
+                ".json",
+                ".zip",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+                ".tga",
+                ".bmp",
+                ".gif",
+                ".dds",
+                ".ktx2",
+                ".avif",
+            ],
         );
     });
 });

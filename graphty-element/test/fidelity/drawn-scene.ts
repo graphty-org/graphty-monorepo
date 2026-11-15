@@ -221,7 +221,7 @@ interface EdgeInternals {
     haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[];
     lineIsCurve: boolean;
     drawnStyle: {
-        line?: { bezier?: boolean; gradient?: { kind?: string } };
+        line?: { bezier?: boolean; gradient?: { kind?: string }; taper?: number };
         arrowHead?: { gap?: number; position?: number };
         arrowTail?: { gap?: number; position?: number };
     } | null;
@@ -1583,6 +1583,12 @@ export interface DrawnEdge {
      */
     dashPx: number[] | null;
     /**
+     * A line drawn whole that narrows or widens along its length (`line.taper`): its width at the target over its
+     * width at the source. Absent for a line one width all along, or one drawn as separate pattern elements, which
+     * does not taper.
+     */
+    taper?: number;
+    /**
      * The band drawn under the line (`line.outline`): its color, opacity, whole width in pixels and the pattern it is
      * drawn in (a joined line's "dash" or "dot"; absent, solid); null for none.
      */
@@ -1813,6 +1819,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     let opacity = 1;
     let pattern: string | null = null;
     let dashPx: number[] | null = null;
+    let taper: number | undefined;
     if (batch !== null) {
         const slots = internal.lineSlots;
         const flat = (batch.mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
@@ -1844,6 +1851,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         // a dashed or dotted line through bends or round a loop is a joined line that draws its own pattern
         pattern = meta?.pattern?.kind ?? null;
         dashPx = joinedDashes(batch, slots, meta?.pattern, mid, p);
+        const asked = internal.drawnStyle?.line?.taper;
+        taper = asked !== undefined && asked !== 1 && batch.widened ? asked : undefined;
         const styled = own?.alpha ?? meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.
@@ -1948,6 +1957,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         opacity,
         pattern,
         dashPx,
+        ...(taper === undefined ? {} : { taper }),
         outline: readOutline(internal, p),
         overlay: readOverlay(internal, p),
         caps,

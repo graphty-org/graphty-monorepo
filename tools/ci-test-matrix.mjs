@@ -225,6 +225,13 @@ const OFF_SHARDS = [
         "test-command": "pnpm exec nx run babylonjs-map:coverage --exclude-task-dependencies",
         "needs-browser": false,
     },
+    // babylonjs-models - single shard (Node.js, no browser); its packaging test reads babylonjs-models/dist
+    {
+        shard: "babylonjs-models",
+        package: "babylonjs-models",
+        "test-command": "pnpm exec nx run babylonjs-models:coverage --exclude-task-dependencies",
+        "needs-browser": false,
+    },
     // cytoscape-extensions - single shard (Node.js, headless Cytoscape); resolves the graphty packages through their dist.
     // --exclude-task-dependencies: its coverage target depends on build and ^build, and nx replays a cached build by
     // deleting that package's dist and copying it back, so the shard briefly removed graph-format/dist (and the rest)
@@ -583,6 +590,7 @@ export const GROUPS = {
         "graph-format",
         "graph-samples",
         "babylonjs-map",
+        "babylonjs-models",
         "cytoscape-extensions",
         "cytoscape-extensions-cytoscape-versions",
         "layout",
@@ -610,6 +618,8 @@ export const GROUP_MEMBER_SECONDS = {
     "graph-format": 78,
     "graph-samples": 39,
     "babylonjs-map": 3,
+    // Measured locally on 2026-11-14 (about 2 s of vitest with coverage); remeasure from the group job's log.
+    "babylonjs-models": 4,
     "cytoscape-extensions": 15,
     "cytoscape-extensions-cytoscape-versions": 25,
     layout: 46,

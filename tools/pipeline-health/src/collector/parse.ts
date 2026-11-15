@@ -1479,7 +1479,7 @@ export function releaseTags(
 export const NOT_ON_NPM = new Set(["graphty", "githerd"]);
 
 /** Projects published to npm without the @graphty scope (test/collector/parse.test.ts checks the package.json names). */
-export const UNSCOPED_ON_NPM = new Set(["babylonjs-map"]);
+export const UNSCOPED_ON_NPM = new Set(["babylonjs-map", "babylonjs-models"]);
 
 export const npmName = (project: string): string =>
     project.startsWith("@") || UNSCOPED_ON_NPM.has(project) ? project : `@graphty/${project}`;

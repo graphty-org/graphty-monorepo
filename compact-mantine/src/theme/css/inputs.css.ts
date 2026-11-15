@@ -734,6 +734,31 @@ const css = `
 .cm-file-drop-glyph {
     display: inline-flex;
 }
+.cm-file-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+}
+.cm-file-hint {
+    font-size: 11px;
+    line-height: 16px;
+    color: var(--cm-text-secondary);
+    text-align: center;
+}
+.cm-file-source[data-fill] {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+.cm-file-source[data-fill] > .cm-file-drop-target {
+    flex: 1 1 auto;
+    justify-content: center;
+}
+.cm-file-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
 .cm-file-url-row {
     display: flex;
     align-items: center;

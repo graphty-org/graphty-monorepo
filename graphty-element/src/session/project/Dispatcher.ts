@@ -32,6 +32,7 @@ import { GraphtyError } from "../../errors/GraphtyError";
 import type { OperationCategory } from "../../managers/OperationQueueManager";
 import type { LegacyService, RunService } from "../commands/algo";
 import type { DataService, EdgeIdentityService } from "../commands/data";
+import type { DataDeriveCommand } from "../commands/derive";
 import type { LayoutAdvice, LayoutService } from "../commands/layout";
 import type { NoteService } from "../commands/notes";
 import type { SetService } from "../commands/sets";
@@ -134,6 +135,8 @@ interface CommandServices {
     timeFieldChanged?: () => void;
     /** Where a data source's ingest reports how far a load has got; the session publishes it. */
     progress?: (change: ProgressChange) => void;
+    /** The command that brings the computed columns up to date now, or null when nothing changes. */
+    derive?: () => DataDeriveCommand | null;
 }
 
 /** What the queue hands a queued command when its slot comes up. */
@@ -217,8 +220,11 @@ interface DefinitionBase<C extends CommandLike> {
      * purpose, or holds its slot while a layout can move the lane (a chunked import).
      */
     readonly moves: boolean;
-    /** For an op only some of whose commands take one (`clear` among the data mutations). */
-    movesWhen?(command: C): boolean;
+    /**
+     * For an op only some of whose commands take one (`clear` among the data mutations), or that
+     * takes one only while a service says it moves nodes (a filter edit a layout follows).
+     */
+    movesWhen?(command: C, services: CommandServices): boolean;
     /** The keys it will write, known before it runs. */
     keys(command: C, state: ProjectState): readonly SliceKey[];
     readonly lane: Lane<C>;
@@ -1374,7 +1380,7 @@ export class Dispatcher {
      */
     private takesBefore(job: Job): boolean {
         const { definition, command } = job;
-        if (definition.moves || definition.movesWhen?.(command) === true) {
+        if (definition.moves || definition.movesWhen?.(command, this.services) === true) {
             return true;
         }
 
@@ -1672,6 +1678,11 @@ export class Dispatcher {
         this.notify(() => this.events.project?.(change));
         this.flushHistory();
         void this.lane.settled().then(() => {
+            // A session disposed meanwhile has no reader left to tell, and its data answers nothing.
+            if (this.lane.isClosed) {
+                return;
+            }
+
             for (const each of derived) {
                 this.notify(() => this.events.derived?.(each));
             }

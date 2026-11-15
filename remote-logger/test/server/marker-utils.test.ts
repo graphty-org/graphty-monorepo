@@ -123,3 +123,17 @@ describe("resolveProjectMarker", () => {
         ).toBe("remote-logging");
     });
 });
+
+describe("marker fallbacks", () => {
+    test("a path made only of separators has no marker", () => {
+        expect(extractMarkerFromPath("///")).toBe("default");
+    });
+
+    test("a root working directory falls through to the session ID", () => {
+        expect(resolveProjectMarker({ workingDirectory: "/", sessionId: "my-app-1704067200000-xyz" })).toBe("my-app");
+    });
+
+    test("when neither the path nor the session ID names a project, the marker is default", () => {
+        expect(resolveProjectMarker({ workingDirectory: "/", sessionId: "default" })).toBe("default");
+    });
+});

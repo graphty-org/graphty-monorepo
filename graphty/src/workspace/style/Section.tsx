@@ -7,11 +7,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { nodeModelsOn } from "../features";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
-import { DEFAULT_NAME_KEY } from "./cards";
 import { shownChannel } from "./offered";
 import { GradientRow } from "./parts/GradientRow";
 import { Field, type RowContext } from "./PropertyRow";
-import { carriedOpacity, lineIn, partlySet, removeLine, startingAdds, writeIn } from "./row";
+import { carriedOpacity, lineIn, partlySet, removeLine, writeIn } from "./row";
 import { type PasteInit, ShaderEditorDialog } from "./ShaderEditorDialog";
 import { type OptionTile, ShaderGallery } from "./ShaderGallery";
 import { ShaderRow } from "./ShaderRow";
@@ -213,7 +212,6 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
         .flatMap((d) => [d, ...flat.filter((each) => each.modifies === d.channel && under(each))]);
     const fail = (verb: string) => (error: unknown) => {
         focusLineNext(ctx.session, null);
-        startingAdds.delete(ctx.session);
         store.set({ notice: { message: failureWords(spec.title, verb, error), error: true } });
     };
     const write = (descriptor: ChannelDescriptor, value: boolean): void => {
@@ -234,15 +232,6 @@ function PropertySection({ ctx, spec, actions, itemActions }: Readonly<SectionPr
             const every = ctx.many === undefined ? "" : " for every layer";
             store.set({ announcement: `${fieldName(descriptor.channel)} added: pick a value${every}` });
             return;
-        }
-        // Hide or Show is the reader's pick. The first one on a selection makes its layer:
-        // Escape before any other change takes it back.
-        if (
-            ctx.many === undefined &&
-            ctx.layers.length === 0 &&
-            ctx.fresh?.userData?.[DEFAULT_NAME_KEY] !== undefined
-        ) {
-            startingAdds.add(ctx.session);
         }
         write(descriptor, value);
     };

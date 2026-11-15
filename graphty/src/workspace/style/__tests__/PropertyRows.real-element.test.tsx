@@ -153,6 +153,20 @@ describe("the Style tab's property rows", () => {
         assert.equal(historyTip(session, true), "Undo removing node size from Key people");
     });
 
+    it("names the Everything row in Undo after a removal, and keeps the row", async () => {
+        const { session } = await openScene();
+        const tab = await openStyle("Everything");
+        field(tab, "node.color");
+        await userEvent.click(within(tab).getByRole("button", { name: "Remove node color" }));
+        await waitFor(() => {
+            assert.isNull(tab.querySelector('.ws-row[data-line="node.color"]'));
+        });
+        // Every layer is named by its row, the Everything row like any other (issue #6973).
+        assert.equal(historyTip(session, true), "Undo removing node color from Everything");
+        const tree = screen.getByRole("tree", { name: "Style layers" });
+        assert.isNotNull(within(tree).queryByRole("treeitem", { name: /^Everything, / }), "the row stays");
+    });
+
     it("draws the vary glyph at rest on Shape, Color, Size, Width and Glow, and '=' in Size opens it", async () => {
         const { runs } = await openScene();
         let tab = await openStyle("Key people");

@@ -477,6 +477,12 @@ describe("a label's lines drawn as separate texts", () => {
             text("x", 106, 100, { blank: { before: true, after: false } }, 6),
         ]);
         assert.strictEqual(kept?.content, "s x");
+        // a run lowered by half a line is still on its line (vis-network's font.bold.vadjust: "<b>B</b> x")
+        const lowered = mergeTexts([
+            text("B", 103.5, 105.5, {}, 7),
+            text("x", 110, 100, { blank: { before: true, after: false } }, 9),
+        ]);
+        assert.strictEqual(lowered?.content, "B x");
         assert.strictEqual(merged?.lines?.length, 2);
         // a line under another, or a text far to its side, stays apart
         assert.strictEqual(mergeTexts([text("a", 100, 100), text("b", 100, 112)])?.content, "a\nb");

@@ -465,6 +465,12 @@ export interface CompactMantineLabels {
     fileChoose: string;
     /** Placeholder and accessible name of `FileSource`'s web address field. */
     fileUrl: string;
+    /** The text of `FileSource`'s button that opens the folder picker (`folder`). */
+    fileChooseFolder: string;
+    /** The accessible name of `FileSource`'s progress bar (`progress`). */
+    fileLoading: string;
+    /** The text of `FileSource`'s button that stops a load under way (`onCancel`). */
+    fileCancel: string;
 }
 
 /**
@@ -596,6 +602,9 @@ export const defaultLabels: Required<CompactMantineLabels> = {
 
     fileChoose: "Choose file",
     fileUrl: "URL",
+    fileChooseFolder: "Choose folder",
+    fileLoading: "Loading",
+    fileCancel: "Cancel",
 
     // Intl.PluralRules already sorts out English's exceptions: 11, 12 and 13
     // come back as "other" and take "th", while 21, 22 and 23 come back as

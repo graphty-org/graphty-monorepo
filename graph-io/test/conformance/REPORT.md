@@ -317,8 +317,8 @@ Minimal cases (`fixtures/generative/cases.json`):
 
 ## Schema validation
 
-Validated 1360 dot, 1399 gexf-1.2draft, 1399 gexf-1.3, 1399 graphml, 1408 jgf exports (GraphML 1.0 XSD, GEXF 1.2draft and 1.3 XSDs, JGF v2 JSON Schema; schemas.ts);
-800 documents have at least one error.
+Validated 1359 dot, 1398 gexf-1.2draft, 1398 gexf-1.3, 1399 graphml, 1408 jgf exports (GraphML 1.0 XSD, GEXF 1.2draft and 1.3 XSDs, JGF v2 JSON Schema; schemas.ts);
+797 documents have at least one error.
 
 | Class | Errors | Kind | Why |
 |---|---|---|---|
@@ -329,8 +329,7 @@ Validated 1360 dot, 1399 gexf-1.2draft, 1399 gexf-1.3, 1399 graphml, 1408 jgf ex
 | NMTOKEN character edition (graphml) | 327 | deviation | libxml2 checks xs:NMTOKEN with the XML 1.0 second-edition character classes (XSD 1.0); graph-io's NMTOKEN test uses the XML 1.0 fifth-edition name characters (supplementary planes, U+FFFD...), which XSD 1.1 processors and every non-validating reader accept |
 | source text passed through (graphml) | 7 | deviation | an attr.type the source declared and GraphML does not define is written back as declared (the importer kept it as text with W_UNKNOWN_ATTR_TYPE); the source was already schema-invalid |
 | source date passed through (gexf) | 2 | deviation | a meta lastmodifieddate the source wrote in another date syntax is written back as read; the source was already schema-invalid |
-| GEXF infinite weight spelling (gexf) | 98 | known failure | an infinite edge weight is written `Infinity`; the XSD types weight xs:float, whose spelling is INF / -INF (Gephi's Java parser reads Infinity, not INF, so the fix needs a decision) |
+| GEXF infinite weight spelling (gexf) | 96 | known failure | an infinite edge weight is written `Infinity`; the XSD types weight xs:float, whose spelling is INF / -INF (Gephi's Java parser reads Infinity, not INF, so the fix needs a decision) |
 | GraphML attr.name outside NMTOKEN (graphml) | 175 | known failure | a column name is written as attr.name unchecked; a name with a space, or the `<name>#<id>` of graph-io's own rename rule, is not an NMTOKEN |
 | GEXF 1.3 date attribute type (gexf) | 5 | known failure | a date / dateTime column is declared with type="date" / "dateTime"; GEXF 1.3's attrtype-type has no such types (they are timeformat values), so the column should be written as string or its time value |
-| GraphML node ids with the same text (graphml) | 1 | known failure | two node ids with the same text (the number 1 and the string "1") are both written as id="1", so the document repeats a node id and a reader merges the two nodes (#7916) |
 | JGF numeric edge id (jgf) | 72 | known failure | a numeric edge id is written as a JSON number; the JGF v2 schema requires a string |

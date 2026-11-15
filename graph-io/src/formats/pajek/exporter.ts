@@ -31,12 +31,12 @@ import {
     encodeCharacterReferences,
     formatIntervals,
     isParameterKey,
+    isShapeKeyword,
     LABEL_COLUMN,
     ORIGINAL_ID_KEY,
     POSITION_COLUMN,
     RELATION_COLUMN,
     SHAPE_COLUMN,
-    SHAPES,
     VOIDING_KEYS,
 } from "./syntax.js";
 
@@ -448,7 +448,7 @@ function unlabeled(nodeCount: number, labels: Column | null): number {
  */
 function allShapeKeywords(column: Column): boolean {
     for (let r = 0; r < column.length; r++) {
-        if (column.isSet(r) && !SHAPES.has(column.value(r) as string)) {
+        if (column.isSet(r) && !isShapeKeyword(column.value(r) as string)) {
             return false;
         }
     }
@@ -962,7 +962,7 @@ function vertexParts(slots: VertexSlots, i: number, writeZ: boolean): string[] {
     const shaped = shape?.isSet(i) === true;
     if (shaped) {
         const keyword = cellText(shape, i);
-        parts.push(SHAPES.has(keyword) ? keyword : `${SHAPE_COLUMN} ${quotePajekLabel(keyword)}`);
+        parts.push(isShapeKeyword(keyword) ? keyword : `${SHAPE_COLUMN} ${quotePajekLabel(keyword)}`);
     }
     const named = parts.length;
     for (const column of slots.params) {

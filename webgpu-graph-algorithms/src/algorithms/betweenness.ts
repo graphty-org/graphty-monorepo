@@ -66,7 +66,7 @@ import {
 } from "../constants.js";
 import { type GpuContext } from "../context.js";
 import { WebGpuGraphError } from "../errors.js";
-import { CommandBatch } from "../kernel/batch.js";
+import { CommandBatch, traced } from "../kernel/batch.js";
 import { plan1d, planGridStride } from "../kernel/dispatch.js";
 import { type BoundKernel, type Kernel } from "../kernel/kernel.js";
 import { BC_PARAMS, FILL_PARAMS, FRONTIER_COUNTERS, kernelSpec } from "../kernels.js";
@@ -273,6 +273,8 @@ interface RunState {
     scaled: ModeKernels | null;
     /** Each bc kernel bound once per run: its resources never change inside a run, only the params offset does. */
     readonly bound: Map<Kernel, BoundKernel>;
+    /** The source batch running now, from 0, for the trace. */
+    batchIndex: number;
 }
 
 /** The kernels of one counting mode; `count` and `reverse` (the in-arcs it pulls over) only when scaled. */
@@ -376,12 +378,23 @@ function recordBc(
  * @param state - the run
  * @param batch - the batch
  * @param signal - the caller's signal
+ * @param level - the first level the submit records, for the trace
  * @returns the readback bytes
  */
-async function submit(state: RunState, batch: CommandBatch, signal: AbortSignal | undefined): Promise<ArrayBuffer> {
+async function submit(
+    state: RunState,
+    batch: CommandBatch,
+    signal: AbortSignal | undefined,
+    level?: number,
+): Promise<ArrayBuffer> {
     state.scope.flush();
+    const { trace } = state.ctx;
+    const facts = { stage: batch.label, id: batch.id, batch: state.batchIndex, level: level ?? null };
+    trace?.(`${ALGORITHM} submit`, { ...facts, dispatches: batch.dispatches });
+    const started = performance.now();
     const submitted = batch.submit();
     const back = await submitted.readback;
+    trace?.(`${ALGORITHM} readback resolved`, { ...facts, ms: Math.round(performance.now() - started) });
     state.ctx.assertReady();
     if (signal?.aborted) {
         throw aborted(ALGORITHM, submitted.id);
@@ -503,7 +516,7 @@ async function forwardPhase(
         const endsCount = Math.min(n + 2, recorded + 1);
         const countersRequest = batch.readback(counters.buffer, counters.offset, FRONTIER_COUNTERS.byteLength);
         const endsRequest = batch.readback(ends.buffer, ends.offset, 4 * endsCount);
-        const back = await submit(state, batch, signal);
+        const back = await submit(state, batch, signal, recorded - levelsPerSubmit);
         const words32 = new Uint32Array(back, countersRequest.offset, FRONTIER_COUNTERS.byteLength / 4);
         if (words32[W.done] !== 0) {
             const levels = words32[W.level];
@@ -610,7 +623,7 @@ async function backwardPhase(
         const requests = wantArrays
             ? [depthK, sigmaK, deltaK].map((b) => batch.readback(b.buffer, b.offset, 4 * words))
             : [];
-        const back = await submit(state, batch, signal);
+        const back = await submit(state, batch, signal, chunk[0] ?? 0);
         if (wantArrays) {
             return {
                 depthK: new Uint32Array(back, requests[0].offset, words).slice(),
@@ -650,8 +663,15 @@ async function runBatch(
     const seeds = Uint32Array.from(sources, (v, s) => s * n + v);
     ctx.device.queue.writeBuffer(S.buffer, S.offset, seeds);
 
+    ctx.trace?.(`${ALGORITHM} batch start`, {
+        batch: state.batchIndex,
+        sources: k,
+        form,
+        scaled: mode.count !== null,
+    });
     const forward = await forwardPhase(state, mode, k, form, levelsPerSubmit, signal);
     const { levels, overflow, endsWords } = forward;
+    ctx.trace?.(`${ALGORITHM} forward done`, { batch: state.batchIndex, levels, overflow });
     if (overflow && mode.count === null) {
         return { levels, wrapped: true, overflow: false };
     }
@@ -763,6 +783,8 @@ async function runRaw(
         const arrayBytes = 4 * n * kMax;
         const lease = (bytes: number, label: string): Binding => bindingOf(scope.scratch(bytes, label), bytes);
         const arcBytes = 4 * Math.max(1, s.arcCount);
+        ctx.trace?.(`${ALGORITHM} start`, { n, arcs: s.arcCount, sources: sources.length, kMax, withEdges });
+        const compiling = performance.now();
         const [fill, gather] = await Promise.all(
             (["fill", "bc-gather"] as const).map((id) => ctx.pipelines.kernel(kernelSpec(id))),
         );
@@ -791,8 +813,10 @@ async function runRaw(
             exact,
             scaled: null,
             bound: new Map(),
+            batchIndex: -1,
         };
-        await ctx.allocator.check();
+        ctx.trace?.(`${ALGORITHM} kernels compiled`, { ms: Math.round(performance.now() - compiling) });
+        await traced(ctx.allocator.check(), ctx.trace, `${ALGORITHM} allocator check`, {});
 
         // the result accumulators start at 0
         await clearAccumulators(state, arcBytes / 4, options?.signal);
@@ -804,6 +828,7 @@ async function runRaw(
             const k = planBatchSize(n, sources.length - start, limits);
             const form = forwardForm(pinned, previousLevels, n, state.exact);
             const batch = sources.slice(start, start + k);
+            state.batchIndex = batches;
             let outcome = await runBatch(
                 state,
                 state.scaled ?? state.exact,
@@ -864,7 +889,7 @@ function normaliser(s: GraphSnapshot, normalized: boolean | undefined): number {
  */
 async function precheck(ctx: GpuContext, options: BetweennessAcceleratorOptions | undefined): Promise<void> {
     ctx.assertReady();
-    await assertDeviceComputes(ctx);
+    await traced(assertDeviceComputes(ctx), ctx.trace, `${ALGORITHM} device self-check`, {});
     if (options?.endpoints === true) {
         throw new WebGpuGraphError("E_UNSUPPORTED", `${ALGORITHM}: endpoints: true is not supported`, {
             feature: "betweenness.endpoints",

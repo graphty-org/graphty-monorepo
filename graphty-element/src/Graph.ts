@@ -1850,8 +1850,10 @@ export class Graph implements GraphContext {
             .catch(() => undefined);
 
         // The first settlement's framing has landed: that is the camera `resetCamera()` returns to.
+        // Logged at most 4 times a second: a settling force layout refits on every frame.
+        const fitLogDue = throttle(CAMERA_LOG_INTERVAL_MS);
         this.eventManager.addListener("zoom-to-fit-complete", () => {
-            if (GraphtyLogger.isEnabled()) {
+            if (GraphtyLogger.isEnabled() && fitLogDue()) {
                 viewLog.info("camera fit", {
                     layout: this.layoutManager.layoutType ?? null,
                     ...this.getCameraState(),

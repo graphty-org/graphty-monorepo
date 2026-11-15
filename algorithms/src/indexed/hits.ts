@@ -9,7 +9,8 @@ export interface HitsOptions {
     readonly maxIterations?: number | undefined;
     /**
      * Convergence tolerance; default 1e-6. The run stops at the first iteration whose summed (L1) change over both
-     * vectors is below `tolerance` times their summed size, a change of `tolerance` relative to the vectors.
+     * vectors is below `tolerance` times their summed size (or is exactly 0), a change of `tolerance` relative to the
+     * vectors.
      */
     readonly tolerance?: number | undefined;
     /**
@@ -142,7 +143,8 @@ export function hits(s: GraphSnapshot, o: HitsOptions = {}): HitsResult {
         }
         [hubs, nextHubs] = [nextHubs, hubs];
         [authorities, nextAuthorities] = [nextAuthorities, authorities];
-        converged = change < tol * size;
+        // a change of exactly 0 also stops: on a graph with no arcs both vectors are 0 from the first pass
+        converged = change < tol * size || change === 0;
     }
     if (o.normalized === false) {
         maxNormalize(hubs);

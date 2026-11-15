@@ -48,6 +48,17 @@ describe("indexed.hits", () => {
         s.validate({ checksum: true });
     });
 
+    it("stops after the first passes on a graph with no edges, where every score is 0", () => {
+        const g = new Graph({ directed: true });
+        for (const id of ["a", "b", "c", "d", "e"]) {
+            g.addNode(id);
+        }
+        const r = hits(checksummedSnapshot(g));
+        expect(r.converged).toBe(true);
+        expect(r.iterations).toBeLessThan(100);
+        expect([...r.hubs, ...r.authorities].every((x) => x === 0)).toBe(true);
+    });
+
     it("reports the iteration cap it stopped at", () => {
         const g = new Graph({ directed: true });
         g.addEdge("a", "b");

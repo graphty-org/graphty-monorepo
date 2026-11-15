@@ -767,6 +767,17 @@ function assertFilter(filter: RuleTree): void {
             parseScope(filter.of);
 
             return;
+        case "threshold":
+            if (filter.within === "visible") {
+                throw malformed(
+                    'A filter\'s "threshold" ranks the full graph (within: "graph"): what is visible is what the filter computes.',
+                    { reason: "circular-scope", within: "visible" },
+                );
+            }
+
+            assertRuleTree(filter);
+
+            return;
         case "union":
             if ((filter as { within?: unknown }).within === "visible") {
                 throw malformed(
@@ -779,7 +790,6 @@ function assertFilter(filter: RuleTree): void {
 
             return;
         case "item":
-        case "threshold":
         case "text":
         case "state":
         case "hops":
@@ -1960,7 +1970,8 @@ function compileThreshold(context: CompileContext, filter: Extract<RuleTree, { k
     const { graph } = context;
     const mark = markFor(context, filter.path);
     const { node: readNode, edge: readEdge } = pathReaders(context, filter.path, "threshold");
-    const population = context.step?.population ?? { node: null, edge: null };
+    const population =
+        context.step?.population ?? (filter.within === "visible" ? visibleBase(context) : { node: null, edge: null });
     const nodes = readNode === null ? null : thresholdHalf(graph.nodeCount, readNode, filter, mark, population.node);
     const edges = readEdge === null ? null : thresholdHalf(graph.edgeCount, readEdge, filter, mark, population.edge);
     if (nodes === null && edges === null) {
@@ -2244,6 +2255,37 @@ function referenceBytes(context: CompileContext, reference: StepReference | unde
 }
 
 /**
+ * What the filter and the time window leave shown, as bytes per element: an edge between two
+ * shown nodes is shown unless the scope says which edges are.
+ * @param context - The compile context.
+ * @param kind - The leaf reading it, for the refusal.
+ * @returns The node and edge bytes.
+ * @throws A `GraphtyError` with `E_UNSUPPORTED` when there is no scope resolver to read it from.
+ */
+function visibleBase(
+    context: CompileContext,
+    kind: "union" | "threshold" = "threshold",
+): { readonly node: Uint8Array; readonly edge: Uint8Array } {
+    const { graph, sources } = context;
+    if (sources.scope === undefined) {
+        throw unsupported(kind, "a scope resolver");
+    }
+
+    const leaf = sources.scope("visible");
+    const node = bytesOf((index) => maskTest(leaf.nodes, index), graph.nodeCount);
+    const { src, dst } = graph.edgeList();
+    const { edges } = leaf;
+    const edge = bytesOf(
+        edges === null
+            ? (index) => node[src[index]] === 1 && node[dst[index]] === 1
+            : (index) => maskTest(edges, index),
+        graph.edgeCount,
+    );
+
+    return { node, edge };
+}
+
+/**
  * What {@link readUnion} reads, over a compile context: the base from the scope resolver, each
  * step compiled in its frame by this compiler.
  * @param context - The compile context.
@@ -2252,28 +2294,10 @@ function referenceBytes(context: CompileContext, reference: StepReference | unde
  */
 function unionEnvOf(context: CompileContext, leaf: UnionLeaf): UnionEnv {
     const { graph, sources } = context;
-    const wholeOrVisible = (within: UnionLeaf["within"]): { node: Bytes; edge: Bytes } => {
-        if (within === "graph") {
-            return { node: new Uint8Array(graph.nodeCount).fill(1), edge: new Uint8Array(graph.edgeCount).fill(1) };
-        }
-
-        if (sources.scope === undefined) {
-            throw unsupported("union", "a scope resolver");
-        }
-
-        const leaf = sources.scope("visible");
-        const node = bytesOf((index) => maskTest(leaf.nodes, index), graph.nodeCount);
-        const { src, dst } = graph.edgeList();
-        const { edges } = leaf;
-        const edge = bytesOf(
-            edges === null
-                ? (index) => node[src[index]] === 1 && node[dst[index]] === 1
-                : (index) => maskTest(edges, index),
-            graph.edgeCount,
-        );
-
-        return { node, edge };
-    };
+    const wholeOrVisible = (within: UnionLeaf["within"]): { node: Bytes; edge: Bytes } =>
+        within === "graph"
+            ? { node: new Uint8Array(graph.nodeCount).fill(1), edge: new Uint8Array(graph.edgeCount).fill(1) }
+            : visibleBase(context, "union");
     // A leaf narrowed to some loads starts from theirs.
     const mine = leaf.sources === undefined ? null : sourceTests(context, leaf.sources, undefined);
     const narrow = (halves: { node: Bytes; edge: Bytes }): { node: Bytes; edge: Bytes } => {

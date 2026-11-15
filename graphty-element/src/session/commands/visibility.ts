@@ -20,6 +20,7 @@ import type { HistoryCode } from "../types";
 import { assertConditions, conditionsOfSteps, listFact, stepsOf } from "../visibility/conditions";
 import { assertVisibility, type RuleTree, type TimePlayback, type TimeWindow } from "../visibility/filter";
 import { assertSteps } from "../visibility/steps";
+import type { LayoutService } from "./layout";
 
 /** `visibility.set`: apply a filter, or clear it with null. */
 interface VisibilitySetCommand {
@@ -115,8 +116,20 @@ function filterKey(filter: VisibilitySetCommand["filter"]): string | null {
 /** Shared by the three ops. */
 const COMMON = { moves: false, draws: true, lane: { kind: "immediate" } } as const;
 
-const visibilitySet: UndoableDefinition<VisibilitySetCommand> = {
+/**
+ * Shared by the ops that change what the filters keep: while a layout follows them (the working
+ * graph, `layout.visibleOnly`) it lays the graph out again after one, so each then takes the
+ * arrangement it began from, and its undo puts every node back where it was. A session with no
+ * such layout takes none. The time window never moves a layout, so its op takes none.
+ */
+const FILTERS = {
     ...COMMON,
+    movesWhen: (_command: unknown, services: { readonly layout?: LayoutService }): boolean =>
+        services.layout?.followsFilters?.() === true,
+} as const;
+
+const visibilitySet: UndoableDefinition<VisibilitySetCommand> = {
+    ...FILTERS,
     op: "visibility.set",
     keys: () => ["visibility/filter"],
     undo: {
@@ -190,7 +203,7 @@ function checkRules(
 }
 
 const visibilitySteps: UndoableDefinition<VisibilityStepsCommand> = {
-    ...COMMON,
+    ...FILTERS,
     op: "visibility.steps",
     keys: () => ["visibility/conditions"],
     undo: {
@@ -212,7 +225,7 @@ const visibilitySteps: UndoableDefinition<VisibilityStepsCommand> = {
 };
 
 const visibilityConditions: UndoableDefinition<VisibilityConditionsCommand> = {
-    ...COMMON,
+    ...FILTERS,
     op: "visibility.conditions",
     keys: () => ["visibility/conditions"],
     undo: {

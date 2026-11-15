@@ -1,7 +1,7 @@
 /**
  * @file Counted-work scaling of a layout over only what the filter shows
- * (`behavior.layout.visibleOnly`): a filter change hands the engine the rows it leaves out
- * (`LayoutEngine.setLeftOut`) and lays the shown nodes out again. A path of n and of 4n nodes, half
+ * (`behavior.layout.visibleOnly`): a filter change hands the engine the working graph's view
+ * (`VisibilityApi.set`, then the relayout it sets off) and lays the shown nodes out again. A path of n and of 4n nodes, half
  * of them shown, and the elements the filter change and the layout it sets off visit may grow no
  * faster than the graph: 4x, never 16x. Counted, never timed.
  *
@@ -31,7 +31,7 @@ describe("a layout over only what the filter shows", () => {
         scope.__GRAPHTY_STRICT_STATE__ = strict;
     });
 
-    it("LayoutEngine.setLeftOut, and the layout a filter change sets off: no more than linear in the graph", async () => {
+    it("VisibilityApi.set, and the layout a filter change sets off: no more than linear in the graph", async () => {
         await assertScalesLinearly(
             async (size) => {
                 const container = document.createElement("div");
@@ -62,10 +62,10 @@ describe("a layout over only what the filter shows", () => {
 
                     assert.strictEqual(layouts, 1, "the filter change laid the shown nodes out once");
                     const engine = graph.getLayoutManager().layoutEngine as unknown as {
-                        isLeftOut: (row: number) => boolean;
+                        hidesRow: (row: number) => boolean;
                     };
                     const rows = [...graph.getDataManager().nodes.values()].filter((node) =>
-                        engine.isLeftOut(node.index),
+                        engine.hidesRow(node.index),
                     );
                     assert.strictEqual(rows.length, size / 2, "every hidden node is left out");
                     return visits;

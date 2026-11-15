@@ -131,7 +131,8 @@ import { overRepresentedValues } from "./overRepresented";
 import type { SessionCommand } from "./planning";
 import type { Dispatcher } from "./project/Dispatcher";
 import { frozenRecord } from "./project/draft";
-import { failedEnd, HELD_KINDS, Ingest, progressSource } from "./project/ingest";
+import { columnsEligible, failedEnd, HELD_KINDS, Ingest, progressSource } from "./project/ingest";
+import { recordsSource, rowsView } from "./project/recordMap";
 import type { GraphRecord, GraphSlice, RunEntry, VisibilityState } from "./project/state";
 import type { SearchAnswer, SearchRequest } from "./query";
 import { readableValues } from "./readable";
@@ -953,9 +954,9 @@ export class SessionData implements SessionDataApi {
     /**
      * Load a graph from column arrays, as one undoable step: the nodes, then the edges.
      * @param columns - The columns.
-     * @returns Settles once the rows are in the graph and drawn.
+     * @returns The load's report, once the rows are in the graph and drawn.
      */
-    async importColumns(columns: ImportColumnsInput): Promise<void> {
+    async importColumns(columns: ImportColumnsInput): Promise<LoadReport> {
         this.requireLive("importColumns");
         // A batched graph keeps the records it builds, so the slice keeps them as they are, not a copy.
         const [nodes, edges] = columnMutations(columns, this.pages.batched?.() === true);
@@ -973,6 +974,8 @@ export class SessionData implements SessionDataApi {
                 }),
             undefined,
         );
+        // The edge add seals a report even for no edges, so a report is always there.
+        return this.lastImport() as LoadReport;
     }
 
     /**
@@ -1118,7 +1121,33 @@ export class SessionData implements SessionDataApi {
     private edit(mutation: DataMutation): Promise<unknown> {
         checkMutation(mutation);
         const send = this.writes.applier();
-        return this.loadLine.edit(() => send(mutation), undefined);
+        const routed = this.throughColumns(mutation);
+        return this.loadLine.edit(() => send(routed), undefined);
+    }
+
+    /**
+     * Under `"batched"`, read an eligible add of records into columns, so the graph keeps no record
+     * object per row (row-renderer.md 4.6, stage 29); anything else goes as it came.
+     * @param mutation - The checked mutation.
+     * @returns The mutation to dispatch.
+     */
+    private throughColumns(mutation: DataMutation): DataMutation {
+        if ((mutation.kind !== "add-nodes" && mutation.kind !== "add-edges") || this.pages.batched?.() !== true) {
+            return mutation;
+        }
+
+        const { knownFields } = this.readConfig();
+        const edges =
+            mutation.kind === "add-edges"
+                ? {
+                      repeated: mutation.repeated ?? knownFields.repeatedEdges,
+                      weight: mutation.weight ?? knownFields.edgeWeightPath,
+                  }
+                : undefined;
+        const path = columnsEligible({ batched: true, records: mutation.records, edges });
+        return path.code === "PATH_COLUMNS"
+            ? { ...mutation, records: rowsView(recordsSource(mutation.records)) }
+            : mutation;
     }
 
     /**
@@ -6536,6 +6565,7 @@ export function headlessDataService(
         loadFailed: () => undefined,
         progress: (change) => dispatcher.services.progress?.(change),
         timeline: () => dispatcher.services.timeline?.() === true,
+        batched: () => dispatcher.services.batched?.() === true,
     });
 
     return {

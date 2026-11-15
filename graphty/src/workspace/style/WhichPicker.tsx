@@ -5,7 +5,14 @@ import {
     RangeSlider,
     useNumberParser,
 } from "@graphty/compact-mantine";
-import type { GraphSession, Layer, LayerPatch, RuleTree, Scope } from "@graphty/graphty-element/session";
+import {
+    fileStyleOf,
+    type GraphSession,
+    type Layer,
+    type LayerPatch,
+    type RuleTree,
+    type Scope,
+} from "@graphty/graphty-element/session";
 import {
     ActionIcon,
     Autocomplete,
@@ -72,7 +79,7 @@ import {
 import { DrawnSwatches } from "./drawnSwatches";
 import { keystrokeTarget } from "./useFocusLine";
 import { useStepWriter } from "./useStepWriter";
-import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, NATURAL, prefixFirst, valueName } from "./words";
+import { FIND_ATTRIBUTE, LAYER_SPOKEN, LAYER_TOKEN, nameRank, NATURAL, prefixFirst, valueName } from "./words";
 
 /** One tree row a picker writes: its part of this kind and, on the Node tab, its edge part. */
 interface PickRow {
@@ -401,6 +408,11 @@ interface WhichPickerProps {
     readonly adding?: string;
     /** Goes to the other kind's tab with a card on a field it carries. */
     readonly onElsewhere?: (field: CardField) => void;
+    /**
+     * Given, the folded row reads the cards as this one line instead of a chip per card, unless it
+     * has no words for them.
+     */
+    readonly summary?: (session: GraphSession, cards: readonly Card[], rows: readonly string[], side: Side) => string;
 }
 
 /**
@@ -416,6 +428,7 @@ interface WhichPickerProps {
  * @param props.autoOpen - open on arrival when it has no cards
  * @param props.adding - a field to open on with a card on it
  * @param props.onElsewhere - goes to the other kind's tab with a card on a field it carries
+ * @param props.summary - reads the folded row's cards as one line
  * @param props.held - cards it edits instead of a layer's
  * @returns The picker
  */
@@ -427,6 +440,7 @@ export function WhichPicker({
     autoOpen = false,
     adding,
     onElsewhere,
+    summary,
 }: WhichPickerProps): React.JSX.Element | null {
     const rows = held === undefined ? pickRows(session, ids, side) : [];
     const shown = held === undefined ? shownOf(rows) : heldShown(held.cards);
@@ -435,8 +449,13 @@ export function WhichPicker({
     // several layers at once and held cards keep the cards. Cards opened stay until
     // they close, even when an edit there leaves a selector the selection editor reads (the last
     // card removed): swapping editors mid-edit would drop the cards and their notice's Undo.
+    // A layer read from a file selects by a mark the load left, which the selection editor can only
+    // spell out raw: with a summary to give, its row reads the rule line instead.
+    const fromFile = summary !== undefined && rows.length === 1 && fileStyleOf(rows[0].layer) !== null;
     const editable =
-        held === undefined && rows.length === 1 ? layerSelection(session, rows[0].layer.selector, side) : null;
+        held === undefined && rows.length === 1 && !fromFile
+            ? layerSelection(session, rows[0].layer.selector, side)
+            : null;
     const [onCards, setOnCards] = useState(() => open && editable === null);
     const selection = open && onCards ? null : editable;
     // Opened on arrival, it starts on Add a condition -- unless the reader is moving between the
@@ -506,6 +525,16 @@ export function WhichPicker({
                     side={side}
                     buttonRef={rowButton}
                     regionId={regionId}
+                    line={
+                        summary === undefined
+                            ? undefined
+                            : summary(
+                                  session,
+                                  shown.map((each) => each.card),
+                                  ids,
+                                  side,
+                              ) || undefined
+                    }
                     onOpen={(key) => {
                         // With no card, focus lands on Add a condition, whose list opens on a
                         // press: open already, the press would close it.
@@ -530,6 +559,7 @@ export function WhichPicker({
  * @param props.side - nodes or edges
  * @param props.buttonRef - the row button, which focus returns to
  * @param props.regionId - the open cards' id, which the row controls
+ * @param props.line - the cards as one line, drawn in place of the chips
  * @param props.onOpen - opens the cards, on a chip's card when one was clicked
  * @returns The row
  */
@@ -541,6 +571,7 @@ function WhichRow({
     side,
     buttonRef,
     regionId,
+    line,
     onOpen,
 }: Readonly<{
     session: GraphSession;
@@ -550,6 +581,7 @@ function WhichRow({
     side: Side;
     buttonRef: React.RefObject<HTMLButtonElement | null>;
     regionId: string;
+    line?: string;
     onOpen: (key?: string) => void;
 }>): React.JSX.Element {
     // "All N nodes" names the whole graph.
@@ -565,6 +597,11 @@ function WhichRow({
         return `${words[at].replace(LAYER_TOKEN, LAYER_SPOKEN)}${countWords}`;
     });
     const hint = `All ${many(total, side)}`;
+    // What the folded row reads after its count: every element, the one rule line, or each chip.
+    let ruleWords: readonly string[] = line === undefined ? spoken : [line];
+    if (shown.length === 0 && line === undefined) {
+        ruleWords = [hint];
+    }
     // A layer whose conditions leave nothing is flagged on its count, or on a chip that leaves none.
     const none =
         held === undefined &&
@@ -586,12 +623,7 @@ function WhichRow({
                 aria-expanded={false}
                 aria-controls={regionId}
                 // The rule is in the name, so it is heard while the cards are folded: "Which nodes, 10 of 24, kind: agency, company".
-                aria-label={[
-                    `Which ${NOUN[side].many}`,
-                    head,
-                    none ? `no ${NOUN[side].one} matches` : "",
-                    ...(shown.length === 0 ? [hint] : spoken),
-                ]
+                aria-label={[`Which ${NOUN[side].many}`, head, none ? `no ${NOUN[side].one} matches` : "", ...ruleWords]
                     .filter((part) => part !== "")
                     .join(", ")}
                 onClick={(event) => {
@@ -610,12 +642,18 @@ function WhichRow({
                     {together && <NoneBadge side={side} />}
                 </Group>
                 <span className="ws-which-chips">
-                    {shown.length === 0 ? (
+                    {line !== undefined && (
+                        <Text size="xs" span truncate="end" title={line} className="ws-which-line">
+                            {line}
+                        </Text>
+                    )}
+                    {line === undefined && shown.length === 0 && (
                         // Read with the panel, not a warning: every element is a fine answer.
                         <Text size="xs" c="dimmed" span className="ws-which-hint">
                             {hint}
                         </Text>
-                    ) : (
+                    )}
+                    {line === undefined &&
                         shown.map((each, at) => (
                             <Chip
                                 key={each.key}
@@ -627,8 +665,7 @@ function WhichRow({
                                     setCounts((now) => (now[each.key] === count ? now : { ...now, [each.key]: count }));
                                 }}
                             />
-                        ))
-                    )}
+                        ))}
                 </span>
             </UnstyledButton>
         </div>
@@ -1393,6 +1430,15 @@ export function AddCondition({
         .map(({ group, items }) => ({ group, items: prefixFirst(items.filter(foundRow), (each) => each.name, search) }))
         .filter(({ items }) => items.length > 0);
     const extraRows = [...moreShown.flatMap(({ items }) => items), ...extra];
+    // How well each listed row matches, in list order: its name is the search, starts with it,
+    // holds it, or only its other words or its words in any order match. Enter takes the best,
+    // whatever group it is in.
+    const ranks = [...groups.flatMap(({ items }) => items), ...moreShown.flatMap(({ items }) => items), ...extras]
+        .map(({ name }) => {
+            const rank = nameRank(name, typed);
+            return rank < 2 || name.toLowerCase().includes(typed) ? rank : 3;
+        })
+        .join(",");
     const count =
         groups.reduce((sum, { items }) => sum + items.length, 0) +
         moreShown.reduce((sum, { items }) => sum + items.length, 0) +
@@ -1448,19 +1494,31 @@ export function AddCondition({
             setActive(null);
             return;
         }
-        // The first match not already a condition is lit, so Enter adds something new.
+        // The best match not already a condition is lit, so Enter adds something new: an exact
+        // name before a name that starts with the search, before the rest; a tie goes to the first.
         const first = selectFirstOption();
         const options = [
             ...(document.getElementById(listId)?.querySelectorAll<HTMLElement>("[data-combobox-option]") ?? []),
         ];
-        const unused = options.findIndex((option) => option.dataset.used === undefined);
-        if (unused > 0) {
-            selectOption(unused);
-            setActive(options[unused].id === "" ? first : options[unused].id);
+        const rankOf = ranks.split(",").map(Number);
+        const score = (option: HTMLElement, index: number): number => {
+            if (option.dataset.comboboxDisabled !== undefined) {
+                return Number.POSITIVE_INFINITY;
+            }
+            const used = option.dataset.used === undefined ? 0 : 10;
+            return used + (rankOf[index] ?? 9);
+        };
+        const best = options.reduce(
+            (chosen, option, index) => (score(option, index) < score(options[chosen], chosen) ? index : chosen),
+            0,
+        );
+        if (best > 0) {
+            selectOption(best);
+            setActive(options[best].id === "" ? first : options[best].id);
             return;
         }
         setActive(first);
-    }, [typed, dropdownOpened, selectFirstOption, selectOption, resetSelectedOption, listId]);
+    }, [typed, ranks, dropdownOpened, selectFirstOption, selectOption, resetSelectedOption, listId]);
     const keys = (event: React.KeyboardEvent<HTMLInputElement>): void => {
         if (event.nativeEvent.isComposing) {
             return;

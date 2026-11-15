@@ -32,6 +32,17 @@ const XR_CONFIG = { enabled: true, ui: { enabled: false } } as const;
 /** The room between the canvas toolbar and the map's credits under it, in pixels. */
 const TOOLBAR_GAP = 12;
 
+/**
+ * The element's limits under the Cosmograph-inspired rendering experiment (#6389): a million nodes
+ * and a million edges may load, and each may draw as an object of its own, on the batched path.
+ */
+const COSMOGRAPH_LIMITS = {
+    renderCeiling: 1_000_000,
+    edgesDrawn: 1_000_000,
+    objectRows: 1_000_000,
+    objectEdges: 1_000_000,
+} as const;
+
 /** How fast Camera > Auto-rotate turns the 3D view, in radians per second: the start page's turn. */
 const AUTO_ROTATE_SPEED = 0.15;
 
@@ -141,6 +152,7 @@ export function ElementHost({ onReady, autosave = false, loadElement }: Readonly
             // The Cosmograph-inspired rendering experiment draws with the batched render path (#3247).
             if (cosmographOn(session)) {
                 element.renderPath = "batched";
+                element.limits = COSMOGRAPH_LIMITS;
             }
             // The reader's shader preferences and remembered approvals (Graph settings).
             const unbindShaders = bindShaderSettings(element);

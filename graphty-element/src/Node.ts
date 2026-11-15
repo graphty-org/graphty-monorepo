@@ -32,6 +32,7 @@ import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
 import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint, shaderPartOf } from "./managers/StylePainter";
+import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
@@ -888,6 +889,35 @@ export class Node implements ModelUser {
      */
     get borderReach(): number {
         return this.border === null ? 0 : this.borderWidth;
+    }
+
+    /**
+     * How far past where a line leaving this node in a direction crosses its drawn fill the line stops: to the outer
+     * edge of its border. {@link Node.borderReach} for most nodes; but a polygon under a border drawn in from its
+     * outline (inside, or centered) has its fill drawn in by the inset on each side of its box, so at a slanted side
+     * the fill lies less than the inset inside the outline along the line, and the line stops on the outline plus
+     * what of the border reaches past it, never more than {@link Node.borderReach}. A 27-wide triangle with an inside
+     * border of 6 left at its middle 3 beyond the outline before; Cytoscape desktop ends it on the outline (issue
+     * #7566).
+     * @param dir - The unit direction the line leaves in, in the units the node's position is laid out in.
+     * @returns The distance.
+     * @internal
+     */
+    borderReachAlong(dir: Xyz): number {
+        const reach = this.borderReach;
+        const outline = reach > 0 ? this.reachOutline : null;
+        const inset = outline !== null && NodeMesh.isFitted(this.drawnStyle?.shape) ? this.fillInset() : 0;
+        if (outline === null || inset <= 0) {
+            return reach;
+        }
+
+        const toOutline =
+            surfaceReach(dir, this.outlineHalfExtents, null, outline) -
+            surfaceReach(dir, this.drawnHalfExtents, null, outline);
+        // never further out than the border's width along the line: across a side the line meets at a shallow
+        // angle the outline lies far along it, and Cytoscape desktop's line stops inside it there
+        // (cx-radiation-bibliography, a hexagon and two round rectangles met nearly edge on)
+        return Math.min(reach, Math.max(0, toOutline + reach - inset));
     }
 
     /**

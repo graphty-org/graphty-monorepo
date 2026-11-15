@@ -383,6 +383,24 @@ describe("the selection editor in a style layer", () => {
         assert.isAbove(expected, 1);
     });
 
+    it("Enter takes the row named exactly what was typed, then one that starts with it, over a word match in an earlier group (issue #7858)", async () => {
+        const session = await openSample();
+        await openLayer(session, "Near Valjean", { match: "everything" });
+        for (const [index, typed] of ["Is in", "Is i"].entries()) {
+            await startCondition();
+            await screen.findByRole("combobox", { name: "Find attributes, results" });
+            await userEvent.keyboard(typed);
+            // Katz, found by its words "Influence at a distance", is listed before Relative to.
+            await screen.findByRole("option", { name: /^Katz/ });
+            await screen.findByRole("option", { name: /^Is in/ });
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.lengthOf(stepRows(), index + 1);
+                assert.match(stepRows()[index] ?? "", /^Is in, /);
+            });
+        }
+    });
+
     it("selecting a step row draws the picking view; Escape ends it, the layer list unchanged", async () => {
         const session = await openSample();
         await openLayer(session, "Picked", { match: "rule", where: DEGREE_6_TO_10 });
@@ -550,9 +568,8 @@ async function addFocusStep(preset: string, options: { hops?: number; except?: b
     await startCondition();
     await screen.findByRole("combobox", { name: "Find attributes, results" });
     await userEvent.keyboard(preset);
-    // Clicked, not Enter: the first lit row can be another word match ("Is in" finds Katz's
-    // "Influence at a distance", listed before Relative to).
-    await userEvent.click(await screen.findByRole("option", { name: new RegExp(`^${preset}`) }));
+    await screen.findByRole("option", { name: new RegExp(`^${preset}`) });
+    await userEvent.keyboard("{Enter}");
     const pane = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws [data-step-pane]");
         assert.isNotNull(found, "the new step's pane");

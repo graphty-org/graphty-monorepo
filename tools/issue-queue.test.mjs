@@ -88,7 +88,6 @@ describe("list", () => {
 
     it("applies the round's skip labels and titles", () => {
         const skipped = [
-            "priority:critical",
             "in-progress",
             "needs-decision",
             "needs-info",
@@ -114,6 +113,22 @@ describe("list", () => {
                 issue(5, "update design/brand logo", ["bug"]),
                 issue(7, "Nightly held on ca38ff3c3d02", ["bug"]),
                 issue(8, "Nightly missed slot 2026-11-02 18:00 UTC: waiting", ["bug"]),
+                issue(11, "Full run red: lane-a on abc123", ["bug", "priority:critical"]),
+                issue(12, "Failing on master: lint", ["bug", "priority:critical"]),
+                issue(14, "Red master: CI failed on abc1234", ["bug", "priority:critical"]),
+                issue(15, "canary deploy failed on abc1234", ["bug", "priority:critical"]),
+                ...[
+                    "Master baselines tree unsigned on abc1234",
+                    "Nightly stalled since 2026-11-13",
+                    "Nightly site deploy failed on abc1234",
+                    "Nightly promotion failed: publish on abc1234",
+                    "Shadow release run: publish failed on abc1234",
+                    "Release scheduler could not start a release train",
+                    "graphty-monorepo's write deploy keys are not exactly the release key",
+                ].map((t, i) => issue(200 + i, t, ["bug", "priority:critical"])),
+                issue(16, "Load-sensitive test: x (tools)", ["bug", "priority:critical", "intermittent"]),
+                issue(17, "Flaky in full run: y", ["bug", "priority:critical", "intermittent"]),
+                issue(13, "critical bug", ["bug", "priority:critical"]),
                 issue(6, "kept", ["bug"]),
                 issue(9, "ux-safe enhancement", ["enhancement", "ux-safe"]),
                 issue(10, "ux-owner enhancement", ["enhancement", "ux-owner"]),
@@ -121,11 +136,11 @@ describe("list", () => {
         ];
         assert.deepEqual(
             numbers(pages).sort((a, b) => a - b),
-            [2, 6, 9],
+            [2, 6, 9, 13, 16, 17],
         );
     });
 
-    it("sorts load-sensitive, priority, bug, infrastructure, enhancement, effort, then oldest", () => {
+    it("sorts load-sensitive, priority (critical first), bug, infrastructure, enhancement, effort, then oldest", () => {
         const at = (d) => ({ createdAt: `2026-10-${d}T00:00:00Z` });
         const pages = [
             [
@@ -138,9 +153,10 @@ describe("list", () => {
                 issue(7, "Load-sensitive test: x", ["bug", "priority:low"], at(30)),
                 issue(8, "body says it", ["bug", "priority:low"], { ...at(30), body: "fails under restricted CPU" }),
                 issue(9, "high ux-safe enhancement", ["enhancement", "ux-safe", "priority:high"], at(1)),
+                issue(10, "critical new", ["bug", "priority:critical", "effort:high"], at(30)),
             ],
         ];
-        assert.deepEqual(numbers(pages), [7, 8, 6, 9, 5, 4, 3, 2, 1]);
+        assert.deepEqual(numbers(pages), [7, 8, 10, 6, 9, 5, 4, 3, 2, 1]);
     });
 
     it("pages through every open issue and honors --limit", () => {

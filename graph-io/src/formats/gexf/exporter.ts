@@ -287,6 +287,7 @@ function planExport(
     const caps = version === "1.2" ? CAPABILITIES_1_2 : CAPABILITIES_1_3;
     const notes = [
         ...checkCapabilities(snapshot, caps, resolved, {
+            idsAsText: true,
             openIntervals: version === "1.2",
             temporalText: true,
             positionDtype: "f64",

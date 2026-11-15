@@ -1947,8 +1947,7 @@ async function readSettings(opening: Opening, doc: ReadDocument, config: unknown
     await attempt(opening, "config", () =>
         tx.config.set({ ...withReadableBackground(opening, withAddedDefaults(config)), name }),
     );
-    // The settings just read add starting rows by themselves when they change what is in effect (a
-    // time field adds Ghost, the pinned look adds Pinned, `startingRows` the rest). A file that
+    // The settings just read write the default rows when they turn `startingRows` on. A file that
     // holds a style tree comes back with exactly that tree, so those rows go again: otherwise the
     // tree's own copies land beside them and every starting row is there twice (issue #7843).
     if (doc.members.has("graphty-style")) {

@@ -344,6 +344,7 @@ const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(m
  * Gives a test slot back once its holder stops using the CPU (IDLE), and tells the holder.
  * @param hold the hold
  * @param hold.release the hold's release (and its `free`)
+ * @param hold.kind the slot's kind: only a test slot is watched
  * @param hold.pid the holding process
  * @param hold.granted when the slot was granted (epoch milliseconds)
  * @param hold.idle the limits and the CPU reader (IDLE)
@@ -353,7 +354,8 @@ const age = (ms) => (ms < 60_000 ? `${Math.round(ms / 1000)}s` : `${Math.round(m
  * @param hold.waitLog records the early release
  * @returns the release, which also stops the watch
  */
-function watchIdle({ release, pid, granted, idle, label, what, log, waitLog }) {
+function watchIdle({ release, kind, pid, granted, idle, label, what, log, waitLog }) {
+    if (kind !== "test" || !idle) return release;
     const stalled = progressWatch(() => idle.cpu(pid), granted, idle);
     const timer = setInterval(() => {
         if (!stalled(Date.now())) return;
@@ -473,9 +475,8 @@ export async function acquire({
                 waitLog({ kind: `${kind}-slot-held`, start: granted, waiter: label, extra: { what, exit } });
             };
             release.free = free;
-            // A holder that stops using the CPU gives its slot back (#8041); the run itself goes on.
-            if (kind === "test" && idle) return watchIdle({ release, pid, granted, idle, label, what, log, waitLog });
-            return release;
+            // A test slot holder that stops using the CPU gives its slot back (#8041); the run itself goes on.
+            return watchIdle({ release, kind, pid, granted, idle, label, what, log, waitLog });
         }
         if (!holders) {
             holders = live.slice(0, slots).map((t) => `pid ${t.pid} ${t.label} (${age(Date.now() - t.since)})`);

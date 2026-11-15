@@ -87,6 +87,7 @@ import { valueLabelOf } from "./valueLabels";
 import { CONDITIONS_VERSION, readSavedConditions } from "./visibility/conditions";
 import { assertVisibility, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 import type { SessionVisibilityApi } from "./visibility/VisibilityApi";
+import { wholeGraph } from "./working/graphs";
 
 /** The container's `kind`. */
 const DOCUMENT_KIND = "graphty-document";
@@ -692,7 +693,7 @@ export function graphIdsOf(session: GraphSession): GraphIds {
         return { nodes: expanded.nodes.map((node) => node.id), edges: expanded.edges.map((edge) => edge.id) };
     }
 
-    const snapshot = session.data.snapshot();
+    const snapshot = wholeGraph(session.data.store);
     const space = edgeSpaceOf(snapshot);
     return {
         nodes: snapshot.ids.toArray(),

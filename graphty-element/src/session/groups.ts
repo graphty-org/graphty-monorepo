@@ -18,6 +18,7 @@ import type { SessionCommand } from "./planning";
 import type { RunRef } from "./results/types";
 import type { CodedFact } from "./shared";
 import type { GraphSession, HistoryCode, NodeRecord, PositionEntry } from "./types";
+import { wholeGraph } from "./working/graphs";
 
 /**
  * A group's value: what its members hold at the path they are grouped by.
@@ -255,7 +256,7 @@ export function createGroupsApi(
     const groupByOf = (ref: GroupRef): Path => ("run" in ref ? session.results.path(ref.run) : ref.groupBy);
     const nodeIdOf = (groupBy: Path, group: GroupValue): NodeId => `group:${groupBy}=${String(group)}`;
     const restoreOf = (node: NodeRecord | undefined): Restore | undefined => node?.[RESTORE] as Restore | undefined;
-    const indexOf = (id: NodeId): number => session.data.snapshot().ids.indexOf(id);
+    const indexOf = (id: NodeId): number => wholeGraph(session.data.store).ids.indexOf(id);
     const sum = (
         into: Map<string, Aggregate>,
         source: NodeId,
@@ -581,7 +582,7 @@ export function expandedGraph(session: GraphSession): ExpandedGraph | null {
         return null;
     }
 
-    const { ids } = session.data.snapshot();
+    const { ids } = wholeGraph(session.data.store);
     const point = { x: 0, y: 0, z: 0 };
     const nodes: NodeRecord[] = [];
     const positions: PositionEntry[] = [];

@@ -71,6 +71,7 @@ import { GraphtyError } from "../errors";
 import type { DataManager } from "../managers/DataManager";
 import type { Node } from "../Node";
 import type { DrawnTarget } from "../render/RowTable";
+import { wholeGraph } from "../session/working/graphs";
 import { readCommunities, readRowCommunities, sameCommunities } from "./clusterForce";
 import { type EdgePosition, LayoutEngine, type Position } from "./LayoutEngine";
 
@@ -874,7 +875,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
      * @returns A promise that resolves once the simulation exists and holds the graph.
      */
     init(): Promise<void> {
-        const snapshot = this.#dataManager.getSnapshot();
+        const snapshot = wholeGraph(this.#dataManager);
         this.load(snapshot, this.#dataManager[WRITABLE_LANE].view(snapshot.nodeCount));
         return Promise.resolve();
     }
@@ -1134,7 +1135,7 @@ export class SimulationLayoutEngine extends LayoutEngine {
             return;
         }
 
-        const snapshot = this.#dataManager.getSnapshot();
+        const snapshot = wholeGraph(this.#dataManager);
         this.reload(snapshot, this.#dataManager[WRITABLE_LANE].view(snapshot.nodeCount));
     }
 

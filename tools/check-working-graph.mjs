@@ -14,13 +14,17 @@
  *     into (no flag or trailer changes that): a new reader reads the view, or names the whole graph;
  *   - a row is malformed: no reader, no reason, a case that is not one of the list's own cases, or a
  *     reader listed twice;
- *   - the list's cases gain one compared with the merge base.
+ *   - the list's cases gain one compared with the merge base;
+ *   - `accessors` (the functions the local/whole-graph-by-name lint rule lets name the whole graph
+ *     with wholeGraph()) gains one, or a row has no file, function, reason or agreed case;
+ *   - `accessorOwners` or `workingMints` (the files that hold the store, and that may mark a
+ *     snapshot as the working graph) gains a file.
  *
  * Usage: node tools/check-working-graph.mjs              (exit 1 on any of the above)
  *        node tools/check-working-graph.mjs --self-test  (prove each failure fires)
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -48,7 +52,29 @@ function malformed(list) {
             return problems;
         }),
         ...readers.filter((reader, at) => readers.indexOf(reader) !== at).map((r) => `"${r}" is listed twice`),
+        ...(list.accessors ?? []).flatMap((row) => {
+            const problems = [];
+            const name = accessorKey(row);
+            if (!row.file?.trim() || !row.function?.trim()) problems.push(`an accessor names no file or function`);
+            if (!row.reason?.trim()) problems.push(`accessor "${name}" has no reason`);
+            if (!cases.includes(row.case))
+                problems.push(`accessor "${name}" has case "${row.case}", not one of ${cases}`);
+            return problems;
+        }),
+        ...(list.accessors ?? [])
+            .map(accessorKey)
+            .filter((key, at, all) => all.indexOf(key) !== at)
+            .map((key) => `accessor "${key}" is listed twice`),
     ];
+}
+
+/**
+ * An accessor row's key.
+ * @param row - the row
+ * @returns file#function
+ */
+function accessorKey(row) {
+    return `${row.file}#${row.function}`;
 }
 
 /**
@@ -68,7 +94,51 @@ function gained(base, head) {
                     `"${row.reader}" is new. The list only shrinks: read the view, or name the whole graph by its word.`,
             ),
         ...head.cases.filter((each) => !cases.has(each)).map((each) => `case "${each}" is new. The cases only shrink.`),
+        ...grown(
+            base.accessors?.map(accessorKey),
+            head.accessors?.map(accessorKey),
+            "accessor",
+            "read the working graph",
+        ),
+        ...grown(base.accessorOwners, head.accessorOwners, "store owner", "read the working graph"),
+        ...grown(base.workingMints, head.workingMints, "working-graph mint", "take the view's snapshot"),
     ];
+}
+
+/**
+ * The entries of a list the head adds, once the base has the list at all.
+ * @param base - the base's entries, or undefined before the list landed
+ * @param head - the head's entries
+ * @param what - what an entry is
+ * @param instead - what new code does instead
+ * @returns the failure messages
+ */
+function grown(base, head, what, instead) {
+    if (base === undefined) return [];
+    const before = new Set(base);
+    return (head ?? [])
+        .filter((entry) => !before.has(entry))
+        .map((entry) => `${what} "${entry}" is new. The list only shrinks: ${instead}.`);
+}
+
+/**
+ * Accessor rows that no longer match the code: a file that is gone, or one that no longer names the
+ * function or calls wholeGraph(). The lint rule is what fails a read outside the list; this keeps a
+ * row from outliving the read it allowed.
+ * @param root - the checkout
+ * @param list - the list
+ * @returns the failure messages
+ */
+function stale(root, list) {
+    return (list.accessors ?? []).flatMap((row) => {
+        const path = join(root, "graphty-element", row.file);
+        if (!existsSync(path)) return [`accessor "${accessorKey(row)}": the file is gone; delete the row`];
+        const text = readFileSync(path, "utf8");
+        const member = row.function.split(".").at(-1).replace(/^#/, "");
+        return text.includes("wholeGraph(") && text.includes(member)
+            ? []
+            : [`accessor "${accessorKey(row)}": the file no longer reads the whole graph there; delete the row`];
+    });
 }
 
 /**
@@ -115,6 +185,36 @@ function selfTest() {
     expect("bad case", failures(head, { ...head, readers: [{ ...row("a()"), case: "x" }] }), /not one of/);
     expect("repeated", failures(head, { ...head, readers: [row("a()"), row("a()")] }), /listed twice/);
     expect("no cases", failures(head, { ...head, cases: [] }), /no cases/);
+    const reach = (fn) => ({ file: "src/a.ts", function: fn, case: "filter", reason: "why" });
+    const withReach = { ...head, accessors: [reach("f")], accessorOwners: ["s.ts"], workingMints: ["v.ts"] };
+    if (failures(withReach, withReach).length > 0) throw new Error("self-test accessors clean");
+    if (failures(head, withReach).length > 0) throw new Error("self-test accessors first landing must pass");
+    expect(
+        "accessor gain",
+        failures(withReach, { ...withReach, accessors: [reach("f"), reach("g")] }),
+        /accessor "src\/a.ts#g" is new/,
+    );
+    expect(
+        "owner gain",
+        failures(withReach, { ...withReach, accessorOwners: ["s.ts", "t.ts"] }),
+        /store owner "t.ts" is new/,
+    );
+    expect("mint gain", failures(withReach, { ...withReach, workingMints: ["v.ts", "w.ts"] }), /mint "w.ts" is new/);
+    expect(
+        "accessor no reason",
+        failures(withReach, { ...withReach, accessors: [{ ...reach("f"), reason: "" }] }),
+        /has no reason/,
+    );
+    expect(
+        "accessor bad case",
+        failures(withReach, { ...withReach, accessors: [{ ...reach("f"), case: "x" }] }),
+        /not one of/,
+    );
+    expect(
+        "accessor twice",
+        failures(withReach, { ...withReach, accessors: [reach("f"), reach("f")] }),
+        /listed twice/,
+    );
     console.log("check-working-graph: self-test passed");
 }
 
@@ -122,12 +222,14 @@ if (process.argv[2] === "--self-test") {
     selfTest();
 } else {
     const head = JSON.parse(readFileSync(join(ROOT, LIST), "utf8"));
-    const problems = failures(baseList(ROOT), head);
+    const problems = [...failures(baseList(ROOT), head), ...stale(ROOT, head)];
     if (problems.length > 0) {
         for (const problem of problems) console.error(`${LIST}: ${problem}`);
         console.error(`\ncheck-working-graph: ${problems.length} failure(s). Every reader reads the working graph.`);
         process.exit(1);
     }
 
-    console.log(`check-working-graph: passed; ${head.readers.length} reader(s) read the whole graph by agreement`);
+    console.log(
+        `check-working-graph: passed; ${head.readers.length} reader(s) and ${head.accessors?.length ?? 0} accessor(s) read the whole graph by agreement`,
+    );
 }

@@ -42,6 +42,7 @@ import { EDGE_ID_COLUMN, edgeIdOf } from "../../data/edgeIdentity";
 import { GraphtyError } from "../../errors";
 import type { WeightMeaning } from "../../session/runs/types";
 import type { Resolution } from "../../session/sets/resolve";
+import { asWorkingSnapshot, wholeGraph, type WorkingSnapshot } from "../../session/working/graphs";
 import type { ColumnValues, InputColumns } from "./columns";
 import {
     type DerivedInput,
@@ -134,6 +135,12 @@ export interface ScopedInput {
  * @internal
  */
 export interface ElementScopedInput extends ScopedInput {
+    /**
+     * The run's graph: its scope's induced snapshot, hidden nodes absent. Typed as the working
+     * graph, which is all a reader accepts.
+     * @returns The snapshot.
+     */
+    subgraph(): WorkingSnapshot;
     /**
      * The derived snapshot with its maps.
      * @returns The input.
@@ -577,7 +584,7 @@ export function createScopedInput(
     run?: RunInput,
     columns?: InputColumns,
 ): ElementScopedInput {
-    const store = data.getSnapshot();
+    const store = wholeGraph(data);
     const simplify = options?.simplify ?? "sum";
     const scope = run?.scope() ?? null;
     if (scope !== null && scope.graph !== store) {
@@ -609,7 +616,7 @@ export function createScopedInput(
     };
 
     const weight = options?.weight;
-    let declared = store;
+    let declared: GraphSnapshot = store;
     if (weight !== undefined) {
         const values = weight === null ? null : columns?.read(store, weight.attribute, "edge", edgeId)?.values;
         if (values === undefined) {
@@ -643,9 +650,11 @@ export function createScopedInput(
                     : scopedInput(run, membership, declared, orientation, simplify);
             return derived;
         },
-        subgraph(): GraphSnapshot {
+        subgraph(): WorkingSnapshot {
+            // The run's input is its scope's induced graph: the working graph's view for a run over
+            // what is shown, the whole graph only for a run that named it ("Full graph").
             if (named.size === 0) {
-                return input.derived().snapshot;
+                return asWorkingSnapshot(input.derived().snapshot);
             }
 
             if (withNamed?.size !== named.size) {
@@ -667,7 +676,7 @@ export function createScopedInput(
                 };
             }
 
-            return withNamed.snapshot;
+            return asWorkingSnapshot(withNamed.snapshot);
         },
         edgeId,
         subgraphEdgeIds(row: number): readonly EdgeId[] {
@@ -737,7 +746,7 @@ export function createScopedInput(
         },
     });
 
-    return input as ElementScopedInput;
+    return input as typeof input & Pick<ElementScopedInput, "nodes" | "edges">;
 }
 
 /**

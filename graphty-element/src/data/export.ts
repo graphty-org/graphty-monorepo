@@ -81,6 +81,7 @@ import type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
 import { layersToStyles } from "../session/styles/fileStyles/fromLayers";
 import { asFileStyleStore, FILE_STYLES_VALUE } from "../session/styles/fileStyles/store";
 import type { EdgeRecord, GraphSession, GroupTableOptions, NodeRecord } from "../session/types";
+import { wholeGraph } from "../session/working/graphs";
 import { writtenPositions } from "./filePositions";
 
 export type { ExportStyleLossCode } from "../session/styles/fileStyles/codes";
@@ -488,7 +489,7 @@ function writeNotes(
     // `list()` is newest first, so each row's texts arrive in the order they are written.
     const notes = session.notes.list();
     const texts = { node: new Map<number, string[]>(), edge: new Map<number, string[]>() };
-    rowsOf(notes, session.data.snapshot()).forEach((targets, at) => {
+    rowsOf(notes, wholeGraph(session.data.store)).forEach((targets, at) => {
         const seen = { node: new Set<number>(), edge: new Set<number>() };
         targets.forEach((sessionRow, position) => {
             const kind = "node" in notes[at].targets[position] ? "node" : "edge";
@@ -594,7 +595,7 @@ export function buildExportSnapshot(
     const notes: LossNote[] = [];
     const guard = formulaGuard(options.neutraliseFormulas === true);
     const { cell } = guard;
-    const current = session.data.snapshot();
+    const current = wholeGraph(session.data.store);
     const builder = new GraphBuilder({
         directed: current.directed,
         duplicateEdges: "keep",
@@ -925,7 +926,7 @@ interface ResultColumns {
 function writeResults(session: GraphSession, out: ResultColumns, notes: LossNote[], groupRanks: boolean): void {
     // A field only a directed graph can tell apart (a degree's in and out halves) means nothing on
     // an undirected one, so it is left out there, as the readable fields leave it out.
-    const { directed } = session.data.snapshot();
+    const { directed } = wholeGraph(session.data.store);
     for (const root of session.results.roots) {
         const result = session.results.get(root.runId);
         if (result === undefined) {

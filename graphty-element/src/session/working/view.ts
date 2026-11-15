@@ -24,6 +24,7 @@ import { type GraphSnapshot, INVALID_INDEX, makeMask, type U32 } from "@graphty/
 import type { DerivedInput, InputMembership } from "../../algorithms/input/derivedInputs";
 import { intermediateOf, type SharedInputLookup } from "../../algorithms/input/ScopedInput";
 import type { ScopeVisibilitySource } from "../scope/ScopeApi";
+import { asWorkingSnapshot, type WholeSnapshot, type WorkingSnapshot } from "./graphs";
 
 /** Counts the view tests read: one per derivation of a view, never for the whole graph. */
 export const workingViewCounters = { builds: 0 };
@@ -33,10 +34,10 @@ export type WorkingScope = "visible" | "graph";
 
 /** One view of the graph: its structure, and the maps between its rows and the original's. */
 export interface WorkingView {
-    /** The original snapshot the view covers. */
-    readonly graph: GraphSnapshot;
-    /** The view's compact snapshot; `graph` itself when the view is whole. */
-    readonly snapshot: GraphSnapshot;
+    /** The original snapshot the view covers, hidden nodes included: never what a reader reads. */
+    readonly graph: WholeSnapshot;
+    /** The view's compact snapshot, hidden nodes absent: what a reader reads; `graph` itself when the view is whole. */
+    readonly snapshot: WorkingSnapshot;
     /** True when nothing is hidden, or the whole graph was asked for by name. */
     readonly whole: boolean;
     /** The shown nodes, as a graph-format bitmap over `graph`'s rows. */
@@ -81,8 +82,8 @@ export interface WorkingGraph {
 
 /** What the working graph reads. */
 export interface WorkingGraphSources {
-    /** The store's current snapshot. */
-    readonly snapshot: () => GraphSnapshot;
+    /** The store's current snapshot, by name. */
+    readonly snapshot: () => WholeSnapshot;
     /** What is visible now (the filters and the time window); each read returns the same copy until its membership changes. */
     readonly masks: ScopeVisibilitySource;
     /** What the filters keep, the time window aside; the same copies as `masks` while no window is in force. */
@@ -93,7 +94,7 @@ export interface WorkingGraphSources {
 
 /** One state's masks, packed, and its view once built. */
 interface State {
-    readonly graph: GraphSnapshot;
+    readonly graph: WholeSnapshot;
     nodeKey: object;
     edgeKey: object;
     readonly nodes: U32;
@@ -170,10 +171,11 @@ function sameWords(left: U32, right: U32): boolean {
  * @param graph - The snapshot.
  * @returns The view.
  */
-function wholeView(graph: GraphSnapshot): WorkingView {
+function wholeView(graph: WholeSnapshot): WorkingView {
     return {
         graph,
-        snapshot: graph,
+        // Nothing hidden, or the whole graph asked for by name: the original is what is read.
+        snapshot: asWorkingSnapshot(graph),
         whole: true,
         nodes: makeMask(graph.nodeCount, true),
         edges: makeMask(graph.edgeCount, true),
@@ -249,7 +251,7 @@ export function createWorkingGraph(sources: WorkingGraphSources, enabled = false
      * @param graph - The snapshot.
      * @returns The view.
      */
-    const wholeOf = (graph: GraphSnapshot): WorkingView => {
+    const wholeOf = (graph: WholeSnapshot): WorkingView => {
         if (whole?.graph !== graph) {
             whole = wholeView(graph);
         }
@@ -276,7 +278,7 @@ export function createWorkingGraph(sources: WorkingGraphSources, enabled = false
         const nodeOrigin = input.nodeOrigin ?? identityRows(at.graph.nodeCount);
         at.view = {
             graph: at.graph,
-            snapshot,
+            snapshot: asWorkingSnapshot(snapshot),
             whole: false,
             nodes: at.nodes,
             edges: at.edges,

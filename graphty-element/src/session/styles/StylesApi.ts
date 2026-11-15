@@ -5114,6 +5114,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /**
      * Count what one layer covers and where it wins: {@link StylesApi.counts}, read fresh.
      * @param id - The layer.
+     * @param scope - Over the whole graph, or over what is shown.
      * @returns The counts.
      */
     const countsOf = (id: LayerId, scope: "graph" | "visible"): StyleCounts => {

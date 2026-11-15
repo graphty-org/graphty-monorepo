@@ -260,6 +260,7 @@ import {
 } from "./visibility";
 import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 import type { SlideCounts } from "./visibility/slide";
+import { wholeGraph, type WholeSnapshot } from "./working/graphs";
 import { createWorkingGraph, type WorkingGraph } from "./working/view";
 
 /**
@@ -790,7 +791,8 @@ class Session implements ElementSession {
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
         this.runner = new LayoutRunner({
-            snapshot: () => this.store.getSnapshot(),
+            // The working graph, never the store: a hidden node is not laid out.
+            working: () => (this.working.enabled ? this.working.filtered() : this.working.view("graph")),
             undirected: (snapshot) => this.store.undirected(snapshot),
             lane: () => this.store.positions,
             choice: () => this.dispatcher.state.layout ?? DEFAULT_LAYOUT,
@@ -1138,7 +1140,7 @@ class Session implements ElementSession {
             return DISPOSED_STATUS;
         }
 
-        const snapshot = this.store.getSnapshot();
+        const snapshot = wholeGraph(this.store);
         const showing = this.visibility.summary;
         return Object.freeze({
             ready: true,
@@ -1718,7 +1720,7 @@ function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionP
             set: { value: set, enumerable: true },
             get: {
                 value: (id: NodeId) => {
-                    const row = rowOfEitherSpelling(store.getSnapshot().ids, id);
+                    const row = rowOfEitherSpelling(wholeGraph(store).ids, id);
                     const { positions } = store;
                     if (row === INVALID_INDEX || !positions.isPlaced(row)) {
                         return undefined;
@@ -1777,7 +1779,7 @@ function positionsSnapshot(store: SessionGraphStore): {
     readonly order: readonly NodeId[];
     readonly xyz: Float32Array;
 } {
-    const snapshot = store.getSnapshot();
+    const snapshot = wholeGraph(store);
     const n = snapshot.nodeCount;
     const xyz = new Float32Array(3 * n);
     const out = { x: 0, y: 0, z: 0 };
@@ -2255,10 +2257,10 @@ function resolveStore(
         // and cheap: a freeze in delivery answers `getSnapshot()` from the snapshot it is
         // delivering rather than freezing again.
         onNodeRemap: (remap) => {
-            follow.nodes(remap, owned.getSnapshot().nodeCount);
+            follow.nodes(remap, wholeGraph(owned).nodeCount);
         },
         onEdgeRemap: (remap) => {
-            follow.edges(remap, owned.getSnapshot().edgeCount);
+            follow.edges(remap, wholeGraph(owned).edgeCount);
         },
         onReplaced: () => undefined,
     });
@@ -2401,7 +2403,7 @@ function componentLabelsOf(data: SessionDataApi): () => ComponentLabels {
     let held: ComponentLabels = { labels: new Int32Array(0), count: 0 };
 
     return (): ComponentLabels => {
-        const snapshot = data.snapshot();
+        const snapshot = wholeGraph(data.store);
 
         if (against !== snapshot) {
             // The whole graph's: a component filter reads every node, not what it shows.
@@ -3168,7 +3170,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         inputs.tick.advance();
     };
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
-    const snapshot = (): GraphSnapshot => store.store.getSnapshot();
+    const snapshot = (): WholeSnapshot => wholeGraph(store.store);
     const dataRevision = dataRevisionOf(snapshot, inputs);
     dispatcher.arrangement.bind({
         snapshot,

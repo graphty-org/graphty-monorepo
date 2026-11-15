@@ -53,6 +53,30 @@ async function rowsWritten(session: GraphSession, work: () => unknown): Promise<
 }
 
 describe("running the layout of a session with no renderer", () => {
+    it("lays out only what the filters show: a hidden node is never placed", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes(["a", "b", "c", "d", "e"].map((id) => ({ id, side: id === "e" ? "far" : "near" })));
+        await session.data.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+            { src: "c", dst: "d" },
+            { src: "d", dst: "e" },
+        ]);
+        await session.visibility.addCondition({
+            effect: "keep",
+            rule: { kind: "categories", attribute: "data.side", values: ["near"] },
+        });
+
+        for (const engine of ["force", "circular"] as const) {
+            await session.layout.set(engine, { options: { seed: 1 } });
+            await session.layout.settle();
+            for (const id of ["a", "b", "c", "d"]) {
+                assert.isDefined(session.positions.get(id), `${engine} places the shown node ${id}`);
+            }
+            assert.isUndefined(session.positions.get("e"), `${engine} never places the hidden node`);
+        }
+    });
+
     it("runs the force layout to rest and reports it", async () => {
         const session = await ring();
         const heard: unknown[] = [];

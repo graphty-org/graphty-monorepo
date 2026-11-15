@@ -7,6 +7,7 @@ import type { Edge } from "../Edge";
 import { GraphtyError } from "../errors";
 import type { GraphtyWarningCode } from "../errors/codes";
 import type { Node } from "../Node";
+import type { WorkingSnapshot } from "../session/working/graphs";
 import {
     type EdgePosition,
     layoutDim,
@@ -250,7 +251,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
         // The undirected graph has the stored node rows. It is read only by a layout that reads
         // it, so the fixed layout never makes the graph undirected.
         const n = stored.nodeCount;
-        const graph = (): GraphSnapshot => super.graph;
+        const graph = (): WorkingSnapshot => super.graph;
 
         const ready = this.#ready;
         this.#ready = null;
@@ -403,7 +404,7 @@ export abstract class SnapshotLayoutEngine extends StaticLayoutEngine {
      * @param controller - the run's abort controller
      * @returns the input
      */
-    #input(graph: () => GraphSnapshot, stored: GraphSnapshot, controller: AbortController): SnapshotLayoutInput {
+    #input(graph: () => WorkingSnapshot, stored: WorkingSnapshot, controller: AbortController): SnapshotLayoutInput {
         const n = stored.nodeCount;
         const dim = this.dimensions;
         const positions = simpleLayoutInternals.positions(this);

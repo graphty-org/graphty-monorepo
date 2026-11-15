@@ -254,6 +254,7 @@ import type {
     ValueType,
 } from "./types";
 import { valueLabelsAt } from "./valueLabels";
+import { wholeGraph } from "./working/graphs";
 import type { WorkingGraph, WorkingScope, WorkingView } from "./working/view";
 
 /** A value a column holds that can be given a name (`data.label`) or counted. */
@@ -821,7 +822,7 @@ function withStartMode(source: string, config: Record<string, unknown>): Record<
  * The session's view of the graph data.
  *
  * It reads a store it does not own the lifetime of, so every answer starts from
- * `store.getSnapshot()` rather than from a snapshot held here: the store is free to replace the
+ * `wholeGraph(store)` rather than from a snapshot held here: the store is free to replace the
  * snapshot, and a data surface holding the old one would answer confidently about a graph that
  * no longer exists.
  */
@@ -2087,7 +2088,7 @@ export class SessionData implements SessionDataApi {
      */
     private current(): GraphSnapshot {
         this.requireLive("snapshot");
-        return this.graphStore.getSnapshot();
+        return wholeGraph(this.graphStore);
     }
 
     /**
@@ -6736,7 +6737,7 @@ function readonlyStore(store: LaneStore): SessionGraphStore {
  */
 function consumerSnapshot(store: LaneStore): GraphSnapshot {
     store.positions.settle();
-    const resident = store.getSnapshot();
+    const resident = wholeGraph(store);
     // ponytail: copies the whole snapshot per call (O(nodes + edges)); cache a copy per freeze and
     // lane generation, handed out as read-only views, if a consumer calls this every frame.
     const copy = fromBytes(resident.toBytes(), { validate: "none" });

@@ -220,6 +220,34 @@ and the styles that read the view do not move. Only a filter change does.
   **`tools/check-working-graph.mjs`** (in `check:quick` and CI's Checks job) fails when the list
   gains a row against the merge base or a row is malformed. The list only shrinks.
 
+**Fences** (owner, 2026-11-15: mechanisms beyond tests, so code cannot read a hidden node by
+accident). The tests above stay as the backstop.
+
+- **The input is the filtered graph itself.** A layout definition (`defineLayout`) is handed a
+  view over the working graph's own snapshot, read from its engine's `workingGraph` (the view of
+  what the filters show, or the whole graph's view when the option is off: a choice named
+  `view("graph")`); a `defineAlgorithm` definition and a legacy `algorithmGraph()` read the run's
+  `subgraph()`, its scope's induced snapshot. A snapshot layout's `graph` and `stored` are the
+  engine's working graph. None of them is handed a session or a store.
+- **Two types the compiler tells apart** (`src/session/working/graphs.ts`): a `WorkingSnapshot`
+  (what a reader reads; made only by `view.ts`, a run's `ScopedInput` and the layout engine's
+  loader, the files `workingMints` names) and a `WholeSnapshot` (the original). `viewSourceOf`,
+  `legacyGraphOf`, `WorkingView.snapshot`, `ElementScopedInput.subgraph()` and the layout engine's
+  `graph` and `sourceGraph` take or give a `WorkingSnapshot`, so handing a reader the store's
+  snapshot or the whole graph is a compile error. The public types are unchanged.
+- **The whole graph only by name, enforced by lint.** `wholeGraph(source)` is the one accessor.
+  The rule `local/whole-graph-by-name` (`graphty-element/eslint-rules/whole-graph-by-name.mjs`,
+  with its own tests) fails, anywhere in `src` but the files that hold the store
+  (`accessorOwners`): `wholeGraph()` in a function the list's `accessors` does not name (each row
+  a file, a class member or top-level function, an agreed case and a reason), any
+  `getSnapshot()` on the store, and `data.snapshot()`. `tools/check-working-graph.mjs` lets
+  `accessors`, `accessorOwners` and `workingMints` only shrink and fails a row whose read is gone.
+- **Layouts with no renderer too.** A session that draws nothing lays out its working graph
+  (`src/session/layoutRunner.ts`): the shown rows in a buffer of their own, written back to the
+  element's rows, so a hidden node keeps its position.
+- **Left to move to the view** (rows with the case `"not agreed"`): the assistant's id line, the
+  parallel-edge caveat count, and the layout engines' row-number lookups.
+
 ## 10. Implementation plan
 
 1. **The view**: node-safe `session/working/view.ts`, built with `ScopedInput`'s

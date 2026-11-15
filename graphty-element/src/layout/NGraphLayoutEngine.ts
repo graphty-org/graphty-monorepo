@@ -9,6 +9,7 @@ import { getDefaults } from "../config/OptionsSchema";
 import { NGRAPH_SPRING_LENGTH } from "../constants/layoutConstants";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
+import { wholeGraph } from "../session/working/graphs";
 import {
     clusterByOption,
     clusterCentroids,
@@ -702,7 +703,7 @@ export class NGraphEngine extends LayoutEngine {
             this.copyBody(ngraphNode.id, node.index, count++, rows, coords);
         }
 
-        const snapshot = this.rowNodes.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row !== INVALID_INDEX) {
@@ -766,7 +767,7 @@ export class NGraphEngine extends LayoutEngine {
      * Pin each held row body and free the rest, and weigh each by whether its row follows.
      */
     private holdRowBodies(): void {
-        const snapshot = this.rowNodes.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         for (const [id, ngraphNode] of snapshot === undefined ? [] : this.rowNodes) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row !== INVALID_INDEX) {
@@ -1024,7 +1025,7 @@ export class NGraphEngine extends LayoutEngine {
      */
     override loadArrangement(): void {
         super.loadArrangement();
-        const snapshot = this.rowNodes.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
             if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {

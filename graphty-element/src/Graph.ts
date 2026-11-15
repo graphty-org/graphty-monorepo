@@ -1755,6 +1755,9 @@ export class Graph implements GraphContext {
             // What layouts run over while the session reads the working graph, or while
             // `layout.visibleOnly` asks for it: the one way a layout runs over only what is shown.
             working: () => (this.followsShown(working) ? working.filtered() : null),
+            // What a layout definition reads: the same, or else the whole graph chosen by name, the
+            // only way one reads it. Read only when a definition places, so it freezes nothing else.
+            input: () => (this.followsShown(working) ? working.filtered() : working.view("graph")),
             nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),

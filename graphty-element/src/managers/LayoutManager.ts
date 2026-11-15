@@ -59,6 +59,7 @@ import type { Node, NodeIdType } from "../Node";
 import type { LayoutChoice } from "../session/project/state";
 import { reportCaught, strictStateEnabled, strictViolation } from "../session/project/strict";
 import type { LayoutMotion } from "../session/types";
+import { wholeGraph } from "../session/working/graphs";
 import type { WorkingView } from "../session/working/view";
 import { isDefinedLayout } from "../simple/defineLayout";
 import type { Styles } from "../Styles";
@@ -613,6 +614,12 @@ interface LayoutScopeSource {
      * @returns The view; a whole view when nothing is hidden.
      */
     working?(): WorkingView | null;
+    /**
+     * The graph a layout definition reads: {@link working}'s view, or else the whole graph's view,
+     * chosen by name. Never null while the element has a session.
+     * @returns The view.
+     */
+    input?(): WorkingView | null;
 }
 
 /**
@@ -1677,7 +1684,9 @@ export class LayoutManager implements Manager {
         }
 
         if (engine) {
-            engine.clusterColumn = (path, graph = this.dataManager.getSnapshot()) =>
+            // What the engine reads the graph through: the working graph, never the store.
+            layoutEngineInternals.setWorkingSource(engine, () => this.scopeSource?.input?.() ?? null);
+            engine.clusterColumn = (path, graph = wholeGraph(this.dataManager)) =>
                 this.scopeSource?.nodeValues?.(graph, path) ?? null;
             if (engine instanceof SimulationLayoutEngine) {
                 engine.rowRecord = (row) => dataManagerInternals.unbuiltRecord(this.dataManager, row);
@@ -1781,7 +1790,7 @@ export class LayoutManager implements Manager {
         if (engine instanceof D3GraphEngine || engine instanceof NGraphEngine) {
             return (ids) => {
                 engine.addRows(ids, {
-                    getSnapshot: () => this.dataManager.getSnapshot(),
+                    getSnapshot: () => wholeGraph(this.dataManager),
                     positions: this.dataManager[WRITABLE_LANE],
                 });
             };
@@ -1851,7 +1860,7 @@ export class LayoutManager implements Manager {
         // An edge the working graph hides, by itself or with an end, is not laid out.
         const view = layoutEngineInternals.view(engine);
         const shown =
-            view?.graph !== this.dataManager.getSnapshot()
+            view?.graph !== wholeGraph(this.dataManager)
                 ? undefined
                 : (row: number): boolean => row < view.graph.edgeCount && maskTest(view.edges, row);
         return dataManagerInternals.unbuiltEdgeRows(this.dataManager, shown);
@@ -1900,9 +1909,9 @@ export class LayoutManager implements Manager {
             return;
         }
 
-        const snapshot = this.dataManager.getSnapshot();
+        const snapshot = wholeGraph(this.dataManager);
         const source = {
-            getSnapshot: () => this.dataManager.getSnapshot(),
+            getSnapshot: () => wholeGraph(this.dataManager),
             positions: this.dataManager[WRITABLE_LANE],
         };
         const byRow = new Map<number, Node>();
@@ -2387,7 +2396,7 @@ export class LayoutManager implements Manager {
 
         // Walked by row, so a row stored with no `Node` (renderPath "batched") gets one only when it has a Z to drop.
         const { positions } = this.dataManager;
-        const { ids, nodeCount } = this.dataManager.getSnapshot();
+        const { ids, nodeCount } = wholeGraph(this.dataManager);
         const placed = { x: 0, y: 0, z: 0 };
         for (let row = 0; row < Math.min(positions.count, nodeCount); row++) {
             if (!positions.isPlaced(row)) {
@@ -2543,7 +2552,7 @@ export class LayoutManager implements Manager {
         // Batched: by row from the snapshot, since iterating the nodes builds a `Node` for every
         // row, each read through an engine that does not hold it yet.
         if (this.dataManager.renderLimits?.batched() === true) {
-            const { ids, nodeCount } = this.dataManager.getSnapshot();
+            const { ids, nodeCount } = wholeGraph(this.dataManager);
             const held = makeMask(nodeCount);
             for (let row = 0; row < nodeCount; row++) {
                 if (!members.has(ids.idOf(row))) {
@@ -3466,7 +3475,7 @@ export class LayoutManager implements Manager {
         // before the next frame. When nothing changed, the cached snapshot comes back and nothing
         // happens.
         if (this.layoutEngine instanceof SimulationLayoutEngine) {
-            this.dataManager.getSnapshot();
+            wholeGraph(this.dataManager);
 
             this.eventManager.emit("layout-updated", {
                 nodeCount: nodes.length,

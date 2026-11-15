@@ -168,6 +168,17 @@ const MEMBERS: Readonly<Record<string, ViewReader | BothReader | NotAReader | { 
     "styles.drawnCount()": "names its target",
     // What is drawn on the one channel it names: the drawing already leaves out what a filter hides.
     "styles.drawnValues()": "names its target",
+    "config.minMarkSize": "not the graph",
+    // A computed column: defining one writes, and the list is the definitions, not their values.
+    "data.derive()": "writes",
+    "data.derivedColumns()": "not the graph",
+    // A collapse or an expand edits the original graph, hidden members included, so nothing is lost.
+    "groups.collapse()": "writes",
+    "groups.expand()": "writes",
+    // The groups the project holds collapsed: project state, kept whatever a filter hides.
+    "groups.list()": "state",
+    // The colours the drawing paints: the drawing already leaves out what a filter hides.
+    "styles.grayCollisions()": "not the graph",
     "assets.add()": "writes",
     "assets.allowHosts()": "writes",
     "assets.files()": "not the graph",

@@ -5215,6 +5215,8 @@ export abstract class LayoutEngine {
     wakeForClusters(): boolean;
     // @internal
     wakeForResize(): boolean;
+    // @internal
+    protected get workingGraph(): WorkingView | null;
     protected writeNodePosition(n: Node_2, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
     static zodOptionsSchema?: OptionsSchema;
 }

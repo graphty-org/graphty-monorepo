@@ -25,6 +25,7 @@ import { GraphtyError } from "../errors";
 import type { GraphContext } from "../managers/GraphContext";
 import type { Node, NodeIdType } from "../Node";
 import type { ReadonlyElementPositions } from "../session/types";
+import { asWorkingSnapshot, wholeGraph, type WorkingSnapshot } from "../session/working/graphs";
 import type { WorkingView } from "../session/working/view";
 import type { ClusterColumn } from "./clusterForce";
 
@@ -320,6 +321,11 @@ export const layoutEngineInternals = {} as {
     setView(engine: LayoutEngine, view: WorkingView | null): void;
     /** The working graph the engine lays out, or null for the whole graph. */
     view(engine: LayoutEngine): WorkingView | null;
+    /**
+     * Hand the engine where it reads the working graph now: the view of what the filters show, or
+     * the whole graph's view when the whole graph was chosen by name. See `LayoutEngine.workingGraph`.
+     */
+    setWorkingSource(engine: LayoutEngine, source: () => WorkingView | null): void;
     /** Whether the engine lays out this node: always, unless its working graph hides it. */
     takesNode(engine: LayoutEngine, n: Node): boolean;
     /** Whether the engine lays out this edge: always, unless its working graph hides it or an end. */
@@ -430,6 +436,9 @@ export abstract class LayoutEngine {
             engine.shown = view;
         };
         layoutEngineInternals.view = (engine) => engine.shown;
+        layoutEngineInternals.setWorkingSource = (engine, source) => {
+            engine.workingSource = source;
+        };
         layoutEngineInternals.takesNode = (engine, n) => engine.takesNode(n);
         layoutEngineInternals.takesEdge = (engine, e) => engine.takesEdge(e);
         layoutEngineInternals.positionOf = (engine, n) => {
@@ -543,6 +552,9 @@ export abstract class LayoutEngine {
 
     /** The working graph this engine lays out, or null for the whole graph. See {@link shownView}. */
     private shown: WorkingView | null = null;
+
+    /** Where {@link workingGraph} reads the working graph now; null for an engine with no element. */
+    private workingSource: (() => WorkingView | null) | null = null;
 
     /** How many rows {@link hold} covers; a row at or past it is newer than the hold, so held. */
     private holdRows = 0;
@@ -722,7 +734,8 @@ export abstract class LayoutEngine {
      */
     protected pairWeights(edges: readonly Edge[]): Map<string, number> | null {
         // An engine driven without an element has edges whose parent answers none of this.
-        const weights = edges[0]?.parentGraph?.getDataManager?.()?.getSnapshot?.()?.edgeList().weights ?? null;
+        const data = edges[0]?.parentGraph?.getDataManager?.();
+        const weights = data === undefined ? null : (wholeGraph(data).edgeList().weights ?? null);
         if (weights === null) {
             return null;
         }
@@ -801,6 +814,18 @@ export abstract class LayoutEngine {
      */
     protected get shownView(): WorkingView | null {
         return this.shown;
+    }
+
+    /**
+     * The graph a layout reads, as it stands now: the working graph's view of what the filters
+     * show, or the whole graph's view when nothing is hidden or the whole graph was chosen by name.
+     * Its `snapshot` is a `WorkingSnapshot`, the only graph a layout definition accepts, so a hidden
+     * node never reaches one. Null for an engine driven with no element, which has no working graph.
+     * @returns The view, or null.
+     * @internal
+     */
+    protected get workingGraph(): WorkingView | null {
+        return this.workingSource?.() ?? null;
     }
 
     /**
@@ -1549,13 +1574,13 @@ function positionsInRows(positions: ElementPositions, origin: Uint32Array): RowP
 
 /** The graph one run of a static engine arranges, and how a node finds its row in it. */
 interface LoadedGraph {
-    /** The undirected graph the layout reads. */
-    readonly snapshot: GraphSnapshot;
+    /** The undirected graph the layout reads: the working graph's, hidden nodes absent. */
+    readonly snapshot: WorkingSnapshot;
     /**
      * The graph `snapshot` was derived from: the element's snapshot, or the working graph's compact
      * one while the engine lays out a view. Null for an engine driven without an element.
      */
-    readonly source: GraphSnapshot | null;
+    readonly source: WorkingSnapshot | null;
     /**
      * The element's snapshot the run arranges, itself or through its working graph: what makes the
      * next freeze an add to it. Null for an engine driven without an element.
@@ -2010,7 +2035,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * since the last run gets a row.
      * @returns the undirected graph
      */
-    protected get graph(): GraphSnapshot {
+    protected get graph(): WorkingSnapshot {
         this.#loaded ??= this.#load();
         return this.#loaded.snapshot;
     }
@@ -2024,7 +2049,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      * edge of `graph`, carrying only one of the two weights.
      * @returns the stored graph
      */
-    protected get sourceGraph(): GraphSnapshot {
+    protected get sourceGraph(): WorkingSnapshot {
         this.#loaded ??= this.#load();
         return this.#loaded.source ?? this.#loaded.snapshot;
     }
@@ -2470,14 +2495,15 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             compact(this.#nodes, this.#goneNodes)[0]?.parentGraph?.getDataManager?.() ?? this.#rowSource() ?? undefined;
         const source = manager as Partial<GraphSource> | undefined;
         if (typeof source?.getSnapshot === "function" && typeof source.undirected === "function") {
-            const store = source.getSnapshot();
+            const store = wholeGraph(source as GraphSource);
             // A WORKING GRAPH IS ARRANGED IN ITS OWN ROWS: one slot per shown node, and the answer
             // reaches the element through each node's row map. Only a view of the snapshot the
             // element holds now; one left behind by a freeze arranges the whole graph.
             const view = this.shownView;
             const { nodeOrigin, nodeRows } = view ?? {};
             if (view?.graph === store && nodeOrigin && nodeRows) {
-                const { snapshot } = source.undirected(view.snapshot);
+                // The view's own graph made undirected: still only what is shown.
+                const snapshot = asWorkingSnapshot(source.undirected(view.snapshot).snapshot);
                 const lane = writableLane(manager);
                 return {
                     snapshot,
@@ -2490,16 +2516,19 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             }
 
             const { undirected } = source;
+            // Nothing hidden: the working graph is the element's snapshot. Also an engine whose view
+            // a freeze has left behind, until the layout manager hands it the next one.
+            const whole = asWorkingSnapshot(store);
             // Made undirected on first read: a layout that reads no edges (fixed) never builds a
             // second graph over every edge, which at a million edges is about 180 ms of a load.
             // The undirected graph keeps the stored node rows, so a row is found in either.
-            let snapshot: GraphSnapshot | null = null;
+            let snapshot: WorkingSnapshot | null = null;
             return {
-                get snapshot(): GraphSnapshot {
-                    snapshot ??= undirected.call(source, store).snapshot;
+                get snapshot(): WorkingSnapshot {
+                    snapshot ??= asWorkingSnapshot(undirected.call(source, whole).snapshot);
                     return snapshot;
                 },
-                source: store,
+                source: whole,
                 element: store,
                 origin: null,
                 positions: writableLane(manager) ?? null,
@@ -2523,7 +2552,8 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
             builder.addEdge(e.srcId, e.dstId);
         }
 
-        const snapshot = builder.freeze({ label: "static-layout" });
+        // Built from the nodes and edges the engine was handed, which are only the shown ones.
+        const snapshot = asWorkingSnapshot(builder.freeze({ label: "static-layout" }));
         const loaded: LoadedGraph = {
             snapshot,
             source: null,
@@ -2568,7 +2598,7 @@ export abstract class StaticLayoutEngine extends LayoutEngine {
      */
     #rowSource(): GraphSource | null {
         const rows = this.#rows;
-        if (rows === null || !rows.byRow() || rows.source.getSnapshot().nodeCount === 0) {
+        if (rows === null || !rows.byRow() || wholeGraph(rows.source).nodeCount === 0) {
             return null;
         }
 

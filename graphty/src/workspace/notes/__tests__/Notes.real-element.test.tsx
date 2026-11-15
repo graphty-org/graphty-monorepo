@@ -167,4 +167,30 @@ describe("Notes, on the real element", () => {
         assert.isNotNull(within(editor).queryByText("Graph"), "the note is about the graph");
         assert.isNull(within(editor).queryByText("PageRank"), "not about the run left behind");
     });
+
+    it("calls a node by its label with its id beside it, in the editor, the note's chip and the status line", async () => {
+        const store = createWorkspaceStore();
+        const { session } = await openSampleFromStart("College football", store);
+        // The sample's label column names node 71 "Ohio" (issue #7454: the editor said "About 71").
+        await waitFor(() => {
+            assert.isTrue(session.data.nodeName(71).labeled);
+        });
+        await session.selection.apply({ nodes: [71] });
+        (document.activeElement as HTMLElement | null)?.blur();
+
+        await userEvent.keyboard("n");
+        const field = await screen.findByRole("textbox", { name: "Note" });
+        const editor = field.closest<HTMLElement>(".nt-editor");
+        assert.isNotNull(editor);
+        assert.isNotNull(within(editor).queryByText("Ohio (71)"), "About Ohio (71)");
+        await waitFor(() => {
+            assert.strictEqual(document.activeElement, field);
+        });
+        await userEvent.keyboard("Big Ten{Control>}{Enter}{/Control}");
+
+        const list = await screen.findByRole("list", { name: "Notes" });
+        const note = within(list).getByRole("listitem", { name: "Big Ten" });
+        within(note).getByRole("button", { name: "Ohio (71), in note: Big Ten" });
+        assert.equal(store.get().announcement, "Note added about Ohio (71)");
+    });
 });

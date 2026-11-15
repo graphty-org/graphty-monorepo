@@ -14,9 +14,8 @@ graph-io/
 +-- tsconfig.build.json           # emit: src/ only, rootDir ".", outDir dist (-> dist/src/), format resolved from its dist
 +-- tsconfig.strict-consumer.json # test/types/*.test-d.ts against dist/*.d.ts under the strict flags
 +-- vitest.config.ts              # single project, environment node, pool forks, thresholds 80/80/75/80
-+-- scripts/entries.js            # the bundle entries: graph-io + one per format (shared by both scripts below)
-+-- scripts/build-bundle.js       # one multi-entry vite lib build -> dist/graph-io.js, dist/<format>.js, dist/chunks/*
-+-- scripts/bundle-types.js       # dist/graph-io.d.ts and dist/<format>.d.ts, one-line re-exports of dist/src/**
++-- scripts/entries.js            # the bundle entries: graph-io + one per format
++-- scripts/build-bundle.js       # one multi-entry vite lib build -> dist/graph-io.js, dist/<format>.js, dist/chunks/*, and dist/<entry>.d.ts one-line re-exports of dist/src/** (tools/build-bundle.mjs)
 +-- scripts/docs-reference.ts     # renders the generated blocks of docs/ (npm run docs:reference; --check verifies)
 +-- typedoc.json                  # the API reference (root `pnpm run docs:api:graph-io`); every subpath barrel is an entry
 +-- docs/                         # the user guide, published at https://graphty.app/docs/graph-io/

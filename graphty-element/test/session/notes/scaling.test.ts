@@ -184,15 +184,23 @@ function diffOf(before: readonly Note[], after: readonly Note[]): unknown[] {
  * @param session - The session.
  * @param step - The step.
  * @param cause - The cause every event should carry.
+ * @param throws - The message the step is meant to throw with, or undefined for a step that must not throw.
  */
-async function tellsTheDiff(session: GraphSession, step: () => unknown, cause: string): Promise<void> {
+async function tellsTheDiff(session: GraphSession, step: () => unknown, cause: string, throws?: string): Promise<void> {
     const changes: NoteChange[] = [];
     const off = session.on("note:changed", (change) => changes.push(change));
     const before = session.notes.list();
-    try {
+    if (throws === undefined) {
         await step();
-    } catch {
+    } else {
         // A transaction that throws rolls back; it should tell nothing.
+        let thrown: unknown;
+        try {
+            await step();
+        } catch (error) {
+            thrown = error;
+        }
+        assert.strictEqual((thrown as Error | undefined)?.message, throws, "the step threw what it was meant to");
     }
 
     off();
@@ -245,6 +253,7 @@ describe("note:changed tells the same as a diff of every note", () => {
                     throw new Error("rolled back");
                 }),
             "command",
+            "rolled back",
         );
         await tellsTheDiff(session, () => session.undo(), "undo");
         await tellsTheDiff(session, () => session.undo(), "undo");

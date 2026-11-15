@@ -802,6 +802,8 @@ function channelPlans(
             ["chartLineWidth", [length("node.chartLineWidth")]],
             ["chartBorderColor", [id("node.chartBorderColor")]],
             ["chartBorderWidth", [length("node.chartBorderWidth")]],
+            ["chartBackgroundColor", [id("node.chartBackgroundColor")]],
+            ["chartBackgroundOpacity", [id("node.chartBackgroundOpacity")]],
             ["groupPadding", [length("node.groupPadding")]],
             ["groupPaddingRatio", [id("node.groupPaddingRatio")]],
             ["groupPaddingOf", [id("node.groupPaddingOf")]],
@@ -943,10 +945,14 @@ function channelPlans(
         // in the line's own width units, as its width is
         ["waveAmplitude", [length("edge.waveAmplitude")]],
         ["wavePeriod", [length("edge.wavePeriod")]],
+        // a ratio of two widths: no unit to convert
+        ["taper", [id("edge.taper")]],
         ["targetArrow", [table("edge.arrowHead", arrows, ARROW_SHAPES_NEAREST)]],
         ["sourceArrow", [table("edge.arrowTail", arrows, ARROW_SHAPES_NEAREST)]],
         ["targetArrowColor", [id("edge.arrowHeadColor")]],
         ["sourceArrowColor", [id("edge.arrowTailColor")]],
+        ["targetArrowFillColor", [id("edge.arrowHeadFillColor")]],
+        ["sourceArrowFillColor", [id("edge.arrowTailFillColor")]],
         ["midTargetArrow", [table("edge.arrowMiddleHead", arrows, ARROW_SHAPES_NEAREST)]],
         ["midSourceArrow", [table("edge.arrowMiddleTail", arrows, ARROW_SHAPES_NEAREST)]],
         ["midTargetArrowColor", [id("edge.arrowMiddleHeadColor")]],
@@ -4018,16 +4024,13 @@ function listOf(where: Predicate): readonly Predicate[] | null {
 }
 
 /**
- * The kind of layer a rule makes: its defaults are a base, a mapping or a group an encoding, and
- * per-element copies custom.
+ * The kind of layer a rule makes: a mapping or a group is an encoding, and its defaults and
+ * per-element copies are custom. A file's defaults are never kind `base`, which only the element's
+ * own base layers are: they are the file's styling, drawn like any other layer (issue #7495).
  * @param rule - The rule.
  * @returns The kind.
  */
 function layerKindOf(rule: StyleRule): LayerKind {
-    if (rule.role === "defaults") {
-        return "base";
-    }
-
     return rule.role === "mapping" || rule.role === "group" ? "encoding" : "custom";
 }
 

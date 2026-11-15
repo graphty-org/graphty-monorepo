@@ -1,8 +1,14 @@
-import { ArcRotateCamera, Color4, type Engine, type Scene, Vector3, type WebGPUEngine } from "@babylonjs/core";
+import { ArcRotateCamera } from "@babylonjs/core/Cameras/arcRotateCamera.js";
+import type { Engine } from "@babylonjs/core/Engines/engine.js";
+import type { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { Channel, ChannelValue } from "../catalog/types";
-import type { NodeStyleConfig } from "../config";
-import type { ModelTemplate } from "../models/ModelCache";
+import { defaultNodeStyle, type NodeStyleConfig } from "../config";
+import { type ModelTemplate, tintBufferOf } from "../models/ModelCache";
 import { renderTargetCapture } from "../screenshot/ScreenshotCapture.js";
 import { MeshCache } from "./MeshCache.js";
 import { NodeMesh } from "./NodeMesh.js";
@@ -36,9 +42,18 @@ export interface ModelThumbnailOptions {
     readonly size?: number;
     /**
      * The node's style values, as a layer's `set` holds them: `node.color` and the `node.model*`
-     * channels (Up, Turn, Fit, Center, Tint) are read, the rest are ignored.
+     * channels (Up, Turn, Fit, Center, Tint, Animation and its Start, the pose drawn) are read,
+     * the rest are ignored.
      */
     readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
+    /**
+     * Draw a model still waiting for parts (`session.assets.waiting()`) with its missing pictures
+     * and materials stood in for, as `assets.supply`'s skip would draw it: a plain material, no
+     * texture. A model waiting for its geometry (a glTF's `.bin`) or for an answer (which file is
+     * the model, an ambiguous part) still throws its first problem. Default: false, and a waiting
+     * model throws.
+     */
+    readonly standInMissing?: boolean;
 }
 
 /**
@@ -102,10 +117,15 @@ export async function modelThumbnail(
 ): Promise<string> {
     const size = Math.max(8, Math.round(options.size ?? 32));
     const style = options.style ?? {};
-    const tinted = style["node.modelTint"] === true || style["node.modelTint"] === "replace";
+    const mode = style["node.modelTint"] as unknown;
     const color = typeof style["node.color"] === "string" ? style["node.color"] : undefined;
-    const { rgb } = readColor(color, "#FFFFFF");
-    const tint = tinted && color !== undefined ? new Color4(rgb.r, rgb.g, rgb.b, 1) : new Color4(1, 1, 1, 1);
+    // A part that follows the node's color draws it, or the default node color; "Node color on
+    // top" multiplies only a color the style names.
+    const nodeColor = readColor(
+        color,
+        typeof defaultNodeStyle.texture?.color === "string" ? defaultNodeStyle.texture.color : "#6366F1",
+    ).rgb.toColor4(1);
+    const onTop = (mode === true || mode === "true") && color !== undefined ? nodeColor : new Color4(1, 1, 1, 1);
     const shape = {
         type: "box",
         modelFit: style["node.modelFit"] === "stretch" ? "stretch" : "contain",
@@ -114,13 +134,24 @@ export async function modelThumbnail(
     const parts = [root, ...root.getChildMeshes(true)];
     for (const part of parts) {
         part.layerMask = THUMBNAIL_MASK;
-        part.instancedBuffers.color = tint;
+        const source = (part as { sourceMesh?: Mesh }).sourceMesh;
+        const kind = source === undefined ? "color" : tintBufferOf(source);
+        part.instancedBuffers[kind] = source !== undefined && template.follows.has(source) ? nodeColor : onTop;
     }
+    // The pose `node.modelAnimation` reaches at `node.modelAnimationOffset`, held still.
+    const clip = style["node.modelAnimation"];
+    const offset = style["node.modelAnimationOffset"];
+    const owner = {};
+    if (template.animation !== undefined && typeof clip === "string" && template.animation.clips.has(clip)) {
+        template.animation.play(owner, parts, clip, 0, typeof offset === "number" ? offset : 0);
+    }
+
     root.position.copyFrom(THUMBNAIL_AT);
     root.scaling.setAll(1);
     try {
         return await drawAlone(engine, scene, is2D, size, Vector3.Zero(), template.radius);
     } finally {
+        template.animation?.stop(owner);
         root.dispose();
     }
 }

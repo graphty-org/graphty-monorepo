@@ -43,6 +43,10 @@ tester.run("no-test-timing", rule, {
         "await sleep(ms => ms);",
         "await wait('selector');",
         "setTimeout(() => fire(), 100);",
+        // A timer that stands in for slow work, or that settles nothing, is no deadline (#6986).
+        "const op = vi.fn(() => new Promise((r) => setTimeout(() => r(1), 10)));",
+        "await new Promise((resolve) => { setTimeout(() => console.log('late'), 100); emitter.once('done', resolve); });",
+        "while (!ready()) { await nextFrame(); }",
         "vi.advanceTimersByTime(1000);",
         "queue.run(async (ctx) => { ctx.progress(50); await new Promise((r) => setTimeout(r, 10)); });",
         "const op = vi.fn(async () => { await sleep(20); });",
@@ -161,6 +165,30 @@ tester.run("no-test-timing", rule, {
         { code: "test.setTimeout(120000);", errors: [timeout] },
         // 4. Waits counted in animation frames (#2398, #2446, #2466).
         { code: "for (let i = 0; i < 3; i++) { await nextFrame(); }", errors: [frames] },
+        // A frame count that bounds a condition wait is a deadline (#7241).
+        { code: "for (let f = 0; f < 900 && !holds(); f++) { await nextFrame(); }", errors: [frames] },
+        {
+            code: "for (let f = 0; f < 600 && a() && !b(); f++) await new Promise((r) => requestAnimationFrame(r));",
+            errors: [frames],
+        },
+        // A timer that settles the wait: rejects, resolves, fails or throws (#6986, #7241).
+        {
+            code: "await new Promise((done, fail) => { const t = setTimeout(() => { off(); fail(new Error('x')); }, 5000); const off = on('e', done); });",
+            errors: [deadline],
+        },
+        {
+            code: "function next() { return new Promise((resolve, reject) => { setTimeout(() => reject(new Error('x')), N); el.addEventListener('e', resolve); }); }",
+            errors: [deadline],
+        },
+        { code: "await new Promise((res, rej) => { setTimeout(rej, 2000); on('e', res); });", errors: [deadline] },
+        {
+            code: "await new Promise((done) => { setTimeout(() => { console.warn('late'); done(false); }, 2000); on('e', () => done(true)); });",
+            errors: [deadline],
+        },
+        {
+            code: "it('x', async () => { window.setTimeout(() => { throw new Error('x'); }, 100); });",
+            errors: [deadline],
+        },
         { code: "for (let i = 0; i < 30; i++) await new Promise((r) => requestAnimationFrame(r));", errors: [frames] },
         { code: "const N = 10; for (let i = 1; i <= N; i++) { await nextFrame(); }", errors: [frames] },
         { code: `${FRAMES_HELPER} await frames(30); expect(updates).toBe(30);`, errors: [frames] },

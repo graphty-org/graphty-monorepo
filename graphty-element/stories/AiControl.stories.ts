@@ -465,7 +465,8 @@ async function setupShowcase(): Promise<void> {
                     }
 
                     let lastProgressText = "";
-                    webllmProvider.onProgress((progress, text) => {
+                    webllmProvider.onProgress((progress, stage, detail) => {
+                        const text = detail ?? stage;
                         lastProgressText = text;
                         if (ui.webllmProgressFill) {
                             ui.webllmProgressFill.style.width = `${progress * 100}%`;
@@ -508,25 +509,24 @@ async function setupShowcase(): Promise<void> {
 
                         // Show error with helpful suggestion
                         if (ui.connectionStatus) {
-                            ui.connectionStatus.innerHTML = suggestClearCache
-                                ? `✗ ${helpfulMessage} <button id="suggest-clear-cache" style="margin-left: 8px; padding: 4px 8px; cursor: pointer;">Clear Cache</button>`
-                                : `✗ ${helpfulMessage}`;
+                            // The message carries WebLLM's own error text, so it goes in as text,
+                            // never as HTML.
+                            ui.connectionStatus.textContent = `\u2717 ${helpfulMessage}`;
                             ui.connectionStatus.className = "status-error";
 
-                            // Add click handler for suggested clear cache button
                             if (suggestClearCache) {
-                                const suggestBtn = document.getElementById("suggest-clear-cache");
-                                if (suggestBtn) {
-                                    suggestBtn.addEventListener("click", () => {
-                                        void clearWebLlmCache().then((result) => {
-                                            if (result.cleared && ui.connectionStatus) {
-                                                ui.connectionStatus.textContent =
-                                                    "Cache cleared. Try connecting again.";
-                                                ui.connectionStatus.className = "";
-                                            }
-                                        });
+                                const suggestBtn = document.createElement("button");
+                                suggestBtn.textContent = "Clear Cache";
+                                suggestBtn.style.cssText = "margin-left: 8px; padding: 4px 8px; cursor: pointer;";
+                                suggestBtn.addEventListener("click", () => {
+                                    void clearWebLlmCache().then((result) => {
+                                        if (result.cleared && ui.connectionStatus) {
+                                            ui.connectionStatus.textContent = "Cache cleared. Try connecting again.";
+                                            ui.connectionStatus.className = "";
+                                        }
                                     });
-                                }
+                                });
+                                ui.connectionStatus.append(" ", suggestBtn);
                             }
                         }
 

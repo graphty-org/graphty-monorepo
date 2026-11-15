@@ -28,9 +28,9 @@ Tool values are elements drawn with the writing program's default.
 | cx/ndex-90f78bcd-1dd0-11ef-9621-005056ae23aa.cx | ok | 75 | 108 | 6 | 4 | 102 | 8% | 8% | 0 | 1098 | 0 | W_STYLE_NOT_CARRIED |
 | cx/ndex-da86cc1f-9544-11e5-b435-06603eb7f303.cx.gz | ok | 2207 | 2282 | 1 | 2 | 0 | - | - | 0 | 91749 | 0 |  |
 | cx/ndex-f5fd4274-a8c1-11e8-9520-0ac135e8bacf.cx.gz | ok | 599 | 739 | 5 | 2 | 580 | 83% | 83% | 0 | 8028 | 0 | W_STYLE_NOT_CARRIED |
-| cx2/fidelity/imatinib-smpdb.cx2 | ok | 75 | 159 | 8 | 6 | 403 | 2% | 2% | 0 | 1404 | 0 |  |
-| cx2/fidelity/repro-shared-interaction.cx2 | ok | 16 | 16 | 4 | 5 | 32 | 0% | 0% | 0 | 427 | 0 |  |
-| cx2/fidelity/signor-aml.cx2 | ok | 147 | 306 | 5 | 8 | 762 | 14% | 13% | 0 | 2718 | 0 |  |
+| cx2/fidelity/imatinib-smpdb.cx2 | ok | 75 | 159 | 8 | 6 | 404 | 2% | 2% | 0 | 1402 | 0 |  |
+| cx2/fidelity/repro-shared-interaction.cx2 | ok | 16 | 16 | 4 | 6 | 35 | 9% | 0% | 0 | 424 | 0 |  |
+| cx2/fidelity/signor-aml.cx2 | ok | 147 | 306 | 5 | 9 | 775 | 16% | 13% | 0 | 2699 | 0 |  |
 | cx2/fidelity/syn-bypass.cx2 | ok | 64 | 90 | 7 | 5 | 257 | 98% | 89% | 0 | 924 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/syn-mappings.cx2 | ok | 96 | 140 | 14 | 12 | 1717 | 25% | 25% | 0 | 1416 | 0 | W_STYLE_NOT_CARRIED |
 | cx2/fidelity/synthetic-lethal.cx2 | ok | 69 | 152 | 9 | 4 | 365 | 0% | 0% | 13 | 1326 | 0 | W_STYLE_RAMP_ROUNDED |
@@ -102,13 +102,13 @@ Tool values are elements drawn with the writing program's default.
 | cyjs/rules/cyjs-semantics.cyjs | ok | 60 | 91 | 15 | 16 | 364 | 4% | 4% | 0 | 2511 | 0 | W_STYLE_BAD_VALUE, W_STYLE_LAYER_CAP, W_STYLE_SELECTOR, W_STYLE_SELECTOR_AS_COLUMN |
 | cyjs/rules/cyjs-text-stops.cyjs | ok | 60 | 91 | 7 | 5 | 23 | 43% | 43% | 0 | 3623 | 0 | W_STYLE_BAD_VALUE, W_STYLE_SELECTOR_AS_COLUMN, W_STYLE_UNREADABLE |
 | cyjs/rules/cyjs-text.cyjs | ok | 60 | 91 | 14 | 6 | 96 | 10% | 10% | 0 | 3391 | 0 | W_STYLE_BAD_VALUE, W_STYLE_NOT_CARRIED, W_STYLE_SELECTOR_AS_COLUMN |
-| cys/BasicDataVizDemo.cys | ok | 249 | 299 | 3 | 4 | 1 | 100% | 100% | 0 | 2989 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
-| cys/STELZL.cys | ok | 1603 | 3308 | 3 | 5 | 249 | 100% | 93% | 0 | 26158 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
-| cys/cytoscape-tutorials-AnnotationExample.cys | ok | 330 | 359 | 6 | 4 | 728 | 0% | 0% | 0 | 3775 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
-| cys/cytoscape-tutorials-layout-v1.cys | ok | 331 | 362 | 3 | 6 | 112 | 1% | 1% | 0 | 3796 | 0 | W_STYLE_OTHER_STYLES |
+| cys/BasicDataVizDemo.cys | ok | 249 | 299 | 3 | 4 | 1 | 100% | 100% | 0 | 2988 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/STELZL.cys | ok | 1603 | 3308 | 3 | 4 | 434 | 100% | 53% | 0 | 25973 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/cytoscape-tutorials-AnnotationExample.cys | ok | 330 | 359 | 6 | 4 | 728 | 0% | 0% | 0 | 3774 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/cytoscape-tutorials-layout-v1.cys | ok | 331 | 362 | 3 | 6 | 112 | 1% | 1% | 0 | 3795 | 0 | W_STYLE_OTHER_STYLES |
 | cys/fidelity/affinity-purification.cys | ok | 471 | 917 | 6 | 3 | 134 | 28% | 28% | 0 | 7411 | 0 | W_STYLE_OTHER_STYLES |
-| cys/fidelity/galfiltered.cys | ok | 330 | 359 | 6 | 5 | 728 | 0% | 0% | 0 | 3775 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
-| cys/fidelity/import-and-save.cys | ok | 30 | 137 | 4 | 10 | 365 | 5% | 0% | 0 | 865 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/fidelity/galfiltered.cys | ok | 330 | 359 | 6 | 5 | 728 | 0% | 0% | 0 | 3774 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
+| cys/fidelity/import-and-save.cys | ok | 30 | 137 | 4 | 6 | 396 | 19% | 0% | 0 | 806 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/luad-vest-v2.cys | ok | 26 | 25 | 6 | 5 | 13 | 0% | 0% | 0 | 281 | 0 | W_STYLE_MAPPING_COLUMN_MISSING, W_STYLE_OTHER_STYLES |
 | cys/fidelity/syn-bypass.cys | ok | 63 | 86 | 7 | 5 | 232 | 99% | 92% | 0 | 808 | 0 | W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
 | cys/fidelity/syn-mappings.cys | ok | 96 | 140 | 13 | 12 | 1645 | 26% | 26% | 0 | 1276 | 0 | W_STYLE_BAD_MAPPING, W_STYLE_NOT_CARRIED, W_STYLE_OTHER_STYLES |
@@ -116,7 +116,7 @@ Tool values are elements drawn with the writing program's default.
 | cys/generated/graphty-written-block-truncated.cys | ok | 45 | 62 | 4 | 4 | 103 | 0% | 0% | 0 | 625 | 0 | W_STYLE_BLOCK_IGNORED |
 | cys/generated/graphty-written-native-edit.cys | ok | 45 | 62 | 5 | 3 | 103 | 1% | 1% | 0 | 0 | 0 |  |
 | cys/generated/graphty-written.cys | ok | 45 | 62 | 4 | 3 | 103 | 0% | 0% | 0 | 0 | 0 |  |
-| dot/ArthurConmy_Automatic-Circuit-Discovery__layout.gv | ok | 108 | 926 | 4 | 3 | 80 | 100% | 0% | 0 | 7130 | 0 | W_STYLE_BAD_VALUE, W_STYLE_HTML_LABEL |
+| dot/ArthurConmy_Automatic-Circuit-Discovery__layout.gv | ok | 108 | 926 | 4 | 3 | 80 | 100% | 0% | 0 | 7130 | 0 | W_STYLE_BAD_VALUE |
 | dot/DynamicalSystemsGroup_cats__cats_pkg.gv | ok | 456 | 1003 | 6 | 5 | 1071 | 0% | 0% | 0 | 11125 | 0 | W_STYLE_HTML_LABEL |
 | dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot | ok | 18 | 20 | 9 | 7 | 28 | 21% | 14% | 0 | 286 | 0 | W_STYLE_HTML_LABEL |
 | dot/damoqiongqiu_NiceFish__dependencies.dot | ok | 126 | 75 | 7 | 5 | 82 | 27% | 27% | 0 | 1801 | 0 |  |
@@ -159,7 +159,7 @@ Tool values are elements drawn with the writing program's default.
 | dot/graphviz-gallery-undirected-root.gv | ok | 1054 | 1083 | 6 | 7 | 1637 | 23% | 23% | 0 | 13043 | 0 |  |
 | dot/raphael-group_machina__T_seed9_mut1.dot | ok | 79 | 78 | 6 | 5 | 134 | 5% | 0% | 0 | 1257 | 0 | W_STYLE_COLOR_LIST |
 | dot/vivek3141_super-mario-neat__Digraph.gv | ok | 281 | 878 | 5 | 8 | 1837 | 48% | 0% | 0 | 7235 | 0 |  |
-| dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | 6 | 5 | 867 | 54% | 0% | 0 | 3639 | 0 | W_STYLE_ALPHA_DROPPED, W_STYLE_HTML_LABEL |
+| dot/zjunlp_KnowledgeCircuits__graph.gv | ok | 95 | 452 | 5 | 5 | 867 | 54% | 0% | 0 | 3639 | 0 | W_STYLE_ALPHA_DROPPED |
 | gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz | ok | 225 | 1090 | 6 | 4 | 0 | - | - | 0 | 9229 | 0 |  |
 | gexf/fidelity/graphology-rio.gexf.gz | ok | 366 | 1107 | 7 | 6 | 796 | 0% | 0% | 0 | 10342 | 0 |  |
 | gexf/fidelity/synth-13-hierarchy.gexf | ok | 60 | 104 | 6 | 5 | 140 | 69% | 0% | 0 | 1256 | 0 | W_STYLE_UNKNOWN_VALUE |
@@ -397,17 +397,17 @@ Tool values are elements drawn with the writing program's default.
 | pajek/fidelity/kdorola.net | ok | 127 | 152 | 5 | 3 | 109 | 0% | 0% | 0 | 2030 | 0 |  |
 | pajek/fidelity/lin-rel4.net | ok | 234 | 604 | 4 | 3 | 300 | 0% | 0% | 0 | 6828 | 0 |  |
 | pajek/fidelity/synth-lines.net | ok | 40 | 111 | 3 | 5 | 261 | 64% | 54% | 0 | 720 | 0 |  |
-| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 283 | 100% | 0% | 0 | 1312 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/fidelity/synth-vertices.net | ok | 81 | 112 | 2 | 1 | 277 | 100% | 0% | 0 | 1312 | 0 | W_STYLE_UNKNOWN_VALUE |
 | pajek/generated/b98-trailing-zero.net | ok | 12 | 26 | 5 | 4 | 29 | 55% | 14% | 0 | 250 | 0 |  |
 | pajek/generated/color-forms.net | ok | 8 | 5 | 3 | 4 | 12 | 100% | 25% | 0 | 139 | 0 | W_STYLE_BAD_VALUE |
-| pajek/generated/colors-mix.net | ok | 80 | 80 | 3 | 8 | 292 | 82% | 25% | 0 | 1250 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/graphty-written.net | ok | 6 | 7 | 2 | 5 | 27 | 89% | 22% | 0 | 38 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/colors-mix.net | ok | 80 | 80 | 4 | 8 | 289 | 36% | 26% | 0 | 1242 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/graphty-written.net | ok | 6 | 7 | 3 | 5 | 25 | 88% | 24% | 0 | 38 | 0 |  |
 | pajek/generated/nan-values.net | ok | 4 | 16 | 3 | 3 | 0 | - | - | 0 | 148 | 0 |  |
 | pajek/generated/proto-color-names.net | ok | 3 | 2 | 3 | 5 | 4 | 100% | 25% | 0 | 50 | 0 | W_STYLE_BAD_VALUE, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/shapes-and-lines.net | ok | 6 | 7 | 2 | 5 | 23 | 100% | 26% | 0 | 71 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 5 | 22 | 100% | 27% | 0 | 72 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 3 | 5 | 27 | 89% | 22% | 0 | 38 | 0 | W_STYLE_UNKNOWN_VALUE |
-| pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 5 | 24 | 100% | 25% | 0 | 79 | 0 | W_STYLE_BLOCK_IGNORED, W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/shapes-and-lines.net | ok | 6 | 7 | 3 | 5 | 21 | 100% | 29% | 0 | 71 | 0 | W_STYLE_UNKNOWN_VALUE |
+| pajek/generated/tamper-block-truncated.net | ok | 6 | 7 | 3 | 5 | 20 | 100% | 30% | 0 | 74 | 0 | W_STYLE_BLOCK_IGNORED |
+| pajek/generated/tamper-native-edited.net | ok | 6 | 7 | 4 | 5 | 25 | 88% | 24% | 0 | 38 | 0 |  |
+| pajek/generated/tamper-node-added.net | ok | 7 | 7 | 3 | 5 | 22 | 100% | 27% | 0 | 81 | 0 | W_STYLE_BLOCK_IGNORED |
 | pajek/graphstream_gs-core__B.net | ok | 111 | 193 | 6 | 5 | 343 | 56% | 0% | 0 | 1631 | 0 |  |
 | pajek/kjhealy_kjhnet__iliad_killedby.net | ok | 311 | 292 | 4 | 3 | 75 | 76% | 76% | 0 | 6417 | 0 |  |
 | roles/by-group-0 | ok | 0 | 0 | 0 | 0 | 0 | - | - | 0 | 0 | 0 |  |

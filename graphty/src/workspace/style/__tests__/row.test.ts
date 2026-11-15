@@ -3,7 +3,16 @@ import { createGraphSession, type GraphSession } from "@graphty/graphty-element/
 import { afterEach, assert, describe, it } from "vitest";
 
 import { CHANNEL_HOMES } from "../coverage";
-import { addLabelLine, EVERYTHING_LAYER, labelRow, propose, startingValue, textBinding, writeLine } from "../row";
+import {
+    addLabelLine,
+    EVERYTHING_LAYER,
+    labelRow,
+    propose,
+    sourceName,
+    startingValue,
+    textBinding,
+    writeLine,
+} from "../row";
 import { sectionsFor } from "../words";
 
 /** Every channel a section of the Style tab draws as a line, the experiments' included. */
@@ -42,16 +51,22 @@ describe("the value a line starts with", () => {
         session = null;
     });
 
-    it("is the element's own value for every channel a line can add, but a pattern count, a chart's range and a halo's Shown", () => {
+    it("is the element's own value for every channel a line can add, but a pattern count, a chart's range, a halo's Shown and an empty fill", () => {
         // Unset, a pattern count follows the element's spacing rule edge by edge; its floor (2)
         // draws a mark at each end only, so the app starts it at 10 marks. A chart's range unset
         // follows each node's values, so the app starts it at 0 to 1.
         // A halo's Shown unset depends on the node (selected, or a halo color set), so it starts On.
-        const appStarts: Partial<Record<string, number | boolean>> = {
+        // A chart's background and an open cap's fill unset draw nothing, so they start white.
+        const appStarts: Partial<Record<string, number | boolean | string>> = {
             "edge.patternCount": 10,
             "node.chartMin": 0,
             "node.chartMax": 1,
             "node.halo": true,
+            "node.chartBackgroundColor": "#ffffff",
+            "edge.arrowHeadFillColor": "#ffffff",
+            "edge.arrowTailFillColor": "#ffffff",
+            "edge.arrowMiddleHeadFillColor": "#ffffff",
+            "edge.arrowMiddleTailFillColor": "#ffffff",
         };
         for (const descriptor of addable()) {
             const value = startingValue(descriptor);
@@ -191,5 +206,19 @@ describe("a label line the app adds", () => {
         assert.isDefined(written?.encode?.["node.label"]);
         assert.isUndefined(written?.set?.["node.labelStyle"]);
         assert.isUndefined(written?.set?.["node.labelSize"]);
+    });
+});
+
+describe("the name a bound value goes by", () => {
+    it("is graphty-element's name for a degree or a file's style column, never the path", async () => {
+        const session = createGraphSession();
+        await session.data.addNodes([{ id: "a" }, { id: "b" }]);
+        await session.data.addEdges([{ source: "a", target: "b" }]);
+
+        assert.equal(sourceName(session, { by: "graphty.degree" }), "Degree");
+        assert.equal(sourceName(session, { by: "graphty.style.graphml.node.copy.width" }), "File style");
+        assert.equal(sourceName(session, { by: "graphty.style.graphml.node.class" }), "Style class");
+        assert.isNull(sourceName(session, { by: "data.nothing" }));
+        session.dispose();
     });
 });

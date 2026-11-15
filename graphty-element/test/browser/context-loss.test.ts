@@ -19,6 +19,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
+import { edgeBetween } from "../helpers/testSetup";
 
 const cleanups: (() => void)[] = [];
 
@@ -58,43 +59,63 @@ function inkAround(canvas: HTMLCanvasElement, at: { x: number; y: number }): num
 }
 
 describe("a lost WebGL context", () => {
-    it.for([true, false])("draws the edges again once the context is given back (antialias %s)", async (antialias) => {
-        const element: Graphty = document.createElement("graphty-element");
-        element.antialias = antialias;
-        element.style.display = "block";
-        element.style.width = "400px";
-        element.style.height = "300px";
-        document.body.appendChild(element);
-        cleanups.push(() => {
-            element.remove();
-        });
-        await element.updateComplete;
-        await operationQueueOf(element.graph).waitForCompletion();
-        await element.session.data.addNodes([
-            { id: "a", position: { x: -4, y: 0, z: 0 } },
-            { id: "b", position: { x: 4, y: 0, z: 0 } },
-        ]);
-        await element.session.data.addEdges([{ src: "a", dst: "b" }]);
-        await element.graph.setLayout("fixed", { dim: 3 });
-        await operationQueueOf(element.graph).waitForCompletion();
-        await element.waitForStableFrame();
-        const scene = element.graph.getScene();
-        const canvas = scene.getEngine().getRenderingCanvas();
-        const a = element.nodeScreenPosition("a");
-        const b = element.nodeScreenPosition("b");
-        if (canvas === null || a === undefined || b === undefined) {
-            throw new Error("the graph is not drawn");
-        }
-        // Halfway along the edge, where no node is.
-        const middle = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-        await drawnFrames(scene, 2);
-        assert.isAbove(inkAround(canvas, middle), 0, "the edge is drawn to start with");
+    // "batched" draws pulled lines, whose index list is kept on the GPU only, so it is rebuilt on return.
+    it.for([
+        [true, "objects"],
+        [false, "objects"],
+        [true, "batched"],
+    ] as const)(
+        "draws the edges again once the context is given back (antialias %s, %s)",
+        async ([antialias, renderPath]) => {
+            const element: Graphty = document.createElement("graphty-element");
+            element.antialias = antialias;
+            element.renderPath = renderPath;
+            element.style.display = "block";
+            element.style.width = "400px";
+            element.style.height = "300px";
+            document.body.appendChild(element);
+            cleanups.push(() => {
+                element.remove();
+            });
+            await element.updateComplete;
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.session.data.addNodes([
+                { id: "a", position: { x: -4, y: 0, z: 0 } },
+                { id: "b", position: { x: 4, y: 0, z: 0 } },
+            ]);
+            await element.session.data.addEdges([{ src: "a", dst: "b" }]);
+            if (renderPath === "batched") {
+                // Without its head the edge is a plain line, which "batched" pulls from the row table.
+                await element.session.styles.add({
+                    name: "uncapped",
+                    target: "edge",
+                    selector: { match: "ids", edges: [edgeBetween(element.graph, "a", "b")?.id] },
+                    set: { "edge.arrowHead": "none" },
+                } as never);
+            }
 
-        canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
-        canvas.dispatchEvent(new Event("webglcontextrestored"));
-        await drawnFrames(scene, 5);
+            await element.graph.setLayout("fixed", { dim: 3 });
+            await operationQueueOf(element.graph).waitForCompletion();
+            await element.waitForStableFrame();
+            const scene = element.graph.getScene();
+            const canvas = scene.getEngine().getRenderingCanvas();
+            const a = element.nodeScreenPosition("a");
+            const b = element.nodeScreenPosition("b");
+            if (canvas === null || a === undefined || b === undefined) {
+                throw new Error("the graph is not drawn");
+            }
+            // Halfway along the edge, where no node is.
+            const middle = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            await drawnFrames(scene, 2);
+            assert.isAbove(inkAround(canvas, middle), 0, "the edge is drawn to start with");
+            assert.strictEqual(element.graph.rowCounts.pulledEdges, renderPath === "batched" ? 1 : 0, "pulled edges");
 
-        assert.isAbove(inkAround(canvas, middle), 0, "the edge is drawn again");
-        assert.strictEqual(canvas.getContext("webgl2")?.getContextAttributes()?.antialias, antialias);
-    });
+            canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true }));
+            canvas.dispatchEvent(new Event("webglcontextrestored"));
+            await drawnFrames(scene, 5);
+
+            assert.isAbove(inkAround(canvas, middle), 0, "the edge is drawn again");
+            assert.strictEqual(canvas.getContext("webgl2")?.getContextAttributes()?.antialias, antialias);
+        },
+    );
 });

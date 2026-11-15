@@ -90,6 +90,8 @@ const NOT_OFFERED = [
     "node.marker",
     "label field size",
     "viewMode",
+    // Each layer sets its own outline width, Nodes, Shape, Outline width.
+    "layoutBehavior.node.outlineWidth",
     "twoD",
     "addDefaultStyle",
     "startingRows",

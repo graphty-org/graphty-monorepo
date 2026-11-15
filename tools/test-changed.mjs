@@ -8,15 +8,19 @@
  * rules: "none" runs nothing, "files" runs one `vitest run` of the selected files with the shard's config and
  * --project filters (no coverage, no --shard slice), "all" runs the shard as CI does (tools/run-tests.sh).
  * The "never" shards (graphty-element-lifecycle) are left out, as the gate leaves them out. The packages the runs need are built first; every run takes a test slot.
+ * A browser shard the selector runs whole runs only its file-level answer here, or nothing: a whole browser
+ * shard holds about 7 GB of vitest and Chromium for an hour, and CI runs it (owner 2026-10-25, issue #8042).
  *
  * The file-level runs' files are ranked by the test ledger's history (tools/test-history.mjs,
  * design/ci/history-selection.md) and printed with why; history never adds or drops a file unless --budget asks.
  *
- * Usage: node tools/test-changed.mjs [--dry-run] [--all] [--features-on] [--base <ref>] [--budget <s>]
+ * Usage: node tools/test-changed.mjs [--dry-run] [--all] [--whole-browser-shards] [--features-on] [--base <ref>]
+ *        [--budget <s>]
  *   --dry-run  print the selection, the history ranking and why, run nothing
  *   --budget   run only the highest-ranked selected files that fit in <s> seconds of recorded time
  *              (whole-shard runs are not cut)
- *   --all      every shard the change touches runs whole
+ *   --all      every shard the change touches runs whole (browser shards too)
+ *   --whole-browser-shards  a browser shard the selector runs whole runs whole here too, as CI runs it
  *   --features-on  also select the features-on twins (the "On" configuration; none while no experiment is declared)
  *   --base     compare with another ref (default origin/master)
  */
@@ -72,7 +76,10 @@ export function describePlan(plan) {
             lines.push(`      ${f.file}  <- ${[f.why].flat().join("; ")}`);
         }
     }
-    const none = plan.filter((x) => x.mode === "none").flatMap((x) => x.covers);
+    for (const p of plan.filter((x) => x.leftToCi)) {
+        lines.push(`  ${p.covers.join(", ")}: nothing (${p.reasons[0]})`);
+    }
+    const none = plan.filter((x) => x.mode === "none" && !x.leftToCi).flatMap((x) => x.covers);
     if (none.length > 0) {
         lines.push(`  nothing to run: ${none.join(", ")}`);
     }
@@ -117,6 +124,31 @@ export function rankPlan(plan, changed, secs, ranker = rankFiles) {
     if (secs === undefined) return { plan, lines };
     lines.push(`  budget: ${taken.length} of ${ranked.length} selected file(s) fit in ${secs} s`);
     return { plan: plan.map((p) => keepOnly(p, keep)), lines };
+}
+
+/**
+ * The plan with each whole browser shard cut to its file-level answer, or to nothing when it has none: CI
+ * runs the whole shard, and on this shared machine two of them held about 15 GB (issue #8042).
+ * @param plan planRuns()
+ * @returns the plan, whole browser shards cut
+ */
+export function withoutWholeBrowserShards(plan) {
+    const out = [];
+    for (const p of plan) {
+        if (p.mode !== "all" || !p.shard["needs-browser"]) {
+            out.push(p);
+            continue;
+        }
+        const files = p.measured?.mode === "files" ? p.measured.files : [];
+        const command = files.length > 0 ? selectedCommand(ROOT, p.shard, files.map((f) => f.file).sort()) : null;
+        const reasons = ["whole browser shard left to CI (--whole-browser-shards runs it)"];
+        // Slices of one family that measured the same files run once, as planRuns joins them.
+        const same = command && out.find((x) => x.command === command);
+        if (same) same.covers.push(...p.covers);
+        else if (command) out.push({ ...p, mode: "files", files, command, reasons, covers: [...p.covers] });
+        else out.push({ ...p, mode: "none", files: [], reasons, leftToCi: true });
+    }
+    return out;
 }
 
 function build(plan) {
@@ -180,7 +212,9 @@ async function main(argv) {
         selection = selection.map((s) => (s.mode === "none" ? s : { ...s, mode: "all", reasons: ["--all"] }));
     }
     const at = argv.indexOf("--budget");
-    const runs = planRuns(ROOT, shards, selection);
+    const planned = planRuns(ROOT, shards, selection);
+    const whole = argv.includes("--all") || argv.includes("--whole-browser-shards");
+    const runs = whole ? planned : withoutWholeBrowserShards(planned);
     const files = runs.filter((p) => p.mode === "files").flatMap((p) => p.files.map((f) => f.file));
     const cfg = files.length > 0 ? config() : null;
     const storePlan = cfg ? await readPlan(cfg, { files }) : null;

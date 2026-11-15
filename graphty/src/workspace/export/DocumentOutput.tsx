@@ -65,8 +65,8 @@ export function DocumentOutput({ kind, onCancel, onDone }: Readonly<DocumentOutp
         }
         return {
             rows: [
-                { label: "Nodes", value: session.data.statistics().nodeCount },
-                { label: "Edges", value: session.data.statistics().edgeCount },
+                { label: "Nodes", value: session.data.statistics({ scope: "all" }).nodeCount },
+                { label: "Edges", value: session.data.statistics({ scope: "all" }).edgeCount },
                 { label: "Layers", value: session.styles.list().length },
             ],
         };

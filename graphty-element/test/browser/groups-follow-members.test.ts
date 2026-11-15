@@ -13,7 +13,6 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import type { RenderManager } from "../../src/managers/RenderManager";
-import type { UpdateManager } from "../../src/managers/UpdateManager";
 import { fileStylesOn } from "../helpers/file-styles-on";
 
 fileStylesOn();
@@ -332,7 +331,7 @@ describe("a group with no stored position follows its members", () => {
             group.update();
             const nearWidth = group.drawnHalfExtents.x;
             camera.position.z = -1000;
-            const updates = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+            const updates = graph.getUpdateManager();
             updates.update(16);
             const after = group.drawnHalfExtents.x;
             group.update();
@@ -413,7 +412,7 @@ describe("a group with no stored position follows its members", () => {
         const release = (graph as unknown as { renderManager: RenderManager }).renderManager.holdFrames();
         try {
             await graph.setLayout("fixed");
-            const updates = (graph as unknown as { updateManager: UpdateManager }).updateManager;
+            const updates = graph.getUpdateManager();
             const layout = graph.getLayoutManager();
             layout.running = false;
             updates.stepFrames(5);

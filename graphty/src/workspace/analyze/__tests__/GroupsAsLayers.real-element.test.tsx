@@ -131,7 +131,9 @@ describe("a grouping run from Analyze", () => {
         await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Leiden");
         await userEvent.click(await screen.findByRole("option", { name: /^Leiden/ }));
-        await screen.findByRole("spinbutton", { name: /^Random seed/ });
+        // Leiden is unseeded by default, so its seed is an empty box (a text box until it holds a number).
+        const seed = await screen.findByRole<HTMLInputElement>("textbox", { name: /^Random seed/ });
+        assert.strictEqual(seed.value, "");
         assert.isNotNull(screen.getByRole("spinbutton", { name: /^Threshold/ }));
         assert.isNull(screen.queryByRole("button", { name: /^Advanced/ }));
     });

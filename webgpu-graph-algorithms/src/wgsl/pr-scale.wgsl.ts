@@ -4,7 +4,8 @@
  * norm term. NORM_MODE selects the divisor: 0 PageRank (`rankIn[u] / outWeightSum[u]`, 0 and a dangling
  * contribution when the sum is not positive); 1 and 2 are NORM PASSES that write no xNorm and only accumulate
  * `abs(x)` (L1) or `x * x` (L2); 3 divides by the scalar `partials[0].norm` the previous dispatch folded; 4 is the
- * identity (Katz). The body is normative: a sabotage mutation is a textual edit of it, so it is not restyled.
+ * identity (Katz). Every mode also folds `abs(x)` into the partial's `pad0`: the L1 size of the iterate that the
+ * power iterations' relative stop reads. The body is normative: a sabotage mutation is a textual edit of it, so it is not restyled.
  *
  * The guard is named `inRange`, never `active`: `active` is a WGSL reserved word (spec 16.2) and the composer
  * rejects it before a device is touched.
@@ -22,8 +23,10 @@ fn pr_scale(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id)
     var dangling = 0.0;
     var delta = 0.0;
     var normTerm = 0.0;
+    var absTerm = 0.0;
     if (inRange) {
         delta = abs(x - prev);
+        absTerm = abs(x);
         if (NORM_MODE == 0u) {
             let divisor = outWeightSum[u];
             if (divisor <= 0.0) { dangling = x; xNorm[u] = 0.0; } else { xNorm[u] = x / divisor; }
@@ -37,12 +40,13 @@ fn pr_scale(@builtin(workgroup_id) wid: vec3<u32>, @builtin(local_invocation_id)
         }
         if (NORM_MODE == 4u) { xNorm[u] = x; }
     }
-    let folded = wg_reduce_vec4(vec4f(dangling, delta, normTerm, 0.0), lid.x, 0u);
+    let folded = wg_reduce_vec4(vec4f(dangling, delta, normTerm, absTerm), lid.x, 0u);
     if (lid.x == 0u) {
         let slot = 1u + group_id(wid);
         partials[slot].danglingMass = folded.x;
         partials[slot].delta = folded.y;
         partials[slot].norm = folded.z;
+        partials[slot].pad0 = folded.w;
     }
 }
 `;

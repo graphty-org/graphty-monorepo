@@ -1,7 +1,9 @@
-import type { Observable, Scene } from "@babylonjs/core";
+import type { Observable } from "@babylonjs/core/Misc/observable.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { AccelerationController } from "../acceleration";
 import type { XRConfig } from "../config/XRConfig";
+import type { NodeScreenPosition } from "../Graph";
 import type { EdgeRowLines } from "../meshes/EdgeRowLines";
 import type { MeshCache } from "../meshes/MeshCache";
 import type { NodeBatches } from "../meshes/NodeBatch";
@@ -156,6 +158,14 @@ export interface GraphContext {
      * Optional method for selection functionality
      */
     getSelectionManager?(): SelectionManager | undefined;
+
+    /**
+     * Where a node is drawn on screen; absent on a context built without a graph.
+     * @param nodeId - The node's id.
+     * @returns The position, or undefined for an id the graph does not hold.
+     * @internal
+     */
+    nodeScreenPosition?(nodeId: string | number): NodeScreenPosition | undefined;
 
     /**
      * Get EventManager for emitting events

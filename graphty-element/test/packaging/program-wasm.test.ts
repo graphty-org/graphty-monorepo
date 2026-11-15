@@ -22,6 +22,12 @@ import webpack from "webpack";
 const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const WORK = mkdtempSync(join(tmpdir(), "graphty-program-wasm-"));
 
+/**
+ * QuickJS's WebAssembly, the program chunk's, among dist/chunks' other WebAssembly (the model decoders',
+ * which a page that never loads a compressed model does not ship).
+ */
+const QUICKJS_WASM = /^emscripten-module-[\w-]+\.wasm$/;
+
 /** What the page records: the program's result. */
 interface PageResult {
     code: string;
@@ -46,7 +52,7 @@ function packedProgramChunk(): Promise<string> {
         const program = readdirSync(chunks).find((f) => /^program-[\w-]+\.js$/.test(f));
         assert.ok(program, "the tarball holds dist/chunks/program-*.js: run npm run build first");
         assert.ok(
-            readdirSync(chunks).some((f) => f.endsWith(".wasm")),
+            readdirSync(chunks).some((f) => QUICKJS_WASM.test(f)),
             "the tarball holds the program chunk's WebAssembly",
         );
         const root = join(WORK, "fixture");
@@ -126,12 +132,12 @@ async function runPage(dir: string): Promise<PageResult> {
 }
 
 /**
- * The size of the published WebAssembly, which an emitted asset must equal.
+ * The size of the published QuickJS WebAssembly, which the one emitted asset must equal.
  * @returns Its size in bytes.
  */
 function publishedWasmSize(): number {
     const chunks = join(WORK, "fixture/node_modules/@graphty/graphty-element/dist/chunks");
-    const wasm = readdirSync(chunks).find((f) => f.endsWith(".wasm")) as string;
+    const wasm = readdirSync(chunks).find((f) => QUICKJS_WASM.test(f)) as string;
     return statSync(join(chunks, wasm)).size;
 }
 

@@ -313,16 +313,29 @@ export function ProjectDialogs(): React.JSX.Element {
         }
     }, [session, workspace]);
 
-    useEffect(
-        () =>
-            session?.on("project:status", ({ name }) => {
-                const { project } = store.get();
-                if (name !== null && project !== null && project.name !== name) {
-                    store.set({ project: { ...project, name } });
-                }
-            }),
-        [session, store],
-    );
+    useEffect(() => {
+        if (session === null) {
+            return undefined;
+        }
+        // The shown name follows the element's. While the element holds none (a project named by
+        // its data), the app's own name shows; an Undo back to no name shows that one again.
+        let held = session.project.name;
+        let unnamed = store.get().project?.name ?? null;
+        return session.on("project:status", ({ name }) => {
+            const { project } = store.get();
+            if (project === null) {
+                return;
+            }
+            if (held === null) {
+                unnamed = project.name;
+            }
+            held = name;
+            const shown = name ?? unnamed;
+            if (shown !== null && shown !== project.name) {
+                store.set({ project: { ...project, name: shown } });
+            }
+        });
+    }, [session, store]);
 
     return (
         <>

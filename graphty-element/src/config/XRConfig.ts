@@ -5,6 +5,7 @@
  */
 
 import type { XRReferenceSpaceType } from "../xr/XRSessionManager";
+import { xrConfigSchema } from "./xr-config-schema";
 
 /**
  * UI configuration for XR buttons
@@ -18,7 +19,7 @@ export interface XRUIConfig {
 
     /**
      * Position of the XR buttons on screen
-     * @default "bottom-left"
+     * @default "bottom-right"
      */
     position: "bottom-left" | "bottom-right" | "top-left" | "top-right";
 
@@ -30,11 +31,30 @@ export interface XRUIConfig {
     unavailableMessageDuration: number;
 
     /**
-     * Show "VR / AR NOT AVAILABLE" warning when XR is not available
+     * Show the `unavailableLabel` message when XR is not available
      * When false, no message is displayed if AR/VR aren't available
      * @default false
      */
     showAvailabilityWarning: boolean;
+
+    /**
+     * Text of the button that enters VR
+     * @default "VR"
+     */
+    vrLabel: string;
+
+    /**
+     * Text of the button that enters AR
+     * @default "AR"
+     */
+    arLabel: string;
+
+    /**
+     * Text of the message shown when `showAvailabilityWarning` is on and neither VR nor AR is
+     * available
+     * @default "VR / AR NOT AVAILABLE"
+     */
+    unavailableLabel: string;
 }
 
 /**
@@ -54,8 +74,9 @@ export interface XRModeConfig {
     referenceSpaceType: XRReferenceSpaceType;
 
     /**
-     * Optional WebXR features to request
-     * @example ["hand-tracking", "hit-test"]
+     * Optional WebXR features to request when the session starts. The session gets each one the
+     * device supports; the rest are skipped.
+     * @example ["anchors", "hit-test"]
      * @default []
      */
     optionalFeatures?: string[];
@@ -72,26 +93,16 @@ export interface XRInputConfig {
     handTracking: boolean;
 
     /**
-     * Enable controller input
-     * @default true
-     */
-    controllers: boolean;
-
-    /**
-     * Enable near interaction (touching objects with hands)
+     * Enable near interaction: hands and controllers touch and grab up close, each drawing a
+     * touch orb
      * @default true
      */
     nearInteraction: boolean;
 
     /**
-     * Enable physics for hand joints
-     * @default false
-     */
-    physics: boolean;
-
-    /**
      * Z-axis movement amplification factor in XR mode
-     * Multiplies Z-axis delta to make depth manipulation more practical
+     * Multiplies Z-axis delta during a node drag (a headset pinch or trigger drag, or a pointer
+     * drag) to make depth manipulation more practical. X and Y follow the hand one to one.
      * @default 10.0
      */
     zAxisAmplification?: number;
@@ -101,23 +112,6 @@ export interface XRInputConfig {
      * @default false
      */
     enableZAmplificationInDesktop?: boolean;
-}
-
-/**
- * Configuration for XR teleportation
- */
-export interface XRTeleportationConfig {
-    /**
-     * Enable teleportation feature
-     * @default false
-     */
-    enabled: boolean;
-
-    /**
-     * Duration of teleportation animation in milliseconds
-     * @default 200
-     */
-    easeTime: number;
 }
 
 /** A face button of a Quest Touch controller: A and B on the right, X and Y on the left. */
@@ -169,7 +163,7 @@ export interface XRAiConfig {
 export interface XRConfig {
     /**
      * Enable XR features globally
-     * @default true
+     * @default false
      */
     enabled: boolean;
 
@@ -193,50 +187,15 @@ export interface XRConfig {
      */
     input: XRInputConfig;
 
-    /**
-     * Teleportation configuration
-     */
-    teleportation: XRTeleportationConfig;
-
     /** The assistant in an immersive session; absent, every default. */
     ai?: XRAiConfig;
 }
 
 /**
- * Default XR configuration
+ * Default XR configuration: the schema's defaults, so the two cannot disagree.
  *
  * Note: XR is disabled by default to avoid issues with navigator.xr.isSessionSupported()
  * hanging in headless browser environments (CI, tests). Users who want XR should
  * explicitly enable it by setting xr.enabled: true in their configuration.
  */
-export const defaultXRConfig: XRConfig = {
-    enabled: false,
-    ui: {
-        enabled: true,
-        position: "bottom-right",
-        unavailableMessageDuration: 5000,
-        showAvailabilityWarning: false,
-    },
-    vr: {
-        enabled: true,
-        referenceSpaceType: "local-floor",
-        optionalFeatures: [],
-    },
-    ar: {
-        enabled: true,
-        referenceSpaceType: "local-floor",
-        optionalFeatures: ["hit-test"],
-    },
-    input: {
-        handTracking: true,
-        controllers: true,
-        nearInteraction: true,
-        physics: false,
-        zAxisAmplification: 10,
-        enableZAmplificationInDesktop: false,
-    },
-    teleportation: {
-        enabled: false,
-        easeTime: 200,
-    },
-};
+export const defaultXRConfig: XRConfig = xrConfigSchema.parse({});

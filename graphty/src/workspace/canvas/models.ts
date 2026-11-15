@@ -1,82 +1,21 @@
 /**
- * Models and pictures dropped on or chosen in the Models pop-over: reading what was dropped (files,
- * a folder, a .zip) and naming what graphty-element holds. Whether files are a model or a picture,
- * and whether one is fine, is graphty-element's call (`session.assets.add`); this file only hands
- * it the files.
+ * Naming the models and pictures graphty-element holds, and drawing a model's picture. Whether
+ * files are a model or a picture, and whether one is fine, is graphty-element's call
+ * (`session.assets.add`).
  */
 
 import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
-import { type AssetSource, type GraphSession, isAssetId, type ModelChange } from "@graphty/graphty-element/session";
-import { type HTMLAttributes, useEffect, useState } from "react";
+import {
+    type CodedFact,
+    type CodedFactParam,
+    type GraphSession,
+    isAssetId,
+    isGraphtyError,
+    type ModelChange,
+} from "@graphty/graphty-element/session";
+import { useEffect, useState } from "react";
 
 import { useWorkspace } from "../state/WorkspaceContext";
-
-/** What was dropped: the files, and the same files as graphty-element's assets take them. */
-interface Dropped {
-    /** Every file, for asking the element what they are. */
-    readonly files: readonly File[];
-    /** For `session.assets.add`: the files, or a folder's files by path. */
-    readonly source: AssetSource;
-}
-
-/**
- * Every file under a dropped folder entry, by its path from the drop.
- * @param entry - the folder or file entry.
- * @param into - path to file.
- */
-async function walk(entry: FileSystemEntry, into: Map<string, File>): Promise<void> {
-    if (entry.isFile) {
-        const file = await new Promise<File>((resolve, reject) => {
-            (entry as FileSystemFileEntry).file(resolve, reject);
-        });
-        into.set(entry.fullPath.replace(/^\//, ""), file);
-        return;
-    }
-    const reader = (entry as FileSystemDirectoryEntry).createReader();
-    for (;;) {
-        const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => {
-            reader.readEntries(resolve, reject);
-        });
-        if (batch.length === 0) {
-            return;
-        }
-        await Promise.all(batch.map((child) => walk(child, into)));
-    }
-}
-
-/**
- * What a drop holds. Must be called during the drop event: the browser empties the transfer after.
- * @param transfer - the drop's data.
- * @returns the files, with a dropped folder's files keyed by their paths.
- */
-export async function readDrop(transfer: DataTransfer): Promise<Dropped> {
-    const files = [...transfer.files];
-    const entries = [...transfer.items].map((item) => item.webkitGetAsEntry());
-    if (!entries.some((entry) => entry?.isDirectory === true)) {
-        return { files, source: files };
-    }
-    const byPath = new Map<string, File>();
-    await Promise.all(entries.flatMap((entry) => (entry === null ? [] : [walk(entry, byPath)])));
-    return { files: [...byPath.values()], source: { files: byPath } };
-}
-
-/**
- * The files of a source handed over one by one: what a chooser or a drop gave.
- * @param source - the files.
- * @returns them, or none for a URL or bytes.
- */
-export function filesOf(source: AssetSource): File[] {
-    if (typeof source === "string" || source instanceof ArrayBuffer || source instanceof Uint8Array) {
-        return [];
-    }
-    if (source instanceof File) {
-        return [source];
-    }
-    if ("files" in source && source.files instanceof Map) {
-        return [...source.files.values()].filter((f): f is File => f instanceof File);
-    }
-    return [...(source as Iterable<unknown>)].filter((f): f is File => f instanceof File);
-}
 
 /**
  * A file's name for the reader: the last part of its path or address, without its query, its
@@ -144,33 +83,56 @@ export function useModelStates(session: GraphSession | null): readonly ModelChan
     return states;
 }
 
+/** A model's picture as graphty-element drew it, or why it could not draw it. */
+export interface ModelDraw {
+    /** The picture's URL, or undefined while it is drawn, failed, or for no model. */
+    readonly url: string | undefined;
+    /** Why graphty-element could not draw an accepted model (`modelThumbnail`'s rejection), or undefined. */
+    readonly failure: CodedFact | undefined;
+    /** Asks graphty-element to draw it again: for a decoder whose files did not load. */
+    readonly retry: () => void;
+}
+
 /**
  * A model's picture, drawn by graphty-element as a node draws it (`modelThumbnail`), or a sample's
- * shipped thumbnail. Drawn again when the model or its style changes; undefined while it is drawn
- * and for a model that cannot be drawn (the cube stands in).
+ * shipped thumbnail, with the coded reason when graphty-element could not draw it. Drawn again
+ * when the model or its style changes.
  * @param ref - what a layer names, or undefined for no model.
  * @param size - the picture's side in CSS pixels; it is drawn at the screen's pixel ratio.
  * @param style - the node's style values the picture is drawn with (Up, Turn, Color...).
- * @returns the picture's URL, or undefined.
+ * @param standIn - also draw a model still waiting for parts, its missing pictures and materials
+ *     stood in for (`modelThumbnail`'s `standInMissing`).
+ * @returns the picture, the failure and a retry.
  */
-export function useModelPicture(
+export function useModelDraw(
     ref: string | undefined,
     size: number,
     style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
-): string | undefined {
+    standIn = false,
+): ModelDraw {
     const { session, element } = useWorkspace();
     // Read again when a model moves on, so a model that just got its parts is drawn.
     useModelStates(session);
+    const [attempt, setAttempt] = useState(0);
     const sample = ref === undefined ? undefined : session?.catalog.models().find((m) => m.id === ref)?.thumbnail;
     const record = ref === undefined || sample !== undefined ? undefined : session?.assets.find(ref);
-    const key = record?.state === "accepted" ? JSON.stringify([ref, record.digest, size, style ?? null]) : undefined;
-    const [drawn, setDrawn] = useState<{ readonly key: string; readonly url: string } | null>(null);
+    const key =
+        record !== undefined && (record.state === "accepted" || standIn)
+            ? // The state too: a waiting model keeps its id and digest once its main file is picked.
+              JSON.stringify([ref, record.digest, record.state, size, style ?? null, attempt])
+            : undefined;
+    const [drawn, setDrawn] = useState<{
+        readonly key: string;
+        readonly url?: string;
+        readonly failure?: CodedFact;
+    } | null>(null);
     useEffect(() => {
         if (key === undefined || element === null) {
             return undefined;
         }
         // Read back from the key, so a style object made anew on every render draws once.
-        const [asked, , side, values] = JSON.parse(key) as [
+        const [asked, , , side, values] = JSON.parse(key) as [
+            string,
             string,
             string,
             number,
@@ -178,46 +140,52 @@ export function useModelPicture(
         ];
         let live = true;
         element
-            .modelThumbnail(asked, { size: side * Math.ceil(window.devicePixelRatio || 1), style: values ?? {} })
+            .modelThumbnail(asked, {
+                size: side * Math.ceil(window.devicePixelRatio || 1),
+                style: values ?? {},
+                standInMissing: standIn,
+            })
             .then((url) => {
                 if (live) {
                     setDrawn({ key, url });
                 }
             })
-            // The cube stays: the model's own chips say why it cannot be drawn.
-            .catch(() => undefined);
+            .catch((error: unknown) => {
+                if (live) {
+                    setDrawn({
+                        key,
+                        failure: isGraphtyError(error)
+                            ? { code: error.code, params: error.details as Readonly<Record<string, CodedFactParam>> }
+                            : { code: "E_MODEL_PARSE", params: {} },
+                    });
+                }
+            });
         return () => {
             live = false;
         };
-    }, [key, element]);
-    return sample ?? (drawn !== null && drawn.key === key ? drawn.url : undefined);
+    }, [key, element, standIn]);
+    const mine = drawn !== null && drawn.key === key ? drawn : undefined;
+    return {
+        url: sample ?? mine?.url,
+        failure: sample === undefined ? mine?.failure : undefined,
+        retry: () => {
+            setAttempt((n) => n + 1);
+        },
+    };
 }
 
 /**
- * Whether files are held over a drop target, and the handlers that tell: the target is drawn as
- * the compact-mantine file drop zone draws itself while files are held over it.
- * @returns the flag and the handlers to spread on the target.
+ * A model's picture (see {@link useModelDraw}): undefined while it is drawn and for a model that
+ * cannot be drawn (the cube stands in; the model's own chips say why).
+ * @param ref - what a layer names, or undefined for no model.
+ * @param size - the picture's side in CSS pixels.
+ * @param style - the node's style values the picture is drawn with.
+ * @returns the picture's URL, or undefined.
  */
-export function useDropOver(): {
-    readonly over: boolean;
-    readonly handlers: Pick<HTMLAttributes<HTMLElement>, "onDragOver" | "onDragLeave" | "onDrop">;
-} {
-    const [over, setOver] = useState(false);
-    return {
-        over,
-        handlers: {
-            onDragOver: (event) => {
-                event.preventDefault();
-                setOver(true);
-            },
-            onDragLeave: (event) => {
-                if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) {
-                    setOver(false);
-                }
-            },
-            onDrop: () => {
-                setOver(false);
-            },
-        },
-    };
+export function useModelPicture(
+    ref: string | undefined,
+    size: number,
+    style?: Readonly<Partial<Record<Channel, ChannelValue>>>,
+): string | undefined {
+    return useModelDraw(ref, size, style).url;
 }

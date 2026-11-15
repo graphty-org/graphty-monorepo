@@ -27,12 +27,14 @@ export {
     type SelectionOwner,
     type SelectionSources,
     type SelectionStatistics,
+    type SelectionStatisticsOptions,
     SET_OPS,
     type UnknownRulePath,
 } from "./SelectionApi";
 export {
     type ElementIdTarget,
     type NeighborhoodTarget,
+    type NeighborhoodWindow,
     resolveTarget,
     type SelectionDirection,
     type SelectionMatch,

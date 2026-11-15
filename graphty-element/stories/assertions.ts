@@ -32,7 +32,7 @@ import type { Edge } from "../src/Edge";
 import type { Graph } from "../src/Graph";
 import type { Graphty } from "../src/graphty-element";
 import type { GraphSession } from "../src/session";
-import { isVisualCapture, type RealInput } from "./helpers";
+import { isVisualCapture, type RealInput, skyboxReady, untilFrames } from "./helpers";
 
 // Outside Storybook (render-parity, and every test that runs a story's play) nothing has run
 // .storybook/preview.ts, so storybook/test's waitFor would keep Testing Library's 1000 ms default
@@ -658,7 +658,16 @@ export async function drawn(canvasElement: HTMLElement, story: string): Promise<
         maxSagitta: curves.reduce((most, points) => Math.max(most, sagittaOf(points)), 0),
         arrowMeshNames: [...new Set(drawnCaps.map((cap) => cap.name))].sort(),
         arrowCaps: drawnCaps,
-        linePatternNames: [...new Set(patternElements.map((element) => element.name))].sort(),
+        // a dash, dot, box, diamond or star line's elements are drawn by its line's shader (issue #7404)
+        linePatternNames: [
+            ...new Set([
+                ...patternElements.map((element) => element.name),
+                ...edges.flatMap((edge) => {
+                    const pattern = edge.drawnLine?.pattern ?? null;
+                    return pattern === null ? [] : [`pattern-${pattern}`];
+                }),
+            ]),
+        ].sort(),
         edgeLabelPlanes: Math.max(0, planes.length - nodePlanes),
         arrowCaptions: captions,
         edgeStyleNames: [...new Set(drawnEdgeLines)].sort(),
@@ -1943,7 +1952,8 @@ export async function assertNodeBands(
 }
 
 /**
- * A skybox is actually in the scene.
+ * A skybox is actually in the scene, and its image has arrived: a dome with no image draws as an
+ * empty sphere, so the dome alone does not show the skybox loaded.
  * @param scene - What the story drew.
  */
 export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
@@ -1954,6 +1964,8 @@ export async function assertSkyboxDrawn(scene: Drawn): Promise<void> {
         `${scene.story}: asks for a photo-dome skybox and the scene holds no dome mesh at all -- it holds ` +
             `[${[...new Set(scene.graph.scene.meshes.map((mesh) => mesh.name))].join(", ")}]`,
     );
+    // The image arrives on the network's time; wait on it with no deadline (the hang guard ends a load that never comes).
+    await untilFrames("the skybox image has arrived", () => skyboxReady(scene.graph.scene.meshes));
 }
 
 /**

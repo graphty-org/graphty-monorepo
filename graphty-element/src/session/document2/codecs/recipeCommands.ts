@@ -131,7 +131,7 @@ function trimUnderscores(text: string): string {
  */
 export function namespaceFromId(id: unknown): string {
     const parts = typeof id === "string" ? id.split(/[./:]/).filter((part) => part !== "") : [];
-    const last = parts[parts.length - 1] ?? "";
+    const last = parts.at(-1) ?? "";
     const name = trimUnderscores(
         last
             .toLowerCase()

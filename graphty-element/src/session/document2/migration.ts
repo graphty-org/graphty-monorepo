@@ -676,6 +676,44 @@ function fieldsOf(fields: unknown): JsonObject[] {
 }
 
 /**
+ * One version 1 run as a results entry.
+ * @param run - The version 1 run.
+ * @param name - Its namespace and `as`.
+ * @param name.namespace - The namespace.
+ * @param name.as - The name.
+ * @param context - The file.
+ * @param data - The data.
+ * @param edgeRefs - The file's edges, by position.
+ * @returns The entry.
+ */
+function resultEntry(
+    run: JsonObject,
+    name: { namespace: string; as: string },
+    context: Context,
+    data: MigratedData,
+    edgeRefs: readonly (EdgeRef | undefined)[],
+): JsonObject {
+    const { namespace, as } = name;
+    const nodes = isObject(run.nodes) ? run.nodes : {};
+    const caveats = isObject(run.caveats) ? run.caveats : {};
+    const seed = Number.isInteger(caveats.seed) ? caveats.seed : null;
+    return {
+        namespace,
+        as,
+        algorithm: run.algorithm,
+        ...(isObject(run.params) ? { params: run.params } : {}),
+        engine: { name: String(context.generator.name), version: String(context.generator.version) },
+        seed,
+        ...(typeof run.durationMs === "number" && run.durationMs >= 0 ? { durationMs: run.durationMs } : {}),
+        fields: fieldsOf(run.fields),
+        caveats,
+        ...(isObject(run.graph) ? { graph: run.graph } : {}),
+        nodes: outputOf(nodes.columns, nodeRefs(nodes.ids, data)),
+        edges: outputOf(isObject(run.edges) ? run.edges.columns : {}, edgeRefs),
+    };
+}
+
+/**
  * The results section: each version 1 run's record and outputs, keyed by run id.
  * @param runs - The version 1 runs.
  * @param context - The file.
@@ -690,23 +728,7 @@ function migrateResults(runs: readonly JsonObject[], context: Context, data: Mig
     const out: JsonObject = {};
     for (const run of runs.filter((each) => typeof each.id === "string" && typeof each.algorithm === "string")) {
         const { namespace, as } = runKey(String(run.id), run.derived === true);
-        const nodes = isObject(run.nodes) ? run.nodes : {};
-        const caveats = isObject(run.caveats) ? run.caveats : {};
-        const seed = Number.isInteger(caveats.seed) ? caveats.seed : null;
-        out[`${namespace}__${as}`] = {
-            namespace,
-            as,
-            algorithm: run.algorithm,
-            ...(isObject(run.params) ? { params: run.params } : {}),
-            engine: { name: String(context.generator.name), version: String(context.generator.version) },
-            seed,
-            ...(typeof run.durationMs === "number" && run.durationMs >= 0 ? { durationMs: run.durationMs } : {}),
-            fields: fieldsOf(run.fields),
-            caveats,
-            ...(isObject(run.graph) ? { graph: run.graph } : {}),
-            nodes: outputOf(nodes.columns, nodeRefs(nodes.ids, data)),
-            edges: outputOf(isObject(run.edges) ? run.edges.columns : {}, edgeRefs),
-        };
+        out[`${namespace}__${as}`] = resultEntry(run, { namespace, as }, context, data, edgeRefs);
     }
 
     return {

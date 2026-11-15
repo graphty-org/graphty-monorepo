@@ -314,6 +314,22 @@ function targetIn(target: unknown, pointer: string, context: ReadContext): unkno
 }
 
 /**
+ * One note as read, its targets in the session's form.
+ * @param note - The note as the file holds it.
+ * @param at - Its pointer.
+ * @param context - The open.
+ * @returns The note.
+ */
+function noteIn(note: unknown, at: string, context: ReadContext): unknown {
+    if (!isObject(note) || !Array.isArray(note.targets)) {
+        return note;
+    }
+
+    const targets = note.targets.map((target: unknown, t) => targetIn(target, `${at}/targets/${String(t)}`, context));
+    return { ...note, targets };
+}
+
+/**
  * Apply a notes section: every note added through the open's transaction.
  * @param section - The section.
  * @param context - The open.
@@ -321,14 +337,14 @@ function targetIn(target: unknown, pointer: string, context: ReadContext): unkno
  */
 function read(section: ReadSection, context: ReadContext): Promise<void> {
     const { session, problems } = context;
-    const header: Record<string, unknown> = {};
-    for (const member of OWN_HEADER) {
-        if (section.header[member] !== undefined) {
-            header[member] = section.header[member];
-        }
-    }
-
-    headers.set(session, header);
+    headers.set(
+        session,
+        Object.fromEntries(
+            OWN_HEADER.flatMap((member) =>
+                section.header[member] === undefined ? [] : [[member, section.header[member]]],
+            ),
+        ),
+    );
     const base = `${section.pointer}/notes`;
     const { notes } = section.body;
     if (!Array.isArray(notes)) {
@@ -337,16 +353,7 @@ function read(section: ReadSection, context: ReadContext): Promise<void> {
     }
 
     reportReplaced(section, context);
-    const translated = notes.map((note: unknown, n) => {
-        if (!isObject(note) || !Array.isArray(note.targets)) {
-            return note;
-        }
-
-        const targets = note.targets.map((target: unknown, t) =>
-            targetIn(target, `${base}/${String(n)}/targets/${String(t)}`, context),
-        );
-        return { ...note, targets };
-    });
+    const translated = notes.map((note: unknown, n) => noteIn(note, `${base}/${String(n)}`, context));
     // An edge bound by position or by a made-up id is written by its place among its pair, as a
     // load of this graph counts it, so the merge binds it.
     const notesOf = savedForms(translated as Note[], session.data.snapshot());

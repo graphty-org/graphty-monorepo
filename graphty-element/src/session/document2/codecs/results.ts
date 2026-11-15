@@ -702,6 +702,32 @@ function startSaved(context: ReadContext, id: RunId, start: SavedStart): Run {
 }
 
 /**
+ * With rerun on: run a saved run again and report whether it agrees with what was saved.
+ * @param context - The open.
+ * @param id - The run.
+ * @param how - What decides it.
+ * @param how.elsewhere - Whether the recipe or the view starts it.
+ * @param how.bound - Whether its options bound to the data.
+ * @param how.start - How to start it.
+ * @param how.check - Whether a result disagrees with the saved one.
+ */
+async function rerunAndCompare(
+    context: ReadContext,
+    id: RunId,
+    how: { elsewhere: boolean; bound: boolean; start: SavedStart; check: (result: RunResult) => boolean },
+): Promise<void> {
+    if (how.elsewhere) {
+        compareWhenEnded(context, id, how.check);
+    } else if (how.bound) {
+        if (how.check(await startSaved(context, id, how.start))) {
+            context.problems.push({ code: "W_RESULTS_DIFFER", params: { run: id } });
+        }
+    } else {
+        context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: id } });
+    }
+}
+
+/**
  * Read one algorithm run: restore it (rerun off) or keep it to compare (rerun on).
  * @param reading - The open.
  * @param key - The run's key.
@@ -750,16 +776,7 @@ async function readRun(reading: Reading, key: string, entry: JsonObject): Promis
 
     if (context.rerun) {
         const check = (result: RunResult): boolean => differs({ outputs, graph, fields }, result);
-        if (elsewhere) {
-            compareWhenEnded(context, id, check);
-        } else if (bound) {
-            if (check(await startSaved(context, id, start))) {
-                context.problems.push({ code: "W_RESULTS_DIFFER", params: { run: id } });
-            }
-        } else {
-            context.problems.push({ code: "W_RUN_NOT_RUN", params: { run: id } });
-        }
-
+        await rerunAndCompare(context, id, { elsewhere, bound, start, check });
         return;
     }
 

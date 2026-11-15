@@ -335,6 +335,27 @@ function columnDependencies(session: GraphSession, columns: ReadonlySet<string>)
 }
 
 /**
+ * Collect the columns and runs one layer reads.
+ * @param layer - The written layer.
+ * @param columns - Where the columns go.
+ * @param runs - Where the runs go.
+ */
+function readsOf(layer: JsonObject, columns: Set<string>, runs: Set<string>): void {
+    collect([layer.selector, layer.encode], DATA_PATH, columns);
+    collect([layer.selector, layer.encode], RESULT_PATH, runs);
+    // A `by` with no prefix reads a column (style.md, "Paths" rule 1).
+    for (const binding of Object.values(isObject(layer.encode) ? layer.encode : {})) {
+        if (isObject(binding) && typeof binding.by === "string" && !/^(data|results)\./.test(binding.by)) {
+            columns.add(binding.by);
+        }
+    }
+
+    if (isObject(layer.source) && layer.source.by === "run" && typeof layer.source.runId === "string") {
+        runs.add(layer.source.runId);
+    }
+}
+
+/**
  * What the layers need from the data: the columns and runs they read (spec 3.6).
  * @param session - The session, for the columns' types.
  * @param layers - The written layers.
@@ -344,18 +365,7 @@ function dependenciesOf(session: GraphSession, layers: readonly JsonObject[]): J
     const columns = new Set<string>();
     const runs = new Set<string>();
     for (const layer of layers) {
-        collect([layer.selector, layer.encode], DATA_PATH, columns);
-        collect([layer.selector, layer.encode], RESULT_PATH, runs);
-        // A `by` with no prefix reads a column (style.md, "Paths" rule 1).
-        for (const binding of Object.values(isObject(layer.encode) ? layer.encode : {})) {
-            if (isObject(binding) && typeof binding.by === "string" && !/^(data|results)\./.test(binding.by)) {
-                columns.add(binding.by);
-            }
-        }
-
-        if (isObject(layer.source) && layer.source.by === "run" && typeof layer.source.runId === "string") {
-            runs.add(layer.source.runId);
-        }
+        readsOf(layer, columns, runs);
     }
 
     const written = columnDependencies(session, columns);
@@ -367,6 +377,33 @@ function dependenciesOf(session: GraphSession, layers: readonly JsonObject[]): J
         ...(written.length === 0 ? {} : { columns: written }),
         ...(runs.size === 0 ? {} : { results: [...runs] }),
     };
+}
+
+/**
+ * The palettes a style carries: each one its layers name, as the opened file carried it, else as
+ * the catalog defines it.
+ * @param session - The session, for the catalog.
+ * @param layers - The written layers.
+ * @param opened - The palettes the opened sections carried.
+ * @returns The palettes.
+ */
+function palettesFor(
+    session: GraphSession,
+    layers: readonly JsonObject[],
+    opened: readonly JsonObject[],
+): JsonObject[] {
+    const named = namedPalettes(layers);
+    const carried = opened.filter((palette) => named.has(String(palette.id)));
+    const catalog = session.catalog.palettes();
+    const palettes: JsonObject[] = [...carried];
+    for (const id of named) {
+        const descriptor = catalog.find((each) => each.id === id);
+        if (descriptor !== undefined && !carried.some((palette) => palette.id === id)) {
+            palettes.push({ ...descriptor });
+        }
+    }
+
+    return palettes;
 }
 
 /**
@@ -413,16 +450,7 @@ function compose(session: GraphSession, problems: DocumentProblem[]): SectionWri
         layers.splice(after !== null && previous === -1 ? layers.length : previous + 1, 0, layer);
     }
 
-    const named = namedPalettes(layers);
-    const carried = memory.palettes.filter((palette) => named.has(String(palette.id)));
-    const catalog = session.catalog.palettes();
-    const palettes: JsonObject[] = [...carried];
-    for (const id of named) {
-        const descriptor = catalog.find((each) => each.id === id);
-        if (descriptor !== undefined && !carried.some((palette) => palette.id === id)) {
-            palettes.push({ ...descriptor });
-        }
-    }
+    const palettes = palettesFor(session, layers, memory.palettes);
 
     const tree = document.tree === undefined ? undefined : writeTree(document.tree, (place) => placeIds[place]);
     if (tree !== undefined) {

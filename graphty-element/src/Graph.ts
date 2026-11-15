@@ -2625,10 +2625,39 @@ export class Graph implements GraphContext {
      */
     #watchViewForLog(): void {
         const { signal } = this.#teardown;
+        // What the first frame drawn after a return holds: a page shown again, or a context given
+        // back, that draws the map but no node or edge reads as nodesDrawn above meshesInView (#8216).
+        const logFirstFrame = (after: string): void => {
+            if (!GraphtyLogger.isEnabled()) {
+                return;
+            }
+
+            const observer = this.scene.onAfterRenderObservable.addOnce(() => {
+                viewLog.info("drawn after return", { after, ...this.#drawnCounts() });
+            });
+            signal.addEventListener(
+                "abort",
+                () => {
+                    this.scene.onAfterRenderObservable.remove(observer);
+                },
+                { once: true },
+            );
+        };
         document.addEventListener(
             "visibilitychange",
             () => {
                 viewLog.info("page visibility", { state: document.visibilityState });
+                if (document.visibilityState === "visible") {
+                    logFirstFrame("page shown");
+                }
+            },
+            { signal },
+        );
+        // The WebGPU engine tells the canvas too (RecoveringWebGPUEngine), so both renderers are heard here.
+        this.canvas.addEventListener(
+            "webglcontextrestored",
+            () => {
+                logFirstFrame("render restored");
             },
             { signal },
         );

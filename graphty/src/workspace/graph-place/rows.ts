@@ -227,7 +227,7 @@ export function paintingParts(session: GraphSession, id: string): { node?: Layer
  * @param id - the row's id.
  * @returns the halves' layer ids, empty for a row the stack does not hold.
  */
-export function builtParts(session: GraphSession, id: string): { node?: LayerId; edge?: LayerId } {
+function builtParts(session: GraphSession, id: string): { node?: LayerId; edge?: LayerId } {
     const painting = paintingParts(session, id);
     const parts = session.styles.parts(id);
     const built = (layer: LayerId | undefined, writes: LayerId | undefined): layer is LayerId =>

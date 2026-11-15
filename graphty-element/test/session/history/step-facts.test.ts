@@ -252,6 +252,8 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "layout.scope": [],
     "layout.whole-graph": [],
     "project.open": ["name"],
+    "groups.collapse": ["groupBy", "group", "size"],
+    "groups.expand": ["groupBy", "group", "size"],
     "document.open": [],
     transaction: ["label"],
 };

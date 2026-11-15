@@ -14,6 +14,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM: the session entry point reaches it.
  */
 
+import { fromEdgeArrays } from "@graphty/graph-format";
 import { GENERATOR_CATALOG } from "@graphty/graph-samples";
 
 import { sourceDescriptors } from "../catalog/sources";
@@ -45,6 +46,7 @@ import {
 import { COLUMNS_VALUE, type ColumnSettings } from "./commands/data";
 import { shaderIdsIn } from "./commands/shaderCopies";
 import type { SessionData } from "./data";
+import { expandedGraph } from "./groups";
 import { ISSUES_VALUE, type IssueState } from "./issues";
 import { loadLineOf } from "./loadLine";
 import { projectBoundary } from "./project/boundary";
@@ -63,6 +65,7 @@ import {
     type SourcesWrite,
 } from "./sources/member";
 import { isProvenance, type Provenance } from "./sources/provenance";
+import { computeFingerprint } from "./statistics";
 import {
     asFileStyleStore,
     FILE_STYLES_VALUE,
@@ -682,6 +685,12 @@ export interface GraphIds {
  * @returns The ids.
  */
 export function graphIdsOf(session: GraphSession): GraphIds {
+    // With a group collapsed the file holds the graph expanded (see `expandedGraph`).
+    const expanded = expandedGraph(session);
+    if (expanded !== null) {
+        return { nodes: expanded.nodes.map((node) => node.id), edges: expanded.edges.map((edge) => edge.id) };
+    }
+
     const snapshot = session.data.snapshot();
     const space = edgeSpaceOf(snapshot);
     return {
@@ -737,16 +746,24 @@ export function dataMember(
         const { "_source.loads": _held, ...rest } = record;
         return (loads === undefined ? rest : { ...rest, "_source.loads": loads }) as unknown as T;
     };
+    // A collapsed group is saved as the decision (in the session member) over the graph expanded:
+    // its members and their edges as they are, never the node and edges standing in for them.
     // A computed column's values are left out: the session member saves its expression, and an
     // open works them out again.
+    const expanded = expandedGraph(session);
     const derived = session.data.derivedColumns();
     const computed = (kind: "node" | "edge"): ReadonlySet<string> =>
         new Set(derived.filter((column) => column.kind === kind).map((column) => column.name));
-    const nodes = withoutKeys(session.data.nodes(), computed("node")).map((node) =>
-        withLoads(node, session.data.sourcesOf(node.id)),
+    const nodeKeys = computed("node");
+    const edgeKeys = computed("edge");
+    const nodes = (expanded?.nodes ?? session.data.nodes()).map((node) =>
+        withLoads(withoutKeys(node, nodeKeys), session.data.sourcesOf(node.id)),
     );
-    const edges = withoutKeys(session.data.edges(), computed("edge")).map((edge) =>
-        withLoads(edge, session.data.sourcesOf(edge.id, { kind: "edge" })),
+    const edges = (expanded?.edges ?? session.data.edges().map((edge) => ({ id: edge.id, record: edge }))).map(
+        ({ id, record }) => ({
+            ...withLoads(withoutKeys(record, edgeKeys), session.data.sourcesOf(id, { kind: "edge" })),
+            id,
+        }),
     );
     // Where the graph was loaded from, and what the reader named it: not the rows, which are here.
     const source = session.data.source();
@@ -786,21 +803,61 @@ export function dataMember(
     };
 }
 
+/** The version of the `groups` field of the `graphty-session` member. */
+const GROUPS_VERSION = 1;
+
 /**
- * Records without some keys.
- * @param records - The records.
- * @param keys - The keys to leave out.
- * @returns The records, each without those keys.
+ * The `groups` field of the session member: the collapses and the edges added to a collapsed node.
+ * @param session - The session.
+ * @returns The field, or nothing when no group is collapsed.
  */
-function withoutKeys<T extends Readonly<Record<string, unknown>>>(
-    records: readonly T[],
-    keys: ReadonlySet<string>,
-): T[] {
-    if (keys.size === 0) {
-        return [...records];
+function groupsOf(session: GraphSession): { groups?: Record<string, unknown> } {
+    const expanded = expandedGraph(session);
+    return expanded === null
+        ? {}
+        : {
+              groups: {
+                  version: GROUPS_VERSION,
+                  collapsed: expanded.collapsed,
+                  ...(expanded.added.length === 0 ? {} : { added: expanded.added }),
+              },
+          };
+}
+
+/**
+ * The fingerprint of the graph the file holds: the session's, or with a group collapsed, the
+ * expanded graph's, which is what an open compares the runs against.
+ * @param session - The session.
+ * @returns The fingerprint.
+ */
+function savedFingerprint(session: GraphSession): string {
+    const expanded = expandedGraph(session);
+    if (expanded === null) {
+        return session.data.fingerprint();
     }
 
-    return records.map((record) => Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key))) as T);
+    const ids = expanded.nodes.map((node) => node.id);
+    const row = new Map(ids.map((id, at) => [id, at]));
+    const ends = (end: "source" | "target"): Uint32Array<ArrayBuffer> => {
+        const out = new Uint32Array(expanded.edges.length);
+        expanded.edges.forEach((edge, at) => {
+            out[at] = row.get(edge.record[end] as NodeId) ?? 0;
+        });
+        return out;
+    };
+    return computeFingerprint(
+        fromEdgeArrays({ ids, src: ends("source"), dst: ends("target"), directed: session.status.directed }),
+    );
+}
+
+/**
+ * A record without some keys.
+ * @param record - The record.
+ * @param keys - The keys to leave out.
+ * @returns The record, without those keys (the record itself when there are none).
+ */
+function withoutKeys<T extends Readonly<Record<string, unknown>>>(record: T, keys: ReadonlySet<string>): T {
+    return keys.size === 0 ? record : (Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key))) as T);
 }
 
 /**
@@ -898,6 +955,8 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
         ...(session.data.derivedColumns().length === 0
             ? {}
             : { derived: { version: DERIVED_VERSION, columns: session.data.derivedColumns() } }),
+        // The collapsed groups, as decisions made again on open; absent when none is collapsed.
+        ...groupsOf(session),
     };
 }
 
@@ -908,6 +967,19 @@ export function sessionMember(sources: ProjectSources, ids: GraphIds | (() => Gr
  * @returns The member.
  */
 export function arrangementMember(session: GraphSession, ids: GraphIds): Record<string, unknown> {
+    const expanded = expandedGraph(session);
+    if (expanded !== null) {
+        return {
+            kind: "graphty-arrangement",
+            version: VERSION,
+            ids: expanded.positions.map((entry) => entry.id),
+            x: encodeColumn(expanded.positions.map((entry) => entry.x)),
+            y: encodeColumn(expanded.positions.map((entry) => entry.y)),
+            z: encodeColumn(expanded.positions.map((entry) => entry.z ?? 0)),
+            pins: expanded.pinned,
+        };
+    }
+
     const placed: NodeId[] = [];
     const xs: number[] = [];
     const ys: number[] = [];
@@ -986,7 +1058,7 @@ export function resultsMember(
     session: GraphSession,
     runs: readonly Record<string, unknown>[],
 ): Record<string, unknown> {
-    return { kind: "graphty-results", version: VERSION, fingerprint: session.data.fingerprint(), runs };
+    return { kind: "graphty-results", version: VERSION, fingerprint: savedFingerprint(session), runs };
 }
 
 /**
@@ -2048,6 +2120,9 @@ async function readProject(
         );
     }
 
+    // The collapses, made again once the runs they group by are back, inside the open's own step.
+    await readGroups(opening, state.groups);
+
     const visibility = state.visibility as Record<string, unknown> | undefined;
     if (visibility !== undefined) {
         await attempt(opening, "visibility", async () => {
@@ -2085,6 +2160,34 @@ async function readProject(
     const views = (state.views ?? []) as never[];
     if (views.length > 0) {
         await attempt(opening, "views", () => tx.views.save(views));
+    }
+}
+
+/**
+ * Collapse again the groups a `graphty-session` member's `groups` names, and add back the edges
+ * that were added to a collapsed node. A file without the field, or of a later version, collapses
+ * nothing.
+ * @param opening - The open.
+ * @param saved - The member's `groups`.
+ */
+async function readGroups(opening: Opening, saved: unknown): Promise<void> {
+    if (!isObject(saved) || saved.version !== GROUPS_VERSION || !Array.isArray(saved.collapsed)) {
+        return;
+    }
+
+    const { tx } = opening;
+    for (const decision of saved.collapsed as { groupBy: string; group: string | number | boolean }[]) {
+        await attempt(opening, "graph", () => tx.groups.collapse({ groupBy: decision.groupBy, group: decision.group }));
+    }
+
+    if (Array.isArray(saved.added) && saved.added.length > 0) {
+        const records = saved.added as Record<string, unknown>[];
+        await attempt(opening, "graph", () =>
+            tx.execute({
+                op: "data.apply",
+                mutation: { kind: "add-edges", records, source: "source", target: "target" },
+            }),
+        );
     }
 }
 

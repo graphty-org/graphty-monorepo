@@ -105,6 +105,7 @@ import {
     readSource,
 } from "./draft";
 import type { LaneStore } from "./GraphSession";
+import { RESTORE as GROUP_RESTORE } from "./groups";
 import { columnMutations } from "./importColumns";
 import {
     type DataIssue,
@@ -4516,11 +4517,12 @@ export class SessionData implements SessionDataApi {
         // snapshot alone, an edited value never reached the descriptors), and not on a mask change,
         // which moves the input tick but no column, type or value (issue #4386).
         const snapshot = this.current();
-        // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns.
+        // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns,
+        // and so is what a collapsed group keeps for its expand.
         const described = this.attributeCache.get("", () =>
             Object.freeze(
                 describeAttributes(snapshot, this.records, this.timelineOn).filter(
-                    (each) => !isSourceFactKey(each.name),
+                    (each) => !isSourceFactKey(each.name) && each.name !== GROUP_RESTORE,
                 ),
             ),
         );

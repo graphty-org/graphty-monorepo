@@ -199,6 +199,34 @@ describe("session.data.derive", () => {
         opened.dispose();
     });
 
+    it("leaves its values out of a save with a group collapsed", async () => {
+        const session = await people();
+        await session.data.derive("display", "data.nickname || data.name");
+        await session.data.derive("tag", "data.kind");
+        await session.groups.collapse({ groupBy: "data.name", group: "Ada" });
+        const { text } = await session.project.save();
+
+        const { members } = JSON.parse(text) as {
+            members: { kind: string; groups?: object; graph?: { nodes: { id: string }[]; links: object[] } }[];
+        };
+        assert.isDefined(members.find((member) => member.kind === "graphty-session")?.groups, "a group is collapsed");
+        const data = members.find((member) => member.kind === "graphty-data");
+        assert.deepEqual(
+            data?.graph?.nodes.map((node) => [node.id, "display" in node]).sort(),
+            [
+                ["a", false],
+                ["b", false],
+                ["c", false],
+            ],
+            "the saved graph is expanded, without the computed values",
+        );
+        assert.isTrue(
+            data?.graph?.links.every((edge) => !("tag" in edge)),
+            "edge values are not saved",
+        );
+        session.dispose();
+    });
+
     it("refuses what it cannot take, with a code", async () => {
         const session = await people();
 

@@ -1202,7 +1202,7 @@
         },
         "copyId": {
             "type": "string",
-            "description": "A source's copy id: sha256: plus lower-case hex of the bytes (file, url and sample sources), or a ULID minted whenever the copy changes (network, derived and reader sources).",
+            "description": "A source's copy id: sha256: plus lower-case hex of the bytes (file, url and sample sources), or a ULID minted whenever the copy changes (network, derived and reader sources, and an embedded copy holding the reader's edits).",
             "pattern": "^(sha256:[0-9a-f]{64}|[0-9A-HJKMNP-TV-Z]{26})$"
         },
         "graphFilter": {

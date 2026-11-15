@@ -373,8 +373,10 @@ function checkSource(record: JsonObject, pointer: string): ReadSource {
     need(typeof id === "string" && SOURCE_ID.test(id), `${pointer}/id`);
     need(typeof kind === "string" && SOURCE_KINDS.has(kind), `${pointer}/kind`);
     need(isPlainObject(origin) && typeof origin.copy === "string", `${pointer}/origin`);
-    // The copy id's form follows the kind: a bytes hash, or a ULID (spec 4.1.2).
-    need((HASHED_KINDS.has(kind) ? SHA256 : ULID).test(origin.copy), `${pointer}/origin/copy`);
+    // The copy id's form follows the kind: a bytes hash, or a ULID (spec 4.1.2); an embedded copy
+    // holding the reader's edits has a ULID whatever its kind.
+    const hashed = HASHED_KINDS.has(kind) && !(copy !== undefined && ULID.test(origin.copy));
+    need((hashed ? SHA256 : ULID).test(origin.copy), `${pointer}/origin/copy`);
     if (kind === "network") {
         closed(origin, NETWORK_ORIGIN, `${pointer}/origin`);
         closed(origin.credentials ?? {}, new Set(["slot"]), `${pointer}/origin/credentials`);

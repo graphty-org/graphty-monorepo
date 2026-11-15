@@ -425,6 +425,8 @@ interface Copy {
     readonly columns: JsonObject;
     readonly digest: string;
     readonly copy: string;
+    /** Whether it holds rows the reader edited, removed or merged, so no bytes match it. */
+    readonly edited: boolean;
 }
 
 /** The reader source: its operations and copy id. */
@@ -620,6 +622,7 @@ function kindOfSource(source: ModelSource, memory: DataMemory): string {
  * @param refs - The node references.
  * @param memory - The memory.
  * @param facts - What its load read.
+ * @param folded - Whether the session holds the reader's edits, removes or merges.
  * @returns The copy.
  */
 function copyOf(
@@ -627,6 +630,7 @@ function copyOf(
     refs: ReadonlyMap<NodeId, NodeRef>,
     memory: DataMemory,
     facts: LoadFacts | undefined,
+    folded: boolean,
 ): Copy {
     const nodes =
         source.nodes.length > 0
@@ -661,19 +665,26 @@ function copyOf(
 
     const digest = digestOf(tables);
     const remembered = memory.copies.get(source.id);
+    const hashed = HASHED_KINDS.has(kindOfSource(source, memory));
+    // A copy saved edited keeps its ULID: it still holds the edits that no bytes match.
+    const edited = folded || (hashed && remembered !== undefined && ULID.test(remembered.copy));
     let copy: string;
-    if (HASHED_KINDS.has(kindOfSource(source, memory))) {
+    if (hashed && !edited) {
         // The digest of the bytes as read (spec 4.1.2), whatever the reader changed since: the
         // load's own, else the one the file it was opened from stamped. ponytail: a generated
         // sample, or a load whose bytes the session never digested, has no bytes to hash, so its
         // copy as written stands in for them.
         copy = bytesCopyId(facts) ?? remembered?.copy ?? digest;
     } else {
-        ({ copy } = stableId(remembered, digest, mintUlid));
+        // ponytail: until the session keeps a log of the reader's edits, removes and merges, any of
+        // them marks every hashed source edited: its rows are no longer the bytes it hashed, so it
+        // gets a ULID and is always embedded. Keep the log to mark only the sources it touched.
+        const kept = remembered !== undefined && ULID.test(remembered.copy) ? remembered : undefined;
+        ({ copy } = stableId(hashed ? kept : remembered, digest, mintUlid));
     }
 
     memory.copies.set(source.id, { digest, copy });
-    return { tables, columns, digest, copy };
+    return { tables, columns, digest, copy, edited: hashed && edited };
 }
 
 /**
@@ -782,8 +793,12 @@ function dataModelOf(session: GraphSession): DataModel {
         }
     }
 
+    const folded = foldedOperations(session).size > 0;
     const copies = new Map(
-        sources.map((source) => [source.id, copyOf(source, nodeRefs, memory, factsOf(session, source.load.key))]),
+        sources.map((source) => [
+            source.id,
+            copyOf(source, nodeRefs, memory, factsOf(session, source.load.key), folded),
+        ]),
     );
     const edgeIdColumn = edgeIdColumnOf(session);
     const edgeRefs = new Map<EdgeId, EdgeRef>();
@@ -969,15 +984,9 @@ function originOf(source: ModelSource, model: DataModel, kind: string, copy: str
  * @param source - The source.
  * @param model - The model.
  * @param storage - Embedded or referenced.
- * @param problems - Collects `W_SOURCE_NO_PATH`.
  * @returns The record.
  */
-function sourceRecordOf(
-    source: ModelSource,
-    model: DataModel,
-    storage: SourceStorage,
-    problems: DocumentProblem[],
-): JsonObject {
+function sourceRecordOf(source: ModelSource, model: DataModel, storage: SourceStorage): JsonObject {
     const { load } = source;
     const copy = model.copies.get(source.id) as Copy;
     const kind = kindOfSource(source, memoryOf(model.session));
@@ -986,10 +995,6 @@ function sourceRecordOf(
     const origin: JsonObject =
         kind === "network" ? networkOrigin(source, model, copy.copy) : originOf(source, model, kind, copy.copy);
     const { choices } = load;
-    if (storage === "referenced" && kind === "file") {
-        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id } });
-    }
-
     return {
         id: source.id,
         label: load.name ?? load.fileName ?? source.id,
@@ -1319,6 +1324,36 @@ interface WrittenBody {
 }
 
 /**
+ * How a source is saved: as asked, except that one no reference can stand for is embedded (spec
+ * 4.1.2 rules 4 and 6): a derived source, one holding the reader's edits, and a file source whose
+ * `path` the session does not know, which the save reports.
+ * @param source - The source.
+ * @param model - The model.
+ * @param asked - What the caller asked for.
+ * @param problems - Collects `W_SOURCE_NO_PATH`.
+ * @returns Embedded or referenced.
+ */
+function storageOf(
+    source: ModelSource,
+    model: DataModel,
+    asked: SourceStorage,
+    problems: DocumentProblem[],
+): SourceStorage {
+    if (asked === "embedded") {
+        return asked;
+    }
+
+    const memory = memoryOf(model.session);
+    const kind = kindOfSource(source, memory);
+    if (kind === "file" && typeof memory.origins.get(source.id)?.path !== "string") {
+        problems.push({ code: "W_SOURCE_NO_PATH", params: { source: source.id } });
+        return "embedded";
+    }
+
+    return kind === "derived" || (model.copies.get(source.id) as Copy).edited ? "embedded" : asked;
+}
+
+/**
  * Every source record, the reader source first, and the ids of the embedded ones.
  * @param model - The model.
  * @param embed - Embedded or referenced, per source id; embedded when absent.
@@ -1350,12 +1385,12 @@ function sourceRecordsOf(
             continue;
         }
 
-        const storage: SourceStorage = embed[source.id] ?? "embedded";
+        const storage = storageOf(source, model, embed[source.id] ?? "embedded", problems);
         if (storage === "embedded") {
             embedded.add(source.id);
         }
 
-        records.push(sourceRecordOf(source, model, storage, problems));
+        records.push(sourceRecordOf(source, model, storage));
     }
 
     return { records, embedded };
@@ -1375,13 +1410,13 @@ const LOAD_STEPS = new Set(["data.import", "data.import-source", "data.set", "da
 /**
  * The reader's edits, removes and merges the session holds, by `op`: those an open read, and those
  * made since the data was last loaded, as the history records them.
- * @param model - The model.
+ * @param session - The session.
  * @returns The operations.
  */
-function foldedOperations(model: DataModel): Set<string> {
-    const { history } = model.session;
+function foldedOperations(session: GraphSession): Set<string> {
+    const { history } = session;
     const applied = history.steps.slice(0, history.position);
-    const ops = new Set(memoryOf(model.session).folded);
+    const ops = new Set(memoryOf(session).folded);
     // Walked newest first, up to the last load.
     for (let at = applied.length - 1; at >= 0 && !LOAD_STEPS.has(applied[at].fact.code); at--) {
         const op = FOLDED_STEPS[applied[at].fact.code];
@@ -1407,7 +1442,7 @@ function reportLeftOut(model: DataModel, problems: DocumentProblem[]): void {
 
     // ponytail: the session keeps no log of the reader's edits, removes and merges, only their
     // result, so the reader source writes `add`s alone; keep a log in the data store to write them.
-    for (const op of foldedOperations(model)) {
+    for (const op of foldedOperations(model.session)) {
         problems.push({
             code: "W_MEMBER_LEFT_OUT",
             params: { section: "data", pointer: "/sources/reader/copy/operations", field: op },

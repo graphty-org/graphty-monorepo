@@ -344,7 +344,7 @@ function runOut(
         params,
         engine: encode(record.engine),
         seed: Number.isInteger(record.seed) ? record.seed : null,
-        durationMs: record.durationMs ?? 0,
+        ...(record.durationMs === null ? {} : { durationMs: record.durationMs }),
         bindsTo: runBinding(run, stamp),
         fields: result.fields.map((field) => ({ name: field.name, kind: field.kind, type: field.type })),
         caveats: encode(caveats),
@@ -408,9 +408,7 @@ function layoutOut(context: WriteContext, stamp: BuildStamp | undefined): JsonOb
         dimension: layout.dimension === "2d" ? 2 : 3,
         options: encode(layout.options),
         seed: Number.isInteger(seed) ? seed : null,
-        // ponytail: the session does not time a layout, so a fresh record writes 0, as a run with
-        // no recorded duration does; time it in the layout engine when a reader needs it.
-        durationMs: 0,
+        // The session does not time a layout, so the record leaves `durationMs` out, never 0.
         engine: encode(ENGINE_VERSIONS),
         bindsTo: runBinding(undefined, stamp),
         nodes: { refs: nodeRefs, columns },

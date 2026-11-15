@@ -261,7 +261,7 @@ describe("data section version 2", () => {
         session.dispose();
     });
 
-    it("writes a section the published schema accepts, embedded or referenced, and keeps a source it cannot fetch", async () => {
+    it("writes a section the published schema accepts, embeds a file it has no path for, and keeps a source it cannot fetch", async () => {
         const session = await sampleSession();
         const full = await saveDocument2(
             session,
@@ -272,26 +272,31 @@ describe("data section version 2", () => {
         assert.deepStrictEqual(invalid(full.document), []);
         assert.isString(full.document.id, "the framing writes the data section's id");
 
+        // A file whose path the session does not know cannot be referenced: it is embedded, and said.
         const friends = String((full.document.sources as JsonObject[])[1].id);
-        const referenced = await saveDocument2(
+        const asked = await saveDocument2(
             session,
             { data: dataCodec },
             { sections: ["data"], form: "section", embed: { [friends]: "referenced" } },
             () => false,
         );
-        assert.deepStrictEqual(invalid(referenced.document), []);
-        const record = (referenced.document.sources as JsonObject[]).find((source) => source.id === friends);
-        assert.notProperty(record, "copy");
-        assert.notProperty(record, "columns");
-        assert.deepStrictEqual(referenced.problems, [
+        assert.deepStrictEqual(asked.document.sources, full.document.sources);
+        assert.deepStrictEqual(asked.problems, [
             { code: "W_SOURCE_NO_PATH", params: { source: friends } },
             EDIT_FOLDED,
         ]);
 
         // A referenced source cannot be fetched again yet: it supplies nothing, the rest builds, and
         // its record is written back as read.
+        const referenced = structuredClone(full.document);
+        const record = (referenced.sources as JsonObject[]).find((source) => source.id === friends) as JsonObject;
+        delete record.copy;
+        delete record.columns;
+        (record.origin as JsonObject).path = "friends.csv";
+        (record.origin as JsonObject).copy = `sha256:${"a".repeat(64)}`;
+        assert.deepStrictEqual(invalid(referenced), []);
         const reopened = createGraphSession(ON);
-        const read = await readBody(reopened, referenced.document);
+        const read = await readBody(reopened, referenced);
         assert.deepInclude(read, { code: "W_SOURCE_UNAVAILABLE", params: { source: friends } });
         assert.isTrue(reopened.data.nodes().some((node) => node.id === 7));
         assert.isFalse(reopened.data.nodes().some((node) => node.id === "Cara"));
@@ -302,6 +307,37 @@ describe("data section version 2", () => {
         );
         assert.notProperty((await dataBindingOf(reopened)).sources, friends, "an unavailable source has no copy id");
         session.dispose();
+        reopened.dispose();
+    });
+
+    it("embeds a referenced source the reader edited, under a minted copy id, and keeps the edit through a reopen", async () => {
+        const session = createGraphSession(ON);
+        await session.data.import({ type: "csv", config: { data: "source,target\nAva,Ben\n" }, name: "people.csv" });
+        const written = (await writeBody(session)).body;
+        const file = (written.sources as JsonObject[]).find((source) => source.kind === "file") as JsonObject;
+        (file.origin as JsonObject).path = "people.csv";
+        const id = String(file.id);
+
+        const opened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(opened, written), []);
+        const untouched = await writeBody(opened, { [id]: "referenced" });
+        const before = (untouched.body.sources as JsonObject[]).find((source) => source.id === id);
+        assert.notProperty(before, "copy", "a file with a known path is referenced as asked");
+        assert.deepStrictEqual(untouched.problems, []);
+
+        await opened.data.updateNodes([{ id: "Ava", values: { mood: "calm" } }]);
+        const { body, problems } = await writeBody(opened, { [id]: "referenced" });
+        assert.deepStrictEqual(invalid(asSection(body)), []);
+        assert.deepStrictEqual(problems, [EDIT_FOLDED]);
+        const after = (body.sources as JsonObject[]).find((source) => source.id === id) as JsonObject;
+        assert.property(after, "copy", "an edited source is embedded whatever was asked");
+        assert.match(String((after.origin as JsonObject).copy), ULID);
+
+        const reopened = createGraphSession(ON);
+        assert.deepStrictEqual(await readBody(reopened, body), []);
+        assert.strictEqual(reopened.data.node("Ava")?.mood, "calm");
+        session.dispose();
+        opened.dispose();
         reopened.dispose();
     });
 
@@ -336,9 +372,13 @@ describe("data section version 2", () => {
                 (from.sources as JsonObject[]).map((source) => [source.id, (source.origin as JsonObject).copy]),
             );
         const written = copies(body);
-        for (const [id, copy] of Object.entries(copies(example)).filter(([id]) => id !== "reader")) {
+        const file = String((example.sources as JsonObject[]).find((source) => source.kind === "file")?.id);
+        for (const [id, copy] of Object.entries(copies(example)).filter(([id]) => id !== "reader" && id !== file)) {
             assert.strictEqual(written[id], copy, id);
         }
+
+        // The reader's edit is folded into the file's copy, so it no longer holds the bytes it hashed.
+        assert.match(String(written[file]), ULID);
 
         assert.deepStrictEqual(body.types, example.types);
         const typesOf = (from: JsonObject): string[] =>

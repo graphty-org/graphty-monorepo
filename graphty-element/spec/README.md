@@ -271,7 +271,10 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
 1. **The copy id.** `origin.copy` is `sha256:` plus lower-case hex of the bytes as read for file,
    url and sample sources, and a ULID minted whenever that copy changes for network, derived and
    reader sources. An embedded copy and a referenced one carry the same copy id; a refetch is
-   checked against it.
+   checked against it. Until a writer keeps a log of the reader's edits, removes and merges, a
+   source whose rows the reader edited, removed or merged is always embedded, whatever the saver
+   asked, and its copy id is a ULID minted for that copy whatever its kind, since its rows are no
+   longer the bytes read (the operations it folds in are reported, 8.1 rule 2).
 2. **Working column names everywhere.** Every column name in a document is a working name, after
    renames. A column's source name appears only in `mapping.<table>.renamed` and in its
    `ColumnDecl.origin.title`.
@@ -282,11 +285,13 @@ A source record has exactly these fields: `id`, `label`, `kind`, `format`, `opti
    `metadata`. Any other object is an unknown copy form (4.1.10). `columns` is rebuild and
    re-export input only, never read for meaning.
 4. Embedding or referencing is the saver's choice per source, whatever its size; the default is
-   embedded. A `derived` source and the reader source are always embedded.
+   embedded. A `derived` source and the reader source are always embedded, and so is a `file`
+   source whose `path` the writer does not know, since no reference can stand for it (8.1 rule 4).
 5. A referenced or refreshed source MUST be parsed again with exactly its `format` and `options`,
    never a guessed one.
 6. A `file` source's `origin.path` is a POSIX path relative to the folder of the file being saved,
    never absolute and never above that folder, written only when the writer knows both locations.
+   An `origin` member the writer does not know is left out, never invented.
 7. **File styles.** The per-element looks a GEXF `viz:` or Cytoscape.js file gave are columns of
    that source's copy named `graphty.style.<source id>.<node|edge>.<key>`, read through
    graphty-element's root path of that name, never `data.`. They are exempt from the reserved
@@ -491,7 +496,7 @@ A results section holds `bindsTo` (REQUIRED, `{ data }` only), `runs` (REQUIRED)
 2. A run holds what actually ran: `algorithm`, `params` (element-naming options as element
    references), `engine` (graphty-element's `EngineVersions`: `element`, `algorithms`, `layout`,
    and `plugins` when an extension computed it), `seed` (the seed it used, or `null`),
-   `durationMs`, `bindsTo` (6.4), `fields` (`{ name, kind, type }`, `kind` being `node`, `edge` or
+   `durationMs` (absent when the run was not timed, never 0), `bindsTo` (6.4), `fields` (`{ name, kind, type }`, `kind` being `node`, `edge` or
    `graph`), `caveats`, `graph` (graph-level values), and `nodes` and `edges` outputs.
 3. `caveats` is graphty-element's `Caveats` without its deprecated `notes` and `partialReason`
    (the words are rebuilt from `facts` and `partialCause`) and without `seed`: the run's own
@@ -499,7 +504,8 @@ A results section holds `bindsTo` (REQUIRED, `{ data }` only), `runs` (REQUIRED)
 4. Outputs are columns: `{ "refs": [<element references>], "columns": { <field>: [values] } }`,
    every column as long as `refs`.
 5. `layout` is the layout's record: `id`, the catalogue id; `algorithm`, the layout that drew it,
-   as `layout.set` spells it in `algorithm`; `dimension`; `options`; `seed`; `durationMs`; `engine`
+   as `layout.set` spells it in `algorithm`; `dimension`; `options`; `seed`; `durationMs` (absent
+   when the layout was not timed, never 0, as for a run); `engine`
    (`EngineVersions`, as every run's); `bindsTo`; and `nodes: { refs, columns: { x, y, z } }`. It
    has no run id; one layout is in force at a time. In results, `engine` always means
    `EngineVersions`.
@@ -701,8 +707,8 @@ of the view section.
 3. **Results are optional.** By default results are not saved, and opening reruns the behaviors.
    A record or archive save includes them.
 4. **Embed or reference** is chosen per source (4.1.2 rule 4); the default is embed and there is
-   no size-based switch. The save report names a referenced `file` source with no `path`
-   (`W_SOURCE_NO_PATH`, params `{ source }`).
+   no size-based switch. A `file` source the saver asked to reference but whose `path` is not known
+   is embedded instead, and the save report names it (`W_SOURCE_NO_PATH`, params `{ source }`).
 5. **Re-saving an opened file keeps its choices**: results are written if the file had a results
    section, and each source stays embedded or referenced as its record was. A recipe section
    opened from a file is written back as read unless the reader asks to rewrite it from the
@@ -908,7 +914,7 @@ application words them.
 | `W_SECTION_UPGRADED`          | an older version was migrated on read                                        | `section`, `from`, `to`                   |
 | `W_ELEMENT_NAMING_LEFT_OUT`   | a writer left element-naming content out of a reusable section               | `section`, `pointer`                      |
 | `W_MEMBER_LEFT_OUT`           | a save, or a version 1 migration, could not carry something over             | `kind` or `section`, `field` or `pointer` |
-| `W_SOURCE_NO_PATH`            | a referenced file source was saved without `path`                            | `source`                                  |
+| `W_SOURCE_NO_PATH`            | a file source asked to be referenced was embedded: its `path` is not known   | `source`                                  |
 | `W_SOURCE_UNAVAILABLE`        | a referenced source could not be fetched or picked                           | `source`                                  |
 | `W_SPACE_OVERLAP`             | a node key would add keys to a space another source already holds            | `source`, `space`, `count`                |
 | `W_REFERENCE_UNBOUND`         | an element reference binds nowhere                                           | `section`, `pointer`, `ref`               |

@@ -429,7 +429,13 @@ header:
   `options`, never a guessed one.
     - `origin.copy` is the copy id: for file, url and sample sources `sha256:<hex>` of the bytes;
       for network, derived and reader sources a ULID minted whenever that copy changes. `origin` also
-      holds the file name, size, media type and HTTP validators where they apply.
+      holds the file name, size, media type and HTTP validators where they apply; a member the
+      session does not record is left out, never invented.
+    - Until graphty-element keeps a log of the reader's edits, removes and merges, a source whose
+      rows the reader edited, removed or merged is always saved embedded, even when a reference was
+      asked for, and its copy id is a freshly minted ULID rather than the hash of the bytes first
+      read, since its rows no longer are those bytes. The save still reports each folded operation
+      as left out of the reader source.
     - A network source's `origin` is a closed object: `copy`, `url`, `credentials` (`{ "slot" }`,
       the credential slot's name, never a secret), `etag`, `lastModified`, and `ledger`, the request
       history a refresh replays, written as graphty-element's `SourceLoadRecord` with its `key` set
@@ -455,7 +461,7 @@ weight, weightMeaning, time, timeUnit, renamed }`. With `key` absent, every node
   `edges`, each an object of equal-length value arrays keyed by working column name. A node-link
   source is copied as tables, its graph attributes in `metadata`. Any other object is an unknown
   copy form and holds the data section. A derived source, like the reader source, is always
-  embedded. `columns`, present exactly when `copy` is (never on the reader source), holds each
+  embedded, and so is a file source with no known `path`. `columns`, present exactly when `copy` is (never on the reader source), holds each
   copied table's parsed graph-format `ColumnDecl`s grouped by table, as the copy is:
   `{ "nodes": { "<working name>": <decl> }, "edges": { ... } }`. They are rebuild and re-export
   input only, never read for meaning.
@@ -597,7 +603,8 @@ that name columns list them in `dependencies.columns`.
   name, and binding by `as` considers only runs that carry one.
 - Each run holds what actually ran: `algorithm`, `params`, `engine` (graphty-element's
   `EngineVersions`: `element`, `algorithms`, `layout`, and `plugins` when an extension computed
-  it), `seed` (the seed it used, the authority), `durationMs`, `bindsTo` (see "Naming nodes and
+  it), `seed` (the seed it used, the authority), `durationMs` (left out when the run was not
+  timed, never 0), `bindsTo` (see "Naming nodes and
   edges"), `fields`, and `caveats`. `caveats` is graphty-element's `Caveats` without its
   deprecated `notes` and `partialReason`, whose words are rebuilt from `facts` and `partialCause`
   so no English is frozen into the file, and without `seed`, which a reader takes from the run's
@@ -609,7 +616,8 @@ that name columns list them in `dependencies.columns`.
 - **`layout`**, beside `runs`, is the layout's record: `id`, the catalogue id; `algorithm`, the
   layout that drew it, as `layout.set` spells it in `algorithm` (as a run's `algorithm` names what
   ran);
-  `dimension`; `options`; `seed`, the seed used; `durationMs`; `engine`, graphty-element's
+  `dimension`; `options`; `seed`, the seed used; `durationMs`, left out when the layout was not
+  timed, never 0; `engine`, graphty-element's
   `EngineVersions`, as every run's; `bindsTo`; and `nodes: { refs, columns: { x, y, z } }`, as
   every run's output. The layout has no run id; one layout is in force at a time.
 
@@ -723,8 +731,9 @@ frame later would be a view major version.
   the user: embed files or store references"), per source, whatever its size. Embedded: the rows
   are in the data section. Referenced: the source and how it was joined, without the rows, plus its
   copy id so a refetch that returns different data is reported. Default: embedded, so a file stands
-  alone. There is no size-based automatic switch. The save report names a referenced file source
-  that has no `path`. A referenced network source gets a new copy id on every open, so its keyless
+  alone. There is no size-based automatic switch. A file source with no known `path` cannot be
+  referenced: it is saved embedded even when a reference was asked for, and the save report names
+  it (`W_SOURCE_NO_PATH`). A referenced network source gets a new copy id on every open, so its keyless
   rows get new keys; when a saved reference or reader operation names one, the save report says it
   will not bind after reopening and suggests embedding the source or mapping an edge id.
 - **Re-saving an opened file keeps its choices.** When a project was opened from a file, the save

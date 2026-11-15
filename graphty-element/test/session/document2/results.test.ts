@@ -296,6 +296,7 @@ describe("writing results", () => {
         assert.deepEqual([layout.id, layout.algorithm, layout.dimension], ["force", "ngraph", 3]);
         assert.notProperty(layout, "versions");
         assert.deepEqual(layout.bindsTo, STAMP);
+        assert.notProperty(layout, "durationMs", "an untimed layout leaves its duration out, never 0");
         assert.deepEqual(layout.nodes, {
             refs: [
                 { space: SPACE, key: "a" },

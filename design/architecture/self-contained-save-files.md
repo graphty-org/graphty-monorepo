@@ -323,8 +323,8 @@ Named by id, so the scan sees them (each entry lists its paths):
   through fixed lists in `encoding.ts`; closed-look-lists: border styles, chart kinds, stripe
   directions, route, support model, image fit and repeat, model fit, center and up axis.
 - transition: `layoutTransition` in the configuration (`GraphStyle.ts:193`) by preset id (`glide`).
-- sample-model: `asset:sample/<name>` by name, and embedding one is refused; sample-source:
-  generator or dataset by name, sorted by the current generator catalog.
+- sample-source: generator or dataset by name, sorted by the current generator catalog. (Sample
+  models are carried: a project's assets member and a style file's `assets` hold each one used.)
 - row-template: Starting, Ghost and Pinned rows carry template ids that code branches on.
 - algorithm: saved runs, run-on-load entries and filter measure leaves name an algorithm by key and
   run it again; layout: by id and engine, run again, plus legacy `layoutBehavior.type`; basemap: by

@@ -17,7 +17,7 @@ interface AssetsMember {
 }
 
 interface AssetEntry {
-    id: string; // what a layer names: "asset:<sha256>" or "asset:<name>"; never "asset:sample/..."
+    id: string; // what a layer names: "asset:<sha256>", "asset:<name>" or a carried sample's "asset:sample/<name>"
     sha256: string; // the digest of the file set, lower-case hex ("The digest")
     format: string; // the main file's format when it was added: glb, gltf, obj, stl or ply
     main: string; // the main file's path in the set (inside the zip, for a zip)
@@ -80,7 +80,10 @@ digest, so the same files have the same id in every file and every release.
 3. One copy of the files per digest. The first entry with a `sha256` carries `files`; a later entry
    with the same `sha256` (the same files under another name, or fetched from another URL) carries
    none.
-4. The samples (`asset:sample/...`) are never embedded: every reader ships them.
+4. A sample (`asset:sample/...`) a layer names is embedded like any other model, under its sample
+   id, so the file draws the same model on a build whose sample changed or is gone. Only the
+   samples the layers name are carried (2 to 33 KB each); one nothing has drawn yet is read from
+   the package before the save is written.
 5. A layer that named a URL keeps naming it; its entry carries the URL as `source`. A model the
    session does not hold -- a URL that never loaded, an id with no accepted model -- is not
    embedded, and the save reports `W_MODEL_NOT_EMBEDDED { ref, layerIds }`.
@@ -125,7 +128,8 @@ an asset finds it.
    `skipped` that is not a list of normalized paths, or names a geometry part, skips the entry,
    `E_BAD_DOCUMENT` at `/assets/<n>/skipped`.
 7. **An id held by other files** is `E_MODEL_NAME_TAKEN`, never a replacement; one held by the same
-   files is the same model. An id under `asset:sample/` is `E_MODEL_NAME_TAKEN`.
+   files is the same model. An entry under `asset:sample/` is the file's copy of that sample: the
+   layers naming it draw these files instead of the build's, until another project opens.
 8. **A `source`** makes the URL resolve to the entry's files: a layer naming that URL draws the
    embedded copy and fetches nothing, whatever the page allowed. The embedded copy wins over the
    URL.

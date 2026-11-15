@@ -1,5 +1,5 @@
 {
-    "selfContained": ["shaders"],
+    "selfContained": ["shaders", "models"],
     "exceptions": [
         {
             "kind": "palette",
@@ -56,13 +56,6 @@
             "catalogs": ["transitions"],
             "issue": 6507,
             "finding": "layoutTransition in the configuration names a transition preset by id (glide)."
-        },
-        {
-            "kind": "sample-model",
-            "paths": [],
-            "catalogs": ["models"],
-            "issue": 6508,
-            "finding": "A node model saved as asset:sample/<name> names a shipped sample by name, and embedding one is refused."
         },
         {
             "kind": "sample-source",

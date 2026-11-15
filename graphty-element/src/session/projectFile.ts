@@ -40,6 +40,7 @@ import {
     assetsMember,
     type AssetStorage,
     type ProjectAssetChoice,
+    readNamedSamples,
     restoreAssets,
     withAcceptedAssetIds,
 } from "./assets/projectMember";
@@ -2890,6 +2891,45 @@ export function projectOf(
         );
     };
 
+    /**
+     * Write the session as a project file now.
+     * @param options - The save's options.
+     * @returns The saved file.
+     */
+    const saveNow = (options: ProjectSaveOptions): Promise<SavedProject> => {
+        const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
+        // What this save was told is how the next save without a choice keeps the same URL,
+        // once its file is written: now, or at `markSaved` for a save that waits on its write.
+        // A copy that is never marked saved, or a write that failed, changes nothing.
+        const remember = (): void => {
+            for (const [url, storage] of Object.entries(options.assets ?? {})) {
+                (session.assets as AssetsApiInternal).rememberStorage(url, storage);
+            }
+        };
+
+        const text = JSON.stringify(document);
+        const saved: SavedProject = Object.freeze({
+            text,
+            report: Object.freeze({
+                bytes: new TextEncoder().encode(text).length,
+                written: (document.members as { kind: string }[]).map((member) => member.kind),
+                leftOut,
+            }),
+        });
+        fresh = false;
+        if (options.markSaved === false) {
+            const waited = pointNow();
+            waiting.add(waited);
+            pointOf.set(saved, waited);
+            rememberOf.set(saved, remember);
+        } else {
+            adopt(pointNow());
+            remember();
+        }
+
+        return Promise.resolve(saved);
+    };
+
     return {
         get name() {
             return nameNow();
@@ -2907,37 +2947,9 @@ export function projectOf(
             return assetChoices(session);
         },
         save(options = {}) {
-            const { document, leftOut } = write({ session, dispatcher, isDerived }, options);
-            // What this save was told is how the next save without a choice keeps the same URL,
-            // once its file is written: now, or at `markSaved` for a save that waits on its write.
-            // A copy that is never marked saved, or a write that failed, changes nothing.
-            const remember = (): void => {
-                for (const [url, storage] of Object.entries(options.assets ?? {})) {
-                    (session.assets as AssetsApiInternal).rememberStorage(url, storage);
-                }
-            };
-
-            const text = JSON.stringify(document);
-            const saved: SavedProject = Object.freeze({
-                text,
-                report: Object.freeze({
-                    bytes: new TextEncoder().encode(text).length,
-                    written: (document.members as { kind: string }[]).map((member) => member.kind),
-                    leftOut,
-                }),
-            });
-            fresh = false;
-            if (options.markSaved === false) {
-                const waited = pointNow();
-                waiting.add(waited);
-                pointOf.set(saved, waited);
-                rememberOf.set(saved, remember);
-            } else {
-                adopt(pointNow());
-                remember();
-            }
-
-            return Promise.resolve(saved);
+            // A sample a layer names is carried, so it is read first when nothing has drawn it yet.
+            const unread = readNamedSamples(session);
+            return unread.length === 0 ? saveNow(options) : Promise.allSettled(unread).then(() => saveNow(options));
         },
         markSaved(saved) {
             rememberOf.get(saved)?.();

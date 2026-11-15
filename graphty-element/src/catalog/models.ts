@@ -3,7 +3,8 @@
  * name in `node.model` without adding a file.
  *
  * A sample is resolved from the package when a layer first names it, never stored in a session:
- * `session.assets.list()` does not list it and a saved project names it by id only. The model
+ * `session.assets.list()` does not list it. A saved project or style file carries the files of
+ * each sample its layers name, and draws that copy when it is opened. The model
  * files and their thumbnails are in `assets/models/` (sources and licenses in its LICENSES.md).
  *
  * Each thumbnail is a 128 x 128 PNG with a transparent background, addressed with

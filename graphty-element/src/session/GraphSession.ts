@@ -59,6 +59,7 @@ import { type EnabledFeatures, featureOff, pageDefaultFeatures, resolveFeatures 
 import { graphvizAvailability } from "../layout/graphviz/availability";
 import { GraphtyLogger } from "../logging/GraphtyLogger";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
+import { carrySamplesInStyleFiles } from "./assets/projectMember";
 import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
 import { DEFINITIONS } from "./commands";
@@ -686,6 +687,7 @@ class Session implements ElementSession {
         this.stopTime = parts.stopTime;
         this.edgeAges = parts.edgeAges;
         this.styles = parts.styles;
+        carrySamplesInStyleFiles(this);
         this.shaders = parts.shaders.api;
         this.shadersController = parts.shaders;
         bindShadersController(this, parts.shaders);

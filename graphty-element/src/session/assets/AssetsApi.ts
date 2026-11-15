@@ -499,6 +499,25 @@ export interface AssetsApiInternal extends AssetsApi {
      */
     forgetProjectStorage(): void;
     /**
+     * Hold a file's own copy of one of the element's samples: layers naming the sample draw this
+     * copy, not the build's, until another project opens. A saved file carries each sample it
+     * uses, so it opens the same way on a build whose sample changed or is gone. Registered at
+     * once, so a layer that names the sample right after waits for this copy.
+     * @param id - An id under `asset:sample/`.
+     * @param files - The carried files.
+     * @param options - What the file recorded with the files.
+     * @param options.main - The main file, when the file named one.
+     * @param options.skipped - The parts it is drawn without.
+     * @param options.sha256 - The digest the file recorded.
+     * @returns The settled record: rejected `E_MODEL_DIGEST_MISMATCH` when the files are not the
+     *     recorded ones, or with the checks' problem.
+     */
+    carrySample(
+        id: AssetId,
+        files: ReadonlyMap<string, Uint8Array>,
+        options: { readonly main?: string; readonly skipped?: readonly string[]; readonly sha256: string },
+    ): Promise<AssetRecord>;
+    /**
      * Whether an accepted asset's parts came from more than one place (`supply`), so no single URL
      * brings it back.
      * @param id - The id.
@@ -2006,6 +2025,42 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         forgetProjectStorage() {
             storedAs.clear();
             expectedDigests.clear();
+            // A sample the last project carried is that project's copy; the next reads its own.
+            samples.clear();
+        },
+
+        carrySample(id, files, { main, skipped, sha256 }) {
+            const settled = (async (): Promise<AssetRecord> => {
+                let given: AssetRecord;
+                try {
+                    given = await intake(
+                        files,
+                        { name: id, ...(skipped === undefined ? {} : { skipped }) },
+                        main,
+                        true,
+                    );
+                } catch (error) {
+                    samples.delete(id);
+                    throw error;
+                }
+
+                if (given.state === "accepted" && given.digest !== sha256) {
+                    samples.delete(id);
+                    const problems = [{ code: "E_MODEL_DIGEST_MISMATCH", params: { id } }];
+                    return record({ id, digest: given.digest, byteLength: 0, format: "", state: "rejected", problems });
+                }
+
+                if (given.state !== "accepted") {
+                    samples.delete(id);
+                }
+
+                return given;
+            })();
+            samples.set(id, {
+                record: record({ id, digest: "", byteLength: 0, format: "", state: "pending", problems: [] }),
+                settled,
+            });
+            return settled;
         },
 
         bindUrl(ref, id) {

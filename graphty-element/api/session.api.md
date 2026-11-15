@@ -7239,6 +7239,7 @@ export interface StyleExplanation {
 
 // @public
 export interface StyleFileDocument extends StyleDocument {
+    readonly assets?: readonly Readonly<Record<string, unknown>>[];
     // (undocumented)
     readonly kind: "graphty-style";
 }

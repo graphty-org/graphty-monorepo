@@ -46,10 +46,7 @@
                 "id": {
                     "type": "string",
                     "pattern": "^asset:[A-Za-z0-9._/-]+$",
-                    "not": {
-                        "pattern": "^asset:sample/"
-                    },
-                    "description": "What a layer names in node.model. An id of the form asset:<64 hex digits> is the sha256 itself."
+                    "description": "What a layer names in node.model. An id of the form asset:<64 hex digits> is the sha256 itself; one under asset:sample/ is the file's copy of a graphty-element sample."
                 },
                 "sha256": {
                     "type": "string",

@@ -96,7 +96,7 @@ describe("graphty-assets: saving", () => {
         assert.deepEqual(
             member.assets.map((entry) => entry.id),
             [glbId, gltfId],
-            "the literal and the encoded model, never the sample",
+            "the literal and the encoded model; the sample, which nothing could read here, is not embedded",
         );
         const gltf = member.assets[1];
         assert.equal(gltf.format, "gltf");
@@ -220,19 +220,23 @@ describe("graphty-assets: opening", () => {
         assert.equal(problem?.params.what, "bytes");
     });
 
-    it("refuses an unknown member of an entry, E_BAD_DOCUMENT, and a sample id, E_MODEL_NAME_TAKEN", async () => {
+    it("refuses an unknown member of an entry, E_BAD_DOCUMENT, and holds a sample id as the file's copy", async () => {
         const { session } = await sessionWithModels();
         const document = JSON.parse((await session.project.save()).text) as { members: Member[] };
         const member = document.members.find((each) => each.kind === "graphty-assets") as Member;
         (member.assets[0] as Record<string, unknown>).encoding = "gzip";
         member.assets[1].id = "asset:sample/box";
-        const { report } = await reopen(JSON.stringify(document));
+        const { session: opened, report } = await reopen(JSON.stringify(document));
         assert.deepEqual(
             report.problems.map((problem) => [problem.code, problem.params.pointer ?? problem.params.id]),
-            [
-                ["E_BAD_DOCUMENT", "/assets/0/encoding"],
-                ["E_MODEL_NAME_TAKEN", "asset:sample/box"],
-            ],
+            [["E_BAD_DOCUMENT", "/assets/0/encoding"]],
+        );
+        const box = await opened.assets.ready("asset:sample/box");
+        assert.equal(box.digest, member.assets[1].sha256, "the layer draws the file's copy, not the build's");
+        assert.notInclude(
+            opened.assets.list().map((each) => each.id),
+            "asset:sample/box",
+            "a sample is never listed",
         );
     });
 
@@ -407,5 +411,77 @@ describe("graphty-assets: autosave", () => {
         session.assets.remove(glbId);
         const third = buildParts(session, new Set(["rest"] as const), new Map(), new Map(), second.assets);
         assert.strictEqual(third.parts[`asset:${glbDigest}`], null);
+    });
+});
+
+describe("graphty-assets: samples", () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    /**
+     * Serve the samples' `file:` URLs from disk, which Node's fetch cannot read.
+     * @returns The fetch spy.
+     */
+    function serveSamples() {
+        const spy = vi.fn((url: string) => Promise.resolve(new Response(readFileSync(new URL(url)))));
+        vi.stubGlobal("fetch", spy);
+        return spy;
+    }
+
+    /**
+     * A session with one layer naming a sample, read from the package.
+     * @returns The session.
+     */
+    async function sampleSession(): Promise<GraphSession> {
+        serveSamples();
+        const session = await baseSession();
+        await session.styles.add({
+            name: "server",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.model": "asset:sample/server" },
+        });
+        return session;
+    }
+
+    it("carries the sample a layer names, read on save, and opens it without the package", async () => {
+        const session = await sampleSession();
+        const saved = await session.project.save();
+        const { member } = memberOf(saved.text);
+        assert.isTrue(validate(member), JSON.stringify(validate.errors));
+        assert.deepEqual(
+            member.assets.map((entry) => [entry.id, entry.format, entry.files?.length]),
+            [["asset:sample/server", "glb", 1]],
+            "only the sample the layers use",
+        );
+
+        const spy = vi.fn(() => Promise.reject(new Error("offline")));
+        vi.stubGlobal("fetch", spy);
+        const { session: opened, report } = await reopen(saved.text);
+        assert.deepEqual(report.problems, []);
+        const server = await opened.assets.ready("asset:sample/server");
+        assert.equal(server.state, "accepted", JSON.stringify(server.problems));
+        assert.equal(server.digest, member.assets[0].sha256);
+        assert.strictEqual(spy.mock.calls.length, 0, "the carried copy is drawn; nothing is fetched");
+    });
+
+    it("carries the sample in a style file, and holds it when the file is applied", async () => {
+        const session = await sampleSession();
+        const { digest } = await session.assets.ready("asset:sample/server");
+        const file = session.styles.toFile();
+        assert.deepEqual(
+            file.assets?.map((entry) => [entry.id, entry.sha256]),
+            [["asset:sample/server", digest]],
+        );
+
+        const spy = vi.fn(() => Promise.reject(new Error("offline")));
+        vi.stubGlobal("fetch", spy);
+        const target = await baseSession();
+        await target.styles.applyTemplate(JSON.parse(JSON.stringify(file)) as typeof file);
+        const server = await target.assets.ready("asset:sample/server");
+        assert.equal(server.state, "accepted", JSON.stringify(server.problems));
+        assert.equal(server.digest, digest);
+        assert.strictEqual(spy.mock.calls.length, 0);
     });
 });

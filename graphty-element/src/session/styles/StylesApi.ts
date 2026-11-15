@@ -1422,6 +1422,12 @@ export interface StylesApi {
 /** A style file: the layers alone, as {@link StylesApi.toFile} writes it. */
 export interface StyleFileDocument extends StyleDocument {
     readonly kind: "graphty-style";
+    /**
+     * The element's sample models the layers name, carried with their files (entries as a project
+     * file's `graphty-assets` member writes them), so the file draws the same models on a build
+     * whose samples changed or are gone. Absent when the layers name no sample.
+     */
+    readonly assets?: readonly Readonly<Record<string, unknown>>[];
 }
 
 /** The palette a colour binding naming none uses, per palette kind. */

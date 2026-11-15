@@ -479,11 +479,11 @@ Returns `ScoreResult & { hub(node: ElementRef): number | undefined; authority(no
 
 `score` is the authority value.
 
-| Option          | Type      | Default    | Meaning                                                                                                                                                                                               |
-| --------------- | --------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `maxIterations` | `number`  | `100`      | Iteration cap.                                                                                                                                                                                        |
-| `tolerance`     | `number`  | `0.000001` | Convergence tolerance. The run stops at the first iteration whose summed (L1) change over both vectors is below `tolerance` times their summed size, a change of `tolerance` relative to the vectors. |
-| `normalized`    | `boolean` | `true`     | `true`: each vector has length 1 (L2 norm). `false`: each vector is divided by its largest entry, so its top node scores 1.                                                                           |
+| Option          | Type      | Default    | Meaning                                                                                                                                                                                                                 |
+| --------------- | --------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxIterations` | `number`  | `100`      | Iteration cap.                                                                                                                                                                                                          |
+| `tolerance`     | `number`  | `0.000001` | Convergence tolerance. The run stops at the first iteration whose summed (L1) change over both vectors is below `tolerance` times their summed size (or is exactly 0), a change of `tolerance` relative to the vectors. |
+| `normalized`    | `boolean` | `true`     | `true`: each vector has length 1 (L2 norm). `false`: each vector is divided by its largest entry, so its top node scores 1.                                                                                             |
 
 ### `graphtyIsBipartite`
 

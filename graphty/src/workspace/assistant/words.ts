@@ -601,6 +601,20 @@ function largeWords(request: AiApprovalRequest): ApprovalWords {
 }
 
 /**
+ * The paid card's cost line: "About $0.04 (Google).", or "About $0.04." when the provider has no plain name.
+ * @param preview - what was measured.
+ * @returns the line, or null when no cost was measured.
+ */
+function paidLine(preview: AiApprovalRequest["preview"]): string | null {
+    if (typeof preview.costUsd !== "number") {
+        return null;
+    }
+    const provider = AI_PROVIDER_DESCRIPTORS.find((one) => one.id === preview.provider)?.plainName;
+    const by = provider === undefined ? "" : ` (${provider})`;
+    return `About $${preview.costUsd.toFixed(2)}${by}.`;
+}
+
+/**
  * An approval card's words, from its gate and what was measured, never the model's arguments
  * (design 6.5). Only `irreversible` says Undo cannot reach it.
  * @param request - the request.
@@ -643,12 +657,8 @@ export function approvalWords(request: AiApprovalRequest): ApprovalWords {
                 primary: "Run",
                 decline: "Skip",
             };
-        case "paid": {
-            const provider = AI_PROVIDER_DESCRIPTORS.find((one) => one.id === preview.provider)?.plainName;
-            const cost = typeof preview.costUsd === "number" ? `About $${preview.costUsd.toFixed(2)}` : null;
-            const by = provider === undefined ? "" : ` (${provider})`;
-            return { ...otherwise, line: cost === null ? null : `${cost}${by}.` };
-        }
+        case "paid":
+            return { ...otherwise, line: paidLine(preview) };
         case "network":
             return preview.url === undefined
                 ? otherwise

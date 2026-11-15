@@ -5,9 +5,10 @@
  *
  * TypeDoc has one severity switch for the whole of its validation, and the package is not in a
  * state where every switch can be fatal at once: a few thousand members carry no doc comment and
- * over a hundred referenced types are not exported. Those are real debts (issue #282). This script
- * counts them on every run and fails when either count rises above `DEBT_CEILING`, so the debt can
- * shrink but not grow. Any other TypeDoc warning fails the run outright.
+ * over a hundred referenced types are not exported, and a few comments put block tags where TypeDoc
+ * allows none (on a union member). Those are real debts (issue #282). This script counts them on
+ * every run and fails when any count rises above `DEBT_CEILING`, so the debt can shrink but not
+ * grow. Any other TypeDoc warning fails the run outright.
  *
  * A broken `{@link}` is different. It renders as plain text, so the reader silently gets a dead
  * reference instead of a page, and nothing else in the pipeline notices -- the site's own
@@ -44,7 +45,7 @@ const KNOWN_BROKEN_LINKS = [];
  * type the public API names. A run below prints the lower number; lower the ceiling to it in the
  * same change, so the debt paid off cannot come back.
  */
-const DEBT_CEILING = { undocumented: 4476, unexported: 140 };
+const DEBT_CEILING = { undocumented: 4476, unexported: 140, misplacedTags: 16 };
 
 /** Warning text that means a documentation link does not resolve to a page. */
 const LINK_PATTERNS = [/Failed to resolve link to /, /links to ".*" which was resolved but is not included/];
@@ -100,15 +101,18 @@ if (code !== 0) {
     process.exit(code);
 }
 
-const warnings = lines.map(plain).filter((line) => line.startsWith("[warning] "));
+// A warning with a source position prints as `src/x.ts:1:2 - [warning] ...`.
+const warnings = lines.map(plain).filter((line) => /(^| - )\[warning\] /.test(line));
 const undocumented = warnings.filter((line) => line.endsWith("does not have any documentation"));
 const unexported = warnings.filter((line) => /is referenced by .* but not included in the documentation/.test(line));
 const links = warnings.filter((line) => LINK_PATTERNS.some((pattern) => pattern.test(line)));
+const misplacedTags = warnings.filter((line) => line.endsWith("should not contain any block or modifier tags"));
 const other = warnings.filter(
     (line) =>
         !line.startsWith("[warning] Found ") &&
         !undocumented.includes(line) &&
         !unexported.includes(line) &&
+        !misplacedTags.includes(line) &&
         !links.includes(line),
 );
 
@@ -141,6 +145,7 @@ for (const line of other) {
 const debts = [
     ["undocumented", undocumented],
     ["unexported", unexported],
+    ["misplacedTags", misplacedTags],
 ];
 let debtGrew = false;
 

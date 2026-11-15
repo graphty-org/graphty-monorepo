@@ -563,6 +563,31 @@ function repeatsKey(table: Table | undefined, column: string | undefined): boole
 }
 
 /**
+ * Give a node a row's columns, its key column included (spec 4.1.9). A value an earlier source gave
+ * differently is kept beside it as `<column> (<source id>)` (spec 4.1.8 rule 3).
+ * @param node - The node.
+ * @param values - The row.
+ * @param source - The row's source id.
+ * @param row - Whether the source gave the node a row already, and whether a repeat merges.
+ * @param row.repeated - The source gave the node a row already.
+ * @param row.merge - A repeat merges (`duplicateIds: "merge"`).
+ */
+function takeColumns(
+    node: BuiltNode,
+    values: Readonly<JsonObject>,
+    source: string,
+    row: { readonly repeated: boolean; readonly merge: boolean },
+): void {
+    for (const [name, value] of Object.entries(values)) {
+        if ((row.repeated && row.merge) || !(name in node.columns)) {
+            node.columns[name] = value;
+        } else if (!row.repeated && canonicalJson(node.columns[name]) !== canonicalJson(value)) {
+            node.columns[`${name} (${source})`] = value;
+        }
+    }
+}
+
+/**
  * Build one `join.add` or `join.merge` step: the source's node rows by key in its space, then its
  * edge rows between the nodes their ends name (spec 4.1.3, 6.1).
  * @param source - The source.
@@ -599,16 +624,7 @@ function buildSource(source: ReadSource, into: Building): void {
             continue;
         }
 
-        // Every working column is the node's, its key column included (spec 4.1.9).
-        for (const [name, value] of Object.entries(values)) {
-            if ((repeated && duplicates === "merge") || !(name in node.columns)) {
-                node.columns[name] = value;
-            } else if (!repeated && canonicalJson(node.columns[name]) !== canonicalJson(value)) {
-                // A value an earlier source gave differently is kept beside it (spec 4.1.8 rule 3).
-                node.columns[`${name} (${id})`] = value;
-            }
-        }
-
+        takeColumns(node, values, id, { repeated, merge: duplicates === "merge" });
         seen.add(node);
         if (!node.loads.includes(id)) {
             node.loads.push(id);

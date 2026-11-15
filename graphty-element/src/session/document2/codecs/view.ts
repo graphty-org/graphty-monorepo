@@ -189,6 +189,22 @@ function scopeJson(w: Writer, run: Run): unknown {
 }
 
 /**
+ * Whether the visible graph narrowed a run: a filter, a time window, or a visible scope while
+ * anything narrows it (spec 4.7 rule 5).
+ * @param w - The writer.
+ * @param run - The run.
+ * @returns True when it did.
+ */
+function narrowedRun(w: Writer, run: Run): boolean {
+    const { caveats, scope } = run.record;
+    return (
+        caveats.filterScope === true ||
+        caveats.windowScope === true ||
+        (scope.spec === "visible" && visibleNarrowed(w.session))
+    );
+}
+
+/**
  * The `runs` member: every finished run, in the order made.
  * @param w - The writer.
  * @returns The run records.
@@ -206,7 +222,7 @@ function runsJson(w: Writer): JsonObject[] {
             continue;
         }
 
-        const { name, seed, caveats } = run.record;
+        const { name, seed } = run.record;
         const { params, bound } = mapParams(w.session, run.algorithm, run.params, w.mapper, "");
         if (!bound) {
             w.problems.push({
@@ -215,10 +231,7 @@ function runsJson(w: Writer): JsonObject[] {
             });
         }
 
-        const narrowed =
-            caveats.filterScope === true ||
-            caveats.windowScope === true ||
-            (run.record.scope.spec === "visible" && visibleNarrowed(w.session));
+        const narrowed = narrowedRun(w, run);
         if (narrowed) {
             // No scope form holds a run's own scope and the narrowing together (spec 4.7 rule 5).
             w.problems.push({ code: "W_MEMBER_LEFT_OUT", params: { section: SECTION, pointer: `${pointer}/scope` } });
@@ -632,6 +645,19 @@ async function readElements(r: Reader, body: Readonly<JsonObject>): Promise<void
 }
 
 /**
+ * The filter a file holds as graph.filter's `{ on, where }`, as the rule the session holds.
+ * @param filter - The filter.
+ * @returns The rule, or null.
+ */
+function filterIn(filter: unknown): RuleTree | null {
+    if (!isObject(filter) || typeof filter.where !== "string") {
+        return null;
+    }
+
+    return filterRule(filter.where, filter.on === "edges" ? "edges" : "nodes");
+}
+
+/**
  * Apply the visibility member.
  * @param r - The reader.
  * @param visibility - The member.
@@ -642,12 +668,7 @@ async function readVisibility(r: Reader, visibility: JsonObject): Promise<void> 
     const read = mapRefs(visibility, r.mapper, `${r.section.pointer}/visibility`) as JsonObject;
     await attempt(r, "visibility", async () => {
         if ("filter" in read) {
-            const { filter } = read;
-            await tx.visibility.set(
-                isObject(filter) && typeof filter.where === "string"
-                    ? filterRule(filter.where, filter.on === "edges" ? "edges" : "nodes")
-                    : null,
-            );
+            await tx.visibility.set(filterIn(read.filter));
         }
 
         if (isObject(read.window)) {
@@ -942,6 +963,22 @@ async function readOrder(r: Reader, order: readonly unknown[], own: readonly str
 }
 
 /**
+ * A member the session holds no state for, as it is written back: the camera without `type`,
+ * which overlaps its controller, the authority (spec 4.7 rule 2).
+ * @param name - The member.
+ * @param value - Its value as read.
+ * @returns The value to write back.
+ */
+function heldValue(name: string, value: unknown): unknown {
+    if (name !== "camera" || !isObject(value)) {
+        return value;
+    }
+
+    const { type: _type, ...camera } = value;
+    return camera;
+}
+
+/**
  * Remember, for each member read, what the session now gives back, so an unchanged member is
  * written back as read.
  * @param r - The reader.
@@ -956,9 +993,7 @@ function rememberRead(r: Reader, body: Readonly<JsonObject>): void {
         }
 
         if (HELD_ONLY.has(name)) {
-            // The camera's `type` overlaps its controller, the authority, and is not written back (spec 4.7 rule 2).
-            const { type: _type, ...camera } = name === "camera" && isObject(body.camera) ? body.camera : {};
-            memory.heldOnly.set(name, name === "camera" && isObject(body.camera) ? camera : body[name]);
+            memory.heldOnly.set(name, heldValue(name, body[name]));
         } else {
             const now = name === "runs" ? withNotRun(fresh.runs, memory) : fresh[name];
             memory.kept.set(name, { applied: canonical(now), original: body[name] });

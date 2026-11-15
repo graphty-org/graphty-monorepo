@@ -582,6 +582,16 @@ function readerKeyOf(memory: DataMemory, slot: string): string {
 }
 
 /**
+ * The record key an open read for a node only an edge named.
+ * @param memory - The memory.
+ * @param id - The node.
+ * @returns The key, or undefined when the open read the node otherwise.
+ */
+function namedOnlyRef(memory: DataMemory, id: NodeId): NodeRef | undefined {
+    return memory.namedOnly.has(id) ? memory.nodeRefs.get(id) : undefined;
+}
+
+/**
  * The open data as version 2 names it: sources in join order, their copies and copy ids, each
  * node's record key and each edge's reference, from today's loads and records.
  * @param session - The session.
@@ -614,10 +624,11 @@ function dataModelOf(session: GraphSession): DataModel {
     for (const node of nodes) {
         const supplied = loadsOf(session.data.sourcesOf(node.id));
         const known = memory.nodeRefs.get(node.id);
-        if (supplied.length === 0 && known !== undefined && memory.namedOnly.has(node.id)) {
+        const namedOnly = supplied.length === 0 ? namedOnlyRef(memory, node.id) : undefined;
+        if (namedOnly !== undefined) {
             // Only an edge names it: no source's row and no reader add, its key kept as read.
             nodeLoads.set(node.id, []);
-            nodeRefs.set(node.id, known);
+            nodeRefs.set(node.id, namedOnly);
             continue;
         }
 

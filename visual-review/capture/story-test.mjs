@@ -421,6 +421,9 @@ export function visualStoryTest({ project, out, root = repoRoot() }) {
          * @returns {Promise<void>} once the partial is written
          */
         async onTestRunEnd(modules) {
+            // A run whose stories never reached visualPlan still needs its provenance: without it the partial
+            // has no commit, and a retry into the same directory cannot tell it is the same run.
+            await ready;
             const ran = new Set();
             for (const m of modules) {
                 for (const t of m.children.allTests()) {

@@ -25,7 +25,7 @@ const KINDS: Readonly<Record<string, readonly Marker[]>> = {
         ["data-cm-state", null],
         ["data-cm-force", null],
     ],
-    forcedState: [["data-state", ["hover", "focus", "pressed", "open", "active"]]],
+    forcedState: [["data-state", ["hover", "focus", "press", "open"]]],
     disabled: [
         ["disabled", null],
         ["data-disabled", null],

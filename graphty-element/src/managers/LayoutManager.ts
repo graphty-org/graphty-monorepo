@@ -936,14 +936,14 @@ export class LayoutManager implements Manager {
      */
     setPaused(paused: boolean): void {
         this._paused = paused;
+        this.running = !paused;
         // A static layout held back the re-run a removal asked for while paused; it lands now, in
-        // the array both render paths draw from (a batched row has no Node whose update would read it).
+        // the array both render paths draw from (a batched row has no Node whose update would read
+        // it). After `running`, so a re-run that throws leaves the layout resumed.
         const engine = this.layoutEngine;
         if (!paused && engine instanceof StaticLayoutEngine && simpleLayoutInternals.resume(engine)) {
             engine.publishPositions();
         }
-
-        this.running = !paused;
     }
 
     // GraphContext for error reporting

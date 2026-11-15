@@ -25,6 +25,7 @@ import type { AssetContainer } from "@babylonjs/core/assetContainer.js";
 import { BoundingInfo } from "@babylonjs/core/Culling/boundingInfo.js";
 import type { Material } from "@babylonjs/core/Materials/material.js";
 import { PBRMaterial } from "@babylonjs/core/Materials/PBR/pbrMaterial.js";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { BaseTexture } from "@babylonjs/core/Materials/Textures/baseTexture.js";
 import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
 import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
@@ -32,6 +33,7 @@ import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import type { Scene } from "@babylonjs/core/scene.js";
 
+import { type AnimatedPart, bakeAnimation, type TemplateAnimation } from "./animateTemplate";
 import type { ModelTemplate, TemplateOptions } from "./ModelCache";
 
 /**
@@ -69,8 +71,7 @@ function flipWinding(indices: number[] | Int32Array | Uint32Array | Uint16Array)
 }
 
 /** One part of the model, baked. */
-interface Part {
-    readonly data: VertexData;
+interface Part extends AnimatedPart {
     readonly material: Material | null;
     readonly key: string;
 }
@@ -81,6 +82,26 @@ interface Part {
  * @returns Its vertex data.
  */
 function restPose(mesh: Mesh): VertexData {
+    const data = ownVertices(mesh);
+    // A skinned part is posed by its skeleton at rest, once, on the CPU: the bones carry the
+    // file's turns (BrainStem's root turns it from Z up to Y up), which the bind-pose vertices
+    // alone leave out. Then the skin goes, so an instance binds no bone texture.
+    skinAtRest(mesh, data);
+    // The rest pose: skin weights and morph targets are not carried over.
+    data.matricesIndices = null;
+    data.matricesWeights = null;
+    data.matricesIndicesExtra = null;
+    data.matricesWeightsExtra = null;
+    return data;
+}
+
+/**
+ * A mesh's vertices in its own space (bind space for a skin), indexed and with normals, its skin
+ * weights kept.
+ * @param mesh - The mesh.
+ * @returns Its vertex data.
+ */
+function ownVertices(mesh: Mesh): VertexData {
     const data = VertexData.ExtractFromMesh(mesh, true, true);
     // A glTF primitive with no indices draws its vertices in order (the loader marks it
     // unindexed); the merged template is drawn indexed, so it gets those indices, or it
@@ -88,11 +109,7 @@ function restPose(mesh: Mesh): VertexData {
     if (mesh.isUnIndexed || (data.indices?.length ?? 0) === 0) {
         data.indices = Array.from({ length: mesh.getTotalVertices() }, (_, i) => i);
     }
-    // The rest pose: skin weights and morph targets are not carried over.
-    data.matricesIndices = null;
-    data.matricesWeights = null;
-    data.matricesIndicesExtra = null;
-    data.matricesWeightsExtra = null;
+
     if (data.normals === null && data.positions !== null && data.indices !== null) {
         const normals: number[] = [];
         VertexData.ComputeNormals(data.positions, data.indices, normals);
@@ -100,6 +117,59 @@ function restPose(mesh: Mesh): VertexData {
     }
 
     return data;
+}
+
+/**
+ * Pose a skinned mesh's vertices by its skeleton's bones as they stand, as Babylon's CPU skinning
+ * does (`Mesh.applySkeleton`), without touching the mesh's own buffers.
+ * @param mesh - The mesh.
+ * @param data - Its vertex data, changed in place.
+ */
+function skinAtRest(mesh: Mesh, data: VertexData): void {
+    const { skeleton } = mesh;
+    const { positions, normals, matricesIndices: indices, matricesWeights: weights } = data;
+    if (skeleton === null || positions === null || indices === null || weights === null) {
+        return;
+    }
+
+    // prepare() skips a skeleton that is not dirty, which one fresh from a loader may not be.
+    skeleton.bones[0]?.markAsDirty();
+    skeleton.prepare(true);
+    const bones = skeleton.getTransformMatrices(mesh);
+    // Left undefined, not null, when the mesh has no extra influences.
+    const extraIndices = data.matricesIndicesExtra ?? null;
+    const extraWeights = data.matricesWeightsExtra ?? null;
+    const skin = new Matrix();
+    const scaled = new Matrix();
+    const out = Vector3.Zero();
+    const add = (bone: number, weight: number): void => {
+        if (weight > 0) {
+            Matrix.FromFloat32ArrayToRefScaled(bones, Math.floor(bone) * 16, weight, scaled);
+            skin.addToSelf(scaled);
+        }
+    };
+    const posed = Array.from(positions);
+    const posedNormals = normals === null ? null : Array.from(normals);
+    for (let v = 0; v * 3 < positions.length; v++) {
+        skin.reset();
+        for (let k = 0; k < 4; k++) {
+            add(indices[v * 4 + k], weights[v * 4 + k]);
+            if (extraIndices !== null && extraWeights !== null) {
+                add(extraIndices[v * 4 + k], extraWeights[v * 4 + k]);
+            }
+        }
+
+        Vector3.TransformCoordinatesFromFloatsToRef(posed[v * 3], posed[v * 3 + 1], posed[v * 3 + 2], skin, out);
+        out.toArray(posed, v * 3);
+        if (posedNormals !== null) {
+            const [x, y, z] = [posedNormals[v * 3], posedNormals[v * 3 + 1], posedNormals[v * 3 + 2]];
+            Vector3.TransformNormalFromFloatsToRef(x, y, z, skin, out);
+            out.normalize().toArray(posedNormals, v * 3);
+        }
+    }
+
+    data.positions = posed;
+    data.normals = posedNormals;
 }
 
 /**
@@ -121,9 +191,10 @@ function placeAt(data: VertexData, world: Matrix): VertexData {
  * Bake every drawable part of the container into world-space vertex data, turned upright.
  * @param container - The loaded model.
  * @param turn - The orientation to bake in.
+ * @param animated - Whether each part that can move keeps its own vertices and its mesh, to animate.
  * @returns The parts.
  */
-function bakeParts(container: AssetContainer, turn: Matrix): Part[] {
+function bakeParts(container: AssetContainer, turn: Matrix, animated: boolean): Part[] {
     const parts: Part[] = [];
     for (const mesh of container.meshes) {
         if (!(mesh instanceof Mesh) || mesh.getTotalVertices() === 0 || mesh.getIndices() === null) {
@@ -139,9 +210,11 @@ function bakeParts(container: AssetContainer, turn: Matrix): Part[] {
         // A thin instance's matrix places it in the mesh's own space, before the mesh's world matrix.
         // ponytail: per-instance colors (`_COLOR_0`) are not carried over; bake them as vertex colors if a file needs them.
         const instances = mesh.thinInstanceGetWorldMatrices();
+        // ponytail: a GPU-instanced part (EXT_mesh_gpu_instancing) is drawn still; give each copy a bone if a file animates one.
+        const movable = animated && instances.length === 0 ? { mesh, local: ownVertices(mesh) } : {};
         for (const instance of instances.length === 0 ? [Matrix.Identity()] : instances) {
             const copy = instances.length > 1 ? data.clone() : data;
-            parts.push({ data: placeAt(copy, instance.multiply(placed)), material, key });
+            parts.push({ data: placeAt(copy, instance.multiply(placed)), material, key, ...movable });
         }
     }
 
@@ -258,22 +331,75 @@ function fitAndGroup(
 }
 
 /**
+ * Whether a material draws a picture as its base color.
+ * @param material - The material.
+ * @returns True when it does.
+ */
+function hasPicture(material: Material): boolean {
+    if (material instanceof PBRMaterial) {
+        return material.albedoTexture !== null;
+    }
+
+    return (
+        "diffuseTexture" in material &&
+        (material as { diffuseTexture?: unknown }).diffuseTexture !== null &&
+        (material as { diffuseTexture?: unknown }).diffuseTexture !== undefined
+    );
+}
+
+/**
+ * The material a merged group draws with, and whether it takes the node's color whatever
+ * `node.modelTint` says: a part the file gives no material, no picture and no vertex colors
+ * states no color of its own, and under "untextured" a part with no picture and no vertex colors
+ * gives its color up too. Under "replace" every part draws in the flat material.
+ * @param first - The group's first part.
+ * @param colored - Whether the group carries vertex colors.
+ * @param options - The template options.
+ * @param flat - The template's flat material, made on first use.
+ * @returns The material, and whether the group follows the node's color.
+ */
+function lookOf(
+    first: Part,
+    colored: boolean,
+    options: TemplateOptions,
+    flat: () => PBRMaterial,
+): { material: Material; follows: boolean } {
+    if (options.replace) {
+        return { material: flat(), follows: true };
+    }
+
+    const { material } = first;
+    if (colored) {
+        // Vertex colors state the part's color; with no material they draw in the flat one.
+        return { material: material ?? flat(), follows: false };
+    }
+
+    if (material === null || (options.untextured === true && !hasPicture(material))) {
+        return { material: flat(), follows: true };
+    }
+
+    return { material, follows: false };
+}
+
+/**
  * Merge each group into one hidden source mesh.
  * @param scene - The scene the template draws in.
  * @param name - A name for the template's meshes.
  * @param groups - The parts by group key.
- * @param flat - The material every group takes under `replace`, else null.
- * @param used - The materials the meshes draw with, written into.
- * @param meshes - The meshes, one per group, written into as each is made.
+ * @param options - The template options.
+ * @param flat - The template's flat material, made on first use.
+ * @param made - Where each material and mesh goes as it is made, and the groups that follow the
+ *   node's color.
  */
 function mergeGroups(
     scene: Scene,
     name: string,
     groups: ReadonlyMap<string, Part[]>,
-    flat: PBRMaterial | null,
-    used: Set<Material>,
-    meshes: Mesh[],
+    options: TemplateOptions,
+    flat: () => PBRMaterial,
+    made: Made,
 ): void {
+    const { used, meshes, follows } = made;
     for (const [key, list] of groups) {
         const [first, ...rest] = list;
         const vertices = list.reduce((sum, part) => sum + (part.data.positions?.length ?? 0) / 3, 0);
@@ -284,13 +410,21 @@ function mergeGroups(
                       rest.map((p) => p.data),
                       vertices > 65535,
                   );
+        // "replace" paints one flat color: the file's vertex colors go with its materials.
+        if (options.replace) {
+            merged.colors = null;
+        }
+
         const mesh = new Mesh(`${name}-${String(meshes.length)}`, scene);
         meshes.push(mesh);
         merged.applyToMesh(mesh);
-        const material = flat ?? first.material;
-        if (material !== null) {
-            mesh.material = material;
-            used.add(material);
+        const colored = (merged.colors?.length ?? 0) > 0;
+        const look = lookOf(first, colored, options, flat);
+        mesh.material = look.material;
+        used.add(look.material);
+
+        if (look.follows) {
+            follows.add(mesh);
         }
 
         mesh.isVisible = false;
@@ -299,12 +433,48 @@ function mergeGroups(
         // The instanced colour is always there, white by default: tint is then one write per
         // instance, and no node's tint can change the template's shader. Babylon names it
         // "color", the same kind as per-vertex colors, so a group with vertex colors registers
-        // it under another name: its colors draw, and tint writes land where nothing reads them.
-        // ponytail: `node.modelTint` does not tint vertex-colored parts; a material plugin can.
-        const kind = (merged.colors?.length ?? 0) === 0 ? "color" : "graphtyTint";
+        // Babylon's "instanceColor", which its shaders multiply into the vertex colors
+        // (`tintBufferOf` in ModelCache.ts).
+        const kind = colored ? "instanceColor" : "color";
         mesh.registerInstancedBuffer(kind, 4);
         mesh.instancedBuffers[kind] = new Color4(1, 1, 1, 1);
+        // Registered before the materials compile and freeze, so the first selection mark
+        // (src/meshes/NodeOutlineLayers.ts) changes no define of a frozen material.
+        mesh.registerInstancedBuffer("instanceSelectionId", 1);
+        mesh.instancedBuffers.instanceSelectionId = 0;
         mesh.freezeWorldMatrix();
+    }
+}
+
+/**
+ * Set what the node's style asks of every material the template draws with: `node.unlit`,
+ * `node.wireframe` and `node.modelDoubleSided`.
+ * @param used - The materials.
+ * @param options - The template options.
+ */
+function restyle(used: ReadonlySet<Material>, options: TemplateOptions): void {
+    for (const material of used) {
+        if (options.wireframe === true) {
+            material.wireframe = true;
+        }
+
+        if (options.doubleSided !== undefined && options.doubleSided !== "file") {
+            material.backFaceCulling = !options.doubleSided;
+            if (material instanceof PBRMaterial) {
+                material.twoSidedLighting = options.doubleSided;
+            }
+        }
+
+        if (options.unlit === true) {
+            if (material instanceof PBRMaterial) {
+                material.unlit = true;
+            } else if (material instanceof StandardMaterial) {
+                // As a built-in shape's unlit material: its own color and picture, no light.
+                material.disableLighting = true;
+                material.emissiveColor = material.diffuseColor;
+                material.emissiveTexture = material.diffuseTexture;
+            }
+        }
     }
 }
 
@@ -358,13 +528,26 @@ function applyImage(material: Material, image: BaseTexture): void {
  * Give every mesh the whole model's bounding box, locked.
  * @param meshes - The template's meshes.
  * @param fit - The fit.
- * @returns The fitted extents.
+ * @param moving - The box an animated model moves through, which the node is picked and culled by.
+ * @param moving.min - Its low corner.
+ * @param moving.max - Its high corner.
+ * @returns The fitted extents at rest.
  */
-function lockBounds(meshes: readonly Mesh[], fit: Fit): ModelTemplate["size"] {
+function lockBounds(
+    meshes: readonly Mesh[],
+    fit: Fit,
+    moving?: { readonly min: Vector3; readonly max: Vector3 },
+): ModelTemplate["size"] {
     const { extent, scale, center, min } = fit;
     const size = { x: extent.x * scale.x, y: extent.y * scale.y, z: extent.z * scale.z };
     const low = center.subtract(min).multiply(scale).scale(-1);
-    const box = new BoundingInfo(low, low.add(new Vector3(size.x, size.y, size.z)));
+    const box =
+        moving === undefined
+            ? new BoundingInfo(low, low.add(new Vector3(size.x, size.y, size.z)))
+            : new BoundingInfo(
+                  Vector3.Minimize(low, moving.min),
+                  Vector3.Maximize(low.add(new Vector3(size.x, size.y, size.z)), moving.max),
+              );
     for (const mesh of meshes) {
         mesh.setBoundingInfo(box);
         mesh.doNotSyncBoundingInfo = true;
@@ -451,11 +634,12 @@ export async function prepareTemplate(
     options: TemplateOptions,
     environment: () => PBRMaterial["reflectionTexture"],
 ): Promise<ModelTemplate> {
-    const made: Made = { used: new Set(), meshes: [] };
+    const made: Made = { used: new Set(), meshes: [], follows: new Set() };
     try {
         return await build(scene, container, name, options, environment, made);
     } catch (error) {
         // Free what was made so far, and the file's own meshes, materials and textures.
+        made.animation?.dispose();
         disposeTemplate(made.meshes, made.used, container);
         disposeLeftovers(container, made.used);
         throw error;
@@ -466,6 +650,10 @@ export async function prepareTemplate(
 interface Made {
     readonly used: Set<Material>;
     readonly meshes: Mesh[];
+    /** The groups that take the node's color whatever `node.modelTint` says. */
+    readonly follows: Set<Mesh>;
+    /** The baked clips, once made. */
+    animation?: TemplateAnimation | null;
 }
 
 /**
@@ -486,51 +674,83 @@ async function build(
     environment: () => PBRMaterial["reflectionTexture"],
     made: Made,
 ): Promise<ModelTemplate> {
-    const parts = bakeParts(container, orientation(options.up, options.turn));
+    const turn = orientation(options.up, options.turn);
+    const parts = bakeParts(container, turn, options.animated === true);
     if (parts.length === 0) {
         throw new Error("graphty-element: the model has no triangles to draw");
     }
 
     const fit = fitOf(parts, options);
-    const { groups, radius, triangles } = fitAndGroup(parts, fit.matrix);
-    const { used, meshes } = made;
-    let flat: PBRMaterial | null = null;
-    if (options.replace) {
-        flat = new PBRMaterial(`${name}-replace`, scene);
-        used.add(flat);
-        flat.albedoColor = Color3.White();
-        flat.metallic = 0;
-        flat.roughness = 1;
-    }
+    const grouped = fitAndGroup(parts, fit.matrix);
+    const { groups, triangles } = grouped;
+    let { radius } = grouped;
+    const { used, meshes, follows } = made;
+    const animation =
+        options.animated === true ? bakeAnimation(scene, container, parts, turn.multiply(fit.matrix), name) : null;
+    made.animation = animation;
+    let flatMaterial: PBRMaterial | null = null;
+    const flat = (): PBRMaterial => {
+        if (flatMaterial === null) {
+            flatMaterial = new PBRMaterial(`${name}-flat`, scene);
+            used.add(flatMaterial);
+            flatMaterial.albedoColor = Color3.White();
+            flatMaterial.metallic = 0;
+            flatMaterial.roughness = 1;
+        }
 
-    mergeGroups(scene, name, groups, flat, used, meshes);
+        return flatMaterial;
+    };
+
+    mergeGroups(scene, name, groups, options, flat, made);
+    animation?.attach(meshes);
     adoptMaterials(scene, used, container.textures, options.image);
+    restyle(used, options);
 
     await light(scene, used, environment);
     await Promise.all(
         meshes.map(async (mesh) => {
+            // Babylon multiplies "instanceColor" into vertex colors only while the mesh has an
+            // instance when its material's defines are worked out, and a frozen material never
+            // works them out again: a group with vertex colors keeps a hidden instance of its
+            // own for its life, disposed with it.
+            if (mesh.instancedBuffers.instanceColor !== undefined) {
+                const standIn = mesh.createInstance(`${mesh.name}-tint`);
+                standIn.isVisible = false;
+                standIn.isPickable = false;
+            }
+
             await mesh.material?.forceCompilationAsync(mesh, { useInstances: true });
         }),
     );
-    for (const material of used) {
-        material.freeze();
+    // An animated template's materials stay unfrozen: the clock's uniform changes every frame.
+    if (animation === null) {
+        for (const material of used) {
+            material.freeze();
+        }
     }
 
     const transparent = meshes.some((mesh) => mesh.material?.needAlphaBlendingForMesh(mesh) === true);
     // Every group answers for the whole model's box: a node is picked by that box and never by
     // the model's triangles (section 3.8), and a group is culled only when the whole model is.
-    const size = lockBounds(meshes, fit);
+    const size = lockBounds(meshes, fit, animation?.bounds);
+    if (animation !== null) {
+        const { min, max } = animation.bounds;
+        radius = Math.max(radius, min.length(), max.length());
+    }
 
     disposeLeftovers(container, used);
 
     return {
         groups: meshes,
+        follows,
         size,
         radius,
         triangles,
         materials: used.size,
         transparent,
+        ...(animation === null ? {} : { animation }),
         dispose: () => {
+            animation?.dispose();
             disposeTemplate(meshes, used, container);
         },
     };

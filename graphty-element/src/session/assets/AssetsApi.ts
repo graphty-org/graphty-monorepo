@@ -12,12 +12,12 @@
  */
 
 import { baseName, cutParam, ModelError, type ModelFormat, normalizePath, roleOfName } from "babylonjs-models/detect";
-import type { RedirectGate } from "babylonjs-models/files";
+import type { ModelProgress, ModelProgressListener, RedirectGate } from "babylonjs-models/files";
 
 import type { LayerId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { isPrivateHost, type NetworkApiInternal } from "../network";
-import type { CodedFact } from "../shared";
+import type { CodedFact, ProgressChange } from "../shared";
 import type { SessionStylesApi } from "../styles";
 import type { ModelChange } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
@@ -84,7 +84,18 @@ export interface AddAssetOptions {
      * Default: none.
      */
     readonly skipped?: readonly string[];
+    /**
+     * Stops waiting. A URL's download stops too once every caller waiting for it has stopped
+     * (one that passed no signal keeps it going); the next `add` of that URL fetches it again.
+     */
     readonly signal?: AbortSignal;
+    /**
+     * Hears how far the files have been read: changes with `task: "asset"`, `unit: "bytes"` and
+     * `asset.stage` (`"downloading"`, `"reading"` or `"unpacking"`), then one `phase: "end"` change
+     * with its `outcome` (`"succeeded"` when the record is accepted, `"failed"` with the first
+     * problem's code otherwise, `"cancelled"` when the signal stopped it).
+     */
+    readonly onProgress?: (change: ProgressChange) => void;
 }
 
 /**
@@ -242,7 +253,7 @@ export interface ModelLimits {
     readonly maxTextBytes: number;
     /** Per model, counted per use. Default 1,000,000. */
     readonly maxTriangles: number;
-    /** Decoded texture bytes per model. Default 64 MB. */
+    /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 128 MB. */
     readonly maxTextureBytes: number;
     /** What every glTF accessor decodes to, together. Default 256 MB. */
     readonly maxDecodedBytes: number;
@@ -265,7 +276,7 @@ export const DEFAULT_MODEL_LIMITS: ModelLimits = Object.freeze({
     maxBytes: 32 * MB,
     maxTextBytes: 8 * MB,
     maxTriangles: 1_000_000,
-    maxTextureBytes: 64 * MB,
+    maxTextureBytes: 128 * MB,
     maxDecodedBytes: 256 * MB,
     maxTextureSize: 2048,
     sceneTextureBytes: 256 * MB,
@@ -467,6 +478,71 @@ interface Entry {
     assembled?: boolean;
     /** The `supply` calls for it, one at a time. */
     chain?: Promise<unknown>;
+    /** A URL's download while it runs: who hears its progress, and what stops it. */
+    fetch?: UrlFetch;
+}
+
+/** A URL's download, shared by every caller of `add` asking for it. */
+interface UrlFetch {
+    /** The URL, as the session keys it. */
+    readonly href: string;
+    readonly controller: AbortController;
+    readonly listeners: Set<ModelProgressListener>;
+    /** Callers waiting with a signal that has not aborted. */
+    callers: number;
+    /** A caller waits with no signal, so nothing stops the download. */
+    pinned: boolean;
+}
+
+/**
+ * A model's progress as a session progress change.
+ * @param progress - What babylonjs-models reported.
+ * @param source - What is being read.
+ * @returns The change.
+ */
+function progressChange(progress: ModelProgress, source: ProgressChange["source"]): ProgressChange {
+    const { loaded, total, stage, part } = progress;
+    return Object.freeze({
+        task: "asset",
+        phase: "progress",
+        completed: loaded,
+        total,
+        fraction: total === null || total <= 0 ? null : Math.min(1, loaded / total),
+        asset: Object.freeze({ stage, ...(part === undefined ? {} : { part }) }),
+        unit: "bytes",
+        ...(source === undefined ? {} : { source }),
+    });
+}
+
+/**
+ * The last change of an asset's progress.
+ * @param outcome - The record it settled to, or the error that stopped the wait.
+ * @param source - What was read.
+ * @returns The change.
+ */
+function progressEnd(outcome: unknown, source: ProgressChange["source"]): ProgressChange {
+    const record = outcome as Partial<AssetRecord> | undefined;
+    const settled = typeof record?.state === "string";
+    const [problem] = settled ? (record.problems ?? []) : [];
+    const failed = settled && record.state !== "accepted";
+    let ended: ProgressChange["outcome"] = "succeeded";
+    if (!settled) {
+        ended = "cancelled";
+    } else if (failed) {
+        ended = "failed";
+    }
+
+    return Object.freeze({
+        task: "asset",
+        phase: "end",
+        completed: settled ? (record.byteLength ?? 0) : 0,
+        total: null,
+        fraction: null,
+        unit: "bytes",
+        ...(source === undefined ? {} : { source }),
+        outcome: ended,
+        ...(failed && problem !== undefined ? { error: { code: problem.code, details: problem.params } } : {}),
+    });
 }
 
 /** The codes a held model can be supplied for. */
@@ -1162,13 +1238,25 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             ...(options.main === undefined ? {} : { main: options.main }),
             ...(options.format === undefined ? {} : { format: options.format }),
         };
+        const fetch: UrlFetch = {
+            href: url.href,
+            controller: new AbortController(),
+            listeners: new Set(),
+            callers: 0,
+            pinned: false,
+        };
+        entry.fetch = fetch;
         entry.settled = (async () => {
             let settled: AssetRecord;
             try {
                 const kind = roleOfName(url.pathname) === "texture" ? "texture" : "model";
                 const fetched = await (
                     await loadIntake()
-                ).fetchModelSet(url, limits, undefined, redirectGate(kind, "file"));
+                ).fetchModelSet(url, limits, fetch.controller.signal, redirectGate(kind, "file"), (progress) => {
+                    for (const listener of fetch.listeners) {
+                        listener(progress);
+                    }
+                });
                 settled = await intake(fetched.given, shared, fetched.main, false, named);
                 const expected = expectedDigests.get(url.href);
                 if (settled.state === "accepted" && expected !== undefined && expected !== settled.digest) {
@@ -1206,9 +1294,96 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
             entry.record = settled;
             return settled;
-        })();
+        })().finally(() => {
+            entry.fetch = undefined;
+            // Stopped by every caller: forgotten, so the next add fetches it again.
+            if (fetch.controller.signal.aborted && urls.get(url.href) === entry) {
+                urls.delete(url.href);
+            }
+        });
+        // Nobody may be left waiting for a download every caller stopped.
+        entry.settled.catch(() => undefined);
         urls.set(url.href, entry);
         return entry;
+    };
+
+    /**
+     * Have a caller of `add` hear a URL's download and, with a signal, stop it once every caller
+     * has stopped.
+     * @param entry - The URL's entry.
+     * @param options - The caller's options.
+     * @param source - What is read, for the caller's changes.
+     * @returns What to call when the caller is done.
+     */
+    const followUrl = (entry: Entry, options: AddAssetOptions, source: ProgressChange["source"]): (() => void) => {
+        const { fetch } = entry;
+        if (fetch === undefined) {
+            return () => undefined;
+        }
+
+        const { onProgress, signal } = options;
+        const listener: ModelProgressListener | undefined =
+            onProgress === undefined
+                ? undefined
+                : (progress) => {
+                      onProgress(progressChange(progress, source));
+                  };
+        if (listener !== undefined) {
+            fetch.listeners.add(listener);
+        }
+
+        const onAbort = (): void => {
+            fetch.callers--;
+            if (fetch.callers === 0 && !fetch.pinned) {
+                // Forgotten at once, so an add right after the stop fetches it again.
+                if (urls.get(fetch.href) === entry) {
+                    urls.delete(fetch.href);
+                }
+
+                fetch.controller.abort(signal?.reason);
+            }
+        };
+        if (signal === undefined) {
+            fetch.pinned = true;
+        } else {
+            fetch.callers++;
+            signal.addEventListener("abort", onAbort, { once: true });
+        }
+
+        return () => {
+            if (listener !== undefined) {
+                fetch.listeners.delete(listener);
+            }
+
+            signal?.removeEventListener("abort", onAbort);
+        };
+    };
+
+    /**
+     * Wait for an asset on a caller's terms: its signal stops the wait, and its listener hears the
+     * last change.
+     * @param work - The record on its way.
+     * @param options - The caller's options.
+     * @param source - What is read.
+     * @param done - What to call when the wait ends.
+     * @returns The record.
+     */
+    const waitFor = async (
+        work: Promise<AssetRecord>,
+        options: AddAssetOptions,
+        source: ProgressChange["source"],
+        done: () => void = () => undefined,
+    ): Promise<AssetRecord> => {
+        try {
+            const settled = await abortable(work, options.signal);
+            options.onProgress?.(progressEnd(settled, source));
+            return settled;
+        } catch (error) {
+            options.onProgress?.(progressEnd(error, source));
+            throw error;
+        } finally {
+            done();
+        }
     };
 
     /**
@@ -1743,22 +1918,37 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 const known = urls.get(url.href);
                 const entry =
                     known !== undefined && options.name === undefined ? known : startUrl(url, options, source);
-                return abortable(entry.settled, options.signal);
+                const shown = { name: baseName(url.pathname) || url.host, url: url.href };
+                return waitFor(entry.settled, options, shown, followUrl(entry, options, shown));
             }
 
-            let read: Awaited<ReturnType<typeof import("babylonjs-models/files").readModelFiles>>;
-            try {
-                read = await (await loadIntake()).readModelFiles(source, limits);
-            } catch (error) {
-                if (!(error instanceof ModelError)) {
-                    throw error;
+            const reading = (async (): Promise<AssetRecord> => {
+                let read: Awaited<ReturnType<typeof import("babylonjs-models/files").readModelFiles>>;
+                const { onProgress } = options;
+                try {
+                    read = await (
+                        await loadIntake()
+                    ).readModelFiles(
+                        source,
+                        limits,
+                        onProgress === undefined
+                            ? undefined
+                            : (progress) => {
+                                  onProgress(progressChange(progress, undefined));
+                              },
+                    );
+                } catch (error) {
+                    if (!(error instanceof ModelError)) {
+                        throw error;
+                    }
+
+                    return early(error.fact, `asset:rejected-${syncHex(JSON.stringify(error.fact))}`);
                 }
 
-                return early(error.fact, `asset:rejected-${syncHex(JSON.stringify(error.fact))}`);
-            }
-
-            options.signal?.throwIfAborted();
-            return intake(read.given, options, read.main);
+                options.signal?.throwIfAborted();
+                return intake(read.given, options, read.main);
+            })();
+            return waitFor(reading, options, undefined);
         },
 
         ready(ref, options = {}) {

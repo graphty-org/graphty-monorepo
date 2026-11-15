@@ -17,14 +17,27 @@ import type { CodedFact } from "../session/shared";
 export type ModelChunk = typeof import("./chunk");
 
 let chunk: Promise<ModelChunk> | undefined;
+let loaded: ModelChunk | null = null;
 
 /**
  * The model chunk, imported once.
  * @returns The chunk's module.
  */
 export function loadChunk(): Promise<ModelChunk> {
-    chunk ??= import("./chunk");
+    chunk ??= import("./chunk").then((module) => {
+        loaded = module;
+        return module;
+    });
     return chunk;
+}
+
+/**
+ * The model chunk once it has loaded, for code that runs only after a model is drawn (a model
+ * node's mark): no model is drawn before the chunk is in.
+ * @returns The chunk's module, or null before it loaded.
+ */
+export function loadedChunk(): ModelChunk | null {
+    return loaded;
 }
 
 /** Why a model could not be drawn, as the coded fact a reader is told. */

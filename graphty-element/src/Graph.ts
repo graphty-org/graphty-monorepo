@@ -7236,6 +7236,8 @@ export class Graph implements GraphContext {
             modelCenter: style["node.modelCenter"],
             modelFit: style["node.modelFit"],
             modelTint: style["node.modelTint"],
+            modelDoubleSided: style["node.modelDoubleSided"],
+            modelAnimation: style["node.modelAnimation"],
         } as NonNullable<NodeStyleConfig["shape"]>;
         const is2D = this.getViewMode() === "2d";
         const key = JSON.stringify([
@@ -7248,6 +7250,11 @@ export class Graph implements GraphContext {
             shape.modelCenter,
             shape.modelFit,
             shape.modelTint,
+            shape.modelDoubleSided,
+            shape.modelAnimation,
+            style["node.modelAnimationOffset"],
+            style["node.unlit"],
+            style["node.wireframe"],
             is2D,
             this.#lighting,
         ]);
@@ -7278,7 +7285,10 @@ export class Graph implements GraphContext {
                     this.scene,
                     container,
                     `graphty-model-thumbnail-${record.digest.slice(0, 8)}`,
-                    optionsOf(shape, assets.inspect(record.id).upAxis),
+                    optionsOf(shape, assets.inspect(record.id).upAxis, {
+                        unlit: style["node.unlit"] === true,
+                        wireframe: style["node.wireframe"] === true,
+                    }),
                     () => chunk.neutralEnvironment(this.scene),
                 );
                 try {

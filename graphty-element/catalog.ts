@@ -129,6 +129,8 @@ export type {
 export { assetFileExtensions, detectAssetKind, detectModelFormat } from "babylonjs-models/detect";
 // The sample 3D models a style layer names in `node.model` ("asset:sample/server") without adding
 // a file, the same list `session.catalog.models()` returns, each with a thumbnail picture.
+export type { ModelOrientation, ModelTurnStep, ModelUpAxis } from "./src/catalog/modelOrientation";
+export { turnModelOrientation } from "./src/catalog/modelOrientation";
 export type { ModelDescriptor } from "./src/catalog/models";
 export { MODEL_DESCRIPTORS } from "./src/catalog/models";
 export { PALETTE_DESCRIPTORS, paletteDescriptor, palettesOfKind } from "./src/catalog/palettes";

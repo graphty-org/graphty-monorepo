@@ -76,4 +76,5 @@ export function neutralEnvironment(scene: Scene): BaseTexture {
     return texture;
 }
 
+export { markModelNode } from "./NodeOutlineLayers";
 export { prepareTemplate } from "./prepareTemplate";

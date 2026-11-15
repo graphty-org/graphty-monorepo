@@ -29,9 +29,11 @@
  * Each file can stay under FILE_GUARD_MS while a job of several files outlasts the CI job, so CI's test job also
  * stops the whole run itself and names what was running (TEST_STEP_LIMIT_MS, tools/results/run-group.mjs).
  *
- * Measurements are not tests and carry no guard: an inline project whose name starts with
- * "bench" (graphty-element's bench and bench-browser, webgpu-graph-algorithms' noise-floor
- * recording) is started by hand, never by the gate, and runs with no time limit at all.
+ * Measurements carry the same guards (#8032). A project whose name starts with "bench"
+ * (graphty-element's bench and bench-browser, webgpu-graph-algorithms' noise-floor recording) is
+ * started by hand, never by the gate, but it holds a machine test slot like any other run: a
+ * benchmark waiting on a page that never reported ready held one for 64 minutes. The guards sit
+ * far above any real measurement, so they still end only a hang.
  *
  * Every vitest config wraps its export in `withTestGuards`, and the setup file it adds
  * (vitest.wait-guard-setup.ts) gives `vi.waitFor` and `vi.waitUntil` the wait guard. Testing
@@ -85,10 +87,6 @@ function guardActions(browser) {
  * @returns the block with the guards and the guard setup file
  */
 function guardTest(test) {
-    if (/^bench/.test(test.name ?? "")) {
-        // A measurement: no time limit, so a slow one measures instead of failing.
-        return { ...test, testTimeout: 0, hookTimeout: 0 };
-    }
     const guard = guardSetup();
     const setupFiles = [test.setupFiles ?? []].flat().filter((f) => f !== guard);
     if (test.browser) {

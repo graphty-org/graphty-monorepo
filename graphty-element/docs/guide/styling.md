@@ -750,7 +750,9 @@ legend's swatch shows the same middle colour the canvas paints.
 
 ### A table of values, and what it leaves alone
 
-`map` gives a value per key. With `scale: "passthrough"`, a key the table does not hold goes on
+`map` gives a value per key. A binding with a `map` and no `scale` reads through `"passthrough"`
+on every channel, and its legend block is categorical: one row per value it paints. With
+`scale: "passthrough"`, a key the table does not hold goes on
 through the scale as before, so an unmapped `"green"` is painted green. Add `unmapped: "skip"` and
 an element whose key the table does not hold is left exactly as the layers beneath paint it:
 

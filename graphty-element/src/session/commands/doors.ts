@@ -1305,6 +1305,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     layerGroups: READ,
     counts: READ,
     drawnCount: READ,
+    drawnValues: READ,
     legendOf: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
@@ -1349,7 +1350,6 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     lockRow: calls(["no-such-row", true], [{ op: "style.patch", action: "lockRow", id: "no-such-row", locked: true }]),
     hideRow: calls(["no-such-row", true], [{ op: "style.patch", action: "hideRow", id: "no-such-row", hidden: true }]),
     deleteRow: calls(["no-such-row"], [{ op: "style.patch", action: "deleteRow", id: "no-such-row" }]),
-    restoreStartingRows: calls([], [{ op: "style.patch", action: "restoreStartingRows" }]),
     toFile: READ,
     setDefaultPalettes: PALETTE_DEFAULTS,
     setHighlightColor: HIGHLIGHT_DEFAULT,

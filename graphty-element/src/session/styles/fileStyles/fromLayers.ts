@@ -55,7 +55,7 @@ import {
     LINE_STYLES_NEAREST,
     TOOL_ARROW_SHAPES,
 } from "./shapes";
-import { fileStyleColumn, type FileStyleStore } from "./store";
+import { styleValueColumn, type StyleValueStore } from "./store";
 import { arrowRunStack, LAYER_SPEC_EXT, SCENE_PER_UNIT } from "./translate";
 
 /** What turning the stack into neutral styles needs. */
@@ -71,7 +71,7 @@ export interface LayersToStylesInput {
     /** Per node row, and per edge row, whether the element is hidden. */
     readonly hidden: { readonly node: readonly boolean[]; readonly edge: readonly boolean[] };
     /** The session's file-style values. */
-    readonly fileStyles: FileStyleStore;
+    readonly fileStyles: StyleValueStore;
     /** The format being written, for the styles' source. */
     readonly format: string;
     /**
@@ -553,7 +553,7 @@ class KindExport {
             return { style: known };
         }
 
-        const held = fileStyleColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
+        const held = styleValueColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
         // Two loads' columns of one key cannot both keep it: the second is not carried as itself.
         if (held === undefined || this.#columns.has(parts.key)) {
             return null;
@@ -1020,7 +1020,7 @@ class KindExport {
             return selector;
         }
 
-        const held = fileStyleColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
+        const held = styleValueColumn(this.#input.fileStyles, parts.namespace, this.#kind, parts.key);
         const ids = this.#input.ids[this.#kind];
         if (held === undefined || !ids.every((id) => held.get(id) !== null && held.get(id) !== undefined)) {
             return selector;

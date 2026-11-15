@@ -86,6 +86,8 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "algo.remove": "run",
     "algo.move": "run",
     "algo.rename": "run",
+    "annotations.set": "data",
+    "annotations.patch": "data",
     // Never journaled itself: each member of a batch writes its own entry.
     batch: "data",
     "config.set": "config",
@@ -99,7 +101,7 @@ const KINDS: Readonly<Record<SessionCommand["op"], JournalEntry["kind"]>> = {
     "data.import-source": "data",
     "data.setSource": "data",
     "data.label": "data",
-    "data.setFileStyles": "data",
+    "data.setStyleValues": "data",
     "shader.set": "style",
     "data.columns": "data",
     "data.derive": "data",

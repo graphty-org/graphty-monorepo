@@ -258,26 +258,12 @@ describe("the Node-safe entry points", () => {
         assert.isAbove(schema.SHAPE_CONSTANTS.DEFAULT_NODE_SIZE, 0);
     });
 
-    it("reads a layer's file-style facts in plain Node, from ./session alone", () => {
-        const origin: session.FileStyleOrigin = {
-            format: "gexf",
-            importId: "i1",
-            ruleId: "node.by.Modularity Class",
-            role: "mapping",
-            origin: "declared",
-        };
-
-        assert.deepEqual(session.fileStyleOf({ fileStyle: origin }), origin);
-        assert.isNull(session.fileStyleOf({}));
-    });
-
     it("lists every style code in plain Node, from ./session alone", () => {
         const code: session.FileStyleNoteCode = session.FILE_STYLE_ISSUE.LAYER_REFUSED;
 
         assert.include(session.FILE_STYLE_CODES, code);
         assert.include(session.FILE_STYLE_CODES, "W_STYLE_LAYER_CAP");
         assert.strictEqual(session.FILE_STYLE_SHAPES.ellipse, "ellipse");
-        assert.include(session.FILE_STYLE_REASONS, "NO_EXPLANATION");
     });
 });
 

@@ -208,6 +208,28 @@ describe("the Data place's Sources and Calculated tabs", () => {
         });
     });
 
+    it("opens a result with no style in the inspector with no Style tab, and Apply style brings the tab", async () => {
+        const { session } = await openData();
+        await session.runs.start("pagerank", {});
+        const id = session.runs.list().find((run) => run.algorithm === "pagerank")?.id ?? "";
+        for (const layer of session.runs.bindings(id)) {
+            await session.styles.remove(layer);
+        }
+        const row = await calculatedRow();
+        await waitFor(() => {
+            assert.isNull(within(row).queryByRole("img", { name: /^Styles/ }), "nothing styles it");
+        });
+        await userEvent.click(row.querySelector<HTMLElement>(".dp-run-main") ?? row);
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        const values = await inspector.findByRole("tab", { name: "Values" });
+        assert.strictEqual(values.getAttribute("aria-selected"), "true");
+        assert.isNull(inspector.queryByRole("tab", { name: "Style" }), "no empty Style tab");
+
+        await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Apply style/ }));
+        await inspector.findByRole("tab", { name: "Style" });
+    });
+
     it("a filter's row is one group named by its words, its controls by short names, Edit showing Enter", async () => {
         const { session } = await openData();
         await session.visibility.addCondition({

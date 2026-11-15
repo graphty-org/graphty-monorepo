@@ -207,6 +207,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     ...(["Graphty", "Graph"] as const).flatMap((root): Exclusion[] => [
         { root, members: ["nodeThumbnail", "modelThumbnail"], reason: "raw-data", kind: BY_DESIGN },
         { root, members: ["cancelCameraAnimation"], reason: "in-flight", kind: BY_DESIGN },
+        // A tour is a run of camera moves; the assistant makes each with view.camera.
+        { root, members: ["playTour"], reason: "covered-by", by: "view.camera", kind: BY_DESIGN },
     ]),
     {
         root: "Graph",
@@ -281,6 +283,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "matchesSource",
             "replaceSource",
             "reloadSource",
+            "remap",
             "sourceSettings",
             "sourceInput",
         ],
@@ -313,10 +316,11 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     },
     {
         root: "SessionLayout",
-        members: ["arrangedDimension", "optionInEffect", "locationColumns", "motion"],
+        members: ["arrangedDimension", "optionInEffect", "locationColumns", "motion", "step"],
         reason: "panel-state",
         kind: BY_DESIGN,
     },
+    { root: "SessionLayout", members: ["play", "pause", "tick", "settle"], reason: "in-flight", kind: BY_DESIGN },
     {
         root: "SessionConfig",
         members: ["backgroundColor"],
@@ -327,6 +331,8 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionConfig", members: ["inEffect"], reason: "panel-state", kind: BY_DESIGN },
     ...(["SelectionApi", "SelectionOwner"] as const).flatMap((root): Exclusion[] => [
         { root, members: ["count"], reason: "covered-by", by: "query.overview", kind: BY_DESIGN },
+        { root, members: ["previous"], reason: "covered-by", by: "query.overview", kind: BY_DESIGN },
+        { root, members: ["restore"], reason: "covered-by", by: "select.set", kind: BY_DESIGN },
         {
             root,
             members: [
@@ -439,7 +445,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
                 "addFolder",
                 "pinRow",
                 "lockRow",
-                "restoreStartingRows",
                 "layersUnder",
                 "layerGroups",
                 "highlightStyle",
@@ -475,6 +480,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "views",
             "layout",
             "positions",
+            "hidden",
             "config",
             "capabilities",
             "history",
@@ -510,6 +516,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "views",
             "layout",
             "positions",
+            "hidden",
             "config",
             "capabilities",
             "history",
@@ -609,7 +616,20 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionHistory", members: ["cancel"], reason: "in-flight", kind: BY_DESIGN },
     {
         root: "SessionPositions",
-        members: ["capacity", "count", "placedCount", "pinnedCount", "generation", "isPlaced", "isPinned", "read"],
+        members: [
+            "capacity",
+            "count",
+            "placedCount",
+            "pinnedCount",
+            "generation",
+            "isPlaced",
+            "isPinned",
+            "read",
+            "get",
+            "pinnedMask",
+            "snapshot",
+            "restore",
+        ],
         reason: "raw-data",
         kind: BY_DESIGN,
     },
@@ -661,13 +681,25 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         by: "filter.context",
         kind: BY_DESIGN,
     },
-    { root: "StylesApi", members: ["agreement"], reason: "covered-by", by: "style.explain", kind: BY_DESIGN },
+    {
+        root: "StylesApi",
+        members: ["agreement", "drawnValues"],
+        reason: "covered-by",
+        by: "style.explain",
+        kind: BY_DESIGN,
+    },
     { root: "StylesApi", members: ["drawnCount"], reason: "covered-by", by: "style.get", kind: BY_DESIGN },
     { root: "StylesApi", members: ["resolveToStatic"], reason: "covered-by", by: "style.update", kind: BY_DESIGN },
     { root: "StylesApi", members: ["settled"], reason: "lifecycle", kind: BY_DESIGN },
     { root: "StylesApi", members: ["applyTemplate", "toDocument"], reason: "whole-document", kind: BY_DESIGN },
     { root: "StylesApi", members: ["setDefaultPalettes"], reason: "app-default", kind: BY_DESIGN },
-    { root: "SessionStylesApi", members: ["agreement"], reason: "covered-by", by: "style.explain", kind: BY_DESIGN },
+    {
+        root: "SessionStylesApi",
+        members: ["agreement", "drawnValues"],
+        reason: "covered-by",
+        by: "style.explain",
+        kind: BY_DESIGN,
+    },
     { root: "SessionStylesApi", members: ["drawnCount"], reason: "covered-by", by: "style.get", kind: BY_DESIGN },
     {
         root: "SessionStylesApi",
@@ -780,6 +812,13 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "removeEventListener",
         ],
         reason: "lifecycle",
+        kind: BY_DESIGN,
+    },
+    {
+        // The page's own words for a screen reader, given as functions, and a list for its readers.
+        root: "Graphty",
+        members: ["accessibleDescription", "accessibleAnnouncement", "accessibleNodeList"],
+        reason: "needs-host",
         kind: BY_DESIGN,
     },
     {

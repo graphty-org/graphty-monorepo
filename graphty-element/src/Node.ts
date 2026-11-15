@@ -31,6 +31,7 @@ import type { GraphContext } from "./managers/GraphContext";
 import { LabelDeclutter } from "./managers/LabelDeclutter";
 import type { GroupBox } from "./managers/LayoutManager";
 import { batchableOf, type BatchView, bootstrapNodePaint, type NodePaint, shaderPartOf } from "./managers/StylePainter";
+import { surfaceReach, type Xyz } from "./meshes/edgeRoute";
 import { applyFlatHalo, flatHaloLift } from "./meshes/flatHalo";
 import { oweLabelAnimations } from "./meshes/labelAnimationDebt";
 import { unfreezeFor } from "./meshes/LabelBatch";
@@ -448,14 +449,20 @@ export class Node implements ModelUser {
      * The node's own mesh, for a consumer. Nothing in graphty-element reads it: the element reads
      * the private field, and every other file a `drawn*` accessor (`local/node-mesh-funnel`).
      * Under `render-path="batched"`, reading it keeps this node drawn by its own mesh from then on,
-     * never by a node batch, so what a consumer does to the mesh shows.
+     * never by a node batch, so what a consumer does to the mesh shows. The rest of its look stays
+     * on the batch.
      * @returns The mesh.
      */
     get mesh(): AbstractMesh {
         if (!this.#meshHeld) {
             this.#meshHeld = true;
-            if (!this.disposed) {
-                this.context.getNodeBatches?.()?.sync(this);
+            const batches = this.disposed ? undefined : this.context.getNodeBatches?.();
+            if (batches) {
+                // A batch hides its whole source, so a held node sharing it took every row of its look
+                // off the batch: one read of one mesh emptied a single-look graph's batch (#8038).
+                batches.leave(this);
+                this.drawFromOwnSource();
+                batches.sync(this);
             }
         }
 
@@ -887,6 +894,35 @@ export class Node implements ModelUser {
      */
     get borderReach(): number {
         return this.border === null ? 0 : this.borderWidth;
+    }
+
+    /**
+     * How far past where a line leaving this node in a direction crosses its drawn fill the line stops: to the outer
+     * edge of its border. {@link Node.borderReach} for most nodes; but a polygon under a border drawn in from its
+     * outline (inside, or centered) has its fill drawn in by the inset on each side of its box, so at a slanted side
+     * the fill lies less than the inset inside the outline along the line, and the line stops on the outline plus
+     * what of the border reaches past it, never more than {@link Node.borderReach}. A 27-wide triangle with an inside
+     * border of 6 left at its middle 3 beyond the outline before; Cytoscape desktop ends it on the outline (issue
+     * #7566).
+     * @param dir - The unit direction the line leaves in, in the units the node's position is laid out in.
+     * @returns The distance.
+     * @internal
+     */
+    borderReachAlong(dir: Xyz): number {
+        const reach = this.borderReach;
+        const outline = reach > 0 ? this.reachOutline : null;
+        const inset = outline !== null && NodeMesh.isFitted(this.drawnStyle?.shape) ? this.fillInset() : 0;
+        if (outline === null || inset <= 0) {
+            return reach;
+        }
+
+        const toOutline =
+            surfaceReach(dir, this.outlineHalfExtents, null, outline) -
+            surfaceReach(dir, this.drawnHalfExtents, null, outline);
+        // never further out than the border's width along the line: across a side the line meets at a shallow
+        // angle the outline lies far along it, and Cytoscape desktop's line stops inside it there
+        // (cx-radiation-bibliography, a hexagon and two round rectangles met nearly edge on)
+        return Math.min(reach, Math.max(0, toOutline + reach - inset));
     }
 
     /**
@@ -2666,7 +2702,39 @@ export class Node implements ModelUser {
     }
 
     /**
+     * Move a held node's instance onto its own source mesh ({@link Node.sourceArgs}), if it is not there.
+     */
+    private drawFromOwnSource(): void {
+        const mesh = this.#mesh;
+        if (!(mesh instanceof InstancedMesh) || this.drawnModel !== null) {
+            return;
+        }
+
+        const { meshKey, style } = this.#fit;
+        const source = NodeMesh.source(
+            this.context.getMeshCache(),
+            ...this.sourceArgs(meshKey, style, this.drawnImage),
+            this.context.getScene(),
+        );
+        if (source !== mesh.sourceMesh) {
+            moveInstance(mesh, source);
+            this.#source = source;
+        }
+    }
+
+    /**
+     * Whether this node draws from a source of its own: a consumer holds its mesh while node batches
+     * draw, which hide the shared source. The objects path keeps sharing.
+     * @returns True when it does.
+     */
+    private drawsOwnSource(): boolean {
+        return this.#meshHeld && !this.disposed && (this.context.getNodeBatches?.() ?? null) !== null;
+    }
+
+    /**
      * What {@link NodeMesh.create} and {@link NodeMesh.source} are asked for this node's source mesh.
+     * A held node under node batches draws from a source of its own, so a batch can keep hiding
+     * the shared one.
      * @param meshKey - The source mesh key.
      * @param o - The resolved style.
      * @param image - The picture on its shape, or null.
@@ -2679,7 +2747,11 @@ export class Node implements ModelUser {
     ): [Parameters<typeof NodeMesh.source>[1], Parameters<typeof NodeMesh.source>[2]] {
         return [
             // A source mesh with its picture is another source mesh than the one drawn while it loads.
-            { styleId: image === null ? meshKey : `${meshKey}|image`, is2D: this.context.is2D(), size: this.size },
+            {
+                styleId: `${meshKey}${image === null ? "" : "|image"}${this.drawsOwnSource() ? "|held" : ""}`,
+                is2D: this.context.is2D(),
+                size: this.size,
+            },
             { shape: o.shape, texture: o.texture, effect: o.effect, border: o.border, picture: image },
         ];
     }

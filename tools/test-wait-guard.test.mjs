@@ -85,14 +85,23 @@ test("a real action gets the wait guard on the object each Playwright provider h
     assert.deepEqual(other, {});
 });
 
-test("a bench project is a measurement: no time limit and no guard", () => {
+test("a bench project gets the same guard as every other project (#8032)", () => {
     const config = withTestGuards({
-        test: { projects: [{ test: { name: "bench-browser", setupFiles: ["./a.ts"], testTimeout: 5 } }] },
+        test: {
+            projects: [
+                { test: { name: "bench", testTimeout: 0 } },
+                { test: { name: "bench-browser", setupFiles: ["./a.ts"], testTimeout: 0, hookTimeout: 0 } },
+            ],
+        },
     });
-    const [bench] = config.test.projects;
-    assert.equal(bench.test.testTimeout, 0);
-    assert.equal(bench.test.hookTimeout, 0);
-    assert.deepEqual(bench.test.setupFiles, ["./a.ts"]);
+    for (const { test: bench } of config.test.projects) {
+        assert.equal(bench.testTimeout, TEST_GUARD_MS);
+        assert.equal(bench.hookTimeout, TEST_GUARD_MS);
+        assert.equal(bench.teardownTimeout, TEST_GUARD_MS);
+        assert.deepEqual(bench.expect.poll, { timeout: WAIT_GUARD_MS });
+        assert.equal(bench.setupFiles.at(-1), SETUP);
+    }
+    assert.deepEqual(config.test.projects[1].test.setupFiles, ["./a.ts", SETUP]);
 });
 
 test("vi.waitFor and vi.waitUntil always wait until the guard, whatever a call names", () => {

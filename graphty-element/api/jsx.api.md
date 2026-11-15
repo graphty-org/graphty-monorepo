@@ -89,6 +89,7 @@ import { z } from 'zod';
 // @public
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
+    "accessible-node-list"?: boolean;
     // (undocumented)
     "aria-label"?: string;
     "attribution-offset"?: string;
@@ -207,6 +208,10 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
     // (undocumented)
+    "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    // (undocumented)
+    "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
+    // (undocumented)
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     // (undocumented)
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
@@ -269,6 +274,8 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
     // (undocumented)
+    "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
+    // (undocumented)
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;
     "onstyle-changed"?: (event: CustomEvent<EventOfType<"style-changed">>) => void;
@@ -287,6 +294,9 @@ export interface GraphtyElementJSXProps {
     "zoom-to-pointer"?: boolean;
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    accessibleAnnouncement?: Graphty["accessibleAnnouncement"];
+    accessibleDescription?: Graphty["accessibleDescription"];
+    accessibleNodeList?: Graphty["accessibleNodeList"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     antialias?: Graphty["antialias"];
     attributionOffset?: Graphty["attributionOffset"];

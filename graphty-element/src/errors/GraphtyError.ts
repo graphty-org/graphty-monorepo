@@ -131,6 +131,27 @@ export interface GraphtyErrorDetailsMap {
         readonly format?: string;
         /** The 1-based line the reader stopped at, when it knows one. */
         readonly line?: number;
+        /** The rows the reader rejected, when it stopped at its error limit. */
+        readonly rowErrors?: number;
+        /** The source's error limit, when the reader stopped at it. */
+        readonly limit?: number;
+        /** graph-io's code for what stopped the read (`"E_XML_SYNTAX"`, `"E_CSV_UNCLOSED_QUOTE"`...), when graph-io read it. */
+        readonly issue?: string;
+        /** The element or column graph-io names as where the read stopped, when it names one. */
+        readonly element?: string;
+    };
+    /** A source that could not be fetched or a file that could not be read. */
+    E_FETCH_FAILED: {
+        /** The address fetched, when it was a URL. */
+        readonly url?: string;
+        /** The name of the file, when it was a file. */
+        readonly file?: string;
+        /** The status of the last answer that came back but was not ok. */
+        readonly status?: number;
+        /** How many requests were made. */
+        readonly attempts?: number;
+        /** The wait each request was given, in milliseconds, when the last one ran out of time. */
+        readonly timeoutMs?: number;
     };
     /** An id that is already taken. */
     E_DUPLICATE_ID: {

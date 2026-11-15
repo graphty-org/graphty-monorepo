@@ -1,10 +1,11 @@
 # Project Files
 
 A project file is the whole session in one file: the data, the settings, the layout and where
-every node stands, each finished algorithm run with its result, the style layers, the filter, the
+every node stands, each finished algorithm run, the style layers, the filter, the
 kept sets, the notes, the saved camera views and the selection. Save one, send it to a colleague,
-and open it later to pick up where you left off. Runs are not computed again: their results are
-in the file.
+and open it later to pick up where you left off. A run is saved as the algorithm and options that
+started it, not as its result: opening the file computes it again. Pass a `seed` to a randomized
+algorithm (community detection, for one) when a reopened project must give the same answer.
 
 A project file is a [graphty document](#the-file) named `<name>.graphty.json`, the same kind of
 file graphty-element already writes for styles and notes.
@@ -240,7 +241,6 @@ the project the problem is about, one of the `report.restored` values below:
 | `E_UNKNOWN_ALGORITHM`            | `slice`, `id`                      | A run's algorithm is not registered here; the run is left out                                                                                 |
 | `E_UNKNOWN_LAYOUT`               | `slice`                            | The layout is not registered here; the positions still come back                                                                              |
 | `E_UNKNOWN_ATTRIBUTE`            | `slice`, `id`, `needs`             | A style layer reads something nothing answers; it is added switched off                                                                       |
-| `W_DATA_DIFFERS`                 | `slice`, `id`                      | The data was edited by hand; the run's per-edge values are left out                                                                           |
 | `W_FILTER_CONDITION_SKIPPED`     | `slice`, `id`                      | A saved filter condition this release cannot read; the filter is read from the file's steps instead                                           |
 | `W_FILTER_CONDITIONS_UNREADABLE` | `slice`, `version`                 | The saved filter conditions are of a version this release cannot read; the filter is read from the file's steps instead                       |
 | `W_FILTER_STEPS_DIFFER`          | `slice`                            | The file's steps and conditions disagree, as when a tool that knows only steps edited it; the conditions win and the steps edit is dropped    |
@@ -320,7 +320,7 @@ You need this section only to read or write the file yourself. A graphty documen
 | `graphty-data`        | the nodes and edges, embedded in the `node-link` JSON dialect, and the `source` and `sources` they were loaded from |
 | `graphty-session`     | the settings, layout, filter and time window, sets and named views                                                  |
 | `graphty-arrangement` | each placed node's id and position, and the pinned nodes                                                            |
-| `graphty-results`     | each finished run: what ran, the name the reader gave it, its fields, and its values as columns                     |
+| `graphty-results`     | each finished run: the algorithm, its options and seed, and the name the reader gave it; opening runs it again      |
 | `graphty-style`       | the style layers, and the code of every shader they or the background use                                           |
 | `graphty-notes`       | the notes                                                                                                           |
 | `graphty-view-state`  | the selection; never needed to open the file                                                                        |
@@ -335,7 +335,5 @@ graph's direction (the file it was loaded from, or `data.directed`), so an undir
 reopens undirected. Opening a project reports that direction in
 `session.data.statistics().directednessSource` as stated by `"directed": false` (or `true`).
 
-Node values are keyed by node id. Edge values are keyed by the edge's position in the data
-member, with the data's fingerprint beside them, so a hand edit of the data is detected rather
-than shifting values onto other edges. A column of numbers is stored as base64 little-endian
-`f64` bytes, so `Infinity` and `NaN` survive; any other column is a JSON array.
+A column of numbers (the node positions) is stored as base64 little-endian `f64` bytes, so
+`Infinity` and `NaN` survive; any other column is a JSON array.

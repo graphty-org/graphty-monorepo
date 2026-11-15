@@ -83,7 +83,7 @@
             "paths": [],
             "catalogs": ["algorithms"],
             "issue": 6511,
-            "finding": "Saved runs, run-on-load entries and filter measure leaves name an algorithm by key and run it again on open."
+            "finding": "Saved runs, run-on-load entries and filter measure leaves name an algorithm by key and its options, and run it again on open. Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results, the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "layout",

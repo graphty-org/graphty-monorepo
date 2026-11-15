@@ -167,7 +167,6 @@ function buildRestPart(
  * Build a `run:` part for each finished run that is new or changed (or every one), and a null
  * (delete) for each stored run that is no longer finished.
  * @param sources - The session's project sources.
- * @param idsNow - The session's graph ids, built on first use.
  * @param all - Whether every finished run is rewritten.
  * @param written - The run entries already in the store, by id.
  * @param parts - The parts being built, written into.
@@ -175,7 +174,6 @@ function buildRestPart(
  */
 function buildRunParts(
     sources: ProjectSources,
-    idsNow: () => GraphIds,
     all: boolean,
     written: ReadonlyMap<RunId, unknown>,
     parts: Record<string, string | null>,
@@ -184,7 +182,7 @@ function buildRunParts(
     const finished = sources.dispatcher.state.runs;
     for (const [id, entry] of finished) {
         if (all || written.get(id) !== entry) {
-            parts[`run:${id}`] = attempt(`run:${id}`, () => JSON.stringify(runEntry(sources, id, idsNow())));
+            parts[`run:${id}`] = attempt(`run:${id}`, () => JSON.stringify(runEntry(sources, id)));
             runs.set(id, entry);
         }
     }
@@ -244,7 +242,7 @@ export function buildParts(
     const assets = tags.has("rest") ? buildRestPart(session, sources, idsNow, parts, writtenAssets) : undefined;
 
     if (tags.has("runs") || tags.has("allRuns")) {
-        buildRunParts(sources, idsNow, tags.has("allRuns"), written, parts, runs);
+        buildRunParts(sources, tags.has("allRuns"), written, parts, runs);
     }
 
     if (tags.has("stash")) {

@@ -114,7 +114,7 @@ import {
 } from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
 import { reportCaught } from "./project/strict";
-import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
+import { type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { type RecipeDocument, recipeOf } from "./recipe";
 import { createResultsApi, type ResultsApi, type ResultsRunEntry, type RunRef } from "./results";
@@ -471,8 +471,6 @@ interface SessionParts {
     readonly watchers: Watchers;
     /** The one path every change to project state takes; the styles API already writes through it. */
     readonly dispatcher: Dispatcher;
-    /** Saved results waiting for the runs a project open starts; the executor answers from it. */
-    readonly canned: CannedOutcomes;
 }
 
 /**
@@ -849,7 +847,7 @@ class Session implements ElementSession {
             return { ...base, unplaced, placed: partial.placed };
         };
         this.config = configOf(this.dispatcher, parts.readProject, parts.controller);
-        this.project = projectOf(this, this.dispatcher, parts.canned, {
+        this.project = projectOf(this, this.dispatcher, {
             announce: (change) => {
                 publish(this.watchers, "project:status", change);
             },
@@ -3556,7 +3554,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         return spec;
     };
-    const canned: CannedOutcomes = new Map();
     // What a run compares to tell "the data changed under me" from "my scope moved".
     const dataNow = (): string => dataDigest(dispatcher.state.graph, snapshot);
     const runs = createRunsApi({
@@ -3602,11 +3599,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         windowNow: () => windowBoundsOf(visibility.window, boundZone),
         acceptedWindow: (id: RunId) => timeline()?.acceptedWindow(id),
         setName: (id: SetId) => sets.get(id)?.name,
-        execute: sharingIndexes(
-            answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
-            snapshot,
-            () => dispatcher.state.graph.token,
-        ),
+        execute: sharingIndexes(runsOptions.execute ?? refuseToExecute, snapshot, () => dispatcher.state.graph.token),
         engine: runsOptions.engine ?? ENGINE_VERSIONS,
         defaultScope,
         onExecution: advanceTick,
@@ -4593,11 +4586,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     };
     stepRunsRef.current = createStepRuns({
         runs,
-        execute: sharingIndexes(
-            answeringFromProject(runsOptions.execute ?? refuseToExecute, canned),
-            snapshot,
-            () => dispatcher.state.graph.token,
-        ),
+        execute: sharingIndexes(runsOptions.execute ?? refuseToExecute, snapshot, () => dispatcher.state.graph.token),
         resolveScope: (spec: Scope) => scope.resolveNow(spec),
         idsOf: (nodes) => {
             const graph = snapshot();
@@ -4770,7 +4759,6 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         planning,
         watchers,
         dispatcher,
-        canned,
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);

@@ -172,7 +172,7 @@ describe("the member builders", () => {
         const members = [
             sessionMember(sources, ids),
             arrangementMember(session, ids),
-            resultsMember(session, [runEntry(sources, "links", ids) ?? {}]),
+            resultsMember(session, [runEntry(sources, "links") ?? {}]),
             styleMember(session),
             notesMember(session),
             viewStateMember(session, ids),
@@ -192,7 +192,7 @@ describe("the member builders", () => {
     it("name a run that has not finished as nothing", async () => {
         const session = await baseSession();
         const sources: ProjectSources = { session, dispatcher: dispatcherOf(session), isDerived: () => false };
-        assert.isUndefined(runEntry(sources, "missing", graphIdsOf(session)));
+        assert.isUndefined(runEntry(sources, "missing"));
         session.dispose();
     });
 });

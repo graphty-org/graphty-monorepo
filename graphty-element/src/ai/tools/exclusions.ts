@@ -839,6 +839,9 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
         root: "Graphty",
         members: [
             "labelDeclutter",
+            "legend",
+            "legendPosition",
+            "legendLabel",
             "minimap",
             "minimapLabel",
             "renderOnDemand",

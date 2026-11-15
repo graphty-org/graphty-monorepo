@@ -113,6 +113,8 @@ export interface GraphtyElementJSXProps {
     "layout-2d"?: boolean;
     "layout-config"?: string;
     "layout-scope"?: string;
+    "legend-label"?: string;
+    "legend-position"?: string;
     "minimap-label"?: string;
     "node-data"?: string;
     "node-id-path"?: string;
@@ -330,6 +332,9 @@ export interface GraphtyElementJSXProps {
     layoutBehavior?: Graphty["layoutBehavior"];
     layoutConfig?: Graphty["layoutConfig"];
     layoutScope?: Graphty["layoutScope"];
+    legend?: Graphty["legend"];
+    legendLabel?: Graphty["legendLabel"];
+    legendPosition?: Graphty["legendPosition"];
     lighting?: Graphty["lighting"];
     limits?: Graphty["limits"];
     minimap?: Graphty["minimap"];

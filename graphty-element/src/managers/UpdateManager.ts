@@ -4647,7 +4647,7 @@ export class UpdateManager implements Manager {
         }
 
         if (sphere !== null && active instanceof OrbitCameraController) {
-            active.zoomToSphere(Vector3.Zero(), sphere * GLOBE_FRAMING);
+            this.frameGlobe(active, box, sphere, frame?.surface === "globe" && frame.world);
         } else {
             this.frameBox(box, frame);
         }
@@ -4673,6 +4673,30 @@ export class UpdateManager implements Manager {
             boundingBoxMin,
             boundingBoxMax,
         });
+    }
+
+    /**
+     * Frame a globe on its data, the data's center already turned to face the camera, and never
+     * farther out than the whole sphere: data smaller than the earth (a city's transit) fills the
+     * view, and data that spans it (the world's airports) shows the whole globe. Framed as the whole
+     * sphere, a city was a speck a reader had to zoom a long way into to find.
+     * @param orbit - The orbit camera.
+     * @param box - The box around the nodes.
+     * @param radius - The globe's radius.
+     * @param world - Whether the whole globe is the subject (world data or `extent: "world"`).
+     */
+    private frameGlobe(orbit: OrbitCameraController, box: FramingBox, radius: number, world: boolean): void {
+        // Where the bare sphere just fits: data that needs the camera as far out as that spans the earth.
+        orbit.zoomToSphere(Vector3.Zero(), radius);
+        const whole = orbit.cameraDistance;
+        if (!world) {
+            this.frameBox(box, null);
+        }
+        if (world || orbit.cameraDistance + orbit.pivot.position.length() >= whole) {
+            orbit.zoomToSphere(Vector3.Zero(), radius * GLOBE_FRAMING);
+        } else {
+            orbit.slidePivotNear(Vector3.Zero());
+        }
     }
 
     /**

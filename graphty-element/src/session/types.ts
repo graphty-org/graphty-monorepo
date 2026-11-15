@@ -1237,7 +1237,7 @@ export interface SessionDataApi {
     edgeName(edge: { readonly source: NodeId; readonly target: NodeId }): EdgeName;
     /**
      * What an edge is called, by its element-assigned id: its two ends' {@link nodeName}s.
-     * @param edge - the edge id; the number it spells finds it too, as {@link edge} takes it
+     * @param edge - the edge id; the number it spells finds it too, as {@link SessionDataApi.edge} takes it
      * @returns the two names, or undefined when the graph has no such edge
      */
     edgeName(edge: EdgeId): EdgeName | undefined;

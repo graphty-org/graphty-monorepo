@@ -1897,15 +1897,15 @@
                     "plainName": "Gazetteer",
                     "technicalName": "gazetteer",
                     "type": "unknown",
-                    "description": "Where place names (countries, regions, cities) are looked up: the address of the gazetteer files, fetched on first use; false to read no place names",
-                    "default": "https://graphty.app/data/gazetteer/v1/",
+                    "description": "Where place names (countries, regions, cities) are looked up: true for the optional package @graphty/gazetteer, loaded on first use; your own layer files by role ({ country, region, city }); false to read no place names",
+                    "default": true,
                     "advanced": true,
                     "unsupported": {
                         "code": "option.union",
                         "params": {
                             "types": [
-                                "string",
-                                "boolean"
+                                "boolean",
+                                "none"
                             ]
                         }
                     }

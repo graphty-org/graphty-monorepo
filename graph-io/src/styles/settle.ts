@@ -42,7 +42,7 @@ export interface SettleOptions {
 // ------------------------------------------------------------ the generic names
 
 /** graphty's name for each node shape a file's own vocabulary keeps as `other:`. */
-const SHAPES: ReadonlyMap<string, string> = new Map([
+export const SHAPES: ReadonlyMap<string, string> = new Map([
     ["other:cross", "cross"],
     ["other:house", "house"],
     ["other:man", "man"],
@@ -64,7 +64,7 @@ const SHAPES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** graphty's name for each stroke a file's own line or border vocabulary keeps as `other:`. */
-const STROKES: ReadonlyMap<string, string> = new Map([
+export const STROKES: ReadonlyMap<string, string> = new Map([
     ["other:forward-slash", "forward-slash"],
     ["other:backward-slash", "backward-slash"],
     ["other:vertical-slash", "vertical-slash"],
@@ -80,7 +80,7 @@ const BORDER_STYLES: ReadonlyMap<string, string> = new Map([
 ]);
 
 /** graphty's name for each arrow a file's own vocabulary keeps as `other:`. */
-const ARROWS: ReadonlyMap<string, string> = new Map([
+export const ARROWS: ReadonlyMap<string, string> = new Map([
     ["other:half-bottom", "half-open-flipped"],
     ["other:half-circle", "half-circle"],
     ["other:open-half-circle", "open-half-circle"],
@@ -118,7 +118,7 @@ const ARROWS: ReadonlyMap<string, string> = new Map([
  * HALF_BOTTOM) as one thin barb where Graphviz's halfopen is a filled wedge, and vis-network's crow is a vee turned
  * round where Graphviz's is a crow's foot with a tine along the line.
  */
-const TOOL_ARROWS: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map(
+export const TOOL_ARROWS: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map(
     Object.entries({
         cytoscape: { half: "half-barb", "other:half-bottom": "half-barb-flipped" },
         "cytoscape-fallbacks": { half: "half-barb", "other:half-bottom": "half-barb-flipped" },
@@ -127,7 +127,7 @@ const TOOL_ARROWS: ReadonlyMap<string, ReadonlyMap<string, string>> = new Map(
 );
 
 /** The basic arrows a viewer draws a cap for. */
-const BASIC_ARROWS: ReadonlySet<string> = new Set([
+export const BASIC_ARROWS: ReadonlySet<string> = new Set([
     "triangle",
     "triangle-open",
     "vee",
@@ -171,17 +171,18 @@ const RING: ArrowRunPart = { shape: "circle-open", along: 10, across: 10 };
  * length grows with the line as that head does): `lead` is how long the end cap, a stem, reaches back from the line's
  * end, where the line runs on through the row to its end, and `parts` what is drawn behind the end cap, nearest first.
  */
-const ARROW_RUNS: ReadonlyMap<string, { readonly lead?: number; readonly parts: readonly ArrowRunPart[] }> = new Map([
-    ["other:dash", { lead: 8, parts: [{ ...BAR, across: 8 }] }],
-    ["other:skewed-dash", { lead: 4, parts: [{ shape: "slash", along: 8 }] }],
-    ["other:crows_foot_one", { lead: 10, parts: [BAR] }],
-    ["other:crows_foot_one_mandatory", { lead: 6, parts: [BAR, { shape: "stem", along: 8 }, BAR] }],
-    ["other:crows_foot_one_optional", { lead: 6, parts: [BAR, { shape: "stem", along: 3 }, RING] }],
-    ["other:crows_foot_optional", { lead: 10, parts: [RING] }],
-    ["other:crows_foot_many_mandatory", { parts: [{ shape: "stem", along: 3 }, BAR] }],
-    ["other:crows_foot_many_optional", { parts: [RING] }],
-    ["other:white_delta_bar", { parts: [{ shape: "stem", along: 5 }, BAR] }],
-]);
+export const ARROW_RUNS: ReadonlyMap<string, { readonly lead?: number; readonly parts: readonly ArrowRunPart[] }> =
+    new Map([
+        ["other:dash", { lead: 8, parts: [{ ...BAR, across: 8 }] }],
+        ["other:skewed-dash", { lead: 4, parts: [{ shape: "slash", along: 8 }] }],
+        ["other:crows_foot_one", { lead: 10, parts: [BAR] }],
+        ["other:crows_foot_one_mandatory", { lead: 6, parts: [BAR, { shape: "stem", along: 8 }, BAR] }],
+        ["other:crows_foot_one_optional", { lead: 6, parts: [BAR, { shape: "stem", along: 3 }, RING] }],
+        ["other:crows_foot_optional", { lead: 10, parts: [RING] }],
+        ["other:crows_foot_many_mandatory", { parts: [{ shape: "stem", along: 3 }, BAR] }],
+        ["other:crows_foot_many_optional", { parts: [RING] }],
+        ["other:white_delta_bar", { parts: [{ shape: "stem", along: 5 }, BAR] }],
+    ]);
 
 /** How long yEd draws its standard head at line width 1, the pixels `ARROW_RUNS` measures in. */
 const YED_HEAD_LENGTH = 12;
@@ -242,7 +243,7 @@ const RENAMED: Readonly<Record<StyleTarget, readonly (readonly [string, "shape" 
  * The key of `StyleRule.ext` under which graph-io records what settling changed, so its writers write what the file
  * read (`unsettledStyles()`). A consumer never reads it.
  */
-const SETTLED_EXT = "@graphty/graph-io";
+export const SETTLED_EXT = "@graphty/graph-io";
 
 /** What settling changed on one rule. */
 interface SettledMark {

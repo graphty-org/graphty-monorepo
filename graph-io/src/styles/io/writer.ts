@@ -26,6 +26,7 @@ import type {
     StyleWriteCapabilities,
 } from "../types.js";
 import { STYLE_BLOCK_NAME, styleBlockLosses, styleTag, writeStyleBlock } from "./block.js";
+import { spellForFormat } from "./spell.js";
 
 /**
  * What an exporter with a `styles` member receives as `options.styles` when styles are being written.
@@ -94,10 +95,11 @@ export function prepareStyleExport(
     settled: ExtractedStyles,
     plain?: Readonly<Record<string, unknown>>,
 ): PreparedStyleExport {
-    // write what the file read, not what was settled for drawing: the program's own spellings and no derived values
-    const given = unsettledStyles(settled);
+    // write what the file read, not what was settled for drawing: the program's own spellings and no derived values;
+    // styles in graphty's generic names (a consumer's export) are spelled in the format's program's vocabulary
+    const read = unsettledStyles(settled);
     const fp = styleFingerprint(snapshot);
-    const want = given.fingerprint;
+    const want = read.fingerprint;
     if (fp.nodes !== want.nodes || fp.edges !== want.edges || fp.ids !== want.ids) {
         return {
             snapshot,
@@ -111,6 +113,7 @@ export function prepareStyleExport(
             }),
         };
     }
+    const given = spellForFormat(read, snapshot, exporter.format);
     const caps = exporter.styles?.capabilities ?? null;
     let plan = writePlan(snapshot, exporter, given);
     if (keepsStyleBlock(exporter)) {

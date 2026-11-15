@@ -494,6 +494,74 @@ describe("the timeline dock on the real element", () => {
         assert.deepEqual(session.time.current, before);
     });
 
+    it("keeps Timeline settings at the bar's right end, whatever buttons come and go", async () => {
+        const { session, dock } = await openDock();
+        const atEnd = (): DOMRect => {
+            const gear = within(dock).getByRole("button", { name: "Timeline settings" });
+            const bar = gear.closest(".tl-bar");
+            assert.isNotNull(bar);
+            assert.isTrue(bar.lastElementChild?.contains(gear));
+            const box = gear.getBoundingClientRect();
+            assert.closeTo(box.right, bar.getBoundingClientRect().right, 1);
+            return box;
+        };
+        atEnd();
+
+        await act(async () => {
+            await session.selection.apply({ nodes: ["p01"] });
+        });
+        await within(dock).findByRole("button", { name: "Jump to selection" });
+        atEnd();
+
+        const whole = brushOf(dock);
+        await windowOn(session, whole.min, whole.min + (whole.max - whole.min) / 2);
+        const all = await within(dock).findByRole("button", { name: "Show all time" });
+        // Show all time sits just before it, never over it.
+        assert.isAtMost(all.getBoundingClientRect().right, atEnd().left);
+    });
+
+    it("names the selection's line in a legend while it is drawn", async () => {
+        const { session, dock } = await openDock();
+        assert.isNull(within(dock).queryByText("Selection"));
+        await act(async () => {
+            await session.selection.apply({ nodes: ["p01"] });
+        });
+        await within(dock).findByTestId("histogram-overlay");
+        within(dock).getByText("Selection");
+
+        act(() => {
+            session.selection.clear();
+        });
+        await waitFor(() => {
+            assert.isNull(within(dock).queryByTestId("histogram-overlay"));
+        });
+        assert.isNull(within(dock).queryByText("Selection"));
+    });
+
+    it("tells a hovered bar's count and the selection's in it", async () => {
+        const { session, dock } = await openDock();
+        await act(async () => {
+            await session.selection.apply({ nodes: ["p01"] });
+        });
+        await within(dock).findByTestId("histogram-overlay");
+        const bars = within(dock).getAllByTestId("histogram-bar");
+        const bins = session.time.bins({ maxCount: bars.length }) ?? [];
+        const mine = session.time.bins({ maxCount: bars.length, of: { nodes: ["p01"], incident: true } }) ?? [];
+        assert.equal(bins.length, bars.length);
+        const at = mine.findIndex((bin) => bin.edges > 0);
+        const bin = bins[at];
+        assert.isDefined(bin);
+
+        await userEvent.hover(bars[at]);
+
+        assert.isTrue(bars[at].matches(":hover"));
+        const when = rangeWords(bin.start, bin.end, "ms", bin.step);
+        const words = `${when}: ${countWords(bin.edges, "edge")}, ${formatCount(mine[at]?.edges ?? 0)} selected`;
+        assert.equal(bars[at].getAttribute("title"), words);
+        // The same words for a screen reader, in the chart's table of values.
+        within(within(dock).getByTestId("histogram-values")).getByRole("rowheader", { name: words });
+    });
+
     it("reads in the reader's zone: day bars, typed dates and the zone's name", async () => {
         await inBrowserZone(NEW_YORK, async () => {
             const { session, dock } = await openDock();

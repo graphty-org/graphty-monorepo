@@ -176,13 +176,14 @@ export const Playing: Story = {
     },
 };
 
-/** A person selected: their emails over time as a line over the bars, and Jump to selection. */
+/** A person selected: their emails over time as a line over the bars named by its legend, and Jump to selection. */
 export const SelectionLine: Story = {
     play: async ({ canvasElement }) => {
         const { element, session } = await officeEmail(canvasElement);
         await session.selection.apply({ nodes: ["p01"] });
         const dock = await settled(canvasElement, element);
         await expect(await dock.findByRole("button", { name: "Jump to selection" })).toBeVisible();
+        await expect(dock.getByText("Selection")).toBeVisible();
     },
 };
 

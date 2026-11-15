@@ -37,6 +37,7 @@ import { GLYPHS } from "../glyphs";
 import { runFailureWords } from "../inspector/words";
 import { formatKey } from "../keys/keys";
 import { SettingsPopout } from "../options/SettingsPopout";
+import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useBoxSize } from "../useBoxSize";
@@ -654,6 +655,14 @@ export function TimeDock(): React.JSX.Element | null {
             ? null
             : time.bins({ ...view, maxCount, of: { nodes, edges, incident: true } });
     const step = window?.step;
+    const selected = profile === null || profile.length === 0 ? null : profile.map(countOf);
+    // A bin's words, as its tooltip, its row for a screen reader and a thumb's name: what it holds,
+    // and with a selection, how many of those are the selection's.
+    const binWords = (bin: TimeBin): string => {
+        const words = `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`;
+        const mine = selected?.[all.indexOf(bin)];
+        return mine === undefined ? words : `${words}, ${formatCount(mine)} selected`;
+    };
     const readout = readoutWords(drag, window, extent, unit, zone);
     // What the window holds (the window narrows only the drawing); with no window, what the filters keep.
     const { visibleEdges, visibleNodes } = session.visibility.summary;
@@ -677,9 +686,26 @@ export function TimeDock(): React.JSX.Element | null {
             {`${countWords(inside.nodes, "node")}, ${countWords(inside.edges, "edge")}`}
         </Text>
     );
+    // What the line over the bars is, while it is drawn: a swatch of it and its name.
+    const legend =
+        selected === null ? null : (
+            <Group gap={4} wrap="nowrap" className="tl-legend">
+                <svg width="16" height="8" aria-hidden="true">
+                    <line x1="0" y1="4" x2="16" y2="4" />
+                </svg>
+                <Text size="xs" c="dimmed">
+                    Selection
+                </Text>
+            </Group>
+        );
     const viewButtons = <ViewButtons session={session} store={store} zoomed={view !== null} reset={reset} />;
     const allTime = <AllTimeButton session={session} store={store} />;
-    const settingsButton = <SettingsButton />;
+    // Always the bar's last button, at its right end, whatever comes and goes before it.
+    const settingsButton = (
+        <div className="tl-settings">
+            <SettingsButton />
+        </div>
+    );
     const chart = (
         <div className="tl-chart" data-panel-start="" ref={chartRef}>
             <HistogramRow
@@ -688,7 +714,7 @@ export function TimeDock(): React.JSX.Element | null {
                     const inside = window !== null && overlaps(bin, range);
                     const shown = countOf(visible[index]);
                     return {
-                        label: `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`,
+                        label: binWords(bin),
                         count: shown,
                         ghost: countOf(bin),
                         from: bin.start,
@@ -700,9 +726,7 @@ export function TimeDock(): React.JSX.Element | null {
                 })}
                 minLabel={minLabel}
                 maxLabel={maxLabel}
-                {...(profile === null || profile.length === 0
-                    ? {}
-                    : { overlay: { label: "Selection over time", values: profile.map(countOf) } })}
+                {...(selected === null ? {} : { overlay: { label: "Selection over time", values: selected } })}
                 brush={{
                     min,
                     max,
@@ -715,9 +739,7 @@ export function TimeDock(): React.JSX.Element | null {
                     rangeText: (value) => rangeWords(value[0], value[1], unit, step, zone),
                     thumbLabel: (value) => {
                         const bin = binAt(value);
-                        return bin === undefined
-                            ? instantWords(value, unit, step, zone)
-                            : `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`;
+                        return bin === undefined ? instantWords(value, unit, step, zone) : binWords(bin);
                     },
                     ...brushGesture(session, store, setDrag, hold, pinched, shown),
                 }}
@@ -760,6 +782,7 @@ export function TimeDock(): React.JSX.Element | null {
                         <>
                             {speedButton}
                             {counts}
+                            {legend}
                             {viewButtons}
                             {allTime}
                             {settingsButton}
@@ -775,6 +798,7 @@ export function TimeDock(): React.JSX.Element | null {
                         {speedButton}
                         <ReadoutEntry readout={readout} form={form} />
                         {counts}
+                        {legend}
                         {viewButtons}
                         {settingsButton}
                     </Group>

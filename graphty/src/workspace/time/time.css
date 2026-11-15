@@ -11,6 +11,8 @@
     background: var(--mantine-color-body);
     /* Two fingers on the dock zoom its histogram, not the page. */
     touch-action: none;
+    /* An icon button's size, for the room the bar keeps for "Show all time". */
+    --tl-button: 24px;
 }
 
 /* On a narrow dock the readout and counts wrap under the transport rather than being cut off. */
@@ -18,8 +20,24 @@
     min-height: 28px;
     min-width: 0;
     row-gap: 0;
-    /* Room for "Show all time", drawn at the bar's end but reached after the brush by Tab. */
-    padding-inline-end: 32px;
+}
+
+/* The dock's settings, always at the right end of the bar. The room before them is for "Show all
+   time", drawn there but reached after the brush by Tab. */
+.tl-settings {
+    display: flex;
+    margin-inline-start: auto;
+    padding-inline-start: calc(var(--tl-button) + 4px);
+}
+
+/* The selection's line over the bars, named: a swatch drawn as the line is. */
+.tl-legend {
+    flex-shrink: 0;
+}
+
+.tl-legend line {
+    stroke: var(--cm-border-strong);
+    stroke-width: 1.5;
 }
 
 /* The readout at body size: the dock's one line of text. Tabular figures keep it still while it
@@ -56,7 +74,7 @@
 .tl-all {
     position: absolute;
     top: 4px;
-    inset-inline-end: 8px;
+    inset-inline-end: calc(8px + var(--tl-button) + 4px);
 }
 
 .tl-chart {
@@ -77,6 +95,10 @@
 
 /* Touch: 44px targets for the transport. The brush's thumbs take theirs from the theme. */
 @media (pointer: coarse) {
+    .tl-dock {
+        --tl-button: 44px;
+    }
+
     .tl-dock .mantine-ActionIcon-root {
         min-width: 44px;
         min-height: 44px;
@@ -146,6 +168,10 @@
 
 .tl-sheet .tl-all {
     position: static;
+}
+
+.tl-sheet .tl-settings {
+    padding-inline-start: 0;
 }
 
 .tl-sheet .tl-counts {

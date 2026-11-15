@@ -1218,7 +1218,10 @@ function sectionsOf(
         data,
         derived: new Map(runs.map((run) => [String(run.id), run.derived === true])),
         sets: new Map(objectsOf(session?.sets).flatMap((set) => (typeof set.id === "string" ? [[set.id, set]] : []))),
-        setId: (id) => (SET_ID.test(id) ? id : `set_${ulidOf(`set\u0000${id}`)}`),
+        setId: (id) => {
+            const minted = ulidOf(`set\u0000${id}`);
+            return SET_ID.test(id) ? id : `set_${minted}`;
+        },
         problems,
     };
 

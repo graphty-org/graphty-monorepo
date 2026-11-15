@@ -89,7 +89,11 @@ export function canonicalText(value: unknown): string {
         const names = Object.keys(value)
             .filter((name) => value[name] !== undefined)
             .sort(); // NOSONAR(S2871): code-unit order is all a comparison needs
-        return `{${names.map((name) => `${JSON.stringify(name)}:${canonicalText(value[name])}`).join(",")}}`;
+        const members = names.map((name) => {
+            const member = JSON.stringify(name);
+            return `${member}:${canonicalText(value[name])}`;
+        });
+        return `{${members.join(",")}}`;
     }
 
     return JSON.stringify(value) ?? "null";
@@ -146,7 +150,8 @@ export function duplicateMember(text: string): string | undefined {
     // One entry per open container: an object's names so far, or null for an array.
     const open: (Set<string> | null)[] = [];
     let key = false;
-    for (let at = 0; at < text.length; at++) {
+    let at = 0;
+    while (at < text.length) {
         const char = text[at];
         if (char === '"') {
             let end = at + 1;
@@ -176,6 +181,8 @@ export function duplicateMember(text: string): string | undefined {
         } else if (char === ",") {
             key = open.at(-1) !== null;
         }
+
+        at++;
     }
 
     return undefined;

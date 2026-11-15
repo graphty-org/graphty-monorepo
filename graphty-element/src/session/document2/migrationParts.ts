@@ -618,7 +618,8 @@ export function migrateData(inputs: DataInputs): MigratedData {
     const edgeTable = tableOf(edgeRows);
     const copy = { nodes: nodeTable.table, ...(edgeRows.length === 0 ? {} : { edges: edgeTable.table }) };
     const seed = canonicalJson(copy);
-    const source = `src_${ulidOf(`source\u0000${seed}`)}`;
+    const sourceUlid = ulidOf(`source\u0000${seed}`);
+    const source = `src_${sourceUlid}`;
     const copyId = ulidOf(`copy\u0000${seed}`);
     const readerCopy = ulidOf(`reader\u0000${seed}`);
     const build = ulidOf(`build\u0000${seed}`);

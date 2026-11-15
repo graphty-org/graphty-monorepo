@@ -172,7 +172,11 @@ export function canonical(value: unknown): string {
         const names = Object.keys(value)
             .filter((name) => value[name] !== undefined)
             .sort(); // NOSONAR(S2871): code-unit order is all a comparison needs
-        return `{${names.map((name) => `${JSON.stringify(name)}:${canonical(value[name])}`).join(",")}}`;
+        const members = names.map((name) => {
+            const member = JSON.stringify(name);
+            return `${member}:${canonical(value[name])}`;
+        });
+        return `{${members.join(",")}}`;
     }
 
     return JSON.stringify(value ?? null);

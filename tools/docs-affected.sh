@@ -1,5 +1,5 @@
 # shellcheck shell=bash
-# Sourced by tools/prepush.sh and tools/check-quick.sh: whether a change reaches the documentation site.
+# Sourced by tools/prepush.sh: whether a change reaches the documentation site.
 # The caller defines `affected <project>` (exit 0 when nx calls it affected) and sets BASE.
 #
 # DOCS_API_PACKAGES: the packages with an API reference in the site (a root `docs:api:<package>` script).

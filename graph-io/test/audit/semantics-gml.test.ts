@@ -378,9 +378,10 @@ describe("GML quirks from GMLDataSource, NetworkX gml.py and research note 07", 
     });
 
     it("reports a node without an id, a duplicate id and a non-integer id explicitly", async () => {
+        // igraph gives a node without an id the next integer above the file's ids, with a warning
         const noId = await parse('graph [ node [ label "x" ] node [ id 2 ] ]');
-        expect(noId.report.issues.map((i) => i.code)).toContain("E_MISSING_ID");
-        expect(noId.snapshot.nodeCount).toBe(1);
+        expect(noId.report.issues.map((i) => i.code)).toEqual(["W_GML_GENERATED_ID"]);
+        expect(noId.snapshot.ids.toArray()).toEqual([3, 2]);
         const dup = await parse('graph [ node [ id 1 label "a" ] node [ id 1 label "b" ] ]');
         expect(dup.report.issues.map((i) => i.code)).toContain("W_DUPLICATE_NODE");
         // NetworkX and Gephi write string ids; the GML spec types them as integers, so they are

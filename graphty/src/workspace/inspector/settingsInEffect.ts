@@ -4,7 +4,6 @@ import type { GraphSession, GraphSettingKey } from "@graphty/graphty-element/ses
 export const SHOWN_SETTINGS: Readonly<Partial<Record<GraphSettingKey, string>>> = {
     lighting: "Lighting",
     "node.depthIndependentSize": "Same size at any depth",
-    "node.outlineWidth": "Outline width",
 };
 
 /**

@@ -11,8 +11,8 @@ import { type GraphSnapshot } from "@graphty/graph-format";
 
 import { connectedComponents } from "../../src/algorithms/components.js";
 import { type GpuContext } from "../../src/context.js";
-import { isWebGpuGraphError } from "../../src/errors.js";
 import { componentsOracle } from "../oracle/components.js";
+import { refusedReport } from "./check-report.js";
 import { type EdgeSpec, randomEdges, snapshotOf } from "./graphs.js";
 
 /**
@@ -101,10 +101,8 @@ export async function wccWorstFactor(ctx: GpuContext, checks: readonly WccCheck[
                 }
             }
         } catch (error: unknown) {
-            if (!isWebGpuGraphError(error)) {
-                throw error;
-            }
-            console.warn(`[sabotage] ${check.name}: ${error.code} ${error.message}`);
+            const refused = refusedReport(check.name, error);
+            console.warn(`[sabotage] ${refused.worstLabel}`);
             worst = Number.POSITIVE_INFINITY;
             continue;
         }

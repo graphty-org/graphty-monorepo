@@ -8,10 +8,9 @@
 import "@graphty/graphty-element";
 
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -39,6 +38,13 @@ async function openGraphSettings(): Promise<HTMLElementTagNameMap["graphty-eleme
     return element;
 }
 
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Answers the next file picker with this file (graphty/vitest.config.ts). */
+        chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
+    }
+}
+
 describe("Graph settings", () => {
     beforeAll(async () => {
         await page.viewport(1366, 768);
@@ -54,16 +60,16 @@ describe("Graph settings", () => {
         });
     });
 
-    it("turns the declutter rule off and back on, and labels move off nodes until turned off", async () => {
+    it("turns the declutter rule on and back off, and labels move off nodes until turned off", async () => {
         const element = await openGraphSettings();
-        assert.isTrue(element.layoutBehavior?.labels?.declutter);
-        await userEvent.click(screen.getByRole("switch", { name: "Hide overlapping labels" }));
-        await waitFor(() => {
-            assert.isFalse(element.layoutBehavior?.labels?.declutter);
-        });
+        assert.isFalse(element.layoutBehavior?.labels?.declutter, "every label is drawn by default");
         await userEvent.click(screen.getByRole("switch", { name: "Hide overlapping labels" }));
         await waitFor(() => {
             assert.isTrue(element.layoutBehavior?.labels?.declutter);
+        });
+        await userEvent.click(screen.getByRole("switch", { name: "Hide overlapping labels" }));
+        await waitFor(() => {
+            assert.isFalse(element.layoutBehavior?.labels?.declutter);
         });
         assert.isTrue(element.layoutBehavior?.labels?.avoidNodesAndEdges, "labels move off nodes by default");
         await userEvent.click(screen.getByRole("switch", { name: "Move labels off nodes and edges" }));
@@ -136,20 +142,34 @@ describe("Graph settings", () => {
         });
     });
 
-    it("writes Outline width to the element's layout behavior", async () => {
+    it("an image the browser cannot decode is a failure notice; one it can is drawn as the background", async () => {
         const element = await openGraphSettings();
-        const width = screen.getByRole("spinbutton", { name: /^Outline width/ });
-        await userEvent.clear(width);
-        await userEvent.type(width, "3{Enter}");
+        await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Image/ }));
+
+        // Bytes no browser here decodes, named as an iPad camera roll hands over a HEIC photo.
+        await commands.chooseNextFile("IMG_0001.HEIC", "image/heic", "\u0000\u0000\u0000\u0018ftypheic");
+        await userEvent.click(await screen.findByRole("button", { name: "Upload image" }));
+        const alert = await screen.findByRole("alert");
+        assert.include(alert.textContent ?? "", "IMG_0001.HEIC is HEIC, which this browser cannot draw.");
+        assert.notStrictEqual(element.session.config.background.backgroundType, "skybox", "nothing was written");
+
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="16"><rect width="32" height="16" fill="#369"/></svg>`;
+        await commands.chooseNextFile("sky.svg", "image/svg+xml", svg);
+        await userEvent.click(screen.getByRole("button", { name: "Upload image" }));
         await waitFor(() => {
-            assert.strictEqual(element.layoutBehavior?.node?.outlineWidth, 3);
+            assert.strictEqual(element.session.config.background.backgroundType, "skybox");
         });
-        // The Halo hint names the old outline-and-pane editor, so the selection workspace drops it.
-        if (selectionWorkspaceOn(element.session)) {
-            assert.isNull(screen.queryByText(/use Halo/));
-        } else {
-            assert.isNotNull(screen.getByText(/use Halo/));
-        }
+        const { background } = element.session.config;
+        assert.strictEqual(background.backgroundType, "skybox");
+        assert.match(background.backgroundType === "skybox" ? background.data : "", /^data:image\/png;base64,/);
+    });
+
+    it("offers no Outline width: each style layer sets its own", async () => {
+        await openGraphSettings();
+        assert.isNotNull(screen.getByRole("combobox", { name: "Lighting" }), "the panel is open");
+        assert.isNull(screen.queryByText(/Outline width/));
+        assert.isNull(document.querySelector('[data-setting="node.outlineWidth"]'));
     });
 
     it("hides Lighting and Same size at any depth in 2D, moves focus on, and the Values tab counts them", async () => {
@@ -164,9 +184,9 @@ describe("Graph settings", () => {
             assert.isNull(screen.queryByRole("switch", { name: "Same size at any depth" }));
         });
         assert.isFalse(element.session.config.inEffect("lighting").inEffect);
-        // The hidden row held focus: it moves to the next row still shown.
+        // The hidden row held focus: it moves to the next row still shown, in Labels (Canvas has none left).
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, screen.getByRole("spinbutton", { name: /^Outline width/ }));
+            assert.strictEqual(document.activeElement, screen.getByRole("switch", { name: "Hide overlapping labels" }));
         });
         await userEvent.click(screen.getByRole("tab", { name: "Values" }));
         const note = await screen.findByTestId("settings-other-view");

@@ -2,7 +2,7 @@
  * The first device test of the node project (spec 13 row P0, 11.5 seed; contract 5.5): requireGpu, a fresh
  * adapter + device per acquireRaw, distinct adapters across calls, isSoftwareAdapter against the policy
  * expectation, the summarizeAdapter shape, the printed info and limits, one trivial compute dispatch run twice,
- * the uncapturederror sink of the setup (an `it.fails` test: the afterEach hook is what fails it, spec 11.2),
+ * the uncapturederror sink of the setup (the test drains it and asserts the one E_VALIDATION it caused, spec 11.2),
  * and (PLAN DECISION 6) the ./node entry's dawnFlags table and createNodeGpu failure paths through the
  * loadModule seam (no real module involved; the setup already loaded the real one).
  */
@@ -20,6 +20,7 @@ import {
     isSoftware,
     requireGpu,
     skipReason,
+    takeUncapturedErrors,
     uncapturedErrors,
 } from "../setup/gpu.js";
 
@@ -222,11 +223,9 @@ describe("acquireRaw: a fresh adapter and device per call (spec 11.2, 2.2 step 1
         expect(uncapturedErrors()).toEqual([]);
     });
 
-    // `it.fails`: the test body's assertions all pass, the setup's afterEach hook then throws on the non-empty
-    // uncaptured list (spec 11.2: never a pass), and vitest attributes a hook error to the test, which `fails`
-    // inverts. It therefore passes ONLY because the hook fires; a policy violation in requireGpu is inverted too,
-    // so the red-run previews of this step count it as a pass.
-    it.fails("the uncapturederror sink fails a test that leaves an uncaptured error (spec 11.2)", async (t) => {
+    // The test drains the sink itself and asserts exactly the one error it caused, so a sink that stopped collecting
+    // fails it; the afterEach hook's own throw is tested in test/device/context.test.ts.
+    it("the uncapturederror sink collects an uncaptured error as E_VALIDATION (spec 11.2)", async (t) => {
         requireGpu(t);
         const raw = await acquireRaw();
         expect(uncapturedErrors()).toEqual([]);
@@ -246,7 +245,7 @@ describe("acquireRaw: a fresh adapter and device per call (spec 11.2, 2.2 step 1
         });
         await raw.device.queue.onSubmittedWorkDone();
         small.destroy();
-        const errors = uncapturedErrors();
+        const errors = takeUncapturedErrors();
         expect(errors).toHaveLength(1);
         expect(errors[0].code).toBe("E_VALIDATION");
         expect(errors[0].details.label).toBe("acquireRaw");

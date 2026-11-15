@@ -18,6 +18,7 @@ import type {
     Value,
     WordValue,
 } from "../../web/src/contract.js";
+import { type BenchItem, readBenches } from "../model/benchmarks.js";
 import { type Bucket, DAY, floorTo, HOUR, type IssueItem, ISSUES_PK, MIN, type Step, STEP_MS } from "../model/items.js";
 import { loadSeries, type MetricWindow, type WindowName, windowValue } from "../model/rollup.js";
 import { type PrStockPrs, readSnapshot } from "../model/snapshots.js";
@@ -102,6 +103,7 @@ export const SPEC: Record<string, Spec> = {
     "ci.bins_over_8": { id: "ci.bins_over", unit: "pct", k: PCT, link: "/ci/shards" },
     "ci.reruns": { id: "ci.reruns", unit: "pct", k: PCT, link: "/ci" },
     "ci.full_shards_over_budget": { id: "ci.shards_over", link: "/ci/shards" },
+    "ci.full_group_deadline": { id: "ci.group_deadline", unit: "pct", k: PCT, link: "/ci/shards" },
     "ci.runner_minutes_per_merge": { id: "ci.runner_minutes", unit: "min", link: "/ci/runner-minutes" },
     "ci.superseded_running": { id: "ci.superseded", link: "/ci/runners/superseded" },
     "ci.chronic_jobs": {
@@ -288,6 +290,14 @@ export class Reads {
         return this.once(`s:${metric}:${step}:${from}:${to}`, () =>
             loadSeries(this.store, metric, step, from, to, this.now),
         );
+    }
+
+    /**
+     * Every live benchmark, read once: the CI page's three ranges share one read of the partition (#6813).
+     * @returns the live benchmark items
+     */
+    benches(): Promise<BenchItem[]> {
+        return this.once("benches", () => readBenches(this.store, this.now));
     }
 
     /**

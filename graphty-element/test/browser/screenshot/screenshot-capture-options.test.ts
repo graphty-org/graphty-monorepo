@@ -13,7 +13,6 @@ import { type Graph, operationQueueOf } from "../../../src/Graph";
 import { type EdgePosition, LayoutEngine, type Position } from "../../../src/layout/LayoutEngine";
 import { layoutManagerInternals } from "../../../src/managers/LayoutManager";
 import type { Node } from "../../../src/Node";
-import { ScreenshotErrorCode } from "../../../src/screenshot/ScreenshotError.js";
 import { cleanupTestGraphWithData, createTestGraphWithData } from "./test-setup.js";
 
 let graph: Graph;
@@ -179,7 +178,8 @@ describe("backgroundColor", () => {
         graph = await createTestGraphWithData();
 
         await expect(graph.captureScreenshot({ backgroundColor: "not a color" })).rejects.toMatchObject({
-            code: ScreenshotErrorCode.INVALID_BACKGROUND_COLOR,
+            code: "E_OPTION_RANGE",
+            details: { option: "backgroundColor", value: "not a color" },
         });
     });
 });
@@ -229,7 +229,7 @@ describe("signal", () => {
         graph = await createTestGraphWithData();
 
         await expect(graph.captureScreenshot({ signal: AbortSignal.abort() })).rejects.toMatchObject({
-            code: ScreenshotErrorCode.CAPTURE_ABORTED,
+            name: "AbortError",
         });
     });
 
@@ -244,7 +244,7 @@ describe("signal", () => {
 
         controller.abort();
 
-        assert.propertyVal(await outcome, "code", ScreenshotErrorCode.CAPTURE_ABORTED);
+        assert.propertyVal(await outcome, "name", "AbortError");
         assert.equal(graph.listenerCount(), before, "it stopped listening for the layout");
     });
 
@@ -259,7 +259,7 @@ describe("signal", () => {
 
         controller.abort();
 
-        assert.propertyVal(await outcome, "code", ScreenshotErrorCode.CAPTURE_ABORTED);
+        assert.propertyVal(await outcome, "name", "AbortError");
         held.release();
         await held.done;
         const next = await graph.captureScreenshot({ timing: { waitForSettle: false } });

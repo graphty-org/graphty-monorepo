@@ -18,6 +18,7 @@ import {
     InstancedMesh,
     type Material,
     Mesh,
+    MultiMaterial,
     type Scene,
     ShaderMaterial,
     StandardMaterial,
@@ -38,6 +39,7 @@ import { NodeMesh } from "../../src/meshes/NodeMesh";
 import { projectedVertices } from "../../src/meshes/NodeShapeGeometry";
 import { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
 import { PatternedLineRenderer } from "../../src/meshes/PatternedLineRenderer";
+import type { PulledLineBatch } from "../../src/meshes/PulledLineBatch";
 import type { RichTextLabel, TextSegment } from "../../src/meshes/RichTextLabel";
 import { type LineOptions, measureLine } from "../../src/meshes/RichTextParser";
 import { pixelsPerUnit } from "../../src/meshes/screenSize";
@@ -214,13 +216,14 @@ export function cssColor(css: string): { hex: string; alpha: number } {
 /** The renderer's own internals this reader takes, typed for test code. */
 interface EdgeInternals {
     lineBatch: EdgeLineBatch | null;
+    pulled: { batch: PulledLineBatch; piece: number; run: number[] | null } | null;
     lineSlots: number[];
     outlineBatch: EdgeLineBatch | null;
     outlineSlots: number[];
     haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[];
     lineIsCurve: boolean;
     drawnStyle: {
-        line?: { bezier?: boolean; gradient?: { kind?: string } };
+        line?: { bezier?: boolean; gradient?: { kind?: string }; taper?: number };
         arrowHead?: { gap?: number; position?: number };
         arrowTail?: { gap?: number; position?: number };
     } | null;
@@ -456,6 +459,18 @@ function materialColor(material: Material | null): { rgb: Color3; alpha: number;
         return v ? { rgb: new Color3(v.x, v.y, v.z), alpha: material.alpha * opacity, texture: false } : null;
     }
     return null;
+}
+
+/**
+ * The color a filled open cap's inside is drawn in: its flat material's, or its billboard material's `fillColor`.
+ * @param material - the inside's material
+ * @returns the color, or null where none is read
+ */
+function insideColor(material: Material | null): Color3 | null {
+    if (material instanceof ShaderMaterial) {
+        return (material as unknown as { _colors3?: Record<string, Color3> })._colors3?.fillColor ?? null;
+    }
+    return materialColor(material)?.rgb ?? null;
 }
 
 /**
@@ -789,7 +804,8 @@ export interface DrawnNode {
     /** The further texts it draws over its face (`shape.texts`). */
     texts?: DrawnLabel[];
     /**
-     * A node with no body (shape "none") that asks for no image: it draws only its label and its glyph, as a program
+     * A node with no body (shape "none", or no width or height and no border) that asks for no image: it draws only
+     * its label and its glyph, as a program
      * draws a text-only or an icon-only node (vis-network's `text` and `icon` shapes).
      */
     faceless?: boolean;
@@ -1528,8 +1544,12 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
                     ? {}
                     : { fill: hex({ r: piece.fill.rgb[0], g: piece.fill.rgb[1], b: piece.fill.rgb[2] }) }),
             })),
-        // its only picture its glyph, where it asks for no image (an image node that drew none is still a node)
-        faceless: drawnStyle?.shape?.type === "none" && (drawnStyle.image?.src ?? "") === "",
+        // its only picture its glyph, where it asks for no image (an image node that drew none is still a node); a
+        // shape of no width or no height with no border draws no body either (Pajek's `x_fact 0`, an ellipse of radius 0)
+        faceless:
+            (drawnStyle?.shape?.type === "none" ||
+                ((drawnStyle?.shape?.width === 0 || drawnStyle?.shape?.height === 0) && border === null)) &&
+            (drawnStyle?.image?.src ?? "") === "",
         glyph:
             typeof drawnStyle?.glyph?.text === "string" && drawnStyle.glyph.text !== ""
                 ? {
@@ -1565,6 +1585,12 @@ export interface DrawnEdge {
      */
     dashPx: number[] | null;
     /**
+     * A line drawn whole that narrows or widens along its length (`line.taper`): its width at the target over its
+     * width at the source. Absent for a line one width all along, or one drawn as separate pattern elements, which
+     * does not taper.
+     */
+    taper?: number;
+    /**
      * The band drawn under the line (`line.outline`): its color, opacity, whole width in pixels and the pattern it is
      * drawn in (a joined line's "dash" or "dot"; absent, solid); null for none.
      */
@@ -1579,6 +1605,8 @@ export interface DrawnEdge {
         outline: [number, number][] | null;
         /** Its drawn color (its billboard slot's, or its batch's material), or null where none is read. */
         color: string | null;
+        /** The color an open cap's inside is filled with (`ArrowStyle.fillColor`), absent for an empty inside. */
+        fill?: string;
         /** The opacity it is drawn at: 0 is a cap that draws nothing. */
         opacity: number;
         /** How far off its node an end cap stands, in its own lengths (`ArrowStyle.gap`), the line stopping at it. */
@@ -1600,9 +1628,10 @@ export interface DrawnEdge {
  * @param mesh - the batch mesh
  * @param at - a world point on the line
  * @param p - the projector
+ * @param own - the width a pulled piece carries in place of the material's (`PulledLineBatch.setLook`), in its units
  * @returns pixels
  */
-function lineThickness(mesh: Mesh, at: Vector3, p: Projector): number {
+function lineThickness(mesh: Mesh, at: Vector3, p: Projector, own?: number): number {
     const flat = (mesh.metadata as { lineWidth?: number } | null)?.lineWidth;
     mesh.computeWorldMatrix(true);
     const material = mesh.material as unknown as {
@@ -1613,7 +1642,7 @@ function lineThickness(mesh: Mesh, at: Vector3, p: Projector): number {
     if (typeof flat === "number") {
         return Math.max(flat * Math.abs(mesh.absoluteScaling.y) * p.pxPerWorld(at), min);
     }
-    const width = material?._floats?.width;
+    const width = own ?? material?._floats?.width;
     if (typeof width !== "number") {
         return 0;
     }
@@ -1793,6 +1822,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     let opacity = 1;
     let pattern: string | null = null;
     let dashPx: number[] | null = null;
+    let taper: number | undefined;
     if (batch !== null) {
         const slots = internal.lineSlots;
         const flat = (batch.mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
@@ -1824,6 +1854,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         // a dashed or dotted line through bends or round a loop is a joined line that draws its own pattern
         pattern = meta?.pattern?.kind ?? null;
         dashPx = joinedDashes(batch, slots, meta?.pattern, mid, p);
+        const asked = internal.drawnStyle?.line?.taper;
+        taper = asked !== undefined && asked !== 1 && batch.widened ? asked : undefined;
         const styled = own?.alpha ?? meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.
@@ -1851,9 +1883,18 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color = cssColor(fields.color).hex;
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);
-    } else if ((edge as unknown as { pulled: { run: unknown[] | null } | null }).pulled?.run === null) {
-        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centres
+    } else if (internal.pulled?.run === null) {
+        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centres, in the
+        // color, opacity and width its piece carries (`PulledLineBatch.setLook`): the batched path's plain lines
         world = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
+        const { batch, piece } = internal.pulled;
+        const look = batch as unknown as { rows: Float32Array; pieceFloats: number };
+        const at = piece * look.pieceFloats;
+        const meta = batch.mesh.metadata as { joinedLine?: boolean } | null;
+        thicknessPx = lineThickness(batch.mesh, Vector3.Center(world[0], world[1]), p, look.rows[at + 2]);
+        screenFloored = thicknessPx > 0 && thicknessPx <= screenFloorOf(batch.mesh);
+        color = hex({ r: look.rows[at + 4], g: look.rows[at + 5], b: look.rows[at + 6] });
+        opacity = look.rows[at + 3] * (meta?.joinedLine === true ? 1 : batch.mesh.visibility);
     }
     // An arrow is part of the edge as drawn: its tip, not the line it caps, is where the edge ends.
     // The line stops short of a tip by the arrow's length, which on a short edge between two ports
@@ -1884,7 +1925,11 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         const at = cap?.position ?? Vector3.Zero();
         // a billboard's color is its slot's; a flat cap's, its batch's material
         const look = cap?.drawnAppearance?.colour ?? null;
-        const material = look === null ? materialColor(cap?.batchMesh?.material ?? null) : null;
+        // a filled open cap's batch draws with two materials, its inside's first, then its outline's
+        const batchMaterial = cap?.batchMesh?.material ?? null;
+        const parts = batchMaterial instanceof MultiMaterial ? batchMaterial.subMaterials : null;
+        const material = look === null ? materialColor(parts?.[1] ?? batchMaterial) : null;
+        const inside = parts === null ? null : insideColor(parts[0] ?? null);
         const rgb = look ?? material?.rgb ?? null;
         // an end cap drawn past the middle of its line (`ArrowStyle.position` above 0.5) sits at the other end, and is
         // read there, as a reader of the drawing finds it (Pajek's `ap 1`: the head drawn at the source end)
@@ -1898,6 +1943,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
             sizePx: c.span * p.pxPerWorld(at),
             outline: capOutline(cap, p),
             color: rgb === null ? null : hex(rgb),
+            ...(inside === null ? {} : { fill: hex(inside) }),
             opacity: c.visibility * (material?.alpha ?? 1),
             gap:
                 (c.end === "arrowHead" ? internal.drawnStyle?.arrowHead?.gap : undefined) ??
@@ -1923,6 +1969,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         opacity,
         pattern,
         dashPx,
+        ...(taper === undefined ? {} : { taper }),
         outline: readOutline(internal, p),
         overlay: readOverlay(internal, p),
         caps,

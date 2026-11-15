@@ -5,6 +5,7 @@
  */
 
 import type { GraphSnapshot } from "@graphty/graph-format";
+import { gridGraph, plantedPartitionGraph, type SampleGraph } from "@graphty/graph-samples/generators";
 import { type Node, type PositionMap, toLayoutSnapshot } from "@graphty/layout";
 
 import {
@@ -33,6 +34,43 @@ export function generateGraph(
     height: number = 500,
 ): GeneratedGraph {
     return generateSharedGraph(type, nodeCount, seed, width, height, "scattered");
+}
+
+/**
+ * A graph-samples graph in the shape the story renderer draws, with unlabelled nodes (the graphs are too big for
+ * labels).
+ * @param g - the generated graph
+ * @returns its nodes and edges
+ */
+function fromSample(g: SampleGraph): GeneratedGraph {
+    return {
+        nodes: Array.from({ length: g.nodeCount }, (_, i) => ({ id: i, label: "", x: 0, y: 0 })),
+        edges: Array.from(g.src, (s, e) => ({ source: s, target: g.dst[e] })),
+    };
+}
+
+/** What {@link plantedGroups} draws, for a story's caption. */
+export const PLANTED_GROUPS = "100 nodes in 4 planted groups (colors): about 6 edges inside each group, a few between.";
+
+/**
+ * 100 nodes in 4 planted groups of 25: about 6 neighbors inside a node's group and 0.5 outside, the graph the
+ * cytoscape-extensions gallery draws force and spectral layouts on.
+ * @param seed - the seed
+ * @returns the graph and each node's group
+ */
+export function plantedGroups(seed: number): { graph: GeneratedGraph; groups: ArrayLike<number> } {
+    const g = plantedPartitionGraph({ groups: 4, groupSize: 25, pIn: 6 / 25, pOut: 0.5 / 100, seed });
+    return { graph: fromSample(g), groups: g.nodeColumns?.community as ArrayLike<number> };
+}
+
+/**
+ * The rows x cols grid graph, node (r, c) at index r * cols + c.
+ * @param rows - the row count
+ * @param cols - the column count
+ * @returns the graph
+ */
+export function grid(rows: number, cols: number): GeneratedGraph {
+    return fromSample(gridGraph({ rows, cols }));
 }
 
 /**

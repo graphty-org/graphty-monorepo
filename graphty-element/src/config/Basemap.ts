@@ -16,9 +16,8 @@ export type BasemapSourceId = MapSourceId | "none";
 const projection = z.enum(["web-mercator", "equirectangular"]);
 const bounds = z.tuple([z.tuple([z.number(), z.number()]), z.tuple([z.number(), z.number()])]);
 /**
- * Whether the element draws the map's credits in the canvas's bottom-right corner (the default).
- * Every map source's terms require visible credits: set false only when the page shows
- * `basemapStatus.attribution` itself.
+ * Accepted so saved settings still load; it changes nothing. The element never draws the map's
+ * credits over the canvas: they are in `basemapStatus.attribution` for a page to show elsewhere.
  */
 const attributionShown = z.boolean().optional();
 /**
@@ -40,7 +39,7 @@ export const Basemap = z.union([
     z.strictObject({
         /** An XYZ URL template: `{z}`, `{x}`, `{y}`, `{-y}`, `{s}` and `{r}`. */
         tiles: z.string().min(1),
-        /** The credit the provider requires, shown whenever its tiles are. */
+        /** The provider's credit, reported in `basemapStatus.attribution`. */
         attribution: z.string(),
         projection: projection.optional(),
         tileSize: z.number().int().positive().optional(),
@@ -69,7 +68,7 @@ export type BasemapConfig = z.infer<typeof Basemap>;
 /**
  * What the map under a geographic layout is doing, for an application to show: which source,
  * whether its pictures are loading, drawn, or failed (so the bundled world shows instead), and
- * the credits of everything drawn, which must be visible whenever the map is.
+ * the credits of everything drawn, as data for the page to show where it chooses.
  * @since 3.31.0
  */
 export interface BasemapStatus {

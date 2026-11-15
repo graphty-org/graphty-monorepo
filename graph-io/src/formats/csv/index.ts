@@ -37,6 +37,7 @@ import {
     NO_ID_COLUMN_CODE,
     OTHER_FORMAT_CODE,
     PADDED_ID_CODE,
+    POSSIBLE_HEADER_CODE,
     ROLE_TAKEN_CODE,
     SINGLE_COLUMN_CODE,
     STRAY_QUOTE_CODE,
@@ -168,8 +169,9 @@ export const CSV_ISSUE = Object.freeze({
     /** Several header columns name one role; the one not chosen is a plain attribute. */
     AMBIGUOUS_COLUMN: AMBIGUOUS_COLUMN_CODE,
     /**
-     * An id that is not quoted has spaces at its start or end; they are kept, so it is a different id from the trimmed
-     * text. Reported once per import.
+     * An id that is not quoted starts or ends in whitespace other than spaces and tabs (a no-break space); it is kept,
+     * so it is a different id from the trimmed text. Spaces and tabs around an id that is not quoted are trimmed.
+     * Reported once per import.
      */
     PADDED_ID: PADDED_ID_CODE,
     /** A leading # / % line skipped as a comment has the fields of a record. */
@@ -181,4 +183,9 @@ export const CSV_ISSUE = Object.freeze({
      * Reported once per import.
      */
     WEIGHT_AS_ATTRIBUTE: WEIGHT_AS_ATTRIBUTE_CODE,
+    /**
+     * The first row was read as data, but every cell is a word of three or more characters that no other row repeats, so it may be a
+     * header of names graph-io does not know. Pass `header: true` if it is one.
+     */
+    POSSIBLE_HEADER: POSSIBLE_HEADER_CODE,
 });

@@ -50,6 +50,12 @@ Every graphty layout and algorithm, plus graph generators, sample datasets and f
 Maps and globes for [Babylon.js](https://www.babylonjs.com/) scenes: map projections, and a Babylon-free parser for
 latitude and longitude. Early: tiles, a globe and map sources are on the way. [View package](./babylonjs-map)
 
+#### babylonjs-models
+
+Load 3D models into [Babylon.js](https://www.babylonjs.com/) scenes from a URL, files, a folder, a zip or bytes:
+glTF and GLB with Draco, meshopt and KTX2, OBJ with MTL, STL, PLY, Gaussian splats and `.babylon`, every file checked
+first and nothing fetched from a CDN. [View package](./babylonjs-models)
+
 ### Graph computation
 
 #### @graphty/algorithms

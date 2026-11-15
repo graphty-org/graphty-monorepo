@@ -48,7 +48,7 @@ import { toolDefaults } from "../../styles/defaults.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import { STYLE_BLOCK_NAME, styleBlockLosses, writeStyleBlock } from "../../styles/io/block.js";
 import { elementValues, takeFromBlock } from "../../styles/io/round-trip.js";
-import { type ExporterStyleInput, sharedInExportCall } from "../../styles/io/writer.js";
+import { type ExporterStyleInput, replacedLabelNote, sharedInExportCall } from "../../styles/io/writer.js";
 import { StyleNotes } from "../../styles/notes.js";
 import { plainCell } from "../../styles/plan/resolve.js";
 import type {
@@ -76,7 +76,7 @@ import {
 } from "./drawing.js";
 import { type LabelTable, readLabelTable } from "./html-table.js";
 import { type LabelPlaceContext, leftOutEdgeLabels, leftOutXlabels, readLabelPlaces } from "./label-places.js";
-import { CLUSTER_COLUMN, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
+import { CLUSTER_COLUMN, DOT_META_KEY, LABEL_ATTRIBUTE, POS_ATTRIBUTE } from "./names.js";
 import { fontWidths, layoutRecord } from "./record.js";
 
 /**
@@ -258,31 +258,6 @@ interface EdgeContext {
 }
 
 /**
- * Whether a text is an HTML string (balanced angle brackets around the whole text), which graph-io keeps with its
- * brackets and DOT writes bare as `<...>`.
- * @param text - the text
- * @returns true for an HTML string
- */
-export function isHtmlString(text: string): boolean {
-    if (text.length < 2 || !text.startsWith("<") || !text.endsWith(">")) {
-        return false;
-    }
-    let depth = 0;
-    for (let i = 0; i < text.length; i++) {
-        const c = text.codePointAt(i);
-        if (c === 0x3c) {
-            depth++;
-        } else if (c === 0x3e) {
-            depth--;
-            if (depth === 0 && i !== text.length - 1) {
-                return false;
-            }
-        }
-    }
-    return depth === 0;
-}
-
-/**
  * The value of an attribute cell as text, or null when it is unset.
  * @param table - the node, edge or graph table
  * @param name - the attribute
@@ -376,7 +351,7 @@ function labelText(
     record: boolean,
     at: CanonSite,
 ): string {
-    if (isHtmlString(raw)) {
+    if (html.has(raw)) {
         return htmlLabelText(raw, at);
     }
     if (html.has(`<${raw}>`)) {
@@ -400,7 +375,7 @@ function readLabelAlign(
     record: boolean,
     put: Put,
 ): void {
-    if (isHtmlString(raw) || html.has(`<${raw}>`)) {
+    if (html.has(raw) || html.has(`<${raw}>`)) {
         // each <BR ALIGN> lines up the line before it: one alignment on every break lines up the label
         const aligns = new Set(
             [...raw.matchAll(/<br\b([^>]*)>/gi)].map(
@@ -408,7 +383,7 @@ function readLabelAlign(
             ),
         );
         // words after the last break are a line of their own, centered
-        const body = isHtmlString(raw) ? raw.slice(1, -1) : raw;
+        const body = html.has(raw) ? raw.slice(1, -1) : raw;
         const last = /<br\b[^>]*>(?![\s\S]*<br\b)/i.exec(body);
         const tail = last === null ? "" : body.slice(last.index + last[0].length);
         if (stripTags(tail).trim() !== "") {
@@ -469,10 +444,10 @@ function readHtmlRuns(
     put: Put,
     at: At,
 ): void {
-    if (!isHtmlString(raw) && !html.has(`<${raw}>`)) {
+    if (!html.has(raw) && !html.has(`<${raw}>`)) {
         return;
     }
-    const markup = isHtmlString(raw) ? raw : `<${raw}>`;
+    const markup = html.has(raw) ? raw : `<${raw}>`;
     const runs: Record<string, StyleValue>[] = [];
     for (const span of htmlLabelSpans(markup)) {
         const run = { text: span.text, ...htmlRunFont(span.tags, scheme, size, at("labelRuns")) };
@@ -840,10 +815,10 @@ function htmlTableFrame(
     scheme: string | null,
     site: CanonSite,
 ): HtmlTableFrame | null {
-    if (label === null || (!isHtmlString(label) && !html.has(`<${label}>`))) {
+    if (label === null || (!html.has(label) && !html.has(`<${label}>`))) {
         return null;
     }
-    const attrs = tableAttributes(isHtmlString(label) ? label.slice(1, -1) : label);
+    const attrs = tableAttributes(html.has(label) ? label.slice(1, -1) : label);
     if (attrs === null) {
         return null;
     }
@@ -860,7 +835,7 @@ function htmlTableFrame(
     };
     const tagAttrs = (tag: string): Map<string, string> =>
         new Map(tagAttributes(tag).map(([k, v]) => [k.toLowerCase(), v]));
-    const markup = isHtmlString(label) ? label.slice(1, -1) : label;
+    const markup = html.has(label) ? label.slice(1, -1) : label;
     const cells = readLabelTable(
         markup,
         tagAttrs,
@@ -980,7 +955,7 @@ function readNodeLabelAndSize(n: NodeRead, names: DotEscapeNames): void {
     readNodeLabel(n, label, shown, names);
     // plain is its label alone at size 0: with an empty label Graphviz draws nothing, filled or not; an HTML label
     // with no words (a table holding an IMG) still draws its cells
-    const htmlLabel = label !== null && (isHtmlString(label) || cx.html.has(`<${label}>`));
+    const htmlLabel = label !== null && (cx.html.has(label) || cx.html.has(`<${label}>`));
     if (shape === "plain" && shown === "" && !htmlLabel) {
         put("visible", false);
     }
@@ -2104,7 +2079,7 @@ function readEdge(get: Attr, cx: EdgeContext, put: Put, at: At): void {
     readCommon(get, tokens, scheme, cx.names, put, at);
     readColor(nonEmpty(get("color")), scheme, "edge", "color", "opacity", put, at);
     readEdgeSegments(nonEmpty(get("color")), scheme, put, at);
-    readEdgeLine(get, tokens, put, at);
+    readEdgeLine(get, tokens, cx, put, at);
     readEdgeArrows(get, cx, put, at);
     for (const [attribute, property] of [
         [LABEL_ATTRIBUTE, "label"],
@@ -2410,10 +2385,11 @@ export function graphvizRouteBends(
  * Reads an edge's line: its width and dashes.
  * @param get - its attributes
  * @param tokens - its style tokens
+ * @param cx - its direction
  * @param put - receives the values
  * @param at - the sites
  */
-function readEdgeLine(get: Attr, tokens: readonly string[], put: Put, at: At): void {
+function readEdgeLine(get: Attr, tokens: readonly string[], cx: EdgeContext, put: Put, at: At): void {
     const width = nonEmpty(get("penwidth")) ?? setLineWidth(tokens);
     if (width !== null) {
         put("width", penWidth(width, get("penwidth") !== null, at("width")));
@@ -2428,6 +2404,13 @@ function readEdgeLine(get: Attr, tokens: readonly string[], put: Put, at: At): v
         put("lineStyle", "solid");
     } else if (tokens.includes("tapered")) {
         put("lineStyle", "other:tapered");
+        // Graphviz narrows a tapered line by its direction (lib/common/emit.c, taperfun): forward from the pen's width
+        // at the tail to a point at the head; back and both (a point at the tail, or at both ends) are no width ratio
+        // and stay a line of one width
+        const dir = (nonEmpty(get("dir")) ?? (cx.directed ? "forward" : "none")).trim().toLowerCase();
+        if (dir === "forward") {
+            put("taper", 0);
+        }
     }
 }
 
@@ -2569,43 +2552,19 @@ function graphvizArrows(raw: string): GraphvizArrowShape[] | null {
 }
 
 /**
- * The HTML strings of a file: its HTML node names and labels, for Graphviz's shared string pool.
+ * The HTML strings of a file, outer brackets kept. A graph read from DOT carries the list in `meta.extra.dot.html`,
+ * since a quoted `"<init>"` holds the same text as an HTML `<init>` and is plain. A graph with no such record (from
+ * another format, or rebuilt by an application) has none: a text is never taken for HTML by its shape.
  * @param snapshot - the graph
- * @returns the strings, with their brackets
+ * @returns the strings
  */
-function htmlStrings(snapshot: GraphSnapshot): Set<string> {
-    const out = new Set<string>();
-    for (let i = 0; i < snapshot.nodeCount; i++) {
-        const id = snapshot.ids.idOf(i);
-        if (typeof id === "string" && isHtmlString(id)) {
-            out.add(id);
-        }
+export function dotHtmlTexts(snapshot: GraphSnapshot): Set<string> {
+    const dot: unknown = snapshot.meta.extra[DOT_META_KEY];
+    const recorded = typeof dot === "object" && dot !== null ? (dot as { html?: unknown }).html : undefined;
+    if (Array.isArray(recorded)) {
+        return new Set(recorded.filter((t): t is string => typeof t === "string"));
     }
-    for (const [table, n] of [
-        [snapshot.nodes, snapshot.nodeCount],
-        [snapshot.edges, snapshot.edgeCount],
-    ] as const) {
-        for (const name of [LABEL_ATTRIBUTE, "headlabel", "taillabel"].filter((c) => table.has(c))) {
-            addHtmlCells(table, name, n, out);
-        }
-    }
-    return out;
-}
-
-/**
- * Adds the HTML strings of one label column.
- * @param table - the node or edge table
- * @param name - the column
- * @param n - its rows
- * @param out - receives the strings
- */
-function addHtmlCells(table: GraphSnapshot["nodes"], name: string, n: number, out: Set<string>): void {
-    for (let i = 0; i < n; i++) {
-        const v = cellText(table, name, i);
-        if (v !== null && isHtmlString(v)) {
-            out.add(v);
-        }
-    }
+    return new Set();
 }
 
 /**
@@ -2650,7 +2609,7 @@ function contexts(
     readonly node: (i: number) => NodeContext;
     readonly edge: (e: number) => EdgeContext;
 } {
-    const html = htmlStrings(snapshot);
+    const html = dotHtmlTexts(snapshot);
     const graph = snapshot.meta.name ?? "";
     const rankdir = (cellText(snapshot.graph, "rankdir", 0) ?? "").trim().toUpperCase();
     const flip = rankdir === "LR" || rankdir === "RL";
@@ -2687,7 +2646,7 @@ function defaultLabel(cx: NodeContext, shape: string, notes: StyleNotes): string
         return null;
     }
     const at: CanonSite = { notes, target: "node", property: "label" };
-    return isHtmlString(cx.name)
+    return cx.html.has(cx.name)
         ? htmlLabelText(cx.name, at)
         : dotLabelText(String.raw`\N`, { node: cx.name, graph: cx.graph }, at);
 }
@@ -3700,6 +3659,19 @@ function styledExport(snapshot: GraphSnapshot, input: ExporterStyleInput, onMixe
         };
         const columns = attributeColumns(snapshot, input, target, { cx, approximate, notes, read });
         replaced.push(...removeStyleAttributes(table, target, columns, read));
+        // a label column no rule reads is still the node's own label: say when the drawn label replaces it
+        const own =
+            target === "node" && !read.has(LABEL_ATTRIBUTE)
+                ? replacedLabelNote(
+                      snapshot,
+                      LABEL_ATTRIBUTE,
+                      input.picture("node", "label"),
+                      "the node label attribute",
+                  )
+                : null;
+        if (own !== null) {
+            replaced.push(own);
+        }
         setAttributeColumns(table, columns);
     }
     const { background } = input.rules.styles.graph;

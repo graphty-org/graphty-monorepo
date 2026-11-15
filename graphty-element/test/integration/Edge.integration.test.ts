@@ -10,7 +10,7 @@ import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
 import type { EdgeStyleConfig } from "../../src/config";
 import type { PatternedLineMesh } from "../../src/meshes/PatternedLineMesh";
-import { edgeLineFor } from "../helpers/edgeLine";
+import { batchLineFor } from "../helpers/edgeLine";
 import { asData } from "../helpers/testSetup";
 
 /**
@@ -116,6 +116,7 @@ function createMinimalStyles(): Styles {
             camera: {
                 pivotOnSelection: false,
                 autoRotate: 0,
+                autoRotateResume: 0,
                 fitInsets: { top: 0, right: 0, bottom: 0, left: 0 },
                 fitBounds: "box",
                 refitOnResize: false,
@@ -548,9 +549,9 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "transform-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // Midpoint should be at (5, 0, 0)
             assert.closeTo(mesh.position.x, 5, 0.001);
@@ -564,9 +565,9 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "scale-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // Length = sqrt(3^2 + 4^2) = 5
             assert.closeTo(mesh.scaling.z, 5, 0.001);
@@ -578,9 +579,9 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "3d-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // Midpoint should be at (0.5, 1, 1)
             assert.closeTo(mesh.position.x, 0.5, 0.001);
@@ -597,9 +598,9 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "negative-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // Midpoint should be at origin
             assert.closeTo(mesh.position.x, 0, 0.001);
@@ -616,9 +617,9 @@ describe("Edge Integration", () => {
 
             const options = { styleId: "orient-test", width: 0.5, color: "#FF0000" };
             const style = { line: { width: 0.5, color: "#FF0000" }, enabled: true };
-            const mesh = edgeLineFor(meshCache, options, style, scene);
+            const mesh = batchLineFor(meshCache, options, style, scene);
 
-            EdgeMesh.transformMesh(mesh as AbstractMesh, srcPoint, dstPoint);
+            EdgeMesh.transformMesh(mesh, srcPoint, dstPoint);
 
             // After lookAt(dstPoint), the mesh's Z scale is stretched along the edge direction
             // The scaling.z is set to the edge length, which is 5

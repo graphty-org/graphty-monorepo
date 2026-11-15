@@ -154,7 +154,9 @@ graph.on("error", ({ error, context }) => {
 
 ## DOM Events
 
-Listen via standard `addEventListener` on the Web Component:
+Listen via standard `addEventListener` on the Web Component. These events bubble and are composed,
+except `error`, which fires only on the element itself so that `window.onerror` and error reporters
+never mistake it for an uncaught exception:
 
 ```javascript
 const element = document.querySelector("graphty-element");
@@ -349,6 +351,20 @@ element.addEventListener("graphty-note-change", (e) => {
 On the session the same change is `note:changed`, whose payload also carries the frozen record as
 `note`. See [Notes](./notes#hearing-about-changes).
 
+### graphty-skybox-loaded and graphty-skybox-failed
+
+A skybox background's image (`element.background = { backgroundType: "skybox", data }`) has
+arrived, once per new image, or could not be loaded. Setting the image already shown fires neither.
+
+```javascript
+element.addEventListener("graphty-skybox-loaded", (e) => {
+    const { url } = e.detail; // the background's `data`
+});
+element.addEventListener("graphty-skybox-failed", (e) => {
+    const { code, params } = e.detail; // "E_IMAGE_LOAD", params.url: its first 256 characters
+});
+```
+
 ### graphty-warning
 
 A notice that stops nothing, as a code and its parameters (`e.detail.code`, `e.detail.params`).
@@ -514,6 +530,27 @@ graph.on("data-cleared", () => {
     console.log("the graph is empty");
 });
 ```
+
+### Follow every data change on the session
+
+A session -- the element's, or one from `createGraphSession()` with no view -- publishes
+`data:changed` once per change to the data: a load, an add, a removal, an attribute edit, and an
+undo, redo or restore of any of them. It arrives right after the change, so `data.node(id)` already
+reads the new values:
+
+```typescript
+const session = createGraphSession();
+session.on("data:changed", ({ added, removed, updated, fields, cause }) => {
+    console.log(added.nodes, removed.edges, updated.nodes, fields.nodes, cause);
+});
+await session.data.addNodes([{ id: "a", type: "host" }]); // added.nodes: ["a"], cause: "command"
+await session.data.updateNodes([{ id: "a", values: { type: "service" } }]); // fields.nodes: ["type"]
+await session.undo(); // updated.nodes: ["a"], cause: "undo"
+```
+
+Load progress is `progress:changed` with `task: "load"` (see
+[graphty-progress-change](#graphty-progress-change)); the load's `data:changed` follows when it
+commits.
 
 ### Loading Indicator
 

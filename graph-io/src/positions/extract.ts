@@ -141,7 +141,8 @@ function spellingOf(importer: GraphImporter, snapshot: GraphSnapshot, signal: Ab
         return hook?.unplacedCircle === undefined ? null : circleSpelling(snapshot, hook);
     }
     const extra = { ...extraOf(column.meta.extra), ...extraOf(hook ?? {}) };
-    return { read: vectorReader(column), size: sizeReader(snapshot, extra), extra, ...hookFields(hook) };
+    const read = vectorReader(column, hook?.centerOffset);
+    return { read, size: sizeReader(snapshot, extra), extra, ...hookFields(hook) };
 }
 
 /**
@@ -206,16 +207,18 @@ function hookFields(hook: ImporterPositions | null): Pick<Spelling, "groups" | "
 /**
  * A reader over a 2- or 3-component column.
  * @param column - the column
+ * @param centerOffset - the hook's offset from a node's stored coordinate to its center, if any
  * @returns the reader
  */
-function vectorReader(column: Column): RowReader {
+function vectorReader(column: Column, centerOffset?: ImporterPositions["centerOffset"]): RowReader {
     return (row, out) => {
         if (!column.isSet(row)) {
             return false;
         }
         const v = column.value(row) as ArrayLike<number>;
-        out[0] = v[0];
-        out[1] = v[1];
+        const offset = centerOffset?.(row) ?? [0, 0];
+        out[0] = v[0] + offset[0];
+        out[1] = v[1] + offset[1];
         out[2] = v.length > 2 ? v[2] : 0;
         return true;
     };

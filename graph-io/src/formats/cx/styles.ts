@@ -29,6 +29,7 @@ import {
     type CytoscapeBypass,
     type CytoscapeElements,
     edgeEnds,
+    fileCreationOrder,
     resolveCytoscape,
 } from "../../styles/cytoscape/resolve.js";
 import { cytoscapeRules } from "../../styles/cytoscape/translate.js";
@@ -47,6 +48,7 @@ import type {
     StyleTarget,
     StyleWriteCapabilities,
 } from "../../styles/types.js";
+import { isStyleProperty } from "../../styles/vocabulary.js";
 import type { LossNote } from "../../types.js";
 import { exactFromBlock, nonEmpty } from "../xgmml/styles.js";
 
@@ -241,6 +243,20 @@ export function hashCreationOrder(snapshot: GraphSnapshot): NonNullable<Cytoscap
 }
 
 /**
+ * The order desktop creates the elements in when it creates them as the file lists them, or undefined.
+ * @param snapshot - the graph
+ * @param read - what the import read
+ * @param read.fileOrder - whether desktop creates the elements in file order
+ * @returns each node's and edge's rank, or undefined
+ */
+function fileOrder(
+    snapshot: GraphSnapshot,
+    read: { readonly fileOrder?: boolean },
+): NonNullable<CytoscapeElements["ends"]>["created"] | undefined {
+    return read.fileOrder === true ? fileCreationOrder(snapshot) : undefined;
+}
+
+/**
  * The styles of a graph from its Cytoscape style and its bypass columns.
  * @param snapshot - the graph
  * @param context - the budget and cancel signal
@@ -252,6 +268,7 @@ export function hashCreationOrder(snapshot: GraphSnapshot): NonNullable<Cytoscap
  * Cytoscape desktop creates the file's elements in hash order (`hashOrder`: a CX version 1 file without subnetworks)
  * @param read.weightFrom - the weight attribute, or null
  * @param read.hashOrder - whether desktop creates the elements in hash order
+ * @param read.fileOrder - whether desktop creates the elements in the order the file lists them (CX2)
  * @returns the styles
  */
 export function readDeclaredStyles(
@@ -261,10 +278,10 @@ export function readDeclaredStyles(
     namespace: string,
     notes: StyleNotes,
     dialect: CytoscapeDialect = "desktop",
-    read: { readonly weightFrom?: string | null; readonly hashOrder?: boolean } = {},
+    read: { readonly weightFrom?: string | null; readonly hashOrder?: boolean; readonly fileOrder?: boolean } = {},
 ): ImporterStyles {
     const weightFrom = read.weightFrom ?? null;
-    const created = read.hashOrder === true ? (hashCreationOrder(snapshot) ?? undefined) : undefined;
+    const created = read.hashOrder === true ? (hashCreationOrder(snapshot) ?? undefined) : fileOrder(snapshot, read);
     const out: Record<StyleTarget, ReaderOutput> = { node: { values: {} }, edge: { values: {} } };
     const readFrom: Record<StyleTarget, string[]> = { node: [], edge: [] };
     for (const target of ["node", "edge"] as const) {
@@ -387,9 +404,12 @@ export function lossOf(n: StyleNote): LossNote {
         column: null,
         count: n.params.count,
         style:
-            n.params.target === null || n.params.property === null || n.params.target === "graph"
+            n.params.target === null ||
+            n.params.property === null ||
+            n.params.target === "graph" ||
+            !isStyleProperty(n.params.target, n.params.property)
                 ? undefined
-                : Object.freeze({ target: n.params.target, property: n.params.property as never }),
+                : Object.freeze({ target: n.params.target, property: n.params.property }),
     });
 }
 

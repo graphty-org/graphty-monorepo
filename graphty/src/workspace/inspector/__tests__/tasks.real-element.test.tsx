@@ -199,8 +199,8 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             .focus();
         await userEvent.keyboard("{Enter}");
         const list = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
-        // Focus lands on the checked Hops choice, not a neighbor row and not the whole list.
-        assert.equal(document.activeElement, within(list).getByRole("radio", { name: "1" }));
+        // Focus lands on the Hops field, not a neighbor row and not the whole list.
+        assert.equal(document.activeElement, within(list).getByRole("spinbutton", { name: "Hops" }));
 
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
@@ -214,7 +214,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
         const again = await inspector().findByRole("group", { name: "Node 0 and 3 connections" });
         const first = rowButtons(again)[0];
         await waitFor(() => {
-            assert.equal(document.activeElement, within(again).getByRole("radio", { name: "1" }));
+            assert.equal(document.activeElement, within(again).getByRole("spinbutton", { name: "Hops" }));
         });
         // Enter on a name picks that node.
         first.focus();
@@ -246,8 +246,7 @@ describe("tier 1 tasks in the inspector, on the real element", () => {
             assert.equal(within(now).getByRole("radio", { checked: true }).getAttribute("value"), "in");
             assert.equal(document.activeElement, within(now).getByRole("radio", { checked: true }));
         });
-        const hops = inspector().getByRole("radiogroup", { name: "Hops" });
-        assert.equal(within(hops).getByRole("radio", { checked: true }).getAttribute("value"), "1");
+        assert.equal(inspector().getByRole("spinbutton", { name: "Hops" }).getAttribute("aria-valuenow"), "1");
     });
 
     it("T12 from the find box: a pick moves focus to the inspector's title, not a value row", async () => {

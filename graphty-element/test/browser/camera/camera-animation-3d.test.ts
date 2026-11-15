@@ -1,8 +1,7 @@
 import { afterEach, assert, test, vi } from "vitest";
 
-import type { CameraStateChangedEvent } from "../../../src/events.js";
 import { Graph } from "../../../src/Graph.js";
-import { ANIMATION_FRAME_MS, animationFramesOf } from "../../helpers/animation-clock.js";
+import { ANIMATION_FRAME_MS, animationFramesOf, cameraStateAtFrame } from "../../helpers/animation-clock.js";
 import { cleanupTestGraph, createTestGraph } from "../../helpers/testSetup.js";
 
 let graph: Graph;
@@ -63,26 +62,26 @@ test("animates camera position smoothly", async () => {
 test("applies easing correctly", async () => {
     graph = await createTestGraph();
 
-    // Track position changes during animation
-    const positions: { x: number; y: number; z: number }[] = [];
+    const start = { position: { x: 0, y: 0, z: 50 }, target: { x: 0, y: 0, z: 0 } };
+    const end = { position: { x: 100, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } };
 
-    const listenerId = graph.eventManager.addListener("camera-state-changed", (e) => {
-        const event = e as CameraStateChangedEvent;
-        if (event.state.position) {
-            positions.push({ ...event.state.position });
-        }
-    });
+    // How far along its distance the camera is at a frame of a 19-frame (300 ms) animation, on the
+    // constant animation clock
+    async function progressAt(frame: number, easing: "linear" | "easeInOut"): Promise<number> {
+        await graph.setCameraState(start, { animate: false });
+        const from = graph.getCameraState().cameraDistance ?? Number.NaN;
+        const { atFrame, end: done } = await cameraStateAtFrame(graph, frame, () =>
+            graph.setCameraState(end, { animate: true, duration: 300, easing }),
+        );
+        const to = done.cameraDistance ?? Number.NaN;
+        return ((atFrame.cameraDistance ?? Number.NaN) - from) / (to - from);
+    }
 
-    await graph.setCameraState(
-        { position: { x: 100, y: 0, z: 0 }, target: { x: 0, y: 0, z: 0 } },
-        { animate: true, duration: 300, easing: "easeInOut" },
-    );
-
-    graph.eventManager.removeListener(listenerId);
-
-    // With easeInOut, middle positions should show non-linear progression
-    // (Hard to test precisely, but we can verify animation occurred)
-    assert.ok(positions.length > 0);
+    // easeInOut is behind linear early on and ahead of it late
+    const early = { linear: await progressAt(5, "linear"), easeInOut: await progressAt(5, "easeInOut") };
+    const late = { linear: await progressAt(14, "linear"), easeInOut: await progressAt(14, "easeInOut") };
+    assert.isBelow(early.easeInOut, early.linear, `early: ${JSON.stringify(early)}`);
+    assert.isAbove(late.easeInOut, late.linear, `late: ${JSON.stringify(late)}`);
 });
 
 // Phase 3: Operation Queue Integration - Animation interruption

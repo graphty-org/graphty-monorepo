@@ -3,7 +3,8 @@
  * out-weight normaliser folded into `xNorm` by `pr-scale`, the dangling mass and the L1 delta folded by
  * `pr-finalize` into the header at `partials[0]`, and `spmv-pull` writing the next iterate. Iterations run in
  * batches of PR_BATCH per submit, ONE readback per batch (the header and the iterate together), and the device
- * records `firstConverged` the first time the delta falls below `tolerance * n`, so the reported `iterations` is the
+ * records `firstConverged` the first time the delta falls below `tolerance` (the scores sum to 1, so a threshold scaled
+ * by the node count would stop a large graph after a pass or two; issue #1182), so the reported `iterations` is the
  * first converged iteration and not the batch boundary (spec 9.7).
  *
  * PLAN DECISION PD-7: the ping-pong is TWO buffers (`rankA`, `rankB`) alternated through two cached bind groups;
@@ -30,6 +31,7 @@ import { assertDeviceComputes } from "../primitives/verify.js";
 import { type GpuPageRankResult, type PageRankOptions } from "../types/algorithms.js";
 import { type Binding } from "../types/memory.js";
 import { type GpuRunOptions } from "../types/run.js";
+import { checkTolerance } from "./power-iteration.js";
 import { algorithmScope } from "./scope.js";
 
 /** Iterations per submit (spec 8.2: k = 8). */
@@ -111,6 +113,21 @@ function checkMaxIterations(maxIterations: number, algorithm: string): void {
             argument: "maxIterations",
             value: maxIterations,
             expected: "a positive integer",
+        });
+    }
+}
+
+/**
+ * Refuses a dampingFactor outside [0, 1] or not finite: such a value gives NaN or diverging scores.
+ * @param dampingFactor - the option
+ * @param algorithm - the caller's name
+ */
+function checkDampingFactor(dampingFactor: number, algorithm: string): void {
+    if (!Number.isFinite(dampingFactor) || dampingFactor < 0 || dampingFactor > 1) {
+        throw new WebGpuGraphError("E_INVALID_ARGUMENT", `${algorithm}: dampingFactor must be a number in [0, 1]`, {
+            argument: "dampingFactor",
+            value: dampingFactor,
+            expected: "a number in [0, 1]",
         });
     }
 }
@@ -239,6 +256,8 @@ async function run(
     const tolerance = options?.tolerance ?? 1e-6;
     const useWeights = options?.weighted !== false;
     checkMaxIterations(maxIterations, algorithm);
+    checkDampingFactor(alpha, algorithm);
+    checkTolerance(tolerance, algorithm);
     const dest = checkDest(options?.dest, n, algorithm);
     throwIfAborted(options, algorithm);
     if (n === 0) {
@@ -313,7 +332,7 @@ async function run(
                 groups,
                 iteration: iterationsRun + i + 1,
                 trackConvergence: 1,
-                convergeThreshold: tolerance * n,
+                convergeThreshold: tolerance,
             });
         // the scale + finalize of an iteration, measuring the error of the one before it
         const recordMeasure = (

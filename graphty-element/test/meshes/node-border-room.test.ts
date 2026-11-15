@@ -50,7 +50,7 @@ for (const [size, outer] of [
         const fill = NodeMesh.create(cache, options, { shape, border }, scene);
         const ring = NodeMesh.createBorder(cache, options, { shape, border }, fill, scene);
 
-        assert.isNotNull(ring);
+        assert.exists(ring);
         ring.computeWorldMatrix(true);
         const box = ring.getBoundingInfo().boundingBox;
         assert.approximately(box.maximumWorld.x - box.minimumWorld.x, outer, 0.02);

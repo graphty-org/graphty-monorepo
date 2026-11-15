@@ -46,6 +46,14 @@ const pageRankOptionsSchema = defineOptions({
             advanced: true,
         },
     },
+    directed: {
+        schema: z.boolean().default(true),
+        meta: {
+            label: "Follow Edge Direction",
+            description:
+                "Rank flows along each edge's direction as the graph was loaded. Off: every edge carries rank both ways, as on an undirected graph",
+        },
+    },
     useDelta: {
         schema: z.boolean().default(true),
         meta: {
@@ -155,6 +163,13 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
             max: 0.1,
             advanced: true,
         },
+        directed: {
+            type: "boolean",
+            default: true,
+            label: "Follow Edge Direction",
+            description:
+                "Rank flows along each edge's direction as the graph was loaded. Off: every edge carries rank both ways, as on an undirected graph",
+        },
         useDelta: {
             type: "boolean",
             default: true,
@@ -210,7 +225,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
      */
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         // Get options from NEW Zod-based schema (validated at construction)
-        const { dampingFactor, maxIterations, tolerance } = this.zodOptions;
+        const { dampingFactor, maxIterations, tolerance, directed } = this.zodOptions;
         const { weight } = this.weightReading();
         // Map types are programmatic-only (not in schema) - kept from the constructor's arguments
         const initialRanks = this.programmaticOptions.initialRanks ?? undefined;
@@ -223,18 +238,23 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
            accelerator answers. A personalization vector or a set of initial ranks changes what the
            numbers mean, and those runs, and the undirected one, iterate as the element's PageRank
            always has: until no single rank moves by the tolerance. The plain run stops on the
-           summed change, as the accelerator does, so the two routes of it agree. */
-        const declared = this.input("declared").graph;
-        const plain = declared.directed && initialRanks === undefined && personalization === undefined;
+           summed change, as the accelerator does, so the two routes of it agree.
+
+           `directed: false` reads a directed graph through its undirected view, so every edge
+           carries rank both ways, as it would over the same edges loaded undirected. */
+        const followsDirection = directed && this.input("declared").graph.directed;
+        const plain = followsDirection && initialRanks === undefined && personalization === undefined;
         // Every run asks as "pageRank": `accelerable` marks the ones no accelerator answers, so
         // under acceleration="required" a personalized run refuses exactly as the others do.
-        const { snapshot, run } = this.accelerated("pageRank", "directed", { accelerable: plain });
+        const { snapshot, run } = this.accelerated("pageRank", directed ? "directed" : "undirected", {
+            accelerable: plain,
+        });
 
         context.report({
             phase: "iterating",
             completed: 0,
             total: nodeIds.length,
-            message: `Power iteration, up to ${String(maxIterations)} passes.`,
+            params: { maxIterations },
         });
 
         const { value, precision } = await run((dispatch, s) => {
@@ -257,7 +277,7 @@ export class PageRankAlgorithm extends MetricAlgorithm<PageRankOptions> {
 
         const { ids } = snapshot;
         const measured: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading ranks", (nodeId) => {
+        await walkInChunks(nodeIds, context, "reading-ranks", (nodeId) => {
             const index = ids.indexOf(nodeId);
             const rank = index === INVALID_INDEX ? undefined : value.scores[index];
             measured.push({ id: nodeId, values: rank === undefined ? {} : { value: rank } });

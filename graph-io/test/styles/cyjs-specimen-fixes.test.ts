@@ -86,6 +86,16 @@ describe("Cytoscape.js label boxes", () => {
 });
 
 describe("Cytoscape.js edges", () => {
+    it("tapers a straight-triangle edge to a point at its target", () => {
+        const taper = (curve: string): unknown =>
+            evaluateCytoscapeJs(doc({}, { "curve-style": curve })).edge.values.taper?.[0] ?? null;
+        expect(taper("straight-triangle")).toBe(0);
+        expect(taper("straight")).toBeNull();
+        expect(evaluateCytoscapeJs(doc({}, { "curve-style": "straight-triangle" })).edge.values.curved?.[0]).toBe(
+            false,
+        );
+    });
+
     it("draws no arrow on a haystack edge, the default curve style", () => {
         const arrows = { "target-arrow-shape": "triangle", "source-arrow-shape": "tee" };
         const haystack = evaluateCytoscapeJs(doc({}, arrows)).edge.values;

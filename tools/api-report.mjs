@@ -327,16 +327,23 @@ export function sessionReachable(declarations) {
 const COLUMN_NAME_TYPES = new Set(["TableMapping", "JoinKey"]);
 
 /**
+ * Single members that hold a name of the consumer's data, where the property name alone would allow
+ * too much: the column a comparing join writes regions to (JoinChoices.membership) and the kind a
+ * link join gives the nodes and edges it adds (JoinLink.kind).
+ */
+const PLAIN_STRING_MEMBERS = new Set(["JoinChoices.membership", "JoinLink.kind"]);
+
+/**
  * Whether a result type may hold a plain string under this property name.
  * @param type - the declaring type's name
  * @param property - the property's name
- * @returns true for an identifier, a name, a machine value or a catalog description
+ * @returns true for an identifier, a name or a machine value. A descriptor's English `description`
+ *   is not allowed: a new one carries a `descriptionId` the application words (#7961).
  */
 function allowedPlainString(type, property) {
     if (PLAIN_STRING_ALLOWLIST.has(property) || /[a-z](Id|Key)$/.test(property)) return true;
     if (COLUMN_NAME_TYPES.has(type)) return true;
-    // catalog descriptions describe the thing registered, not the consumer's graph (#1604)
-    return property === "description" && type.endsWith("Descriptor");
+    return PLAIN_STRING_MEMBERS.has(`${type}.${property}`);
 }
 
 /**

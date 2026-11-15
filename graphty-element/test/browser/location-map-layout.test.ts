@@ -150,25 +150,35 @@ describe("the location map layout", () => {
         );
     });
 
-    it("draws the map under the nodes with its credits, and removes it with another layout", async () => {
+    it("draws the map under the nodes, draws no credit over the canvas, and removes the map with another layout", async () => {
         await placeAirports({ latitude: "latitude", longitude: "longitude" });
         // a hang guard for the bundled picture loading, not a pass/fail timing
         await vi.waitFor(() => {
             assert.equal(graph.basemapStatus.state, "ready");
         });
         assert.equal(graph.basemapStatus.source, "natural-earth");
-        assert.include(graph.basemapStatus.attribution, "Natural Earth");
-        const strip = container.querySelector<HTMLElement>("[data-graphty-attribution]");
-        assert.isNotNull(strip);
-        // the credit, after the "(c)" button it folds into when it does not fit
-        assert.include(strip?.textContent, "Natural Earth");
-        assert.notEqual(strip?.style.display, "none");
+        // Natural Earth is public domain: nothing to credit.
+        assert.deepEqual(graph.basemapStatus.attribution, []);
+
+        // A tile service's credit is reported as data, and never drawn over the canvas (owner, 2026-11-15).
+        await graph.setLayout("location-map", {
+            latitude: "latitude",
+            longitude: "longitude",
+            map: { source: "openstreetmap" },
+        });
+        await settled();
+        // a hang guard for the tiles loading, not a pass/fail timing
+        await vi.waitFor(() => {
+            assert.equal(graph.basemapStatus.source, "openstreetmap");
+            assert.equal(graph.basemapStatus.state, "ready");
+        });
+        assert.include(graph.basemapStatus.attribution, "(c) OpenStreetMap contributors");
+        assert.notInclude(container.textContent, "OpenStreetMap");
 
         await graph.setLayout("circular");
         await settled();
         await drawnFrames(graph.getScene(), 1);
         assert.equal(graph.basemapStatus.state, "off");
-        assert.equal(strip?.style.display, "none");
     });
 
     it("switches between a 2D map and a globe in 3D, with raised arcs and great-circle arcs", async () => {

@@ -24,9 +24,9 @@ describe("the selection editor on 50,000 nodes", () => {
                 "Closing",
                 oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
             );
-            const row = document.querySelector<HTMLElement>('.sel-rest [data-row="com"] .sel-value');
+            const row = document.querySelector<HTMLElement>(".sel-rest [data-edit]");
             if (row === null) {
-                throw new Error("the step's row is drawn");
+                throw new Error("the Style Nodes... line is drawn");
             }
             await userEvent.click(row);
             const values = await screen.findByRole("group", { name: "community values" });

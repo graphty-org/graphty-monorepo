@@ -11,7 +11,8 @@ your own. graphty-element loads from any of them by name. You install nothing el
 client.
 
 graph-samples' datasets are not a network source: load one with
-`session.data.loadDataset("karate")`.
+`session.data.loadDataset("karate", { baseUrl })`, where `baseUrl` is where the dataset files are
+published (graph-samples exports its own copy's address as `DEFAULT_DATASET_BASE_URL`).
 
 ## Load from a built-in source
 
@@ -62,7 +63,7 @@ example's. An id the source does not list rejects with `E_SOURCE_UNKNOWN`, whose
 | `ndex`     | `ndex-wp5483`, `ndex-nci-pid`, `ndex-huri`, `ndex-signor`, `ndex-dgidb`, `ndex-wikipathways-landscape`    |
 | `neo4j`    | `neo4j-movies`, `neo4j-northwind`, `neo4j-gameofthrones`, `neo4j-fincen`, `neo4j-movies-bolt`, `hetionet` |
 | `sparql`   | `uniprot-tp53`, `dbpedia-philosophers`, `wikidata-einstein`                                               |
-| `rest`     | `string-tp53`, `deps-dev-webpack`                                                                         |
+| `rest`     | `string-tp53`, `deps-dev-webpack`, `reactome-tp53`, `crossref-watts-strogatz`, `wikipedia-eulerian-path`  |
 | `openalex` | `openalex-watts-strogatz`                                                                                 |
 
 The Neo4j demo server (`demo.neo4jlabs.com`) is read-only and publishes each database's login as

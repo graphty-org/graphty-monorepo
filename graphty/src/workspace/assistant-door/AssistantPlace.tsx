@@ -25,9 +25,6 @@ if (keptPlace().place === "assistant") {
 }
 const AiProviderSection = React.lazy(() => import("../assistant/AiProviderSection"));
 
-/** Settings' AI provider section, as its section list names it. */
-export const AI_PROVIDER_SECTION = { id: "assistant", name: "AI provider" } as const;
-
 /**
  * What Settings' Done runs on a page that holds unsaved input: true when the page took the press
  * (saved and closed, or kept open on a problem), false when there was nothing to commit.

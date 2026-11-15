@@ -15,6 +15,8 @@ export const ISSUE_TITLE = "Release scheduler could not start a release train";
 export const RELEASE_DEPLOY_KEY_ID = 167635448;
 export const DEPLOY_KEY_ISSUE_TITLE = "graphty-monorepo's write deploy keys are not exactly the release key";
 const ISSUE_LABELS = ["bug", "priority:critical", "effort:medium"];
+// A missed train delays nightly and npm `next` but leaves master and every release as they were.
+const TRAIN_ISSUE_LABELS = ["bug", "priority:high", "effort:low"];
 // The daily deploy key check's cron, in wrangler.toml beside the release slots.
 export const KEY_CHECK_CRON = "17 3 * * *";
 export const PKCS1_MESSAGE =
@@ -81,34 +83,18 @@ export async function installationToken(env, doFetch = fetch) {
     return (await res.json()).token;
 }
 
-/**
- * Whether a commit is on master's history (the ancestry check; needs the App's Contents: read).
- * GitHub's compare of master...sha says `behind` or `identical` exactly when sha is an ancestor of master.
- * @param sha the commit to check
- * @param token an installation token
- * @param [doFetch] the fetch to call GitHub with
- * @returns true when sha is master or one of its ancestors; false for any other commit or an unknown one
- */
-export async function isOnMaster(sha, token, doFetch = fetch) {
-    if (!/^[0-9a-f]{7,40}$/i.test(sha)) {
-        return false;
-    }
-    const res = await client(doFetch)(`/repos/${REPO}/compare/master...${sha}`, token);
-    if (res.status === 404) {
-        return false;
-    }
-    if (!res.ok) {
-        throw new Error(`compare master...${sha} returned HTTP ${res.status}: ${await res.text()}`);
-    }
-    const { status } = await res.json();
-    return status === "behind" || status === "identical";
-}
-
-// Comments on the open issue with this title, or opens one (with `labels`) when none is open.
+// Comments on the open issue with this title, or opens one (with `labels`) when none is open. A failed
+// search files nothing: it cannot tell "none open" from an outage, and opening one then would duplicate it.
 async function fileIssue(gh, token, { title, body, labels }) {
     const q = encodeURIComponent(`repo:${REPO} is:issue is:open in:title "${title}"`);
     const search = await gh(`/search/issues?q=${q}`, token);
-    const open = search.ok ? (await search.json()).items.find((i) => i.title === title) : undefined;
+    if (!search.ok) {
+        console.error(
+            `could not file issue "${title}": issue search returned HTTP ${search.status} ${await search.text()}`,
+        );
+        return;
+    }
+    const open = (await search.json()).items.find((i) => i.title === title);
     const res = open
         ? await gh(`/repos/${REPO}/issues/${open.number}/comments`, token, {
               method: "POST",
@@ -116,7 +102,7 @@ async function fileIssue(gh, token, { title, body, labels }) {
           })
         : await gh(`/repos/${REPO}/issues`, token, {
               method: "POST",
-              body: JSON.stringify(labels ? { title, body, labels } : { title, body }),
+              body: JSON.stringify({ title, body, labels }),
           });
     if (!res.ok) {
         console.error(`could not file issue "${title}": HTTP ${res.status} ${await res.text()}`);
@@ -170,7 +156,7 @@ export async function run(env, { fetch: doFetch = fetch, slot = new Date() } = {
         detail.slice(0, 4000),
         "```",
     ].join("\n");
-    await fileIssue(gh, token, { title: ISSUE_TITLE, body });
+    await fileIssue(gh, token, { title: ISSUE_TITLE, body, labels: TRAIN_ISSUE_LABELS });
     return { dispatched: false, status };
 }
 

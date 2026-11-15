@@ -8,7 +8,7 @@ import { z } from "zod";
 import { layoutIdForEngine } from "../../catalog/layouts";
 import { isGraphtyError } from "../../errors";
 import type { Graph } from "../../Graph";
-import { type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
+import { causeOf, type CommandContext, type CommandResult, type GraphCommand, writerOf } from "./types";
 
 /**
  * Common layout types that can be used.
@@ -61,6 +61,7 @@ export const setLayout: GraphCommand = {
             };
         } catch (error) {
             const errorMessage = (error as Error).message;
+            const coded = causeOf(error);
 
             // Provide helpful error messages for common issues
             if (
@@ -72,12 +73,14 @@ export const setLayout: GraphCommand = {
                 return {
                     success: false,
                     message: `Invalid layout type "${type}". Try 'circular', 'ngraph', 'random', 'spiral', 'shell', or 'd3'.`,
+                    ...coded,
                 };
             }
 
             return {
                 success: false,
                 message: `Failed to set layout to "${type}": ${errorMessage}`,
+                ...coded,
             };
         }
     },

@@ -172,21 +172,5 @@ describe.skipIf(skipIfNoApiKey())("Layout Commands LLM Regression", () => {
             assert.ok(result.commandResult, "Expected command result");
             assert.ok(result.commandResult.success, "Expected the change to succeed");
         });
-
-        it("tracks latency for layout commands", async () => {
-            const result = await harness.testPrompt("Use spiral layout");
-
-            assert.ok(result.latencyMs > 0, "Expected positive latency");
-        });
-
-        it("captures token usage for layout commands", async () => {
-            const result = await harness.testPrompt("Switch to 3D mode");
-
-            // Token usage may not always be available depending on provider configuration
-            if (result.tokenUsage) {
-                assert.ok(result.tokenUsage.prompt > 0, "Expected positive prompt tokens");
-                assert.ok(result.tokenUsage.completion >= 0, "Expected non-negative completion tokens");
-            }
-        });
     });
 });

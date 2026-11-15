@@ -28,7 +28,7 @@
   "edgeWidth": "altered",
   "lineStyle": "yes",
   "arrows": "yes",
-  "edgePath": "altered",
+  "edgePath": "yes",
   "selfLoops": "yes",
   "edgeLabel": "yes",
   "groups": "yes",

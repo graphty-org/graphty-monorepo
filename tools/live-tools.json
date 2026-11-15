@@ -1,9 +1,4 @@
 {
-    "githerd": {
-        "worktree": ".worktrees/githerd",
-        "servers": ["githerd-dev"],
-        "test": "cd githerd && npm run lint && npx vitest run"
-    },
     "visual-review": {
         "worktree": ".worktrees/visual-review-server-v3",
         "servers": ["visual-review-v3"],
@@ -27,7 +22,7 @@
     "worktree-cleanup": {
         "worktree": ".worktrees/worktree-cleanup-live",
         "servers": ["worktree-cleanup"],
-        "test": "node tools/worktree-cleanup.test.mjs"
+        "test": "node tools/worktree-cleanup.test.mjs && node tools/idle-servers.test.mjs"
     },
     "pipeline-health-local": {
         "worktree": ".worktrees/pipeline-health-local-live",

@@ -21,6 +21,7 @@ import {
     LOAD_ROLES,
     type LoadDraft,
     type LoadReport,
+    type SourceKey,
     type TableMapping,
     type TimeUnit,
 } from "@graphty/graphty-element/session";
@@ -74,7 +75,7 @@ import {
     timeMarked,
     weightHolder,
 } from "./choices";
-import { canReplace, rememberLoad, takeDataPageRequest, whileDataPageOpen } from "./request";
+import { takeDataPageRequest, whileDataPageOpen } from "./request";
 import {
     type LoadDraftState,
     type PageSource,
@@ -171,24 +172,24 @@ export function DataPage(): React.JSX.Element {
 }
 
 /**
- * What the graph holds before a replacing load: its size, its first source's name and the
+ * What the graph holds before a replacing load: its size, the replaced load's name and the
  * meaning of its loaded weight.
  * @param session - the graph session.
- * @param replacing - whether the load replaces the graph.
+ * @param replacing - the load the page replaces, or undefined when it replaces none.
  * @returns the graph before the load, or null when the load does not replace one.
  */
 function graphBefore(
     session: GraphSession | null,
-    replacing: boolean,
+    replacing: SourceKey | undefined,
 ): { nodes: number; edges: number; name: string; meaning: LoadedMeaning } | null {
-    if (session === null || !replacing) {
+    if (session === null || replacing === undefined) {
         return null;
     }
     const { nodeCount, edgeCount } = session.data.statistics();
     return {
         nodes: nodeCount,
         edges: edgeCount,
-        name: session.data.sources()[0]?.name ?? "The data",
+        name: session.data.sources().find((each) => each.key === replacing)?.name ?? "The data",
         meaning: session.data.loadedWeight()?.meaning ?? null,
     };
 }
@@ -223,7 +224,15 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     const [initial] = useState<PageSource | null>(() =>
         request.files !== undefined && request.files.length > 0 ? { kind: "files", files: request.files } : null,
     );
-    const page = useLoadDraft(session, request.intent === "add" ? "merge" : "replace", initial, request.choices);
+    // A replace replaces its one load by key; without a key it replaces the graph.
+    const replaces = request.intent === "replace" ? request.replaces : undefined;
+    const page = useLoadDraft(
+        session,
+        request.intent === "add" ? "merge" : "replace",
+        initial,
+        request.choices,
+        replaces,
+    );
     // A read the reader starts on the open page (another file, a file setting) is said; the read
     // the page opens on is not, and its rows are said by the grid once they arrive.
     useAnnounceChange(page.reading && page.source !== null ? `Reading ${sourceName(page.source)}` : null);
@@ -237,9 +246,8 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         }
     }, []);
 
-    const replacing = request.intent === "replace";
     // What the graph held before a replacing load, for its before-and-after line and status line.
-    const [was] = useState(() => graphBefore(session, replacing));
+    const [was] = useState(() => graphBefore(session, replaces));
     useCarriedMeaning(page, was?.meaning ?? null);
     // The graph an addition joins, so the summary gives it and the file each their own counts.
     const [joins] = useState(() => {
@@ -300,9 +308,6 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         // graph starts its history; data added to an open graph stays undoable.
         if (!(await page.load(request.intent === "new" ? "start" : undefined))) {
             return;
-        }
-        if (session !== null && source?.kind === "files") {
-            rememberLoad(session, { files: source.files, choices: page.choices });
         }
         // A loaded new graph is named after every file it read; inside a project nothing is renamed.
         const named = session === null ? undefined : graphName(session.data.sources());
@@ -419,7 +424,8 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     const sources = repeats > 0 && session !== null ? session.data.sources() : [];
     const file = page.source?.kind === "files" && page.source.files.length === 1 ? page.source.files[0] : undefined;
     const replace =
-        file !== undefined && canReplace(sources)
+        // Which load the repeated edges came from is known only when there is one.
+        file !== undefined && sources.length === 1 && sources[0].kind !== "server"
             ? {
                   label: `Replace ${sources[0].name ?? "the data"}`,
                   primary: repeats >= (page.report?.counts.edgeRecords ?? Infinity),
@@ -436,13 +442,9 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
                           sources[0].key,
                           incoming,
                           loadChoices(draft, choices, "merge", fileStylesOn(session)),
-                      )
-                          .then(() => {
-                              rememberLoad(session, { files: [file], choices });
-                          })
-                          .catch(() => {
-                              store.set({ notice: { message: "Not replaced" } });
-                          });
+                      ).catch(() => {
+                          store.set({ notice: { message: "Not replaced" } });
+                      });
                   },
               }
             : null;

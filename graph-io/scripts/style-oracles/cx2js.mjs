@@ -167,8 +167,12 @@ const tally = new Tally("CX against cytoscape-cx2js", EXPLAINED);
 for (const file of files) {
     const { bytes, filename } = readInput(file);
     const g = await importStyled(bytes, "cx", filename);
-    if (g === null || !g.styled) {
-        tally.skip(file, g === null ? "graph-io does not import it" : "no styles");
+    if (g.error) {
+        tally.importFailed(file, g.error);
+        continue;
+    }
+    if (!g.styled) {
+        tally.skip(file, "no styles");
         continue;
     }
     let cy, bare, sizes;
@@ -293,8 +297,12 @@ for (const [cxFile, cx2File] of pairs) {
     const b = readInput(cx2File);
     const A = await importStyled(a.bytes, "cx", a.filename);
     const B = await importStyled(b.bytes, "cx2", b.filename);
-    if (!A?.styled || !B?.styled) {
-        twinTally.skip(cxFile, "one of the two does not import with styles");
+    if (A.error || B.error) {
+        twinTally.importFailed(A.error ? cxFile : cx2File, A.error ?? B.error);
+        continue;
+    }
+    if (!A.styled || !B.styled) {
+        twinTally.skip(cxFile, "one of the two has no styles");
         continue;
     }
     twinTally.files++;

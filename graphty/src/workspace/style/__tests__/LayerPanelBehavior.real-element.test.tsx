@@ -15,10 +15,15 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { DEFAULT_NAME_KEY } from "../cards";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with its starting rows.
@@ -187,7 +192,14 @@ describe("the layer panel's behavior", () => {
             await session.selection.apply({ nodes: [idOf("Valjean")] });
         });
         await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Open layer Thanked" }));
+        // The node's Style tab edits the selected layer (#3409), whose own caption may name Thanked
+        // too: the link here is the one under the node's look.
+        const opens = await screen.findAllByRole("button", { name: "Open layer Thanked" });
+        const why = opens.find((button) => button.closest('[data-testid="why-line"]') !== null);
+        if (why === undefined) {
+            throw new Error("no link to Thanked under the node's look");
+        }
+        await userEvent.click(why);
         await waitFor(() => {
             assert.deepEqual(store.get().inspected, { kind: "layer-row", id: top.row ?? top.id, tab: "style" });
             assert.equal(screen.getByRole("tab", { name: "Style" }).getAttribute("aria-selected"), "true");

@@ -49,8 +49,12 @@ export function expansionOf(graph: Graph & Fetchers, node: GraphNode): ExpandCom
     const ownEnds = resolveEndpoints(own, { source: null, target: null });
     const nodeIds = new Set<NodeIdType>();
     for (const edge of own) {
-        nodeIds.add(readEndpoint(edge, ownEnds.source) as NodeIdType);
-        nodeIds.add(readEndpoint(edge, ownEnds.target) as NodeIdType);
+        // The spelling is decided per batch, so a record that lacks it reads null: it names no node.
+        for (const id of [readEndpoint(edge, ownEnds.source), readEndpoint(edge, ownEnds.target)]) {
+            if (id !== null && id !== undefined) {
+                nodeIds.add(id as NodeIdType);
+            }
+        }
     }
 
     nodeIds.delete(node.id);

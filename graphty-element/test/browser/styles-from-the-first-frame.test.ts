@@ -98,7 +98,7 @@ interface Frame {
 /** Where each element is mounted, kept so the test can take them down again. */
 const containers: HTMLDivElement[] = [];
 
-async function mount(): Promise<Graphty> {
+async function mount(renderPath: "objects" | "batched" = "objects"): Promise<Graphty> {
     const container = document.createElement("div");
     containers.push(container);
     container.style.width = "480px";
@@ -106,6 +106,7 @@ async function mount(): Promise<Graphty> {
     document.body.appendChild(container);
     const mounted = document.createElement("graphty-element");
     assert.instanceOf(mounted, Graphty, "importing the package is what defines the custom element");
+    mounted.renderPath = renderPath;
     mounted.style.width = "100%";
     mounted.style.height = "100%";
     mounted.style.display = "block";
@@ -249,6 +250,24 @@ describe("a node is drawn with its style from the first frame it is drawn in", (
                     `page ${String(page)}: every node is drawn at size ${String(SIZE)}`,
                 );
             }
+        });
+    });
+
+    // A batched load marks each page's edges dirty as one range key; the pass that paints them must
+    // count their per-edge keys painted, or every frame stays held until the import ends.
+    it("a fixed colour, on every page of a paged load on the batched render path", async () => {
+        const element = await mount("batched");
+        void element.session.styles.add(CRIMSON);
+        const frames = await framesPerPage(element);
+
+        frames.forEach((frame, at) => {
+            const page = at + 1;
+            assert.isFalse(frame.settled, `page ${String(page)}: the layout is still running`);
+            assert.deepStrictEqual(
+                [...new Set(frame.colors)],
+                ["220,20,60"],
+                `page ${String(page)}: every node is crimson`,
+            );
         });
     });
 

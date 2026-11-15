@@ -8,6 +8,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { formatF32 } from "../../common/format.js";
+import { hexChannels } from "../canon/color.js";
 import { canonEnum } from "../canon/enums.js";
 import { canonBoolean, canonNumber, canonOpacity, canonSigned } from "../canon/number.js";
 import type { CanonSite } from "../canon/site.js";
@@ -484,13 +485,10 @@ export function interpolate(a: StyleValue, b: StyleValue, t: number): StyleValue
         return num6(a + (b - a) * t);
     }
     if (typeof a === "string" && typeof b === "string" && HEX6.test(a) && HEX6.test(b)) {
-        let out = "#";
-        for (const k of [1, 3, 5]) {
-            const ca = Number.parseInt(a.slice(k, k + 2), 16);
-            const cb = Number.parseInt(b.slice(k, k + 2), 16);
-            out += hex2(ca + (cb - ca) * t);
-        }
-        return out;
+        const y = hexChannels(b);
+        return `#${hexChannels(a)
+            .map((c, i) => hex2(c + (y[i] - c) * t))
+            .join("")}`;
     }
     return t < 1 ? a : b;
 }
@@ -754,12 +752,8 @@ export function within(a: StyleValue | null, b: StyleValue | null): boolean {
         return Math.abs(a - b) <= 1e-5 * Math.max(Math.abs(a), Math.abs(b), 1e-9);
     }
     if (typeof a === "string" && typeof b === "string" && HEX6.test(a) && HEX6.test(b)) {
-        for (const k of [1, 3, 5]) {
-            if (Math.abs(Number.parseInt(a.slice(k, k + 2), 16) - Number.parseInt(b.slice(k, k + 2), 16)) > 2) {
-                return false;
-            }
-        }
-        return true;
+        const y = hexChannels(b);
+        return hexChannels(a).every((c, i) => Math.abs(c - y[i]) <= 2);
     }
     return false;
 }

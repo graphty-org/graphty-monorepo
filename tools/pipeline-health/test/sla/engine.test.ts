@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { CI_GROUPS, groupMemberDim, groupTimes } from "../../src/model/groups.js";
 import {
+    type Agg,
     type CostItem,
     DAILY_ROW_LIMIT,
     DAY,
@@ -225,6 +227,84 @@ describe("thresholds", () => {
         const over = [940, 950, 960, 980, 990].map((s, i) => shard("graphty-storybook-shots|flags=off|shots", i, s));
         const m = await member(await world([...under, ...over]), "ci.full_shards_over_budget");
         expect(m.value).toBe(1);
+    });
+
+    describe("test groups near their deadline (#7855)", () => {
+        // A full run's small-browser members, as tools/results/run-group.mjs posts them: one shard run per try.
+        const member = (run: number, shard: string, secs: number, attempt = 1): ShardRunItem => ({
+            kind: "shard_run",
+            id: `${run}.1.test.${shard}.${attempt}`,
+            attempt,
+            source: "ci",
+            variant: `${shard}|flags=off|whole`,
+            family: shard,
+            bin: false,
+            full: true,
+            sha: "abc",
+            outcome: "passed",
+            startedAt: T0 - 2 * HOUR - secs * 1000,
+            endedAt: T0 - 2 * HOUR,
+            secs,
+            files: [],
+        });
+        const deadline = (store: MemoryStore) => member0(store, "ci.full_group_deadline");
+        const member0 = async (store: MemoryStore, id: string) => (await evaluate(store, T0, only(id))).members[0];
+        // Every member inside its own 900 s shard budget, 1,270 s together with the 10 s gaps: 81.4% of 1,560 s.
+        const near = (run: number) => [
+            member(run, "compact-mantine", 463),
+            member(run, "visual-review", 286),
+            member(run, "algorithms-storybook", 135),
+            member(run, "webgpu-graph-algorithms-browser", 76),
+            member(run, "cytoscape-extensions-storybook", 54),
+            member(run, "layout-storybook", 32),
+            member(run, "graph-io-browser", 100),
+            member(run, "graph-io-browser", 54, 2), // its retry runs in the same step
+        ];
+
+        it("adds up a group's members per full run and is not OK past 80% of the test step's deadline", async () => {
+            const m = await deadline(await world(near(43547830976)));
+            // 463 + 286 + 135 + 76 + 54 + 32 + 154 = 1,200 s, plus 10 s for each of the 7 members
+            expect(m.facts).toMatchObject({ group_total_ms: 1_270_000, limit_ms: 1_560_000 });
+            expect(m.value).toBeCloseTo(1270 / 1560);
+            expect(m.state).toBe("WARNING");
+        });
+
+        it("judges the newest full run, not the slowest, so moving a member out clears it", async () => {
+            const later = [member(43600000000, "compact-mantine", 463), member(43600000000, "layout-storybook", 32)];
+            const m = await deadline(await world([...near(43547830976), ...later]));
+            expect(m.facts?.group_total_ms).toBe(515_000);
+            expect(m.state).toBe("OK");
+        });
+
+        it("is FAILING past 90%, and leaves out runs that are not a group member's", async () => {
+            const over = [...near(1), member(1, "remote-logger", 160)];
+            const outside = { ...member(1, "graphty-1", 900), variant: "graphty-1|flags=off|whole" };
+            const m = await deadline(await world([...over, outside]));
+            expect(m.facts?.group_total_ms).toBe(1_440_000);
+            expect(m.state).toBe("FAILING");
+        });
+
+        it("flags a member slower than its GROUP_MEMBER_SECONDS entry by more than 10 s", async () => {
+            const table = {
+                ...CI_GROUPS.memberSeconds,
+                "compact-mantine": 342,
+                "visual-review": 280,
+                "graph-io-browser": 150,
+            };
+            const dims = new Map<string, Agg>();
+            for (const s of near(7)) {
+                const key = groupMemberDim(s)!;
+                dims.set(key, { n: 1, sum: (dims.get(key)?.sum ?? 0) + s.secs * 1000 });
+            }
+            const [g] = groupTimes(dims, { ...CI_GROUPS, memberSeconds: table });
+            const stale = g.members.filter((x) => x.stale).map((x) => x.member);
+            // compact-mantine is 121 s over its entry; visual-review only 6 s, inside the 10 s a command adds
+            expect(stale).toEqual(["compact-mantine"]);
+            expect(g.members.find((x) => x.member === "graph-io-browser")?.maxMs).toBe(154_000);
+            const m = await deadline(await world(near(7)));
+            // against today's table only graph-io-browser (154 s with its retry, entry 20 s) is flagged
+            expect(m.facts?.stale_members).toBe(1);
+        });
     });
 });
 

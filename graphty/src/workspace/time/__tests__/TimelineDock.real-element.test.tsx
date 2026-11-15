@@ -591,6 +591,17 @@ describe("the timeline dock on the real element", () => {
         within(dock).getByRole("img", { name });
     });
 
+    it("names the whole timeline's total while a filter hides some of it", async () => {
+        const { session, dock } = await openDock();
+        await within(dock).findByRole("img", { name: /^Edges over time, 2,102 edges/ });
+        const people = session.data.nodes({ scope: "graph" }).slice(0, 10);
+        await session.visibility.set({ kind: "member", of: { nodes: people.map(({ id }) => id) } });
+        assert.isBelow(session.visibility.summary.visibleEdges, 2102, "the filter hides some emails");
+
+        // The track is every timed edge, the working graph or not; the bars say what is shown.
+        await within(dock).findByRole("img", { name: /^Edges over time, 2,102 edges/ });
+    });
+
     it("says what entered and left on the status line after a step", async () => {
         const { session, dock } = await openDock();
         await act(async () => {
@@ -625,6 +636,35 @@ describe("the timeline dock on the real element", () => {
             assert.include(statusLine(), `${formatCount(played.entered)} entered, ${formatCount(played.left)} left`);
         });
         stop();
+    });
+
+    it("says what a play moved when it runs to the end of the data on its own", async () => {
+        const { session, dock } = await openDock();
+        await act(async () => {
+            await session.time.setSettings({ step: "month" });
+            // One step from the end, so the play reaches the end of the data by itself.
+            await session.time.seek("end");
+            await session.time.stepBy(-1);
+        });
+        const played = { entered: 0, left: 0 };
+        const stop = session.on("time:step", ({ entered, left }) => {
+            played.entered += entered.nodes + entered.edges;
+            played.left += left.nodes + left.edges;
+        });
+        let ended = false;
+        const stopEnd = session.on("time:end", () => {
+            ended = true;
+        });
+        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+
+        await waitFor(() => {
+            assert.isTrue(ended);
+            assert.isFalse(session.time.playing);
+            assert.isAbove(played.entered + played.left, 0);
+            assert.include(statusLine(), `${formatCount(played.entered)} entered, ${formatCount(played.left)} left`);
+        });
+        stop();
+        stopEnd();
     });
 
     it("jumps the window to a tapped bar outside the brush, as one step", async () => {

@@ -41,7 +41,7 @@ describe("UpdateManager", () => {
         // Set fixed layout
         await graph.setLayout("fixed");
 
-        updateManager = graphAny.updateManager as UpdateManager;
+        updateManager = graph.getUpdateManager();
     });
 
     afterEach(() => {
@@ -391,10 +391,18 @@ describe("UpdateManager", () => {
 });
 
 describe("styleBudgetFor", () => {
-    it("keeps a short frame's repaint to 16 ms and gives a slow frame a share of its length", () => {
+    it("keeps a short frame's repaint to 16 ms, a longer one's to a quarter, and gives a slow frame its own length", () => {
         assert.strictEqual(styleBudgetFor(16), 16);
         assert.strictEqual(styleBudgetFor(33), 16);
-        assert.strictEqual(styleBudgetFor(400), 100, "a slow frame's repaint takes a quarter of it");
-        assert.strictEqual(styleBudgetFor(4000), 1000, "a frame of seconds is no reason to draw more of them");
+        assert.strictEqual(styleBudgetFor(80), 20, "a frame under 100 ms grows by a quarter at most");
+        assert.strictEqual(styleBudgetFor(400), 400, "a slow frame's repaint takes as long as the frame drew");
+        assert.strictEqual(styleBudgetFor(4000), 4000, "a frame of seconds is no reason to draw more of them");
+    });
+
+    it("gives a batched repaint that no frame shows three frames' worth, and a slow frame its own length as before", () => {
+        assert.strictEqual(styleBudgetFor(16, true), 48, "a held draw shows nothing, so no frame waits on it");
+        assert.strictEqual(styleBudgetFor(33, true), 48);
+        assert.strictEqual(styleBudgetFor(400, true), 400, "a slow frame's repaint takes as long as the frame drew");
+        assert.strictEqual(styleBudgetFor(16, false), 16, "a shown frame keeps its 16 ms");
     });
 });

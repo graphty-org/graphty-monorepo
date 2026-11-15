@@ -710,8 +710,8 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                     <div className="jn-pane-head">
                         <EntityChip kind={kind}>
                             {kind === "node"
-                                ? `${formatNumber(session.data.nodes().length)} nodes`
-                                : `${formatNumber(session.data.edges().length)} edges`}
+                                ? `${formatNumber(session.data.count().nodes)} nodes`
+                                : `${formatNumber(session.data.count().edges)} edges`}
                         </EntityChip>
                     </div>
                     <div className="jn-pane-body" ref={graph.ref}>

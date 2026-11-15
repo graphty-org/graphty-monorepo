@@ -201,6 +201,23 @@ export function renderGraph(
     }
 }
 
+/** One color per group, for {@link colorGroups}. */
+const GROUP_COLORS = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#06b6d4", "#d946ef"] as const;
+
+/**
+ * Fill each node's circle with its group's color, so a reader can see whether the layout keeps groups together.
+ * Call it after every {@link renderGraph}.
+ * @param svg - the story's SVG
+ * @param groups - each node's group, by node id
+ */
+export function colorGroups(svg: SVGSVGElement, groups: ArrayLike<number>): void {
+    for (const circle of svg.querySelectorAll("[data-node-id]")) {
+        const color = GROUP_COLORS[groups[Number(circle.getAttribute("data-node-id"))] % GROUP_COLORS.length];
+        circle.setAttribute("fill", color);
+        circle.setAttribute("stroke", color);
+    }
+}
+
 /**
  * Render a single node.
  */

@@ -568,6 +568,9 @@ describe("checking what the Assistant says", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, field);
         });
+        // The declined turn starts once the element has claimed the request, after an async store
+        // write: until its declined line shows, Send stands while that turn is still to come.
+        await within(log()).findByText("Declined. Nothing changed.");
         await finished();
 
         model.asked = 0;

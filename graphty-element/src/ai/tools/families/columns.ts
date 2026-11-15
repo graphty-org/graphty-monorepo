@@ -8,12 +8,21 @@
 import type { GeneratorParams } from "@graphty/graph-samples/generators";
 import { z } from "zod";
 
+import type { GroupValue } from "../../../session/groups";
 import type { FixCode, IssueId } from "../../../session/issues";
 import type { ColumnRef } from "../../../session/shared";
-import type { ColumnRole, TransactionScope, ValueType } from "../../../session/types";
-import { MAX_ITEMS, MAX_STRING, resolveNode, text } from "../fields";
-import { type ActionResult, type ActionSpec, gated, GateHold, type MessageState, type ToolDefinition } from "../types";
-import { coded, list, ok } from "./common";
+import type { ColumnRole, GroupSummary, TransactionScope, ValueType } from "../../../session/types";
+import { MAX_ITEMS, MAX_STRING, recordField, resolveNode, text } from "../fields";
+import {
+    type ActionResult,
+    type ActionSpec,
+    gated,
+    GateHold,
+    type MessageState,
+    type ToolDefinition,
+    ToolRefusal,
+} from "../types";
+import { coded, codedNow, list, ok } from "./common";
 
 const column = z.string().max(200).describe("The column's name.");
 const on = z.enum(["node", "edge"]).optional().describe("Default node.");
@@ -57,6 +66,7 @@ export const columnsTool: ToolDefinition = {
                 { door: "SessionDataApi.structureValues" },
                 { door: "SessionDataApi.hiddenColumns" },
                 { door: "SessionDataApi.loadedWeight" },
+                { door: "SessionDataApi.derivedColumns" },
             ],
             run: ({ tx }) =>
                 Promise.resolve(
@@ -65,6 +75,7 @@ export const columnsTool: ToolDefinition = {
                         structure: list(tx.data.structureValues()),
                         hidden: list(tx.data.hiddenColumns()),
                         weight: tx.data.loadedWeight(),
+                        computed: list(tx.data.derivedColumns()),
                     }),
                 ),
         },
@@ -79,6 +90,90 @@ export const columnsTool: ToolDefinition = {
                 const counts = tx.data.valueCounts(path, { kind: columnOf(args).kind });
                 return Promise.resolve(ok({ counts, labels: Object.fromEntries(tx.data.valueLabels(path)) }));
             },
+        },
+        {
+            name: "over_represented",
+            summary: "per group of the column, the node values more frequent than chance",
+            fields: {
+                column: z
+                    .string()
+                    .max(200)
+                    .describe("The column or path holding each node's group, e.g. team or a run's path."),
+            },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.overRepresented" }],
+            run: ({ tx }, args) => {
+                const group = text(args.column);
+                return Promise.resolve(ok(tx.data.overRepresented(group.includes(".") ? group : `data.${group}`)));
+            },
+        },
+        {
+            name: "group_table",
+            summary: "one row per group of the column: its size and summaries of numeric columns",
+            fields: {
+                column: z
+                    .string()
+                    .max(200)
+                    .describe("The column or path holding each node's group, e.g. team or a run's path."),
+                summaries: z
+                    .record(
+                        z.string().max(200),
+                        z.array(z.enum(["count", "sum", "min", "max", "mean", "median"])).max(6),
+                    )
+                    .optional()
+                    .describe('Per numeric column path, the summaries, e.g. {"data.age": ["mean", "max"]}.'),
+            },
+            effect: "read",
+            reaches: [{ door: "SessionDataApi.groupTable" }],
+            run: ({ tx }, args) => {
+                const group = text(args.column);
+                const summaries = args.summaries as Record<string, GroupSummary[]> | undefined;
+                const path = group.includes(".") ? group : `data.${group}`;
+                return Promise.resolve(ok(codedNow(() => tx.data.groupTable(path, { summaries }))));
+            },
+        },
+        {
+            name: "collapse_group",
+            summary: "one group of the column (a community, a team) to one node; expand_group undoes it",
+            fields: {
+                column: z
+                    .string()
+                    .max(200)
+                    .describe("The column or path holding each node's group, e.g. team or a run's path."),
+                group: z.union([z.string().max(MAX_STRING), z.number(), z.boolean()]).describe("The group's value."),
+            },
+            effect: "write",
+            reaches: [{ door: "GroupsApi.collapse" }],
+            run: async ({ tx }, args) => {
+                const column = text(args.column);
+                const groupBy = column.includes(".") ? column : `data.${column}`;
+                const node = await coded(() => tx.groups.collapse({ groupBy, group: args.group as GroupValue }));
+                return { ...ok(undefined, { node }), affectedNodes: [String(node)] };
+            },
+        },
+        {
+            name: "expand_group",
+            summary: "a collapsed group back to its members",
+            fields: {
+                column: z.string().max(200).describe("The column or path the group was collapsed by."),
+                group: z.union([z.string().max(MAX_STRING), z.number(), z.boolean()]).describe("The group's value."),
+            },
+            effect: "write",
+            reaches: [{ door: "GroupsApi.expand" }],
+            run: async ({ tx }, args) => {
+                const column = text(args.column);
+                const groupBy = column.includes(".") ? column : `data.${column}`;
+                await coded(() => tx.groups.expand({ groupBy, group: args.group as GroupValue }));
+                return ok();
+            },
+        },
+        {
+            name: "collapsed_groups",
+            summary: "the groups collapsed now, each with the node standing in for it",
+            fields: {},
+            effect: "read",
+            reaches: [{ door: "GroupsApi.list" }],
+            run: ({ tx }) => Promise.resolve(ok(tx.groups.list())),
         },
         {
             name: "preview_type",
@@ -127,6 +222,25 @@ export const columnsTool: ToolDefinition = {
             run: async ({ tx }, args) => {
                 await coded(() => tx.data.setRole(columnOf(args), (args.role ?? null) as ColumnRole | null));
                 return ok(undefined, { role: (args.role ?? null) as string | null });
+            },
+        },
+        {
+            name: "compute",
+            summary: "a column whose values an expression reads from other columns and results",
+            fields: {
+                column,
+                on,
+                expression: z
+                    .string()
+                    .max(MAX_STRING)
+                    .describe("A selector expression, such as data.nickname || data.name."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.derive" }, { op: "data.derive" }],
+            run: async ({ tx }, args) => {
+                const { kind, name } = columnOf(args);
+                await coded(() => tx.data.derive(name, text(args.expression), { kind }));
+                return ok(undefined, { column: name });
             },
         },
         {
@@ -270,10 +384,10 @@ export const sourcesTool: ToolDefinition = {
             },
             effect: "write",
             reaches: [{ door: "SessionDataApi.loadDataset" }, { op: "data.import" }],
-            run: async ({ tx, message }, args) => {
+            run: async ({ tx, message, host }, args) => {
                 const name = text(args.name);
                 holdFetch(message, name);
-                await coded(() => tx.data.loadDataset(name, { mode: "merge" }));
+                await coded(() => tx.data.loadDataset(name, { mode: "merge", baseUrl: host.datasetBaseUrl }));
                 return loaded(tx, name);
             },
         },
@@ -363,6 +477,37 @@ export const issuesTool: ToolDefinition = {
                 const ids = args.ids as IssueId[];
                 await coded(() => tx.data.ignoreIssues(ids, args.ignored !== false));
                 return ok(undefined, { issues: ids.length });
+            },
+        },
+        {
+            name: "merge_nodes",
+            summary: "duplicates into one: the first id, or into, kept",
+            fields: {
+                ids: z.array(z.string().max(MAX_STRING)).max(MAX_ITEMS).describe("The nodes to merge."),
+                into: z.string().max(MAX_STRING).optional().describe("The node kept; the first id when absent."),
+                values: recordField.optional().describe("Values set on the kept node."),
+            },
+            effect: "write",
+            reaches: [{ door: "SessionDataApi.mergeNodes" }],
+            run: async ({ tx }, args) => {
+                const ids = ((args.ids as string[] | undefined) ?? []).map((id) => resolveNode(tx, id));
+                if (ids.length < 2) {
+                    throw new ToolRefusal("AI_ARG_INVALID", { path: "ids", expected: "two or more nodes" });
+                }
+
+                const into = typeof args.into === "string" ? resolveNode(tx, args.into) : undefined;
+                const nodesBefore = tx.status.counts.nodes;
+                await coded(() =>
+                    tx.data.mergeNodes(ids, {
+                        ...(into === undefined ? {} : { into }),
+                        ...(args.values === undefined ? {} : { values: args.values as Record<string, unknown> }),
+                    }),
+                );
+                const merged = nodesBefore - tx.status.counts.nodes;
+                return {
+                    ...ok(undefined, { merged }),
+                    affectedNodes: [into ?? ids[0]],
+                };
             },
         },
     ] satisfies ActionSpec[],

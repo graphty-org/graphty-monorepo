@@ -102,6 +102,8 @@ interface AlgorithmStoryExpectations {
      * a consumer does: `{ algorithm, style: { size: [min, max] } }` in the load-time list.
      */
     readonly size?: readonly [min: number, max: number];
+    /** The algorithm's options, such as the seed a randomised method needs to draw the same picture every time. */
+    readonly params?: Readonly<Record<string, unknown>>;
 }
 
 export const createAlgorithmStory = (
@@ -111,18 +113,29 @@ export const createAlgorithmStory = (
     const asked: AlgorithmStoryExpectations = Array.isArray(expectations)
         ? { readerLayers: expectations as readonly LayerSpec[] }
         : (expectations as AlgorithmStoryExpectations);
-    const { readerLayers, size } = asked;
+    const { readerLayers, size, params } = asked;
 
     return {
         args: {
             setup: storySetup({
-                algorithms: [size === undefined ? algorithmId : { algorithm: algorithmId, style: { size } }],
+                algorithms: [
+                    size === undefined && params === undefined
+                        ? algorithmId
+                        : {
+                              algorithm: algorithmId,
+                              ...(size === undefined ? {} : { style: { size } }),
+                              ...(params === undefined ? {} : { params }),
+                          },
+                ],
                 preSteps: 8000, // Extra preSteps for ngraph physics layout
             }),
             runAlgorithmsOnLoad: true,
         },
         play: async ({ canvasElement }) => {
-            // Wait for the graph to fully settle before applying algorithm styles
+            // The algorithm's colours do NOT wait for this: the load-time run paints as soon as it
+            // finishes, while the layout is still moving (test/browser/algorithms-on-load-options
+            // pins it). This wait is the story's own, so the reader's layers and the re-applied
+            // suggestion below land on a settled picture the assertions can read (issue #35).
             await waitForGraphSettled(canvasElement);
 
             // Get the graphty-element

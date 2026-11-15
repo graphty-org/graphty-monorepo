@@ -3,7 +3,7 @@
  * seedPositions): the GPU package keeps its OWN copy of the LCG and of the NaN-row seeding for its whole life
  * (D27: src/ may not import @graphty/layout), and layout/src/simulation/seed.ts:4-6 says the layout copy is
  * CANONICAL and "cross-tested against this one at W1b" -- this file is that cross-test. layout's own
- * test/simulation/seed.test.ts compares ITS copy with the package's RandomNumberGenerator; nothing until now
+ * test/simulation/seed.test.ts checks ITS copy against the LCG recurrence; nothing until now
  * compared the two seedPositions implementations, and the only thing that keeps a CPU-seeded and a GPU-seeded
  * layout on the same start is that the two write the same f32 values in the same order.
  *
@@ -41,11 +41,11 @@ type SeedFn = (
 ) => void;
 
 /**
- * The seeds of the plan's matrix. NEVER 0, -0, NaN or null: src/layouts/seed.ts:35 (and its layout twin) turn
- * those into `Math.floor(Math.random() * 1000000)`, so the two copies would legitimately draw different streams
- * and a bit-identical assertion over them would be non-deterministic.
+ * The seeds of the plan's matrix, 0 included (an ordinary seed). NEVER null: both copies turn it into
+ * `Math.floor(Math.random() * 1000000)`, so they would legitimately draw different streams and a bit-identical
+ * assertion over them would be non-deterministic.
  */
-const SEEDS: readonly number[] = [1, 7, 42, 123456];
+const SEEDS: readonly number[] = [0, 1, 7, 42, 123456];
 /** Both dimensionalities. */
 const DIMS: readonly (2 | 3)[] = [2, 3];
 /** Scene scale 1 (layout units = scene units) and 5. */
@@ -169,6 +169,8 @@ describe("seedPositions: the GPU copy and @graphty/layout's write the same f32 v
             { name: "scale 0", call: (fn) => fn(s, allNaN(NODES), 1, 2, 0, null, "fa2") },
             { name: "a non-finite scale", call: (fn) => fn(s, allNaN(NODES), 1, 2, Number.NaN, null, "fa2") },
             { name: "a non-finite center", call: (fn) => fn(s, allNaN(NODES), 1, 2, 1, [Number.NaN, 0], "fa2") },
+            { name: "a negative seed", call: (fn) => fn(s, allNaN(NODES), -1, 2, 1, null, "fa2") },
+            { name: "a fractional seed", call: (fn) => fn(s, allNaN(NODES), 1.5, 2, 1, null, "fa2") },
         ];
         for (const c of cases) {
             const gpuError = thrownBy(() => c.call(gpuSeedPositions));

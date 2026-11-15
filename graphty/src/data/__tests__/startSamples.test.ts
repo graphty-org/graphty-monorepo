@@ -8,7 +8,7 @@
 import { DATASET_DESCRIPTORS } from "@graphty/graphty-element/catalog";
 import { assert, describe, it } from "vitest";
 
-import { fitsInBrowser } from "../../workspace/start/library";
+import { fitsInBrowser, isLarge } from "../../workspace/start/library";
 import { START_SAMPLES } from "../sampleManifest";
 
 /** The node-link JSON the timed samples are written as. */
@@ -66,5 +66,13 @@ describe("START_SAMPLES", () => {
         assert.deepEqual([stelzl.nodes, stelzl.edges, stelzl.directed], [1691, 3128, true]);
         assert.match(stelzl.source, /^https:\/\//);
         assert.isNotEmpty(stelzl.license);
+    });
+
+    it("judges a size against the limits it is given, the shipped ones by default", () => {
+        const million = { name: "m", title: "m", nodes: 1_000_000, edges: 1_000_000 } as never;
+        const raised = { renderCeiling: 1_000_000, edgesDrawn: 2_000_000, largeGraphThreshold: 10_000 };
+        assert.isFalse(fitsInBrowser(million));
+        assert.isTrue(fitsInBrowser(million, raised));
+        assert.isTrue(isLarge(million, raised));
     });
 });

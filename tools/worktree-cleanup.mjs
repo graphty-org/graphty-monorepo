@@ -7,7 +7,7 @@
 //   node tools/worktree-cleanup.mjs --apply --every M  the same every M minutes, forever (the servherd watcher)
 //   --recent H   keep a worktree with git activity in the last H hours (default 3)
 //
-// Every --apply pass also stops servherd dev servers idle for 2 hours (tools/idle-servers.mjs); a stopped
+// Every --apply pass also stops servherd dev servers idle for 12 hours (tools/idle-servers.mjs); a stopped
 // server no longer keeps its worktree.
 //
 // A worktree is finished when its branch's commits are all on origin/master or origin/golden and its

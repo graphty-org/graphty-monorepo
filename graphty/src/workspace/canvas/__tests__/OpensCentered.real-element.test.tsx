@@ -16,9 +16,6 @@ import { render, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and the layout settling, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /** Pictures to look at, relative to this file. */
 const SHOTS = "../../../../../design/ui/studio/tmp/r1-dry3-frame-the-drawing/test";
 
@@ -34,14 +31,11 @@ async function open(url: string): Promise<{
 }> {
     const store = createWorkspaceStore({ project: { name: "Sample", id: 1 }, inspected: null });
     render(<Workspace store={store} />);
-    const element = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const element = await waitFor(() => {
+        const found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+        return found;
+    });
     const session = element?.session;
     if (element === null || session === undefined) {
         throw new Error("the element never came up");
@@ -109,16 +103,13 @@ describe("a sample opens centered", () => {
         await element.select({ nodes: [node] });
         element.focus();
         await userEvent.keyboard("f");
-        await waitFor(
-            () => {
-                const at = element.nodeScreenPosition(node);
-                const free = freeArea(element);
-                assert.isDefined(at);
-                assert.closeTo(at.x, free.left + free.width / 2, free.width * 0.05, "centered across");
-                assert.closeTo(at.y, free.top + free.height / 2, free.height * 0.05, "centered down");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const at = element.nodeScreenPosition(node);
+            const free = freeArea(element);
+            assert.isDefined(at);
+            assert.closeTo(at.x, free.left + free.width / 2, free.width * 0.05, "centered across");
+            assert.closeTo(at.y, free.top + free.height / 2, free.height * 0.05, "centered down");
+        });
         await element.waitForStableFrame();
         await page.screenshot({ path: `${SHOTS}/frame-selection.png` });
         const after = direction();

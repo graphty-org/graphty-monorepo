@@ -23,12 +23,9 @@ import { PROTOTYPE_SAMPLES, sampleName, sampleUrl } from "../../start/samples";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** The fraud fixture's issues as the element counts them, and the header that carries each. */
 const ISSUES: readonly { label: string; tab: "Nodes" | "Edges"; header: string }[] = [
-    { label: "18 unknown ends", tab: "Edges", header: "from" },
+    { label: "18 edges with an unknown target", tab: "Edges", header: "to" },
     { label: "2 repeated ids", tab: "Nodes", header: "account" },
     { label: "row 412 refused", tab: "Edges", header: "from" },
     { label: "5 repeated edges", tab: "Edges", header: "from" },
@@ -72,15 +69,12 @@ function drop(...files: File[]): void {
  */
 async function elementSession(): Promise<GraphSession> {
     let session: GraphSession | undefined;
-    await waitFor(
-        () => {
-            session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element:not([data-start-page])",
-            )?.session;
-            assert.isDefined(session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        session = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+            "graphty-element:not([data-start-page])",
+        )?.session;
+        assert.isDefined(session);
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -128,13 +122,10 @@ async function openMaximized(): Promise<{
     render(<Workspace store={store} />);
     drop(await fixture("accounts.csv"), await fixture("transfers.csv"));
     const session = await elementSession();
-    await waitFor(
-        () => {
-            assert.lengthOf(session.data.issues(), ISSUES.length);
-            assert.isTrue(store.get().dockOpen);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        assert.lengthOf(session.data.issues(), ISSUES.length);
+        assert.isTrue(store.get().dockOpen);
+    });
     const dock = await screen.findByRole("region", { name: "Table" });
     await userEvent.click(within(dock).getByRole("button", { name: "Maximize table" }));
     const config = await within(dock).findByRole("complementary", { name: "Table configuration" });
@@ -151,13 +142,10 @@ describe("the table dock's configuration", () => {
         render(<Workspace store={store} />);
         drop(await fixture("accounts.csv"), await fixture("transfers.csv"));
         const session = await elementSession();
-        await waitFor(
-            () => {
-                assert.lengthOf(session.data.issues(), ISSUES.length);
-                assert.isTrue(store.get().dockOpen);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.lengthOf(session.data.issues(), ISSUES.length);
+            assert.isTrue(store.get().dockOpen);
+        });
         // The files drew: issues that do not stop the drawing leave the dock docked.
         assert.isFalse(store.get().dockMaximized);
         const dock = await screen.findByRole("region", { name: "Table" });
@@ -184,10 +172,10 @@ describe("the table dock's configuration", () => {
         // Maximized: the Issues list beside the table; Sources, Fields and Filters once, in the
         // Data place on the left.
         const config = await within(dock).findByRole("complementary", { name: "Table configuration" });
-        assert.isNull(within(config).queryByRole("list", { name: "Sources" }));
+        assert.isNull(within(config).queryByRole("list", { name: "Data sources" }));
         const left = screen.getByRole("complementary", { name: "Left panel" });
-        assert.lengthOf(screen.getAllByRole("list", { name: "Sources" }), 1);
-        within(left).getByRole("list", { name: "Sources" });
+        assert.lengthOf(screen.getAllByRole("list", { name: "Data sources" }), 1);
+        within(left).getByRole("list", { name: "Data sources" });
         const list = within(config).getByRole("list", { name: "Issues" });
         for (const { label, tab } of ISSUES) {
             const item = within(list).getByText(label).closest("li");
@@ -201,9 +189,13 @@ describe("the table dock's configuration", () => {
         }
         // The fix the data already shows is pressed: the made nodes are kept.
         assert.strictEqual(
-            within(list).getByRole("button", { name: "Add nodes: 18 unknown ends" }).getAttribute("aria-pressed"),
+            within(list)
+                .getByRole("button", { name: "Add nodes: 18 edges with an unknown target" })
+                .getAttribute("aria-pressed"),
             "true",
         );
+        // Its other fix says what it does: the made nodes and their edges go.
+        within(list).getByRole("button", { name: "Remove nodes and edges: 18 edges with an unknown target" });
 
         // Every issue is in its header: the warning's hover lists it with its buttons, and the
         // header's menu offers the same fixes and Ignore for the keyboard.
@@ -327,12 +319,9 @@ describe("the table dock's configuration", () => {
         render(<Workspace store={store} />);
         drop(await fixture("accounts.csv"), await fixture("transfers.csv"));
         const session = await elementSession();
-        await waitFor(
-            () => {
-                assert.isTrue(store.get().dockOpen);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isTrue(store.get().dockOpen);
+        });
         const dock = await screen.findByRole("region", { name: "Table" });
         await waitFor(() => headerCell("holder"));
 

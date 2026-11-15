@@ -5,7 +5,8 @@ import type { GraphSession, LegendBlock, ProgressChange, RunStatus } from "@grap
 import { Button, Tooltip } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { groupsAnnouncement, pathAnnouncement } from "../analyze/words";
+import { APP_GLOBE_SOURCE } from "../../constants/globe";
+import { groupsAnnouncement, pathAnnouncement, topAnnouncement } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
 import { selectedNameWords } from "../inspector/words";
 import { layoutWarningWords } from "../layout/refusalWords";
@@ -13,6 +14,7 @@ import { runName } from "../runWords";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { LegendCard } from "./LegendCard";
 import { dataBlocks, isEffectBlock, keyBlocks } from "./legendWords";
+import { PreviewKey } from "./PreviewKey";
 import { runNotice } from "./runNotice";
 import { StateCard } from "./StateCard";
 
@@ -33,20 +35,23 @@ interface CanvasReading {
     readonly blocks: readonly LegendBlock[];
     readonly nodeCount: number;
     readonly edgeCount: number;
+    /** Nodes in the whole graph, shown or hidden: a filter that hides them all leaves a graph. */
+    readonly totalNodes: number;
     /** The load in flight, from the element's progress event, or null. */
     readonly load: ProgressChange | null;
 }
 
-const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, load: null };
+const NOTHING: CanvasReading = { blocks: [], nodeCount: 0, edgeCount: 0, totalNodes: 0, load: null };
 
 /**
  * Reads the legend, the node and edge counts and the load in flight from the session, again after every
  * event that can change them; announces a finished load with its size and a finished run by name;
  * and, when a run finishes, posts the notice its painting calls for.
  * @param session - the element's session, or null.
+ * @param paused - the selection workspace draws its own key: the canvas key is not read meanwhile.
  * @returns what the canvas draws from.
  */
-function useCanvasReading(session: GraphSession | null): CanvasReading {
+function useCanvasReading(session: GraphSession | null, paused: boolean): CanvasReading {
     const { store } = useWorkspace();
     const [reading, setReading] = useState<CanvasReading>(NOTHING);
 
@@ -60,9 +65,15 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
         // A run that ends after the session changed must not post a notice for the old session.
         let live = true;
         const read = (): void => {
+            // While the selection workspace draws its own key the canvas key is not drawn: it is
+            // read again when the workspace closes, not on every edit (ws-polish 2).
+            if (paused) {
+                return;
+            }
             const { nodeCount, edgeCount } = session.data.statistics();
+            const totalNodes = session.data.statistics({ scope: "all" }).nodeCount;
             const blocks = keyBlocks(dataBlocks(session));
-            setReading({ blocks, nodeCount, edgeCount, load });
+            setReading({ blocks, nodeCount, edgeCount, totalNodes, load });
             // An effect is listed in a key that shows, and never opens it: a style write of an
             // effect is no reason for the key to appear.
             const keyHasEntries = blocks.some((block) => !isEffectBlock(block));
@@ -75,7 +86,8 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
             ...REDRAW_EVENTS.map((event) => session.on(event, read)),
             session.on("selection:changed", () => {
                 const { nodes, edges } = session.selection;
-                if (nodes.length + edges.length > 0) {
+                // While a selection editor is open its own count is what is said, never this one.
+                if (nodes.length + edges.length > 0 && store.get().editingSelection === null) {
                     // "Selection cleared" would contradict the new selection beside it.
                     const ended = store.get().notice?.endsWithSelection === true;
                     store.set({ announcement: selectedNameWords(session), ...(ended ? { notice: null } : {}) });
@@ -107,8 +119,12 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                 // A grouping run says what it made once its layers are in the tree.
                 const grouped = run?.result?.summary().groups !== undefined;
                 if (ended !== undefined && !grouped) {
-                    const path = run === undefined ? null : pathAnnouncement(session, run);
-                    store.set({ announcement: path ?? `${name} ${ended}` });
+                    // A path says its ends; a ranking says who ranks first.
+                    const said =
+                        run === undefined
+                            ? null
+                            : (pathAnnouncement(session, run) ?? topAnnouncement(session, run, name));
+                    store.set({ announcement: said ?? `${name} ${ended}` });
                 }
                 // The painting is decided once the element has finished painting for the run.
                 void session.styles.settled().then(() => {
@@ -132,30 +148,30 @@ function useCanvasReading(session: GraphSession | null): CanvasReading {
                 off();
             });
         };
-    }, [session, store]);
+    }, [session, store, paused]);
 
     return reading;
 }
 
 /**
  * The widest data, in degrees of latitude or longitude, the app draws over a street map rather
- * than the bundled Natural Earth picture, which is a 2048 pixel world: at the scale of a country or
+ * than the bundled Natural Earth picture, which is a 4096 pixel world: at the scale of a country or
  * a city it is a blur.
  */
 const DETAILED_MAP_SPAN = 20;
 
 /**
- * The street map the app draws small data over: free, keyless and credited on the canvas, as
- * OpenStreetMap's tile usage policy asks (https://operations.osmfoundation.org/policies/tiles/);
- * the map only loads the tiles in view and never prefetches.
+ * The street map the app draws small data over: free and keyless; the map only loads the tiles in
+ * view and never prefetches (https://operations.osmfoundation.org/policies/tiles/).
  */
 const DETAILED_MAP_SOURCE = "openstreetmap";
 
 /**
- * Draws data of a country or a city over a detailed street map. The element's own default is the
- * bundled world picture, which contacts no third party; choosing a tiled source is the app's
- * call. Made once per project, the first time a flat map is drawn while the reader has chosen no
- * map, as the layout's `map` option, so the Map form names it and the reader can change it.
+ * Draws data of a country or a city over a detailed street map, and wider data on a globe over
+ * NASA's Blue Marble satellite picture, so the globe reads as the earth. The element's own default
+ * is the bundled world picture, which contacts no third party; choosing a tiled source is the
+ * app's call. Made once per project, the first time a 2D or 3D map is drawn while the reader has chosen
+ * no map, as the layout's `map` option, so the Map form names it and the reader can change it.
  */
 function useDetailedMapForSmallData(): void {
     const { element } = useWorkspace();
@@ -168,21 +184,18 @@ function useDetailedMapForSmallData(): void {
         const onBasemap = (): void => {
             const frame = element.mapFrame;
             const { layout } = session;
-            if (
-                chosen ||
-                frame?.surface !== "flat" ||
-                layout.id !== "location-map" ||
-                (layout.options.map ?? null) !== null
-            ) {
+            if (chosen || frame === null || layout.id !== "location-map" || (layout.options.map ?? null) !== null) {
                 return;
             }
             const [[west, south], [east, north]] = frame.bounds;
-            if (Math.max(east - west, north - south) > DETAILED_MAP_SPAN) {
+            const small = Math.max(east - west, north - south) <= DETAILED_MAP_SPAN;
+            if (!small && frame.mapDimension !== "3d") {
                 return;
             }
             chosen = true;
             // Only the map changes: the element swaps it under nodes that stay where they are.
-            void layout.set("location-map", { options: { ...layout.options, map: { source: DETAILED_MAP_SOURCE } } });
+            const source = small ? DETAILED_MAP_SOURCE : APP_GLOBE_SOURCE;
+            void layout.set("location-map", { options: { ...layout.options, map: { source } } });
         };
         element.addEventListener("basemap-status", onBasemap);
         return () => {
@@ -219,7 +232,10 @@ function useLayoutWarningNotice(): void {
             if (words === null || layoutType !== session.layout.id) {
                 return;
             }
-            const key = JSON.stringify([layoutType, session.layout.options, words]);
+            // The picture under the map (`map`, which the app may choose after the first run)
+            // places no node, so it does not make a count new.
+            const { map: _map, ...placing } = session.layout.options;
+            const key = JSON.stringify([layoutType, placing, words]);
             if (key === posted) {
                 return;
             }
@@ -235,7 +251,7 @@ function useLayoutWarningNotice(): void {
                               action: {
                                   label: "Select",
                                   run: () => {
-                                      void session.selection.apply({ nodes: ids });
+                                      void session.selection.apply({ nodes: ids }, "replace", { cause: "user" });
                                   },
                               },
                           }),
@@ -315,10 +331,14 @@ export function CanvasOverlays(): React.JSX.Element | null {
     const { session } = useWorkspace();
     const projectName = useWorkspaceState((state) => state.project?.name ?? "");
     const legendShown = useWorkspaceState((state) => state.legendShown);
+    // The selection workspace draws its preview key at its own preview's corner (spec 3.0).
+    const workspaceOpen = useWorkspaceState((state) => state.selectionWorkspace !== null);
     const legendAsked = useWorkspaceState((state) => state.legendAsked);
     // The empty card's doors: the Sources "+" doors a first source most often comes through.
     const doors = [useCommand("data.add-file"), useCommand("data.samples")].filter((door) => door !== null);
-    const { blocks, nodeCount, edgeCount, load } = useCanvasReading(session);
+    // When filters hide every node the way back is the filters, never loading other data.
+    const filterDoors = [useCommand("filters.open")].filter((door) => door !== null);
+    const { blocks, nodeCount, edgeCount, totalNodes, load } = useCanvasReading(session, workspaceOpen);
     useLayoutWarningNotice();
     useDetailedMapForSmallData();
 
@@ -339,14 +359,16 @@ export function CanvasOverlays(): React.JSX.Element | null {
             />
         );
     } else if (nodeCount === 0) {
+        const hidden = totalNodes > 0;
+        const shownDoors = hidden ? filterDoors : doors;
         card = (
             <StateCard
                 icon={<GLYPHS.empty size={20} />}
-                title="No nodes to draw"
+                title={hidden ? "Every node is hidden" : "No nodes to draw"}
                 actions={
-                    doors.length === 0
+                    shownDoors.length === 0
                         ? undefined
-                        : doors.map((door) => (
+                        : shownDoors.map((door) => (
                               <Tooltip
                                   key={door.command.id}
                                   label={door.disabledReason}
@@ -370,7 +392,12 @@ export function CanvasOverlays(): React.JSX.Element | null {
     return (
         <>
             {/* Asked for over nothing, the card says nothing is styled yet. */}
-            {legendShown && (keyed || legendAsked) ? <LegendCard blocks={blocks} session={session} /> : null}
+            {/* While a selection is picked, the key says the styles are suspended and names its groups. */}
+            {legendShown && !workspaceOpen ? (
+                <PreviewKey session={session}>
+                    {keyed || legendAsked ? <LegendCard blocks={blocks} session={session} /> : null}
+                </PreviewKey>
+            ) : null}
             {card === null ? null : <div className="ws-state-card-slot">{card}</div>}
         </>
     );

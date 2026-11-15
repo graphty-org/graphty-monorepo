@@ -1,14 +1,13 @@
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest } from "../vitest.base.mjs";
 
-export default defineConfig({
+const config = defineConfig({
     test: {
         ...baseTest({ reporters: ["verbose"] }),
         globals: true,
-        testTimeout: 30000,
-        hookTimeout: 30000,
         coverage: {
             provider: "v8",
             reporter: ["text", "json-summary", "json", "lcov", "html"],
@@ -17,10 +16,10 @@ export default defineConfig({
             exclude: ["**/*.d.ts", "**/*.test.ts", "**/*.spec.ts", "**/index.ts"],
             ignoreEmptyLines: true,
             thresholds: {
-                lines: 80,
-                functions: 80,
-                branches: 75,
-                statements: 80,
+                lines: 90,
+                functions: 90,
+                branches: 90,
+                statements: 90,
             },
         },
         projects: [
@@ -72,3 +71,6 @@ export default defineConfig({
         ],
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

@@ -172,7 +172,7 @@ describe("JSON files graph-io read wrongly before", () => {
         expect(values(r, "edge", "color")).toEqual(["#010203"]);
         expect(values(r, "edge", "width")).toEqual([0.5]);
         expect(r.snapshot.nodes.value("label#data", 0)).toBe("Column");
-        expect(r.snapshot.nodes.value("x", 0)).toBe(0);
+        expect(Array.from(r.snapshot.nodes.byRole("position")?.value(0) as ArrayLike<number>)).toEqual([0, 0, 0]);
         expect(r.snapshot.edges.value("color#data", 0)).toBe("rgb(255,0,0)");
     });
 });
@@ -436,6 +436,20 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "width")[0]).toBe(20);
     });
 
+    it("gives a vis.js picture the broken image of the first node naming its URL, as vis-network's cache does", async () => {
+        const r = await load({
+            nodes: [
+                { id: "a", shape: "image", image: "bad.png", brokenImage: "x.png" },
+                { id: "b", shape: "image", image: "bad.png" },
+                { id: "c", shape: "circularImage", image: "bad.png", brokenImage: "y.png" },
+                { id: "d", shape: "image", image: "other.png" },
+            ],
+            edges: [{ from: "a", to: "d" }],
+        });
+        expect(values(r, "node", "image")).toEqual(["bad.png", "bad.png", "bad.png", "other.png"]);
+        expect(values(r, "node", "imageFallback")).toEqual(["x.png", "x.png", "x.png", null]);
+    });
+
     it("keeps a vis.js picture inside its padding, at its top left corner and faded with its node; turns triangleDown over", async () => {
         const r = await load({
             nodes: [
@@ -471,6 +485,18 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "shapePoints")[4]).toBe("-1,1 0,-1 1,1");
     });
 
+    it("fades a vis.js edge by color.opacity only where its color is hex or rgb(), as vis-network does", async () => {
+        const r = await load({
+            nodes: [{ id: "a" }, { id: "b" }],
+            edges: [
+                { from: "a", to: "b", color: { color: "#0000ff", opacity: 0.4 } },
+                { from: "a", to: "b", color: { color: "blue", opacity: 0.4 } },
+                { from: "a", to: "b", color: { color: "rgb(0,0,255)", opacity: 0.4 } },
+            ],
+        });
+        expect(values(r, "edge", "opacity")).toEqual([0.4, null, 0.4]);
+    });
+
     it("draws a vis.js icon node's code as its glyph, in vis-network's FontAwesome, 50 px and blue unless given", async () => {
         const r = await load({
             nodes: [
@@ -489,6 +515,20 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "glyphSize")).toEqual([30, 50, null]);
         expect(values(r, "node", "glyphColor")).toEqual(["#d62728", "#2b7ce9", null]);
         expect(values(r, "node", "glyphWeight")).toEqual(["bold", "normal", null]);
+    });
+
+    it("centers a vis.js icon node's label half its icon and margins plus 5 below its center", async () => {
+        // vis-network 9.1.9 Icon.draw: y + (icon.size + margin.top + margin.bottom) / 2 + 5, on a "middle" baseline
+        const r = await load({
+            nodes: [
+                { id: "a", shape: "icon", label: "a", icon: { code: "A", size: 40 } },
+                { id: "b", shape: "icon", label: "b", icon: { code: "B" }, margin: { top: 2, bottom: 10 } },
+                { id: "c", shape: "icon", label: "c", icon: { code: "C", size: 40 }, font: { vadjust: 3 } },
+            ],
+            edges: [{ from: "a", to: "b" }],
+        });
+        expect(values(r, "node", "labelPosition")).toEqual(["center", "center", "center"]);
+        expect(values(r, "node", "labelOffsetY")).toEqual([30, 36, 33]);
     });
 
     it("reads vis.js's arrow scaleFactor as the arrow size, the target's before the source's", async () => {
@@ -575,6 +615,24 @@ describe("JSON styles: reading", () => {
             const still = await load({ nodes, edges: [{ from: "a", to: "b" }], options });
             expect(values(still, "edge", "supportModel")).toEqual([null]);
         }
+    });
+
+    it("reads a vis.js dynamic edge's forces in the drawing's units when the file leaves vis-network to place its nodes", async () => {
+        // vis-network lays such a file out under the same forces it bows the edges by, so the forces' unit is the
+        // layout's, whatever layout draws the file; a file that places every node keeps its own px
+        const edges = [{ from: "a", to: "b" }];
+        const unplaced = await load({ nodes: [{ id: "a" }, { id: "b", x: 10, y: 0 }], edges });
+        expect(values(unplaced, "edge", "supportModel")).toEqual(["barnesHut"]);
+        expect(values(unplaced, "edge", "supportScale")).toEqual(["drawing"]);
+        const placed = await load({
+            nodes: [
+                { id: "a", x: 0, y: 0 },
+                { id: "b", x: 10, y: 0 },
+            ],
+            edges,
+        });
+        expect(values(placed, "edge", "supportModel")).toEqual(["barnesHut"]);
+        expect(values(placed, "edge", "supportScale")).toEqual([null]);
     });
 
     it("reads vis.js's image arrows: each end's picture and the size it is drawn at", async () => {
@@ -674,6 +732,9 @@ describe("JSON styles: reading", () => {
         expect(values(r, "node", "labelPaddingX")).toEqual([5, 3, 8, 5, 10, 5, null]);
         expect(values(r, "node", "labelPaddingY")).toEqual([5, 2, 8, 5, 10, 5, null]);
         expect(values(r, "node", "labelFitSquare")).toEqual([null, null, true, true, null, null, null]);
+        // a database's label hangs from its top by its margin, which the label's padding already holds
+        expect(values(r, "node", "labelPosition")[3]).toBe("inside-top");
+        expect(values(r, "node", "labelOffsetY")[3]).toBeNull();
         // widthConstraint.minimum is the label's least width, inside the margin
         expect(values(r, "node", "width")).toEqual([0, 0, 0, 0, 0, 50, 50]);
     });

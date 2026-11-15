@@ -1,0 +1,27 @@
+diff --git a/dist/index.js b/dist/index.js
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -996,7 +996,22 @@ class PlaywrightBrowserProvider {
+ 				idPredicates.set(key, predicate);
+ 				await page.context().route(predicate, async (route) => {
+ 					if (module.type === "manual") {
+-						const exports$1 = Object.keys(await module.resolve());
++						let exports$1;
++						try {
++							exports$1 = Object.keys(await module.resolve());
++						} catch (error) {
++							// graphty patch (issue #6525): the test page that asked for this module closed
++							// while its vi.mock factory was still running there (its file ended, failed to
++							// load, or Vite reloaded the page). Nobody is waiting for the answer, so drop the
++							// request instead of letting the rejection escape Playwright's route handler as
++							// an unhandled error that fails a run whose tests all passed.
++							for (let cause = error; cause; cause = cause.cause) {
++								if (String(cause.message).startsWith("[birpc] rpc is closed")) {
++									return route.abort().catch(() => {});
++								}
++							}
++							throw error;
++						}
+ 						const body = createManualModuleSource(module.url, exports$1);
+ 						return route.fulfill({
+ 							body,

@@ -12,7 +12,6 @@ import { FieldRow } from "../../src/components/rows/FieldRow";
 import { PanelField } from "../../src/components/rows/PanelField";
 import { ResetButton } from "../../src/components/rows/TrailingSlot";
 import { renderThemed, resetHarness } from "../harness/measure";
-import { TOOLTIP_WAIT } from "../waits";
 
 afterEach(resetHarness);
 
@@ -46,6 +45,16 @@ describe("an icon-only reset button", () => {
             </PopoutManager>,
         );
         await userEvent.hover(screen.getByRole("button", { name: "Reset Shape to default" }));
-        expect((await screen.findByRole("tooltip", {}, TOOLTIP_WAIT)).textContent).toBe("Reset Shape to default");
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe("Reset Shape to default");
+    });
+
+    it("says the caller's whole name, in its tooltip too, when one is given", async () => {
+        await renderThemed(
+            <FieldRow trailing={<ResetButton label="Palette" fullLabel="Reset the node color palette to default" />}>
+                <PanelField label="Palette" kind="number" value={3} />
+            </FieldRow>,
+        );
+        await userEvent.hover(screen.getByRole("button", { name: "Reset the node color palette to default" }));
+        expect((await screen.findByRole("tooltip", {})).textContent).toBe("Reset the node color palette to default");
     });
 });

@@ -19,6 +19,7 @@ import type {
     XrUnavailableReason,
 } from "@graphty/graphty-element/session";
 
+import { formatCount, formatNumber } from "../settings/numberFormat";
 import { rangeWords as timeRangeWords } from "../time/timeWords";
 import type { InspectedKindId } from "./inspected";
 
@@ -54,18 +55,9 @@ export const KIND_WORDS: Readonly<Record<InspectedKindId, string>> = {
     "folder-row": "Folder",
     rows: "Style layers",
     attribute: "Attribute",
-    "filter-step": "Filter step",
+    "filter-step": "Time window",
     source: "Source",
 };
-
-/**
- * The kind line of a Sources row's left-out child, which names its load rather than "Source".
- * @param load - the load's name.
- * @returns such as "Left out of people.csv and messages.csv".
- */
-export function leftOutOf(load: string): string {
-    return `Left out of ${load}`;
-}
 
 /** The kind word of a path run's row, which is a measure row by shape but not a measure to a reader. */
 export const PATH_WORD = "Path";
@@ -84,6 +76,10 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.modelSourceUp": "Model",
     "node.modelTurn": "Model",
     "node.modelTint": "Model",
+    "node.modelDoubleSided": "Model",
+    "node.modelAnimation": "Model",
+    "node.modelAnimationSpeed": "Model",
+    "node.modelAnimationOffset": "Model",
     "node.modelFit": "Model",
     "node.modelCenter": "Model",
     "node.texture": "Texture",
@@ -105,6 +101,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.tooltipStyle": "Tooltip",
     "node.opacity": "Opacity",
     "node.outline": "Outline",
+    "node.outlineWidth": "Outline",
     "node.glow": "Glow",
     "node.glowStrength": "Glow",
     "node.halo": "Halo",
@@ -119,6 +116,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.width": "Width",
     "node.height": "Height",
     "node.depth": "Depth",
+    "node.relativeExtents": "Stretch",
     "node.planar": "Planar",
     "node.zIndex": "Z-index",
     "node.drawOrder": "Draw order",
@@ -136,6 +134,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelPaddingX": "Shape",
     "node.labelPaddingY": "Shape",
     "node.labelFitSquare": "Shape",
+    "node.labelFitQuantum": "Shape",
+    "node.labelFitImage": "Shape",
+    "node.labelFitImagePadding": "Shape",
     "edge.color": "Color",
     "edge.width": "Width",
     "edge.opacity": "Opacity",
@@ -216,9 +217,22 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelOffsetY": "Label",
     "node.labelShiftX": "Label",
     "node.labelShiftY": "Label",
+    "node.labelShiftOf": "Label",
+    "node.labelGapOf": "Label",
+    "node.labelBox": "Label",
     "node.labelMinNodeScreenSize": "Label",
     "node.labelTextAlign": "Label",
     "node.labelLocation": "Label",
+    "node.xlabel": "Outside label",
+    "node.xlabelStyle": "Outside label",
+    "node.xlabelLocation": "Outside label",
+    "node.xlabelOffsetX": "Outside label",
+    "node.xlabelOffsetY": "Outside label",
+    "edge.xlabel": "Outside label",
+    "edge.xlabelStyle": "Outside label",
+    "edge.xlabelLocation": "Outside label",
+    "edge.xlabelOffsetX": "Outside label",
+    "edge.xlabelOffsetY": "Outside label",
     "node.borderWaveAmplitude": "Border",
     "node.borderWavePeriod": "Border",
     "node.outerBorderColor": "Outer border color",
@@ -226,6 +240,15 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.outerBorderOpacity": "Outer border opacity",
     "node.outerBorderStyle": "Outer border style",
     "node.outerBorderOffset": "Outer border offset",
+    "node.outerBorderCount": "Outer border count",
+    "node.raisedBorderWidth": "Raised border width",
+    "node.raisedBorderLightColor": "Raised border light color",
+    "node.raisedBorderDarkColor": "Raised border dark color",
+    "node.shadowColor": "Shadow color",
+    "node.shadowOpacity": "Shadow opacity",
+    "node.shadowBlur": "Shadow blur",
+    "node.shadowOffsetX": "Shadow offset X",
+    "node.shadowOffsetY": "Shadow offset Y",
     "node.underlayColor": "Underlay color",
     "node.underlayOpacity": "Underlay opacity",
     "node.underlayPadding": "Underlay padding",
@@ -270,6 +293,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.stripeOpacities": "Stripe opacities",
     "node.stripeDirection": "Stripe direction",
     "node.stripeSize": "Stripe size",
+    "node.stripeFrame": "Stripe frame",
     "node.chartKind": "Chart kind",
     "node.chartValues": "Chart values",
     "node.chartColors": "Chart colors",
@@ -277,21 +301,39 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.chartMax": "Chart max",
     "node.chartHorizontal": "Chart horizontal",
     "node.chartSize": "Chart size",
+    "node.chartWidth": "Chart width",
+    "node.chartHeight": "Chart height",
+    "node.chartOffsetX": "Chart offset x",
+    "node.chartOffsetY": "Chart offset y",
     "node.chartMargin": "Chart margin",
     "node.chartGap": "Chart gap",
     "node.chartLineWidth": "Chart line width",
     "node.chartBorderColor": "Chart border color",
     "node.chartBorderWidth": "Chart border width",
+    "node.chartBackgroundColor": "Chart background color",
+    "node.chartBackgroundOpacity": "Chart background opacity",
     "node.exactCornerRadius": "Exact corner radius",
+    "node.cornerFraction": "Corner fraction",
     "node.shapeStretchPoints": "Shape",
+    "node.shapeRotation": "Shape rotation",
     "node.shapeParts": "Shape",
     "node.shapeLines": "Shape",
     "node.shapeTexts": "Shape",
+    "node.labelTable": "Label",
     "node.shapeLineWidth": "Shape",
+    "node.shapeLineHaloColor": "Shape",
+    "node.shapeLineHaloWidth": "Shape",
     "node.gradientColors": "Gradient",
     "node.gradientStops": "Gradient",
     "node.gradientKind": "Gradient",
+    "node.gradientCenterX": "Gradient",
+    "node.gradientCenterY": "Gradient",
+    "node.gradientRadius": "Gradient",
     "edge.minScreenWidth": "Min screen width",
+    "edge.fadeEnd": "Fade end",
+    "edge.fadeStart": "Fade start",
+    "edge.fadeOpacity": "Fade opacity",
+    "edge.blending": "Blending",
     "edge.outlineColor": "Outline color",
     "edge.outlineWidth": "Outline width",
     "edge.outlineOpacity": "Outline opacity",
@@ -307,13 +349,18 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.gradientKind": "Gradient",
     "edge.waveAmplitude": "Wave amplitude",
     "edge.wavePeriod": "Wave period",
+    "edge.dashLength": "Dash length",
+    "edge.dashGap": "Dash gap",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
     "edge.arcHeight": "Arc height",
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Arrow",
+    "edge.arrowHeadOutlineWidth": "Arrow",
+    "edge.arrowHeadFillColor": "Arrow",
     "edge.arrowHeadGap": "Arrow",
+    "edge.arrowHeadStack": "Arrow",
     "edge.arrowHeadImage": "Arrow",
     "edge.arrowHeadTextLetterSize": "Arrow",
     "edge.arrowHeadTextFont": "Arrow",
@@ -324,7 +371,10 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowHeadTextOffsetX": "Arrow",
     "edge.arrowHeadTextOffsetY": "Arrow",
     "edge.arrowTailSide": "Arrow",
+    "edge.arrowTailOutlineWidth": "Arrow",
+    "edge.arrowTailFillColor": "Arrow",
     "edge.arrowTailGap": "Arrow",
+    "edge.arrowTailStack": "Arrow",
     "edge.arrowTailImage": "Arrow",
     "edge.arrowTailTextLetterSize": "Arrow",
     "edge.arrowTailTextFont": "Arrow",
@@ -338,6 +388,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleHeadSize": "Arrow",
     "edge.arrowMiddleHeadWidth": "Arrow",
     "edge.arrowMiddleHeadSide": "Arrow",
+    "edge.arrowMiddleHeadOutlineWidth": "Arrow",
+    "edge.arrowMiddleHeadFillColor": "Arrow",
     "edge.arrowMiddleHeadPosition": "Arrow",
     "edge.arrowMiddleHeadColor": "Arrow",
     "edge.arrowMiddleHeadOpacity": "Arrow",
@@ -346,6 +398,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleTailSize": "Arrow",
     "edge.arrowMiddleTailWidth": "Arrow",
     "edge.arrowMiddleTailSide": "Arrow",
+    "edge.arrowMiddleTailOutlineWidth": "Arrow",
+    "edge.arrowMiddleTailFillColor": "Arrow",
     "edge.arrowMiddleTailPosition": "Arrow",
     "edge.arrowMiddleTailColor": "Arrow",
     "edge.arrowMiddleTailOpacity": "Arrow",
@@ -365,12 +419,16 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOutlineOpacity": "Label",
     "edge.labelBorderOpacity": "Label",
     "edge.labelPadding": "Label",
+    "edge.labelTable": "Label",
     "edge.labelCornerRadius": "Label",
     "edge.labelLineHeight": "Label",
     "edge.labelOffsetX": "Label",
     "edge.labelOffsetY": "Label",
     "edge.labelShiftX": "Label",
     "edge.labelShiftY": "Label",
+    "edge.labelShiftOf": "Label",
+    "edge.labelGapOf": "Label",
+    "edge.labelBox": "Label",
     "node.groupPadding": "Group",
     "node.groupPaddingRatio": "Group",
     "node.groupPaddingOf": "Group",
@@ -383,6 +441,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.targetNodeGap": "Gap",
     "edge.supportModel": "Route",
     "edge.supportUnit": "Route",
+    "edge.supportScale": "Route",
     "edge.supportSpringLength": "Route",
     "edge.supportSpringConstant": "Route",
     "edge.supportRepulsion": "Route",
@@ -398,21 +457,8 @@ export function channelTokens(channels: readonly Channel[]): string[] {
     return [...new Set(channels.map((channel) => CHANNEL_WORDS[channel]))];
 }
 
-const NUMBER = new Intl.NumberFormat(undefined, { maximumSignificantDigits: 4 });
-/** A number of a thousand or more: its whole part exact, never 12,350 for 12,345. */
-const WHOLE = new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 });
-/** Counts are exact: 12,345 nodes, never 12,350. */
-const COUNT = new Intl.NumberFormat();
-
-/**
- * A number as a reader reads it, the one spelling the inspector, the key and the table share:
- * four significant digits, grouped, and never fewer than the whole part's own digits.
- * @param value - the number.
- * @returns the text.
- */
-export function formatNumber(value: number): string {
-    return Math.abs(value) >= 1000 ? WHOLE.format(value) : NUMBER.format(value);
-}
+/** The one spelling the inspector, the key and the table share, in the reader's Number format. */
+export { formatNumber } from "../settings/numberFormat";
 
 /**
  * The graph's direction in one word ("Undirected"); where it came from and what it means for
@@ -432,7 +478,7 @@ export function directionWords(statistics: GraphStatistics): string {
  * @param directedness - the element's direction.
  * @returns the sentence, or null.
  */
-export function arrowheadNote(directedness: GraphStatistics["directedness"]): string | null {
+function arrowheadNote(directedness: GraphStatistics["directedness"]): string | null {
     // An arrowhead on an edge with no direction shows the file's order, not a direction.
     const follows =
         "an arrowhead shows only the file's order: it points from each edge's first-listed node to its second";
@@ -468,26 +514,26 @@ export function directionNote(statistics: GraphStatistics): string {
 }
 
 /**
- * An edge by its two ends' names (the element's `data.name`, else the id): "Ava -> Kofi" on a
- * directed graph, "Ava -- Kofi" otherwise.
+ * An edge by its two ends' names (the element's `data.edgeName`): "Ava -> Kofi" on a directed
+ * graph, "Ava -- Kofi" otherwise.
  * @param session - the session, which names the ends and says whether the graph is directed.
  * @param edge - the edge's record.
  * @returns the words.
  */
 export function edgeName(session: GraphSession, edge: Pick<EdgeRecord, "source" | "target">): string {
-    const end = (id: EdgeRecord["source"]): string => session.data.name(id) ?? String(id);
-    return `${end(edge.source)}${edgeJoiner(session)}${end(edge.target)}`;
+    const { source, target } = session.data.edgeName(edge);
+    return `${source.name}${edgeJoiner(session)}${target.name}`;
 }
 
 /**
  * What the status line calls one selected node: the label graphty-element gives it
- * (`session.data.name`, the label column's value), else its id.
+ * (`session.data.nodeName`, the label column's value), else its id.
  * @param session - the session.
  * @param id - the node id.
  * @returns such as "Nebraska", or "74" when the graph has no label column.
  */
 export function nodeName(session: GraphSession, id: EdgeRecord["source"]): string {
-    return session.data.name(id) ?? String(id);
+    return session.data.nodeName(id).name;
 }
 
 /**
@@ -506,7 +552,7 @@ export function edgeJoiner(session: GraphSession): string {
  * @returns the words.
  */
 export function count(count: number, noun: string): string {
-    return `${COUNT.format(count)} ${noun}${count === 1 ? "" : "s"}`;
+    return `${formatCount(count)} ${noun}${count === 1 ? "" : "s"}`;
 }
 
 /**
@@ -526,6 +572,18 @@ export function neighborhoodWords(center: string, around: number, hops = 1): str
 
 /** What a node's Degree row does: it changes the selection. */
 export const DEGREE_ROW_WORDS = "Select this node and its neighbors";
+
+/**
+ * What a degree is called where it is read: among what is shown while a filter or the time window
+ * hides something ("Degree showing", as "Nodes showing"), else plain "Degree".
+ * @param session - the element's session.
+ * @param name - the degree's name ("Degree", "In-degree").
+ * @returns the label.
+ */
+export function degreeLabel(session: GraphSession, name = "Degree"): string {
+    const { visibleNodes, totalNodes } = session.visibility.summary;
+    return visibleNodes < totalNodes ? `${name} showing` : name;
+}
 
 /** What Filter to neighbors does, and where it is turned off. */
 export const NEIGHBOR_FILTER_WORDS = "Hide every node outside this neighborhood. Its card in Filters turns it off";
@@ -550,7 +608,7 @@ export function selectionWords(nodes: number, edges: number): string {
  * @param session - the session.
  * @returns the words.
  */
-export function selectionNameWords(session: GraphSession): string {
+function selectionNameWords(session: GraphSession): string {
     const { nodes, edges } = session.selection;
     if (nodes.length + edges.length === 1) {
         if (nodes.length === 1) {
@@ -570,7 +628,11 @@ export function selectionNameWords(session: GraphSession): string {
  * @returns the words.
  */
 export function selectedNameWords(session: GraphSession): string {
-    return `${selectionNameWords(session)} selected`;
+    const words = selectionNameWords(session);
+    // One node named by a number ("34") would read as a count beside "34 nodes selected".
+    const isOneNode = session.selection.nodes.length === 1 && session.selection.edges.length === 0;
+    const prefix = isOneNode && /^[\d.,]+$/.test(words) ? "node " : "";
+    return `${prefix}${words} selected`;
 }
 
 /**
@@ -772,7 +834,7 @@ export function staleWords(
             ? "Out of date: ran on all time"
             : `Out of date: ran on ${timeRangeWords(ran.from, ran.to, unit)}`;
     }
-    return `Ran on ${count(note.ranOn, "node")}; ${COUNT.format(note.nowVisible)} shown now`;
+    return `Ran on ${count(note.ranOn, "node")}; ${formatCount(note.nowVisible)} shown now`;
 }
 
 const ORDINAL = new Intl.PluralRules("en-US", { type: "ordinal" });
@@ -844,7 +906,7 @@ export function xrReasonWords(reason: XrUnavailableReason, mode: XrRowMode): str
 }
 
 /**
- * The XR rows the View menu draws: one "VR / AR" row when neither mode can be entered for the
+ * The XR rows the Mode menu draws: one "VR / AR" row when neither mode can be entered for the
  * same reason, otherwise one row per mode, each with its reason or null.
  * @param xr - the element's XR facts.
  * @returns the rows, top to bottom.

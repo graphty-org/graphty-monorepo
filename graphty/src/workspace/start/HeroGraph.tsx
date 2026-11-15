@@ -1,13 +1,14 @@
-import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
+import type { Graphty as GraphtyElement, GraphtyForwardedEventMap } from "@graphty/graphty-element";
 import { definePalette } from "@graphty/graphty-element/extend";
-import { defaultEdgeStyle, type LabelStyle } from "@graphty/graphty-element/schema";
+import type { LabelStyle } from "@graphty/graphty-element/schema";
 import type { GraphSession, LayerSpec, NodeId, Run, RunResult } from "@graphty/graphty-element/session";
-import { UnstyledButton } from "@mantine/core";
+import { Button, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useContext, useEffect, useRef, useState } from "react";
 
-import { loadGraphtyElement } from "../../elementLoader";
 import { siteConfig } from "../../siteConfig";
+import { useElementDefined } from "../../useElementDefined";
 import { GLYPHS } from "../glyphs";
+import { EDGE_WIDTH, HIGHLIGHT_OPACITY, LOOK } from "./heroLook";
 import { HeroTurns } from "./heroTurns";
 import { Groups, Path, Star } from "./icons";
 
@@ -44,9 +45,6 @@ const HERO_STILL_LAYOUT_BEHAVIOR = { ...HERO_LAYOUT_BEHAVIOR, layout: { preSteps
  */
 const HERO_SELECTION_STYLE = { opacity: 0 };
 
-/** How solid the highlight around the focused node is. */
-const HIGHLIGHT_OPACITY = 0.5;
-
 /** Every node's diameter, in scene units, while nothing sizes the nodes by a result. */
 const NODE_SIZE = 2.56;
 
@@ -55,30 +53,6 @@ const HERO_SEED = 9;
 
 /** How fast the graph turns, in radians per second: a slow, steady drift. */
 const TURN_SPEED = 0.15;
-
-/** The page's colors the graph is drawn in, per color scheme (start.css holds the same tokens). */
-const LOOK = {
-    light: {
-        ring: "#97c800",
-        path: "#588300",
-        edge: "#2a3045",
-        edgeOpacity: 0.45,
-        hot: "#14161f",
-        node: "#6b7286",
-        surface: "#ffffff",
-        text: "#14161f",
-    },
-    dark: {
-        ring: "#c4f23a",
-        path: "#c4f23a",
-        edge: "#9aa3b8",
-        edgeOpacity: 0.65,
-        hot: "#f2f3f7",
-        node: "#9aa3b8",
-        surface: "#1a1c24",
-        text: "#f2f3f7",
-    },
-} as const;
 
 /** The start page's community colors: muted, so the groups read without shouting. */
 const GROUP_PALETTE = {
@@ -100,9 +74,6 @@ const GROUP_PALETTE = {
         "#ffbe7d",
     ],
 } as const;
-
-/** The edge width graphty-element draws when no layer sets one. */
-const EDGE_WIDTH = defaultEdgeStyle.line?.width ?? 1;
 
 /**
  * How the page names a node on the graph: a small card in the page's font and colors.
@@ -258,7 +229,7 @@ interface Said {
  * @returns Its name, else its id.
  */
 function nameOf(session: GraphSession, id: string | number): string {
-    return session.data.name(id) ?? String(id);
+    return session.data.nodeName(id).name;
 }
 
 /**
@@ -340,14 +311,68 @@ function cardFacts(session: GraphSession, id: NodeId, communities: boolean): Car
     };
     const louvain = communities ? session.runs.get("louvain")?.result : undefined;
     const group = louvain?.node(id)?.group;
-    const groups = louvain?.summary().groups;
+    const { groups, groupCount } = louvain?.summary() ?? {};
     const rank = groups?.find((each) => each.group === group)?.rank;
-    if (groups !== undefined && rank !== undefined) {
+    if (groupCount !== undefined && rank !== undefined) {
         // The color the element drew the node in, for the dot beside its community.
         const color = session.styles.explain({ node: id }).merged["node.color"]?.hex;
-        facts.community = { rank, of: groups.length, color };
+        facts.community = { rank, of: groupCount, color };
     }
     return facts;
+}
+
+/** Props of {@link HeroGraph}. */
+interface HeroGraphProps {
+    sample: HeroSample;
+    background: string;
+    scheme: "light" | "dark";
+    onSession?: (session: GraphSession) => void;
+}
+
+/**
+ * The live graph behind the start page, drawn afresh on Retry after a failure to load.
+ * @param props - See {@link HeroGraphBody}
+ * @returns The graph and its buttons
+ */
+export function HeroGraph(props: Readonly<HeroGraphProps>): React.JSX.Element {
+    const [attempt, setAttempt] = useState(0);
+    const retry = useCallback(() => {
+        setAttempt((before) => before + 1);
+    }, []);
+    return <HeroGraphBody key={attempt} {...props} onRetry={retry} />;
+}
+
+/**
+ * What covers the graph's box until its nodes are drawn: a quiet indicator while the element's
+ * code downloads and while it starts, or, when it could not load, a Retry button.
+ * @param props - Component props
+ * @param props.state - Loading, drawn (fades away) or failed
+ * @param props.onRetry - Loads the graph again
+ * @returns The placeholder
+ */
+function HeroPlaceholder({
+    state,
+    onRetry,
+}: Readonly<{ state: "loading" | "drawn" | "failed"; onRetry: () => void }>): React.JSX.Element {
+    if (state === "failed") {
+        return (
+            <output className="ws-land-loading">
+                <span className="ws-land-loading-text">The graph could not load.</span>
+                <Button variant="default" size="xs" onClick={onRetry}>
+                    Retry
+                </Button>
+            </output>
+        );
+    }
+    return (
+        <output className="ws-land-loading" aria-label="Loading graph" data-done={state === "drawn" ? "" : undefined}>
+            <span className="ws-land-loading-dots" aria-hidden>
+                <span />
+                <span />
+                <span />
+            </span>
+        </output>
+    );
 }
 
 /**
@@ -359,22 +384,20 @@ function cardFacts(session: GraphSession, id: NodeId, communities: boolean): Car
  * @param props.background - The page's canvas color, which the graph is drawn over
  * @param props.scheme - The page's color scheme
  * @param props.onSession - Called with the session once the graph is up, for the page's counts
+ * @param props.onRetry - Draws the graph again from the start, after a failure to load
  * @returns The graph and its buttons
  */
-export function HeroGraph({
+function HeroGraphBody({
     sample,
     background,
     scheme,
     onSession,
-}: Readonly<{
-    sample: HeroSample;
-    background: string;
-    scheme: "light" | "dark";
-    onSession?: (session: GraphSession) => void;
-}>): React.JSX.Element {
+    onRetry,
+}: Readonly<HeroGraphProps & { onRetry: () => void }>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
     const cardRef = useRef<HTMLDialogElement>(null);
-    const [defined, setDefined] = useState(() => customElements.get("graphty-element") !== undefined);
+    // A failure to load the element is the placeholder's Retry, which draws the body afresh.
+    const { defined, failed: elementFailed } = useElementDefined("start");
     const [session, setSession] = useState<GraphSession | null>(null);
     const [shown, setShown] = useState<Shown>({ communities: true, key: false, path: false, flat: false });
     const [said, setSaid] = useState<Said>({});
@@ -383,6 +406,8 @@ export function HeroGraph({
     const [startsStill] = useState(() => !turns || prefersStill());
     const [turning, setTurning] = useState(!startsStill);
     const [card, setCard] = useState<CardFacts | null>(null);
+    // The placeholder over the graph's box: up until the element has drawn the nodes.
+    const [loadState, setLoadState] = useState<"loading" | "drawn" | "failed">("loading");
     // What Key players and Shortest path each left on the graph, so each button takes away
     // only its own. Each names its nodes in its own layer: a node both name gets one label.
     const picked = useRef<Record<Analysis, Picked>>({
@@ -397,19 +422,10 @@ export function HeroGraph({
     schemeRef.current = scheme;
 
     useEffect(() => {
-        let live = true;
-        void loadGraphtyElement()
-            .then(() => customElements.whenDefined("graphty-element"))
-            .then(() => {
-                if (live) {
-                    performance.mark("graphty:hero-element-defined");
-                    setDefined(true);
-                }
-            });
-        return () => {
-            live = false;
-        };
-    }, []);
+        if (defined) {
+            performance.mark("graphty:hero-element-defined");
+        }
+    }, [defined]);
 
     // The turning follows the pause button, and touches nothing else.
     useEffect(() => {
@@ -456,11 +472,24 @@ export function HeroGraph({
         const onFrame = (): void => {
             performance.mark("graphty:hero-frame-stable");
         };
-        element.addEventListener("graphty-graph-frame-stable", onFrame, { once: true });
+        const onDrawn = (): void => {
+            setLoadState((before) => (before === "loading" ? "drawn" : before));
+        };
+        const onError = (event: GraphtyForwardedEventMap["error"]): void => {
+            if (event.detail.context === "init") {
+                setLoadState("failed");
+            }
+        };
+        element.addEventListener("graph-frame-stable", onFrame, { once: true });
+        element.addEventListener("graph-first-frame", onDrawn);
+        element.addEventListener("error", onError);
+        if (element.isGraphDrawn) {
+            onDrawn();
+        }
         let live = true;
         void (async () => {
             definePalette(GROUP_PALETTE);
-            next.styles.setDefaultPalettes({ categorical: GROUP_PALETTE.id });
+            await next.styles.setDefaultPalettes({ categorical: GROUP_PALETTE.id });
             const ids: string[] = [];
             // The scheme in force now; a later change is applied by the effect below.
             for (const layer of lookLayers(schemeRef.current)) {
@@ -477,7 +506,7 @@ export function HeroGraph({
             onSession?.(next);
             const communities = await finished(next.runs.start("louvain"));
             if (live && communities !== null) {
-                setSaid((before) => ({ ...before, communities: communities.summary().groups?.length }));
+                setSaid((before) => ({ ...before, communities: communities.summary().groupCount }));
             }
         })().catch((error: unknown) => {
             // Unmounted mid-load: the element aborts the import it no longer needs, which is no
@@ -486,10 +515,13 @@ export function HeroGraph({
                 return;
             }
             console.error("[start] the start page's graph could not be drawn:", error);
+            setLoadState("failed");
         });
         return () => {
             live = false;
-            element.removeEventListener("graphty-graph-frame-stable", onFrame);
+            element.removeEventListener("graph-frame-stable", onFrame);
+            element.removeEventListener("graph-first-frame", onDrawn);
+            element.removeEventListener("error", onError);
         };
     }, [defined, sample, onSession]);
 
@@ -533,7 +565,7 @@ export function HeroGraph({
         }
         const close = (event: KeyboardEvent): void => {
             if (event.key === "Escape") {
-                session.selection.clear();
+                session.selection.clear({ cause: "user" });
             }
         };
         globalThis.addEventListener("keydown", close);
@@ -575,7 +607,7 @@ export function HeroGraph({
             neutral.current = null;
         }
         const run = await finished(session.runs.start("louvain"));
-        setSaid((before) => ({ ...before, communities: run?.summary().groups?.length, flipped: undefined }));
+        setSaid((before) => ({ ...before, communities: run?.summary().groupCount, flipped: undefined }));
     }, [session, shown.communities, scheme]);
 
     const togglePick = useCallback(
@@ -644,6 +676,7 @@ export function HeroGraph({
                         style={{ display: "block", width: "100%", height: "100%" }}
                     />
                 ) : null}
+                <HeroPlaceholder state={elementFailed ? "failed" : loadState} onRetry={onRetry} />
             </div>
             <div className="ws-land-demo">
                 <div className="ws-land-chips" role="toolbar" aria-label="Analyze the graph">
@@ -674,31 +707,34 @@ export function HeroGraph({
                     >
                         2D
                     </Chip>
-                    <UnstyledButton
-                        className="ws-land-chip"
-                        aria-label={turning ? "Pause the turning" : "Turn the graph"}
-                        aria-pressed={!turning}
-                        onClick={() => {
-                            setTurning((before) => !before);
-                        }}
-                    >
-                        {turning ? <GLYPHS.pause aria-hidden /> : <GLYPHS.play aria-hidden />}
-                    </UnstyledButton>
+                    {/* An icon alone, so it says on hover what it does, in the words of its name. */}
+                    <Tooltip label={turning ? "Pause the turning" : "Turn the graph"}>
+                        <UnstyledButton
+                            className="ws-land-chip"
+                            aria-label={turning ? "Pause the turning" : "Turn the graph"}
+                            aria-pressed={!turning}
+                            onClick={() => {
+                                setTurning((before) => !before);
+                            }}
+                        >
+                            {turning ? <GLYPHS.pause aria-hidden /> : <GLYPHS.play aria-hidden />}
+                        </UnstyledButton>
+                    </Tooltip>
                 </div>
-                {lines.length > 0 ? (
-                    <div className="ws-land-said" aria-live="polite">
-                        {lines.map((line) => (
-                            <p key={line}>{line}</p>
-                        ))}
-                    </div>
-                ) : null}
+                {/* On the page, empty, before its first line: a live region that arrives already
+                    holding its words is not read. Empty, it draws nothing (start.css). */}
+                <div className="ws-land-said" aria-live="polite">
+                    {lines.map((line) => (
+                        <p key={line}>{line}</p>
+                    ))}
+                </div>
             </div>
             {card === null || session === null ? null : (
                 <NodeCard
                     card={card}
                     boxRef={cardRef}
                     onClose={() => {
-                        session.selection.clear();
+                        session.selection.clear({ cause: "user" });
                     }}
                 />
             )}

@@ -35,7 +35,7 @@ import "../../src/graphty-element";
 import "../../webgpu";
 
 import { Vector3 } from "@babylonjs/core";
-import { afterAll, assert, beforeAll, describe, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import type { AccelerationCapabilities, AccelerationStatus } from "../../src/acceleration";
@@ -48,16 +48,6 @@ const ADAPTER = (import.meta.env as Record<string, string | undefined>).GRAPHTY_
 
 /** Whether this run has a WebGPU device to talk to at all. */
 const GPU_LANE = ADAPTER !== "";
-
-/**
- * How long one layout is given to settle.
- *
- * SwiftShader computes the same kernels on the CPU, an order of magnitude slower, so the budget
- * is the adapter's rather than one number that is either generous on hardware or too tight in
- * software. Neither is a Playwright timeout being raised to hide a hang: a layout that has not
- * settled in these is a layout that is not settling.
- */
-const SETTLE_MS = ADAPTER === "nvidia" ? 10_000 : 60_000;
 
 /** The graph every case lays out: 150 nodes, 250 edges, the same ones every run. */
 const GRAPH = storyGraph(150, 250);
@@ -79,25 +69,15 @@ interface Quantiles {
 }
 
 /**
- * Waits for a condition, polling once per animation frame.
- * @param predicate - What the case is waiting for.
- * @param what - Named in the failure message.
- * @param budgetMs - How long to wait before giving up.
+ * Waits for a condition. No deadline of its own: the one hang guard (tools/test-wait-guard.mjs)
+ * ends a wait that never comes true, naming what it waited for.
+ * @param predicate - The condition.
+ * @param what - Named in the failure.
  */
-async function until(predicate: () => boolean, what: string, budgetMs = SETTLE_MS): Promise<void> {
-    const deadline = performance.now() + budgetMs;
-
-    while (performance.now() < deadline) {
-        if (predicate()) {
-            return;
-        }
-
-        await new Promise((resolve) => {
-            requestAnimationFrame(resolve);
-        });
-    }
-
-    throw new Error(`timed out after ${Math.round(budgetMs)} ms waiting for ${what}`);
+async function until(predicate: () => boolean, what: string): Promise<void> {
+    await vi.waitFor(() => {
+        assert.isTrue(predicate(), `waiting for ${what}`);
+    });
 }
 
 /**
@@ -132,13 +112,12 @@ async function mount(acceleration: "required" | "auto" | "off"): Promise<Graphty
     await until(
         () => element.graph.getDataManager().nodes.size === GRAPH.nodes.length,
         "the element to load all 150 nodes",
-        30_000,
     );
 
     // The element lays the graph out once as soon as the data is in. Waiting that out here is
     // what lets every case below treat the next `graph-settled` as its own: a settle still in
     // flight would otherwise resolve the first case's wait before its layout had done anything.
-    await until(() => settled, "the element's first layout to come to rest", 120_000);
+    await until(() => settled, "the element's first layout to come to rest");
 
     return element;
 }
@@ -182,9 +161,10 @@ function watchStatus(element: Graphty): AccelerationStatus[] {
  * Sets a layout and waits for the element to report the arrangement at rest.
  * @param element - The element to lay out.
  * @param layout - The registered layout name.
+ * @param options - The layout's options.
  * @returns How long the settle took, in milliseconds.
  */
-async function settle(element: Graphty, layout: string): Promise<number> {
+async function settle(element: Graphty, layout: string, options: object = {}): Promise<number> {
     let settled = false;
     const onSettled = (): void => {
         settled = true;
@@ -193,7 +173,7 @@ async function settle(element: Graphty, layout: string): Promise<number> {
     element.addEventListener("graph-settled", onSettled, { once: true });
 
     const started = performance.now();
-    await element.setLayout(layout);
+    await element.setLayout(layout, options);
     await until(() => settled, `"${layout}" to settle`);
     const took = performance.now() - started;
 
@@ -332,7 +312,7 @@ beforeAll(async () => {
     }
 
     gpu = await mount("required");
-    await until(() => status(gpu).backend !== undefined, "an accelerator to attach", 30_000);
+    await until(() => status(gpu).backend !== undefined, "an accelerator to attach");
     reference = await mount("off");
 });
 
@@ -355,8 +335,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a ForceAtlas2 settle of 150 nodes takes 2.7 to 9.4 s locally on SwiftShader and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
-    it("settles forceatlas2 on the device, reporting active while it runs", { timeout: SETTLE_MS * 2 }, async () => {
+    it("settles forceatlas2 on the device, reporting active while it runs", async () => {
         const seen = watchStatus(gpu);
 
         await settle(gpu, "forceatlas2");
@@ -377,8 +356,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         assert.equal(status(gpu).state, "idle", "and it is idle again once the arrangement is at rest");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a ForceAtlas2 settle of 150 nodes around a pinned one takes 2.0 to 7.6 s locally on SwiftShader and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
-    it("moves a node when it is dragged, and leaves it pinned", { timeout: SETTLE_MS * 3 }, async () => {
+    it("moves a node when it is dragged, and leaves it pinned", async () => {
         const node = gpu.graph.getDataManager().getNode("node-0");
         if (node === undefined) {
             throw new Error("node-0 is in the graph");
@@ -414,39 +392,32 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         node.unpin();
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a spring settle of 150 nodes takes 2.0 to 5.2 s locally on SwiftShader and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
-    it("settles spring on the device", { timeout: SETTLE_MS * 2 }, async () => {
+    it("settles spring on the device", async () => {
         await settle(gpu, "spring");
         assert.isTrue((gpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a spring-electrical settle of 150 nodes takes 2.3 to 5.6 s locally on SwiftShader and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
-    it("settles spring-electrical, which only exists on an accelerator", { timeout: SETTLE_MS * 2 }, async () => {
+    it("settles spring-electrical, which only exists on an accelerator", async () => {
         await settle(gpu, "spring-electrical");
         assert.isTrue((gpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, the default (force) settle of 150 nodes takes 2.7 to 6.1 s locally on SwiftShader and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
-    it(
-        "settles the DEFAULT arrangement on the device, asked for nothing else",
-        { timeout: SETTLE_MS * 2 },
-        async () => {
-            // `force` is the element's own default arrangement and ngraph is the engine behind it. On a
-            // machine with no accelerator ngraph draws it; here, under a policy that asked for hardware,
-            // the element draws the same arrangement on the device -- with no consumer probing anything
-            // and no second layout name for anyone to know about. The deterministic half of this is
-            // `test/browser/simulation-layout-engine.test.ts`; what needs a device is that the real
-            // kernels are what the default reaches.
-            await settle(gpu, "force");
+    it("settles the DEFAULT arrangement on the device, asked for nothing else", async () => {
+        // `force` is the element's own default arrangement and ngraph is the engine behind it. On a
+        // machine with no accelerator ngraph draws it; here, under a policy that asked for hardware,
+        // the element draws the same arrangement on the device -- with no consumer probing anything
+        // and no second layout name for anyone to know about. The deterministic half of this is
+        // `test/browser/simulation-layout-engine.test.ts`; what needs a device is that the real
+        // kernels are what the default reaches.
+        await settle(gpu, "force");
 
-            const engine = gpu.graph.getLayoutManager().layoutEngine;
+        const engine = gpu.graph.getLayoutManager().layoutEngine;
 
-            assert.instanceOf(engine, SimulationLayoutEngine, "the default arrangement reached the accelerated driver");
-            assert.equal(engine.simulationType, "spring-electrical", "which is ngraph's force model on hardware");
-            assert.isTrue(engine.isAccelerated, "and it ran there");
-            assert.equal(engine.type, "ngraph", "while the element still reports the layout that was asked for");
-        },
-    );
+        assert.instanceOf(engine, SimulationLayoutEngine, "the default arrangement reached the accelerated driver");
+        assert.equal(engine.simulationType, "spring-electrical", "which is ngraph's force model on hardware");
+        assert.isTrue(engine.isAccelerated, "and it ran there");
+        assert.equal(engine.type, "ngraph", "while the element still reports the layout that was asked for");
+    });
 
     it("labels a PageRank run computed on the device as single precision", async () => {
         const run = gpu.session.runs.start("pagerank");
@@ -607,8 +578,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
         assertSameDistance(summed, cost, "the route's edge weights sum to the cost");
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, two ForceAtlas2 settles of 150 nodes (one on SwiftShader, one on the CPU) take 7 to 24 s locally and the file does not run on CI, more than a third of the 15 s budget; tracked in #1636
-    it("settles where the CPU settles, to a quarter of every quantile", { timeout: SETTLE_MS * 4 }, async () => {
+    it("settles where the CPU settles, to a quarter of every quantile", async () => {
         await settle(gpu, "forceatlas2");
         const accelerated = quantiles(gpu);
 
@@ -646,6 +616,65 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device", () => {
     });
 });
 
+/**
+ * How far the arrangement reaches along z: the standard deviation of every node's z.
+ * @param element - The element whose positions to measure.
+ * @returns The spread, in scene units; 0 for a flat arrangement.
+ */
+function zSpread(element: Graphty): number {
+    const data = element.graph.getDataManager();
+    const read = { x: 0, y: 0, z: 0 };
+    const zs: number[] = [];
+
+    for (const { id } of GRAPH.nodes) {
+        const node = data.getNode(id);
+
+        if (node === undefined) {
+            throw new Error(`the graph lost ${id} between load and measurement`);
+        }
+
+        data.positions.read(node.index, read);
+        zs.push(read.z);
+    }
+
+    const mean = zs.reduce((sum, z) => sum + z, 0) / zs.length;
+
+    return Math.sqrt(zs.reduce((sum, z) => sum + (z - mean) ** 2, 0) / zs.length);
+}
+
+describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: a 3D force layout", () => {
+    for (const layout of ["forceatlas2", "force"]) {
+        it(`spreads "${layout}" with dim 3 along z on the device as the CPU does, from a flat arrangement`, async () => {
+            const options = { dim: 3, seed: 7 };
+
+            // FROM A FLAT START: a 2D arrangement first, so every node begins the 3D run at z = 0.
+            await settle(gpu, layout, { dim: 2, seed: 7 });
+            await settle(cpuReference(), layout, { dim: 2, seed: 7 });
+            assert.equal(zSpread(gpu), 0, "the 2D arrangement is flat");
+
+            await settle(gpu, layout, options);
+            assert.isTrue(
+                (gpu.graph.getLayoutManager().layoutEngine as SimulationLayoutEngine).isAccelerated,
+                "the layout ran on the accelerator",
+            );
+            const accelerated = zSpread(gpu);
+
+            await settle(cpuReference(), layout, options);
+            const onCpu = zSpread(cpuReference());
+
+            console.log(`[webgpu-layout] adapter=${ADAPTER} layout=${layout} zSpread gpu=${accelerated} cpu=${onCpu}`);
+
+            assert.isAbove(onCpu, 0, "the CPU reference laid the graph out in 3D, or the case proves nothing");
+            assert.isAbove(
+                accelerated / onCpu,
+                0.5,
+                `the device's z spread ${accelerated.toFixed(3)} against the CPU's ${onCpu.toFixed(3)}`,
+            );
+            assert.isBelow(accelerated / onCpu, 2, "and no more than twice it");
+        });
+    }
+});
+
 describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the policy accepts", () => {
     /** SwiftShader is the only software adapter a lane launches; every other flag set is hardware. */
     const SOFTWARE = ADAPTER === "swiftshader";
@@ -656,7 +685,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the po
             const auto = await mount("auto");
             let found: AccelerationStatus;
             try {
-                await until(() => status(auto).state !== "probing", "the probe under auto to settle", 30_000);
+                await until(() => status(auto).state !== "probing", "the probe under auto to settle");
                 found = status(auto);
             } finally {
                 // Only this case uses it; test/setup.ts fails a case that leaves its engine alive.
@@ -683,7 +712,7 @@ describe.skipIf(!GPU_LANE)("graphty-element on a real WebGPU device: what the po
             assert.equal(status(gpu).backend, "webgpu", "required attached an adapter to begin with");
 
             gpu.acceleration = "auto";
-            await until(() => status(gpu).state !== "probing", "the policy change to settle", 30_000);
+            await until(() => status(gpu).state !== "probing", "the policy change to settle");
             const found = status(gpu);
 
             assert.equal(found.policy, "auto");

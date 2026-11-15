@@ -16,9 +16,9 @@ import { columnsMapping, sourceGraph, toRecords } from "../../data/graph-io-impo
 import { GraphtyError } from "../../errors/GraphtyError";
 import type { SourceCollapseCommand, SourceExpandCommand } from "../commands/source-expand";
 import type { CodedFact, CodedFactParam } from "../shared";
-import { resolve as storedCredential } from "./credentialLookup";
+import { originOf as originOfEndpoint, resolve as storedCredential } from "./credentialLookup";
 import { notYetRun, toGraphtyError } from "./errors";
-import type { SourceHost } from "./host";
+import type { RunningExpansion, SourceHost } from "./host";
 import { isSourceFactKey, sourceFactKeys, sourceFactsOf, sourceLoadsOf } from "./ids";
 import type { CollapseResult, ExpandOptions, SourceExpandResult, SourceLoadRecord } from "./types";
 
@@ -113,12 +113,13 @@ export function factParams(details: unknown): Record<string, CodedFactParam> {
  * @returns the origin, or "" when there is none
  */
 function originOf(endpoint: string | null): string {
-    return endpoint === null ? "" : new URL(endpoint).origin;
+    return endpoint === null ? "" : originOfEndpoint(endpoint);
 }
 
 /**
  * Fetch the neighborhood of nodes from the source that loaded them, as one undoable step. A seed
- * already being expanded joins that expansion instead of starting another.
+ * already being expanded with the same request joins that expansion instead of starting another;
+ * one being expanded with a different request is expanded again once that one settles.
  * @param host - the session pieces
  * @param ids - the seeds
  * @param options - depth, direction, limit and the credential
@@ -129,43 +130,152 @@ export async function expandNodes(
     ids: readonly NodeId[],
     options: ExpandOptions,
 ): Promise<SourceExpandResult> {
-    const { running } = host.expansions;
-    const joined: Promise<Added>[] = [];
-    const fresh: NodeId[] = [];
-    for (const id of ids) {
-        const current = running.get(String(id));
-        if (current === undefined) {
-            fresh.push(id);
-        } else {
-            joined.push(current);
-        }
-    }
-
-    if (fresh.length > 0) {
-        const run = expandFresh(host, fresh, options);
-        const settled = run.catch(() => undefined);
-        for (const id of fresh) {
-            running.set(String(id), run);
-        }
-
-        void settled.then(() => {
-            for (const id of fresh) {
-                if (running.get(String(id)) === run) {
-                    running.delete(String(id));
-                }
-            }
-        });
-        joined.push(run);
-    }
-
     // An expansion joined twice (two of its seeds asked again) counts once.
-    const added = [...new Set(await Promise.all(joined))];
+    const added = [...new Set(await expandRuns(host, ids, options))];
     const nodes = added.reduce((sum, each) => sum + each.nodes, 0);
     const edges = added.reduce((sum, each) => sum + each.edges, 0);
     return Object.freeze({
         code: nodes + edges > 0 ? ("I_SOURCE_EXPANDED" as const) : ("I_SOURCE_NOTHING_NEW" as const),
         params: { seeds: ids.map(String), added: [nodes, edges], partial: added.some((each) => each.partial) },
     });
+}
+
+/**
+ * Whether two calls ask the source the same thing, so one may join the other's expansion. The
+ * signal is left out: each caller's signal cancels only its own wait.
+ * @param a - one call's options
+ * @param b - the other's
+ * @returns whether they fetch and place the same
+ */
+function sameRequest(a: ExpandOptions, b: ExpandOptions): boolean {
+    const types = (o: ExpandOptions): string => JSON.stringify(o.relationshipTypes ?? null);
+    return (
+        (a.depth ?? 1) === (b.depth ?? 1) &&
+        (a.direction ?? "both") === (b.direction ?? "both") &&
+        a.limit === b.limit &&
+        types(a) === types(b) &&
+        (a.layout ?? "continue") === (b.layout ?? "continue") &&
+        a.credential === b.credential &&
+        a.fetch === b.fetch
+    );
+}
+
+/**
+ * A promise that rejects with the signal's reason as soon as it aborts, else settles as `work` does.
+ * @param work - what to wait for
+ * @param signal - the caller's signal
+ * @returns the wait
+ */
+function waitFor<T>(work: Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+    if (signal === undefined) {
+        return work;
+    }
+
+    return new Promise<T>((resolve, reject) => {
+        const abort = (): void => {
+            reject(signal.reason as Error); // an AbortError unless the caller aborted with its own reason
+        };
+        if (signal.aborted) {
+            abort();
+            return;
+        }
+
+        signal.addEventListener("abort", abort, { once: true });
+        work.then(resolve, reject).finally(() => {
+            signal.removeEventListener("abort", abort);
+        });
+    });
+}
+
+/**
+ * Start one expansion of seeds nothing is expanding, and mark them running until it settles.
+ * @param host - the session pieces
+ * @param ids - the seeds
+ * @param options - the options
+ * @returns what it added
+ */
+function startRun(host: SourceHost, ids: readonly NodeId[], options: ExpandOptions): Promise<Added> {
+    const { running } = host.expansions;
+    const run = expandFresh(host, ids, options);
+    const entry: RunningExpansion = { run, options };
+    for (const id of ids) {
+        running.set(String(id), entry);
+    }
+
+    // Registered before any caller waits, so the seeds are free again by the time a caller sees it settle.
+    const clear = (): void => {
+        for (const id of ids) {
+            if (running.get(String(id)) === entry) {
+                running.delete(String(id));
+            }
+        }
+    };
+    void run.then(clear, clear);
+    return run;
+}
+
+/**
+ * Wait on a running expansion that asked the same. When its own caller cancelled it and this one
+ * did not, this caller asks again.
+ * @param host - the session pieces
+ * @param id - the seed
+ * @param current - the running expansion
+ * @param options - this caller's options
+ * @returns what the expansions it waited on added
+ */
+async function joinRun(
+    host: SourceHost,
+    id: NodeId,
+    current: RunningExpansion,
+    options: ExpandOptions,
+): Promise<Added[]> {
+    try {
+        return [await waitFor(current.run, options.signal)];
+    } catch (error) {
+        if (current.options.signal?.aborted === true && options.signal?.aborted !== true) {
+            return expandRuns(host, [id], options);
+        }
+
+        throw error;
+    }
+}
+
+/**
+ * Expand seeds: join a running expansion that asked the same, wait behind one that asked something
+ * else, and start one for the rest.
+ * @param host - the session pieces
+ * @param ids - the seeds
+ * @param options - the options
+ * @returns what each expansion this call waited on added
+ */
+async function expandRuns(host: SourceHost, ids: readonly NodeId[], options: ExpandOptions): Promise<Added[]> {
+    const { running } = host.expansions;
+    const waits: Promise<Added[]>[] = [];
+    const fresh: NodeId[] = [];
+    const behind: NodeId[] = [];
+    const blocking = new Set<Promise<Added>>();
+    for (const id of ids) {
+        const current = running.get(String(id));
+        if (current === undefined) {
+            fresh.push(id);
+        } else if (sameRequest(current.options, options)) {
+            waits.push(joinRun(host, id, current, options));
+        } else {
+            behind.push(id);
+            blocking.add(current.run);
+        }
+    }
+
+    if (fresh.length > 0) {
+        waits.push(startRun(host, fresh, options).then((added) => [added]));
+    }
+
+    if (behind.length > 0) {
+        const settled = Promise.allSettled([...blocking]);
+        waits.push(waitFor(settled, options.signal).then(() => expandRuns(host, behind, options)));
+    }
+
+    return (await Promise.all(waits)).flat();
 }
 
 /** What one expansion run added, and whether it has more. */
@@ -232,7 +342,8 @@ async function expandGroup(
     // A capped expansion of one node continues from where it stopped.
     const facts = seeds.length === 1 ? sourceFactsOf(host.node(seeds[0])) : {};
     const cursor = facts.expansion === "partial" ? (facts.next as SourceCursor | null | undefined) : undefined;
-    const credential = options.credential ?? (await storedCredential(host.owner, load.source, originOf(load.endpoint)));
+    const credential =
+        options.credential ?? (await storedCredential(host.owner, load.source, originOf(load.endpoint), load.config));
 
     let fetched: ImportGraphResult;
     try {
@@ -373,13 +484,17 @@ function mergeCommand(
         return facts;
     };
 
-    const fresh = (rows.nodes as Record<string, unknown>[]).filter((row) => host.node(row.id as NodeId) === undefined);
+    const freshCount = (rows.nodes as Record<string, unknown>[]).filter(
+        (row) => host.node(row.id as NodeId) === undefined,
+    ).length;
+    // Each new node's slot on the ring, counted in row order (an indexOf per row was quadratic).
+    let slot = 0;
     for (const row of rows.nodes as Record<string, unknown>[]) {
         const incoming = Object.fromEntries(Object.entries(row).filter(([name]) => !isSourceFactKey(name)));
         const held = host.node(row.id as NodeId);
         if (held === undefined) {
             const id = row.id as NodeId;
-            const position = startNear(host, seeds[0], key, fresh.indexOf(row), fresh.length);
+            const position = startNear(host, seeds[0], key, slot++, freshCount);
             const record = {
                 ...incoming,
                 ...(position === undefined ? {} : { position }),

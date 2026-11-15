@@ -35,6 +35,27 @@ export interface WeightReading {
     readonly input: WeightMeaning | null | undefined;
 }
 
+/**
+ * The edge column runs read as the weight: the configured weight path when it names an edge column
+ * the last load did not read weights from (a role given after the load), none when the weight role
+ * was taken away, else the column the last load read.
+ * @param path - `data.knownFields.edgeWeightPath`; null when no column has the weight role.
+ * @param loaded - The column the last load read weights from, or null.
+ * @param isEdgeColumn - Whether an edge column of that name exists.
+ * @returns The column, or null.
+ */
+export function designatedWeight(
+    path: string | null,
+    loaded: string | null,
+    isEdgeColumn: (name: string) => boolean,
+): string | null {
+    if (path === null) {
+        return null;
+    }
+
+    return path !== loaded && isEdgeColumn(path) ? path : loaded;
+}
+
 const MEANINGS: readonly unknown[] = ["strength", "distance", "capacity"] satisfies WeightReads[];
 
 /**
@@ -78,6 +99,8 @@ function readAsked(asked: unknown): LoadedWeightFact | null | undefined {
  * @param reads - The meaning the algorithm reads, or null for an algorithm with no weighted form.
  * @param asked - The run's `weight` option.
  * @param loaded - The weight the graph was loaded with, or null.
+ * @param stored - The column the store's weights were filled from at load, when it differs from
+ *   `loaded` (a weight role given or taken away after the load).
  * @returns What the run reads.
  * @throws A `GraphtyError` with `E_OPTION_RANGE` for a malformed `weight` option.
  */
@@ -85,6 +108,7 @@ export function resolveRunWeight(
     reads: WeightReads | null,
     asked: unknown,
     loaded: LoadedWeightFact | null,
+    stored: string | null = loaded?.attribute ?? null,
 ): WeightReading {
     // A class with no weighted form leaves the option to its own schema, whatever it holds.
     if (reads === null) {
@@ -100,8 +124,9 @@ export function resolveRunWeight(
     const candidate = named === undefined ? loaded : { attribute: named.attribute, meaning: named.meaning ?? reads };
 
     if (candidate === null) {
-        // No weight was loaded: the store's weights all read 1, so the input stays as it is.
-        return { weight: null, input: undefined };
+        // No weight: the store's weights all read 1, unless a load filled them from a column whose
+        // weight role was taken away since.
+        return { weight: null, input: stored === null ? undefined : null };
     }
 
     if (candidate.meaning === reads || (reads === "strength" && candidate.meaning === null)) {
@@ -112,7 +137,7 @@ export function resolveRunWeight(
             ...(candidate.meaning === null ? { assumed: true as const } : {}),
         });
         // The loaded column is the store's own weights: read them rather than the column again.
-        return { weight, input: candidate.attribute === loaded?.attribute ? undefined : weight };
+        return { weight, input: candidate.attribute === stored ? undefined : weight };
     }
 
     return {
@@ -123,4 +148,78 @@ export function resolveRunWeight(
             params: Object.freeze({ attribute: candidate.attribute, meaning: candidate.meaning, reads }),
         }),
     };
+}
+
+/** What a layout's warning about its weight says: a code and its parameters, never a sentence. */
+interface LayoutWeightWarning {
+    readonly code: "W_WEIGHT_MEANING_ASSUMED" | "W_WEIGHT_MEANING_MISMATCH";
+    readonly params: Readonly<Record<string, unknown>>;
+}
+
+/** What a layout that reads edge weights reads them as. */
+export interface LayoutWeightReading {
+    /**
+     * `"strength"`: a larger weight is a stronger connection, drawn shorter. `"distance"`: a larger
+     * weight is a longer edge. null: the weight is left unread and every edge counts the same.
+     */
+    readonly meaning: "strength" | "distance" | null;
+    /** Present when the meaning was assumed or the weight was left unread. */
+    readonly warning?: LayoutWeightWarning;
+}
+
+/**
+ * How a layout reads the weight the graph was loaded with.
+ *
+ * The same rule as {@link resolveRunWeight}, run for a layout that can read either a strength or a
+ * distance: a distance is read as a distance, a strength as a strength, a weight whose meaning
+ * nobody stated as a strength (and the layout says so), and any other meaning -- a capacity -- is
+ * left unread (and the layout says so).
+ * @param loaded - The weight the graph was loaded with, or null.
+ * @returns What the layout reads.
+ */
+export function resolveLayoutWeight(loaded: LoadedWeightFact | null): LayoutWeightReading {
+    const reading = resolveRunWeight(loaded?.meaning === "distance" ? "distance" : "strength", undefined, loaded);
+    if (reading.skipped !== undefined) {
+        const { attribute, meaning } = reading.skipped.params;
+        return { meaning: null, warning: { code: "W_WEIGHT_MEANING_MISMATCH", params: { attribute, meaning } } };
+    }
+
+    const { weight } = reading;
+    return {
+        meaning: weight?.meaning === "distance" ? "distance" : "strength",
+        ...(weight?.assumed === true
+            ? {
+                  warning: {
+                      code: "W_WEIGHT_MEANING_ASSUMED",
+                      params: { attribute: weight.attribute, meaning: "strength" },
+                  },
+              }
+            : {}),
+    };
+}
+
+/**
+ * A stored weight as the attraction a layout pulls with: a strength as it is, a distance inverted
+ * (zero and below clamped, so a zero distance is the strongest pull a float holds).
+ * @param weight - The stored weight.
+ * @param meaning - What it means.
+ * @returns The strength.
+ */
+export function asStrength(weight: number, meaning: "strength" | "distance"): number {
+    return meaning === "distance" ? 1 / Math.max(weight, 1e-6) : weight;
+}
+
+/**
+ * The `weight` a run asks for: its own option, else the default its algorithm's `weight` option
+ * declares (an algorithm whose weighted form is opt-in declares null). Absent from both, the run
+ * reads the weight the graph was loaded with.
+ * @param asked - The run's `weight` option.
+ * @param options - The algorithm's option descriptors.
+ * @returns What to hand {@link resolveRunWeight} as `asked`.
+ */
+export function askedWeight(
+    asked: unknown,
+    options: readonly { readonly name: string; readonly default?: unknown }[] | undefined,
+): unknown {
+    return asked === undefined ? options?.find((option) => option.name === "weight")?.default : asked;
 }

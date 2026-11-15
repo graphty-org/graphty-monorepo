@@ -2,7 +2,13 @@ import { NullEngine, Scene, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { FilledArrowRenderer } from "../src/meshes/FilledArrowRenderer";
-import { discreteMeshCount, discreteMeshOffsets, patternElementPeriod } from "../src/meshes/PatternedLineMesh";
+import {
+    alternatingMeshCount,
+    alternatingMeshOffsets,
+    discreteMeshCount,
+    discreteMeshOffsets,
+    patternElementPeriod,
+} from "../src/meshes/PatternedLineMesh";
 import { PatternedLineRenderer } from "../src/meshes/PatternedLineRenderer";
 
 /**
@@ -166,7 +172,7 @@ describe("patterned line element count", () => {
         }
     });
 
-    describe("a line that shortens", () => {
+    describe("a line whose length changes", () => {
         let scene: Scene;
 
         beforeEach(() => {
@@ -198,6 +204,84 @@ describe("patterned line element count", () => {
             for (let i = 1; i < xs.length; i++) {
                 assert.isAtLeast(xs[i] - xs[i - 1], meshWidth, `elements ${String(i - 1)} and ${String(i)} overlap`);
             }
+            line.dispose();
+        });
+
+        // A line that reached its length through other lengths draws what a line made at that
+        // length draws: with a one-element slack, a dashed edge whose ends settled in another
+        // order kept one dash more or less, and a screenshot of it changed between runs.
+        for (const pattern of ["dash", "dot", "zigzag"] as const) {
+            test(`${pattern} updated to a length matches one created there`, () => {
+                const options = { width: 0.1, color: "#000000", opacity: 1 };
+                const start = new Vector3(0, 0, 0);
+                const line = PatternedLineRenderer.create(pattern, start, new Vector3(10, 0, 0), scene, options);
+                for (const length of [10.1, 10.3, 10.6, 9.9, 9.6, 9.3, 10]) {
+                    line.update(start, new Vector3(length, 0, 0));
+                    const fresh = PatternedLineRenderer.create(
+                        pattern,
+                        start,
+                        new Vector3(length, 0, 0),
+                        scene,
+                        options,
+                    );
+                    assert.equal(line.elements.length, fresh.elements.length, `${pattern} at length ${length}`);
+                    fresh.dispose();
+                }
+                line.dispose();
+            });
+        }
+    });
+
+    describe("a pattern whose shapes alternate in length (dash-dot)", () => {
+        let scene: Scene;
+
+        beforeEach(() => {
+            scene = new Scene(new NullEngine());
+        });
+
+        afterEach(() => {
+            scene.getEngine().dispose();
+        });
+
+        test("with one length for every shape, counts and places as the spacing rule does", () => {
+            for (const [length, meshWidth] of [
+                // lengths off a count's exact boundary, where two ways of summing round differently
+                [10.03, 0.1],
+                [3.3, 0.7],
+                [0.5, 0.4],
+            ]) {
+                const gap = patternElementPeriod(meshWidth) - meshWidth;
+                const count = discreteMeshCount(length, meshWidth);
+                assert.equal(alternatingMeshCount(length, [meshWidth, meshWidth], gap), count);
+                const expected = discreteMeshOffsets(length, meshWidth, count);
+                alternatingMeshOffsets(length, [meshWidth, meshWidth], count).forEach((o, i) => {
+                    assert.closeTo(o, expected[i], 1e-9, `offset ${String(i)} at length ${String(length)}`);
+                });
+            }
+        });
+
+        test("counts each dot at its own length, so a dash-dot keeps its dash and dot close", () => {
+            // cx-syn-mappings edge 426->429 (Cytoscape's DASH_DOT, issue #5774): a line under twelve widths long held
+            // a dash and a dot, 6.8 widths apart, counted as though the dot were a dash; Cytoscape draws them two
+            // widths apart. A dash, a dot and a dash fit it with more than the least clear space between.
+            const width = 0.1;
+            const length = 11.77 * width;
+            const start = new Vector3(0, 0, 0);
+            const line = PatternedLineRenderer.create("dash-dot", start, new Vector3(length, 0, 0), scene, {
+                width,
+                color: "#000000",
+                opacity: 1,
+                is2DMode: true,
+            });
+            assert.equal(line.elements.length, 3);
+            const [dash, dot] = [3 * width, width];
+            const xs = line.elements.map((el) => el.position.x);
+            // positions are held in single precision
+            assert.closeTo(xs[0], dash / 2, 1e-6, "the first dash starts the line");
+            assert.closeTo(xs[2], length - dash / 2, 1e-6, "the last dash ends it");
+            const gaps = [xs[1] - dot / 2 - (xs[0] + dash / 2), xs[2] - dash / 2 - (xs[1] + dot / 2)];
+            assert.closeTo(gaps[0], gaps[1], 1e-6, "the gaps are even");
+            assert.isBelow(gaps[0], 3 * width, "a gap no longer than a dash");
             line.dispose();
         });
     });

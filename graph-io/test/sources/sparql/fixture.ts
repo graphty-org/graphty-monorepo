@@ -9,6 +9,8 @@
 import { createServer, type Server } from "node:http";
 import { type AddressInfo } from "node:net";
 
+import { itemAt } from "../../../src/common/text.js";
+
 const WD = "http://www.wikidata.org/entity/";
 const WDT = "http://www.wikidata.org/prop/direct/";
 const LABEL = "http://www.w3.org/2000/01/rdf-schema#label";
@@ -74,7 +76,7 @@ export function answer(query: string): Answer {
         solutions = solutions.filter((line) => !/"@[a-z-]+ \.$/.test(line) || line.endsWith(`"@${lang} .`));
     }
     if (page !== null) {
-        const offset = Number(page[2] ?? 0);
+        const offset = Number(itemAt(page, 2) ?? 0);
         solutions = solutions.slice(offset, offset + Number(page[1]));
     }
     return { status: 200, body: solutions.map((l) => `${l}\n`).join("") };

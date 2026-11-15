@@ -293,6 +293,21 @@ describe("numbers, opacities and booleans", () => {
 
 describe("canonEnum", () => {
     it.each([
+        ["concave", "yed", "other:open-vee"],
+        ["convex", "yed", "other:open-vee"],
+        ["plain", "yed", "other:open-vee"],
+        ["OPEN", "yfiles3", "other:open-vee"],
+        ["SIMPLE", "yfiles3", "other:open-vee"],
+        ["CROSS", "yfiles3", "other:cross"],
+        ["KITE", "yfiles3", "other:kite"],
+        ["DELTOID", "yfiles3", "other:deltoid"],
+    ] as const)("reads a yEd arrow no shared shape names, %s in %s, as %s without a note", (raw, dialect, want) => {
+        const s = site();
+        expect(canonEnum("arrow", raw, dialect, s)).toBe(want);
+        expect(codes(s)).toEqual([]);
+    });
+
+    it.each([
         ["shape", "box", "graphviz", "rectangle"],
         ["shape", "box", "vis", "round-rectangle"],
         ["shape", "dot", "vis", "ellipse"],
@@ -310,6 +325,10 @@ describe("canonEnum", () => {
         ["arrow", "odot", "graphviz", "circle-open"],
         ["arrow", "white_delta", "yed", "triangle-open"],
         ["arrow", "cross", "yed", "other:cross"],
+        ["arrow", "concave", "graphviz", "vee"],
+        ["arrow", "short", "yed", "vee"],
+        ["arrow", "SHORT", "yfiles3", "vee"],
+        ["arrow", "transparent_circle", "yed", "circle-open"],
         ["arrow", "DELTA", "cytoscape", "triangle"],
         ["lineStyle", "LONG_DASH", "cytoscape", "long-dash"],
         ["lineStyle", "PARALLEL_LINES", "cytoscape", "double"],

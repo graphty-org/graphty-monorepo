@@ -1,7 +1,7 @@
 // Tests of the fix forward into the held nightly candidate (candidate-fix.mjs).
 // Run: node tools/channel/candidate-fix.test.mjs
 import assert from "node:assert/strict";
-import { execFileSync, spawn } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -238,5 +238,36 @@ describe("candidate-fix.mjs advance, on real repositories, a stand-in store and 
         const r = repos();
         const { code, out, posts } = await advance(r, null);
         assert.deepEqual([code, out.moved, posts], [0, "false", []]);
+    });
+});
+
+describe("candidate-fix.mjs advance, when the results store does not answer", () => {
+    const script = new URL("./candidate-fix.mjs", import.meta.url).pathname;
+    function advance(extra) {
+        const out = join(mkdtempSync(join(tmpdir(), "candidate-fix-")), "output");
+        writeFileSync(out, "");
+        const r = spawnSync(process.execPath, [script, "advance"], {
+            encoding: "utf8",
+            env: { ...process.env, RESULTS_URL: "", GITHUB_OUTPUT: out, FIX_PR: "", MODE: "", ...extra },
+        });
+        return { ...r, out: readFileSync(out, "utf8") };
+    }
+
+    it("warns and moves nothing in a scheduled full run that names no fix", () => {
+        for (const MODE of ["full", "restart"]) {
+            const r = advance({ MODE });
+            assert.equal(r.status, 0, r.stdout);
+            assert.match(r.stdout, /::warning::the results store did not answer .*: no fix merged into the candidate/);
+            assert.equal(r.out, "head=\nmoved=false\n");
+        }
+    });
+
+    it("fails the job when a fix waits on it or the run is a candidate run", () => {
+        for (const extra of [{ MODE: "full", FIX_PR: "123" }, { MODE: "candidate" }]) {
+            const r = advance(extra);
+            assert.equal(r.status, 1, r.stdout);
+            assert.match(r.stdout, /::error::the results store did not answer/);
+            assert.equal(r.out, "");
+        }
     });
 });

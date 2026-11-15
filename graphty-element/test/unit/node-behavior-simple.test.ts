@@ -65,16 +65,13 @@ const { mockActionManager, mockSixDofDragBehavior, mockExecuteCodeAction, DOUBLE
     }),
 }));
 
-// Mock @babylonjs/core - this will be merged with the global mock from setup.ts
+// Mock the Babylon.js modules NodeBehavior imports by their own paths.
+vi.mock("@babylonjs/core/Actions/actionManager.js", () => ({ ActionManager: mockActionManager }));
+vi.mock("@babylonjs/core/Actions/directActions.js", () => ({ ExecuteCodeAction: mockExecuteCodeAction }));
 vi.mock("@babylonjs/core", async (importOriginal) => {
     // `importOriginal` is typed as returning `unknown`, and a spread needs an object type.
     const actual = await importOriginal<Record<string, unknown>>();
-    return {
-        ...actual,
-        ActionManager: mockActionManager,
-        SixDofDragBehavior: mockSixDofDragBehavior,
-        ExecuteCodeAction: mockExecuteCodeAction,
-    };
+    return { ...actual, SixDofDragBehavior: mockSixDofDragBehavior };
 });
 
 // Import after mock is set up
@@ -89,16 +86,13 @@ describe("NodeBehavior Unit Tests", () => {
             pointerY: 0,
             activeCamera: { position: { x: 0, y: 0, z: 10 } },
             createPickingRay: vi.fn(),
+            getEngine: () => ({ getInputElement: () => null }),
         } as unknown as Parameters<typeof NodeBehavior.addDefaultBehaviors>[1];
 
         const mockNode = {
-            mesh: {
-                isPickable: false,
-                addBehavior: vi.fn(),
-                actionManager: null,
-                getScene: () => mockScene,
-                position: { x: 0, y: 0, z: 0 },
-            },
+            drawnScene: mockScene,
+            drawnPosition: { x: 0, y: 0, z: 0 },
+            makeDrawnPickable: vi.fn(),
             parentGraph: {
                 getStyles: vi.fn(),
                 getScene: () => mockScene,
@@ -116,7 +110,7 @@ describe("NodeBehavior Unit Tests", () => {
 
         NodeBehavior.addDefaultBehaviors(mockNode);
 
-        expect(mockNode.mesh.isPickable).toBe(true);
+        expect(mockNode.makeDrawnPickable).toHaveBeenCalledOnce();
     });
 
     test("addDefaultBehaviors sets pinOnDrag from options", () => {
@@ -127,16 +121,13 @@ describe("NodeBehavior Unit Tests", () => {
             pointerY: 0,
             activeCamera: { position: { x: 0, y: 0, z: 10 } },
             createPickingRay: vi.fn(),
+            getEngine: () => ({ getInputElement: () => null }),
         } as unknown as Parameters<typeof NodeBehavior.addDefaultBehaviors>[1];
 
         const mockNode = {
-            mesh: {
-                isPickable: false,
-                addBehavior: vi.fn(),
-                actionManager: null,
-                getScene: () => mockScene,
-                position: { x: 0, y: 0, z: 0 },
-            },
+            drawnScene: mockScene,
+            drawnPosition: { x: 0, y: 0, z: 0 },
+            makeDrawnPickable: vi.fn(),
             parentGraph: {
                 getStyles: vi.fn(),
                 getScene: () => mockScene,
@@ -175,16 +166,13 @@ describe("NodeBehavior Unit Tests", () => {
             pointerY: 0,
             activeCamera: { position: { x: 0, y: 0, z: 10 } },
             createPickingRay: vi.fn(),
+            getEngine: () => ({ getInputElement: () => null }),
         } as unknown as Parameters<typeof NodeBehavior.addDefaultBehaviors>[1];
 
         const mockNode = {
-            mesh: {
-                isPickable: false,
-                addBehavior: vi.fn(),
-                actionManager: null,
-                getScene: () => mockScene,
-                position: { x: 0, y: 0, z: 0 },
-            },
+            drawnScene: mockScene,
+            drawnPosition: { x: 0, y: 0, z: 0 },
+            makeDrawnPickable: vi.fn(),
             parentGraph: {
                 getStyles: vi.fn(),
                 getScene: () => mockScene,
@@ -205,11 +193,10 @@ describe("NodeBehavior Unit Tests", () => {
 
         NodeBehavior.addDefaultBehaviors(mockNode);
 
-        expect(mockNode.mesh.actionManager).toBeDefined();
-        expect(mockNode.mesh.actionManager?.registerAction).toHaveBeenCalled();
-
         // Check that double-click action was registered
-        const registered = mockNode.mesh.actionManager as unknown as { actions: { _trigger: number }[] } | null;
+        const registered = vi.mocked(mockNode.makeDrawnPickable).mock.calls[0][0] as unknown as {
+            actions: { _trigger: number }[];
+        } | null;
         assert.isNotNull(registered, "the product should have assigned an action manager");
         const doubleClickAction = registered.actions.find((action) => action._trigger === DOUBLE_PICK_TRIGGER);
         expect(doubleClickAction).toBeDefined();
@@ -224,16 +211,13 @@ describe("NodeBehavior Unit Tests", () => {
             pointerY: 0,
             activeCamera: { position: { x: 0, y: 0, z: 10 } },
             createPickingRay: vi.fn(),
+            getEngine: () => ({ getInputElement: () => null }),
         } as unknown as Parameters<typeof NodeBehavior.addDefaultBehaviors>[1];
 
         const mockNode = {
-            mesh: {
-                isPickable: false,
-                addBehavior: vi.fn(),
-                actionManager: null,
-                getScene: () => mockScene,
-                position: { x: 0, y: 0, z: 0 },
-            },
+            drawnScene: mockScene,
+            drawnPosition: { x: 0, y: 0, z: 0 },
+            makeDrawnPickable: vi.fn(),
             parentGraph: {
                 getStyles: vi.fn(),
                 getScene: () => mockScene,
@@ -252,7 +236,7 @@ describe("NodeBehavior Unit Tests", () => {
 
         NodeBehavior.addDefaultBehaviors(mockNode);
 
-        const manager = mockNode.mesh.actionManager as unknown as {
+        const manager = vi.mocked(mockNode.makeDrawnPickable).mock.calls[0][0] as unknown as {
             registerAction: unknown;
             actions: { _trigger: number; execute?: () => void }[];
         } | null;

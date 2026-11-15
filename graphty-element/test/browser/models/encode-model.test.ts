@@ -10,7 +10,7 @@
  * mesh says which model it draws.
  */
 
-import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
 import { assert, describe, it } from "vitest";
 
 import type { Graphty } from "../../../index.js";

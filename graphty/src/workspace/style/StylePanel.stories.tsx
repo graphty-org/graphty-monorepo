@@ -5,10 +5,16 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
+import { loadSiteConfig, resetSiteConfig } from "../../siteConfig";
 import { freshStore } from "../../stories/freshStore";
-import { storyWaitOptions } from "../../stories/wait";
 import { fixWallClock } from "../../test/fixedWallClock";
+import { sampleTile } from "../../test/sample-tile";
+import { siteFeatures } from "../../test/siteFeatures";
 import { Workspace } from "../Workspace";
+import policeUrl from "./__fixtures__/car-kit/police.glb?url";
+import colormapUrl from "./__fixtures__/car-kit/Textures/colormap.png?url";
+import damagedPlyUrl from "./__fixtures__/variants/damaged.ply?url";
+import pointsPlyUrl from "./__fixtures__/variants/points.ply?url";
 
 type GraphtyElement = HTMLElementTagNameMap["graphty-element"];
 
@@ -27,6 +33,25 @@ const KEY_PEOPLE = ["Valjean", "Javert", "Cosette", "Marius"];
 const page = (): ReturnType<typeof within> => within(document.body);
 
 /**
+ * Waits until what the page shows now has been drawn and every open pop-out placed for it: one
+ * frame after the change, then until no pop-out has a move queued (`data-cm-repositioning`).
+ *
+ * A pop-out measures its content when a frame is drawn, and keeps the place it took while its row
+ * stays put. A play function's clicks can run with no frame between them, so a list that opens
+ * inside a pop-out and is picked from at once was never measured: the pop-out keeps the place it
+ * had before the list, where a reader -- who sees the list before picking -- gets the place it
+ * moved to so the list fits in the window.
+ */
+async function panelsPlaced(): Promise<void> {
+    const frame = (): Promise<void> => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    // The first frame draws the change and queues each pop-out's move; the frames after run them.
+    await frame();
+    do {
+        await frame();
+    } while (document.querySelector("[data-cm-repositioning]") !== null);
+}
+
+/**
  * Opens Les Miserables (77 characters) from the start screen, as a reader does, so the app gives
  * it the starting rows (Everything, Selected, Hovered) itself. Lays it on a circle, so every
  * capture draws the same picture, and builds the rest of the rows a reader would have by now: an
@@ -37,22 +62,20 @@ const page = (): ReturnType<typeof within> => within(document.body);
  * @returns the scene.
  */
 async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
-    await userEvent.click(
-        await page().findByRole("button", { name: "Open the Les Miserables sample" }, storyWaitOptions(1000)),
-    );
+    await userEvent.click(await page().findByRole("button", { name: sampleTile("Les Miserables") }));
     await customElements.whenDefined("graphty-element");
     const element = await waitFor(() => {
         const found = canvasElement.querySelector("graphty-element");
         expect(found).not.toBeNull();
         return found as GraphtyElement;
-    }, storyWaitOptions(1000));
+    });
     const { session } = element;
     // The app loads the sample once the project's element is up, then starts the graph's history
     // (Workspace.tsx); that clear would cancel the switch to 2D below, so the open has to be over.
     await waitFor(() => {
         expect(session.data.statistics().nodeCount).toBe(77);
         expect(session.history.pending.length + session.history.steps.length).toBe(0);
-    }, storyWaitOptions(10_000));
+    });
     expect(session.config.startingRows).toBe(true);
     expect(session.config.editableBase).toBe(true);
     await session.layout.setDimension("2d");
@@ -119,24 +142,22 @@ async function loadScene(canvasElement: HTMLElement): Promise<Scene> {
  * @param name - the row's name.
  */
 async function clickRow(name: string): Promise<void> {
-    const tree = await page().findByRole("tree", { name: "Style layers" }, storyWaitOptions(1000));
+    const tree = await page().findByRole("tree", { name: "Style layers" });
     const escaped = name.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    await userEvent.click(
-        await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }, storyWaitOptions(1000)),
-    );
+    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escaped}, `) }));
 }
 
 /**
  * Opens the Annotations folder in the tree, by a click on it and ArrowRight, so Key people shows.
  */
 async function openAnnotations(): Promise<void> {
-    const tree = await page().findByRole("tree", { name: "Style layers" }, storyWaitOptions(1000));
-    const folder = await within(tree).findByRole("treeitem", { name: /^Annotations, / }, storyWaitOptions(1000));
+    const tree = await page().findByRole("tree", { name: "Style layers" });
+    const folder = await within(tree).findByRole("treeitem", { name: /^Annotations, / });
     await userEvent.click(folder);
     if (folder.getAttribute("aria-expanded") !== "true") {
         await userEvent.keyboard("{ArrowRight}");
     }
-    await within(tree).findByRole("treeitem", { name: /^Key people, / }, storyWaitOptions(1000));
+    await within(tree).findByRole("treeitem", { name: /^Key people, / });
 }
 
 /**
@@ -145,7 +166,7 @@ async function openAnnotations(): Promise<void> {
  */
 async function clickTab(name: "Style" | "Values"): Promise<void> {
     const inspector = page().getByRole("complementary", { name: "Inspector" });
-    await userEvent.click(await within(inspector).findByRole("tab", { name }, storyWaitOptions(1000)));
+    await userEvent.click(await within(inspector).findByRole("tab", { name }));
 }
 
 /**
@@ -159,11 +180,11 @@ async function openStyle(name: string): Promise<HTMLElement> {
     }
     await clickRow(name);
     const inspector = page().getByRole("complementary", { name: "Inspector" });
-    const style = await within(inspector).findByRole("tab", { name: "Style" }, storyWaitOptions(1000));
+    const style = await within(inspector).findByRole("tab", { name: "Style" });
     if (style.getAttribute("aria-selected") !== "true") {
         await userEvent.click(style);
     }
-    return page().findByTestId("style-tab", {}, storyWaitOptions(1000));
+    return page().findByTestId("style-tab", {});
 }
 
 /**
@@ -176,9 +197,9 @@ async function openColorBinding(tab: HTMLElement): Promise<HTMLElement> {
         const found = tab.querySelector<HTMLElement>(".cm-var-fill-button");
         expect(found).not.toBeNull();
         return found as HTMLElement;
-    }, storyWaitOptions(1000));
+    });
     await userEvent.click(pill);
-    return page().findByRole("group", { name: "Color binding" }, storyWaitOptions(1000));
+    return page().findByRole("group", { name: "Color binding" });
 }
 
 const meta: Meta<typeof Workspace> = {
@@ -206,7 +227,7 @@ function sceneStory(play: (scene: Scene) => Promise<void>): Story {
             // The key's node shapes arrive as pictures graphty-element draws after the frame.
             await waitFor(() => {
                 expect(canvasElement.ownerDocument.querySelector("[data-node-picture-pending]")).toBeNull();
-            }, storyWaitOptions(5000));
+            });
             await scene.element.waitForStableFrame();
         },
     };
@@ -243,10 +264,10 @@ export const HoveredAtRest: Story = sceneStory(async () => {
 export const AddToShape: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000)));
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }));
     await waitFor(() => {
         expect(tab.querySelector('[data-section="node-shape"] .ws-row[data-line="node.shape"]')).not.toBeNull();
-    }, storyWaitOptions(1000));
+    });
 });
 
 /** Key people's size removed with its minus: Shape is its dimmed title and "+" again. */
@@ -255,7 +276,7 @@ export const SizeRemoved: Story = sceneStory(async () => {
     await userEvent.click(within(tab).getByRole("button", { name: "Remove node size" }));
     await waitFor(() => {
         expect(tab.querySelector('[data-section="node-shape"] .ws-row')).toBeNull();
-    }, storyWaitOptions(1000));
+    });
 });
 
 /** Everything hidden by its eye: only what another shown row paints is still drawn. */
@@ -263,14 +284,14 @@ export const EverythingHidden: Story = sceneStory(async () => {
     const tree = page().getByRole("tree", { name: "Style layers" });
     const everything = within(tree).getByRole("treeitem", { name: /^Everything, / });
     await userEvent.click(within(everything).getByRole("button", { name: "Hide Everything" }));
-    await within(everything).findByRole("button", { name: "Show Everything" }, storyWaitOptions(1000));
+    await within(everything).findByRole("button", { name: "Show Everything" });
     await openStyle("Everything");
 });
 
 /** The Annotations folder: the Style panel acting on its rows, under its scope line. */
 export const FolderPanel: Story = sceneStory(async () => {
     await clickRow("Annotations");
-    await page().findByText(/ in Annotations\b/, {}, storyWaitOptions(1000));
+    await page().findByText(/ in Annotations\b/, {});
 });
 
 /** Key people and Degree selected together: one panel for both, Mixed with who sets it where one sets a property. */
@@ -282,7 +303,7 @@ export const TwoRows: Story = sceneStory(async ({ runs }) => {
     const tree = page().getByRole("tree", { name: "Style layers" });
     await user.click(within(tree).getByRole("treeitem", { name: new RegExp(`^${runs.degree}, `) }));
     await user.keyboard("{/Control}");
-    await page().findByRole("heading", { level: 2, name: "2 layers" }, storyWaitOptions(1000));
+    await page().findByRole("heading", { level: 2, name: "2 layers" });
 });
 
 /**
@@ -293,17 +314,26 @@ export const TwoRows: Story = sceneStory(async ({ runs }) => {
 async function openLeidenFolder(): Promise<HTMLElement> {
     const toolbar = page().getByRole("toolbar", { name: "Canvas tools" });
     await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
-    await userEvent.type(
-        await page().findByRole("combobox", { name: "Filter analyses" }, storyWaitOptions(1000)),
-        "Leiden",
-    );
-    await userEvent.click(await page().findByRole("option", { name: /^Leiden/ }, storyWaitOptions(1000)));
-    await userEvent.click(await page().findByRole("button", { name: /^Run\b/ }, storyWaitOptions(1000)));
-    const tree = await page().findByRole("tree", { name: "Style layers" }, storyWaitOptions(1000));
-    const folder = await within(tree).findByRole("treeitem", { name: /^Leiden, folder, / }, storyWaitOptions(30_000));
+    await userEvent.type(await page().findByRole("combobox", { name: "Filter analyses" }), "Leiden");
+    await userEvent.click(await page().findByRole("option", { name: /^Leiden/ }));
+    // Leiden is unseeded by default: a fixed seed gives every render the same groups and colors. With
+    // the selection workspace experiment on, the settings sit behind the chosen row's settings button
+    // and the box is named "Seed" (OptionsForm.tsx, ONE_NAME).
+    const settings = page().queryByRole("button", { name: /^Settings for Leiden/ });
+    if (settings !== null) {
+        await userEvent.click(settings);
+    }
+    await userEvent.type(await page().findByRole("textbox", { name: /^(Random seed|Seed)(,|$)/ }), "42");
+    if (settings !== null) {
+        // Escape closes only the settings popover; Analyze stays open on Leiden.
+        await userEvent.keyboard("{Escape}");
+    }
+    await userEvent.click(await page().findByRole("button", { name: /^Run\b/ }));
+    const tree = await page().findByRole("tree", { name: "Style layers" });
+    const folder = await within(tree).findByRole("treeitem", { name: /^Leiden, folder, / });
     await userEvent.click(folder);
-    await page().findByText(/ layers in Leiden\b/, {}, storyWaitOptions(1000));
-    return page().findByTestId("style-tab", {}, storyWaitOptions(1000));
+    await page().findByText(/ layers in Leiden\b/, {});
+    return page().findByTestId("style-tab", {});
 }
 
 /**
@@ -316,14 +346,14 @@ async function fillRow(tab: HTMLElement): Promise<HTMLElement> {
         const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
         expect(found).not.toBeNull();
         return found as HTMLElement;
-    }, storyWaitOptions(1000));
+    });
 }
 
 /** Leiden's folder of group layers selected: the scope line, and Fill showing each group layer's own color in list order. */
 export const BulkFolder: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
-    await within(fill).findByRole("button", { name: /^Node color: / }, storyWaitOptions(1000));
+    await within(fill).findByRole("button", { name: /^Node color: / });
 });
 
 /** "One value for all", then a color typed into the Fill of Leiden's folder: every group layer takes it, and the receipt says so. */
@@ -332,13 +362,13 @@ export const BulkReceipt: Story = sceneStory(async () => {
     const fill = await fillRow(tab);
     await userEvent.hover(fill);
     await userEvent.click(within(fill).getByRole("button", { name: /^Give all \d+ layers one node color$/ }));
-    await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }, storyWaitOptions(1000)));
+    await userEvent.click(await within(fill).findByRole("textbox", { name: /^Node color/ }));
     await userEvent.keyboard("0072B2{Enter}");
     await waitFor(() => {
         const found = fill.querySelector<HTMLElement>("[data-receipt]");
         expect(found).not.toBeNull();
         return found as HTMLElement;
-    }, storyWaitOptions(1000));
+    });
 });
 
 /** Fill > Change source > the run's group on Leiden's folder: the binding popover one layer gets for that value, held until it closes and copies the rule into each layer. */
@@ -347,12 +377,14 @@ export const BulkVaryByData: Story = sceneStory(async () => {
     const fill = await fillRow(tab);
     // Each layer on its own color: the pill opens the popover by Layer, and Change source picks the value.
     await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
-    const byLayer = await page().findByRole("dialog", { name: "Color from each layer" }, storyWaitOptions(1000));
+    const byLayer = await page().findByRole("dialog", { name: "Color from each layer" });
     await userEvent.click(within(byLayer).getByRole("button", { name: "Change source" }));
-    const options = await page().findAllByRole("option", { name: /^Leiden/ }, storyWaitOptions(1000));
+    const options = await page().findAllByRole("option", { name: /^Leiden/ });
+    // The list is drawn, and the pop-out moved to show it, before the reader picks from it.
+    await panelsPlaced();
     await userEvent.click(options[0]);
-    const popover = await page().findByRole("dialog", { name: /^Color by / }, storyWaitOptions(1000));
-    await within(popover).findByRole("grid", { name: / groups$/ }, storyWaitOptions(1000));
+    const popover = await page().findByRole("dialog", { name: /^Color by / });
+    await within(popover).findByRole("grid", { name: / groups$/ });
 });
 
 /** Fill from each layer on Leiden's folder: the pill opens the binding popover with Layer as its source, Louvain's group rows with one row per layer in list order, each starting on its layer's own color, before it closes and writes. */
@@ -360,16 +392,16 @@ export const BulkVaryByLayer: Story = sceneStory(async () => {
     const tab = await openLeidenFolder();
     const fill = await fillRow(tab);
     await userEvent.click(within(fill).getByRole("button", { name: /^Node color: from each layer, / }));
-    const popover = await page().findByRole("dialog", { name: "Color from each layer" }, storyWaitOptions(1000));
-    await within(popover).findByRole("grid", { name: "Layer groups" }, storyWaitOptions(1000));
+    const popover = await page().findByRole("dialog", { name: "Color from each layer" });
+    await within(popover).findByRole("grid", { name: "Layer groups" });
 });
 
 /** "+" > Layer: a real "Layer 1" on nodes and edges, its name ready to type, writing nothing yet. */
 export const NewLayer: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Add a layer or a folder" }));
-    await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }, storyWaitOptions(1000)));
-    await page().findByRole("textbox", { name: "Layer name" }, storyWaitOptions(1000));
-    await page().findByTestId("style-tab", {}, storyWaitOptions(1000));
+    await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }));
+    await page().findByRole("textbox", { name: "Layer name" });
+    await page().findByTestId("style-tab", {});
 });
 
 // Checkpoint 2: pickers, popovers with category rows and New layer for a value, labels, shaders.
@@ -384,10 +416,8 @@ export const VaryBy: Story = sceneStory(async () => {
     if (box === null) {
         throw new Error("no Node size field");
     }
-    await userEvent.click(
-        await within(box).findByRole("button", { name: "Node size by attribute" }, storyWaitOptions(1000)),
-    );
-    await page().findByRole("combobox", { name: "Find an attribute" }, storyWaitOptions(1000));
+    await userEvent.click(await within(box).findByRole("button", { name: "Node size by attribute" }));
+    await page().findByRole("combobox", { name: "Find an attribute" });
 });
 
 /** Degree's color ramp. */
@@ -401,7 +431,7 @@ export const LouvainCategories: Story = sceneStory(async ({ runs }) => {
     const tab = await openStyle(runs.louvain);
     const popover = await openColorBinding(tab);
     await userEvent.click(within(popover).getByRole("button", { name: /Group 3 actions$/ }));
-    await within(popover).findByRole("menuitem", { name: "New layer for Group 3" }, storyWaitOptions(1000));
+    await within(popover).findByRole("menuitem", { name: "New layer for Group 3" });
 });
 
 /**
@@ -417,19 +447,15 @@ export const LouvainGroupDetail: Story = sceneStory(async ({ runs }) => {
     }
     const group = name.firstChild?.textContent ?? "";
     await userEvent.click(name);
-    const detail = await page().findByRole("group", { name: `${group} properties` }, storyWaitOptions(1000));
+    const detail = await page().findByRole("group", { name: `${group} properties` });
     await userEvent.click(within(detail).getByRole("button", { name: `Set another property for ${group}` }));
-    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000)));
-    const shape = await within(detail).findByRole(
-        "combobox",
-        { name: new RegExp(`^${group} shape`) },
-        storyWaitOptions(1000),
-    );
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }));
+    const shape = await within(detail).findByRole("combobox", { name: new RegExp(`^${group} shape`) });
     await userEvent.click(shape);
-    await userEvent.click(await page().findByRole("option", { name: /^Box/ }, storyWaitOptions(1000)));
+    await userEvent.click(await page().findByRole("option", { name: /^Box/ }));
     await waitFor(() => {
         expect(within(detail).getByRole("combobox", { name: new RegExp(`^${group} shape`) })).toHaveValue("Box");
-    }, storyWaitOptions(1000));
+    });
 });
 
 /**
@@ -445,19 +471,15 @@ export const LouvainShapeForOneGroup: Story = sceneStory(async ({ runs, session 
     }
     const group = name.firstChild?.textContent ?? "";
     await userEvent.click(name);
-    const detail = await page().findByRole("group", { name: `${group} properties` }, storyWaitOptions(1000));
+    const detail = await page().findByRole("group", { name: `${group} properties` });
     await userEvent.click(within(detail).getByRole("button", { name: `Set another property for ${group}` }));
-    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }, storyWaitOptions(1000)));
-    const shape = await within(detail).findByRole(
-        "combobox",
-        { name: new RegExp(`^${group} shape`) },
-        storyWaitOptions(1000),
-    );
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }));
+    const shape = await within(detail).findByRole("combobox", { name: new RegExp(`^${group} shape`) });
     await userEvent.click(shape);
-    await userEvent.click(await page().findByRole("option", { name: /^Box/ }, storyWaitOptions(1000)));
+    await userEvent.click(await page().findByRole("option", { name: /^Box/ }));
     await userEvent.keyboard("{Escape}");
     await userEvent.keyboard("{Escape}");
-    await within(tab).findByRole("button", { name: /^Node shape: Box for 1 group by / }, storyWaitOptions(1000));
+    await within(tab).findByRole("button", { name: /^Node shape: Box for 1 group by / });
     await session.styles.settled();
 });
 
@@ -470,43 +492,381 @@ export const EdgeBetweenness: Story = sceneStory(async ({ runs }) => {
 export const LabelsMenu: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node text" }));
-    await page().findByRole("menuitem", { name: /^Label/ }, storyWaitOptions(1000));
+    await page().findByRole("menuitem", { name: /^Label/ });
 });
 
 /** A label entry on Key people reading the name. */
 export const LabelEntry: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node text" }));
-    await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }, storyWaitOptions(1000)));
-    await userEvent.click(await page().findByRole("option", { name: /^name(,|$)/ }, storyWaitOptions(1000)));
-    await within(tab).findByRole("button", { name: /^Label source: / }, storyWaitOptions(1000));
+    await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }));
+    await userEvent.click(await page().findByRole("option", { name: /^name(,|$)/ }));
+    await within(tab).findByRole("button", { name: /^Label source: / });
 });
 
 /** Label settings open on Key people's name label: font, size, look and placement in one popover. */
 export const LabelSettings: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node text" }));
-    await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }, storyWaitOptions(1000)));
-    await userEvent.click(await page().findByRole("option", { name: /^name(,|$)/ }, storyWaitOptions(1000)));
-    await userEvent.click(
-        await within(tab).findByRole("button", { name: "Node label settings" }, storyWaitOptions(1000)),
-    );
-    await page().findByRole("dialog", { name: "Label settings" }, storyWaitOptions(1000));
+    await userEvent.click(await page().findByRole("menuitem", { name: /^Label/ }));
+    await userEvent.click(await page().findByRole("option", { name: /^name(,|$)/ }));
+    await userEvent.click(await within(tab).findByRole("button", { name: "Node label settings" }));
+    await page().findByRole("dialog", { name: "Label settings" });
 });
 
 /** Key people's Shape "+": the options the layer does not set yet, Wireframe, Outline, Glow and Halo among them. */
 export const ShapeMenu: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
-    await page().findAllByRole("menuitem", {}, storyWaitOptions(1000));
+    await page().findAllByRole("menuitem", {});
 });
 
 /** Key people's Shaders "+": the one gallery, its search, the place and origin filters and the tiles. */
 export const ShadersGallery: Story = sceneStory(async () => {
     const tab = await openStyle("Key people");
     await userEvent.click(within(tab).getByRole("button", { name: "Add to node shaders" }));
-    await page().findByTestId("shader-gallery", {}, storyWaitOptions(1000));
+    await page().findByTestId("shader-gallery", {});
 });
+
+// The node-models experiment (issue #3396): models in the Shape field and a picture in Fill.
+
+/**
+ * A story with the node-models experiment switched on, as a site's site.json does; the page's own
+ * configuration is put back afterwards.
+ * @param story - the story.
+ * @param name - its name in the sidebar.
+ * @returns the story, with the experiment on.
+ */
+function nodeModelsStory(story: Story, name: string): Story {
+    return {
+        ...story,
+        name,
+        beforeEach: async () => {
+            await siteFeatures(["node-models"]);
+            return async () => {
+                resetSiteConfig();
+                await loadSiteConfig();
+            };
+        },
+    };
+}
+
+/**
+ * Opens the Models pop-over on Key people by real input: Shape's "+", then the Shape list's
+ * Model... entry.
+ * @returns the Style tab and the pop-over.
+ */
+async function openModels(): Promise<{ tab: HTMLElement; models: HTMLElement }> {
+    const tab = await openStyle("Key people");
+    await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
+    await userEvent.click(await page().findByRole("menuitem", { name: "Shape" }));
+    await userEvent.click(await within(tab).findByRole("combobox", { name: /^Node shape/ }));
+    await userEvent.click(await page().findByRole("option", { name: "Model..." }));
+    return { tab, models: await page().findByRole("dialog", { name: "Models" }) };
+}
+
+/**
+ * Draws Key people as the first sample model by real input, then waits until it is drawn.
+ * @param session - the element's session.
+ * @returns the Style tab.
+ */
+async function drawKeyPeopleAsSample(session: GraphSession): Promise<HTMLElement> {
+    const [sample] = session.catalog.models();
+    const { tab, models } = await openModels();
+    await userEvent.click(within(models).getByRole("button", { name: sample.plainName }));
+    await within(tab).findByRole("combobox", { name: `Node shape, ${sample.plainName}` });
+    await waitFor(() => {
+        expect(session.assets.states().find((c) => c.ref === sample.id)?.state).toBe("drawn");
+    });
+    return tab;
+}
+
+/** Key people drawn as a sample model, picked from the Shape list's Model... entry. */
+export const ModelOnALayer: Story = nodeModelsStory(
+    sceneStory(async ({ session }) => {
+        await drawKeyPeopleAsSample(session);
+    }),
+    "Model on a layer",
+);
+
+/** Model settings open on Key people's model: Up, Turn, Color, Fit and Center. */
+export const ModelSettingsOpen: Story = nodeModelsStory(
+    sceneStory(async ({ session }) => {
+        const tab = await drawKeyPeopleAsSample(session);
+        await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
+        await page().findByRole("dialog", { name: "Model settings" });
+    }),
+    "Model settings",
+);
+
+/**
+ * The Parts pop-over: Key people naming the car kit's police.glb added alone, as a saved project
+ * whose picture moved names it, so the Shape field carries "1 missing" for Textures/colormap.png;
+ * the chip opens the pop-over on that part.
+ */
+export const Parts: Story = nodeModelsStory(
+    sceneStory(async ({ session }) => {
+        const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+        const record = await session.assets.add(new File([police], "police.glb", { type: "model/gltf-binary" }));
+        const layer = session.styles.list().find((each) => each.name === "Key people");
+        if (layer === undefined) {
+            throw new Error("no Key people layer");
+        }
+        await session.styles.update(layer.id, { set: { ...layer.set, "node.model": record.id } });
+        const tab = await openStyle("Key people");
+        await userEvent.click(await within(tab).findByRole("button", { name: "police: 1 file missing" }));
+        await page().findByRole("dialog", { name: "police.glb" });
+    }),
+    "Parts",
+);
+
+/**
+ * Opens the Load custom model dialog on Key people by real input: the Models pop-over's Custom
+ * model... button.
+ * @returns the dialog.
+ */
+async function openCustomModel(): Promise<HTMLElement> {
+    const { models } = await openModels();
+    await userEvent.click(within(models).getByRole("button", { name: "Add custom model..." }));
+    return page().findByRole("dialog", { name: "Load custom model" });
+}
+
+/**
+ * Drops files on a target as the browser delivers a drag from the desktop: dragenter, dragover and
+ * drop, each carrying the files. A page cannot start a drag of a file from the operating system,
+ * so a story drops them this way; the file picker a button opens has no page to answer it here.
+ * @param target - where they are dropped.
+ * @param files - the files.
+ */
+function dropFiles(target: Element, files: File[]): void {
+    const dataTransfer = new DataTransfer();
+    for (const file of files) {
+        dataTransfer.items.add(file);
+    }
+    for (const type of ["dragenter", "dragover", "drop"]) {
+        target.dispatchEvent(new DragEvent(type, { dataTransfer, bubbles: true, cancelable: true }));
+    }
+}
+
+/**
+ * Loads files in the Load custom model dialog by dropping them on it.
+ * @param dialog - the dialog.
+ * @param files - the files.
+ */
+async function chooseInDialog(dialog: HTMLElement, files: File[]): Promise<void> {
+    dropFiles(await within(dialog).findByTestId("custom-model"), files);
+}
+
+/**
+ * The car kit's files, from the repository.
+ * @param picture - the picture's file name ("colormap.png"), or none for police.glb alone.
+ * @returns the files.
+ */
+async function carKit(picture?: string): Promise<File[]> {
+    const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+    const files = [new File([police], "police.glb", { type: "model/gltf-binary" })];
+    if (picture !== undefined) {
+        const colormap = new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer());
+        files.push(new File([colormap], picture, { type: "image/png" }));
+    }
+    return files;
+}
+
+/** The Load custom model dialog, empty: the file loader row (address, Choose file, Choose folder) left, the preview blank right. */
+export const CustomModelEmpty: Story = nodeModelsStory(
+    sceneStory(async () => {
+        await openCustomModel();
+    }),
+    "Custom model, empty",
+);
+
+/** The dialog with police.glb and its picture loaded: Name and Color left, the preview graphty-element draws right with its rotate buttons and Details. */
+export const CustomModelLoaded: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, await carKit("colormap.png"));
+        await within(dialog).findByRole("img", { name: "police preview" });
+    }),
+    "Custom model, loaded",
+);
+
+/**
+ * The dialog with police.glb whose picture is named paint.png: Files open on the missing part and
+ * Use file, and the preview draws police with a plain stand-in for the picture.
+ */
+export const CustomModelMissingParts: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, await carKit("paint.png"));
+        const files = await within(dialog).findByTestId("model-files");
+        await within(files).findByRole("combobox", { name: "File for colormap.png" });
+        await within(dialog).findByRole("img", { name: "police preview" });
+    }),
+    "Custom model, missing parts",
+);
+
+/** The dialog after an address that cannot be reached (a host that never resolves, so the picture is the same on every machine): why, under the address field. */
+export const CustomModelUrlError: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        const address = within(dialog).getByRole("textbox", { name: "Model address" });
+        await userEvent.type(address, "https://example.invalid/no-such-model/police.glb{Enter}");
+        // While it loads the dialog takes its two-column layout, so the field it comes back to is a new one.
+        await waitFor(() => {
+            const field = within(dialog).getByRole("textbox", { name: "Model address" });
+            expect(field.getAttribute("aria-invalid")).toBe("true");
+        });
+    }),
+    "Custom model, address error",
+);
+
+/** The dialog with police loaded and More options open: Up, Turn, Fit, Center, Sides and Light. */
+export const CustomModelMoreOptions: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, await carKit("colormap.png"));
+        await within(dialog).findByRole("img", { name: "police preview" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "More options" }));
+        await within(dialog).findByRole("combobox", { name: /^Up, / });
+        // However tall the settings grow, Add model stays in view: the left column scrolls, the footer stays.
+        const add = within(dialog).getByRole("button", { name: "Add model" }).getBoundingClientRect();
+        expect(add.bottom).toBeLessThanOrEqual(window.innerHeight);
+    }),
+    "Custom model, more options",
+);
+
+/** The dialog with police loaded and Details open: the model's facts as a table under the preview. */
+export const CustomModelDetails: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, await carKit("colormap.png"));
+        await within(dialog).findByRole("img", { name: "police preview" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Details" }));
+        await within(await within(dialog).findByTestId("model-details")).findByRole("group", { name: "Format" });
+    }),
+    "Custom model, details",
+);
+
+/** The address police.glb is "downloaded" from in the loading story: a server that sends its first part and waits. */
+const SLOW_MODEL = "https://models.example.com/slow/police.glb";
+
+/**
+ * Answers SLOW_MODEL with the first quarter of police.glb and then nothing more, the size known,
+ * so the dialog shows a load a quarter of the way.
+ */
+async function serveSlowly(): Promise<void> {
+    const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+    const original = globalThis.fetch.bind(globalThis);
+    globalThis.fetch = (input, init) => {
+        const to = input instanceof Request ? input.url : String(input);
+        if (to !== SLOW_MODEL) {
+            return original(input, init);
+        }
+        const stream = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(police.subarray(0, Math.floor(police.byteLength / 4)));
+            },
+        });
+        return Promise.resolve(
+            new Response(stream, { status: 200, headers: { "content-length": String(police.byteLength) } }),
+        );
+    };
+}
+
+/** The dialog while an address loads: the file loader with Downloading, the bytes, Cancel load and the bar. */
+export const CustomModelLoading: Story = nodeModelsStory(
+    sceneStory(async () => {
+        await serveSlowly();
+        const dialog = await openCustomModel();
+        await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${SLOW_MODEL}{Enter}`);
+        await within(dialog).findByText(/ of /);
+    }),
+    "Custom model, loading",
+);
+
+/**
+ * A fixture as a file, from the story server.
+ * @param url - its URL.
+ * @param name - the file's name.
+ * @returns the file.
+ */
+async function fixtureFile(url: string, name: string): Promise<File> {
+    return new File([await (await fetch(url)).arrayBuffer()], name);
+}
+
+/** The dialog with a binary PLY point cloud: its variant under the preview, and Guessed and Approximated on Details. */
+export const CustomModelPointCloud: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, [await fixtureFile(pointsPlyUrl, "points.ply")]);
+        await within(dialog).findByRole("img", { name: "points preview" });
+        await within(dialog).findByText("Approximated");
+    }),
+    "Custom model, point cloud",
+);
+
+/** The dialog with a PLY whose data is damaged past its header: accepted, but graphty-element cannot draw it. */
+export const CustomModelDrawFailed: Story = nodeModelsStory(
+    sceneStory(async () => {
+        const dialog = await openCustomModel();
+        await chooseInDialog(dialog, [await fixtureFile(damagedPlyUrl, "cube.ply")]);
+        await within(await within(dialog).findByTestId("model-preview")).findByText("Not loaded");
+    }),
+    "Custom model, draw failed",
+);
+
+/** The Main menu open on Add custom model..., which opens the dialog with no layer to write to. */
+export const CustomModelMainMenu: Story = nodeModelsStory(
+    sceneStory(async () => {
+        await userEvent.click(page().getByRole("button", { name: "Main menu" }));
+        await page().findByRole("menuitem", { name: "Add custom model..." });
+    }),
+    "Custom model, main menu",
+);
+
+/** The Models pop-over after police was added through the dialog: its picture tile under In this project. */
+export const CustomModelProjectTile: Story = nodeModelsStory(
+    sceneStory(async () => {
+        await userEvent.click(page().getByRole("button", { name: "Main menu" }));
+        await userEvent.click(await page().findByRole("menuitem", { name: "Add custom model..." }));
+        const dialog = await page().findByRole("dialog", { name: "Load custom model" });
+        await chooseInDialog(dialog, await carKit("colormap.png"));
+        await within(dialog).findByRole("img", { name: "police preview" });
+        await userEvent.click(within(dialog).getByRole("button", { name: "Add to project" }));
+        await waitFor(() => {
+            expect(page().queryByRole("dialog", { name: "Load custom model" })).toBeNull();
+        });
+        const { models } = await openModels();
+        const own = within(models).getByRole("group", { name: "In this project" });
+        const tile = within(own).getByRole("button", { name: "police" });
+        await waitFor(() => {
+            expect(tile.querySelector("img")).not.toBeNull();
+        });
+    }),
+    "Custom model, project tile",
+);
+
+/**
+ * A picture on Key people (node-models design 13.7) by real input: Fill's "+" adds Picture and opens
+ * the Picture pop-over, and the car kit's colormap.png chosen there draws on the layer's nodes.
+ */
+export const Picture: Story = nodeModelsStory(
+    sceneStory(async ({ session }) => {
+        const tab = await openStyle("Key people");
+        // Key people sets its color: Fill's "+" has only Picture left, and adds it at once.
+        await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
+        const picture: HTMLElement = await page().findByRole("dialog", { name: "Picture" });
+        const colormap = new Uint8Array(await (await fetch(colormapUrl)).arrayBuffer());
+        dropFiles(within(picture).getByRole("button", { name: "Choose picture" }), [
+            new File([colormap], "colormap.png", { type: "image/png" }),
+        ]);
+        await within(tab).findByRole("textbox", { name: "Node picture, colormap" });
+        await waitFor(() => {
+            expect(session.assets.list().some((r) => r.kind === "image" && r.state === "accepted")).toBe(true);
+        });
+    }),
+    "Picture",
+);
 
 // Checkpoint 3: the Values tab and Graph settings.
 
@@ -514,28 +874,28 @@ export const ShadersGallery: Story = sceneStory(async () => {
 export const DegreeValues: Story = sceneStory(async ({ runs }) => {
     await clickRow(runs.degree);
     await clickTab("Values");
-    await page().findByTestId("values-spread", {}, storyWaitOptions(1000));
+    await page().findByTestId("values-spread", {});
 });
 
 /** Louvain's Values: its groups, largest first. */
 export const LouvainValues: Story = sceneStory(async ({ runs }) => {
     await clickRow(runs.louvain);
     await clickTab("Values");
-    await page().findByText("Groups, largest first", {}, storyWaitOptions(1000));
+    await page().findByText("Groups, largest first", {});
 });
 
 /** The route's Values: its nodes in order. */
 export const RouteValues: Story = sceneStory(async ({ runs }) => {
     await clickRow(runs["shortest-path"]);
     await clickTab("Values");
-    await page().findByRole("group", { name: "Nodes in order" }, storyWaitOptions(1000));
+    await page().findByRole("group", { name: "Nodes in order" });
 });
 
-/** Graph settings: lighting, label rules and the highlight color. */
+/** Graph settings in 2D: the label rules and the highlight color. */
 export const GraphSettings: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Graph settings" }));
-    // Lighting shows only in 3D; Outline width shows in every view.
-    await page().findByRole("spinbutton", { name: /^Outline width/ }, storyWaitOptions(1000));
+    // The scene is 2D, where Lighting and the Canvas section hide; the Labels rows show in every view.
+    await page().findByRole("switch", { name: "Hide overlapping labels" });
 });
 
 // College football: a number column that names groups, painted one color per value.
@@ -547,22 +907,20 @@ export const GraphSettings: Story = sceneStory(async () => {
  * @returns the element.
  */
 async function loadFootball(canvasElement: HTMLElement): Promise<GraphtyElement> {
-    await userEvent.click(
-        await page().findByRole("button", { name: "Open the College football sample" }, storyWaitOptions(1000)),
-    );
+    await userEvent.click(await page().findByRole("button", { name: sampleTile("College football") }));
     await customElements.whenDefined("graphty-element");
     const element = await waitFor(() => {
         const found = canvasElement.querySelector("graphty-element");
         expect(found).not.toBeNull();
         return found as GraphtyElement;
-    }, storyWaitOptions(1000));
+    });
     // The open is finished when the workspace has started the graph's history (Workspace.tsx clears
     // it once the sample is read): before that, the clear would cancel the switch to 2D below.
     await waitFor(() => {
         const { history } = element.session;
         expect(element.session.data.statistics().nodeCount).toBe(115);
         expect(history.pending.length + history.steps.length).toBe(0);
-    }, storyWaitOptions(10_000));
+    });
     await element.session.layout.setDimension("2d");
     await element.session.layout.set("circular");
     await element.session.styles.settled();
@@ -583,41 +941,44 @@ export const FootballConference: Story = {
         const { session } = element;
         const before = new Set(session.styles.list().map((l) => l.id));
         await userEvent.click(page().getByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }, storyWaitOptions(1000)));
-        await page().findByRole("textbox", { name: "Layer name" }, storyWaitOptions(1000));
+        await userEvent.click(await page().findByRole("menuitem", { name: "Layer" }));
+        await page().findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Control>}a{/Control}Conference{Enter}");
-        const tab: HTMLElement = await page().findByTestId("style-tab", {}, storyWaitOptions(1000));
+        const tab: HTMLElement = await page().findByTestId("style-tab", {});
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
+        const colorLine = (): HTMLElement | null =>
+            (page().getByTestId("style-tab") as HTMLElement).querySelector('.ws-row[data-line="node.color"]');
+        // Fill's "+" adds Color at once, or offers it in a menu when the node models experiment adds Picture.
+        const color = await waitFor(() => {
+            const item = page().queryByRole("menuitem", { name: "Color" });
+            expect(item !== null || colorLine() !== null).toBe(true);
+            return item;
+        });
+        if (color !== null) {
+            await userEvent.click(color);
+        }
         const box: HTMLElement = await waitFor(() => {
-            const found: HTMLElement | null = (page().getByTestId("style-tab") as HTMLElement).querySelector(
-                '.ws-row[data-line="node.color"]',
-            );
+            const found = colorLine();
             expect(found).not.toBeNull();
             return found as HTMLElement;
-        }, storyWaitOptions(1000));
+        });
         // The glyph shows while the field holds focus (a story's pointer events move no CSS hover).
         (box.querySelector("input") as HTMLElement | null)?.focus();
-        await userEvent.click(
-            await within(box).findByRole("button", { name: "Node color by attribute" }, storyWaitOptions(1000)),
-        );
+        await userEvent.click(await within(box).findByRole("button", { name: "Node color by attribute" }));
         // The picker names each attribute with one fact about it ("value, 0 to 11").
-        const search = await page().findByRole("combobox", { name: "Find an attribute" }, storyWaitOptions(1000));
+        const search = await page().findByRole("combobox", { name: "Find an attribute" });
         const picker = (search as HTMLElement).closest<HTMLElement>(".cm-quick-actions") ?? document.body;
-        await userEvent.click(await within(picker).findByRole("option", { name: /^value, / }, storyWaitOptions(1000)));
+        await userEvent.click(await within(picker).findByRole("option", { name: /^value, / }));
         const made = await waitFor(() => {
             const layer = session.styles
                 .list()
                 .find((l) => !before.has(l.id) && l.encode?.["node.color"] !== undefined);
             expect(layer).toBeDefined();
             return layer as NonNullable<typeof layer>;
-        }, storyWaitOptions(1000));
-        await within(page().getByRole("tree", { name: "Style layers" })).findByRole(
-            "treeitem",
-            {
-                name: /^Conference, /,
-            },
-            storyWaitOptions(1000),
-        );
+        });
+        await within(page().getByRole("tree", { name: "Style layers" })).findByRole("treeitem", {
+            name: /^Conference, /,
+        });
 
         const styleTab = await openStyle("Conference");
         const popover = await openColorBinding(styleTab);
@@ -625,8 +986,8 @@ export const FootballConference: Story = {
         await waitFor(() => {
             const binding = session.styles.get(made.id)?.encode?.["node.color"];
             expect(binding !== undefined && "by" in binding ? binding.scale : undefined).toBe("ordinal");
-        }, storyWaitOptions(1000));
-        await within(popover).findByRole("combobox", { name: /^Palette/ }, storyWaitOptions(1000));
+        });
+        await within(popover).findByRole("combobox", { name: /^Palette/ });
         await element.waitForStableFrame();
     },
 };

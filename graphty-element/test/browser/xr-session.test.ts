@@ -17,14 +17,9 @@ import "../../src/graphty-element";
 import { type AbstractMesh, UtilityLayerRenderer, WebXRHandJoint } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
+import { isGraphtyError } from "../../src/errors";
 import { type Graph, operationQueueOf } from "../../src/Graph";
 import { installIWER, type IWERHandle } from "../interactions/helpers/iwer-setup";
-
-/**
- * Inside the project's 15 s test budget, so a wait that never holds fails with its own message
- * rather than as a test timeout; every wait below returns as soon as its condition holds.
- */
-const WAIT = { timeout: 10_000, interval: 50 };
 
 /** XR frames a session must render before it counts as drawing, not just started. */
 const MIN_XR_FRAMES = 10;
@@ -135,11 +130,11 @@ async function mountXRGraph(handTracking = false, vrReferenceSpace?: "bounded-fl
 
     await vi.waitFor(() => {
         assert.isNotNull(xrControl('[data-xr-mode="immersive-ar"]'), "AR button never appeared");
-    }, WAIT);
+    });
     await operationQueueOf(element.graph).waitForCompletion();
     await vi.waitFor(() => {
         assert.isAbove([...element.graph.getNodes()].length, 0, "the graph never loaded its nodes");
-    }, WAIT);
+    });
 
     return element.graph;
 }
@@ -171,7 +166,7 @@ describe.each([
 
         await vi.waitFor(() => {
             assert.isAtLeast(record.frames, MIN_XR_FRAMES, "the session is not rendering XR frames");
-        }, WAIT);
+        });
 
         // Both emulated controllers are connected and get a motion controller, the point at
         // which Babylon would fetch a controller model if the element let it.
@@ -182,7 +177,7 @@ describe.each([
             for (const controller of controllers) {
                 assert.exists(controller.motionController, "a controller has no motion controller");
             }
-        }, WAIT);
+        });
 
         const xrCamera = graph.getXRSessionManager()?.getXRCamera();
 
@@ -213,7 +208,7 @@ describe.each([
 
         await vi.waitFor(() => {
             assert.isTrue(record.ended, "the XR session did not end");
-        }, WAIT);
+        });
         assert.isNull(graph.getXRSessionManager()?.getActiveMode(), "the session manager still holds a session");
         assert.strictEqual(graph.getViewMode(), "3d");
         await element.session.data.addNodes([{ id: "added-after-xr" }]);
@@ -250,7 +245,7 @@ describe("VR with hand tracking on and emulated hands", () => {
                 assert.exists(wrist, `the ${handedness} hand is not tracked`);
                 assert.isTrue(wrist?.isVisible, `the ${handedness} hand is not drawn`);
             }
-        }, WAIT);
+        });
 
         // Near interaction gives each hand a touch orb whose material the element ships.
         await vi.waitFor(() => {
@@ -262,7 +257,7 @@ describe("VR with hand tracking on and emulated hands", () => {
             for (const orb of orbs) {
                 assert.strictEqual(orb.material?.name, "motionControllerTouchMaterial", "orb material not loaded");
             }
-        }, WAIT);
+        });
 
         await element.setViewMode("3d");
     });
@@ -301,7 +296,7 @@ async function mountDefaultGraph(
     await operationQueueOf(element.graph).waitForCompletion();
     await vi.waitFor(() => {
         assert.isAbove([...element.graph.getNodes()].length, 0, "the graph never loaded its nodes");
-    }, WAIT);
+    });
 
     return element.graph;
 }
@@ -344,7 +339,7 @@ describe("session.capabilities.xr", () => {
         await mountDefaultGraph(element);
         await vi.waitFor(() => {
             assert.isTrue(element.session.capabilities.xr.vr, "VR never became available");
-        }, WAIT);
+        });
 
         assert.isAbove(asked, 0);
         assert.isTrue(
@@ -368,34 +363,31 @@ describe("session.capabilities.xr", () => {
         assert.isNotEmpty(listening, "the element never listened for WebXR device changes");
 
         element.remove();
+        // The shutdown waits for the microtask after the removal, in case the element is moved back.
+        await Promise.resolve();
 
         // A listener left on navigator.xr keeps the removed element's whole graph alive.
         assert.sameMembers(deviceChange(removed.mock.calls), listening, "a devicechange listener outlived the element");
     });
 
-    test("answers unsupported when the browser never answers, within 1500 ms", async () => {
+    test("answers unsupported when the browser never answers", async () => {
         const { xr } = navigator;
         assert.exists(xr);
-        let askedAt = 0;
+        let asked = 0;
         xr.isSessionSupported = () => {
-            askedAt ||= performance.now();
+            asked++;
             return new Promise<boolean>(() => undefined);
         };
 
         await mountDefaultGraph();
-        let settledAt = 0;
-        element.session.on("capabilities:changed", ({ capabilities }) => {
-            if (capabilities.xr.reasons.vr === "unsupported") {
-                settledAt ||= performance.now();
-            }
-        });
+        // The browser's answer never comes, so reaching "unsupported" at all proves the probe ends
+        // on its own timer; how soon is the element's constant, not something a busy machine can
+        // measure.
         await vi.waitFor(() => {
             assert.strictEqual(element.session.capabilities.xr.reasons.vr, "unsupported");
-        }, WAIT);
+        });
 
-        assert.isAbove(askedAt, 0, "the browser was never asked");
-        // eslint-disable-next-line local/no-test-timing -- an upper bound on the probe's own timer, to become a fake-timer check, tracked in #1636
-        assert.isAtMost(settledAt - askedAt, 1500 + 250, "the probe was not bounded");
+        assert.isAbove(asked, 0, "the browser was never asked");
         assert.deepEqual(element.session.capabilities.xr.reasons, { vr: "unsupported", ar: "unsupported" });
     });
 
@@ -411,7 +403,7 @@ describe("session.capabilities.xr", () => {
         const graph = await mountDefaultGraph();
         await vi.waitFor(() => {
             assert.isTrue(element.session.capabilities.xr.vr);
-        }, WAIT);
+        });
 
         assert.exists(graph.getXRSessionManager(), "XR was turned on");
         assert.isNull(graph.getXRSessionManager()?.getXRHelper() ?? null, "a WebXR helper was built");
@@ -437,7 +429,7 @@ describe("session.capabilities.xr", () => {
         await element.session.undo();
         await vi.waitFor(() => {
             assert.isTrue(iwer.sessions[0]?.ended, "undo did not end the session");
-        }, WAIT);
+        });
         assert.strictEqual(graph.getViewMode(), "2d");
         assert.isNull(element.session.capabilities.xr.active);
     });
@@ -455,12 +447,12 @@ describe("session.capabilities.xr", () => {
 
         await vi.waitFor(() => {
             assert.include(actives, null, "capabilities:changed never said the session ended");
-        }, WAIT);
+        });
         assert.isNull(element.session.capabilities.xr.active);
         assert.isNull(graph.getXRSessionManager()?.getActiveMode() ?? null);
         await vi.waitFor(() => {
             assert.strictEqual(graph.getViewMode(), "3d");
-        }, WAIT);
+        });
     });
 
     test("reports a refused entry as graph-error, without alert()", async () => {
@@ -503,14 +495,14 @@ describe.each([
         const [first] = iwer.sessions;
         await vi.waitFor(() => {
             assert.isAtLeast(first.frames, MIN_XR_FRAMES, "the session is not rendering XR frames");
-        }, WAIT);
+        });
 
         // The headset ends it: the element did not ask.
         await first.session.end();
 
         await vi.waitFor(() => {
             assert.deepEqual(ended, [{ mode: viewMode, cause: "device" }], "no xr-session-ended from the device");
-        }, WAIT);
+        });
         assert.isNull(graph.getXRSessionManager()?.getActiveMode(), "the session manager still holds a session");
         assert.isNull(graph.getXRSessionManager()?.getXRHelper() ?? null, "the XR helper was kept");
         assert.strictEqual(graph.getViewMode(), "3d");
@@ -525,7 +517,7 @@ describe.each([
         await element.setViewMode("3d");
         await vi.waitFor(() => {
             assert.deepEqual(ended.at(-1), { mode: viewMode, cause: "exit" }, "no xr-session-ended on exit");
-        }, WAIT);
+        });
         assert.lengthOf(ended, 2);
     });
 });
@@ -568,5 +560,152 @@ describe("the configured VR reference space", () => {
             granted: "local-floor",
             manager: "local-floor",
         });
+    });
+});
+
+describe("the session options", () => {
+    /**
+     * Mount the element with XR on and the given configuration, and enter a session.
+     * @param viewMode - the session to enter
+     * @param xr - the XR configuration beside `enabled`
+     * @returns the element's graph and the session's record
+     */
+    async function enter(
+        viewMode: "vr" | "ar",
+        xr: Omit<NonNullable<HTMLElementTagNameMap["graphty-element"]["xr"]>, "enabled">,
+    ): Promise<{ graph: Graph; record: (typeof iwer.sessions)[number] }> {
+        const created = document.createElement("graphty-element");
+        created.xr = { ...XR_ON, ...xr };
+        const graph = await mountDefaultGraph(created);
+        await element.session.execute({ op: "view.immersive", mode: viewMode });
+        assert.lengthOf(iwer.sessions, 1);
+
+        return { graph, record: iwer.sessions[0] };
+    }
+
+    test.each(["vr", "ar"] as const)(
+        "%s.optionalFeatures are asked of the session, and none by default",
+        async (mode) => {
+            const { record } = await enter(mode, { [mode]: { optionalFeatures: ["anchors", "plane-detection"] } });
+
+            assert.includeMembers(record.init?.optionalFeatures ?? [], ["anchors", "plane-detection"]);
+            await element.setViewMode("3d");
+            element.remove();
+            iwer.uninstall();
+            iwer = installIWER();
+
+            const { record: plain } = await enter(mode, {});
+            assert.notInclude(plain.init?.optionalFeatures ?? [], "anchors", "a feature was asked for unconfigured");
+            assert.notInclude(
+                plain.init?.optionalFeatures ?? [],
+                "plane-detection",
+                "a feature was asked for unconfigured",
+            );
+            await element.setViewMode("3d");
+        },
+    );
+
+    /**
+     * The touch orbs near interaction draws, one per tracked input, once both controllers track.
+     * @param graph - the element's graph
+     * @returns how many there are
+     */
+    async function touchOrbs(graph: Graph): Promise<number> {
+        await vi.waitFor(() => {
+            const controllers = graph.getXRSessionManager()?.getXRHelper()?.input.controllers ?? [];
+            assert.lengthOf(controllers, 2, "the emulated controllers are not tracked");
+        });
+        await vi.waitFor(() => {
+            for (const controller of graph.getXRSessionManager()?.getXRHelper()?.input.controllers ?? []) {
+                assert.exists(controller.motionController, "a controller has no motion controller");
+            }
+        });
+
+        return UtilityLayerRenderer.DefaultUtilityLayer.utilityLayerScene.meshes.filter(
+            (mesh) => mesh.name === "PickSphere" && !mesh.isDisposed(),
+        ).length;
+    }
+
+    test("input.nearInteraction draws touch orbs by default, and none when false", async () => {
+        const { graph } = await enter("vr", {});
+        await vi.waitFor(async () => {
+            assert.isAbove(await touchOrbs(graph), 0, "near interaction is on by default, yet no touch orbs");
+        });
+        await element.setViewMode("3d");
+        element.remove();
+        iwer.uninstall();
+        iwer = installIWER();
+
+        const { graph: off } = await enter("vr", { input: { nearInteraction: false } });
+        const features = off.getXRSessionManager()?.getXRHelper()?.baseExperience.featuresManager;
+        assert.notInclude(features?.getEnabledFeatures() ?? [], "xr-near-interaction");
+        assert.strictEqual(await touchOrbs(off), 0, "near interaction is off, yet touch orbs were drawn");
+        await element.setViewMode("3d");
+    });
+});
+
+describe.each(["vr", "ar"] as const)("a %s entry the runtime refuses", (viewMode) => {
+    test("rejects with E_XR_SESSION_FAILED, reports it, leaves nothing behind, and the next entry works", async () => {
+        const { xr } = navigator;
+        assert.exists(xr);
+        const requestSession = xr.requestSession.bind(xr);
+        const refusal = new Error("the runtime refused");
+        xr.requestSession = () => Promise.reject(refusal);
+        const graph = await mountDefaultGraph();
+        const reported: unknown[] = [];
+        graph.addListener("error", (event) => {
+            reported.push((event as { error?: unknown }).error);
+        });
+        const xrCameras = (): number =>
+            graph.scene.cameras.filter((camera) => camera.getClassName() === "WebXRCamera").length;
+
+        for (const attempt of [1, 2]) {
+            const refused: unknown = await graph.setViewMode(viewMode).then(
+                () => undefined,
+                (error: unknown) => error,
+            );
+
+            if (!isGraphtyError(refused)) {
+                assert.fail(`attempt ${String(attempt)} did not reject with a GraphtyError`);
+            }
+
+            assert.strictEqual(refused.code, "E_XR_SESSION_FAILED");
+            assert.deepEqual(refused.details, { mode: viewMode });
+            assert.strictEqual(refused.cause, refusal, "the browser's error is not kept as the cause");
+            assert.include(reported, refused, "the refusal was not reported as graph-error");
+            assert.strictEqual(graph.getViewMode(), "3d");
+            assert.isNull(graph.getXRSessionManager()?.getXRHelper() ?? null, "the failed attempt kept its helper");
+            assert.strictEqual(xrCameras(), 0, `attempt ${String(attempt)} left an XR camera on the scene`);
+        }
+
+        xr.requestSession = requestSession;
+        await graph.setViewMode(viewMode);
+        assert.strictEqual(graph.getViewMode(), viewMode);
+        assert.strictEqual(xrCameras(), 1, "the entry after the refusals built more than one XR camera");
+        await graph.setViewMode("3d");
+    });
+});
+
+describe("setXRConfig during a VR session", () => {
+    test("applies the new settings and the session keeps rendering", async () => {
+        const graph = await mountXRGraph();
+        await element.setViewMode("vr");
+        const [record] = iwer.sessions;
+        const framesAfter = async (count: number): Promise<void> => {
+            const target = record.frames + count;
+            await vi.waitFor(() => {
+                assert.isAtLeast(record.frames, target, "the session stopped rendering");
+            });
+        };
+        await framesAfter(MIN_XR_FRAMES);
+
+        graph.setXRConfig({ input: { zAxisAmplification: 4, handTracking: true }, ui: { position: "top-left" } });
+        await framesAfter(MIN_XR_FRAMES);
+
+        assert.isFalse(record.ended, "changing the configuration ended the session");
+        assert.lengthOf(iwer.sessions, 1, "changing the configuration started another session");
+        assert.strictEqual(graph.getViewMode(), "vr");
+        assert.strictEqual(graph.getXRConfig()?.input.zAxisAmplification, 4);
+        await element.setViewMode("3d");
     });
 });

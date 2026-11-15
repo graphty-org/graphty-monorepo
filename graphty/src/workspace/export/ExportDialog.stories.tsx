@@ -5,7 +5,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { waitFor } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
-import { storyWaitOptions } from "../../stories/wait";
 import type { WorkspaceState } from "../state/store";
 import { Workspace } from "../Workspace";
 
@@ -68,7 +67,7 @@ function exportStory(exportOn: WorkspaceState["exportOn"]): Story {
                         throw new Error("the preview is not drawn yet");
                     }
                     return img;
-                }, storyWaitOptions(5000));
+                });
                 await preview.decode();
             }
         },

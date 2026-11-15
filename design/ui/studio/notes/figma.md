@@ -5,52 +5,40 @@ controls and gestures, and make the studio justify every divergence with a forci
 plainly where graphty is genuinely different. Read this file at the start of every session; update
 it as decisions land.
 
-Last updated: 2026-10-21 (tier 3 round 1 closed; insights read).
+Last updated: 2026-11-06 (tier 6 round 2 closed; insights and decisions read; round 3 next).
 
 ## Top of mind
 
-- (2026-10-23, issue #3315) Location as one "+" pick per kind. My position: Figma's effect
-  rows (type select + gear) were the closest precedent for the gear, but Figma only puts settings
-  in a gear when the row's shape does not change with them; latitude and longitude are two
-  inputs, like X and Y, so they are two rows. Adopted; the in-row kind select was rejected for
-  width (two selects in 240 px).
-
-1. (2026-10-21) Tier 3 round 1 closed at the 1-round cap without meeting the bars; studio stopped.
-   55 of 56 sessions succeeded: the round is at its ceiling, so signal lives in cost, routes and
-   problems, not success. Bar 5 fails only on two pre-round severity 3 backlog items (the node's
-   own Fill "+" making a one-node layer; the folder chain icon painting every cluster one color).
-2. (2026-10-21) Biggest newcomer cost: with nothing picked, the Graph inspector's Style tab shows
-   only canvas settings; 9 sessions looked there first for node color and recovered only by
-   matching the "Everything" count. Figma answer: an empty selection's panel still points at
-   what styles the content (Figma's page panel lists Selection colors / local styles).
-3. (2026-10-21) A new style line starts at the value everything already has (Fill "+" = 6366F1,
-   edge Width = 8, no unit), so accepting it looks broken. Figma adds a new fill VISIBLY
-   different (its default paint differs). A new line must change the canvas or say why not.
-4. (2026-10-21) Checking a layer's members is done by eye: no hover outline, Values tab lists ids
-   not names, table does not mark painted rows. Element owns the transient highlight; app calls it.
-5. (2026-10-21) Color words: the color box accepts "orange" and nothing says so; swatches hold no
-   common hues. compact-mantine `colorWord` returns CSS keywords before hue ("gold" not
-   "yellow"), and the app speaks those names. Fix the shared table, not the grade or the app.
-6. (2026-10-21) Keyboard: inspector F6 stop draws no focus ring (WCAG 2.4.7); both "Samples"
-   controls leave focus behind; 30+ Tabs to a sample card. Fix in shared components.
-7. (2026-10-21) Layer tree Shift-click anchors on the last layer CLICKED, not the current
-   selection (pulled Everything into a bulk edit after Duplicate). Still a watch item.
-8. (2026-10-21) One list drawn four ways (inline 11 px drop-down, two 14 px side popovers, a
-   bordered grid). One picker component, one value-row grammar (swatch, name, count, eye, more).
-9. (2026-10-21) Avoiding the purple <<Layer>> token is not reading it: 6 sessions went around it.
-   Next round needs a measure that separates avoidance from understanding before I defend it.
-10. (2026-10-21) Build defects with repros: "+" click lost when the find list re-lays out the
-    panel; one hue-bar click closes the picker; first color with a find selection moves the
-    drawing ~130 px; swatch focus drawn on the whole box. All chrome, all fixable.
-11. (2026-10-21) Doors a Figma user tries first lead nowhere: Control+G, "Move to folder" > "No
-    folders yet". Wire both to "+" > Folder, which already wraps the selection.
-12. (2026-10-21) Panel sentences are back; owner 2026-10-20: no UI sentences.
-13. (2026-10-13) Owner-review decisions stand: one settings button per section title, dimmed
-    painted-over values with tooltip, opacity inline in the color row (still not built).
-14. (2026-10-06, owner) Figma's authority covers controls and gestures only; structure comes from
-    graphty's ontology. Never a task-word synonym (no "Cube" for Box).
-15. (2026-10-07) One model plays every persona: a failure is strong, a pass weak; the answer key
-    may lead graders -- read tasks for leading before spending sessions.
+1. (2026-11-06) Round 2 closed with no confirmed severity 3: 11 of 12 finished, Undo 2 of 2, every
+   computed count true. What is left has one shape: the screen says less than the graph did, or says it
+   where the reader is not looking. Round 3 tests 15 units, one path per problem.
+2. (2026-11-06) Watch first in round 3: Settings at 400% zoom (the only severity 3 candidate, a
+   `frame.css` max-height media rule) and focus after a press that removes its own button (fails bar 8;
+   one rule: hand focus to the composer). Walk both by pointer and keyboard at 320 x 256.
+3. (2026-11-06) My Colored row was refused: the painted fact joins an existing line, no new row ("words
+   at rest do not rise"). Check in round 3 that the reader and the model both see it; if a reader still
+   misses it, that is the evidence for a row.
+4. (2026-11-06) Reply end in view: step one is only `position: relative` on the log plus a measurement.
+   Judge it by one scrollbar and a visible chip row and Undo at 1440 x 900, nothing more.
+5. (2026-11-06) One name per measure: the Assistant uses `wordsFor(...).name` at all three `plainName`
+   sites. Check Reach/Closeness, Bridges/Betweenness and Louvain/Communities against the key card.
+6. (2026-11-06) Scope: only the placeholder changes ("Ask about this selection"). Scope words, sizes and
+   counts are held so round 3 can credit one change. Retest the planted reader before any next step.
+7. (2026-11-06) The refused-key failure may only say "may be", offers the provider, and keeps Send again.
+8. (2026-11-06) Autosave: one tooltip string, true for opened files. No "no changes" label, no leave
+   warning, no `showOpenFilePicker` (a new door, backlog).
+9. (2026-11-06) Hover counts measure the study tool, not readers: a "nobody hovered" claim is void. Do
+   not lead with tooltip findings until the tool's pointer crosses controls.
+10. (2026-11-06) Chip cursor and tooltip were refused: the arrow cursor is the theme's `cursorType`
+    system, not a defect. Do not raise it again without a reader's cost.
+11. (2026-11-05) Before citing a design line, read what it covers. Name a fix's owner from the code that
+    sets the value, not the file that looks right; grep for an existing handle before assuming a
+    compact-mantine change.
+12. (2026-10-30) Check every decided entry against the build before a walk; rate by the cost a reader
+    paid, and state a broken rule apart. Look at the shot before any "nothing appeared".
+13. (2026-10-21) One list drawn four ways; one chip grammar per row, one picker component.
+14. (2026-10-20, owner; 2026-10-06, owner) No UI sentences, tooltips that instruct included. Figma's
+    authority covers controls and gestures only; structure comes from graphty's ontology.
 
 ## Priorities and values
 
@@ -116,6 +104,53 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Decisions and reasons
 
+- **2026-11-06, round 2 decisions read.** Accepted the Director's ruling against my Colored row: the
+  fact goes on an existing line because a row per effect stacks on turns already three lines tall, and
+  a result path would print raw. Accepted holding all scope wording but the placeholder: one change per
+  problem so round 3 can credit it. Accepted refusing the chip cursor (theme `cursorType`) and the
+  failure-row glyph (no reader paid). Nothing in round 3 touches compact-mantine, so no Figma lock
+  question. Settled rulings: a rollback leaves no selection and no Redo; closing the panel does not end
+  the scope x (design 5.2).
+
+- **2026-11-05, after tier 6 round 2.** Ruled for myself: a painting run gets a Colored row (3 replies
+  claimed color over "Computed ..." alone). Challenged the insights on finding 7 (not partly reader
+  behavior, and the bars are not cosmetic), on ordering (it is the cheapest high-reach fix) and on
+  finding 9 (hold: one step each, and no plain words exist yet). Held the wheel, Group 1 to N, Open run
+  and the approval gap as no change now. Reason for all: smallest change, cost a reader paid.
+
+- **2026-11-05, after tier 6 round 1 insights.** Withdrew the repaint as a bar 11 matter and hold it
+  as a design question: should a run that paints also get a Colored row? I lean yes, one line per
+  effect, but 6.6 does not say so and the ruling is open. Moved my chip finding to a session question.
+  Accepted that a chip click changing scope is no defect (5.3). Rated nothing up.
+
+- **2026-11-05, tier 6 round 1 severities.** Held everything at 2 or below: no finding blocks a
+  reader on its own, and my 3s have never survived a skeptic without behavior. Stated bars and rules
+  apart: the repaint with no line is 2 with bar 11 named; retired names are 2 with glossary line 481
+  named. Did not re-raise anything `decided.md` settles (panel width jump, the x, no red, the name
+  starter, a question repainting); those are listed as no change. Rated the bar 12 word count (63 on
+  the provider section) as keep with a reason, since bar 3 measures that disclosure.
+- **2026-11-03, tier 5 round 1 rerun severities.** Kept the picker jump at 2 (recover by closing
+  the list) and dropped the reference picker from it (it stays under its field). Rated the
+  collapsed multi-step card 2, not 3: one click opens it, but it breaks decided.md 573. Rated the
+  preview cut on Table toggle 2 and named graphty-element only as "check first": the mechanism is
+  inferred, not traced. Moved the nested Edges where drawing to 1: no rule names it, and rule-less
+  severity 2s did not survive last time. Dropped "filter picker has no Results": PageRank is there.
+
+- **2026-11-03, tier 5 round 1 severities.** Picker jumping over the header rated 2, not 3: the
+  reader recovers by closing the list, but it is in every typed pick of both hosts, so it leads
+  the fix list. The filter picker's missing Results rated 2 (bar 7 asks the same entries in both
+  hosts; picking the run there starts a second run). The full brush on an untouched range rated
+  2 (drawing and count disagree, nothing is saved wrong). The sidebar "Except" misalignment rated
+  2 but listed as a pointer: it is calm-first finding 6 and counts in bar 9. "Select 7" not
+  raised: decided.md line 402.
+
+- **2026-10-30, tier 4 round 1 severities.** Rated "Hide keeps" 3, not 2: a reader reading the
+  visible word gets the opposite of the canvas, and the app itself calls the cards "Showing only".
+  Rated the epoch-millisecond date summary 3: it is the only reading of a closed card, so the
+  reader cannot check their own rule. Rated the missing joined-row ratio 2 but flagged it for bar 6:
+  the backlog has it at 1 as cosmetic, while the decided list names it an approved surface. Rated
+  the Control+E label on a row's Export 2: a key shown beside an item must do that item.
+
 - **2026-10-23, menu sections (issue #3315, director ruled).** Section labels, as Figma's own
   menus and plugin lists do: small dimmed caps-weight label, no rule line, no indent, rows flush.
   Both pick lists draw the same `ws-analyze-heading` label so they cannot drift. Engines read as
@@ -169,42 +204,95 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
 
 ## Tried: worked / did not work
 
-- 2026-10-21 Round 1 outcome versus my walk. Worked: my walk's sev 3 (Shift-click anchor) and
-  the four-ways list held as real; my Figma comparisons mapped onto 4 of the top 6 insights.
-  Did not: my severity 3 did not survive into bar 5 (no session reached it) -- a walk finding
-  without a session reaching it is a watch item, not a blocker. My "jargon" verdict on the
-  <<Layer>> token was weakened as opinion; bring behavior evidence, not reading verdicts.
+- 2026-11-05 Tier 6 round 2 outcome versus my walk. Held with readers: two names, Show in table, the
+  doubled period, failure reading as a reply, the repaint. Did not get a reader: "assistant node style".
+  Worked: comparing the inner scrollbar's thumb with its track in `r2-s01/18` and `r2-s12/10` showed the
+  log was not at its foot with no jump button up, which turned "never scrolled" into a defect.
+  Grepping for an existing handle (`scrollToRow`) removed a Figma lock question I had assumed.
 
-- 2026-10-21 Round 1 walk, three `real.mjs` sessions (82 shots). Worked: one long session per
-  dataset walking every screen; `--hover-at` on each icon for tooltip and role; PIL crops at 4x of
-  the tree and inspector made 9 px text and glyph meaning checkable; a PIL difference box proved a
-  hover changed only the row, not the canvas. Did not: `--shift-click-at` does not exist (use
-  `--shift-click "<name>"`); `"X#2"` is refused when only one control has that exact name; every
-  `--hover-at` writes a screenshot, so numbering jumps. Lesson: when a modifier click gives an
-  odd result, write down what the previous command selected: the anchor bug showed only because
-  Duplicate, not a click, had made the selection.
-- 2026-10-12 to 10-13, summarized. Tier 3 iterations 1 to 3. Worked: one driver per walk with a
-  try per section; measuring in the page (scrollWidth vs clientWidth, left edges, aria names)
-  turned "looks cut" into numbers; the Figma capture (`design/ui/figma/`) answered Figma
-  questions without a browser; reading element types first turned "element must add" into
-  "element already has". Did not: Mantine's segmented control hides its radio off screen (click
-  the label); guessed control names miss (dump names first); drafts ran 20 to 40% over word
-  budgets (cap list items at two lines).
-- 2026-10-09 to 10-11, summarized. Tier 2 rounds. Worked: re-walking last round's routes with the
-  same scripts; opening each control from a second state; walking repeat work (run twice, undo,
-  reopen, New project) found every severity 3. Did not: severity 3s without a repro script were
-  cut; a walk on an unchanged build already walked wasted slots; a crash met mid-walk needed its
-  own minimal session. Lessons: a script with every severity 3; check for an existing walk of the
-  build; commit the walk before the notes.
-- 2026-09-06 to 10-07, summarized. Worked: Figma popovers and a bottom toolbar, the "+" pattern
-  where the result shows at once, Size "+" opening its list at once. Did not: closed panels
-  hiding common options; first-run modals; copying Figma's frame or Export slot literally; icon
-  verbs whose glyph did not say the verb; controls with no visible result; app workarounds for
-  compact-mantine limits; decided changes that never shipped. Lessons: review by clicking, not
-  reading; fix the shared component first; a result must show; check a decided change in the
-  build before the round.
+- 2026-11-05 Tier 6 round 1 outcome versus my walk. Held: two names on one result, Done dropping a
+  key, the absent line for a selection (found through the repaint turn), left edges at 1. Weakened:
+  repaint, chip, "reads as prose". Did not: I blamed `assistant.css` for centered starters; the cause
+  is compact-mantine applying `--button-justify` only to a full-width button, so `justify` at
+  `AssistantPanel.tsx` line 78 is inert and `fullWidth` is the likely fix (not run). Lesson: name an
+  owner from the code that sets the value, not the file that looks right; quote a design line's scope.
+
+- 2026-11-05 Tier 6 walk, five `real.mjs` sessions (about 85 shots, 21 paid calls). Worked: one paid
+  message per state; a full `REAL_GEMINI_COUNT` file for 429, Send again and Stop at no cost (retries
+  leave time for Esc); PIL side-by-side crops of the panel; grepping an odd string to name the owner
+  (`style.ts` line 397, `historyWords.ts`). Did not: `--wait` does not outlast a slow turn, so
+  `Open layer` missed while still running (check the Stop button first); a message cost 7 to 15
+  calls, more than planned; dark 900 x 700 for 4.4 and 4.7 went unreached when the shared count hit
+  the cap; after `--reopen`, `--click "volunteers"` left the start screen up. Lesson: paid states in
+  the odd window sizes go first, not last.
+- (2026-11-03, round 1 close) Did not work: raising nine walk-only bar 7 findings. Only three
+  survived two skeptics, each because a session met it or a decided.md line it breaks was cited.
+  Worked: scripted repros on the frozen build; they let skeptics keep findings no session met
+  (Clear then Escape survived at severity 2 on its repro alone).
+- 2026-11-03 Tier 5 round 1 rerun, eight `real.mjs` sessions (w1 to w8, about 75 shots), one per
+  dataset including three the void walk skipped (sources, yeast, shifts). Worked: grepping
+  decided.md and the spec's control table for each finding before rating, so each cites a line;
+  PIL ink-column scans to measure text x positions (verb column) and caption heights; comparing the
+  same control in an All group and an Or group (it exposed the full-brush contradiction only in Add
+  steps); re-running the void walk's candidates before keeping them (two dropped). Did not:
+  `--click "By value"` (the select's name is "<attribute> test": click its point); a wrapper that
+  ran `--start` through with-browser.sh (real.mjs takes its own slot: never wrap it).
+
+- 2026-11-03 Tier 5 round 1 walk, five `real.mjs` sessions (w1 to w5, about 120 shots), one per
+  start (volunteers style host, volunteers filter host, the colleague's project, gauges with
+  Within hops and Edges where, 50,000 staff). Worked: a small env file in the scratchpad with
+  `REAL_DIST`, the session folder and a wrapper function, called directly per step (not a shared
+  script); running `--start` from `rounds/tier-5/setups`; `--hover-at` loops over the header for
+  tooltips; a PIL 4x crop to read 9 px captions; grepping decided.md and the backlog for each odd
+  word before rating ("pick yes or no", "Select N", "greyed"). Did not: `--click Edges` is
+  ambiguous in the Data place (use the point); the 50,000-node steps need a 200 s timeout.
+  Lesson: the picker jump shows only after typing; a walk that clicks options never sees it.
+
+- 2026-09-06 to 10-30, summarized 2026-11-06. Worked: one `real.mjs` session per start state or
+  dataset; `--hover-at` on every icon; PIL 4x crops and ink scans; grepping app source for odd words to
+  name the owner; grepping decided.md before rating; re-walking last round's routes; the Figma capture
+  in `design/ui/figma/`. Did not: ambiguous `--click` names (use `"X#1"` or a point); `--shift-click-at`
+  (use `--shift-click "<name>"`); wrapping real.mjs in with-browser.sh; severity 3s with no repro;
+  app workarounds for compact-mantine limits; first-run modals; controls with no visible result.
+
+- (2026-10-30) Did not work: holding severity 3 on single-cause findings. Both skeptic checks cut
+  every severity 3 candidate to 2 or 1 because participants recovered from the counts. Rate by the
+  cost a reader paid, and say "rule broken" separately when an approved surface is lost.
+- (2026-10-30) Worked: findings with a scripted repro survived the check (join preview, clipped
+  ratio); findings resting on the tool's hover line did not.
+
+- (2026-11-03) Tier 5 round 1 insights: my walk's bar 7 list was mostly cut. Did not work:
+  rating eight items at 2 from one walk without scripted repros -- the skeptics kept only the one a
+  script reproduced. Worked: naming the decided.md line each finding departs from (both surviving
+  naming defects cite one). Next time: one repro, one screenshot, one decided.md line per finding.
 
 ## Thinking
+
+- 2026-11-06 The round's rule "words at rest do not rise" is Figma's own: the properties panel never
+  grows a sentence to explain a state; it changes a value in place. I should propose facts on existing
+  lines before new rows. My walk's hit rate is best when a reader paid and a repro exists; tooltip
+  evidence is weakest now that the tool's hovers are known to be deliberate.
+
+- 2026-11-05 Round 2 says my "transcript" worry was smaller than I thought: readers told the model's
+  words from computed ones by asking, and nobody held a wrong belief. What cost them is the line the app
+  computed not naming the same thing as the key card. Names first, drawing second.
+
+- 2026-11-05 A walk with no sessions behind it should say "seen", never "reader cannot tell". Words
+  like that were what the skeptics cut. The transcript problem (computed words and model words in
+  one drawing) is still my reading: the line sits on the Open run and Undo row, which may be enough.
+  Watch whether readers trust the reply over the line; that decides the chip.
+
+- 2026-11-05 The Assistant is Figma's grammar at its best where it is a list of real things (peek,
+  request, Open layer) and weakest where it is a transcript: words the app computed and words the
+  model wrote share a drawing. Most of my list is that one problem. Cheapest fix: draw the count in
+  the change line as the chip it already is.
+
+- 2026-10-30 Tier 4's data screens are close to Figma's paved path now; what remains is words and
+  drawing drift between two homes of one thing (filter card vs Style card, picker glyph vs table
+  glyph, Fields "+" vs Sources "+"). The cheapest fix list is "one component, one resting drawing"
+  per pair. Dropped from top of mind on 2026-10-30, still true until a walk says otherwise: tier 3's
+  color words and swatches, keyboard focus rings, the "+" lost on re-layout, Control+G to a folder,
+  opacity in the color row (decided 2026-10-13, not built).
 
 - 2026-10-21 Success saturates; the useful measures are steps over the key, first door tried,
   and spoken-versus-seen disagreement. Figma's strength is that an empty selection is never a
@@ -235,6 +323,16 @@ Each criterion with the Figma rule behind it and why it matters for a first-time
   a pass weak; grade from the last screenshot.
 
 ## Sources
+
+- Tier 6 round 2 (2026-11-05): `design/ui/studio/tier6/rounds/round-2/insights.md`, `scores.md`, `sessions/`, `repro/`.
+- Tier 6 insights (2026-11-05): `design/ui/studio/tier6/rounds/round-1/insights.md`.
+- Tier 6 (2026-11-05): `design/ui/studio/tier6/criteria.md`, `design.md`, `decided.md`, `backlog.md`,
+  `rounds/round-1/expert/figma.md` (this walk; shots ignored by git, in `expert/figma/`).
+
+- Tier 4 (2026-10-30): `design/ui/studio/tier4/criteria.md` (bars, severity), `decided.md`
+  (owner rules, approved surfaces, R1 to R15, team entries, dry run passes), `review/figma.md`
+  (my pre-round review on e52d7c4f57), `rounds/round-1/expert/figma.md` (this round's walk).
+  Reference shots of approved surfaces: main checkout `tmp/design-studio/tier4/reference/`.
 
 - Studio digests (read 2026-10-06): `design/ui/studio/digests/decisions.md`, `framework.md`,
   `owner-voice.md`, `study-rounds.md`, `tier1.md` (all under

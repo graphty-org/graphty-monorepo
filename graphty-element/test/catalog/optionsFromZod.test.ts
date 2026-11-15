@@ -78,7 +78,7 @@ describe("optionsFromZod", () => {
                 type: "integer",
                 min: 0,
                 max: 2147483647,
-                default: 42,
+                default: null,
             });
             assert.deepInclude(byName(options, "maxIterations"), { type: "integer", min: 1, max: 500, default: 100 });
             assert.strictEqual(byName(options, "threshold").type, "number");
@@ -173,7 +173,18 @@ describe("optionsFromZod", () => {
 
             assert.deepEqual(
                 options.map((o) => o.name),
-                ["scalingFactor", "k", "iterations", "scale", "dim", "seed"],
+                [
+                    "clusterBy",
+                    "clusterStrength",
+                    "scalingFactor",
+                    "k",
+                    "iterations",
+                    "scale",
+                    "dim",
+                    "nodeGap",
+                    "nodeGapFront",
+                    "seed",
+                ],
             );
             assert.deepEqual(
                 options.filter((o) => o.type === "unknown"),
@@ -244,7 +255,7 @@ describe("optionsFromZod", () => {
     });
 
     describe("constructs it cannot classify", () => {
-        it("keeps an object-valued option, typed unknown, with a reason", () => {
+        it("keeps an object-valued option, typed unknown, with a code", () => {
             // `graph.selection` -- the colour, scale and opacity of the selection highlight. It
             // replaced `graph.effects` here, which named three post-process settings no renderer
             // ever read and which were deleted rather than left in a published schema as
@@ -252,14 +263,15 @@ describe("optionsFromZod", () => {
             const selection = byName(optionsFromZod(GraphStyle), "selection");
 
             assert.strictEqual(selection.type, "unknown");
-            assert.include(selection.unsupportedReason, "object or record");
+            assert.deepEqual(selection.unsupported, { code: "option.object", params: {} });
         });
 
-        it("keeps a union of objects, typed unknown, with a reason", () => {
+        it("keeps a union of objects, typed unknown, with a code", () => {
             const background = byName(optionsFromZod(GraphStyle), "background");
 
             assert.strictEqual(background.type, "unknown");
-            assert.include(background.unsupportedReason, "union");
+            assert.strictEqual(background.unsupported?.code, "option.union");
+            assert.isNotEmpty(background.unsupported?.params.types);
         });
 
         it("drops no option from a schema of nested objects", () => {
@@ -277,6 +289,8 @@ describe("optionsFromZod", () => {
                     "effect",
                     "border",
                     "outerBorder",
+                    "raisedBorder",
+                    "shadow",
                     "underlay",
                     "overlay",
                     "image",
@@ -286,16 +300,14 @@ describe("optionsFromZod", () => {
                     "glyph",
                     "group",
                     "label",
+                    "xlabel",
                     "tooltip",
                     "visible",
                 ],
             );
             for (const option of options) {
-                if (option.type === "unknown") {
-                    assert.ok(option.unsupportedReason);
-                } else {
-                    assert.isUndefined(option.unsupportedReason);
-                }
+                assert.notProperty(option, "unsupportedReason");
+                assert.strictEqual(option.unsupported !== undefined, option.type === "unknown", option.name);
             }
         });
 
@@ -304,7 +316,7 @@ describe("optionsFromZod", () => {
 
             assert.lengthOf(options, 1);
             assert.deepInclude(options[0], { name: "nlist", type: "unknown", default: null });
-            assert.include(options[0].unsupportedReason, "array");
+            assert.deepEqual(options[0].unsupported, { code: "option.array", params: {} });
         });
 
         it("follows a schema that Zod hoisted into the document's definitions", () => {
@@ -320,7 +332,7 @@ describe("optionsFromZod", () => {
 
             assert.lengthOf(options, 1);
             assert.strictEqual(options[0].type, "unknown");
-            assert.ok(options[0].unsupportedReason);
+            assert.strictEqual(options[0].unsupported?.code, "option.object");
         });
 
         it("says so when the only thing left of a union is a reference back into itself", () => {
@@ -328,21 +340,20 @@ describe("optionsFromZod", () => {
             const options = optionsFromZod(z.object({ child: node.nullable() }));
 
             assert.strictEqual(options[0].type, "unknown");
-            assert.include(options[0].unsupportedReason, "recursive");
+            assert.strictEqual(options[0].unsupported?.code, "option.recursive");
         });
 
         it("types a heterogeneous union unknown, naming the arms", () => {
             const options = optionsFromZod(z.object({ mixed: z.union([z.boolean(), z.array(z.number())]) }));
 
-            assert.include(options[0].unsupportedReason, "boolean");
-            assert.include(options[0].unsupportedReason, "array");
+            assert.deepEqual(options[0].unsupported, { code: "option.union", params: { types: ["boolean", "array"] } });
         });
 
         it("types a null-only option unknown", () => {
             const options = optionsFromZod(z.object({ nothing: z.null() }));
 
             assert.deepInclude(options[0], { type: "unknown" });
-            assert.include(options[0].unsupportedReason, "null");
+            assert.strictEqual(options[0].unsupported?.code, "option.only-null");
         });
 
         it("types an unrepresentable construct unknown", () => {
@@ -352,7 +363,7 @@ describe("optionsFromZod", () => {
                 options.map((o) => o.type),
                 ["unknown", "unknown"],
             );
-            assert.include(options[0].unsupportedReason, "no JSON Schema type");
+            assert.strictEqual(options[0].unsupported?.code, "option.untyped");
         });
     });
 
@@ -379,7 +390,7 @@ describe("optionsFromZod", () => {
             assert.deepInclude(options[0], { type: "unknown", plainName: "First", description: "the first one" });
             assert.deepInclude(options[1], { step: 2, group: "Tuning", advanced: true });
             for (const option of options) {
-                assert.ok(option.unsupportedReason);
+                assert.strictEqual(option.unsupported?.code, "option.not-convertible");
             }
         });
     });
@@ -402,7 +413,7 @@ describe("optionsFromZod", () => {
                 overrides: { randomSeed: { type: "seed" } },
             });
 
-            assert.deepInclude(byName(options, "randomSeed"), { type: "seed", min: 0, default: 42 });
+            assert.deepInclude(byName(options, "randomSeed"), { type: "seed", min: 0, default: null });
         });
     });
 });

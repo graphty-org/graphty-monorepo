@@ -17,7 +17,7 @@ import { UiGlyph } from "../../icons";
 import { colorWord, normalizeHexa, opacityToAlphaHex } from "../../utils/color-utils";
 import { useOptionalPopoutContext } from "../popout/PopoutContext";
 import { Chit } from "./Chit";
-import { revertOnEscape } from "./escape";
+import { useDiscardedEdit } from "./escape";
 import { OpacityInput } from "./OpacityInput";
 import { typedColor } from "./typed-color";
 
@@ -338,6 +338,8 @@ export function ColorPickerPanel({
     // Why the last entry in the value box was refused: said aloud, never drawn, since Figma's box
     // silently goes back to the color in force.
     const [refusal, setRefusal] = useState<string>("");
+    // What Escape took back, said in the same region.
+    const discarded = useDiscardedEdit();
     const popout = useOptionalPopoutContext();
 
     // Follow the value from outside, but keep our own HSV (and so the hue) while it still
@@ -600,12 +602,14 @@ export function ColorPickerPanel({
                                     value={draft}
                                     onChange={(event) => {
                                         setRefusal("");
+                                        discarded.clear();
                                         setDraft(event.currentTarget.value);
                                     }}
                                     onFocus={(event) => {
                                         event.currentTarget.select();
                                     }}
                                     onBlur={() => {
+                                        discarded.clear();
                                         commitDraft();
                                     }}
                                     onKeyDown={(event) => {
@@ -620,12 +624,14 @@ export function ColorPickerPanel({
                                         } else if (event.key === "Escape") {
                                             const shownValue = formatValue(hsvaRef.current, format);
                                             setRefusal("");
-                                            revertOnEscape(
+                                            discarded.revert(
                                                 event,
                                                 () => {
                                                     setDraft(shownValue);
                                                 },
                                                 draft !== shownValue,
+                                                // With its words, as the color field says what it keeps.
+                                                `${shownValue} ${labels.colorWord(toHexa(hsvaRef.current).slice(0, 7))}`,
                                             );
                                         }
                                     }}
@@ -643,7 +649,7 @@ export function ColorPickerPanel({
                                 )}
                             </div>
                         </div>
-                        <VisuallyHidden role="status">{refusal}</VisuallyHidden>
+                        <VisuallyHidden role="status">{refusal === "" ? discarded.text : refusal}</VisuallyHidden>
                     </div>
 
                     {swatches.length > 0 && (

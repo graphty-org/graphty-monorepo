@@ -29,6 +29,30 @@ import type { EventOfType } from "./src/events";
  */
 export interface GraphtyElementJSXProps {
     /**
+     * Sets the wording function and words the description again.
+     */
+    accessibleDescription?: Graphty["accessibleDescription"];
+    /**
+     * Sets the announcement's wording function.
+     */
+    accessibleAnnouncement?: Graphty["accessibleAnnouncement"];
+    /**
+     * Adds or removes the node list.
+     */
+    accessibleNodeList?: Graphty["accessibleNodeList"];
+    /**
+     * Shows or hides the legend.
+     */
+    legend?: Graphty["legend"];
+    /**
+     * Moves the legend to another corner.
+     */
+    legendPosition?: Graphty["legendPosition"];
+    /**
+     * Sets the legend's accessible name.
+     */
+    legendLabel?: Graphty["legendLabel"];
+    /**
      * Sets the ids: an array, or a space-separated string as the attribute carries them.
      */
     features?: Graphty["features"];
@@ -93,19 +117,27 @@ export interface GraphtyElementJSXProps {
      */
     edgeWeightPath?: Graphty["edgeWeightPath"];
     /**
-     * Sets the edge time column. Updates graph configuration.
+     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
      */
     edgeTimePath?: Graphty["edgeTimePath"];
     /**
-     * Sets the node time column. Updates graph configuration.
+     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
      */
     nodeTimePath?: Graphty["nodeTimePath"];
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    edgeTimeEndPath?: Graphty["edgeTimeEndPath"];
+    /**
+     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
+    /**
+     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration.
+     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     nodeTimeUnit?: Graphty["nodeTimeUnit"];
     /**
@@ -144,6 +176,14 @@ export interface GraphtyElementJSXProps {
      */
     labelDeclutter?: Graphty["labelDeclutter"];
     /**
+     * Shows or hides the minimap.
+     */
+    minimap?: Graphty["minimap"];
+    /**
+     * Sets the minimap's accessible name.
+     */
+    minimapLabel?: Graphty["minimapLabel"];
+    /**
      * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
      */
     autoRotate?: Graphty["autoRotate"];
@@ -173,7 +213,8 @@ export interface GraphtyElementJSXProps {
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     /**
      * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
-     * not a step, and from 2D it switches to 3D first in the same step.
+     * not a step, and from 2D it switches to 3D first in the same step. A switch that fails is
+     * reported as `graph-error`; `setViewMode` hands the caller the failure instead.
      */
     viewMode?: Graphty["viewMode"];
     /**
@@ -190,13 +231,17 @@ export interface GraphtyElementJSXProps {
      */
     background?: Graphty["background"];
     /**
-     * Moves the map's credits up from the corner.
+     * Sets how the globe looks.
      */
-    attributionOffset?: Graphty["attributionOffset"];
+    globeLook?: Graphty["globeLook"];
     /**
      * Sets how long camera moves take.
      */
     cameraTransitionDuration?: Graphty["cameraTransitionDuration"];
+    /**
+     * Sets whether the graph reduces motion.
+     */
+    reducedMotion?: Graphty["reducedMotion"];
     /**
      * Sets the starting camera distance.
      */
@@ -248,6 +293,10 @@ export interface GraphtyElementJSXProps {
      */
     acceleration?: Graphty["acceleration"];
     /**
+     * Switches the working graph on or off.
+     */
+    workingGraph?: Graphty["workingGraph"];
+    /**
      * Sets the renderer the element opens when it is first drawn.
      *
      * An unrecognised value, or a change once the element is drawing, is reported and ignored
@@ -255,6 +304,19 @@ export interface GraphtyElementJSXProps {
      * `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
     renderer?: Graphty["renderer"];
+    /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    renderPath?: Graphty["renderPath"];
+    /**
+     * Sets whether the canvas multisamples. Once the engine is built a different value changes
+     * nothing and raises `W_ANTIALIAS_LATE`.
+     */
+    antialias?: Graphty["antialias"];
+    /**
+     * Sets the limits. A value that is not a whole number of at least 1 is reported and ignored.
+     */
+    limits?: Graphty["limits"];
     /**
      * Sets the threshold and applies it immediately.
      *
@@ -264,6 +326,18 @@ export interface GraphtyElementJSXProps {
      */
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     "aria-label"?: string;
+    /**
+     * Adds or removes the node list.
+     */
+    "accessible-node-list"?: boolean;
+    /**
+     * Moves the legend to another corner.
+     */
+    "legend-position"?: string;
+    /**
+     * Sets the legend's accessible name.
+     */
+    "legend-label"?: string;
     /**
      * Sets the restore mode; anything but `"manual"` is `"auto"`.
      */
@@ -317,19 +391,27 @@ export interface GraphtyElementJSXProps {
      */
     "edge-weight-path"?: string;
     /**
-     * Sets the edge time column. Updates graph configuration.
+     * Sets the edge time column. Updates graph configuration. Needs the timeline experiment.
      */
     "edge-time-path"?: string;
     /**
-     * Sets the node time column. Updates graph configuration.
+     * Sets the node time column. Updates graph configuration. Needs the timeline experiment.
      */
     "node-time-path"?: string;
     /**
-     * Sets how the edge time column's numbers are read. Updates graph configuration.
+     * Sets the edge end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    "edge-time-end-path"?: string;
+    /**
+     * Sets the node end column. Updates graph configuration. Needs the timeline experiment.
+     */
+    "node-time-end-path"?: string;
+    /**
+     * Sets how the edge time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     "edge-time-unit"?: string;
     /**
-     * Sets how the node time column's numbers are read. Updates graph configuration.
+     * Sets how the node time column's numbers are read. Updates graph configuration. Needs the timeline experiment.
      */
     "node-time-unit"?: string;
     /**
@@ -351,6 +433,10 @@ export interface GraphtyElementJSXProps {
      */
     "label-declutter"?: boolean;
     /**
+     * Sets the minimap's accessible name.
+     */
+    "minimap-label"?: string;
+    /**
      * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
      */
     "auto-rotate"?: string;
@@ -364,7 +450,8 @@ export interface GraphtyElementJSXProps {
     "render-on-demand"?: boolean;
     /**
      * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
-     * not a step, and from 2D it switches to 3D first in the same step.
+     * not a step, and from 2D it switches to 3D first in the same step. A switch that fails is
+     * reported as `graph-error`; `setViewMode` hands the caller the failure instead.
      */
     "view-mode"?: string;
     /**
@@ -372,13 +459,13 @@ export interface GraphtyElementJSXProps {
      */
     "layout-2d"?: boolean;
     /**
-     * Moves the map's credits up from the corner.
-     */
-    "attribution-offset"?: string;
-    /**
      * Sets how long camera moves take.
      */
     "camera-transition-duration"?: string;
+    /**
+     * Sets whether the graph reduces motion.
+     */
+    "reduced-motion"?: string;
     /**
      * Sets the starting camera distance.
      */
@@ -404,6 +491,14 @@ export interface GraphtyElementJSXProps {
      */
     "enable-detailed-profiling"?: boolean;
     /**
+     * Switches the working graph on or off.
+     */
+    "working-graph"?: boolean;
+    /**
+     * Sets how nodes are drawn. An unknown value is reported and ignored, as `renderer`'s is.
+     */
+    "render-path"?: string;
+    /**
      * Sets the threshold and applies it immediately.
      *
      * A value that is not a whole number of 0 or more is reported and then ignored, leaving the
@@ -411,6 +506,22 @@ export interface GraphtyElementJSXProps {
      * this from `attributeChangedCallback`, and a throw there would leave the element unrendered.
      */
     "acceleration-min-nodes"?: string;
+    /**
+     * A helper finished its task.
+     */
+    "onai-agent-end"?: (event: CustomEvent<EventOfType<"ai-agent-end">>) => void;
+    /**
+     * The assistant handed a task to a helper (`AiAgentRole`), which starts on it.
+     */
+    "onai-agent-start"?: (event: CustomEvent<EventOfType<"ai-agent-start">>) => void;
+    /**
+     * The assistant held a batch of its changes for the reader's approval: it was large, slow, replaced the graph, could not be undone or fetched a URL the reader did not give. Nothing it asked for has happened. Answer with `resolveAiApproval(request.id, { approve })`; the id expires at the reader's next message. A host that listens for none of these never runs a held batch.
+     */
+    "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
+    /**
+     * A tool the configuration asked for (`AiToolOptions`) cannot be used with this provider and model, so it is left out of every turn; emitted once each time the assistant is enabled.
+     */
+    "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
     /**
      * Emitted when an AI command is cancelled
      */
@@ -428,11 +539,39 @@ export interface GraphtyElementJSXProps {
      */
     "onai-command-start"?: (event: CustomEvent<EventOfType<"ai-command-start">>) => void;
     /**
+     * The open conversation changed: it was saved, reopened, switched to, started anew (`newAiConversation`, `clearAiHistory`) or changed by another tab, or its store failed. Read it again with `getAiConversation()`. Only with `history` set.
+     */
+    "onai-conversation-changed"?: (event: CustomEvent<EventOfType<"ai-conversation-changed">>) => void;
+    /**
+     * The assistant exported the graph or captured a picture or a video: the document is handed to the application, which saves or shows it. The model receives only its size.
+     */
+    "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
+    /**
+     * A tool the provider ran for the assistant (a web search, reading a web page) finished, or a helper that had it answered without using it. Draw its sources as text or as links, http and https only.
+     */
+    "onai-hosted-tool-result"?: (event: CustomEvent<EventOfType<"ai-hosted-tool-result">>) => void;
+    /**
+     * Something the assistant waited on the reader for ended: an approval was answered, superseded by a new message or a new conversation (`AI_APPROVAL_STALE` with `reason: "superseded"`), cancelled (`AI_CANCELLED`) or undone (`AI_UNDONE`). Remove what was drawn for it.
+     */
+    "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
+    /**
+     * The model asked the reader a question with a few choices, and the message waits for the answer (the command resolved `AI_QUESTION_ASKED`). Draw the question and its choices; answer with `answerAiQuestion(request.id, choice)`, by the choice's value. Only with `questions: true`.
+     */
+    "onai-question-asked"?: (event: CustomEvent<EventOfType<"ai-question-asked">>) => void;
+    /**
+     * The assistant stopped speaking.
+     */
+    "onai-speech-end"?: (event: CustomEvent<EventOfType<"ai-speech-end">>) => void;
+    /**
+     * The assistant started speaking an answer.
+     */
+    "onai-speech-start"?: (event: CustomEvent<EventOfType<"ai-speech-start">>) => void;
+    /**
      * Main event for UI binding - single source of truth for AI status
      */
     "onai-status-change"?: (event: CustomEvent<EventOfType<"ai-status-change">>) => void;
     /**
-     * Emitted during streaming when text chunks arrive (throttled)
+     * Emitted once for each piece of text the provider streams, not throttled.
      */
     "onai-stream-chunk"?: (event: CustomEvent<EventOfType<"ai-stream-chunk">>) => void;
     /**
@@ -448,9 +587,17 @@ export interface GraphtyElementJSXProps {
      */
     "onai-voice-end"?: (event: CustomEvent<EventOfType<"ai-voice-end">>) => void;
     /**
+     * How loud the microphone is while talk is held, at most once per animation frame.
+     */
+    "onai-voice-level"?: (event: CustomEvent<EventOfType<"ai-voice-level">>) => void;
+    /**
      * Emitted when voice input starts
      */
     "onai-voice-start"?: (event: CustomEvent<EventOfType<"ai-voice-start">>) => void;
+    /**
+     * How speech would be carried changed since `getAiVoiceSupport()` last said: the assistant was enabled, enabled again or disabled, a press asked for the microphone or learned whether the browser recognizes speech, a key was set, an immersive session began or ended. Redraw what depends on it from `support`.
+     */
+    "onai-voice-support-change"?: (event: CustomEvent<EventOfType<"ai-voice-support-change">>) => void;
     /**
      * Emitted when voice transcript is available
      */
@@ -458,18 +605,21 @@ export interface GraphtyElementJSXProps {
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
     "onanimation-progress"?: (event: CustomEvent<EventOfType<"animation-progress">>) => void;
     /**
-     * Emitted when the map under the location map layout changes state: drawn, loading, or fallen
+     * Emitted when the map under the location map layout changes state: drawn, loading, or fallen back to the bundled world image because its tiles failed (`error` then carries `E_BASEMAP_UNREACHABLE` with `{ source, status }`, `status` being the HTTP status when the browser reveals one and null otherwise; an image load never does). The fields are those of `basemapStatus`. A code and facts, never a sentence.
      */
     "onbasemap-status"?: (event: CustomEvent<EventOfType<"basemap-status">>) => void;
     "oncamera-state-changed"?: (event: CustomEvent<EventOfType<"camera-state-changed">>) => void;
     "ondata-added"?: (event: CustomEvent<EventOfType<"data-added">>) => void;
     /**
-     * Emitted once every time the graph's data is cleared -- by `clearData()`, and by a load that
+     * Emitted once every time the graph's data is cleared -- by `clearData()`, and by a load that replaces the dataset -- after every node and edge is gone. It carries nothing, so it survives structured cloning; a consumer that wants the new counts reads them.
      */
     "ondata-cleared"?: (event: CustomEvent<EventOfType<"data-cleared">>) => void;
     "ondata-loaded"?: (event: CustomEvent<EventOfType<"data-loaded">>) => void;
     "ondata-loading-complete"?: (event: CustomEvent<EventOfType<"data-loading-complete">>) => void;
     "ondata-loading-error"?: (event: CustomEvent<EventOfType<"data-loading-error">>) => void;
+    /**
+     * Emitted when a load skipped records it could not read or store. It carries facts, not words: a reader writes its own message from `code`, `params` and `errors`.
+     */
     "ondata-loading-error-summary"?: (event: CustomEvent<EventOfType<"data-loading-error-summary">>) => void;
     "ondata-loading-progress"?: (event: CustomEvent<EventOfType<"data-loading-progress">>) => void;
     /**
@@ -477,6 +627,7 @@ export interface GraphtyElementJSXProps {
      */
     "onelements-removed"?: (event: CustomEvent<EventOfType<"elements-removed">>) => void;
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
+    "ongraph-first-frame"?: (event: CustomEvent<EventOfType<"graph-first-frame">>) => void;
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     "ongraph-settled"?: (event: CustomEvent<EventOfType<"graph-settled">>) => void;
     /**
@@ -501,10 +652,13 @@ export interface GraphtyElementJSXProps {
     "ongraphty-project-status"?: (event: GraphtyElementEventMap["graphty-project-status"]) => void;
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
+    "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
+    "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     /**
      * Emitted when user input on the canvas is switched on or off, by `setInputEnabled`.
      */
@@ -564,11 +718,15 @@ export interface GraphtyElementJSXProps {
     "onlayout-initialized"?: (event: CustomEvent<EventOfType<"layout-initialized">>) => void;
     "onlayout-progress"?: (event: CustomEvent<EventOfType<"layout-progress">>) => void;
     /**
-     * Emitted when a layout could not do everything it was asked.
+     * Emitted when a layout could not do everything it was asked. The data kept it from placing every node (`W_NO_POSITION`), or it ran without options it does not take (`W_UNKNOWN_OPTION`), or a 2D view replaced its dimension options (`W_DIMENSION_OVERRIDDEN`). It carries a warning code and its parameters, never a sentence.
      */
     "onlayout-warning"?: (event: CustomEvent<EventOfType<"layout-warning">>) => void;
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
+    /**
+     * Emitted when the `limits` the element was given are not in force: under `render-path="objects"` the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`); or when more rows ask to be objects than `objectRows` or `objectEdges` allows, so the rest are drawn plain (`W_OBJECT_CAP`, `params.of`, `params.wanted`, `params.cap`). A code and its parameters, never a sentence.
+     */
+    "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     "onoperation-batch-complete"?: (event: CustomEvent<EventOfType<"operation-batch-complete">>) => void;
     /**
@@ -581,10 +739,23 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-active"?: (event: CustomEvent<EventOfType<"operation-queue-active">>) => void;
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
+    /**
+     * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at most once per drawn frame, never per node; read `getOverview()` in the listener.
+     */
+    "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
+    /**
+     * Emitted when the browser takes away the graphics device the graph is drawn with: the WebGL context or the WebGPU device is lost, by a driver reset, a GPU process crash or the browser reclaiming it. Nothing is drawn until it comes back, and `rendererStatus.drawing` is false meanwhile. The data, the session, the styles, the camera and the undo history are untouched.
+     */
+    "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
+    /**
+     * Emitted when the graph is drawn again after `render-lost`: the device came back, by itself or through `restartRenderer()`, and every buffer, texture and shader was rebuilt from the graph held in memory. `rendererStatus.drawing` is true again.
+     */
+    "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
+    "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     /**
      * Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns.

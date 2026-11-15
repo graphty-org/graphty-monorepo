@@ -51,11 +51,12 @@ describe("the structure a Graphviz layout reads from the graph's data", () => {
                     fontsize: "9",
                 },
             },
-            { src: 0, dst: 1, attributes: { label: "plain <not html" } },
+            // an external label is handed over too, for Graphviz to place (issue #5273)
+            { src: 0, dst: 1, attributes: { label: "plain <not html", xlabel: "x" } },
         ]);
     });
 
-    it("hands over an HTML-like label's text, whose words take the room", () => {
+    it("hands over an HTML-like label as HTML, whose table takes room its words alone do not (issue #5253)", () => {
         const structure = graphvizStructure(
             rowOf,
             [{ srcId: "a", dstId: "b", data: { label: "<<b>bold</b> words>" } }],
@@ -63,7 +64,7 @@ describe("the structure a Graphviz layout reads from the graph's data", () => {
             [],
         );
 
-        assert.strictEqual(structure.edges?.[0].attributes?.label, "bold words");
+        assert.strictEqual(structure.edges?.[0].attributes?.label, "<<b>bold</b> words>");
     });
 
     it("hands over each group's label, font and margin, and each rank subgraph's rows", () => {
@@ -81,5 +82,23 @@ describe("the structure a Graphviz layout reads from the graph's data", () => {
             margin: "4",
         });
         assert.deepEqual(structure.ranks, [{ rank: "same", rows: [0, 2] }]);
+    });
+
+    it("names the cluster an lhead or ltail clips the edge at as the cluster its group is handed over as (issue #5253)", () => {
+        const structure = graphvizStructure(
+            rowOf,
+            [
+                { srcId: "a", dstId: "b", data: { lhead: "g", ltail: "missing" } },
+                { srcId: "b", dstId: "c", data: { ltail: "g", lhead: "c" } },
+            ],
+            new Map([[3, {}]]),
+            [],
+        );
+
+        // a name that is no group handed over is one Graphviz ignores too
+        assert.deepEqual(
+            structure.edges?.map((edge) => edge.attributes),
+            [{ lhead: "cluster_n3" }, { ltail: "cluster_n3" }],
+        );
     });
 });

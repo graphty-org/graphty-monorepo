@@ -1,7 +1,7 @@
-import { ControlSection, EntityChip, FieldRow } from "@graphty/compact-mantine";
-import type { GraphSession, LoadedSource } from "@graphty/graphty-element/session";
+import { ControlSection, EntityChip, FieldRow, focusWithRing, ListboxCheck } from "@graphty/compact-mantine";
+import type { GraphSession, LoadedSource, ValueType } from "@graphty/graphty-element/session";
 import { ActionIcon, Select, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import { MEANING_WORDS } from "../analyze/words";
 import { GLYPHS } from "../glyphs";
@@ -9,18 +9,23 @@ import { formatNumber } from "../inspector/words";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { AddButton } from "../style/Section";
-import { designate, unitOf } from "../time/timeActions";
+import { failWords } from "../table/columns";
+import { designate, timelineOn, unitOf } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import { useTimeFieldVersion } from "../time/useTimeVersion";
 import { pickEnd } from "./commands";
+import { FiltersSection } from "./Filters";
+import { TypeGlyphIcon } from "./TypeGlyphIcon";
 import {
     columnChoices,
+    columnGlyph,
     DIRECTIONS,
     type EntryId,
     FIELD_ENTRIES,
     FIELD_ROWS,
     type FieldEntry,
     type FieldSide,
+    fileKindChoices,
     isNumeric,
     KIND_OF,
     kindChoices,
@@ -30,7 +35,9 @@ import {
     roleHolder,
     ROWS_ARE,
     sidesOf,
+    sourceName,
     tableRoles,
+    type TypeGlyph,
     unusedWords,
 } from "./words";
 
@@ -44,6 +51,7 @@ const SHARED_IDS = ["Same node", "Different nodes"];
 const ENTRY_GLYPHS: Readonly<Record<EntryId, (typeof GLYPHS)[keyof typeof GLYPHS]>> = {
     label: GLYPHS.label,
     kind: GLYPHS.category,
+    kindName: GLYPHS.category,
     weight: GLYPHS.weight,
     time: GLYPHS.time,
     latitude: GLYPHS.location,
@@ -56,6 +64,93 @@ const ENTRY_GLYPHS: Readonly<Record<EntryId, (typeof GLYPHS)[keyof typeof GLYPHS
     sourceKind: GLYPHS.category,
     targetKind: GLYPHS.category,
 };
+
+/** A pick list's choice: a value, or a value with its label, its kind's glyph and a detail. */
+type Choice =
+    string | { readonly value: string; readonly label: string; readonly glyph?: TypeGlyph; readonly detail?: string };
+
+/** The type an entry's column is read as, where it must be one: the rest list "N will not convert". */
+const ENTRY_TYPES: Partial<Readonly<Record<EntryId, ValueType>>> = {
+    weight: "number",
+    time: "date",
+    latitude: "number",
+    longitude: "number",
+};
+
+/**
+ * An entry's column choices, each with its kind's glyph: the ones that fit first (already the
+ * type the entry reads, then every value converting), then the rest, each saying how many of its
+ * values will not convert, as the header's Type menu does.
+ * @param session - the element's session.
+ * @param attributes - `data.attributes()`.
+ * @param side - nodes or edges.
+ * @param entry - the entry.
+ * @param names - the column names it offers.
+ * @returns the choices.
+ */
+function columnOptions(
+    session: GraphSession,
+    attributes: ReturnType<GraphSession["data"]["attributes"]>,
+    side: FieldSide,
+    entry: EntryId,
+    names: readonly string[],
+): Choice[] {
+    const kind = KIND_OF[side];
+    const type = ENTRY_TYPES[entry];
+    const ranked = names.map((name) => {
+        const column = attributes.find((a) => a.kind === kind && a.name === name);
+        if (column === undefined) {
+            return { rank: 0, choice: { value: name, label: name } };
+        }
+        const glyph = columnGlyph(session, column);
+        const already = type === undefined || (type === "number" ? isNumeric(column) : column.measurement === "time");
+        const detail = already ? undefined : failWords(session, { kind, name }, type);
+        let rank = 0;
+        if (detail !== undefined) {
+            rank = 2;
+        } else if (!already) {
+            rank = 1;
+        }
+        return { rank, choice: { value: name, label: name, glyph, ...(detail === undefined ? {} : { detail }) } };
+    });
+    ranked.sort((a, b) => a.rank - b.rank);
+    return ranked.map((each) => each.choice);
+}
+
+/**
+ * Draws a column choice: the list's check, its kind's glyph, its name and its detail.
+ * @param input - Mantine's option.
+ * @param input.option - the option.
+ * @param input.option.value - its value.
+ * @param input.option.label - its label.
+ * @param choices - the choices, for their glyphs and details.
+ * @returns the option's content.
+ */
+function renderChoice(
+    { option }: { option: { value: string; label: string } },
+    choices: readonly Choice[],
+): React.ReactNode {
+    const choice = choices.find((each) => typeof each !== "string" && each.value === option.value);
+    const glyph = typeof choice === "string" ? undefined : choice?.glyph;
+    const detail = typeof choice === "string" ? undefined : choice?.detail;
+    return (
+        <>
+            <ListboxCheck />
+            {glyph === undefined ? null : (
+                // The type glyph at its own 14 px, as the table's headers draw it.
+                <span aria-hidden="true" style={{ display: "inline-flex", flex: "none", marginInlineEnd: 6 }}>
+                    <TypeGlyphIcon glyph={glyph} />
+                </span>
+            )}
+            <span className="cm-listbox-label">{option.label}</span>
+            {detail === undefined ? null : (
+                <Text span size="xs" c="dimmed" ml="auto" pl="xs">
+                    {detail}
+                </Text>
+            )}
+        </>
+    );
+}
 
 /** A side's word in a control's name. */
 const SIDE_WORD: Readonly<Record<FieldSide, string>> = { nodes: "Node", edges: "Edge" };
@@ -92,13 +187,16 @@ function PickRow({
     repick?: boolean;
     onPick: (value: string | null) => void;
 }>): React.JSX.Element {
-    const none = withNone ? [{ value: NONE, label: "none" }] : [];
+    const none = withNone ? [{ value: NONE, label: "None" }] : [];
+    const id = useId();
     return (
         <FieldRow>
-            <Text size="xs" truncate className={sub ? "dp-sub-label" : undefined}>
+            {/* The row's words are the box's label: a click on them opens it. */}
+            <Text component="label" htmlFor={id} size="xs" truncate className={sub ? "dp-sub-label" : undefined}>
                 {label}
             </Text>
             <Select
+                id={id}
                 size="xs"
                 aria-label={name}
                 allowDeselect={false}
@@ -162,7 +260,7 @@ function EntryRow({
     entry: FieldEntry;
     name: string;
     value: string | null;
-    choices: readonly (string | { readonly value: string; readonly label: string })[];
+    choices: readonly Choice[];
     opened: boolean;
     repick?: boolean;
     note?: string;
@@ -198,7 +296,12 @@ function EntryRow({
                 aria-label={name}
                 aria-description={note}
                 allowDeselect={false}
-                data={choices.map((choice) => (typeof choice === "string" ? { value: choice, label: choice } : choice))}
+                data={choices.map((choice) =>
+                    typeof choice === "string"
+                        ? { value: choice, label: choice }
+                        : { value: choice.value, label: choice.label },
+                )}
+                renderOption={(input) => renderChoice(input, choices)}
                 value={value}
                 autoFocus={opened}
                 defaultDropdownOpened={opened}
@@ -247,27 +350,42 @@ function useFocusPlus(): [React.RefObject<HTMLDivElement | null>, () => void] {
 /**
  * The time entry's designation (`session.time`), which the timeline reads with the column's unit.
  * The timeline reads one column: a pick on one side keeps the other side only when it names the
- * same column.
+ * same column. The side's end and spells stay while its column does.
  * @param session - the element's session.
  * @param store - the chrome store.
  * @param side - nodes or edges.
  * @param start - the column, or null for none.
- * @param unit - the unit, when picked.
+ * @param change - what was picked besides: the unit, or the end column (null for none).
+ * @param change.unit - the unit, when picked.
+ * @param change.end - the end column, when picked.
  */
 function designateTime(
     session: GraphSession,
     store: WorkspaceStore,
     side: FieldSide,
     start: string | null,
-    unit?: (typeof UNIT_CHOICES)[number]["value"],
+    change: { readonly unit?: (typeof UNIT_CHOICES)[number]["value"]; readonly end?: string | null } = {},
 ): void {
     const now = session.time.field ?? {};
     const otherSide = side === "nodes" ? "edges" : "nodes";
     const other = now[otherSide];
     const keep = other !== undefined && (start === null || other.start === start);
+    const own = now[side]?.start === start ? now[side] : undefined;
+    const end = change.end === undefined ? own?.end : change.end;
+    const unit = change.unit ?? own?.unit;
     const field = {
         ...(keep ? { [otherSide]: other } : {}),
-        ...(start === null ? {} : { [side]: { start, ...(unit === undefined ? {} : { unit }) } }),
+        ...(start === null
+            ? {}
+            : {
+                  [side]: {
+                      start,
+                      ...(unit === undefined ? {} : { unit }),
+                      ...(end === undefined || end === null ? {} : { end }),
+                      ...(own?.spells === undefined ? {} : { spells: own.spells }),
+                      ...(own?.parseZone === undefined ? {} : { parseZone: own.parseZone }),
+                  },
+              }),
     };
     designate(session, store, Object.keys(field).length === 0 ? null : field);
 }
@@ -330,7 +448,8 @@ function SideGroup({
         return entry.load !== undefined && reloadable ? loadValue(roles, entry.load) : null;
     };
     const present = (entry: FieldEntry): boolean => holderOf(entry) !== null;
-    const available = (entry: FieldEntry): boolean => entry.load === undefined || reloadable;
+    const available = (entry: FieldEntry): boolean =>
+        (entry.load === undefined || reloadable) && (entry.id !== "time" || timelineOn(session));
     const entries = FIELD_ENTRIES[side].filter(available);
     const presentNow = new Set(entries.filter(present).map((entry) => entry.id));
     const settled = adding !== null && presentNow.has(adding);
@@ -340,6 +459,22 @@ function SideGroup({
             setAdding(null);
         }
     }, [settled]);
+    // An entry asked for from elsewhere (the Overview's Set in Data) is brought into view and
+    // focused once it is listed.
+    const wanted = useWorkspaceState((state) => state.fieldsEntry);
+    const wantedHere = wanted?.startsWith(`${side}:`) === true ? wanted.slice(side.length + 1) : null;
+    const ready = wantedHere !== null && presentNow.has(wantedHere as EntryId);
+    useEffect(() => {
+        if (!ready) {
+            return;
+        }
+        const field = group.current?.querySelector<HTMLElement>(`[data-entry="${wantedHere ?? ""}"] input`);
+        if (field !== null && field !== undefined) {
+            field.scrollIntoView({ block: "nearest" });
+            focusWithRing(field);
+        }
+        store.set({ fieldsEntry: null });
+    }, [ready, wantedHere, group, store]);
     if (session === null) {
         return null;
     }
@@ -369,11 +504,22 @@ function SideGroup({
         if (entry.load !== undefined) {
             const key = entry.load;
             const endKind = key === "sourceKind" || key === "targetKind";
+            const offered = endKind ? kindChoices(roles, holder) : null;
+            const named = key === "kindName" ? fileKindChoices(source, holder) : offered;
             return (
                 <EntryRow
                     key={entry.id}
                     {...common}
-                    choices={endKind ? kindChoices(roles, holder) : columnChoices(attributes, source, side, holder)}
+                    choices={
+                        named ??
+                        columnOptions(
+                            session,
+                            attributes,
+                            side,
+                            entry.id,
+                            columnChoices(attributes, source, side, holder),
+                        )
+                    }
                     onPick={(picked) => {
                         if (source !== undefined) {
                             onReload({ mapping: remap(source, side, { [key]: picked }) });
@@ -390,7 +536,6 @@ function SideGroup({
         }
         const role = entry.role ?? "label";
         const numeric = entry.id === "weight";
-        const offeredColumns = numeric ? attributes.filter((a) => isNumeric(a) || a.name === holder) : attributes;
         if (entry.id === "time") {
             return (
                 <TimeEntry
@@ -398,7 +543,7 @@ function SideGroup({
                     session={session}
                     store={store}
                     common={common}
-                    offered={offeredColumns}
+                    offered={attributes}
                     source={source}
                     onRemove={focusPlus}
                 />
@@ -414,7 +559,13 @@ function SideGroup({
                     // A location the element found is only preselected: picking it designates it.
                     repick={isLocation && located?.from === "detected"}
                     note={unused === undefined ? undefined : unusedWords(unused)}
-                    choices={columnChoices(offeredColumns, source, side, holder)}
+                    choices={columnOptions(
+                        session,
+                        attributes,
+                        side,
+                        entry.id,
+                        columnChoices(attributes, source, side, holder),
+                    )}
                     onPick={(picked) => {
                         session.data.setRole({ kind, name: picked }, role).catch(onFail);
                     }}
@@ -429,7 +580,8 @@ function SideGroup({
                     <PickRow
                         sub
                         label="Higher means"
-                        name="Higher weight means"
+                        // Starts with the words on screen, so a reader who says them reaches it.
+                        name="Higher means, edge weight"
                         value={meaning}
                         choices={Object.entries(MEANING_WORDS).map(([value, label]) => ({ value, label }))}
                         onPick={(picked) => {
@@ -448,17 +600,25 @@ function SideGroup({
     };
     return (
         <div ref={group} data-fields-side={side}>
-            <div className="dp-fields-group">
-                <EntityChip kind={kind}>{formatNumber(count)}</EntityChip>
-                <AddButton
-                    kind={kind}
-                    title="Fields"
-                    options={offered.map((entry) => ({ key: entry.id, label: entry.name }))}
-                    onAdd={(key) => {
-                        setAdding(key as EntryId);
-                    }}
-                />
-            </div>
+            <FieldRow
+                trailing={
+                    <AddButton
+                        kind={kind}
+                        title="Attributes"
+                        options={offered.map((entry) => ({ key: entry.id, label: entry.name }))}
+                        onAdd={(key) => {
+                            setAdding(key as EntryId);
+                        }}
+                    />
+                }
+            >
+                <Text size="xs" truncate>
+                    {side === "nodes" ? "Nodes" : "Edges"}
+                </Text>
+                <span>
+                    <EntityChip kind={kind}>{formatNumber(count)}</EntityChip>
+                </span>
+            </FieldRow>
             {fixed}
             {entries.map(rowOf)}
         </div>
@@ -467,7 +627,8 @@ function SideGroup({
 
 /**
  * The Time entry: a column the timeline reads (`session.time`), the columns read as time first,
- * and under it, for a number column, the unit its numbers are in.
+ * and under it, for a number column, the unit its numbers are in, and the column where each
+ * element ends, which makes the field one of intervals.
  * @param props - Component props
  * @param props.session - the element's session
  * @param props.store - the chrome store
@@ -475,7 +636,7 @@ function SideGroup({
  * @param props.offered - the columns it can name
  * @param props.source - the selected load
  * @param props.onRemove - called once the minus was pressed
- * @returns the entry and its Unit row
+ * @returns the entry and its Unit and End rows
  */
 function TimeEntry({
     session,
@@ -494,16 +655,15 @@ function TimeEntry({
 }>): React.JSX.Element {
     const { side, value: holder } = common;
     const kind = KIND_OF[side];
-    const isTime = (name: string): boolean =>
-        offered.find((a) => a.kind === kind && a.name === name)?.measurement === "time";
-    const names = columnChoices(offered, source, side, holder);
+    const names = columnOptions(session, offered, side, "time", columnChoices(offered, source, side, holder));
     const column = offered.find((a) => a.kind === kind && a.name === holder);
     const unit = UNIT_CHOICES.find((choice) => choice.value === unitOf(session))?.label ?? null;
+    const designated = session.time.field?.[side];
     return (
         <>
             <EntryRow
                 {...common}
-                choices={[...names.filter(isTime), ...names.filter((name) => !isTime(name))]}
+                choices={names}
                 onPick={(picked) => {
                     designateTime(session, store, side, picked);
                 }}
@@ -512,10 +672,7 @@ function TimeEntry({
                     designateTime(session, store, side, null);
                 }}
             />
-            {session.time.field?.[side] !== undefined &&
-            holder !== null &&
-            column !== undefined &&
-            isNumeric(column) ? (
+            {designated !== undefined && holder !== null && column !== undefined && isNumeric(column) ? (
                 <PickRow
                     sub
                     label="Unit"
@@ -523,18 +680,43 @@ function TimeEntry({
                     value={unit}
                     choices={UNIT_CHOICES.map((choice) => choice.label)}
                     onPick={(label) => {
-                        designateTime(
-                            session,
-                            store,
-                            side,
-                            holder,
-                            UNIT_CHOICES.find((choice) => choice.label === label)?.value,
-                        );
+                        designateTime(session, store, side, holder, {
+                            unit: UNIT_CHOICES.find((choice) => choice.label === label)?.value,
+                        });
+                    }}
+                />
+            ) : null}
+            {designated !== undefined && holder !== null ? (
+                <PickRow
+                    sub
+                    label="End"
+                    name={`${common.name} end`}
+                    value={designated.end ?? null}
+                    withNone
+                    choices={offered.filter((a) => a.kind === kind && a.name !== holder).map((a) => a.name)}
+                    onPick={(end) => {
+                        designateTime(session, store, side, holder, { end });
                     }}
                 />
             ) : null}
         </>
     );
+}
+
+/**
+ * The columns a load's group lists: those its rows carry (graphty-element's
+ * `AttributeDescriptor.sources`), so a second load's columns never show under the first. A column
+ * two loads carry is listed under each. With no load, every column.
+ * @param session - the element's session
+ * @param source - the load, or undefined
+ * @returns the columns
+ */
+function attributesOf(
+    session: GraphSession,
+    source: LoadedSource | undefined,
+): ReturnType<GraphSession["data"]["attributes"]> {
+    const all = session.data.attributes();
+    return source === undefined ? all : all.filter((each) => each.sources?.includes(source.key) === true);
 }
 
 /**
@@ -549,6 +731,11 @@ function sidesShown(
     source: LoadedSource | undefined,
 ): FieldSide[] {
     const own = sidesOf(source);
+    // A graph file's load has both sides, whether or not it carries columns for them (the owner,
+    // 2026-11-07: Edges is always there for College football, whose edges have none).
+    if (own === undefined && source !== undefined) {
+        return ["nodes", "edges"];
+    }
     return (["nodes", "edges"] as const).filter((side) =>
         own === undefined
             ? attributes.some((a) => a.kind === KIND_OF[side]) || tableRoles(source, side) !== undefined
@@ -607,7 +794,7 @@ function GraphRows({
 }
 
 /**
- * The Fields section (spec section 3.3), for the selected load: its name, then Rows are (for a
+ * One load's Fields (spec section 3.3): Rows are (for a
  * load of one table), then each side under its node or edge chip -- its fixed structure rows (the
  * node Id; an edge's Source and Target, the shared-ids choice when an id appears under two kinds,
  * and the graph's direction), which always hold a value, then its list of special fields with a
@@ -618,17 +805,17 @@ function GraphRows({
  * reads the load again (`data.reloadSource`). Rows are: edges on a table of nodes asks for Source
  * and Target first and reads the load again once both are picked. Each change is one undo step.
  * @param props - Component props
- * @param props.source - the selected load, or undefined when the graph was not loaded from one
- * @returns the section, or nothing before the element has come up
+ * @param props.session - the element's session
+ * @param props.source - the load, or undefined when the graph was not loaded from one
+ * @returns the rows
  */
-export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }>): React.JSX.Element | null {
-    const { session, store } = useWorkspace();
+function SourceFields({
+    session,
+    source,
+}: Readonly<{ session: GraphSession; source: LoadedSource | undefined }>): React.JSX.Element {
+    const { store } = useWorkspace();
     const held = useWorkspaceState((state) => state.ends);
-    useTimeFieldVersion(session);
-    if (session === null) {
-        return null;
-    }
-    const attributes = session.data.attributes();
+    const attributes = attributesOf(session, source);
     const fail = (): void => {
         store.set({ notice: { message: "Field not changed" } });
     };
@@ -667,76 +854,156 @@ export function Fields({ source }: Readonly<{ source: LoadedSource | undefined }
     const single = tables.length === 1 ? tables[0].rowsAre : undefined;
     const rowsAre = ends === null ? single : "edges";
     return (
-        <ControlSection label="Fields" empty={sides.length === 0 && ends === null}>
-            <div className="dp-fields">
-                {source === undefined ? null : (
-                    <Text size="xs" fw={600} truncate className="dp-fields-source">
-                        {source.name}
-                    </Text>
-                )}
-                {source?.reloadable === true && rowsAre !== undefined ? (
-                    <PickRow
-                        label="Rows are"
-                        value={rowsAre}
-                        choices={ROWS_ARE}
-                        onPick={(picked) => {
-                            if (picked === "edges") {
-                                store.set({ ends: { load: source.key, source: null, target: null } });
-                            } else if (ends === null) {
-                                reload({ mapping: remap(source, "edges", { rowsAre: "nodes" }) });
-                            } else {
-                                store.set({ ends: null });
-                            }
-                        }}
-                    />
-                ) : null}
-                {ends === null || source === undefined ? null : (
-                    <>
-                        <div className="dp-fields-group">
-                            <EntityChip kind="edge">{formatNumber(source.counts.nodes)}</EntityChip>
-                        </div>
-                        {(["source", "target"] as const).map((end) => (
-                            <PickRow
-                                key={end}
-                                label={end === "source" ? "Source" : "Target"}
-                                withNone
-                                value={ends[end]}
-                                choices={columnChoices(attributes, source, "nodes", ends[end])}
-                                onPick={(picked) => {
-                                    pickEnd(store, session, source, end, picked).catch(fail);
-                                }}
-                            />
-                        ))}
-                    </>
-                )}
-                {sides.includes("nodes") ? (
-                    <SideGroup
-                        side="nodes"
-                        count={source?.counts.nodes ?? totalNodes}
-                        source={source}
-                        attributes={attributes}
-                        fixed={fixedRows("nodes")}
-                        onReload={reload}
-                        onFail={fail}
-                    />
-                ) : null}
-                {sides.includes("edges") ? (
-                    <SideGroup
-                        side="edges"
-                        count={source?.counts.edges ?? totalEdges}
-                        source={source}
-                        attributes={attributes}
-                        fixed={
-                            <>
-                                {fixedRows("edges")}
-                                <GraphRows session={session} source={source} onReload={reload} onFail={fail} />
-                            </>
+        <div className="dp-fields">
+            {source?.reloadable === true && rowsAre !== undefined ? (
+                <PickRow
+                    label="Rows are"
+                    value={rowsAre}
+                    choices={ROWS_ARE}
+                    onPick={(picked) => {
+                        if (picked === "edges") {
+                            store.set({ ends: { load: source.key, source: null, target: null } });
+                        } else if (ends === null) {
+                            reload({ mapping: remap(source, "edges", { rowsAre: "nodes" }) });
+                        } else {
+                            store.set({ ends: null });
                         }
-                        onReload={reload}
-                        onFail={fail}
-                    />
-                ) : null}
-            </div>
-        </ControlSection>
+                    }}
+                />
+            ) : null}
+            {ends === null || source === undefined ? null : (
+                <>
+                    <div className="dp-fields-group">
+                        <EntityChip kind="edge">{formatNumber(source.counts.nodes)}</EntityChip>
+                    </div>
+                    {(["source", "target"] as const).map((end) => (
+                        <PickRow
+                            key={end}
+                            label={end === "source" ? "Source" : "Target"}
+                            withNone
+                            value={ends[end]}
+                            choices={columnChoices(attributes, source, "nodes", ends[end])}
+                            onPick={(picked) => {
+                                pickEnd(store, session, source, end, picked).catch(fail);
+                            }}
+                        />
+                    ))}
+                </>
+            )}
+            {sides.includes("nodes") ? (
+                <SideGroup
+                    side="nodes"
+                    count={source?.counts.nodes ?? totalNodes}
+                    source={source}
+                    attributes={attributes}
+                    fixed={fixedRows("nodes")}
+                    onReload={reload}
+                    onFail={fail}
+                />
+            ) : null}
+            {sides.includes("edges") ? (
+                <SideGroup
+                    side="edges"
+                    count={source?.counts.edges ?? totalEdges}
+                    source={source}
+                    attributes={attributes}
+                    fixed={
+                        <>
+                            {fixedRows("edges")}
+                            <GraphRows session={session} source={source} onReload={reload} onFail={fail} />
+                        </>
+                    }
+                    onReload={reload}
+                    onFail={fail}
+                />
+            ) : null}
+        </div>
     );
+}
+
+/**
+ * The Fields section: one collapsible group per load, named after it (the Style panel's kind
+ * groups), the selected load's open and first. Picking another load opens its group and scrolls to
+ * it; the reader opens and closes the rest. A graph not loaded from a file shows its fields
+ * ungrouped.
+ * @param props - Component props
+ * @param props.sources - `data.sources()`
+ * @param props.selected - the selected load
+ * @param props.filters - draw each load as a section of its own, holding its Filters (the
+ * `selection-workspace` experiment's Sources tab)
+ * @returns the section, or nothing before the element has come up
+ */
+export function Fields({
+    sources,
+    selected,
+    filters = false,
+}: Readonly<{
+    sources: readonly LoadedSource[];
+    selected: LoadedSource | undefined;
+    filters?: boolean;
+}>): React.JSX.Element | null {
+    const { session } = useWorkspace();
+    const held = useWorkspaceState((state) => state.ends);
+    useTimeFieldVersion(session);
+    // The groups the reader opened or closed; a group they never touched is open only while its load
+    // is selected. A new pick forgets the reader's choice for that group, so it opens.
+    const [opened, setOpened] = useState<Readonly<Record<string, boolean>>>({});
+    const [openedFor, setOpenedFor] = useState(selected?.key);
+    if (openedFor !== selected?.key) {
+        setOpenedFor(selected?.key);
+        if (selected !== undefined) {
+            setOpened(({ [selected.key]: _picked, ...rest }) => rest);
+        }
+    }
+    const groups = useRef<HTMLDivElement>(null);
+    const sourcesRef = useRef(sources);
+    sourcesRef.current = sources;
+    const drawn = useRef(false);
+    useEffect(() => {
+        // Not on the first drawing: only a new pick scrolls the panel.
+        if (drawn.current) {
+            // The picked load's group: first under Attributes, at its own place as a section.
+            const at = filters ? sourcesRef.current.findIndex((each) => each.key === selected?.key) : 0;
+            groups.current?.children.item(Math.max(at, 0))?.scrollIntoView({ block: "nearest" });
+        }
+        drawn.current = true;
+    }, [selected?.key, filters]);
+    if (session === null) {
+        return null;
+    }
+    const empty = (source: LoadedSource | undefined): boolean =>
+        sidesShown(attributesOf(session, source), source).length === 0 &&
+        !(source !== undefined && held?.load === source.key);
+    if (sources.length === 0) {
+        return (
+            <ControlSection label="Attributes" empty={empty(undefined)}>
+                <SourceFields session={session} source={undefined} />
+            </ControlSection>
+        );
+    }
+    // As their own sections, the loads keep the Data sources list's order; as groups under
+    // Attributes, the selected one comes first.
+    const ordered =
+        filters || selected === undefined ? sources : [selected, ...sources.filter((each) => each !== selected)];
+    const list = (
+        <div ref={groups} className={filters ? "dp-source-sections" : "dp-field-groups"}>
+            {ordered.map((source) => (
+                <ControlSection
+                    key={source.key}
+                    label={sourceName(source)}
+                    // With its filters, a load's group is a section of its own.
+                    headingLevel={filters ? undefined : 3}
+                    empty={!filters && empty(source)}
+                    opened={opened[source.key] ?? source === selected}
+                    onOpenChange={(open) => {
+                        setOpened((was) => ({ ...was, [source.key]: open }));
+                    }}
+                >
+                    <SourceFields session={session} source={source} />
+                    {filters && <FiltersSection source={source.key} primary={sources.length === 1} headingLevel={3} />}
+                </ControlSection>
+            ))}
+        </div>
+    );
+    return filters ? list : <ControlSection label="Attributes">{list}</ControlSection>;
 }

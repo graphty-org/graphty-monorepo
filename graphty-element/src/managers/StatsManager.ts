@@ -1,11 +1,9 @@
-import {
-    type Engine,
-    EngineInstrumentation,
-    PerfCounter,
-    type Scene,
-    SceneInstrumentation,
-    type WebGPUEngine,
-} from "@babylonjs/core";
+import type { Engine } from "@babylonjs/core/Engines/engine.js";
+import type { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import { EngineInstrumentation } from "@babylonjs/core/Instrumentation/engineInstrumentation.js";
+import { SceneInstrumentation } from "@babylonjs/core/Instrumentation/sceneInstrumentation.js";
+import { PerfCounter } from "@babylonjs/core/Misc/perfCounter.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { StatsUpdateEvent } from "../events";
 import { GraphtyLogger, type Logger } from "../logging";
@@ -303,7 +301,10 @@ export class StatsManager implements Manager {
 
         // Engine instrumentation
         this.babylonInstrumentation = new EngineInstrumentation(engine);
-        this.babylonInstrumentation.captureGPUFrameTime = true;
+        // Never on WebGPU: on a device with "timestamp-query", which a shared device has, Babylon's
+        // frame timing leaves the queue's maps unanswered, the layout's readback among them. On a
+        // WebGPU device without the feature it measures nothing.
+        this.babylonInstrumentation.captureGPUFrameTime = !engine.isWebGPU;
         this.babylonInstrumentation.captureShaderCompilationTime = true;
     }
 
@@ -724,7 +725,8 @@ export class StatsManager implements Manager {
     }
 
     /**
-     * End manual timing
+     * End manual timing. Ends the most recent open measurement with this label; any measurement
+     * started after it and never ended (its code threw before reaching its end) is dropped.
      * @param label - Label for this measurement (must match startMeasurement)
      */
     endMeasurement(label: string): void {
@@ -732,11 +734,25 @@ export class StatsManager implements Manager {
             return;
         }
 
-        const entry = this.activeStack.pop();
-        if (entry?.label !== label) {
-            console.warn(`StatsManager: Mismatched measurement end for "${label}"`);
+        let at = this.activeStack.length - 1;
+        while (at >= 0 && this.activeStack[at].label !== label) {
+            at--;
+        }
+
+        if (at === -1) {
+            logger.warn(`StatsManager: Mismatched measurement end for "${label}"`, { label });
             return;
         }
+
+        const entry = this.activeStack[at];
+        if (at < this.activeStack.length - 1) {
+            logger.warn(`StatsManager: Measurements never ended inside "${label}"`, {
+                label,
+                unended: this.activeStack.slice(at + 1).map((e) => e.label),
+            });
+        }
+
+        this.activeStack.length = at;
 
         const duration = performance.now() - entry.startTime;
         this.recordMeasurement(label, duration);

@@ -1,22 +1,35 @@
-import { ActionIcon, Menu, Text, Tooltip } from "@mantine/core";
+import { TargetTooltip } from "@graphty/compact-mantine";
+import { ActionIcon, Menu } from "@mantine/core";
 import React from "react";
 
+import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { useCommand } from "../state/WorkspaceContext";
 
 /**
  * The commands the Sources "+" offers, in menu order (spec section 3.2): File..., Samples...,
- * Server... and Paste, registered by the loading and server packages. Each is drawn only once its
- * package registers it. Paste means what it means everywhere (`readPasted`): the clipboard, opened
- * as a web address when it is one, else read as data.
+ * Network data... and Paste, registered by the loading and
+ * server packages. Each is
+ * drawn only once its package registers it. Paste means what it means everywhere (`readPasted`):
+ * the clipboard, opened as a web address when it is one, else read as data.
  */
-export const ADD_SOURCE = ["data.add-file", "data.samples", "data.add-server", "data.add-paste"] as const;
+const ADD_SOURCE = ["data.add-file", "data.samples", "data.add-server", "data.add-paste"] as const;
+
+/** Each item's glyph, drawn before its label as the Style "+" items are. */
+const GLYPH: Readonly<Record<(typeof ADD_SOURCE)[number], React.ReactNode>> = {
+    "data.add-file": <GLYPHS.file size={14} aria-hidden />,
+    "data.samples": <GLYPHS.gridView size={14} aria-hidden />,
+    "data.add-server": <GLYPHS.server size={14} aria-hidden />,
+    "data.add-paste": <GLYPHS.paste size={14} aria-hidden />,
+};
 
 /**
- * The Sources "+": a menu of the ways to add a source.
+ * The Sources "+": a menu of the ways to add a source, each with its glyph and its key. File...
+ * shows Open's key, which opens the same chooser.
  * @returns the menu, or nothing until some way is registered
  */
 export function AddSourceMenu(): React.JSX.Element | null {
+    const open = useCommand("file.open");
     const doors = [
         useCommand(ADD_SOURCE[0]),
         useCommand(ADD_SOURCE[1]),
@@ -31,23 +44,28 @@ export function AddSourceMenu(): React.JSX.Element | null {
     return (
         <Menu position="bottom-end" returnFocus={false}>
             <Menu.Target>
-                <Tooltip label="Add source">
+                <TargetTooltip label="Add source">
                     <ActionIcon variant="subtle" size="sm" aria-label="Add source">
                         <GLYPHS.add size={14} aria-hidden />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
-                {doors.map((door) => (
-                    <Menu.Item key={door.command.id} disabled={door.disabledReason !== null} onClick={door.run}>
-                        {door.command.label}
-                        {door.disabledReason === null ? null : (
-                            <Text size="xs" c="dimmed">
-                                {door.disabledReason}
-                            </Text>
-                        )}
-                    </Menu.Item>
-                ))}
+                {doors.map((door) => {
+                    const id = door.command.id as (typeof ADD_SOURCE)[number];
+                    return (
+                        <CommandMenuItem
+                            key={id}
+                            icon={GLYPH[id]}
+                            label={door.command.label}
+                            shortcut={
+                                door.command.keys?.[0] ?? (id === "data.add-file" ? open?.command.keys?.[0] : undefined)
+                            }
+                            reason={door.disabledReason}
+                            onRun={door.run}
+                        />
+                    );
+                })}
             </Menu.Dropdown>
         </Menu>
     );

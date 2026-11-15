@@ -105,7 +105,7 @@ describe("a browser bundle", () => {
 function runPage(file: string, page: string): Promise<{ code: number; out: string }> {
     return new Promise((resolve) => {
         const offline = fileURLToPath(new URL("setup/local-datasets.mjs", import.meta.url));
-        execFile(process.execPath, ["--import", offline, file, page], { timeout: 60_000 }, (error, stdout, stderr) => {
+        execFile(process.execPath, ["--import", offline, file, page], (error, stdout, stderr) => {
             resolve({ code: typeof error?.code === "number" ? error.code : 0, out: stdout + stderr });
         });
     });

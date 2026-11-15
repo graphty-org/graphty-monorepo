@@ -8,16 +8,20 @@ import {
     definedJobs,
     isJob,
     jobHistories,
+    type JobHistory,
     jobMembers,
     nonGatingJobs,
-    type JobHistory,
+    titleOwnsJob,
 } from "../../src/collector/jobs.js";
-import { releaseAttempt, type GhJob, type GhRun } from "../../src/collector/parse.js";
-import { DAY, HOUR, type JobItem } from "../../src/model/items.js";
+import { type GhJob, type GhRun, releaseAttempt } from "../../src/collector/parse.js";
+import { DAY, HOUR, type JobItem, type RawItem, type RunItem } from "../../src/model/items.js";
 import { jobFamily } from "../../src/model/metrics.js";
 import { putRaw, setCursor } from "../../src/model/raw.js";
 import { recompute } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
+
+/** A GitHub Actions expression, `${{ body }}`, as a workflow file spells it. */
+const ghExpr = (body: string): string => ["$", "{{ ", body, " }}"].join("");
 
 const REPO = "graphty-org/graphty-monorepo";
 /** When the owner found Performance Benchmarks red in most full runs, and the dashboard showed nothing. */
@@ -80,13 +84,13 @@ async function stored(items: JobItem[]): Promise<MemoryStore> {
 /** A GitHub whose issue searches answer `issues`, and which keeps the search strings it was asked. */
 function searchGitHub(issues: { number: number; title: string; body: string }[]) {
     const asked: string[] = [];
-    const fetch = async (_url: string, init?: RequestInit) => {
-        const { variables } = JSON.parse(String(init?.body)) as { variables: Record<string, string> };
+    const fetch = (_url: string, init?: RequestInit) => {
+        const { variables } = JSON.parse(init?.body as string) as { variables: Record<string, string> };
         asked.push(...Object.values(variables));
         const data = Object.fromEntries(Object.keys(variables).map((k) => [`j${k.slice(1)}`, { nodes: issues }]));
-        return new Response(JSON.stringify({ data }), { status: 200 });
+        return Promise.resolve(new Response(JSON.stringify({ data }), { status: 200 }));
     };
-    return { gh: new GitHub(async () => "ghs_test", fetch), asked };
+    return { gh: new GitHub(() => Promise.resolve("ghs_test"), fetch), asked };
 }
 
 describe("chronically failing jobs", () => {
@@ -131,6 +135,50 @@ describe("chronically failing jobs", () => {
         expect(obs).toEqual({ "ci.chronic_jobs": 1, "ci.chronic_no_issue": 0 });
     });
 
+    it("gives an issue only the job of the workflow it names, not another workflow's job of the same name", async () => {
+        // 2026-10-29: #4530, about release.yml's CI call, was shown on the CodeQL workflow's "All Checks Pass" row. That
+        // job is an aggregator and no longer judged (#6068), so a job every workflow names alike stands in for it.
+        const same = (workflow: string, name: string, load: JobItem["load"]) =>
+            PERF.map(([run, end, c]) =>
+                jobItem(run, name, end, c, { id: `${REPO}/${run}/${workflow}/${name}`, workflow, load }),
+            );
+        const store = await stored([
+            ...same("release.yml", "CI / Checks", "full"),
+            ...same("ci.yml", "Checks", "master"),
+            ...same("codeql", "Checks", "other"),
+        ]);
+        const { gh } = searchGitHub([
+            { number: 4530, title: "Full run: CI / Checks red in 5 of 10 full runs", body: "" },
+        ]);
+        const { list, obs } = await jobMembers(store, gh, REPO, NOW);
+        expect(list.map((j) => [j.workflow, j.job, j.issue]).sort()).toEqual([
+            ["ci.yml", "Checks", undefined],
+            ["codeql", "Checks", undefined],
+            ["release.yml", "CI / Checks", 4530],
+        ]);
+        expect(obs).toEqual({ "ci.chronic_jobs": 3, "ci.chronic_no_issue": 2 });
+    });
+
+    it("reads a workflow from its file's name or its run kind, never from a conventional-commit type", () => {
+        const ci = { workflow: "ci.yml", job: "Lint" };
+        expect(titleOwnsJob("Red master: Lint fails on every push", ci)).toBe(true);
+        expect(titleOwnsJob("ci.yml Lint fails since the eslint upgrade", ci)).toBe(true);
+        expect(titleOwnsJob("ci: Lint fails since the eslint upgrade", ci)).toBe(false);
+        expect(titleOwnsJob("Full run: CI / Lint red", ci)).toBe(false);
+        const mac = { workflow: "work-protection-macos.yml", job: "Autosave (webkit)" };
+        expect(titleOwnsJob("work protection (macOS): Autosave (webkit) red since 2026-10-20", mac)).toBe(true);
+        expect(titleOwnsJob("Autosave (webkit) red since 2026-10-20", mac)).toBe(false);
+    });
+
+    it("reads a workflow or run kind in the singular or the plural", () => {
+        const lint = { workflow: "release.yml", job: "CI / Lint" };
+        expect(titleOwnsJob("Full run: CI / Lint red", lint)).toBe(true);
+        expect(titleOwnsJob("CI / Lint failed 9 of 10 full runs", lint)).toBe(true);
+        expect(titleOwnsJob("CI / Lint fails in releases", lint)).toBe(true);
+        expect(titleOwnsJob("CI / Build failed 9 of 10 full runs", lint)).toBe(false);
+        expect(titleOwnsJob("CI / Lint failed 9 of 10 nightly runs", lint)).toBe(false);
+    });
+
     it("is a job that the release lanes still call passed", () => {
         // Run 40423614862: the ci lane passed (its Red early job skipped) while Performance Benchmarks failed.
         const run = { id: 40423614862, conclusion: "success", display_title: "Release (full)" } as unknown as GhRun;
@@ -171,6 +219,54 @@ describe("chronically failing jobs", () => {
         expect(list).toEqual([]);
     });
 
+    it("leaves out a run on another branch whose jobs were stored before they carried offMaster (#5053)", async () => {
+        // The four ci.yml dispatches on the probe branches of #4237 on 2026-10-28, stored before 3796ced414 stamped
+        // offMaster on jobs: Story tests (graphty-element) and Test (graphty-element-lifecycle) failed in each, and
+        // the table still listed both as chronic on 2026-10-30, though every master run since had passed them.
+        const now = Date.parse("2026-10-30T12:00:00Z");
+        const probes: [number, string, string][] = [
+            [40716130272, "ci/4237-probe-1", "2026-10-28T16:10:00Z"],
+            [40728357923, "ci/4237-probe-2", "2026-10-28T17:20:00Z"],
+            [40733744826, "ci/4237-probe-2", "2026-10-28T18:00:00Z"],
+            [40742555405, "ci/4237-probe-2", "2026-10-28T18:53:00Z"],
+        ];
+        // Two earlier dispatches of ci.yml on master that passed both jobs (the issue's "last pass 2026-10-27").
+        const masters: [number, string, string][] = [
+            [40500000001, "master", "2026-10-27T13:59:00Z"],
+            [40500000002, "master", "2026-10-27T15:07:00Z"],
+        ];
+        const items = [...probes, ...masters].flatMap(([runId, branch, end]): RawItem[] => {
+            const conclusion = branch === "master" ? "success" : "failure";
+            const at = Date.parse(end);
+            const run: RunItem = {
+                kind: "run",
+                id: `${REPO}/${runId}`,
+                attempt: 1,
+                repo: REPO,
+                runId,
+                workflow: "ci.yml",
+                event: "workflow_dispatch",
+                branch,
+                sha: "ab425a0699",
+                status: "completed",
+                conclusion,
+                createdAt: at - HOUR,
+                completedAt: at,
+            };
+            const jobs = ["Story tests (graphty-element)", "Test (graphty-element-lifecycle)"].map((name) =>
+                // As toJobItem stored it then: a load, and no offMaster.
+                jobItem(runId, name, end, conclusion, { workflow: "ci.yml", load: "other" }),
+            );
+            return [run, ...jobs];
+        });
+        const store = new MemoryStore();
+        await putRaw(store, items, now);
+        await recompute(store, now);
+        const { list, obs } = await jobMembers(store, searchGitHub([]).gh, REPO, now);
+        expect(list).toEqual([]);
+        expect(obs).toEqual({ "ci.chronic_jobs": 0, "ci.chronic_no_issue": 0 });
+    });
+
     it("stops judging a ci.yml job once ci.yml no longer defines it, and nothing else", async () => {
         // CI / Story tests parity (graphty) failed in most full runs until eca39b3b91 removed the job from ci.yml
         // on 2026-10-27; it stayed on the page as chronic and unfiled until it had gone two days without a run.
@@ -183,7 +279,7 @@ describe("chronically failing jobs", () => {
         const names = async () => (await jobMembers(store, searchGitHub([]).gh, REPO, NOW)).list.map((j) => j.job);
         // Before the collector has read ci.yml, every job is judged.
         expect(await names()).toContain("CI / Story tests parity (graphty)");
-        const withParity = `${ci}\n    story-tests-parity:\n        name: Story tests parity (\${{ matrix.project }})\n`;
+        const withParity = `${ci}\n    story-tests-parity:\n        name: Story tests parity (${ghExpr("matrix.project")})\n`;
         await setCursor(store, "ci-jobs", JSON.stringify(definedJobs(withParity)), NOW);
         expect(await names()).toContain("CI / Story tests parity (graphty)");
         await setCursor(store, "ci-jobs", JSON.stringify(definedJobs(ci)), NOW);
@@ -235,6 +331,33 @@ describe("chronicJobs", () => {
         });
     });
 
+    it("does not judge an aggregator, which fails whenever a job it summarizes fails (#6068)", () => {
+        const runs: [number, boolean][] = [
+            [0.1, false],
+            [0.2, false],
+            [0.3, false],
+            [0.4, true],
+        ];
+        const agg = { ...h(runs), workflow: "release.yml", job: "CI / All Checks Pass" };
+        const own = { ...h(runs), workflow: "release.yml", job: "CI / Test (graphty-features-on)" };
+        expect(chronicJobs([agg, own], NOW).map((j) => j.job)).toEqual(["CI / Test (graphty-features-on)"]);
+        expect(chronicJobs([{ ...agg, job: "All Checks Pass", workflow: "ci.yml" }], NOW)).toEqual([]);
+    });
+
+    it("does not judge bisect.yml's point jobs, which fail at a bad commit by design (#6710)", () => {
+        const runs: [number, boolean][] = [
+            [0.1, false],
+            [0.2, false],
+            [0.3, false],
+            [0.4, false],
+            [0.5, true],
+        ];
+        const point = { ...h(runs), workflow: "bisect.yml", job: "Point 9c90fdeaa2616c58f65097c85ff484b1793d6844" };
+        expect(chronicJobs([point], NOW)).toEqual([]);
+        expect(chronicJobs([{ ...point, workflow: "release.yml" }], NOW)).toHaveLength(1);
+        expect(chronicJobs([{ ...point, job: "Judge the round" }], NOW)).toHaveLength(1);
+    });
+
     it("does not judge a share of fewer than 4 runs, a recent first failure, or a job that stopped running", () => {
         expect(
             chronicJobs(
@@ -268,6 +391,26 @@ describe("chronicJobs", () => {
         expect(chronicJobs([h(removed.map(([d, ok]): [number, boolean] => [d - 2, ok]))], NOW)).toHaveLength(1);
     });
 
+    it("judges the share only over the last 7 days, so a fixed job is not chronic on older failures (#7369)", () => {
+        // Dependabot on 2026-11-12: passing since its fix, five failures 12 days before it
+        const dependabot: [number, boolean][] = [
+            [0.1, true],
+            [0.4, true],
+            [0.5, true],
+            [1.5, false],
+            [7.3, true],
+            [11.6, false],
+            [11.6, false],
+            [11.6, false],
+            [12.1, false],
+            [12.1, false],
+        ];
+        expect(chronicJobs([h(dependabot)], NOW)).toEqual([]);
+        // a week earlier, the same failures were recent and chronic
+        const before = dependabot.slice(4).map(([d, ok]): [number, boolean] => [d - 7, ok]);
+        expect(chronicJobs([h(before)], NOW)).toHaveLength(1);
+    });
+
     it("still judges a weekly job between its runs", () => {
         expect(
             chronicJobs(
@@ -280,6 +423,17 @@ describe("chronicJobs", () => {
                 NOW,
             ),
         ).toHaveLength(1);
+        expect(
+            chronicJobs(
+                [
+                    h([
+                        [8, false],
+                        [15, false],
+                    ]),
+                ],
+                NOW,
+            )[0],
+        ).toMatchObject({ runs: 2, failed: 2 });
     });
 
     it("reads each job's runs in order from the rollup's pass and fail times", () => {
@@ -307,7 +461,8 @@ describe("non-gating jobs", () => {
     it("reads ci.yml's job-level continue-on-error, not a step's", () => {
         const jobs = nonGatingJobs(ci);
         expect(jobs).toContain("Performance Benchmarks");
-        expect(jobs).toContain("Story tests (${{ matrix.name || matrix.project }})");
+        // gating since #4613 (the screenshot gate blocks again)
+        expect(jobs).not.toContain(`Story tests (${ghExpr("matrix.name || matrix.project")})`);
         expect(jobs).not.toContain("Build");
         expect(jobs).not.toContain("Lint");
     });
@@ -317,7 +472,7 @@ describe("non-gating jobs", () => {
             "jobs:",
             "    lint:",
             "        name: Lint",
-            "        continue-on-error: ${{ contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint') }}",
+            `        continue-on-error: ${ghExpr("contains(fromJSON(needs.packages.outputs.advisory-checks), 'lint')")}`,
             "        steps:",
             "            - run: x",
             "              continue-on-error: true",
@@ -337,7 +492,7 @@ describe("non-gating jobs", () => {
     });
 
     it("matches a matrix job's name and a called workflow's prefix", () => {
-        const story = "Story tests (${{ matrix.name || matrix.project }})";
+        const story = `Story tests (${ghExpr("matrix.name || matrix.project")})`;
         expect(isJob(story, "CI / Story tests (graphty-element)")).toBe(true);
         expect(isJob(story, "Story tests merge (graphty)")).toBe(false);
         expect(isJob("Performance Benchmarks", "CI / Performance Benchmarks")).toBe(true);

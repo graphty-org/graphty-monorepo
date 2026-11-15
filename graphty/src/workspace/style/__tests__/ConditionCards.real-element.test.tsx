@@ -18,13 +18,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace, with the starting rows.
@@ -34,14 +37,11 @@ async function openSample(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -75,7 +75,7 @@ async function layerOf(
  * @param modifier - A key held while clicking (several rows).
  */
 async function clickRow(name: string, modifier?: "Control"): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     const row = await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
     if (modifier === undefined) {
         await userEvent.click(row);
@@ -87,12 +87,29 @@ async function clickRow(name: string, modifier?: "Control"): Promise<void> {
 }
 
 /**
+ * Select a layer for its condition cards. One layer alone edits its rule with the selection
+ * editor; the cards edit what several selected layers share, so a twin ("<name> too") with the
+ * same rule and values is selected beside it, and every card writes both.
+ * @param session - The session.
+ * @param name - The layer's name.
+ */
+async function cardsFor(session: GraphSession, name: string): Promise<void> {
+    const layer = session.styles.list().find((each) => each.name === name);
+    if (layer === undefined) {
+        throw new Error(`no layer ${name}`);
+    }
+    await layerOf(session, `${name} too`, layer.selector, layer.set);
+    await clickRow(name);
+    await clickRow(`${name} too`, "Control");
+}
+
+/**
  * The open tab's collapsed Which row.
  * @param kind - nodes or edges.
  * @returns The row button.
  */
 async function whichRow(kind: "nodes" | "edges" = "nodes"): Promise<HTMLElement> {
-    return screen.findByRole("button", { name: new RegExp(`^Which ${kind}, `) }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("button", { name: new RegExp(`^Which ${kind}, `) });
 }
 
 /**
@@ -223,10 +240,15 @@ describe("the combined Style panel", () => {
             where: { kind: "text", reads: "data.name", mode: "substring", text: "Mme" },
         });
         await clickRow("Mme");
-        const list = await screen.findByRole("tablist", { name: "Style for" }, { timeout: TIMEOUT_MS });
+        const list = await screen.findByRole("tablist", { name: "Style for" });
         const node = within(list).getByRole("tab", { name: "Node" });
         const edge = within(list).getByRole("tab", { name: /^Edge/ });
-        assert.include(edge.textContent ?? "", "not styled", "a kind that is off says so");
+        // The selection workspace drops the "not styled" note from the kind tabs (StylePanel.tsx).
+        if (selectionWorkspaceOn(session)) {
+            assert.notInclude(edge.textContent ?? "", "not styled");
+        } else {
+            assert.include(edge.textContent ?? "", "not styled", "a kind that is off says so");
+        }
         assert.strictEqual(node.getAttribute("aria-selected"), "true");
         const before = JSON.stringify(session.styles.get(layer.id));
         const steps = session.history.position;
@@ -253,7 +275,7 @@ describe("the combined Style panel", () => {
         const degree = cardFields(session, "node").find((field) => field.path.endsWith(".value"));
         assert.isDefined(degree);
         const layer = await layerOf(session, "Busy");
-        await clickRow("Busy");
+        await cardsFor(session, "Busy");
         const card = await addCard(degree?.name ?? "");
         const from = within(card).getByRole("textbox", { name: `${degree?.name ?? ""} from, number` });
         await userEvent.clear(from);
@@ -292,7 +314,7 @@ describe("the combined Style panel", () => {
         const group = cardFields(session, "node").find((field) => field.path === `results.${run.runId}.group`);
         assert.isDefined(group);
         const layer = await layerOf(session, "Groups");
-        await clickRow("Groups");
+        await cardsFor(session, "Groups");
         const card = await addCard(group?.name ?? "");
         const values = within(card).getByRole("group", { name: `${group?.name ?? ""} values` });
         const boxes = within(values).getAllByRole("checkbox");
@@ -311,7 +333,7 @@ describe("the combined Style panel", () => {
     it("a text card writes 'contains'; Escape keeps the edit and one Undo takes the whole open back", async () => {
         const session = await openSample();
         const layer = await layerOf(session, "Names");
-        await clickRow("Names");
+        await cardsFor(session, "Names");
         const steps = session.history.position;
         const card = await addCard("name");
         await userEvent.type(within(card).getByRole("combobox", { name: "name: text to match" }), "Mme");
@@ -346,7 +368,7 @@ describe("the combined Style panel", () => {
         const ids = session.data.nodes().map((node) => node.id);
         await session.data.updateNodes(ids.map((id, at) => ({ id, values: { main: at < 10 } })));
         const layer = await layerOf(session, "Main");
-        await clickRow("Main");
+        await cardsFor(session, "Main");
         await addCard("main");
         await waitFor(() => {
             assert.deepEqual(leafOfLayer(session, layer.id), {
@@ -358,7 +380,7 @@ describe("the combined Style panel", () => {
             });
         });
         await done();
-        assert.strictEqual(await chipCount("main: yes"), 10);
+        assert.strictEqual(await chipCount("main: Yes"), 10);
     });
 
     it("Style edges on a layer that picks nodes paints the edges between them, and a node card moves them", async () => {
@@ -367,7 +389,7 @@ describe("the combined Style panel", () => {
             match: "rule",
             where: { kind: "text", reads: "data.name", mode: "substring", text: "Thenardier" },
         });
-        await clickRow("Thenardiers");
+        await cardsFor(session, "Thenardiers");
         await userEvent.click(
             within(await screen.findByRole("tablist", { name: "Style for" })).getByRole("tab", { name: /^Edge/ }),
         );
@@ -420,12 +442,14 @@ describe("the combined Style panel", () => {
         const summary = within(byLayer).getByRole("button", { name: /from each layer/ });
         assert.match(summary.textContent ?? "", /Group 1, Group 2, Group 3, \+\d/);
         await userEvent.click(summary);
-        const lines = within(byLayer)
-            .getAllByRole("listitem")
-            .map((item) => item.textContent ?? "");
-        assert.match(lines[0], /^Group 1: Group 1, \d+$/, "the first line is the tree's first layer");
-        // The open cards say the union, as the closed row does.
-        assert.isNotNull(within(region).getByText(/^77 of 77 nodes$/));
+        // Each line's count is the element's `scope.count`, a promise the line fills in once it
+        // answers: a reader sees the count arrive, so the line is read once it has.
+        await waitFor(() => {
+            const first = within(byLayer).getAllByRole("listitem")[0]?.textContent ?? "";
+            assert.match(first, /^Group 1: Group 1, \d+$/, "the first line is the tree's first layer");
+        });
+        // The open cards say the union, as the closed row does (counted the same way).
+        assert.isNotNull(await within(region).findByText(/^77 of 77 nodes$/));
 
         const steps = session.history.position;
         const card = await addCard("name");
@@ -503,14 +527,21 @@ describe("the combined Style panel", () => {
         await clickRow("Some");
         await clickRow("All", "Control");
         const row = await whichRow();
+        // The selection workspace reads a card that differs by layer in plain words (WhichPicker.tsx).
+        const workspace = selectionWorkspaceOn(session);
         await waitFor(() => {
             assert.match(
                 row.getAttribute("aria-label") ?? "",
                 // The token is spoken as what it stands for, never its marks.
-                /^Which nodes, 77 of 77 nodes, name: each layer's own value, 1 of 2 layers$/,
+                workspace
+                    ? /^Which nodes, 77 of 77 nodes, name by layer, 1 of 2 layers$/
+                    : /^Which nodes, 77 of 77 nodes, name: each layer's own value, 1 of 2 layers$/,
             );
         });
-        assert.include(row.textContent ?? "", "name: «Layer», 1 of 2 layers");
+        assert.include(
+            row.textContent ?? "",
+            workspace ? "name by layer, 1 of 2 layers" : "name: «Layer», 1 of 2 layers",
+        );
     });
 
     it("a rule the cards cannot draw opens as the rule in words and is unchanged on close", async () => {
@@ -531,7 +562,7 @@ describe("the combined Style panel", () => {
     it("Escape in the add menu closes the menu only; the next Escape closes the picker", async () => {
         const session = await openSample();
         await layerOf(session, "Menu");
-        await clickRow("Menu");
+        await cardsFor(session, "Menu");
         // A row with no card opens on Add a condition; Enter there opens its list.
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
@@ -565,7 +596,7 @@ describe("the combined Style panel", () => {
                 ],
             },
         });
-        await clickRow("Focus");
+        await cardsFor(session, "Focus");
         await userEvent.click(await whichRow());
         const region = await screen.findByRole("group", { name: "Which nodes" });
         const cards = within(region)

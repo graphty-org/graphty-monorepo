@@ -14,7 +14,13 @@
  */
 
 export type { AttributeLeafNodes } from "../../catalog/types";
-export type { FilterCondition, FilterConditionInput, FilterEffect, FilterStep } from "../../catalog/types";
+export type {
+    FilterCondition,
+    FilterConditionInput,
+    FilterEffect,
+    FilterSelectWithin,
+    FilterStep,
+} from "../../catalog/types";
 export {
     assertVisibility,
     type CompiledVisibility,
@@ -25,7 +31,6 @@ export {
     type RuleTree,
     runPass,
     runPassInSlices,
-    type TimeInstants,
     type TimePlayback,
     type TimeResultsPolicy,
     type TimeStep,
@@ -36,11 +41,14 @@ export {
     createVisibilityApi,
     type FilterConditionCount,
     type FilterConditionMatches,
+    type FilterDraft,
     type FilterResult,
+    type HiddenNotDrawn,
     type SessionVisibilityApi,
     type StepCounts,
     type VisibilityApi,
     type VisibilityChange,
     type VisibilitySources,
     type VisibilitySummary,
+    type WindowWalk,
 } from "./VisibilityApi";

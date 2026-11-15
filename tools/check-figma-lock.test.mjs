@@ -89,6 +89,13 @@ describe("check-figma-lock", () => {
         assert.deepEqual(r.check(), []);
     });
 
+    it("reads a Figma-Approved trailer folded onto a second line, as a 100-column commit message needs", () => {
+        const r = repo();
+        r.write(TOKENS, "v2\n");
+        r.commit("fix: accent\n\nFigma-Approved: owner, a long reason\n that goes on here");
+        assert.deepEqual(r.check(), []);
+    });
+
     it("keeps the approval through a --no-ff merge, which itself carries no trailer", () => {
         const r = repo();
         r.git("checkout", "-qb", "topic");

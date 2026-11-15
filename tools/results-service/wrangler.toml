@@ -19,3 +19,8 @@ database_name = "graphty-results"
 # results-service.yml writes the real id here before it deploys (it creates the database on its first run)
 database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "migrations"
+
+# Workers Logs: each 500's stack (handle() logs it) stays readable in the dashboard; without it the 500s of
+# #5597 left no record
+[observability]
+enabled = true

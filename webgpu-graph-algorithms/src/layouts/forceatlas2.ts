@@ -25,7 +25,6 @@ import {
     GRID_BBOX_MARGIN,
     GRID_EXTENT_FLOOR,
     LAYOUT_TUNING_DEFAULTS,
-    MAX_ITERATIONS_PER_STEP,
     SETTLE_FLOOR_UNBOUNDED,
     TRACE_RECORD_BYTES,
 } from "../constants.js";
@@ -54,16 +53,14 @@ import {
 } from "./force-simulation.js";
 import { resolveNodeMass, resolveWeights } from "./inputs.js";
 import {
+    assertMaxInFlightUnchanged,
     compileAttraction,
-    describeValue,
     invalid,
     isPositiveInteger,
     type Overrides,
     pickBoolean,
-    pickCenter,
-    pickDim,
     pickNumber,
-    pickSeed,
+    pickSharedForceOptions,
     scalar,
     subset,
 } from "./model-common.js";
@@ -73,7 +70,14 @@ import { RepulsionGrid, type RepulsionGridOverrides } from "./repulsion-grid.js"
 // ============================================================ constants and small helpers
 
 /** Every override K2 accepts, with its default (contract 3.10.1 plus the two standard graph overrides). */
-const K2_DEFAULTS: Overrides = { LINLOG: false, DISTRIBUTED: false, TIER: 0, USE_PERM: false, HAS_WEIGHTS: false };
+const K2_DEFAULTS: Overrides = {
+    LINLOG: false,
+    DISTRIBUTED: false,
+    DISSUADE_HUBS: false,
+    TIER: 0,
+    USE_PERM: false,
+    HAS_WEIGHTS: false,
+};
 
 /** Every override K5 accepts, with its default. */
 const K5_DEFAULTS: Overrides = { SWING_MODE: 0 };
@@ -116,7 +120,7 @@ function gridOverrides(merged: Overrides): RepulsionGridOverrides {
  * Applies FA2_DEFAULTS to the option record; validates ranges (spec 7.14; contract 3.13). With `previous` the record
  * is a PATCH over it (an absent or explicitly undefined field keeps the previous value) and `maxInFlight` may not
  * change (the uniform ring is sized by it at construction). `nodeSize` is E_UNSUPPORTED { option: "nodeSize" } (the
- * adjustSizes correction is deferred); `dissuadeHubs` is kept and ignored, exactly like the CPU.
+ * adjustSizes correction is deferred); `dissuadeHubs` divides each node's attraction by its degree + 1, as the CPU does.
  * @param options - the caller's options (or a setParams patch)
  * @param previous - the current resolved record when resolving a patch
  * @returns the frozen resolved record
@@ -127,13 +131,7 @@ export function resolveForceAtlas2Options(
 ): ResolvedForceAtlas2Options {
     const o: ForceAtlas2Options = options ?? {};
     const base = previous ?? DEFAULT_RESOLVED;
-    if (previous !== undefined && o.maxInFlight !== undefined && o.maxInFlight !== previous.maxInFlight) {
-        throw new WebGpuGraphError(
-            "E_INVALID_ARGUMENT",
-            `maxInFlight cannot change after creation (the uniform ring is sized by it): got ${describeValue(o.maxInFlight)}, current ${previous.maxInFlight}`,
-            { argument: "maxInFlight", value: o.maxInFlight, expected: previous.maxInFlight },
-        );
-    }
+    assertMaxInFlightUnchanged(o, previous);
     const nodeSize = o.nodeSize === undefined ? base.nodeSize : o.nodeSize;
     if (nodeSize !== null) {
         throw new WebGpuGraphError(
@@ -154,26 +152,7 @@ export function resolveForceAtlas2Options(
         nodeSize,
         weight: o.weight === undefined ? base.weight : o.weight,
         dissuadeHubs: pickBoolean("dissuadeHubs", o.dissuadeHubs, base.dissuadeHubs),
-        dim: pickDim(o.dim, base.dim),
-        scale: pickNumber("scale", o.scale, base.scale, (v) => v > 0, "> 0"),
-        center: pickCenter(o.center, base.center),
-        seed: pickSeed(o.seed, base.seed),
-        settleThreshold: pickNumber("settleThreshold", o.settleThreshold, base.settleThreshold, (v) => v >= 0, ">= 0"),
-        settleWindow: pickNumber(
-            "settleWindow",
-            o.settleWindow,
-            base.settleWindow,
-            isPositiveInteger,
-            "an integer >= 1",
-        ),
-        iterationsPerStep: pickNumber(
-            "iterationsPerStep",
-            o.iterationsPerStep,
-            base.iterationsPerStep,
-            (v) => isPositiveInteger(v) && v <= MAX_ITERATIONS_PER_STEP,
-            `an integer in [1, ${MAX_ITERATIONS_PER_STEP}]`,
-        ),
-        maxInFlight: pickNumber("maxInFlight", o.maxInFlight, base.maxInFlight, isPositiveInteger, "an integer >= 1"),
+        ...pickSharedForceOptions(o, base),
     };
     return Object.freeze(resolved);
 }
@@ -293,7 +272,7 @@ export class ForceAtlas2Model
     }
 
     /**
-     * { LINLOG, DISTRIBUTED, TIER: 0, SWING_MODE: compat === "networkx" ? 1 : 0, STRONG_GRAVITY, GRAVITY_CENTER:
+     * { LINLOG, DISTRIBUTED, DISSUADE_HUBS, TIER: 0, SWING_MODE: compat === "networkx" ? 1 : 0, STRONG_GRAVITY, GRAVITY_CENTER:
      * compat === "networkx" ? 1 : 0 }; USE_PERM / HAS_WEIGHTS are merged in by the simulation from ModelResources
      * (3.10, never from core.hasWeights). A pure query: the simulation calls it with the current AND the next record
      * inside setParams() to decide the recompile, so it never touches the model's record (PLAN DECISION 12).
@@ -306,6 +285,7 @@ export class ForceAtlas2Model
         return {
             LINLOG: resolved.linlog,
             DISTRIBUTED: resolved.distributedAction,
+            DISSUADE_HUBS: resolved.dissuadeHubs,
             TIER: 0,
             SWING_MODE: mode,
             STRONG_GRAVITY: resolved.strongGravity,
@@ -411,13 +391,14 @@ export class ForceAtlas2Model
      * the flags).
      * @param iteration - the trace slot of the iteration inside its batch
      * @param options - the simulation's current option record
+     * @param live - n less the inert rows (default n)
      * @returns the uniform values
      */
-    paramsFor(iteration: number, options: ForceAtlas2Options): UniformValues {
+    paramsFor(iteration: number, options: ForceAtlas2Options, live?: number): UniformValues {
         this.requireResources();
         const resolved = resolveForceAtlas2Options(options, this.current);
         return {
-            ...this.sharedParams(iteration, resolved),
+            ...this.sharedParams(iteration, resolved, live),
             scalingRatio: resolved.scalingRatio,
             gravity: resolved.gravity,
             jitterTolerance: resolved.jitterTolerance,

@@ -131,7 +131,6 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
     // On the NVIDIA card with coverage it takes 6.2 s idle and 11.7-16.8 s beside 32 busy cores; randomBig/uniform/
     // directed, at 129 nodes under coverage (see big()), 0.06 s idle and 0.1-0.3 s loaded (19.6 s and 48.3 s at 1057).
     for (const fixture of FIXTURES) {
-        // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 97 s on the T4 lane, 31 s on the dev box's RTX 4070 SUPER under load, 21 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
         it(`${fixture.name}: the matrix against the references, the invariants, run twice bitwise, the snapshot unchanged`, async (t: TestContext) => {
             requireGpu(t);
             const s = snapshotOf(typeof fixture.edges === "function" ? fixture.edges(big()) : fixture.edges, {
@@ -157,9 +156,7 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
                     // oracle suite checks the two orders agree on integer weights). Sweeping it again was 12.9 s of
                     // grid30/integer's 18.6 s on lavapipe with coverage, and checked nothing new.
                     const exact =
-                        s.weights !== null &&
-                        s.weights.every(Number.isInteger) &&
-                        blocked.every((x) => x === Infinity || x < 2 ** 24);
+                        s.weights.every(Number.isInteger) && blocked.every((x) => x === Infinity || x < 2 ** 24);
                     const f64 = exact ? blocked : floydWarshallOracle(s, { weighted: true, precision: "f64" });
                     const spread = relSpread(first.dist, f64);
                     console.warn(`[all-pairs] ${fixture.name}: f32 vs the f64 textbook sweep, relative ${spread}`);
@@ -187,7 +184,7 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
             } finally {
                 ctx.release(s);
             }
-        }, 120_000);
+        });
     }
 
     it("weighted: false on a weighted snapshot computes hop counts: bitwise the unweighted snapshot's matrix", async (t) => {
@@ -339,11 +336,10 @@ describe("allPairsShortestPath (design 8.7 / 9.7)", () => {
         });
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 32 s on the T4 lane, 15 s on CI's lavapipe, 14 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
     it("the sabotage report passes on the real kernels (factor 0)", async (t) => {
         requireGpu(t);
         const report = await allPairsReport(ctx);
         expect(report.worst).toBe(0);
         assertCheckPasses(report);
-    }, 120_000);
+    });
 });

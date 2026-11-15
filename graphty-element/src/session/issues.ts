@@ -34,7 +34,8 @@ export type IssueId = string; // NOSONAR(S6564): a named public type in the API 
  * - `not-a-number`: a column of numbers holds values that are not (`"N/A"`); `params.examples`.
  * - `decimal-comma`: a column of numbers holds numbers written with a decimal comma (`"12,5"`).
  * - `unknown-end`: edges name a node no node row gave, so the load made it; `count` is the
- *   edges, `params.nodes` the nodes, `params.examples` a few of their ids.
+ *   edges, `params.nodes` the nodes, `params.examples` a few of their ids, `params.ends` which
+ *   end of those edges names an unknown node (`"source"`, `"target"` or `"both"`).
  * - `repeated-edge`: edges join a pair an earlier edge already joins; `count` is the repeats,
  *   `params.pairs` the pairs.
  * - `repeated-id`: node rows repeat an id an earlier row gave, and were left out;
@@ -112,7 +113,7 @@ export type FixCode =
  * OPEN UNION: states may be added in a minor release.
  * @since 3.30.0
  */
-export type IssueStatus = "open" | "ignored" | "fixed";
+type IssueStatus = "open" | "ignored" | "fixed";
 
 /**
  * One problem with the loaded data: what `session.data.issues()` lists. Neutral facts: a reader
@@ -187,7 +188,7 @@ export interface LoadFacts {
 }
 
 /** An issue as it stood when a fix settled it. */
-export type FixedIssue = Omit<DataIssue, "fixes" | "current" | "status" | "ignored"> & { readonly fixedBy: FixCode };
+type FixedIssue = Omit<DataIssue, "fixes" | "current" | "status" | "ignored"> & { readonly fixedBy: FixCode };
 
 /** The `issues` graph value. */
 export interface IssueState {
@@ -230,7 +231,7 @@ export function loadFactsOf(tally: ImportTally, leftOut: boolean): LoadFacts | n
             examples: blank.slice(0, EXAMPLES).map((row) => row.record),
         },
         refusedRows: tally.errors.flatMap((error) =>
-            error.code !== "refused-row" && typeof error.line === "number"
+            error.code !== "refused-row" && typeof error.line === "number" && error.params.skipped !== "value"
                 ? [
                       {
                           line: error.line,
@@ -267,7 +268,7 @@ export function withLoadFacts(state: IssueState | undefined, key: SourceKey, fac
  * @param directed - Whether the graph is directed.
  * @returns The key.
  */
-export function pairKey(source: NodeId, target: NodeId, directed: boolean): string {
+function pairKey(source: NodeId, target: NodeId, directed: boolean): string {
     const ends = [String(source), String(target)];
     if (!directed) {
         ends.sort(); // NOSONAR(S2871): code-unit order is the point: a locale-free key for the pair
@@ -287,7 +288,7 @@ export interface IssueInput {
 }
 
 /** A node column of place names read through the gazetteer: its unmatched and ambiguous rows. */
-export interface PlaceRows {
+interface PlaceRows {
     readonly column: string;
     /** Rows of `nodes` whose name no place matches. */
     readonly unmatched: readonly number[];
@@ -631,6 +632,24 @@ function oneSource(keys: readonly SourceKey[]): { source?: SourceKey } {
 }
 
 /**
+ * Which end of the edges names an unknown node: "source", "target" or "both".
+ * @param touching - The edges that name one.
+ * @param unknown - The unknown nodes.
+ * @returns The end.
+ */
+function unknownSide(
+    touching: readonly { readonly source: NodeId; readonly target: NodeId }[],
+    unknown: ReadonlySet<NodeId>,
+): "source" | "target" | "both" {
+    const atSource = touching.some((edge) => unknown.has(edge.source));
+    const atTarget = touching.some((edge) => unknown.has(edge.target));
+    if (atSource && atTarget) {
+        return "both";
+    }
+    return atSource ? "source" : "target";
+}
+
+/**
  * The issues the loads saw: unknown ends, repeated ids, blank ids and refused rows.
  * @param input - The records and the state.
  * @returns The issues found.
@@ -660,6 +679,7 @@ function loadIssues(input: IssueInput): FoundIssue[] {
     const touching = edges.filter((edge) => unknown.has(edge.source) || unknown.has(edge.target));
     if (touching.length > 0) {
         const ids = [...unknown];
+        const ends = unknownSide(touching, unknown);
         const forget = (facts: LoadFacts): LoadFacts => ({
             ...facts,
             unknownEnds: facts.unknownEnds.filter((id) => !unknown.has(id)),
@@ -670,7 +690,7 @@ function loadIssues(input: IssueInput): FoundIssue[] {
                 code: "unknown-end",
                 ...oneSource(unknownFrom),
                 count: touching.length,
-                params: { nodes: ids.length, examples: ids.slice(0, EXAMPLES) },
+                params: { nodes: ids.length, examples: ids.slice(0, EXAMPLES), ends },
                 fixes: ["leave-out"],
                 current: "add-nodes",
             },
@@ -857,7 +877,7 @@ export interface DataIssuesCommand {
  * @param value - The value.
  * @returns True when it has the shape.
  */
-export function isIssueState(value: unknown): value is IssueState {
+function isIssueState(value: unknown): value is IssueState {
     if (typeof value !== "object" || value === null) {
         return false;
     }

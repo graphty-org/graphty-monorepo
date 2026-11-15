@@ -11,6 +11,7 @@ import { escapeXmlAttribute } from "../../common/escape.js";
 import { num6 } from "../canon/number.js";
 import { STYLE_ISSUE } from "../codes.js";
 import { StyleNotes } from "../notes.js";
+import { drawnAnyway } from "../plan/plan.js";
 import { canonicalFor, degreeValues, refSource, resolveRules } from "../plan/resolve.js";
 import type {
     ColumnRef,
@@ -188,9 +189,11 @@ const DESKTOP_BORDERS = {
     "dash-dot": "DASH_DOT",
     double: "PARALLEL_LINES",
 };
-// LONG_DASH is read as dashed (CX2 has no long dash), so long-dash is written as its nearest, EQUAL_DASH
-const DESKTOP_LINES = { ...DESKTOP_BORDERS, zigzag: "ZIGZAG", sinewave: "SINEWAVE" };
-const CX2_LINES = { solid: "solid", dashed: "dashed", dotted: "dotted", double: "double" };
+// a border has no long dash, so there long-dash is written as its nearest, dashed; CX2's `dashed` is drawn in long
+// dashes and its `equal_dash` in equal ones (lexicon.ts, CY_LONG_DASHES)
+const DESKTOP_LINES = { ...DESKTOP_BORDERS, "long-dash": "LONG_DASH", zigzag: "ZIGZAG", sinewave: "SINEWAVE" };
+const CX2_BORDERS = { solid: "solid", dashed: "dashed", dotted: "dotted", double: "double" };
+const CX2_LINES = { ...CX2_BORDERS, dashed: "equal_dash", "long-dash": "dashed" };
 const NEAR_LINES = { "dash-dot": "dashed", "long-dash": "dashed", zigzag: "solid", sinewave: "solid" };
 
 const DESKTOP_ARROWS = {
@@ -380,7 +383,7 @@ const WRITERS: Readonly<Record<CytoscapeDialect, Readonly<Record<StyleTarget, Re
                 "borderStyle",
                 {
                     vp: "NODE_BORDER_STYLE",
-                    write: enumOut(CX2_LINES, nearIn(CX2_LINES, NEAR_LINES), false, CY_OTHER_BORDERS),
+                    write: enumOut(CX2_BORDERS, nearIn(CX2_BORDERS, NEAR_LINES), false, CY_OTHER_BORDERS),
                 },
             ],
             [
@@ -666,10 +669,15 @@ const DRAWN_SO: ReadonlyMap<string, StyleValue> = new Map<string, StyleValue>([
  * Whether every element's value of a property is how Cytoscape draws it anyway, so there is nothing to write.
  * @param p - the property
  * @param values - each element's value
+ * @param drawn - what Cytoscape draws for each property a file leaves unset (its tool defaults)
  * @returns true when nothing is lost by not writing it
  */
-function drawnSo(p: string, values: readonly (StyleValue | null)[]): boolean {
-    const way = DRAWN_SO.get(p);
+function drawnSo(
+    p: string,
+    values: readonly (StyleValue | null)[],
+    drawn: Readonly<Partial<Record<string, StyleValue>>>,
+): boolean {
+    const way = DRAWN_SO.get(p) ?? drawn[p];
     return way !== undefined && values.every((v) => v === null || v === way);
 }
 
@@ -688,6 +696,7 @@ function emitTarget(
 ): void {
     const { target, notes, truth } = e;
     const writers = WRITERS[e.options.dialect][target];
+    const drawn = drawnAnyway("cytoscape", target, e.extracted.styles.units.length);
     for (const [p, values] of truth) {
         const fixed = FIXED[target].get(p);
         if (fixed !== undefined) {
@@ -697,7 +706,7 @@ function emitTarget(
             if (other > 0) {
                 notes.add(STYLE_ISSUE.APPROXIMATED, target, p, { count: other });
             }
-        } else if (!writers.has(p) && !(FONT_PROPS as readonly string[]).includes(p) && !drawnSo(p, values)) {
+        } else if (!writers.has(p) && !(FONT_PROPS as readonly string[]).includes(p) && !drawnSo(p, values, drawn)) {
             const count = values.filter((v) => v !== null).length;
             notes.add(STYLE_ISSUE.NOT_WRITTEN, target, p, { count: Math.max(count, 1) });
         }
@@ -945,7 +954,9 @@ function cytoscapeMapping(
             table: m.table.map(([k, v]) => [k, write(v)]),
         };
     }
-    if (m.kind === "continuous") {
+    // the mapping is the caller's, so its kind can be any value
+    const { kind }: { kind: unknown } = m;
+    if (kind === "continuous") {
         const points: CytoscapeContinuousPoint[] = m.points.map((pt: ContinuousPoint) => ({
             at: pt.at,
             below: write(pt.below),
@@ -1041,7 +1052,8 @@ function passthroughMapping(
  * @returns the mapping CX2 reads back
  */
 function cx2Points(m: Extract<Mapping, { kind: "continuous" }>, approx: () => void): Mapping {
-    let changed = false;
+    // set inside the map callback, which TypeScript does not see change it
+    let changed = false as boolean;
     const points = m.points.map((pt) => {
         if (pt.value === pt.below || pt.value === pt.above) {
             return pt;

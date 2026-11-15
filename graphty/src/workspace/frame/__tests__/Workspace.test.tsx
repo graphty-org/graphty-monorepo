@@ -7,7 +7,6 @@
 import { afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
-import { storyWaitOptions } from "../../../stories/wait";
 import { pickSample } from "../../../test/samples-dialog";
 import { act, render, screen, within } from "../../../test/test-utils";
 import { defineRegistration, stubCommands, type WorkspaceRegistration } from "../../commands/registry";
@@ -201,9 +200,10 @@ describe("the workspace frame", () => {
             .getAllByRole("menuitem")
             .map(rowLabel);
         assert.equal(rows[0], "Back to start");
-        for (const name of ["New project", "Open project or file...", "Open sample", "Save as...", "Rename"]) {
+        for (const name of ["New project", "Open project or file...", "Save as...", "Rename"]) {
             assert.include(rows, name);
         }
+        assert.notInclude(rows, "Open sample");
         assert.lengthOf(new Set(rows), rows.length, rows.join(", "));
         await userEvent.keyboard("{Escape}");
 
@@ -222,19 +222,18 @@ describe("the workspace frame", () => {
         assert.notStrictEqual(undo.tabIndex, -1);
         assert.notStrictEqual(screen.getByRole("button", { name: "Redo" }).tabIndex, -1);
         await userEvent.hover(undo);
-        assert.isNotNull(await screen.findByText("Nothing to undo", undefined, storyWaitOptions(3000)));
+        assert.isNotNull(await screen.findByText("Nothing to undo", undefined));
     });
 
-    it("says what the Main menu holds and where the privacy chip leads, in tooltips", async () => {
+    it("says the Main menu's name and where the privacy chip leads, in tooltips", async () => {
         renderWorkspace(OPEN);
 
         await userEvent.hover(screen.getByRole("button", { name: "Main menu" }));
-        assert.isNotNull(
-            await screen.findByText("Main menu: open, save, export, settings", undefined, storyWaitOptions(3000)),
-        );
+        // The tooltip says the button's name (decided.md: a tooltip and its name say the same words).
+        assert.equal((await screen.findByRole("tooltip", undefined)).textContent, "Main menu");
         await userEvent.unhover(screen.getByRole("button", { name: "Main menu" }));
         await userEvent.hover(screen.getByRole("button", { name: /^(Local only|Usage data on, content masked)$/ }));
-        assert.isNotNull(await screen.findByText(/Opens Settings > Privacy$/, undefined, storyWaitOptions(3000)));
+        assert.isNotNull(await screen.findByText(/Opens Settings > Privacy$/, undefined));
     });
 
     it("renames the project with F2 and with a tap on its name", async () => {

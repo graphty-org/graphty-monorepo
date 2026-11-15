@@ -1,6 +1,6 @@
 /**
- * A graph file reaches the graph the same way whichever verb reads it: `session.project.open`'s
- * draft loads exactly what `session.data.import` loads, and a project file handed to a data
+ * A graph file or a CSV file reaches the graph the same way whichever verb reads it:
+ * `session.project.open`'s draft loads exactly what `session.data.import` loads, and a project file handed to a data
  * import is refused with a code instead of loading as an empty graph.
  */
 import { assert, describe, it } from "vitest";
@@ -8,7 +8,10 @@ import { assert, describe, it } from "vitest";
 import { isGraphtyError } from "../../src/errors";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
+import { fileStylesOn } from "../helpers/file-styles-on";
 import { makeSession } from "./helpers";
+
+fileStylesOn();
 
 /** One file of each graph format shape: files whose format, not the reader, sets the columns. */
 const FILES: readonly (readonly [string, string])[] = [
@@ -30,6 +33,13 @@ const FILES: readonly (readonly [string, string])[] = [
     ],
     ["ring.gml", 'graph [ node [ id 1 label "One" ] node [ id 2 ] edge [ source 1 target 2 value 7 ] ]'],
     ["neato.dot", "digraph G { layout=neato; a -> b [weight=2]; b -> c; }"],
+];
+
+/** CSV files, whose cells the draft types for its mapping: ids still load as text, as import reads them. */
+const CSV_FILES: readonly (readonly [string, string])[] = [
+    ["edges.csv", "source,target,weight\n1,2,3\n2,3,4\n"],
+    ["from-to.csv", "from,to,w\n1,2,true\n2,x,1.5\n"],
+    ["nodes.csv", "id,label,size\n1,One,3\n2,Two,4\n"],
 ];
 
 /**
@@ -54,13 +64,12 @@ function stateOf(session: GraphSession): unknown {
  * @param name - The file's name.
  * @param text - Its text.
  * @param via - `import` for `data.import`, `open` for `project.open` and its draft.
- * @returns What the load left.
+ * @returns What the load left, as JSON.
  */
-async function loaded(name: string, text: string, via: "import" | "open"): Promise<unknown> {
+async function loaded(name: string, text: string, via: "import" | "open"): Promise<string> {
     const { session } = makeSession();
-    // A label path configured first: with none, the draft also labels the nodes with the file's
-    // `label` field and import does not (the one known difference, load-preview.md).
-    await session.config.set({ data: { knownFields: { edgeWeightPath: "value", nodeLabelPath: "label" } } });
+    // No label path configured: both verbs label the nodes with a graph file's `label` field.
+    await session.config.set({ data: { knownFields: { edgeWeightPath: "value" } } });
     const file = new File([text], name);
     if (via === "import") {
         await session.data.import({ config: { file }, name }, { styles: "file" });
@@ -70,8 +79,14 @@ async function loaded(name: string, text: string, via: "import" | "open"): Promi
         await report.draft?.load({ styles: "file" });
     }
 
-    // As plain data: frozen records and class instances compare by what they hold.
-    const state: unknown = JSON.parse(JSON.stringify(stateOf(session)));
+    // As plain data, key order included: frozen records and class instances compare by what they hold.
+    const state = JSON.stringify(stateOf(session), (key: string, value: unknown) =>
+        // When a load happened, and how a CSV load was made, not what it loaded: the draft keeps the
+        // mapping it chose (so a reload repeats it) and its report names the columns it declared as the ends.
+        key === "loadedAt" || (name.endsWith(".csv") && ["mapping", "tableRows", "endpoints"].includes(key))
+            ? undefined
+            : value,
+    );
     session.dispose();
     return state;
 }
@@ -94,9 +109,43 @@ async function refusal(call: () => Promise<unknown>): Promise<string | null> {
 describe("project.open's draft loads a data file as data.import does", () => {
     for (const [name, text] of FILES) {
         it(name, async () => {
-            assert.deepStrictEqual(await loaded(name, text, "open"), await loaded(name, text, "import"));
+            assert.strictEqual(await loaded(name, text, "open"), await loaded(name, text, "import"));
         });
     }
+
+    for (const [name, text] of CSV_FILES) {
+        it(name, async () => {
+            assert.strictEqual(await loaded(name, text, "open"), await loaded(name, text, "import"));
+        });
+    }
+});
+
+describe("a CSV draft merged onto a graph", () => {
+    it("joins the nodes the graph holds under number ids, and adds new ones as text", async () => {
+        const { session } = makeSession();
+        const gml =
+            'graph [ node [ id 1 label "A" ] node [ id 2 label "B" ] node [ id 3 label "C" ] edge [ source 1 target 2 ] ]';
+        await session.data.import({ config: { file: new File([gml], "abc.gml") }, name: "abc.gml" });
+        const draft = await session.data.prepare(
+            { config: { file: new File(["source,target\n2,3\n3,4\n"], "more.csv") }, name: "more.csv" },
+            { onto: "graph", guess: "values" },
+        );
+        await draft.load({ mode: "merge" });
+
+        assert.deepStrictEqual(
+            session.data.nodes().map((node) => node.id),
+            [1, 2, 3, "4"],
+        );
+        assert.deepStrictEqual(
+            session.data.edges().map(({ source, target }) => [source, target]),
+            [
+                [1, 2],
+                [2, 3],
+                [3, "4"],
+            ],
+        );
+        session.dispose();
+    });
 });
 
 describe("a project file handed to a data import", () => {

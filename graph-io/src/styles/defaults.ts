@@ -4,7 +4,15 @@
  * does in the program that made it. Only values a primary source states are here; every value names its source.
  */
 
-import type { EdgeStyleValues, GraphStyleValues, NodeStyleValues, StyleArrowShape, StyleTool } from "./types.js";
+import { YED_LABEL_PADDING } from "./canon/yed-label.js";
+import type {
+    EdgeStyleValues,
+    GraphStyleValues,
+    NodeStyleValues,
+    StyleArrowShape,
+    StyleLineStyle,
+    StyleTool,
+} from "./types.js";
 
 /**
  * One default value and where it is stated.
@@ -91,9 +99,15 @@ export interface ToolDefaults {
     /**
      * The largest corner radius, in `units`, the program draws on a rounded rectangle whose file gives none. Not a
      * node default: it only bounds the rounding of the shape the file names, so no rule carries it and no writer has
-     * to hold it.
+     * to hold it. Absent, the corners have no cap and are `roundedCornerFraction` of the shorter side at any size.
      */
     readonly roundedCornerRadius?: ToolDefaultValue<number>;
+    /**
+     * The fraction of a rounded rectangle's shorter side the program rounds its corners by when the file gives no
+     * radius, before `roundedCornerRadius` caps it: Cytoscape.js a quarter, Graphviz a third, Cytoscape desktop an
+     * eighth. Absent, a quarter. Not a node default, for the same reason as the cap.
+     */
+    readonly roundedCornerFraction?: ToolDefaultValue<number>;
     /**
      * How big the program draws its filled triangle arrowhead, which it sizes from the line width and its own size
      * setting rather than from the neutral `arrowSize` alone. Not an edge default: the size follows from two
@@ -106,6 +120,47 @@ export interface ToolDefaults {
      * it says how every node's border width is read, so no rule carries it. Absent, a border width is a length.
      */
     readonly nodeBorderOnScreen?: ToolDefaultValue<boolean>;
+    /**
+     * Whether the program draws a label's `labelSize`, node and edge alike, in screen pixels, the same at every zoom,
+     * rather than as a length that grows and shrinks with the drawing: sigma keeps a label 12 px tall however far the
+     * view zooms. Not a label default: it says how every label size is read, so no rule carries it. Absent, a label
+     * size is a length.
+     */
+    readonly labelSizeOnScreen?: ToolDefaultValue<boolean>;
+    /**
+     * How far apart, in `units`, the program's own layout leaves the nodes of a file that stores no positions: the
+     * median distance from a node to its nearest neighbor once the layout it runs on load has settled, measured on
+     * the program's own drawings of real files. Not its spring length: layouts settle at different multiples of their
+     * springs. Not an edge default: it says how the program spaces a layout, so no rule carries it. Absent for a
+     * program whose layout of such a file has no fixed spacing (Gephi scatters nodes over a square whatever their
+     * number: see `layoutScatterSide`).
+     */
+    readonly layoutSpacing?: ToolDefaultValue<number>;
+    /**
+     * The side, in `units`, of the square over which the program scatters the nodes of a file that stores no
+     * positions, each at a uniformly random point. The spacing that leaves depends on how many nodes there are:
+     * the median distance from a node to its nearest neighbor is about `side * sqrt(ln 2 / (pi * nodes))`. Absent
+     * for a program that lays such a file out otherwise (`layoutSpacing`).
+     */
+    readonly layoutScatterSide?: ToolDefaultValue<number>;
+    /**
+     * How the program draws each dashed or dotted line style: the length of a dash as drawn (its caps included) and
+     * the clear gap after it, in `units`, for a line of a width. Not an edge default: the pattern follows from two
+     * properties, the line style and the width, so no rule carries it. Absent for a program, or a line style, whose
+     * pattern graph-io has not measured.
+     */
+    readonly dashes?: Partial<Record<StyleLineStyle, ToolDefaultValue<(width: number) => ToolDash>>>;
+}
+
+/**
+ * One dash of a program's dashed or dotted line and the gap after it, as drawn, in its `units`.
+ * @category Styles
+ */
+export interface ToolDash {
+    /** The dash's length along its line, its caps included (a round-capped dot is as long as its line is wide). */
+    readonly dash: number;
+    /** The clear gap between it and the next dash. */
+    readonly gap: number;
 }
 
 /**
@@ -162,7 +217,6 @@ const CY_WAVE =
     "cytoscape-impl ding-presentation-impl 3.10.5 org.cytoscape.ding.impl.strokes: ZigzagStroke (amplitude 10, a turn every 10) and SineWaveStroke (amplitude 10, wavelength 20)";
 const CYJS = "cytoscape.js 3.34.3 dist/cytoscape.cjs.js line";
 const GV = "graphviz.org/docs/attrs";
-const YED_QA = "yEd Q&A, How can I change the default nodes and/or default edges";
 const YED_CORPUS = "yEd GraphML corpus, most frequent value";
 const YED_EDGE = "yFiles for Java 2.19 EdgeRealizer API docs";
 const YED_BG = "yFiles for Java 2.19 DefaultBackgroundRenderer API docs";
@@ -179,6 +233,35 @@ const OGDF_SVG =
 const NX = "networkx 6da4704cbf32 networkx/drawing/nx_pylab.py line";
 const MEASURED = "measured in the program's own SVG export (graph-io/test/fidelity/oracles/";
 const PAJEK_SVG = `${MEASURED}pajek-`;
+
+/**
+ * A dash pattern a program draws the same whatever the line's width.
+ * @param dash - the dash's length as drawn
+ * @param gap - the gap after it
+ * @param source - where it is measured
+ * @returns the entry
+ */
+const fixedDash = (dash: number, gap: number, source: string): ToolDefaultValue<(width: number) => ToolDash> =>
+    v(() => ({ dash, gap }), source);
+
+/**
+ * A dash pattern a program draws in proportion to the line's width.
+ * @param dash - the dash's length as drawn, in widths
+ * @param gap - the gap after it, in widths
+ * @param source - where it is measured
+ * @returns the entry
+ */
+const widthDash = (dash: number, gap: number, source: string): ToolDefaultValue<(width: number) => ToolDash> =>
+    v((width) => ({ dash: dash * width, gap: gap * width }), source);
+
+/**
+ * Cytoscape desktop's EQUAL_DASH and LONG_DASH strokes, butt-capped dashes in widths: `stroke-dasharray="6,6"` and
+ * `"12,6"` at width 3 (cx-, cys-, cx2- and xgmml-specimen-edges-lines).
+ */
+const CYTOSCAPE_DASHES = {
+    dashed: widthDash(2, 2, `${MEASURED}cx-specimen-edges-lines: EQUAL_DASH "6,6" at width 3), Cytoscape 3.10.5`),
+    "long-dash": widthDash(4, 2, `${MEASURED}cx-specimen-edges-lines: LONG_DASH "12,6" at width 3), Cytoscape 3.10.5`),
+};
 
 /**
  * Cytoscape desktop draws an arrow `EDGE_*_ARROW_SIZE` (6 by default, the neutral arrowSize 1) plus the line width
@@ -232,26 +315,87 @@ const CYTOSCAPE_BORDER_INSIDE = v<"inside">(
 );
 
 /**
- * draw.io draws a yEd or yFiles file's arrows `endSize` 6 plus the line width long and as wide; yEd itself could not
- * be run, so draw.io's drawing stands in.
+ * yEd's standard head is 12 long and 10 wide on a line 1 wide, and grows by an eighth of that for each further unit of
+ * line width. Its other shapes are drawn on a line 1 wide as their fractions say.
  */
-const DRAWIO_ARROWHEAD: ToolArrowhead = {
-    length: (size, width) => 6 * size + width,
-    aspect: 1,
-    source: `${MEASURED}graphml-*, draw.io 32.4.1 standing in for yEd)`,
+const YED_ARROWHEAD: ToolArrowhead = {
+    length: (size, width) => (12 * (7 + width) * size) / 8,
+    aspect: 10 / 12,
+    shapes: {
+        triangle: { length: 1, aspect: 1 },
+        "triangle-open": { length: 16 / 12, aspect: 12 / 16 },
+        diamond: { length: 14 / 12, aspect: 10 / 14 },
+        "diamond-open": { length: 14 / 12, aspect: 10 / 14 },
+        circle: { length: 8 / 12, aspect: 1 },
+        "circle-open": { length: 8 / 12, aspect: 1 },
+        square: { length: 8 / 12, aspect: 1 },
+        tee: { length: 1 / 12, aspect: 10 },
+        crow: { length: 1, aspect: 16 / 12 },
+        "other:crows_foot_many_mandatory": { length: 1, aspect: 16 / 12 },
+        "other:crows_foot_many_optional": { length: 1, aspect: 16 / 12 },
+        "other:crows_foot_one": { length: 1 / 12, aspect: 16 },
+        "other:crows_foot_one_mandatory": { length: 1 / 12, aspect: 16 },
+        "other:crows_foot_one_optional": { length: 1 / 12, aspect: 16 },
+        "other:crows_foot_optional": { length: 10 / 12, aspect: 1 },
+        "other:dash": { length: 1 / 12, aspect: 8 },
+        "other:cross": { length: 8 / 12, aspect: 1 },
+        "other:open-vee": { length: 1, aspect: 1 },
+        "other:skewed-dash": { length: 8 / 12, aspect: 1 },
+        "other:white_delta_bar": { length: 16 / 12, aspect: 12 / 16 },
+    },
+    source: `${MEASURED}yed-graphml-specimen-arrows.svg, yed-graphml-specimen-edges-lines.svg: widths 1, 2, 3, 5 and 8 draw the standard head 12, 13.5, 15, 18 and 22.5 long, 10, 11.25, 12.5, 15 and 18.75 wide)`,
+};
+
+/** yEd's label box reaches 2 px past its words on every side. */
+const YED_LABEL_BOX_PADDING = v(
+    YED_LABEL_PADDING,
+    `${MEASURED}yed-graphml-specimen-labels.svg: a 10 px label's box is 15.64 tall, its 11.64 px line and 2 on each side)`,
+);
+
+/** yEd's line is its font's ascent plus descent, with no leading. */
+const YED_LABEL_LINE_HEIGHT = v(1, `${MEASURED}yed-graphml-specimen-labels.svg: as above)`);
+
+/** yEd Live draws its default head 8 long and 6 wide whatever the line width. */
+const YED_LIVE_ARROWHEAD: ToolArrowhead = {
+    length: (size) => 8 * size,
+    aspect: 6 / 8,
+    shapes: {
+        diamond: { length: 10 / 8, aspect: 6 / 10 },
+        circle: { length: 6 / 8, aspect: 1 },
+        // an unfilled circle is as big (yed-live-graphml-specimen-edges-lines-p3.svg: a message flow's, 6 across)
+        "circle-open": { length: 6 / 8, aspect: 1 },
+        "other:cross": { length: 10 / 8, aspect: 1 },
+        "other:kite": { length: 10 / 8, aspect: 6 / 10 },
+        "other:deltoid": { length: 5.2 / 8, aspect: 6 / 5.2 },
+    },
+    source: `${MEASURED}yed-live-graphml-specimen-arrows.svg, yed-live-graphml-specimen-edges-lines.svg: widths 1 to 6 all draw 8 long, 6 wide)`,
 };
 
 /**
- * The largest corner radius of a rounded rectangle whose file gives none, in the program's units. Cytoscape.js is the
- * one program that publishes its rule (`getRoundRectangleRadius`); the others draw barely rounded corners too, so they
- * get the same 8, and a 513 x 453 group keeps small corners instead of a quarter of its side.
- * @param tool - the program, when it is not Cytoscape.js and so states no radius of its own
+ * The largest corner radius of a rounded rectangle whose file gives none, in the program's units. Cytoscape.js
+ * publishes its rule (`getRoundRectangleRadius`); Graphviz and vis-network were measured or read below, and Cytoscape
+ * desktop has none (`roundedCornerFraction` alone states its corners). A program
+ * whose own radius is not known gets Cytoscape.js's 8, and the source says so, so a 513 x 453 group keeps small
+ * corners instead of a quarter of its side.
+ * @param tool - the program, when its own radius is not known
+ * @param why - what is known of the program's own corners instead
  * @returns the default
  */
-function cornerCap(tool?: string): ToolDefaultValue<number> {
+function cornerCap(tool?: string, why = "states none"): ToolDefaultValue<number> {
     const rule = `${CYJS} 4386`;
-    return v(8, tool === undefined ? rule : `${rule} (Cytoscape.js's rule; ${tool} states none)`);
+    return v(8, tool === undefined ? rule : `${rule} (Cytoscape.js's rule, unverified for ${tool}: it ${why})`);
 }
+
+/**
+ * Cytoscape desktop's corners: Cytoscape 3.10.5 draws a round rectangle's corners an eighth of its shorter side
+ * whatever its size, with no cap (its SVG export of a CX2 file: 7.5 on a 120 x 60 node, 2.5 on 40 x 20, 56.6 on
+ * 513 x 453).
+ */
+const CYTOSCAPE_DESKTOP_CORNERS: ToolDefaultValue<number> = v(
+    1 / 8,
+    "Cytoscape 3.10.5's SVG export of a CX2 file: round rectangle corners 7.5 on a 120 x 60 node, 2.5 on 40 x 20, " +
+        "56.6 on 513 x 453, an eighth of the shorter side with no cap (measured)",
+);
 
 /**
  * The defaults of every program graph-io recognizes as a file's writer, by tool id.
@@ -264,8 +408,16 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape",
                 version: "cytoscape-impl develop 6c63e97c5152 (3.11)",
                 units: "px",
-                roundedCornerRadius: cornerCap("cytoscape"),
+                roundedCornerFraction: CYTOSCAPE_DESKTOP_CORNERS,
                 arrowhead: CYTOSCAPE_ARROWHEAD,
+                dashes: CYTOSCAPE_DASHES,
+                layoutSpacing: v(
+                    102,
+                    "Cytoscape lays out a network with no view coordinates with its default layout, force-directed " +
+                        "(layout-prefuse-impl ForceDirectedLayoutContext.java, defaultSpringLength 50.0), which " +
+                        "settles at about 2 springs: nearest-node spacing 94.7 and 109.1 px in Cytoscape 3.10.5's " +
+                        "drawings of cx-radiation-bibliography and cx-repro-unplaced-boxes (the fidelity oracles)",
+                ),
                 node: {
                     fill: v("#89d0f5", `${CY} 382`),
                     fillOpacity: v(1, `${CY} 383`),
@@ -312,6 +464,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelLineHeight: CYTOSCAPE_LABEL_LINE_HEIGHT,
                     // EDGE_CURVED is true there, but it only rounds an edge's bends: an edge without bends is straight
                     curved: v(false, `${CY} 422`),
+                    fanned: v(
+                        true,
+                        `${MEASURED}cys-import-and-save, cx-lianhe-affiliation), Cytoscape 3.10.5: the edges joining two nodes are spread apart`,
+                    ),
                     bendCurve: CYTOSCAPE_BEND_CURVE,
                 },
                 graph: { background: v("#ffffff", `${CY} 335`) },
@@ -321,7 +477,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "cytoscape-fallbacks",
                 version: "cytoscape-api develop (3.11)",
                 units: "px",
-                roundedCornerRadius: cornerCap("cytoscape-fallbacks"),
+                dashes: CYTOSCAPE_DASHES,
+                roundedCornerFraction: CYTOSCAPE_DESKTOP_CORNERS,
                 arrowhead: CYTOSCAPE_ARROWHEAD,
                 node: {
                     fill: v("#c80000", `${CYL} 83`),
@@ -373,6 +530,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "cytoscape.js 3.34.3",
                 units: "px",
                 roundedCornerRadius: cornerCap(),
+                roundedCornerFraction: v(
+                    1 / 4,
+                    `${CYJS} 4386 (getRoundRectangleRadius: a quarter of the shorter side)`,
+                ),
                 arrowhead: {
                     // getArrowWidth, and the triangle's points at +-0.15, -0.3 of it
                     length: (size, width) => 0.3 * Math.max((width * 13.37) ** 0.9, 29) * size,
@@ -442,6 +603,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     curved: v(false, `${CYJS} 18658`),
                     // control-point-step-size 40: a quadratic's middle is half as far out as its control point
                     fanSpacing: v(20, `${CYJS} 18647`),
+                    fanned: v(
+                        true,
+                        `${CYJS} 18647 (bezier edges joining the same two nodes are spread control-point-step-size apart)`,
+                    ),
                     labelColor: v("#000000", `${CYJS} 18474`),
                     labelSize: v(16, `${CYJS} 18496`),
                     labelFont: v("Helvetica Neue, Helvetica, sans-serif", `${CYJS} 18493`),
@@ -457,7 +622,25 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "graphviz",
                 version: "graphviz main (16.1.0)",
                 units: "px",
-                roundedCornerRadius: cornerCap("graphviz"),
+                // lib/plugin/core/gvrender_core_svg.c writes these whatever the penwidth, butt-capped
+                dashes: {
+                    dashed: fixedDash(5, 2, `${MEASURED}dot-specimen-edges-lines: "5,2" at widths 1.5 and 3)`),
+                    dotted: fixedDash(1, 5, `${MEASURED}dot-specimen-edges-lines: "1,5" at width 1.5)`),
+                },
+                roundedCornerRadius: v(
+                    12,
+                    "Graphviz 2.43.0 dot -Tsvg of style=rounded boxes: 12 points on a 504 x 432 box, a third of the " +
+                        "shorter side (7.33) on a 36 x 22 one (lib/common/shapes.c round_corners, RBCONST 12)",
+                ),
+                roundedCornerFraction: v(
+                    1 / 3,
+                    "Graphviz 2.43.0 dot -Tsvg of fixedsize style=rounded boxes: each side's straight run starts " +
+                        "4.67 in on a 22 x 14 box, 7.33 on 36 x 22 and 12 on 72 x 36 (a third of the shorter side), " +
+                        "and 12 on 72 x 72, 144 x 43, 216 x 144 and 504 x 432 (the cap)",
+                ),
+                // the median of the nearest-node spacings dot, neato and twopi leave in the nine fidelity oracles of DOT
+                // files with no positions (28 to 102 points)
+                layoutSpacing: v(75, `${GV} (dot, neato, twopi on dot-real-*, dot-synth-*, dot-profile)`),
                 arrowhead: {
                     // ARROW_LENGTH 10 and the normal arrow's half width 0.35 of its length
                     length: (size) => 10 * size,
@@ -525,9 +708,17 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "yEd / yFiles for Java 2.19",
                 units: "px",
                 roundedCornerRadius: cornerCap("yed"),
-                arrowhead: DRAWIO_ARROWHEAD,
+                arrowhead: YED_ARROWHEAD,
+                // dashed is butt-capped `6w,2w`; dotted `0,4w` round-capped, a dot as long as the line is wide
+                dashes: {
+                    dashed: widthDash(6, 2, `${MEASURED}graphml-synthetic-edges: "42,14" at width 7, butt caps)`),
+                    dotted: widthDash(1, 3, `${MEASURED}gml-synthetic-coverage: "0,12" at width 3, round caps)`),
+                },
                 node: {
-                    fill: v("#ffcc00", `${YED_QA}; ${YED_CORPUS} of y:Fill color`),
+                    fill: v(
+                        "#ccccff",
+                        `${MEASURED}yed-graphml-specimen-node-fills-borders.svg, gml-specimen-node-fills-borders-p2.svg)`,
+                    ),
                     shape: v("rectangle", "yFiles for Java 2.19 ShapeNodeRealizer API docs"),
                     borderColor: v("#000000", `${YED_CORPUS} of y:BorderStyle`),
                     borderWidth: v(1, `${YED_CORPUS} of y:BorderStyle`),
@@ -538,6 +729,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelSize: v(12, `${YED_CORPUS} of y:NodeLabel`),
                     labelWeight: v("normal", `${YED_CORPUS} of y:NodeLabel`),
                     labelPosition: v("center", `${YED_CORPUS} of y:NodeLabel`),
+                    labelPadding: YED_LABEL_BOX_PADDING,
+                    labelLineHeight: YED_LABEL_LINE_HEIGHT,
+                    labelKeepBlankLines: v(
+                        true,
+                        `${MEASURED}graphml-stm32-func: a label of a line break and "CS" is drawn two lines tall, the words on the second)`,
+                    ),
                 },
                 edge: {
                     color: v("#000000", `${YED_EDGE} (line color defaults to Color.black)`),
@@ -548,6 +745,14 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${YED_CORPUS} of y:EdgeLabel`),
                     labelFont: v("DejaVu Sans, sans-serif", `${YED_CORPUS} of y:EdgeLabel (Dialog's face)`),
                     labelSize: v(12, `${YED_CORPUS} of y:EdgeLabel`),
+                    labelKeepBlankLines: v(
+                        true,
+                        `${MEASURED}graphml-stm32-func: a label of a line break and "CS" is drawn two lines tall, the words on the second)`,
+                    ),
+                    fanned: v(
+                        false,
+                        `${YED_EDGE} (an edge is drawn along its own path and bends, whatever other edges join its nodes)`,
+                    ),
                 },
                 graph: {
                     background: v(
@@ -562,7 +767,7 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "yFiles for HTML (API docs retrieved 2026-10-11)",
                 units: "px",
                 roundedCornerRadius: cornerCap("yfiles3"),
-                arrowhead: DRAWIO_ARROWHEAD,
+                arrowhead: YED_LIVE_ARROWHEAD,
                 node: {
                     fill: v("#ffffff", `${Y3} ShapeNodeStyle fill`),
                     borderColor: v("#000000", `${Y3} ShapeNodeStyle stroke`),
@@ -588,6 +793,10 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                     labelColor: v("#000000", `${Y3} LabelStyle textFill`),
                     labelFont: v("Arial", `${Y3} LabelStyle font`),
                     labelSize: v(12, `${Y3} LabelStyle font`),
+                    fanned: v(
+                        false,
+                        `${Y3} PolylineEdgeStyle (an edge is drawn along its own path and bends, whatever other edges join its nodes)`,
+                    ),
                 },
                 graph: {
                     background: v("#ffffff", `${Y3} GraphComponent (a transparent canvas over the page's white)`),
@@ -598,7 +807,12 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "gephi",
                 version: "gephi 0.11.4-SNAPSHOT",
                 units: "relative",
-                roundedCornerRadius: cornerCap("gephi"),
+                roundedCornerRadius: cornerCap("gephi", "draws no rounded rectangle (its preview draws discs)"),
+                layoutScatterSide: v(
+                    1000,
+                    `${GEPHI} ImportContainerImpl.java lines 895-900 (a file that places no node: each at ` +
+                        "(0.01 + Math.random()) * 1000 - 500 on x and y)",
+                ),
                 arrowhead: {
                     length: (size, width) => 3.25 * width * size,
                     aspect: 0.9,
@@ -657,7 +871,18 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "vis-network",
                 version: "vis-network 10.1.2",
                 units: "px",
-                roundedCornerRadius: cornerCap("vis-network"),
+                // barnesHut's springLength 95 settles at about 0.9 springs: the median over the six json-vis-* fidelity
+                // oracles with no positions (73 to 131 px)
+                layoutSpacing: v(87, `${VIS} (physics.barnesHut.springLength 95, stabilized)`),
+                roundedCornerRadius: v(
+                    6,
+                    "vis-network 9.1.9 peer/esm/vis-network.js line 19152 (shapeProperties.borderRadius 6, a box's " +
+                        "corners) and drawRoundRect (the radius as given, at most half a side)",
+                ),
+                roundedCornerFraction: v(
+                    1 / 2,
+                    "vis-network 9.1.9 peer/esm/vis-network.js drawRoundRect (the radius as given, at most half a side)",
+                ),
                 arrowhead: {
                     // EdgeBase.getArrowData: 15 * scaleFactor + 3 * width; ArrowHead's points at -1, +-0.3
                     length: (size, width) => 15 * size + 3 * width,
@@ -696,6 +921,8 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 },
                 edge: {
                     width: v(1, `${VIS} lines 25160-25290`),
+                    // no line is drawn thinner on screen, whatever its width or the zoom (width 0 included)
+                    minScreenWidth: v(0.3, `${VIS9} EdgeBase.getLineWidth: max(width, 0.3 / view.scale)`),
                     outlineColor: v("#6f6f6f", `${VIS} lines 25160-25290 (background.color)`),
                     lineStyle: v("solid", `${VIS} lines 25160-25290 (dashes false)`),
                     sourceArrow: v("none", `${VIS} lines 25160-25290`),
@@ -724,7 +951,11 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 tool: "sigma",
                 version: "sigma 4.0.1",
                 units: "relative",
-                roundedCornerRadius: cornerCap("sigma"),
+                roundedCornerRadius: cornerCap("sigma", "draws no rounded rectangle (its node program draws discs)"),
+                labelSizeOnScreen: v(
+                    true,
+                    "sigma 4.0.1 dist/factory-668a8969.esm.js lines 3241 and 5936 (a node label's zoomToLabelSizeRatioFunction is 1, an edge label's fontSizeMode \"fixed\")",
+                ),
                 node: {
                     fill: v("#666666", `${SIGMA4} DEFAULT_NODE_DISPLAY_DATA (color "#666")`),
                     shape: v("ellipse", `${SIGMA}/settings.ts lines 119-126`),
@@ -776,6 +1007,11 @@ export const TOOL_DEFAULTS: ReadonlyMap<StyleTool, ToolDefaults> = new Map<Style
                 version: "Pajek 6.02",
                 // PostScript points, the unit of Pajek's EPS and SVG export (formats/pajek/styles.ts)
                 units: "px",
+                // Dots, read as dotted on a wide line and dashed on a thin one (formats/pajek/styles.ts, pajekDash)
+                dashes: {
+                    dashed: fixedDash(5, 5, `${PAJEK_SVG}specimen-edges-lines: Dots "stroke-dasharray:5" at width 3)`),
+                    dotted: fixedDash(5, 5, `${PAJEK_SVG}specimen-edges-lines: Dots "stroke-dasharray:5" at width 3)`),
+                },
                 roundedCornerRadius: cornerCap("pajek"),
                 // a line's `s` (arrowSize) scales Pajek's arrowhead whatever its width: 6 x s long (tip to its back
                 // corners) and 5 x s wide

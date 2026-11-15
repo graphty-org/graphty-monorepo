@@ -1,12 +1,19 @@
 /**
  * The timeline's ghost option: elements outside the window stay drawn, in the state "ghosted", and
- * a Ghost row pinned directly below Selected paints them; they never count as visible.
+ * the Ghost default row, an ordinary row pinned directly below Selected, paints them; they never
+ * count as visible.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../../session";
+import { createGraphSession, type GraphSession, isGraphtyError } from "../../../session";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { ElementSession } from "../../../src/session/types";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /**
  * A process trace: ten steps, node i at step i, and edge i -> i + 1 at step i + 1.
@@ -15,7 +22,7 @@ import type { ElementSession } from "../../../src/session/types";
  *   designated on nodes and edges.
  */
 async function trace(startingRows = true): Promise<ElementSession> {
-    const session = createGraphSession() as ElementSession;
+    const session = createGraphSession({ workingGraph: false }) as ElementSession;
     if (startingRows) {
         await session.config.set({ startingRows: true });
     }
@@ -94,7 +101,48 @@ describe("timeline ghosts", () => {
         session.dispose();
     });
 
-    it("adds the Ghost row directly below Selected with the field, and takes it away with it", async () => {
+    it("carries the ghosts through slides by their rows, and starts over when more moved", async () => {
+        const session = await trace();
+        await session.time.window({ from: 2, to: 5 });
+        await session.time.setSettings({ outside: "ghost" });
+        const { visibility } = session;
+        const assertGhosts = (when: string): void => {
+            const ghosts = visibility.ghosts();
+            const drawnNodes = visibility.drawnMasks.nodes();
+            const drawnEdges = visibility.drawnMasks.edges();
+            const shownNodes = visibility.masks.nodes();
+            const shownEdges = visibility.masks.edges();
+            for (let row = 0; row < drawnNodes.count; row++) {
+                const ghost = drawnNodes.has(row) && !shownNodes.has(row);
+                assert.strictEqual(ghosts?.node[row] === 1, ghost, `${when}: node ${String(row)}`);
+            }
+
+            for (let row = 0; row < drawnEdges.count; row++) {
+                const ghost = drawnEdges.has(row) && !shownEdges.has(row);
+                assert.strictEqual(ghosts?.edge[row] === 1, ghost, `${when}: edge ${String(row)}`);
+            }
+        };
+
+        // Sliding twice steps by rows: the same bytes come back, brought forward.
+        await session.time.seek(2.5, { commit: false });
+        const kept = visibility.ghosts()?.node;
+        for (const from of [3, 3.5, 4]) {
+            await session.time.seek(from, { commit: false });
+            assert.strictEqual(visibility.ghosts()?.node, kept, `at ${String(from)}`);
+            assertGhosts(`at ${String(from)}`);
+        }
+
+        // A filter moves what is drawn, so every row is read again.
+        await session.visibility.set({ kind: "range", attribute: "step", min: 2 });
+        assert.notStrictEqual(visibility.ghosts()?.node, kept);
+        assertGhosts("under a filter");
+        await session.time.seek(4, { commit: false });
+        await session.time.seek(4.5, { commit: false });
+        assertGhosts("sliding under the filter");
+        session.dispose();
+    });
+
+    it("writes the Ghost row with the default rows, directly below Selected, and a field change keeps it", async () => {
         const session = await trace();
         const order = names(session);
         assert.strictEqual(order.lastIndexOf("Ghost"), order.indexOf("Selected") - 1, order.join(", "));
@@ -102,10 +150,13 @@ describe("timeline ghosts", () => {
         assert.deepInclude(ghost?.set ?? {}, { "node.color": "#9E9E9E", "node.opacity": 0.2 });
         assert.strictEqual(ghostLayers(session).length, 2);
 
+        // An ordinary row: clearing the field leaves it, and deleting it is the reader's to undo.
         await session.time.setField(null);
-        assert.deepStrictEqual(ghostLayers(session), []);
-        await session.undo();
         assert.strictEqual(ghostLayers(session).length, 2);
+        const row = session.styles.tree().find((each) => each.name === "Ghost");
+        await session.styles.deleteRow(row?.id ?? "");
+        await session.time.setField({ nodes: { start: "step" } });
+        assert.deepStrictEqual(ghostLayers(session), []);
         session.dispose();
     });
 
@@ -117,14 +168,14 @@ describe("timeline ghosts", () => {
 
     it("refuses an outside setting it does not know", async () => {
         const session = await trace();
-        let refused = false;
+        let refused: unknown = null;
         try {
             await session.time.setSettings({ outside: "fade" as "ghost" });
-        } catch {
-            refused = true;
+        } catch (error) {
+            refused = error;
         }
 
-        assert.isTrue(refused);
+        assert.strictEqual(isGraphtyError(refused) ? refused.code : refused, "E_BAD_COMMAND");
         session.dispose();
     });
 });

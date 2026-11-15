@@ -1,61 +1,45 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
     captureUserFeedback,
     initSentry,
     isSentryEnabled,
     resetSentryState,
+    type SentryCalls,
+    setSentryCallsForTests,
     stopSentry,
     testCaptureError,
 } from "./sentry";
 
-// Use vi.hoisted to define mock functions that can be used in vi.mock factory
-// This is required because vi.mock is hoisted to the top of the file
-const {
-    mockInit,
-    mockClose,
-    mockReplay,
-    mockReplayStart,
-    mockCaptureException,
-    mockCaptureFeedback,
-    mockAddAttachment,
-    mockClearAttachments,
-    mockGetCurrentScope,
-} = vi.hoisted(() => {
-    const mockAddAttachment = vi.fn();
-    const mockClearAttachments = vi.fn();
-    const mockInit = vi.fn();
-    const mockClose = vi.fn(() => Promise.resolve(true));
-    const mockReplayStart = vi.fn();
-    const mockReplay = vi.fn(() => ({ name: "Replay", start: mockReplayStart, stop: vi.fn(() => Promise.resolve()) }));
-    const mockCaptureException = vi.fn();
-    const mockCaptureFeedback = vi.fn();
-    const mockGetCurrentScope = vi.fn(() => ({
-        addAttachment: mockAddAttachment,
-        clearAttachments: mockClearAttachments,
-    }));
-    return {
-        mockInit,
-        mockClose,
-        mockReplay,
-        mockReplayStart,
-        mockCaptureException,
-        mockCaptureFeedback,
-        mockAddAttachment,
-        mockClearAttachments,
-        mockGetCurrentScope,
-    };
-});
-
-// Mock Sentry module
-vi.mock("@sentry/react", () => ({
-    init: mockInit,
-    close: mockClose,
-    replayIntegration: mockReplay,
-    captureException: mockCaptureException,
-    captureFeedback: mockCaptureFeedback,
-    getCurrentScope: mockGetCurrentScope,
+// Sentry's SDK as stand-ins that record their calls, passed in rather than mocked: a module mock
+// switches a browser test page's HTTP cache off (issue #3416).
+const mockAddAttachment = vi.fn();
+const mockClearAttachments = vi.fn();
+const mockInit = vi.fn();
+const mockClose = vi.fn(() => Promise.resolve(true));
+const mockReplayStart = vi.fn();
+const mockReplay = vi.fn(() => ({ name: "Replay", start: mockReplayStart, stop: vi.fn(() => Promise.resolve()) }));
+const mockCaptureException = vi.fn();
+const mockCaptureFeedback = vi.fn();
+const mockGetCurrentScope = vi.fn(() => ({
+    addAttachment: mockAddAttachment,
+    clearAttachments: mockClearAttachments,
 }));
+
+beforeAll(() => {
+    // Only the members the module calls, each a recording stand-in.
+    setSentryCallsForTests({
+        init: mockInit,
+        close: mockClose,
+        replayIntegration: mockReplay,
+        captureException: mockCaptureException,
+        captureFeedback: mockCaptureFeedback,
+        getCurrentScope: mockGetCurrentScope,
+    } as unknown as SentryCalls);
+});
+afterAll(() => {
+    setSentryCallsForTests();
+});
 
 describe("Sentry initialization", () => {
     beforeEach(() => {

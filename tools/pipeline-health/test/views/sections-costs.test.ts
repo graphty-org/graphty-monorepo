@@ -7,7 +7,7 @@ import { MemoryStore } from "../../src/model/store.js";
 import { SLAS } from "../../src/sla/config.js";
 import { evaluate } from "../../src/sla/engine.js";
 import { Reads } from "../../src/views/members.js";
-import { byWorkflow, runnerMinutes, stressTable, unitCosts } from "../../src/views/sections.js";
+import { byWorkflow, moneyTable, runnerMinutes, stressTable, unitCosts } from "../../src/views/sections.js";
 import type { BarsSection, TableSection } from "../../web/src/contract.js";
 import { HOUR, job, MIN, pr, run, T0 } from "../model/helpers.js";
 
@@ -30,6 +30,14 @@ async function reads(items: RawItem[]) {
 }
 
 describe("Costs and Data sources sections", () => {
+    it("money: so far is shown against the limit the cost pages name, the red line", async () => {
+        const { reads: r } = await reads([cost("c1", "t4", "gpu.yml", 50), cost("c2", "llm", "ci.yml", 20)]);
+        const t = (await moneyTable(r, "28d", new Map())) as TableSection;
+        const sofar = t.rows.map((row) => row.cells.sofar as { budget: number | null });
+        // T4 $240, LLM $150 and the total $415: the limits the pages name.
+        expect(sofar.map((c) => c.budget)).toEqual([240, 150, 415]);
+    });
+
     it("unit costs: money per tested train and list-price value per merged pull request", async () => {
         const { reads: r } = await reads([
             cost("t4#1", "t4", "release.yml", 1.5),
@@ -121,6 +129,30 @@ describe("Costs and Data sources sections", () => {
         expect(s.groups[1].items.every((i) => i.tone === "value")).toBe(true);
     });
 
+    it("by workflow: the AWS line by service, largest first, once Cost Explorer has split it", async () => {
+        const aws = (id: string, services: Record<string, number>): CostItem => ({
+            ...cost(
+                id,
+                "aws",
+                "",
+                Object.values(services).reduce((a, b) => a + b, 0),
+            ),
+            workflow: undefined,
+            services,
+        });
+        const { reads: r } = await reads([
+            aws("aws#1", { "Amazon DynamoDB": 0.5, "AWS Lambda": 0.1 }),
+            aws("aws#2", { "Amazon DynamoDB": 0.25, AmazonCloudWatch: 0.3 }),
+        ]);
+        const s = (await byWorkflow(r)) as BarsSection;
+        const g = s.groups.find((x) => (x.head as { code: string }).code === "costs.aws_by_service");
+        expect(g?.items.map((i) => [(i.label as { v: string }).v, i.n])).toEqual([
+            ["Amazon DynamoDB", 0.75],
+            ["AmazonCloudWatch", 0.3],
+            ["AWS Lambda", 0.1],
+        ]);
+    });
+
     it("stress table: newest first, a broken run marked, older runs muted", async () => {
         const { store, reads: r } = await reads([]);
         expect((await stressTable(r)).kind).toBe("empty");
@@ -140,5 +172,13 @@ describe("Costs and Data sources sections", () => {
         expect(s.rows[1].cells.result).toMatchObject({ fact: { code: "stress.found_filed" } });
         expect(s.rows[1].cells.filed).toEqual({ t: "none" });
         expect(s.rows[2].cells.filed).toEqual({ t: "num", n: 0 });
+    });
+
+    it("stress table: a failed store read throws, a corrupt cursor is no runs (#7275)", async () => {
+        const { store, reads: r } = await reads([]);
+        await setCursor(store, "stress", "{not json", T0);
+        expect((await stressTable(r)).kind).toBe("empty");
+        store.get = () => Promise.reject(new Error("ProvisionedThroughputExceededException"));
+        await expect(stressTable(r)).rejects.toThrow("ProvisionedThroughputExceededException");
     });
 });

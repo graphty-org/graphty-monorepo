@@ -167,3 +167,91 @@ describe("a loop's ring drawn behind its node", () => {
         assert.isFalse(shown.some((p) => onOutline(p) < 11.9));
     });
 });
+
+describe("a self-loop left open by its arrowhead", () => {
+    const disc = (id: string, cx: number, cy: number): PNode => ({
+        id,
+        cx,
+        cy,
+        w: 40,
+        h: 40,
+        shape: "ellipse",
+        fill: { color: "#cccccc", opacity: 1, gradient: null },
+        stroke: null,
+        label: null,
+    });
+    const nodes = [disc("a", 100, 100), disc("b", 500, 100), disc("c", 100, 300), disc("d", 500, 300)];
+    const hub = disc("n", 300, 200);
+    /**
+     * A loop off the hub's right side, as Graphviz draws it: out and back, reaching `reach` past the outline.
+     * @param reach - how far past the outline it reaches
+     * @param side - 1 on the right of the node, -1 on its left
+     * @param stop - how much of the way back it is drawn, a share of it
+     * @returns the points
+     */
+    const loop = (reach: number, side = 1, stop = 1): Pt[] =>
+        Array.from({ length: 33 }, (_, i): Pt => {
+            const t = (i / 32) * stop;
+            const out = Math.sin(t * Math.PI);
+            return [hub.cx + side * (20 + reach * out), hub.cy - 12 * Math.cos(t * Math.PI)];
+        });
+    const scene = (side: PScene["side"], points: Pt[]): PScene => ({
+        side,
+        width: 600,
+        height: 400,
+        background: "#ffffff",
+        nodes: [...nodes, hub],
+        edges: [
+            {
+                id: "n->n",
+                source: "n",
+                target: "n",
+                points,
+                stroke: { color: "#000000", opacity: 1, width: 1, dash: null, dashClass: "solid" },
+                arrows: [],
+                label: null,
+            },
+        ],
+        groups: [],
+        texts: [],
+        strays: [],
+    });
+    const failed = (drawn: Pt[]): string[] => {
+        const { failures } = compareOracle("t", scene("oracle", loop(20, 1, 0.9)), scene("graphty", drawn));
+        return (["edge.route", "edge.curve"] as const).filter((p) => (failures[p] ?? []).length > 0);
+    };
+
+    it("is the same loop though its chord differs: judged against its length, not a share of that chord", () => {
+        assert.deepEqual(failed(loop(20, 1, 0.9)), []);
+        assert.deepEqual(failed(loop(20, 1, 0.92)), []);
+        // the same pair measured by the chord it does not really have reads as far apart
+        const [o, g] = [loop(20, 1, 0.9), loop(20, 1, 0.92)];
+        assert.isAbove(routeShape(o, g).gap, routeShape(o, g, undefined, true).gap);
+    });
+
+    it("still fails a loop twice as wide, one on the node's other side, and a straight stub", () => {
+        assert.include(failed(loop(40, 1, 0.9)), "edge.route");
+        assert.include(failed(loop(20, -1, 0.9)), "edge.route");
+        const stub = Array.from({ length: 9 }, (_, i): Pt => [hub.cx + 20 + i, hub.cy]);
+        assert.includeMembers(failed(stub), ["edge.route", "edge.curve"]);
+    });
+
+    it("is judged where it sits on its node, so a loop off its node's place by more than its own size still reads alike", () => {
+        const o = loop(20, 1, 0.9);
+        const moved = o.map(([x, y]): Pt => [x + 30, y + 10]);
+        assert.closeTo(
+            routeShape(
+                o,
+                moved,
+                [
+                    [30, 10],
+                    [30, 10],
+                ],
+                true,
+            ).gap,
+            0,
+            1e-9,
+        );
+        assert.isAbove(routeShape(o, moved, undefined, true).gap, 0.2);
+    });
+});

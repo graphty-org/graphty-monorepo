@@ -315,32 +315,92 @@ function clockLines(groups) {
 }
 
 /**
+ * Reads the report and the current session, printing why there is nothing to compare.
+ * @param {string} reportFile - gpu-report.json
+ * @param {string | undefined} clsOverride - the --class value
+ * @returns {{ cls: string, current: { results: { group: string, name: string, medianMs: number, minMs?: number }[] } } | null} the class and the session, or null when nothing is compared
+ */
+function loadCurrent(reportFile, clsOverride) {
+    if (!existsSync(reportFile)) {
+        console.log("nothing to compare: no gpu-report.json in the current directory");
+        return null;
+    }
+    const report = JSON.parse(readFileSync(reportFile, "utf8"));
+    const cls = clsOverride ?? report.runnerClass;
+    if (typeof cls !== "string" || cls === "") {
+        console.log("nothing to compare: gpu-report.json carries no runnerClass and --class was not given");
+        return null;
+    }
+    const current = lastSession(resolve("benchmarks/out", `${cls}.json`));
+    if (current === null) {
+        console.log(`nothing to compare: no benchmarks/out/${cls}.json (the bench step wrote nothing)`);
+        return null;
+    }
+    const reason = notQuiet(report.nvidiaSmi);
+    if (reason !== null) {
+        console.log(`SKIPPED: GPU not quiet (${reason}); the medians of this run are not compared (T-13)`);
+        return null;
+    }
+    return { cls, current };
+}
+
+/**
+ * The status of one row against its pinned baseline row.
+ * @param {{ medianMs: number, minMs?: number }} r - the current result
+ * @param {{ medianMs: number, minMs?: number } | undefined} base - the baseline row
+ * @param {number} threshold - the factor
+ * @returns {string} new (no baseline), ok, noisy, too small or REGRESSION
+ */
+function rowStatus(r, base, threshold) {
+    if (base === undefined) {
+        return "new (no baseline)";
+    }
+    if (r.medianMs <= threshold * base.medianMs) {
+        return "ok";
+    }
+    // The median rose. The floor decides: interference inflates a median, it cannot lower a minimum.
+    if (typeof r.minMs === "number" && typeof base.minMs === "number" && r.minMs <= threshold * base.minMs) {
+        return "noisy";
+    }
+    // Both stand above the factor. On a sub-millisecond row that can still be a tenth of a millisecond of
+    // clock drop, so the rise must also be large enough to measure.
+    if (!roseEnough(r, base, FLOOR_MS)) {
+        return "too small";
+    }
+    return "REGRESSION";
+}
+
+/**
+ * Prints why the rows above the factor that were not regressions are not.
+ * @param {number} tooSmall - rows that rose by less than FLOOR_MS
+ * @param {number} noisy - rows whose minimum stayed under the factor
+ * @param {number} threshold - the factor
+ */
+function printNonRegressions(tooSmall, noisy, threshold) {
+    if (tooSmall > 0) {
+        console.log(
+            `${String(tooSmall)} row(s) above ${String(threshold)}x that rose by less than ${String(FLOOR_MS)} ms: too small to measure on this card, so not a regression`,
+        );
+    }
+    if (noisy > 0) {
+        console.log(
+            `${String(noisy)} noisy row(s): the median rose above ${String(threshold)}x but the minimum did not, so the cost floor is intact (not a regression)`,
+        );
+    }
+}
+
+/**
  * Applies the four rules.
  * @returns {number} the exit code
  */
 function main() {
     const { threshold, cls: clsOverride } = parseArgs(process.argv.slice(2));
     const reportFile = resolve("gpu-report.json");
-    if (!existsSync(reportFile)) {
-        console.log("nothing to compare: no gpu-report.json in the current directory");
+    const loaded = loadCurrent(reportFile, clsOverride);
+    if (loaded === null) {
         return 0;
     }
-    const report = JSON.parse(readFileSync(reportFile, "utf8"));
-    const cls = clsOverride ?? report.runnerClass;
-    if (typeof cls !== "string" || cls === "") {
-        console.log("nothing to compare: gpu-report.json carries no runnerClass and --class was not given");
-        return 0;
-    }
-    const current = lastSession(resolve("benchmarks/out", `${cls}.json`));
-    if (current === null) {
-        console.log(`nothing to compare: no benchmarks/out/${cls}.json (the bench step wrote nothing)`);
-        return 0;
-    }
-    const reason = notQuiet(report.nvidiaSmi);
-    if (reason !== null) {
-        console.log(`SKIPPED: GPU not quiet (${reason}); the medians of this run are not compared (T-13)`);
-        return 0;
-    }
+    const { cls, current } = loaded;
     const targets = readTargets(resolve("benchmarks/results", "targets.json"));
     /** @type {string[]} */
     const missed = [];
@@ -394,37 +454,19 @@ function main() {
         console.log(`no baseline benchmarks/results/${cls}.json: every result is new`);
         return targetVerdict();
     }
-    let regressions = 0;
     const regressedGroups = new Set();
-    let noisy = 0;
-    let tooSmall = 0;
+    /** @type {Record<string, number>} */
+    const counts = {};
     for (const r of current.results) {
         const base = baseline.rows.get(`${r.group}/${r.name}`);
-        if (base === undefined) {
-            console.log(row("new (no baseline)", r, null, targetOf(r)));
-            continue;
+        const status = rowStatus(r, base, threshold);
+        counts[status] = (counts[status] ?? 0) + 1;
+        if (status === "REGRESSION") {
+            regressedGroups.add(r.group);
         }
-        if (r.medianMs <= threshold * base.medianMs) {
-            console.log(row("ok", r, base, targetOf(r)));
-            continue;
-        }
-        // The median rose. The floor decides: interference inflates a median, it cannot lower a minimum.
-        if (typeof r.minMs === "number" && typeof base.minMs === "number" && r.minMs <= threshold * base.minMs) {
-            noisy += 1;
-            console.log(row("noisy", r, base, targetOf(r)));
-            continue;
-        }
-        // Both stand above the factor. On a sub-millisecond row that can still be a tenth of a millisecond of
-        // clock drop, so the rise must also be large enough to measure.
-        if (!roseEnough(r, base, FLOOR_MS)) {
-            tooSmall += 1;
-            console.log(row("too small", r, base, targetOf(r)));
-            continue;
-        }
-        regressions += 1;
-        regressedGroups.add(r.group);
-        console.log(row("REGRESSION", r, base, targetOf(r)));
+        console.log(row(status, r, base ?? null, targetOf(r)));
     }
+    const regressions = counts["REGRESSION"] ?? 0;
     if (regressions > 0) {
         console.log(
             `${String(regressions)} regression(s): a median AND a minimum above ${String(threshold)}x the best of the ${String(baseline.sessions)} session(s) of class ${cls}, by at least ${String(FLOOR_MS)} ms`,
@@ -435,16 +477,7 @@ function main() {
         targetVerdict();
         return 1;
     }
-    if (tooSmall > 0) {
-        console.log(
-            `${String(tooSmall)} row(s) above ${String(threshold)}x that rose by less than ${String(FLOOR_MS)} ms: too small to measure on this card, so not a regression`,
-        );
-    }
-    if (noisy > 0) {
-        console.log(
-            `${String(noisy)} noisy row(s): the median rose above ${String(threshold)}x but the minimum did not, so the cost floor is intact (not a regression)`,
-        );
-    }
+    printNonRegressions(counts["too small"] ?? 0, counts.noisy ?? 0, threshold);
     console.log(
         `no regression above ${String(threshold)}x and ${String(FLOOR_MS)} ms over the best baseline of class ${cls}`,
     );

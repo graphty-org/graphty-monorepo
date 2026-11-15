@@ -1,18 +1,19 @@
-import { ControlSection, Popout, PopoutButton } from "@graphty/compact-mantine";
+import { ControlSection, Popout } from "@graphty/compact-mantine";
 import type { ShaderParams as Params } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
-import { Button, Group, Select, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
+import type { GraphSession, TransactionScope } from "@graphty/graphty-element/session";
+import { Button, Group, Select, Stack, Text, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
-import { GLYPHS } from "../glyphs";
+import { SettingsPopout } from "../options/SettingsPopout";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { type PasteInit, PasteShaderDialog } from "../style/PasteShaderDialog";
+import { type PasteInit, ShaderEditorDialog } from "../style/ShaderEditorDialog";
 import { ShaderGallery } from "../style/ShaderGallery";
 import { ShaderParams } from "../style/ShaderParams";
-import { copyShaderText } from "../style/shaderSlots";
+import { copyShaderText, pickedShader } from "../style/shaderSlots";
 import { headerBottom } from "../style/useFocusLine";
 import {
     BACKGROUND_SECTION_WORDS,
+    failureWords,
     placeWords,
     renderQualityWords,
     SHADER_MOTION_WORDS,
@@ -59,7 +60,7 @@ interface BackgroundShaderProps {
      * Writes a shader and its parameters as the background, through `scope` when given (a paste's
      * transaction, so the add and the write are one undo step).
      */
-    readonly onWrite: (shader: string, params: Params, scope?: GraphSession) => Promise<void> | void;
+    readonly onWrite: (shader: string, params: Params, scope?: TransactionScope) => Promise<void> | void;
     /** Whether the gallery is open when the row appears: the row was just added by a "+". */
     readonly startOpen?: boolean;
 }
@@ -84,10 +85,16 @@ export function BackgroundShader({
     onWrite,
     startOpen = false,
 }: Readonly<BackgroundShaderProps>): React.JSX.Element {
+    const { store } = useWorkspace();
     const [picking, setPicking] = useState(startOpen);
     const [settings, setSettings] = useState(false);
+    const fail =
+        (what: string) =>
+        (error: unknown): void => {
+            store.set({ notice: { message: failureWords(what, "changed", error), error: true } });
+        };
     const [paste, setPaste] = useState<PasteInit | null>(null);
-    const descriptor = session.catalog.shaders().find((each) => each.id === shader);
+    const descriptor = shader === undefined ? undefined : session.shaders.describe(shader);
     const name = descriptor?.plainName ?? shader ?? "None";
     return (
         <Group gap={4} wrap="nowrap" className="ws-shader-control">
@@ -115,6 +122,7 @@ export function BackgroundShader({
                     alignment="start"
                     boundaryTop={picking ? headerBottom() : 0}
                     header={{ variant: "title", title: "Background" }}
+                    closeLabel="Close Background"
                 >
                     <Popout.Content>
                         <ShaderGallery
@@ -127,62 +135,47 @@ export function BackgroundShader({
                             }}
                             onPick={(id) => {
                                 setPicking(false);
-                                if (id !== shader) {
-                                    void onWrite(id, {});
-                                }
                                 // Its settings open next, as a style row's do after a pick.
-                                const picked = session.catalog.shaders().find((each) => each.id === id);
-                                setSettings((picked?.params.length ?? 0) > 0);
+                                setSettings((session.shaders.describe(id)?.params.length ?? 0) > 0);
+                                pickedShader(session, id)
+                                    .then((picked) => (picked === shader ? undefined : onWrite(picked, {})))
+                                    .catch(fail("The shader"));
                             }}
                         />
                     </Popout.Content>
                 </Popout.Panel>
             </Popout>
             {descriptor !== undefined && descriptor.params.length > 0 && (
-                <Popout opened={settings} onOpenChange={setSettings}>
-                    <Popout.Trigger>
-                        <Tooltip label={`${name} settings`}>
-                            <PopoutButton
-                                icon={<GLYPHS.settings size={14} aria-hidden />}
-                                aria-label={`${name} settings`}
-                                aria-haspopup="dialog"
-                                aria-expanded={settings}
-                            />
-                        </Tooltip>
-                    </Popout.Trigger>
-                    <Popout.Panel
-                        width={POPOUT_WIDTH}
-                        placement="left"
-                        alignment="start"
-                        header={{ variant: "title", title: `${name} settings` }}
-                    >
-                        <Popout.Content>
-                            <ShaderParams
-                                descriptor={descriptor}
-                                values={params}
-                                onChange={(param, value) => {
-                                    // The background's parameters are plain values; it has no clocks.
-                                    if (typeof value === "object") {
-                                        return;
-                                    }
-                                    const rest = Object.fromEntries(
-                                        Object.entries(params).filter(([key]) => key !== param),
-                                    );
-                                    const next = value === undefined ? rest : { ...rest, [param]: value };
-                                    const option = descriptor.params.find((each) => each.name === param);
-                                    // One step, named so Undo reads "Undid changing Nebula tint".
-                                    void session.transaction(
-                                        SHADER_STEP_WORDS.param(name, option?.plainName ?? param),
-                                        (tx) => onWrite(descriptor.id, next, tx as GraphSession),
-                                    );
-                                }}
-                            />
-                        </Popout.Content>
-                    </Popout.Panel>
-                </Popout>
+                <SettingsPopout
+                    label={`${name} settings`}
+                    opened={settings}
+                    onOpenChange={setSettings}
+                    width={POPOUT_WIDTH}
+                >
+                    <ShaderParams
+                        descriptor={descriptor}
+                        values={params}
+                        onChange={(param, value) => {
+                            // The background's parameters are plain values; it has no clocks.
+                            if (typeof value === "object") {
+                                return;
+                            }
+                            const rest = Object.fromEntries(Object.entries(params).filter(([key]) => key !== param));
+                            const next = value === undefined ? rest : { ...rest, [param]: value };
+                            const option = descriptor.params.find((each) => each.name === param);
+                            // One step, named so Undo reads "Undid changing Nebula tint".
+                            const label = option?.plainName ?? param;
+                            session
+                                .transaction(SHADER_STEP_WORDS.param(name, label), (tx) =>
+                                    onWrite(descriptor.id, next, tx),
+                                )
+                                .catch(fail(label));
+                        }}
+                    />
+                </SettingsPopout>
             )}
             {paste !== null && (
-                <PasteShaderDialog
+                <ShaderEditorDialog
                     session={session}
                     tab="background"
                     put={async (scope, id, values) => {
@@ -255,6 +248,7 @@ function HeldShadersRow({ session }: Readonly<{ session: GraphSession }>): React
                     placement="left"
                     alignment="start"
                     header={{ variant: "title", title: "Held shaders" }}
+                    closeLabel="Close Held shaders"
                 >
                     <Popout.Content>
                         <Stack gap={6} role="list" aria-label="Held shaders">

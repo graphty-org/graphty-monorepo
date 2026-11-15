@@ -23,12 +23,14 @@ import type { DatasetMeta, GeneratorDescriptor } from "@graphty/graph-samples";
 import type { DrawingMode } from "../camera/types";
 import type { EdgeStyleConfig } from "../config/EdgeStyle";
 import type { GraphtyErrorCode } from "../errors/codes";
+import type { ChannelDescriptor } from "../session/styles/channels";
 import type { FileStyleOrigin } from "../session/styles/fileStyles/origin";
 import type { TransitionDescriptor } from "../transitions/registry";
+import type { ChannelValueDescriptor } from "./channelValues";
 import type { LabelStyle } from "./label-style";
 import type { ModelDescriptor } from "./models";
 import type { ScreenshotPreset } from "./screenshotPresets";
-import type { ShaderDescriptor, ShaderText, ShaderUse } from "./shaders";
+import type { ShaderDescriptor, ShaderProblem, ShaderText, ShaderUse } from "./shaders";
 
 /**
  * Every error code the element reports. Codes are the contract; messages are not.
@@ -475,6 +477,37 @@ export interface FieldDescriptor {
      * @since 3.26.0
      */
     directedOnly?: boolean;
+    /**
+     * The fixed range its values fall in, when the measure defines one (a share is 0 to 1), so a
+     * histogram keeps a fixed axis. Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    domain?: { readonly min: number; readonly max: number };
+    /**
+     * Which end counts as more: `"lower"` for a distance or a rank, where 1 is the top.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    polarity?: "higher" | "lower";
+    /**
+     * The declared order of an ordered value's levels, lowest first.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    order?: readonly (string | number)[];
+    /**
+     * What an element with no value means: `"unreached"` for a search the element was not reached
+     * by. Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    missing?: "unreached" | "unmeasured" | (string & {}); // NOSONAR(S4335): keeps the named codes in autocomplete while open to others
+    /**
+     * Present (true) when its values are names a re-run may spell differently (a community's
+     * number), so a group is saved by a member it holds rather than by its number.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    unstable?: true;
     path: Path;
 }
 
@@ -507,7 +540,7 @@ export interface OptionBound {
  *
  * "unknown" is not a control. It is what the Zod emitter records when a schema uses a
  * construct it cannot classify: the option is still published, still carries its name and its
- * default, and says why it could not be typed in `unsupportedReason`. Dropping the option or
+ * default, and says why it could not be typed in `unsupported`. Dropping the option or
  * throwing would both hide a real gap, so neither is allowed.
  */
 export const OPTION_TYPES = [
@@ -579,12 +612,59 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
     group?: string;
     advanced?: boolean;
     internal?: boolean;
+    /**
+     * What the option does, in an English sentence.
+     * @deprecated Word the option from {@link OptionDescriptor.descriptionId} in the application.
+     */
     description?: string;
     /**
-     * Why `type` is "unknown", in a sentence naming the construct that could not be
-     * classified. Present only when `type` is "unknown".
+     * A stable id for what the option does, which an application keys its own words on, such as
+     * "algorithm.pagerank.dampingFactor". Present on every built-in option that has a description;
+     * an extension that describes its options supplies its own, prefixed with its namespace.
+     * @since 3.55.0
      */
-    unsupportedReason?: string;
+    descriptionId?: string;
+    /**
+     * Why `type` is "unknown", as a code with no words. Present on every "unknown" option the
+     * element derives from a schema; a descriptor written by hand may leave it out. See {@link OptionUnsupportedCode} for the codes.
+     * @since 3.38.0
+     */
+    unsupported?: OptionUnsupported;
+}
+
+/**
+ * Why an option's schema has no control, as {@link OptionDescriptor.unsupported} reports it:
+ *
+ * - `option.recursive` -- the schema refers to itself, so it has no single value type.
+ * - `option.only-null` -- the only value the schema accepts is null.
+ * - `option.no-type` -- the schema declares no value type.
+ * - `option.union` -- the schema is a union with no single control; `params.types` names its arms'
+ *   types.
+ * - `option.array` -- an array option; give it a type with an override.
+ * - `option.object` -- an object or record option; give it a type with an override.
+ * - `option.untyped` -- the construct has no JSON Schema type, so its values cannot be classified.
+ * - `option.not-convertible` -- the schema could not be converted to JSON Schema at all.
+ *
+ * New codes may be added in a minor release.
+ * @since 3.38.0
+ */
+export type OptionUnsupportedCode =
+    | "option.recursive"
+    | "option.only-null"
+    | "option.no-type"
+    | "option.union"
+    | "option.array"
+    | "option.object"
+    | "option.untyped"
+    | "option.not-convertible";
+
+/**
+ * Why an option's schema has no control: a code, and for `option.union` the arms' types.
+ * @since 3.38.0
+ */
+export interface OptionUnsupported {
+    readonly code: OptionUnsupportedCode;
+    readonly params: { readonly types?: readonly string[] };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -594,7 +674,7 @@ export interface OptionDescriptor extends OptionDescriptorDomain {
 /**
  * Every property a layer can paint.
  *
- * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX` and `labelShiftY` are
+ * The label channels `labelColor`, `labelSize`, `labelLetterSize`, `labelFont`, `labelWeight`, `labelItalic`, `labelWrapWidth`, `labelWrapTrailingSpace`, `labelWrapEllipsis`, `labelWrapAnywhere`, `labelWrapSpaceCount`, `labelMinScreenSize`, `labelOnTop`, `labelRotation`, `labelBackground`, `labelOutline`, `labelOutlineWidth`, `labelBorder`, `labelBorderWidth`, `labelOpacity`, `labelBackgroundOpacity`, `labelOutlineOpacity`, `labelBorderOpacity`, `labelPadding`, `labelCornerRadius`, `labelLineHeight`, `labelOffsetX`, `labelOffsetY`, `labelShiftX`, `labelShiftY`, `labelShiftOf` and `labelGapOf` are
  * single fields of the label style, so they can be bound to a column (`encode`) where the whole
  * `labelStyle` can only be set. They land in the same label style the `labelStyle` channel
  * writes, field by field, the higher layer winning each field.
@@ -645,10 +725,14 @@ export type Channel =
     | "node.labelOffsetY"
     | "node.labelShiftX"
     | "node.labelShiftY"
+    | "node.labelShiftOf"
+    | "node.labelGapOf"
+    | "node.labelBox"
     | "node.tooltip"
     | "node.tooltipStyle"
     | "node.opacity"
     | "node.outline"
+    | "node.outlineWidth"
     | "node.glow"
     | "node.glowStrength"
     | "node.halo"
@@ -663,6 +747,7 @@ export type Channel =
     | "node.width"
     | "node.height"
     | "node.depth"
+    | "node.relativeExtents"
     | "node.planar"
     | "node.zIndex"
     | "node.drawOrder"
@@ -679,6 +764,15 @@ export type Channel =
     | "node.outerBorderOpacity"
     | "node.outerBorderStyle"
     | "node.outerBorderOffset"
+    | "node.outerBorderCount"
+    | "node.raisedBorderWidth"
+    | "node.raisedBorderLightColor"
+    | "node.raisedBorderDarkColor"
+    | "node.shadowColor"
+    | "node.shadowOpacity"
+    | "node.shadowBlur"
+    | "node.shadowOffsetX"
+    | "node.shadowOffsetY"
     | "node.underlayColor"
     | "node.underlayOpacity"
     | "node.underlayPadding"
@@ -691,21 +785,32 @@ export type Channel =
     | "node.overlayCornerRadius"
     | "node.cornerRadius"
     | "node.exactCornerRadius"
+    | "node.cornerFraction"
     | "node.shapePoints"
     | "node.shapeStretchPoints"
+    | "node.shapeRotation"
     | "node.shapeParts"
     | "node.shapeLines"
     | "node.shapeTexts"
+    | "node.labelTable"
     | "node.shapeLineWidth"
+    | "node.shapeLineHaloColor"
+    | "node.shapeLineHaloWidth"
     | "node.labelFit"
     | "node.labelPaddingX"
     | "node.labelPaddingY"
     | "node.labelFitSquare"
+    | "node.labelFitQuantum"
+    | "node.labelFitImage"
+    | "node.labelFitImagePadding"
     | "node.gradientColor"
     | "node.gradientDirection"
     | "node.gradientColors"
     | "node.gradientStops"
     | "node.gradientKind"
+    | "node.gradientCenterX"
+    | "node.gradientCenterY"
+    | "node.gradientRadius"
     | "node.image"
     | "node.imageFallback"
     | "node.imageFit"
@@ -740,6 +845,7 @@ export type Channel =
     | "node.stripeOpacities"
     | "node.stripeDirection"
     | "node.stripeSize"
+    | "node.stripeFrame"
     | "node.chartKind"
     | "node.chartValues"
     | "node.chartColors"
@@ -747,15 +853,25 @@ export type Channel =
     | "node.chartMax"
     | "node.chartHorizontal"
     | "node.chartSize"
+    | "node.chartWidth"
+    | "node.chartHeight"
+    | "node.chartOffsetX"
+    | "node.chartOffsetY"
     | "node.chartMargin"
     | "node.chartGap"
     | "node.chartLineWidth"
     | "node.chartBorderColor"
     | "node.chartBorderWidth"
+    | "node.chartBackgroundColor"
+    | "node.chartBackgroundOpacity"
     | "node.model"
     | "node.modelSourceUp"
     | "node.modelTurn"
     | "node.modelTint"
+    | "node.modelDoubleSided"
+    | "node.modelAnimation"
+    | "node.modelAnimationSpeed"
+    | "node.modelAnimationOffset"
     | "node.modelFit"
     | "node.modelCenter"
     | "node.texture"
@@ -770,6 +886,10 @@ export type Channel =
     | "edge.color"
     | "edge.width"
     | "edge.minScreenWidth"
+    | "edge.fadeStart"
+    | "edge.fadeEnd"
+    | "edge.fadeOpacity"
+    | "edge.blending"
     | "edge.opacity"
     | "edge.bandColor"
     | "edge.bandWidth"
@@ -791,6 +911,8 @@ export type Channel =
     | "edge.patternCount"
     | "edge.waveAmplitude"
     | "edge.wavePeriod"
+    | "edge.dashLength"
+    | "edge.dashGap"
     | "edge.curvature"
     | "edge.bends"
     | "edge.fanSpacing"
@@ -803,6 +925,7 @@ export type Channel =
     | "edge.supportRepulsion"
     | "edge.supportCentralGravity"
     | "edge.supportUnit"
+    | "edge.supportScale"
     | "edge.route"
     | "edge.arcHeight"
     | "edge.nodeGap"
@@ -814,9 +937,12 @@ export type Channel =
     | "edge.arrowHeadSize"
     | "edge.arrowHeadWidth"
     | "edge.arrowHeadSide"
+    | "edge.arrowHeadOutlineWidth"
     | "edge.arrowHeadPosition"
     | "edge.arrowHeadGap"
+    | "edge.arrowHeadStack"
     | "edge.arrowHeadColor"
+    | "edge.arrowHeadFillColor"
     | "edge.arrowHeadOpacity"
     | "edge.arrowHeadImage"
     | "edge.arrowHeadText"
@@ -835,9 +961,12 @@ export type Channel =
     | "edge.arrowTailSize"
     | "edge.arrowTailWidth"
     | "edge.arrowTailSide"
+    | "edge.arrowTailOutlineWidth"
     | "edge.arrowTailPosition"
     | "edge.arrowTailGap"
+    | "edge.arrowTailStack"
     | "edge.arrowTailColor"
+    | "edge.arrowTailFillColor"
     | "edge.arrowTailOpacity"
     | "edge.arrowTailImage"
     | "edge.arrowTailText"
@@ -856,16 +985,20 @@ export type Channel =
     | "edge.arrowMiddleHeadSize"
     | "edge.arrowMiddleHeadWidth"
     | "edge.arrowMiddleHeadSide"
+    | "edge.arrowMiddleHeadOutlineWidth"
     | "edge.arrowMiddleHeadPosition"
     | "edge.arrowMiddleHeadColor"
+    | "edge.arrowMiddleHeadFillColor"
     | "edge.arrowMiddleHeadOpacity"
     | "edge.arrowMiddleHeadImage"
     | "edge.arrowMiddleTail"
     | "edge.arrowMiddleTailSize"
     | "edge.arrowMiddleTailWidth"
     | "edge.arrowMiddleTailSide"
+    | "edge.arrowMiddleTailOutlineWidth"
     | "edge.arrowMiddleTailPosition"
     | "edge.arrowMiddleTailColor"
+    | "edge.arrowMiddleTailFillColor"
     | "edge.arrowMiddleTailOpacity"
     | "edge.arrowMiddleTailImage"
     | "edge.animationSpeed"
@@ -909,12 +1042,26 @@ export type Channel =
     | "edge.labelOutlineOpacity"
     | "edge.labelBorderOpacity"
     | "edge.labelPadding"
+    | "edge.labelTable"
     | "edge.labelCornerRadius"
     | "edge.labelLineHeight"
     | "edge.labelOffsetX"
     | "edge.labelOffsetY"
     | "edge.labelShiftX"
-    | "edge.labelShiftY";
+    | "edge.labelShiftY"
+    | "edge.labelShiftOf"
+    | "edge.labelGapOf"
+    | "edge.labelBox"
+    | "node.xlabel"
+    | "node.xlabelStyle"
+    | "node.xlabelLocation"
+    | "node.xlabelOffsetX"
+    | "node.xlabelOffsetY"
+    | "edge.xlabel"
+    | "edge.xlabelStyle"
+    | "edge.xlabelLocation"
+    | "edge.xlabelOffsetX"
+    | "edge.xlabelOffsetY";
 
 /**
  * The values the "edge.style" channel accepts.
@@ -1203,10 +1350,11 @@ export type Selector =
      * edges), under the pointer (`"hovered"`, one node at most), or drawn outside the time window
      * (`"ghosted"`, while `session.time.settings.outside` is `"ghost"`), or pinned in place
      * (`"pinned"`, nodes only, as `session.positions.pinned` holds them). View state: the layer
-     * follows each change with no step.
+     * follows each change with no step. The same elements as a rule: a {@link StateLeaf}, which
+     * `selectorRule` reads this selector as with its `states` option.
      * @since 3.26.0
      */
-    | { match: "state"; state: "selected" | "hovered" | "ghosted" | "pinned" }
+    | { match: "state"; state: ElementState }
     /**
      * What the reader is pointing at: the node under the pointer (`reach: "node"`, the default),
      * or that node, its neighbors and the edges that touch it (`reach: "neighbors"`). With
@@ -1251,6 +1399,7 @@ export interface LayerSpec {
      * Where a layer made from a file's styles came from: the element's facts about it, set when
      * a load makes the layer, saved and restored with it, and read with `fileStyleOf(layer)`.
      * Absent on every other layer. An update that does not name it keeps it.
+     * @experimental file-styles
      */
     fileStyle?: FileStyleOrigin;
     /**
@@ -1305,11 +1454,22 @@ export interface StyleDocument {
      */
     tree?: readonly StyleDocumentRow[];
     /**
-     * The text of each pasted shader the layers name, verbatim in the shader text format, so a
-     * document copied alone keeps its shaders. Absent when the layers name none.
+     * The project's shaders, each `{ id, text }` with the complete shader text (header, parameter
+     * declarations and defaults, body, low-detail body), built-ins copied in included. An `id` is a
+     * key into this list and nothing more: a layer's use, an encode key
+     * `<target>.shaders.<id>.<param>` and the background name a shader by it, and a reader resolves
+     * them here, never against its own catalog, so a file opens the same on a build that no longer
+     * ships a shader it used. Absent when the project holds none.
      * @since 3.36.0
      */
     shaders?: readonly { readonly id: string; readonly text: ShaderText }[];
+    /**
+     * What `toDocument` found wrong while writing: `shader.not-saved` with `id`, a shader a layer,
+     * an encode key or the background names that the document does not carry. An element bug,
+     * never expected; ignored on reading. Absent when nothing is wrong.
+     * @since 3.36.0
+     */
+    problems?: readonly ShaderProblem[];
 }
 
 /** One row of a saved style tree: a layer, by its place in the document, or a folder. */
@@ -1338,8 +1498,25 @@ export interface AlgorithmDescriptor {
     key: AlgorithmKey;
     plainName: string;
     technicalName: string;
+    /**
+     * What the algorithm does, in an English sentence.
+     * @deprecated Word the algorithm from {@link AlgorithmDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the algorithm does, which an application keys its own words on, such as
+     * "algorithm.pagerank". Present on every built-in algorithm; an extension that describes its
+     * algorithms supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     category: "centrality" | "community" | "path" | "flow" | "structure" | "prediction" | (string & {});
+    /**
+     * Other words a reader may search for it by (`union`, `bridges`), so a picker finds it by more
+     * than its name. Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    keywords?: readonly string[];
     shape: ResultShape;
     fields: readonly FieldDescriptor[];
     options: readonly OptionDescriptor[];
@@ -1398,7 +1575,18 @@ export interface LayoutDescriptor {
     id: LayoutId;
     plainName: string;
     technicalName: string;
+    /**
+     * What the layout does, in an English sentence.
+     * @deprecated Word the layout from {@link LayoutDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the layout does, which an application keys its own words on, such as
+     * "layout.force". Present on every built-in layout; an extension that describes its
+     * layouts supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     family: string;
     kind: "live" | "batch";
     maxDimensions: 2 | 3;
@@ -1480,6 +1668,7 @@ export interface FormatDescriptor {
      * styles (`styles: "file"` on a load), and what its writer keeps of a graph's styles --
      * `"rules"` (the layers come back as layers when the file is read again), `"values"` (only
      * each element's values) or `"none"`. Absent means `{ read: false, write: "none" }`.
+     * @experimental file-styles
      */
     styles?: FormatStyles;
     /**
@@ -1489,11 +1678,25 @@ export interface FormatDescriptor {
      * writes one kind of file.
      */
     exportVariants?: readonly FormatExportVariant[];
-    /** What the format is for, when its name does not say, such as which call reads it. */
+    /**
+     * What the format is for, when its name does not say, such as which call reads it, in an
+     * English sentence.
+     * @deprecated Word the format from {@link FormatDescriptor.descriptionId} in the application.
+     */
     description?: string;
+    /**
+     * A stable id for what the format is for, which an application keys its own words on, such as
+     * "format.graphty". Present on every built-in format that has a description; an extension that
+     * describes its formats supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
 }
 
-/** What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}. */
+/**
+ * What a format's files keep of a graph's styles. See {@link FormatDescriptor.styles}.
+ * @experimental file-styles
+ */
 export interface FormatStyles {
     /** Whether the reader can draw a file's own styles. */
     readonly read: boolean;
@@ -1549,7 +1752,18 @@ export type PaletteRegistration = Omit<PaletteDescriptor, "capacity" | "colorbli
 export interface CameraDescriptor {
     id: CameraId;
     plainName: string;
+    /**
+     * What the view does, in an English sentence.
+     * @deprecated Word the view from {@link CameraDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the view does, which an application keys its own words on, such as
+     * "camera.fitToGraph". Present on every built-in view; an extension that describes its
+     * views supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     /** The drawing modes this view can be computed in. The element refuses the others. */
     modes: readonly DrawingMode[];
     options: readonly OptionDescriptor[];
@@ -1566,7 +1780,18 @@ export interface CameraDescriptor {
 export interface LogSinkDescriptor {
     id: LogSinkId;
     plainName: string;
+    /**
+     * What the destination does, in an English sentence.
+     * @deprecated Word the destination from {@link LogSinkDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the destination does, which an application keys its own words on, such as
+     * "logSink.console". Present on every built-in destination; an extension that describes its
+     * destinations supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     options: readonly OptionDescriptor[];
 }
 
@@ -1600,7 +1825,17 @@ export interface FunctionDescriptor {
     name: string;
     /** The smallest and largest argument count accepted. */
     arity: [number, number];
+    /**
+     * What the function does, in an English sentence.
+     * @deprecated Word the function from {@link FunctionDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the function does, which an application keys its own words on, such as
+     * "function.log". An extension supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     returns: "number" | "boolean" | "string";
 }
 
@@ -1729,6 +1964,18 @@ export interface AttributeDescriptor {
 export type ReadableValueKind = "number" | "category" | "text" | "yes-no";
 
 /**
+ * What a value is, for the control that tests it: an amount (`"number"`), an instant (`"time"`),
+ * levels with a declared order (`"ordered"`), groups (`"category"`), a list of labels (`"tags"`),
+ * yes or no (`"flag"`) or free text (`"text"`). Derived by the element from the value's type, what
+ * it measures, a declared order and list values.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type ValueKind = "number" | "time" | "ordered" | "category" | "tags" | "flag" | "text";
+
+/**
  * The kinds of channel value a {@link ReadableValue} can drive, as a style channel's `accepts`
  * names them.
  * @since 3.26.0
@@ -1767,6 +2014,20 @@ export interface ReadableValue {
     readonly runId?: RunId;
     /** What kind of value it is. A partition's group is a category however its ids are spelled. */
     readonly kind: ReadableValueKind;
+    /**
+     * What a value is, for the control that tests it: see {@link ValueKind}.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly valueKind?: ValueKind;
+    /**
+     * A run field's declared facts: its fixed range, which end counts as more, its levels' order,
+     * what a missing value means, and whether its values are unstable names. Absent for a data
+     * column, and for a field that declares none.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly facts?: Pick<FieldDescriptor, "domain" | "polarity" | "order" | "missing" | "unstable">;
     /** The lowest and highest value, for a number. */
     readonly range?: { readonly min: number; readonly max: number };
     /**
@@ -1836,6 +2097,12 @@ export interface StructureValue {
     readonly plainName: string;
     /** The name a technical reader knows it by: "degree", "inDegree" or "outDegree". */
     readonly technicalName: string;
+    /**
+     * What a value is: a count, so `"number"`. See {@link ValueKind}.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly valueKind?: ValueKind;
 }
 
 /**
@@ -1872,10 +2139,24 @@ export interface MetricAvailability {
  * The result of checking an expression. Validation covers references, not only syntax: an
  * expression that parses perfectly and names a run or an attribute that does not exist matches
  * nothing, silently, which reads exactly like a correct answer of zero.
+ *
+ * `ok` is true only when the expression parses and every path it reads is answered.
  */
 export interface QueryValidation {
     ok: boolean;
-    error?: { code: GraphtyErrorCode; message: string; position: number };
+    /**
+     * Why the expression does not parse, as a code and its parameters, never as words: `code` is
+     * `E_BAD_SELECTOR`, `position` the character offset of the mistake, and `params` the error's
+     * `details` (`reason`, one of the selector refusal reasons, and the values it names). A
+     * `formula` is `E_UNSUPPORTED` at position 0, since the formula grammar is not implemented.
+     * Absent when it parses.
+     */
+    error?: { code: GraphtyErrorCode; position: number; params: Readonly<Record<string, unknown>> };
+    /**
+     * The paths it reads that nothing in this session answers: `unknown-run` for a `results.`
+     * path naming no run here, `unknown-attribute` for any other. `candidates` are the nearest
+     * paths that would be answered, nearest first. Empty when it does not parse.
+     */
     unresolvedPaths: readonly {
         path: Path;
         reason: "unknown-run" | "unknown-attribute";
@@ -1953,8 +2234,23 @@ export type RuleTree =
           readonly attribute: Path;
           readonly min?: number;
           readonly max?: number;
+          /**
+           * How each value is read. Absent, the leaf compares numbers. `"time"` compares instants:
+           * `min` and `max` are epoch milliseconds, and each value is read the way the session's
+           * time field reads it (`session.time.parse`: a date with no zone is UTC; a designated
+           * column's own unit), so `{ max: Date.UTC(2005, 0, 1) - 1, as: "time" }` keeps what
+           * happened before 2005.
+           * @since 3.36.0
+           */
+          readonly as?: "time";
           /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
           readonly nodes?: AttributeLeafNodes;
+          /**
+           * Whether an element with no value (absent, NaN or infinite) passes. Default `"exclude"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly missing?: MissingValues;
       }
     | {
           readonly kind: "categories";
@@ -1962,6 +2258,19 @@ export type RuleTree =
           readonly values: readonly string[];
           /** Which nodes the leaf keeps when its attribute lives on edges: see {@link AttributeLeafNodes}. */
           readonly nodes?: AttributeLeafNodes;
+          /**
+           * Whether an element with no value passes. Default `"exclude"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly missing?: MissingValues;
+          /**
+           * How a list value is read: `"any"` passes when it holds any of `values`, `"all"` when it
+           * holds every one. Absent, a value is read as one category, as before.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly match?: "any" | "all";
       }
     | {
           readonly kind: "degree";
@@ -1986,6 +2295,7 @@ export type RuleTree =
      */
     | { readonly kind: "repeated-edge" }
     | { readonly kind: "edges"; readonly where: Query }
+    | StateLeaf
     /**
      * The members of a scope, usually a kept set: `{ kind: "member", of: { set: id } }`. A removed
      * set is read from its kept record, so removing a set never changes what a rule holds.
@@ -2011,6 +2321,34 @@ export type RuleTree =
           readonly ties?: TopTies;
           /** Strictly above this value. Exactly one cut. */
           readonly above?: number;
+          /**
+           * The share of the population, from 0 to 100, kept from the `from` end; whole tie groups
+           * only, as `top` keeps them. Exactly one cut.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly percentile?: number;
+          /**
+           * Which end `top` and `percentile` count from: the highest values (`"high"`, the default)
+           * or the lowest. `above` reads it as "below" when `"low"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly from?: "high" | "low";
+          /**
+           * Whether an element with no value passes. Default `"exclude"`.
+           * Experimental: may change or be removed in a minor release.
+           * @beta
+           */
+          readonly missing?: MissingValues;
+          /**
+           * Which elements are ranked: `"graph"` (the default) ranks the whole column, so a node's
+           * place does not move as a filter changes; `"visible"` ranks only what the filter and the
+           * time window leave shown. Inside a step, the step's own population is ranked. A filter
+           * cannot rank within what it shows itself.
+           * @since 3.40.0
+           */
+          readonly within?: "graph" | "visible";
       }
     /**
      * The elements whose text for one value passes a text test: "name contains bob", "id matches
@@ -2049,9 +2387,269 @@ export type RuleTree =
            */
           readonly side?: RuleSide;
       }
+    | UnionLeaf
+    | HopsLeaf
+    | TouchingLeaf
+    | NonemptyLeaf
+    | SameValueLeaf
+    | BySizeLeaf
+    | MeasureLeaf
     | { readonly kind: "all"; readonly of: readonly RuleTree[] }
     | { readonly kind: "any"; readonly of: readonly RuleTree[] }
     | { readonly kind: "not"; readonly of: RuleTree };
+
+/**
+ * What a reader is doing to an element now: selected, under the pointer, drawn outside the time
+ * window, or pinned in place.
+ * @since 3.36.0
+ */
+export type ElementState = "selected" | "hovered" | "ghosted" | "pinned";
+
+/**
+ * The elements in a state now, as a calculated value: what `{ match: "state", state }` paints,
+ * written as a condition, so it sits beside others in an `all`, a `not` or a union step (Add, Keep,
+ * Except). Speaks nodes and edges, each half on its own: a selected edge stays held whether or not
+ * its ends are selected. `"hovered"` and `"pinned"` hold no edge. Live: a layer reading it repaints
+ * as the state moves, with no undo step, so a kept set or a visibility filter, which do not follow
+ * the reader, refuse it.
+ * @since 3.36.0
+ */
+export interface StateLeaf {
+    readonly kind: "state";
+    /** Which state. */
+    readonly state: ElementState;
+}
+
+/**
+ * Whether an element with no value for a leaf's path (absent, NaN or infinite) passes the leaf.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type MissingValues = "include" | "exclude";
+
+/**
+ * What a step's leaf is relative to: a {@link Scope}, or one of two forms that exist only inside a
+ * {@link UnionStep}: `"hovered-or-selected"` (the hovered node, else a lone selected node: what a
+ * `{ match: "hover", orSelected: true }` selector follows) and `"so-far"` (the step's input: its
+ * branch before this step). A reference that holds no node matches nothing; it is never read as
+ * an unset option.
+ *
+ * OPEN UNION: forms may be added in a minor release; handle unknown forms.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type StepReference = Scope | "hovered-or-selected" | "so-far";
+
+/**
+ * A selection built from branches, each folded from a start by ordered steps, the way a vector
+ * editor combines shapes: the result is everything in ANY branch that is on.
+ *
+ * A branch starts with all of `side` within the base, or with none, then each step that is on
+ * adds what its leaf matches (`add`), keeps only what it matches (`keep`), or removes it
+ * (`except`). Every population a leaf ranks or counts over (a threshold's top, a percentile, a
+ * category's size) is the base, or the step's input when it is computed on `"so-far"`. A node
+ * branch reads an edge leaf as the nodes touching a passing edge; an edge branch reads a node leaf
+ * by its step's `ends`. A leaf silent on `side` changes nothing.
+ *
+ * Speaks `side` only. `session.scope.watchSteps` reads every branch's and step's count and state.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface UnionLeaf {
+    readonly kind: "union";
+    /** Which half the branches select. */
+    readonly side: "nodes" | "edges";
+    /**
+     * The base: `"visible"` (what the visibility filter leaves drawn) or `"graph"` (everything
+     * loaded). A visibility filter condition must read `"graph"`.
+     */
+    readonly within: "graph" | "visible";
+    /**
+     * Narrows the base to the nodes and edges these loads supplied (`session.data.sources()`
+     * keys, what `session.data.sourcesOf(id)` lists): a branch that starts with `"all"` starts
+     * with theirs, a step adds only theirs, and a reading's totals count only theirs. Absent:
+     * every load's. A load that is gone supplies nothing.
+     * @since 3.36.0
+     */
+    readonly sources?: readonly SourceKey[];
+    /** The branches, in order. */
+    readonly branches: readonly UnionBranch[];
+}
+
+/**
+ * One branch of a {@link UnionLeaf}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface UnionBranch {
+    /** Its id, unique in the leaf; filled by the element on write, always present on read. */
+    readonly id?: string;
+    /** Its name, the consumer's. */
+    readonly name?: string;
+    /** Its color, filled from the branch palette on write (`session.scope.options.branchPalette`). */
+    readonly color?: string;
+    /** Whether it counts. Default true. */
+    readonly on?: boolean;
+    /** What it starts with before its first step: all of the side within the base, or none. */
+    readonly start: "all" | "none";
+    /** The steps, folded in order. */
+    readonly steps: readonly UnionStep[];
+}
+
+/**
+ * One step of a {@link UnionBranch}: a verb and one leaf.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface UnionStep {
+    /** Its id, unique in the leaf; filled by the element on write. */
+    readonly id?: string;
+    /** `add`: the branch so far plus the matches; `keep`: only the matches; `except`: minus them. */
+    readonly op: "add" | "keep" | "except";
+    /** Whether it applies. Default true. */
+    readonly on?: boolean;
+    /** What it matches. A `union` is refused here. */
+    readonly rule: RuleTree;
+    /** What its populations are: the base (default) or the branch before this step. */
+    readonly computedOn?: "base" | "so-far";
+    /**
+     * An edge-side rule: the step's computation (a `measure`, a degree path, `hops`, `touching`)
+     * reads only the edges that pass it, within the step's input -- "ignore links with weight
+     * under 2" for one step, where the visibility filter would hide those links for every reader.
+     * Like So far, such a computation belongs to the step: cached by definition, never a
+     * `session.runs` entry. A rule holding a `union` or a node-only leaf is refused
+     * (`E_BAD_COMMAND`, reason `links-not-edges`). Absent: every edge of the input.
+     */
+    readonly links?: RuleTree;
+    /** On an edge branch, how a node leaf is read: both ends pass (default), or either. */
+    readonly ends?: "both" | "either";
+    /** Written by the element when it froze a live reference on a write that cannot follow one. */
+    readonly frozenFrom?: "selection" | "hovered-or-selected";
+    /**
+     * The consumer's own name for how the step's test is edited -- a mode picked before any bound
+     * is set, say. The element keeps it with the step (copies, saves, undo) and never reads it.
+     */
+    readonly mode?: string;
+}
+
+/**
+ * The nodes at most `max` hops from a reference, the reference included; without `max`, every
+ * node it reaches. `direction` follows arcs out of, into, or either way (default) on a directed
+ * graph. Speaks nodes. A step leaf: valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface HopsLeaf {
+    readonly kind: "hops";
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly of?: StepReference;
+    readonly max?: number;
+    readonly direction?: SelectionDirection;
+}
+
+/**
+ * The edges with `"either"`, `"both"` or exactly `"one"` end in a reference. Speaks edges. A step
+ * leaf: valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface TouchingLeaf {
+    readonly kind: "touching";
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly of?: StepReference;
+    readonly ends: "either" | "both" | "one";
+}
+
+/**
+ * Everything while a reference holds a node, else nothing. Speaks nodes and edges. A step leaf:
+ * valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface NonemptyLeaf {
+    readonly kind: "nonempty";
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly of?: StepReference;
+}
+
+/**
+ * The elements whose value for `path` equals (or, for a list, shares) a value a reference node
+ * holds: "the community of Valjean". Speaks the halves that carry the path. A step leaf: valid
+ * only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface SameValueLeaf {
+    readonly kind: "same-value";
+    /** A value path: `data.<field>`, `results.<run>.<field>` or `graphty.degree`. */
+    readonly path: Path;
+    /** The reference. Absent, the step is inert (`no-reference`). */
+    readonly as?: StepReference;
+}
+
+/**
+ * The elements whose category for `path` has a member count in `min..max`, or is among the `top`
+ * categories by size (whole tie groups, as a threshold's `top`), counted over the population.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface BySizeLeaf {
+    readonly kind: "by-size";
+    readonly path: Path;
+    readonly min?: number;
+    readonly max?: number;
+    readonly top?: number;
+    /** Which end `top` counts from: the largest categories (default) or the smallest. */
+    readonly from?: "high" | "low";
+    readonly ties?: TopTies;
+}
+
+/**
+ * The test a {@link MeasureLeaf} puts to its field: the body of a `range`, `threshold`,
+ * `categories`, `text`, `by-size` or `same-value` leaf without its path.
+ *
+ * OPEN UNION: kinds may be added in a minor release; handle unknown kinds.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export type MeasureTest =
+    | Omit<Extract<RuleTree, { kind: "range" }>, "attribute" | "nodes">
+    | Omit<Extract<RuleTree, { kind: "threshold" }>, "path">
+    | Omit<Extract<RuleTree, { kind: "categories" }>, "attribute" | "nodes">
+    | Omit<Extract<RuleTree, { kind: "text" }>, "reads" | "nodes">
+    | Omit<BySizeLeaf, "path">
+    | Omit<SameValueLeaf, "path">;
+
+/**
+ * The elements whose value of an algorithm's field passes `test`. The element reads the session
+ * run with the same algorithm, params and base, or starts one (without suggested styles), so the
+ * leaf saves the algorithm, not a run id. `bind` maps the algorithm's node options to references,
+ * resolved to node ids before it is called. A step leaf: valid only inside a {@link UnionStep}.
+ * Experimental: may change or be removed in a minor release.
+ * @beta
+ */
+export interface MeasureLeaf {
+    readonly kind: "measure";
+    /** The algorithm's key, as `session.catalog.algorithms` lists it. */
+    readonly algorithm: string;
+    readonly params?: Readonly<Record<string, unknown>>;
+    readonly bind?: Readonly<Record<string, StepReference>>;
+    /** The result field to test. */
+    readonly field: string;
+    /** The test. Absent, every element the field measures passes, as a range with neither bound does. */
+    readonly test?: MeasureTest;
+    /**
+     * The scope of the session run the step reads, as that run's `scope.spec` gives it: a step
+     * picked from a run's results stays bound to that run, whatever the step's base. The step reads
+     * the newest listed run with this algorithm, params and scope, as the run left it (a later
+     * change to what the scope holds does not re-run it), and starts one over the scope only when
+     * none is listed. Absent, the step's base. Ignored for a step computed on So far, with `links`
+     * or bound to a live reference: those compute their own.
+     * Experimental: may change or be removed in a minor release.
+     * @beta
+     */
+    readonly scope?: Scope;
+}
 
 /**
  * Which half of the graph a `source` rule leaf speaks: its nodes or its edges.
@@ -2083,7 +2681,9 @@ export interface FilterStep {
  * OPEN UNION: a later release may add an effect on visibility or selection; handle unknown
  * effects. Styling, saving a set or running on the matches belong to `styles`, `sets` and `runs`,
  * never here.
+ * Experimental: may change or be removed in a minor release.
  * @since 3.32.0
+ * @beta
  */
 export type FilterEffect = "keep" | "exclude" | "select";
 
@@ -2092,13 +2692,15 @@ export type FilterEffect = "keep" | "exclude" | "select";
  *
  * Conditions are independent and order never matters: every keep condition that is on narrows
  * what stays, every exclude condition that is on hides its matches (two of them hide what either
- * matches), and the select conditions that are on select what all of them match, over the whole
- * graph, visible or not.
+ * matches), and the select conditions that are on select what all of them match among what is
+ * visible, or over the whole graph (see {@link FilterCondition.within}).
  *
  * A `range`, `categories` or `text` leaf on an edge value that names no `nodes` reading gets one
  * from the effect: keep keeps the matching edges and the nodes at their ends, exclude hides only
  * the matching edges, select selects only the matching edges. A reading written in the rule wins.
+ * Experimental: may change or be removed in a minor release.
  * @since 3.32.0
+ * @beta
  */
 export interface FilterCondition {
     /** The condition's id, unique among the conditions. */
@@ -2109,11 +2711,52 @@ export interface FilterCondition {
     readonly effect: FilterEffect;
     /** What it matches. */
     readonly rule: RuleTree;
+    /**
+     * Where a select condition looks for its matches; read only when `effect` is `"select"`.
+     * `"picture"` (the default, when absent): only the matches that are visible. `"graph"`: every
+     * match in the graph, visible or not, used only when every select condition that is on reads
+     * `"graph"`. The selection is recomputed whenever a keep or exclude condition is added,
+     * removed, switched or edited while a select condition is on, and on undo and redo of such a
+     * change. The order of the conditions never matters.
+     * @since 3.33.0
+     */
+    readonly within?: FilterSelectWithin;
+    /**
+     * The condition's name, as the reader typed it; absent, an application names it from its rule.
+     * The element never reads it: it is kept, saved and restored with the condition, and a change
+     * to it alone is one undo step (`updateCondition(id, { name })`).
+     * @since 3.36.0
+     */
+    readonly name?: string;
+    /**
+     * The load the condition belongs to (`session.data.sources()` key): it judges only the nodes
+     * and edges that load supplied (`session.data.sourcesOf(id)`) and leaves every other load's
+     * elements as they are. A keep condition hides only that load's elements its rule does not
+     * match, an exclude condition hides only that load's matches, and a select condition selects
+     * only among that load's elements; `conditionCounts()` counts it over that load's elements.
+     * An element two loads supplied belongs to both. Absent: the condition judges every element.
+     * A load that is gone supplies nothing, so its conditions then do nothing. The `steps` view
+     * shows such a condition's rule without its load. To have a selection's totals read the same
+     * load, narrow its `union` leaf with {@link UnionLeaf.sources}.
+     * @since 3.36.0
+     */
+    readonly source?: SourceKey;
 }
 
 /**
+ * Where a select condition looks for its matches: the whole graph, or only what the keep and
+ * exclude conditions leave drawn. See {@link FilterCondition.within}.
+ *
+ * OPEN UNION: a later release may add a value; handle unknown values.
+ * @since 3.33.0
+ */
+export type FilterSelectWithin = "graph" | "picture";
+
+/**
  * A filter condition as it is handed in: the id is made when absent, and `on` defaults to true.
+ * Experimental: may change or be removed in a minor release.
  * @since 3.32.0
+ * @beta
  */
 export type FilterConditionInput = Omit<FilterCondition, "id" | "on"> & {
     readonly id?: string;
@@ -2323,6 +2966,31 @@ export interface CatalogApi {
     algorithms(): readonly AlgorithmDescriptor[];
     layouts(): readonly LayoutDescriptor[];
     formats(): readonly FormatDescriptor[];
+    /**
+     * The style channels this session offers for nodes or for edges, in table order. With the
+     * `file-styles` experiment on it is the same array `channelsFor(target)` returns; with it off it
+     * leaves out the channels the experiment added and the values it added to the rest (node shapes,
+     * arrowheads, line patterns, a size mode). A style editor builds its pickers from it. A layer that
+     * writes a value it leaves out is still accepted and drawn.
+     * @param target - Nodes or edges.
+     * @returns The channels, the same array on every call with the same target.
+     * @since 3.36.0
+     */
+    channels(target: "node" | "edge"): readonly ChannelDescriptor[];
+    /**
+     * Every value of one enum channel this session offers, in the order of the channel's
+     * `values`, each with a default name and, for a node shape, an arrowhead or a line pattern
+     * (a border's included), a picture. With the `file-styles` experiment off it leaves out the
+     * values the experiment added, as {@link CatalogApi.channels} does.
+     *
+     * ```ts
+     * session.catalog.channelValues("node.shape"); // [{ id: "box", plainName: "Box", glyph: "<svg ..." }, ...]
+     * ```
+     * @param channel - The channel.
+     * @returns The values; empty for a channel that is not an enum or that the session does not offer.
+     * @since 3.40.0
+     */
+    channelValues(channel: Channel): readonly ChannelValueDescriptor[];
     palettes(): readonly PaletteDescriptor[];
     cameras(): readonly CameraDescriptor[];
     logSinks(): readonly LogSinkDescriptor[];
@@ -2371,8 +3039,12 @@ export interface CatalogApi {
      */
     functions(): readonly FunctionDescriptor[];
     /**
-     * @deprecated Not implemented. Removed at the next major release unless it is implemented
-     * first (issue #333).
+     * The attributes that hold points in time, for a time slider: first those `data.attributes()`
+     * gives the `time` role (declared by the file or the load), then the columns whose values read
+     * as time, best first, as `session.time.candidates()` finds them -- dates in text, epochs, and
+     * whole numbers from 1000 to 2999 in a column whose name speaks of time.
+     * @returns The time attributes, nodes and edges both; empty when the graph has none.
+     * @since 3.40.0
      */
     timeAttributes(): readonly AttributeDescriptor[];
     metrics(): readonly MetricAvailability[];
@@ -2383,8 +3055,15 @@ export interface CatalogApi {
      */
     applicable(): readonly MetricAvailability[];
     /**
-     * @deprecated Not implemented. Removed at the next major release unless it is implemented
-     * first (issue #335).
+     * Check an expression against this session without running it, as a form field would on
+     * every keystroke: whether it parses, where it does not, and which paths it reads that
+     * nothing here answers. Selectors and filters share one expression grammar; a `formula` is
+     * refused with `E_UNSUPPORTED`, since the formula grammar is not implemented.
+     * @param query - The expression.
+     * @param o - Options.
+     * @param o.kind - Which kind of expression it is; a selector when absent.
+     * @returns The check. Never throws for a bad expression.
+     * @since 3.40.0
      */
     validate(query: Query, o?: { kind?: "selector" | "filter" | "formula" }): QueryValidation;
     /**
@@ -2412,7 +3091,7 @@ export interface CatalogApi {
  * Implementing one means deleting its name here: `SessionCatalogApi` is derived from this list,
  * so the two cannot drift apart.
  */
-export type DeprecatedCatalogMethod = "themes" | "functions" | "timeAttributes" | "applicable" | "validate";
+export type DeprecatedCatalogMethod = "themes" | "functions" | "applicable";
 
 // ---------------------------------------------------------------------------------------------
 // Guards

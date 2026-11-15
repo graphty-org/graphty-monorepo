@@ -6,6 +6,7 @@
  * ids never throw, because a link made for a newer build can be opened on an older one.
  */
 
+import { GraphtyError } from "../errors";
 import { type FeatureId, FEATURES, GRADUATED_FEATURES } from "./registry";
 
 /** What a session or element actually switched on, and the ids it did not recognise. */
@@ -14,6 +15,8 @@ export interface EnabledFeatures {
     readonly enabled: readonly FeatureId[];
     /** Requested ids that are neither declared nor graduated; the consumer decides whether to show them. */
     readonly unknown: readonly string[];
+    /** Whether an experiment is switched on: the one gate code inside the element uses. */
+    has(id: FeatureId): boolean;
 }
 
 let pageDefault: readonly string[] = Object.freeze([]);
@@ -59,7 +62,25 @@ export function resolveFeatures(requested?: readonly string[]): EnabledFeatures 
     const enabled = FEATURES.filter((feature) => all || asked.has(feature.id)).map((feature) => feature.id);
     const known = new Set<string>([...FEATURES.map((feature) => feature.id), ...GRADUATED_FEATURES, "all"]);
     const unknown = [...asked].filter((id) => !known.has(id));
-    return Object.freeze({ enabled: Object.freeze(enabled), unknown: Object.freeze(unknown) });
+    const features = { enabled: Object.freeze(enabled), unknown: Object.freeze(unknown) };
+    // Not enumerable, so the object stays plain data for a comparison or an event's detail.
+    Object.defineProperty(features, "has", { value: (id: FeatureId) => enabled.includes(id) });
+    return Object.freeze(features as EnabledFeatures);
+}
+
+/**
+ * The refusal of something whose experiment is off.
+ * @param feature - The experiment.
+ * @param key - What was asked for, such as `time.play`.
+ * @returns The error, `E_FEATURE_OFF` with `{ feature, key }`.
+ */
+export function featureOff(feature: FeatureId, key: string): GraphtyError {
+    return new GraphtyError({
+        code: "E_FEATURE_OFF",
+        message: `${key} needs the "${feature}" experiment, which is off.`,
+        source: "config",
+        details: { feature, key },
+    });
 }
 
 /**

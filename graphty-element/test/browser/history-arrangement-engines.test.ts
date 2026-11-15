@@ -11,6 +11,8 @@
  * - An engine writing back what the lane holds moves nothing. ngraph and d3 publish every row
  *   after an add, which counted as a move, so the add's step took a capture of its own and redo
  *   put back where the nodes were then instead of where the layout had moved them since.
+ * - Redoing an edge add between drawn nodes puts them where the add's layout run left them, settled
+ *   or still moving, under ngraph, d3 and spring alike (issue #5115).
  */
 
 import { afterEach, assert, describe, it } from "vitest";
@@ -220,12 +222,52 @@ describe.each(["ngraph", "d3", "spring"])("the arrangement under %s", (engine) =
         const graph = await begin(engine);
         const session = graph.getSession();
         await session.data.addEdges([{ src: "n1", dst: "n5" }]);
+        // The edge draws n5 (#3192). ngraph and d3 take the newcomer and step to place it, so for
+        // them the add moved the nodes, and redo puts back where the add left them. The spring
+        // simulation leaves n5 unplaced and moves nothing.
+        const added = lane(graph);
         await session.undo();
         graph.getLayoutManager().running = true;
         graph.getUpdateManager().stepFrames(1);
         const moved = lane(graph);
 
         await session.redo();
-        assert.deepEqual(lane(graph), { ...moved, n5: "NaN,NaN,NaN" }, "the nodes stay where the layout left them");
+        if (engine === "spring") {
+            assert.deepEqual(lane(graph), { ...moved, n5: "NaN,NaN,NaN" }, "the nodes stay where the layout left them");
+        } else {
+            assert.deepEqual(lane(graph), added, "the nodes go back where the add placed them");
+        }
+    });
+
+    // Where the layout comes to rest after an add is recorded into the add's step, so redo puts
+    // the nodes back where the add's run left them, never where they were before it (#5115).
+    it("redoes an edge add between drawn nodes to where the layout came to rest after it", async () => {
+        const graph = await begin(engine);
+        const session = graph.getSession();
+        const before = lane(graph);
+        await session.data.addEdges([{ src: "n1", dst: "n3" }]);
+        frames(graph, 300);
+        graph.getLayoutManager().running = false;
+        const rested = lane(graph);
+        assert.notDeepEqual(rested, before, "the add's layout run moved the nodes");
+
+        await session.undo();
+        assert.deepEqual(lane(graph), before, "undone, the nodes where they were before the add");
+        await session.redo();
+        assert.deepEqual(lane(graph), rested, "redone, the nodes where the layout came to rest after the add");
+    });
+
+    it("redoes an edge add undone mid-run to where the layout had moved the nodes", async () => {
+        const graph = await begin(engine);
+        const session = graph.getSession();
+        const before = lane(graph);
+        await session.data.addEdges([{ src: "n1", dst: "n3" }]);
+        frames(graph, 5);
+        const left = lane(graph);
+
+        await session.undo();
+        assert.deepEqual(lane(graph), before, "undone, the nodes where they were before the add");
+        await session.redo();
+        assert.deepEqual(lane(graph), left, "redone, the nodes where the add's run had moved them");
     });
 });

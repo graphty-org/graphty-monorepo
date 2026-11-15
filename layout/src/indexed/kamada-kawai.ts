@@ -7,14 +7,11 @@ import { seedPositions } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
 import type { CommonLayoutOptions } from "../simulation/types.js";
 import { np } from "../utils/numpy.js";
-import { refusal } from "./common.js";
+import { checkScaleCenter, refusal } from "./common.js";
 import { layoutDim } from "./start.js";
 
 /** The ideal distance of a pair with no path between them, as networkx fills its matrix. */
 const UNREACHABLE = 1e6;
-
-/** The seed of the 3D random start: networkx starts unseeded, and a fixed seed draws the same graph the same way. */
-const START_SEED = 42;
 
 /** Options of indexed.kamadaKawai. */
 export interface KamadaKawaiOptions extends CommonLayoutOptions {
@@ -25,7 +22,7 @@ export interface KamadaKawaiOptions extends CommonLayoutOptions {
      * as distances.
      */
     readonly dist?: Float32Array | Float64Array | null | undefined;
-    /** Start positions, `dim` values per node in index order (NaN reads as 0); absent: a circle in 2D, a seeded random cube in 3D. */
+    /** Start positions, `dim` values per node in index order (NaN reads as 0); absent: a circle in 2D, a random cube drawn from `seed` in 3D. */
     readonly pos?: F32 | null | undefined;
     /** true (the default): the snapshot's weights; a string: that numeric edge column; false / null: every edge is 1. */
     readonly weight?: boolean | string | null | undefined;
@@ -78,6 +75,95 @@ function arcDistances(s: GraphSnapshot, spec: boolean | string | null): NumericV
 }
 
 /**
+ * The injected distance matrix, checked.
+ * @param dist - the `dist` option
+ * @param n - the node count
+ * @returns `dist`
+ * @throws RangeError when it does not hold n * n values, or has no finite distance between two different nodes
+ * (n >= 2)
+ */
+function checkedDist(dist: Float32Array | Float64Array, n: number): ArrayLike<number> {
+    if (dist.length !== n * n) {
+        throw refusal(
+            new RangeError(`kamadaKawai: dist has ${dist.length} values, expected ${n * n} (n * n)`),
+            "E_BAD_OPTION",
+            { option: "dist", length: dist.length, expected: n * n },
+        );
+    }
+    // the diagonal sits at every (n + 1)th index
+    if (n >= 2 && !dist.some((v, at) => Number.isFinite(v) && at % (n + 1) !== 0)) {
+        throw refusal(
+            new RangeError(
+                "kamadaKawai: dist has no finite distance between two different nodes; " +
+                    "was it computed from a graph without edges?",
+            ),
+            "E_BAD_OPTION",
+            { option: "dist" },
+        );
+    }
+    return dist;
+}
+
+/**
+ * The n x n matrix of direct distances: 0 on the diagonal, the minimum over parallel arcs, infinity elsewhere.
+ * @param s - the undirected snapshot
+ * @param w - the per-arc distances, or null when every edge is 1
+ * @returns n * n distances
+ * @throws RangeError when a weight is negative; `E_TOO_LARGE` when the matrix cannot be allocated
+ */
+function edgeDistances(s: GraphSnapshot, w: NumericVector | null): Float64Array {
+    const n = s.nodeCount;
+    let m: Float64Array;
+    try {
+        m = new Float64Array(n * n).fill(Number.POSITIVE_INFINITY);
+    } catch (error) {
+        throw error instanceof RangeError ? tooLarge(n, null) : error;
+    }
+    const { rowPtr, colIdx } = s;
+    for (let u = 0; u < n; u++) {
+        m[u * n + u] = 0;
+        for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
+            const weight = w === null ? 1 : w[a];
+            if (!(weight >= 0)) {
+                throw refusal(
+                    new RangeError(`kamadaKawai: weights are distances and must be >= 0, got ${weight}`),
+                    "E_BAD_WEIGHT",
+                    { weight },
+                );
+            }
+            const at = u * n + colIdx[a];
+            if (weight < m[at]) {
+                m[at] = weight;
+            }
+        }
+    }
+    return m;
+}
+
+/**
+ * All-pairs shortest distances in place.
+ * @param m - n * n direct distances
+ * @param n - the node count
+ */
+function floydWarshall(m: Float64Array, n: number): void {
+    // ponytail: Floyd-Warshall is O(n^3), as the legacy layout was; the solver is O(n^2) per iteration anyway
+    for (let k = 0; k < n; k++) {
+        for (let i = 0; i < n; i++) {
+            const ik = m[i * n + k];
+            if (ik === Number.POSITIVE_INFINITY) {
+                continue;
+            }
+            for (let j = 0; j < n; j++) {
+                const through = ik + m[k * n + j];
+                if (through < m[i * n + j]) {
+                    m[i * n + j] = through;
+                }
+            }
+        }
+    }
+}
+
+/**
  * The ideal distance matrix: the injected one with its non-finite entries as the unreachable fill, or Floyd-Warshall
  * over the CSR (the minimum over parallel arcs, a zero weight a zero distance).
  * @param s - the undirected snapshot
@@ -90,66 +176,10 @@ export function idealDistances(s: GraphSnapshot, options: KamadaKawaiOptions): n
     const n = s.nodeCount;
     let d: ArrayLike<number>;
     if (options.dist !== null && options.dist !== undefined) {
-        if (options.dist.length !== n * n) {
-            throw refusal(
-                new RangeError(`kamadaKawai: dist has ${options.dist.length} values, expected ${n * n} (n * n)`),
-                "E_BAD_OPTION",
-                { option: "dist", length: options.dist.length, expected: n * n },
-            );
-        }
-        // the diagonal sits at every (n + 1)th index
-        if (n >= 2 && !options.dist.some((v, at) => Number.isFinite(v) && at % (n + 1) !== 0)) {
-            throw refusal(
-                new RangeError(
-                    "kamadaKawai: dist has no finite distance between two different nodes; " +
-                        "was it computed from a graph without edges?",
-                ),
-                "E_BAD_OPTION",
-                { option: "dist" },
-            );
-        }
-        d = options.dist;
+        d = checkedDist(options.dist, n);
     } else {
-        const w = arcDistances(s, options.weight ?? true);
-        let m: Float64Array;
-        try {
-            m = new Float64Array(n * n).fill(Number.POSITIVE_INFINITY);
-        } catch (error) {
-            throw error instanceof RangeError ? tooLarge(n, null) : error;
-        }
-        const { rowPtr, colIdx } = s;
-        for (let u = 0; u < n; u++) {
-            m[u * n + u] = 0;
-            for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
-                const weight = w === null ? 1 : w[a];
-                if (!(weight >= 0)) {
-                    throw refusal(
-                        new RangeError(`kamadaKawai: weights are distances and must be >= 0, got ${weight}`),
-                        "E_BAD_WEIGHT",
-                        { weight },
-                    );
-                }
-                const at = u * n + colIdx[a];
-                if (weight < m[at]) {
-                    m[at] = weight;
-                }
-            }
-        }
-        // ponytail: Floyd-Warshall is O(n^3), as the legacy layout was; the solver is O(n^2) per iteration anyway
-        for (let k = 0; k < n; k++) {
-            for (let i = 0; i < n; i++) {
-                const ik = m[i * n + k];
-                if (ik === Number.POSITIVE_INFINITY) {
-                    continue;
-                }
-                for (let j = 0; j < n; j++) {
-                    const through = ik + m[k * n + j];
-                    if (through < m[i * n + j]) {
-                        m[i * n + j] = through;
-                    }
-                }
-            }
-        }
+        const m = edgeDistances(s, arcDistances(s, options.weight ?? true));
+        floydWarshall(m, n);
         d = m;
     }
     return Array.from({ length: n }, (_, i) =>
@@ -164,7 +194,7 @@ export function idealDistances(s: GraphSnapshot, options: KamadaKawaiOptions): n
 }
 
 /**
- * The start positions: `pos` (NaN as 0), else networkx's -- the unit circle in 2D, a seeded random unit cube in 3D.
+ * The start positions: `pos` (NaN as 0), else networkx's -- the unit circle in 2D, a random unit cube drawn from `seed` in 3D (unseeded without one).
  * @param s - the snapshot
  * @param options - the options
  * @param dim - 2 or 3
@@ -191,7 +221,7 @@ function startPositions(s: GraphSnapshot, options: KamadaKawaiOptions, dim: 2 | 
     }
     // float64, as kamadaKawaiLayout drew it: a float32 start settles in a different local minimum
     const column = new Float64Array(3 * n).fill(Number.NaN);
-    seedPositions(s, column, options.seed === undefined ? START_SEED : options.seed, 3, 1, null, "fr");
+    seedPositions(s, column, options.seed ?? null, 3, 1, null, "fr");
     return Array.from({ length: n }, (_, i) => Array.from(column.subarray(3 * i, 3 * i + 3)));
 }
 
@@ -207,6 +237,7 @@ function startPositions(s: GraphSnapshot, options: KamadaKawaiOptions, dim: 2 | 
  * distance matrix cannot be allocated
  */
 export function kamadaKawai(g: GraphSnapshot, options: KamadaKawaiOptions = {}): LayoutResult {
+    checkScaleCenter(options.scale, options.center);
     const s = toLayoutSnapshot(g);
     const dim = layoutDim(options.dim);
     const n = s.nodeCount;

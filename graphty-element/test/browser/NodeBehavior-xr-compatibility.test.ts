@@ -1,6 +1,5 @@
 import { Vector3 } from "@babylonjs/core";
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { Graph } from "../../src/Graph";
 import type { Node as GraphNode } from "../../src/Node";
@@ -12,6 +11,11 @@ import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
  * Critical: XR should NOT reimplement node dragging/selection logic.
  * Instead, XR inputs feed into the unified NodeDragHandler which handles
  * all drag operations consistently across desktop and XR modes.
+ *
+ * These cases call `onDragStart`, `onDragUpdate` and `onDragEnd` directly because that IS the XR
+ * input path: `XRInputHandler` makes exactly these calls from a controller's ray, and a browser test
+ * has no XR controller to drive. The mouse path through the same handler is driven with real input
+ * in `NodeBehavior-unified-drag.test.ts` and `node-behavior.test.ts`.
  */
 describe("NodeBehavior XR Compatibility", () => {
     let graph: Graph;
@@ -44,7 +48,7 @@ describe("NodeBehavior XR Compatibility", () => {
         assert.isFalse(node.dragging, "node should not be dragging initially");
         assert.exists(node.dragHandler, "dragHandler should exist");
 
-        // Simulate drag start (as XR controller would trigger)
+        // Simulate drag start (as XRInputHandler calls it)
         node.dragHandler.onDragStart(node.mesh.position.clone());
         assert.isTrue(node.dragging, "node.dragging should be true after drag start");
 
@@ -70,13 +74,11 @@ describe("NodeBehavior XR Compatibility", () => {
         // Verify ActionManager is attached (for double-click expansion in XR)
         assert.exists(node.mesh.actionManager, "ActionManager should be attached");
 
-        // Note: We can't test actual double-click behavior without fetchNodes/fetchEdges
-        // But we verify the infrastructure is in place for XR pointer events to trigger it
+        // An XR controller's double pick reaches a node through these actions; the mouse's
+        // double-click goes through the canvas's own `dblclick` instead. They are registered on
+        // every node, with or without fetchers, so expansion switched on later still reaches it.
         const { actions } = node.mesh.actionManager;
-
-        // If graph has fetchNodes/fetchEdges, action should be registered
-        // In this test, graph doesn't have them, so no actions expected
-        assert.isArray(actions, "actions should be an array");
+        assert.isNotEmpty(actions, "the node answers a pick and a double pick");
     });
 
     test("drag position changes should update through drag handler", () => {
@@ -85,7 +87,7 @@ describe("NodeBehavior XR Compatibility", () => {
         node.dragHandler.onDragStart(node.mesh.position.clone());
         assert.isTrue(node.dragging, "node should be dragging");
 
-        // Simulate position change during drag (as XR controller would trigger)
+        // Simulate position change during drag (as XRInputHandler calls it)
         const newPosition = new Vector3(10, 20, 30);
         node.dragHandler.onDragUpdate(newPosition);
 

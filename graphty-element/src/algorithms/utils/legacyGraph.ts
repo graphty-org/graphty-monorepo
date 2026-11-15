@@ -10,8 +10,7 @@
  * New code reads `context.input(orientation).subgraph()` instead.
  */
 
-import type { GraphSnapshot } from "@graphty/graph-format";
-
+import type { WorkingSnapshot } from "../../session/working/graphs";
 import type { AlgorithmGraphMode } from "../input/ScopedInput";
 
 /** A node id of the legacy graph. */
@@ -114,6 +113,25 @@ export class Graph {
             return false;
         }
 
+        this.removeIncidentEdges(id);
+
+        // Remove the node itself
+        this.nodeMap.delete(id);
+        this.adjacencyList.delete(id);
+
+        if (this.config.directed) {
+            this.incomingEdges.delete(id);
+        }
+
+        this.mutations++;
+        return true;
+    }
+
+    /**
+     * Remove every edge that touches a node, outgoing first, then incoming.
+     * @param id - The node whose edges are removed
+     */
+    private removeIncidentEdges(id: NodeId): void {
         // Remove all edges connected to this node
         const outgoingEdges = this.adjacencyList.get(id);
         if (outgoingEdges) {
@@ -137,17 +155,6 @@ export class Graph {
                 }
             }
         }
-
-        // Remove the node itself
-        this.nodeMap.delete(id);
-        this.adjacencyList.delete(id);
-
-        if (this.config.directed) {
-            this.incomingEdges.delete(id);
-        }
-
-        this.mutations++;
-        return true;
     }
 
     /**
@@ -477,11 +484,11 @@ export class Graph {
  * then every edge of `edgeList()` in its declared orientation, with weight 1 for an unweighted
  * snapshot (graph-format stores "every weight is 1" as null weights). Goes in graphty-element 4.0
  * with `Algorithm.algorithmGraph()`.
- * @param snapshot - the snapshot to copy, already simplified and in the orientation `mode` names
+ * @param snapshot - the run's working graph (hidden nodes absent), already simplified and in the orientation `mode` names
  * @param mode - `"undirected"` builds an undirected graph, `"directed"` a directed one
  * @returns a freshly built graph
  */
-export function legacyGraphOf(snapshot: GraphSnapshot, mode: AlgorithmGraphMode): Graph {
+export function legacyGraphOf(snapshot: WorkingSnapshot, mode: AlgorithmGraphMode): Graph {
     const graph = new Graph({ directed: mode !== "undirected" });
     const { ids } = snapshot;
     for (let index = 0; index < snapshot.nodeCount; index++) {

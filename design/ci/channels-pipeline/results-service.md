@@ -294,23 +294,29 @@ A pull request must not stay red for a test master already fails, and the failur
 and the pull request's own client must not be able to grant the excuse. When a pull request's group
 fails test T in file F:
 
-1. T stays failing if the pull request changes F or its import closure.
+1. T stays failing if the pull request changes F.
 2. T is excused if the plan's `failingOnBase` has T with the same key, from `full`, `bisect` or `base`
-   records only.
-3. Otherwise T passes anyway, loudly, as `[UNRELATED] <test> ... this pull request did not touch it`: a
+   records only: on the base, or in the variant's newest full run, whatever commit it tested. This holds
+   when the pull request changes F's import closure too: the same failure master already has is not the
+   pull request's, and one it made differs in its key (2026-11-14, #8051: one master break turned every
+   pull request that reached the test red until it was fixed, because no record excused a touched test).
+3. Otherwise, if the pull request changes F's import closure, T stays failing.
+4. Otherwise T passes anyway, loudly, as `[UNRELATED] <test> ... this pull request did not touch it`: a
    warning annotation and a line in the job summary (2026-10-27, #3925: a failure with another source must
    not block merges -- every open pull request was red on one master defect, and the old `[KNOWN?]` wait
    needed a base check nothing dispatched; the full run with bisect and revert is the net). In the background
    ci.yml's `base-checks` job dispatches `base-check.yml` on master (`workflow_dispatch`, inputs `base`,
    `file`, `variant`, `repeat`, `pr`) once per test file, variant and base: it asks the store first
-   (`POST /v1/base-checks`, kind `pr`, which answers `dispatch: true` only the first time), so later pull
-   requests and re-runs on the same base reuse the one check. The base check checks out the base, builds the
+   (`POST /v1/base-checks`, kind `pr`, which answers `dispatch: true` only to the first run that asks, and to
+   that run again when it re-sends), so later pull requests and re-runs on the same base reuse the one check.
+   A check `gh` could not dispatch gives its claim back (`DELETE /v1/base-checks`, that run only), so the next
+   pull request that asks dispatches it. The base check checks out the base, builds the
    package from nx's cache, runs F and posts kind `base`. If F fails there, it files or updates one
    priority:critical `Failing on master` issue per signature (the same failure on several pull requests
    lands on that one issue); if F passes there, it comments on the pull request so the round looks for a
    flaky test or a cause in it. This is `exonerate()` of `tools/test-ledger.mjs` moved onto master's code.
    It costs one file's run per test per base.
-4. Still failing, whatever the store says: a test the pull request touched (rule 1), a crash, an unhandled
+5. Still failing, whatever the store says: a test file the pull request changed (rule 1), a crash, an unhandled
    error, a coverage or build failure (none is a test failure the judge sees), any GPU family
    (`webgpu-graph-algorithms*`), and the screenshot gate.
 
@@ -335,7 +341,8 @@ The Worker holds the list and computes it; workflows file its issues (2.1).
   failure prints `[QUARANTINED] ... issue #N` with a warning annotation and does not fail the job. Never
   for `webgpu-graph-algorithms*` families or the screenshot gate (the rules of `checkQuarantine()` in
   `tools/test-ledger.mjs`, now enforced by the Worker).
-- **Leaves** when its issue closes (release.yml's `pick` posts closed quarantine issues every run),
+- **Leaves** when its issue closes (every master-evidence run of the entry's family -- each full run's test job of that family -- posts the
+  closed issues the store names back to it, so an entry leaves at the next full run after its issue closes),
   after 20 consecutive passing evidence verdicts, or after 14 days (the owner's rules of 2026-10-22),
   each computed when the plan is read.
 - **With no plan nothing is quarantined,** so the failure fails the job: stricter, never looser.
@@ -368,16 +375,15 @@ failure event, one try (the full run's plan read gets one retry, 5.3). Unknown m
 
 - **Plan unavailable** (Worker or D1 down, slow, erroring): empty plan, so no reuse, no quarantine, no
   excuse. The job summary says `results service unreachable: ran everything, applied no quarantine`.
-- **Record unavailable:** written to `test-results/results-spool/<id>.json` and uploaded as artifact
-  `results-spool-<job>`. A `Results backfill` job at the end of `ci.yml` (`if: always()`, not required,
-  about 20 seconds) re-posts them. Still down: that history is lost, so later runs only reuse less.
+- **Record unavailable:** after its retries the record is lost, and the job log says so; later runs only
+  reuse less. A store that never answered (or answered 5xx) is not asked for the group's later records; one
+  that refused a record is. There is no spool and no backfill (#7266).
 - **Failure event lost:** the record carries it; only the early bisect start is lost.
 - **Job killed before its record:** its events are stored and read as `infra` (5.2).
-- **Duplicate post** (a retried step, a backfill): `INSERT OR IGNORE` on the id.
+- **Duplicate post** (a retried request or step): `INSERT OR IGNORE` on the id; the re-post is judged again,
+  so the answer whose first copy was lost still names the flaky tests to file.
 - **No OIDC token** (a fork, a missing permission, a run Dependabot triggered, which gets a read-only
-  token and no `id-token: write`): nothing read, empty plan, the record spooled; the `Results backfill`
-  job of a Dependabot run cannot post either, so `results-backfill.yml` (on `workflow_run`, master's
-  ref) posts spooled records of such runs as kind `pr`. Reason in the summary.
+  token and no `id-token: write`): nothing read, empty plan, no record. Reason in the summary.
 - **GitHub down for issues or dispatch:** the acting job fails and says so; a red verdict with no
   bisect record shows in `GET /v1/status`, and the pipeline round dispatches it.
 - **Lost or damaged database:** D1 Time Travel restores any minute of the last 30 days. Nothing is

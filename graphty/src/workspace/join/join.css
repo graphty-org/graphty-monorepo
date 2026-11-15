@@ -140,3 +140,15 @@
     display: inline-flex;
     color: var(--cm-text-warning);
 }
+
+/* A row the join adds nothing from: its tag says so, quietly. */
+.jn-fate {
+    color: var(--cm-text-secondary);
+    font-style: italic;
+}
+
+/* An unchecked choice keeps the check's room, so the words line up. */
+.jn-check-room {
+    display: inline-block;
+    width: 14px;
+}

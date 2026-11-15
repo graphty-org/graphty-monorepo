@@ -5,6 +5,7 @@ import { defineOptions, type OptionsSchema as ZodOptionsSchema } from "../config
 import type { ResultElementValues } from "../session/results";
 import { caveat, noted } from "../session/runs/caveatFacts";
 import { Algorithm } from "./Algorithm";
+import type { SimplifyPolicy } from "./input/derivedInputs";
 import type { ScopeInputDeclaration } from "./input/ScopedInput";
 import { walkInChunks } from "./metrics/context";
 import { nodeMetricFields } from "./metrics/fields";
@@ -56,14 +57,20 @@ const CLOSENESS_FIELDS: readonly FieldDescriptor[] = nodeMetricFields({
  * the estimate; multiply by `k / n` for an estimate of the exact value.
  */
 export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptions> {
-    static namespace = "graphty";
-    static type = "closeness";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "closeness";
     /** Computes over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
+    /**
+     * The weight this algorithm reads: a distance; see `Algorithm.weightMeaning`. Only when the
+     * run's `weight` option names one: a run without it counts edges, as closeness always has.
+     */
+    static readonly weightMeaning = "distance" as const;
+    static readonly loadedWeightByDefault: boolean = false;
 
-    static zodOptionsSchema: ZodOptionsSchema = closenessOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = closenessOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         k: {
             type: "integer",
             default: null,
@@ -85,6 +92,16 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
     }
 
     /**
+     * A weighted run reads a group of parallel edges as its cheapest edge, the shortest way
+     * between the two nodes; an unweighted run merges them as every run does.
+     * @returns `"min"` when the run reads a weight, else the default.
+     * @internal
+     */
+    override parallelEdgePolicy(): SimplifyPolicy | undefined {
+        return this.weightReading().weight === null ? super.parallelEdgePolicy() : "min";
+    }
+
+    /**
      * Score every node by how short its paths to the rest of the graph are.
      * @param context - Where progress goes and where cancellation arrives.
      * @param nodeIds - The nodes to measure.
@@ -93,6 +110,7 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
     protected async measure(context: MetricRunContext, nodeIds: readonly NodeId[]): Promise<MetricMeasurement> {
         const { k } = this.schemaOptions;
         const sampled = k !== null;
+        const weighted = this.weightReading().weight !== null;
 
         // Undirected: closeness here measures distance, which ignores the declared direction. An
         // exact run is too slow on the device above the cap, so it stays on the CPU port there.
@@ -105,27 +123,27 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
         const drawn = k === null ? undefined : Math.min(k, snapshot.nodeCount);
 
         context.report({
-            phase: "measuring distances",
+            phase: "measuring-distances",
             completed: 0,
             total: nodeIds.length,
-            message: sampled
-                ? "A breadth-first search runs from every sampled source."
-                : "A breadth-first search runs from every node.",
+            params: { sampled },
         });
         // One synchronous call into `@graphty/algorithms`, which cannot be interrupted from here.
         // The element's own half -- reading the scores back out -- is chunked below.
         const { value, precision } = await run((dispatch, s) =>
-            dispatch.closenessCentrality(s, sampled ? { k: drawn } : undefined),
+            dispatch.closenessCentrality(s, sampled ? { k: drawn, weighted } : { weighted }),
         );
         context.signal.throwIfAborted();
 
         const nodes: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
+        await walkInChunks(nodeIds, context, "reading-scores", (nodeId) => {
             const score = value.scores[snapshot.ids.indexOf(nodeId)];
             nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
         });
 
-        const facts = [caveat("closeness.hop-distances"), caveat("closeness.reciprocal")];
+        // A weighted distance is stated by `caveats.weight`; an unweighted one counts edges.
+        const facts = [...(weighted ? [] : [caveat("closeness.hop-distances")]), caveat("closeness.reciprocal")];
+        const method = weighted ? "closeness-dijkstra" : "closeness-bfs";
 
         return {
             nodes,
@@ -135,9 +153,9 @@ export class ClosenessCentralityAlgorithm extends MetricAlgorithm<ClosenessOptio
                 exact: !sampled,
                 ...(sampled ? { sampleSize: value.sourcesUsed } : {}),
                 direction: "undirected",
-                weight: null,
+                ...this.weightCaveats(),
                 precision,
-                method: sampled ? "closeness-bfs-sampled" : "closeness-bfs",
+                method: sampled ? `${method}-sampled` : method,
                 ...noted([
                     sampled
                         ? caveat("closeness.sampled", { sources: value.sourcesUsed, nodes: snapshot.nodeCount })

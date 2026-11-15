@@ -20,11 +20,19 @@ import { parseArgs } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { badTargets, bisectStep, classify, CONFIRM_RUNS, parentFails, short, targetsOf } from "./bisect-core.mjs";
+import { familyOf } from "./test-ledger.mjs";
 
 const ROOT = process.env.BISECT_ROOT || join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Rounds one bisect may take: a point that never reports (its job lost before it wrote a result) is not retried forever. */
 export const MAX_ROUNDS = 12;
+
+/**
+ * Times one point may end with no result (its job lost, cancelled or cut off before it wrote one) before the bisect
+ * stops: each such run of an LLM or T4 point is paid for, and a point that keeps ending the same way would otherwise
+ * be tested again every round until MAX_ROUNDS (#5062).
+ */
+export const MAX_LOST = 2;
 
 /** What graphty-element's AI code is: an LLM bisect tests only merges that touched it (section 5). */
 export const AI_PATHS = ["graphty-element/src/ai", "graphty-element/test/ai", "pnpm-lock.yaml"];
@@ -37,9 +45,11 @@ export const T4_POINT_MINUTES = 80;
  * Per lane: points per round (the matrix's max-parallel, or 1 for a lane workflow, whose points run one after
  * another), confirming runs on the red commit (0: the lane's red is taken as one consistent run), runs per point,
  * runs of a culprit's parent for a newly intermittent test, and whether an intermittent failure is bisected.
+ * `minutes` (ci and LLM points): the most one run of a shard may take, the lane's own job timeout in the full run
+ * (ci.yml's Test job by ci-budgets.json, release.yml's LLM regression job); a run past it fails, as it would there.
  */
 export const LANES = {
-    ci: { width: 8, confirm: CONFIRM_RUNS, runs: CONFIRM_RUNS, rateParent: 20, intermittent: true },
+    ci: { width: 8, confirm: CONFIRM_RUNS, runs: CONFIRM_RUNS, rateParent: 20, intermittent: true, minutes: 30 },
     llm: {
         width: 8,
         confirm: 2,
@@ -48,6 +58,7 @@ export const LANES = {
         intermittent: false,
         paths: AI_PATHS,
         shard: "llm-regression",
+        minutes: 40,
     },
     gpu: { width: 1, confirm: 0, runs: 1, rateParent: 1, intermittent: false, dir: "webgpu-graph-algorithms/" },
     hosts: { width: 1, confirm: 0, runs: 1, rateParent: 1, intermittent: false, dir: "webgpu-graph-algorithms/" },
@@ -256,9 +267,31 @@ export function judge(s, results) {
     s = structuredClone(s);
     for (const r of results) addResult(s, r);
     s.round = (s.round ?? 1) + 1;
+    const reported = new Set(
+        results.filter((r) => !("status" in r) || ["success", "failure"].includes(r.status)).map((r) => r.sha),
+    );
+    s.lost ??= {};
+    for (const sha of s.next?.points ?? []) if (!reported.has(sha)) s.lost[sha] = (s.lost[sha] ?? 0) + 1;
+    const stuck = Object.keys(s.lost).find((sha) => s.lost[sha] >= MAX_LOST);
+    if (stuck)
+        return finish(s, {
+            culprit: null,
+            noLanding: `point ${short(stuck)} ended with no result ${s.lost[stuck]} times`,
+        });
     if (s.round > MAX_ROUNDS) return finish(s, { culprit: null, noLanding: `no answer after ${MAX_ROUNDS} rounds` });
     if (confirm && !s.results[s.bad]) return s; // the confirming job was lost before it reported: confirm again
-    return confirm ? afterConfirm(s) : decide(s);
+    return shortPoints(s, results) ?? (confirm ? afterConfirm(s) : decide(s));
+}
+
+// A point whose job ran out of time reported fewer runs than the round asked (runPoint's deadline): it is run
+// again for the rest before anything is judged on it, so an intermittent target is never read from too few runs.
+// ponytail: one `runs` per round, so every short point gets the largest shortfall; a per-point count if it matters.
+function shortPoints(s, results) {
+    const asked = s.next?.runs ?? 0;
+    const short = results.filter((r) => !("status" in r) && r.runs < asked);
+    if (!short.length) return null;
+    const runs = Math.max(...short.map((r) => asked - r.runs));
+    return { ...s, next: { ...s.next, points: [...new Set(short.map((r) => r.sha))], runs } };
 }
 
 /**
@@ -269,46 +302,103 @@ export function judge(s, results) {
  * @returns arguments for tools/run-tests.sh, or null when the shard does not exist at the point
  */
 export async function runArgs(shard, files) {
-    if (shard === "llm-regression")
-        return [
-            "--command",
-            "graphty-element-default",
-            `cd graphty-element && pnpm exec vitest run --project llm-regression ${files.map(quote).join(" ")}`.trimEnd(),
-        ];
     const at = (f) => import(pathToFileURL(join(ROOT, f)).href).catch(() => ({}));
     const { SHARDS = [] } = await at("tools/ci-test-matrix.mjs");
+    if (shard === "llm-regression") {
+        // runs in a graphty-element-default shard under that point's own name (one shard before #7849, parts after)
+        const host = SHARDS.find((x) => familyOf(x.shard) === "graphty-element-default");
+        if (!host) return null;
+        return [
+            "--command",
+            host.shard,
+            `cd graphty-element && pnpm exec vitest run --project llm-regression ${files.map(quote).join(" ")}`.trimEnd(),
+        ];
+    }
     const { selectedCommand } = await at("tools/test-select.mjs");
-    const entry = SHARDS.find((x) => x.shard === shard);
+    // a test recorded under a shard since split into parts (graphty-element-default became -1 and -2, #7849) runs
+    // its files in a part of the same family: a selection runs the family's files whatever the part
+    const entry =
+        SHARDS.find((x) => x.shard === shard) ??
+        (files.length ? SHARDS.find((x) => familyOf(x.shard) === familyOf(shard)) : undefined);
     if (!entry) return null;
     // a point older than the selector runs the whole shard
     const command = files.length && selectedCommand ? selectedCommand(ROOT, entry, files) : null;
-    return command ? ["--command", shard, command] : [shard];
+    return command ? ["--command", entry.shard, command] : [entry.shard];
 }
+
+// One run of tools/run-tests.sh, stopped after `ms`. coreutils timeout signals the run's whole process group
+// (vitest and its browsers too) and exits 124. A run still alive a minute later gets SIGKILL, which kills timeout
+// too (it is in that group): spawnSync then reports signal SIGKILL (a shell would say 137), not 124. A run that
+// killed itself with SIGKILL looks the same, so a SIGKILL is read as timed out only once `ms` has passed.
+// Returns 124 for a run that timed out either way. A run `cut` to the job's deadline is reported by runPoint instead.
+function runLimited(spawn, ms, args, what, cut = false, now = Date.now) {
+    const limit = cut ? `${ms / 1000}s` : `${ms / 60_000}m`;
+    const command = ["--kill-after=1m", limit, join(ROOT, "tools/run-tests.sh"), ...args];
+    const start = now();
+    const { status, signal } = spawn("timeout", command, { cwd: ROOT, stdio: "inherit" });
+    const killed = (signal === "SIGKILL" || status === 137) && now() - start >= ms;
+    const code = killed ? 124 : status;
+    if (code === 124 && !cut) console.log(`::warning::${what}: no result in the lane's ${limit}; failed`);
+    return code;
+}
+
+const KILL_AFTER_MS = 60_000; // runLimited's --kill-after
 
 /**
  * Runs the round's targets `runs` times on this checkout; a failed run of a shard fails each of its targets.
  * A target whose file or shard does not exist at the point (a later merge adds or renames it) passes there:
  * vitest would fail on "no test files", or the run would throw and write no result, so every point before
  * that merge would read as bad, or be lost and picked again every round.
+ * A run past the lane's `minutes` is stopped and fails its targets, as the lane's job timeout fails the full run,
+ * so the point writes a result instead of holding its job to bisect.yml's timeout and being picked again.
+ * `deadline` is when the point's job must have its result: `runs` runs of every shard at up to the lane's
+ * `minutes` each can pass bisect.yml's job timeout (5 runs of 3 shards, #5845), which wrote no result and lost the
+ * point. A run the deadline cuts short is not a failure: its round of runs is dropped and the point reports the
+ * rounds it finished, so `runs` may be fewer than asked (judge runs the point again for the rest) or 0.
  * ponytail: judged by the exit code, not per test; read the shard's JUnit when two targets share a shard.
  * @param s the state
  * @param sha the point
  * @param runs how many runs
  * @param [spawn] spawnSync, or a stand-in
  * @param [exists] whether a repo-relative file exists at the point
+ * @param [deadline] epoch ms by which every run must have ended
+ * @param [now] the clock
  * @returns the point's result
  */
-export async function runPoint(s, sha, runs, spawn = spawnSync, exists = (f) => existsSync(join(ROOT, f))) {
+export async function runPoint(
+    s,
+    sha,
+    runs,
+    spawn = spawnSync,
+    exists = (f) => existsSync(join(ROOT, f)),
+    deadline = Infinity,
+    now = Date.now,
+) {
     const targets = (s.next.confirm ? s.targets : s.followed).filter((t) => !t.file || exists(t.file));
     const byShard = Map.groupBy(targets, (t) => t.shard ?? "");
-    const r = { sha, runs, failed: {} };
-    for (let i = 0; i < runs; i++)
+    const laneMs = (LANES[s.lane] ?? LANES.ci).minutes * 60_000;
+    const r = { sha, runs: 0, failed: {} };
+    for (let i = 0; i < runs; i++) {
+        const failed = {};
         for (const [shard, ts] of byShard) {
             const args = await runArgs(shard, [...new Set(ts.map((t) => t.file).filter(Boolean))]);
             if (!args) continue;
-            const code = spawn(join(ROOT, "tools/run-tests.sh"), args, { cwd: ROOT, stdio: "inherit" }).status;
-            if (code !== 0) for (const t of ts) r.failed[t.id] = (r.failed[t.id] ?? 0) + 1;
+            const left = deadline - now() - KILL_AFTER_MS;
+            const cut = left < laneMs;
+            if (cut && left < 60_000) return outOfTime(r, runs, sha);
+            const ms = cut ? Math.floor(left / 1000) * 1000 : laneMs;
+            const code = runLimited(spawn, ms, args, `${short(sha)} ${shard}`, cut, now);
+            if (cut && code === 124) return outOfTime(r, runs, sha);
+            if (code !== 0) for (const t of ts) failed[t.id] = (failed[t.id] ?? 0) + 1;
         }
+        for (const [id, n] of Object.entries(failed)) r.failed[id] = (r.failed[id] ?? 0) + n;
+        r.runs++;
+    }
+    return r;
+}
+
+function outOfTime(r, runs, sha) {
+    console.log(`::warning::${short(sha)}: the job's time ran out after ${r.runs} of ${runs} runs`);
     return r;
 }
 
@@ -382,7 +472,11 @@ async function main() {
     }
     if (cmd === "run") {
         const s = read(v.state);
-        const r = await runPoint(s, v.sha, s.next.runs);
+        // POINT_DEADLINE (epoch s, bisect.yml): when the job must have its result
+        const deadline = env.POINT_DEADLINE ? Number(env.POINT_DEADLINE) * 1000 : Infinity;
+        const r = await runPoint(s, v.sha, s.next.runs, spawnSync, undefined, deadline);
+        // no run finished: no result, so the point is lost and picked again, as a cancelled job's is
+        if (r.runs === 0) return;
         return writeFileSync(v.out, JSON.stringify(r));
     }
     if (cmd === "setup-failed") {

@@ -20,8 +20,9 @@ import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 import { Edge } from "../../src/Edge";
+import { pageDefaultFeatures, setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
-import type { UpdateManager } from "../../src/managers/UpdateManager";
+import { minimumWorkPerFrame, setMinimumWorkPerFrame } from "../../src/managers/minimumWork";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 import { Node } from "../../src/Node";
 import { dispatcherOf } from "../../src/session/GraphSession";
@@ -55,7 +56,7 @@ async function mount(size: number): Promise<Graphty> {
     await graph.addNodes(ids.map((id) => ({ id })));
     await graph.addEdges(ids.slice(1).map((id, at) => ({ source: ids[at], target: id })));
     await settled(graph);
-    updateManagerOf(graph).renderFrames(3);
+    graph.getUpdateManager().renderFrames(3);
     return element;
 }
 
@@ -68,15 +69,6 @@ async function settled(graph: Graph): Promise<void> {
     await graph.waitForSettled();
     await operationQueueOf(graph).waitForCompletion();
     await dispatcherOf(graph.getSession()).lane.settled();
-}
-
-/**
- * The graph's update manager, which the graph keeps private and its frame loop runs through.
- * @param graph - The graph.
- * @returns Its manager.
- */
-function updateManagerOf(graph: Graph): UpdateManager {
-    return (graph as unknown as { updateManager: UpdateManager }).updateManager;
 }
 
 /** How many times a prototype method was called while a counter was installed. */
@@ -146,7 +138,7 @@ function drawing(
     call: () => unknown,
     check: () => void = () => undefined,
 ): { call: () => Promise<void>; check: () => void } {
-    const manager = updateManagerOf(graph);
+    const manager = graph.getUpdateManager();
     const before = manager.getRenderFrameCount();
     let drawn = -1;
     return {
@@ -219,7 +211,7 @@ async function hideEnds(graph: Graph): Promise<void> {
 const CASES: readonly Case[] = [
     {
         // A frame on a graph at rest walks no edge; what it still visits is every node, to find
-        // out whether one moved (`anyNodeMoved`), which is the floor the code documents.
+        // out whether one moved (`nodesMoved`), which is the floor the code documents.
         methods: ["Graph.update", "UpdateManager.update"],
         prepare: (element) =>
             Promise.resolve(
@@ -229,7 +221,7 @@ const CASES: readonly Case[] = [
                     () => element.graph.update(),
                     (count) => {
                         assert.strictEqual(count.calls, 0, "a frame at rest walks no edge");
-                        assert.isAbove(updateManagerOf(element.graph).getRenderFrameCount(), 3, "the pass ran");
+                        assert.isAbove(element.graph.getUpdateManager().getRenderFrameCount(), 3, "the pass ran");
                     },
                 ),
             ),
@@ -237,7 +229,7 @@ const CASES: readonly Case[] = [
     {
         methods: ["UpdateManager.stepFrames"],
         prepare: (element) => {
-            const manager = updateManagerOf(element.graph);
+            const manager = element.graph.getUpdateManager();
             return Promise.resolve(
                 drawing(element.graph, 0, 3, () => {
                     manager.stepFrames(3);
@@ -248,7 +240,7 @@ const CASES: readonly Case[] = [
     {
         methods: ["UpdateManager.renderFrames"],
         prepare: (element) => {
-            const manager = updateManagerOf(element.graph);
+            const manager = element.graph.getUpdateManager();
             return Promise.resolve(
                 drawing(element.graph, 3, 3, () => {
                     manager.renderFrames(3);
@@ -271,7 +263,7 @@ const CASES: readonly Case[] = [
     {
         methods: ["UpdateManager.forceEdgeWalk"],
         prepare: (element, size) => {
-            const manager = updateManagerOf(element.graph);
+            const manager = element.graph.getUpdateManager();
             return Promise.resolve(
                 counting(
                     Edge.prototype,
@@ -290,7 +282,7 @@ const CASES: readonly Case[] = [
     {
         methods: ["UpdateManager.redrawArrangement"],
         prepare: (element, size) => {
-            const manager = updateManagerOf(element.graph);
+            const manager = element.graph.getUpdateManager();
             return Promise.resolve(
                 counting(
                     Node.prototype,
@@ -308,7 +300,7 @@ const CASES: readonly Case[] = [
     {
         methods: ["UpdateManager.invalidateViewMasks"],
         prepare: (element, size) => {
-            const manager = updateManagerOf(element.graph);
+            const manager = element.graph.getUpdateManager();
             return Promise.resolve(
                 counting(
                     Node.prototype,
@@ -328,7 +320,7 @@ const CASES: readonly Case[] = [
         methods: ["UpdateManager.bindViewMasks"],
         prepare: async (element, size) => {
             await hideEnds(element.graph);
-            const manager = updateManagerOf(element.graph);
+            const manager = element.graph.getUpdateManager();
             manager.update();
             const first = element.graph.getNode("n0");
             assert.strictEqual(first?.getRenderState(), "hidden", "the filter hid the end of the path");
@@ -351,7 +343,7 @@ const CASES: readonly Case[] = [
         methods: ["UpdateManager.syncViewMasks"],
         prepare: async (element, size) => {
             await hideEnds(element.graph);
-            const manager = updateManagerOf(element.graph);
+            const manager = element.graph.getUpdateManager();
             return counting(
                 Node.prototype,
                 "setRenderState",
@@ -375,7 +367,7 @@ const CASES: readonly Case[] = [
             await settled(graph);
             const painter = graph.getStylePainter();
             assert.isTrue(painter.hasPending, "the repaint is waiting for the next pass");
-            const manager = updateManagerOf(graph);
+            const manager = graph.getUpdateManager();
             return counting(
                 Node.prototype,
                 "applySessionPaint",
@@ -399,7 +391,7 @@ const CASES: readonly Case[] = [
             await settled(graph);
             const painter = graph.getStylePainter();
             assert.isTrue(painter.hasPending, "the repaint is waiting for the next pass");
-            const manager = updateManagerOf(graph);
+            const manager = graph.getUpdateManager();
             return counting(
                 Node.prototype,
                 "applySessionPaint",
@@ -424,7 +416,7 @@ const CASES: readonly Case[] = [
             );
             await route;
             await settled(graph);
-            updateManagerOf(graph).update();
+            graph.getUpdateManager().update();
             let kinds: string[] = [];
             const painting = counting(
                 Node.prototype,
@@ -433,7 +425,7 @@ const CASES: readonly Case[] = [
                     const layers = await graph.getSession().styles.highlight({ run: route.id });
                     kinds = layers.map((layer) => `${layer.target} ${layer.kind}`);
                     await settled(graph);
-                    updateManagerOf(graph).update();
+                    graph.getUpdateManager().update();
                 },
                 (count) => {
                     assert.deepStrictEqual(kinds, ["node highlight", "edge highlight"], "both halves highlighted");
@@ -454,7 +446,7 @@ const CASES: readonly Case[] = [
             );
             await route;
             await settled(graph);
-            updateManagerOf(graph).update();
+            graph.getUpdateManager().update();
             let kinds: string[] = [];
             return counting(
                 Node.prototype,
@@ -465,7 +457,7 @@ const CASES: readonly Case[] = [
                         .styles.mark({ run: route.id, set: { "node.color": "#D55E00", "edge.color": "#D55E00" } });
                     kinds = layers.map((layer) => `${layer.target} ${layer.kind}`);
                     await settled(graph);
-                    updateManagerOf(graph).update();
+                    graph.getUpdateManager().update();
                 },
                 (count) => {
                     assert.deepStrictEqual(kinds, ["node encoding", "edge encoding"], "both halves marked");
@@ -482,7 +474,7 @@ const CASES: readonly Case[] = [
                 .getSession()
                 .styles.add({ name: "Labels", selector: { match: "everything" }, set: { "node.label": "x" } });
             await settled(graph);
-            updateManagerOf(graph).renderFrames(1);
+            graph.getUpdateManager().renderFrames(1);
             return counting(
                 RichTextLabel.prototype,
                 "startAnimation",
@@ -498,7 +490,7 @@ const CASES: readonly Case[] = [
     {
         methods: ["UpdateManager.meshesAdded"],
         prepare: async (element) => {
-            const manager = updateManagerOf(element.graph);
+            const manager = element.graph.getUpdateManager();
             // The layout settles, and the shaders compile in the background, a few frames on.
             await vi.waitFor(() => {
                 element.graph.update();
@@ -525,7 +517,7 @@ const CASES: readonly Case[] = [
         methods: ["UpdateManager.rebindScene"],
         prepare: (element) => {
             const { graph } = element;
-            const manager = updateManagerOf(graph);
+            const manager = graph.getUpdateManager();
             const { observers } = graph.scene.onAfterRenderObservable;
             let added = 0;
             return Promise.resolve(
@@ -549,7 +541,7 @@ const CASES: readonly Case[] = [
     {
         methods: ["UpdateManager.updateConfig"],
         prepare: (element) => {
-            const manager = updateManagerOf(element.graph);
+            const manager = element.graph.getUpdateManager();
             return Promise.resolve(
                 drawing(element.graph, 1, 1, () => {
                     manager.updateConfig({ layoutStepMultiplier: 2 });
@@ -570,7 +562,7 @@ const CASES: readonly Case[] = [
                     1,
                     () => {
                         data.updateStyles(graph.styles);
-                        updateManagerOf(graph).renderFrames(1);
+                        graph.getUpdateManager().renderFrames(1);
                     },
                     () => {
                         assert.strictEqual((data as unknown as { styles: unknown }).styles, graph.styles);
@@ -591,7 +583,7 @@ const CASES: readonly Case[] = [
                     1,
                     () => {
                         layout.updateStyles(graph.styles);
-                        updateManagerOf(graph).renderFrames(1);
+                        graph.getUpdateManager().renderFrames(1);
                     },
                     () => {
                         assert.strictEqual((layout as unknown as { styles: unknown }).styles, graph.styles);
@@ -619,7 +611,7 @@ const CASES: readonly Case[] = [
                         before = [...element.renderRoot.childNodes];
                         element.requestUpdate();
                         await element.updateComplete;
-                        updateManagerOf(element.graph).renderFrames(1);
+                        element.graph.getUpdateManager().renderFrames(1);
                     },
                     () => {
                         assert.instanceOf(rendered, Element, "render returns the graph container");
@@ -689,7 +681,7 @@ describe("a repaint of every node", () => {
             await settled(graph);
             const painter = graph.getStylePainter();
             assert.isTrue(painter.hasPending, "the repaint is waiting for the next frame");
-            const manager = updateManagerOf(graph);
+            const manager = graph.getUpdateManager();
 
             const perFrame: number[] = [];
             while (painter.hasPending && perFrame.length < size) {
@@ -705,6 +697,95 @@ describe("a repaint of every node", () => {
             assert.deepStrictEqual(perFrame, [128, 128, 128, 16], "every node once, one batch of 128 a frame");
             assert.isFalse(painter.hasPending, "and nothing is left to paint");
         } finally {
+            element.remove();
+        }
+    });
+
+    // The walk that ends a repaint is owed by whichever kind of element the repaint painted, so a
+    // repaint of one kind has to bring it alone. The timeline is switched off here, because the
+    // features-on projects switch every experiment on.
+    for (const [kind, spec] of [
+        ["nodes", { target: "node", set: { "node.color": "#123456" } }],
+        ["edges", { target: "edge", set: { "edge.color": "#123456" } }],
+    ] as const) {
+        it(`visits every edge once, on the last frame, after a repaint of only ${kind}`, async () => {
+            const size = 400;
+            const minimumWork = minimumWorkPerFrame();
+            const features = pageDefaultFeatures();
+            setDefaultFeatures([]);
+            const element = await mount(size);
+            try {
+                const { graph } = element;
+                assert.notInclude(graph.getSession().features.enabled, "timeline");
+                const painter = graph.getStylePainter();
+                const manager = graph.getUpdateManager();
+                // The load painted both kinds, and what is left of it would be part of this repaint.
+                manager.syncStyles(Number.POSITIVE_INFINITY);
+                assert.isFalse(painter.hasPending, "the load is drawn");
+                setMinimumWorkPerFrame(true);
+                await graph.getSession().styles.add({ name: "One kind", selector: { match: "everything" }, ...spec });
+                await settled(graph);
+                const walk = vi.spyOn(manager, "forceEdgeWalk");
+
+                let frames = 0;
+                while (painter.hasPending && frames < size) {
+                    assert.strictEqual(walk.mock.calls.length, 0, "no walk before the repaint is drawn");
+                    manager.syncStyles(0);
+                    frames++;
+                }
+
+                assert.isAbove(frames, 1, "the repaint was spread over frames");
+                assert.strictEqual(walk.mock.calls.length, 1);
+            } finally {
+                vi.restoreAllMocks();
+                setMinimumWorkPerFrame(minimumWork);
+                setDefaultFeatures(features);
+                element.remove();
+            }
+        });
+    }
+
+    // A load paints every element, over as many frames as the graph needs, and draws nothing until
+    // the last one. Visiting every edge on each of those frames cost a 100,000-node, 1,000,000-edge
+    // load about a thousand walks of a million edges: 190-436 s, where the paint itself took 30 s.
+    it("visits each edge a fixed number of times, however many frames it is spread over", async () => {
+        const size = 400;
+        const edges = size - 1;
+        const minimumWork = minimumWorkPerFrame();
+        setMinimumWorkPerFrame(true);
+        const element = await mount(size);
+        const visits = countCalls(Edge.prototype, "update");
+        try {
+            const { graph } = element;
+            const { styles } = graph.getSession();
+            await styles.add({ name: "Boxes", selector: { match: "everything" }, set: { "node.shape": "box" } });
+            await styles.add({
+                name: "No arrows",
+                target: "edge",
+                selector: { match: "everything" },
+                set: { "edge.arrowHead": "none" },
+            });
+            await settled(graph);
+            const painter = graph.getStylePainter();
+            const manager = graph.getUpdateManager();
+            visits.count.calls = 0;
+
+            let frames = 0;
+            while (painter.hasPending && frames < size) {
+                manager.update(16);
+                frames++;
+            }
+            manager.update(16);
+
+            assert.isFalse(painter.hasPending, "the whole repaint was applied");
+            assert.isAtLeast(frames, 100, "and spread over a frame for each small batch of nodes");
+            // a straight pulled line is drawn from its rows and never placed (`Edge.followsRows`, "batched")
+            const placed = [...graph.getDataManager().edges.values()].filter((edge) => !edge.followsRows).length;
+            assert.isAtLeast(visits.count.calls, placed, "every placed edge was visited");
+            assert.isAtMost(visits.count.calls, 8 * edges, "a fixed number of visits per edge, not one a frame");
+        } finally {
+            visits.restore();
+            setMinimumWorkPerFrame(minimumWork);
             element.remove();
         }
     });

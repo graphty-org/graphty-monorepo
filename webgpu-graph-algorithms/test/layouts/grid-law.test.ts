@@ -5,8 +5,8 @@
  * exact tier's (K3 with LAW 1 / 2, the P5 kernels) from the same start on the same adapter -- the whole repulsion
  * (the force after the repulsion stage minus the force after K2: the floored per-node error's RMS and p99) and, on
  * random20k, the far field alone (G6 against an f64 pair sum over the pairs outside the 3x3 on a node sample: the
- * whole-field relative error under the rms cap) -- under the FA2 caps of T11 (grid-exact.rms, grid-exact.p99; the
- * approximation is the same construction, so no new noise row), twice bitwise first; (2) the FR grid run on the story graph is finite and cools (the temperature
+ * whole-field relative error under the rms cap) -- under the spring models' own approximation tolerances
+ * (grid-law.rms, grid-law.p99: ForceAtlas2's caps over the spring-electrical model's floor), twice bitwise first; (2) the FR grid run on the story graph is finite and cools (the temperature
  * trace decreases); the spring grid run on the story graph settles by the shared 7.17 rule within 1,000 iterations
  * and cools rather than diverges (the exact tier's G5 gate item, test/layouts/se-settle.test.ts, on the grid tier;
  * the energy at the stop is printed, not capped: finding G5-F12); (3) the pipeline keys of the two runs carry LAW 1 / 2 on grid-far-field and grid-near-field; (4) "auto"
@@ -37,7 +37,6 @@ import { SE_BASE_OPTIONS } from "../helpers/se-parity.js";
 import { storyGraph } from "../helpers/story-graph.js";
 import { acquire, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 600_000;
 const MODELS: readonly LawModel[] = ["fr", "se"];
 /** The FR story-graph run: 200 iterations in batches of 10. */
 const STORY_ITERATIONS = 200;
@@ -151,10 +150,10 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
     for (const model of MODELS) {
         for (const name of LAW_FIXTURES) {
             for (const dim of [2, 3] as const) {
-                it(`(1) ${model}/${name}/${dim}d: the grid tier's repulsion, whole and far field alone, against its own exact tier's (LAW ${LAW_OF[model]}) under grid-exact.rms / grid-exact.p99, twice bitwise`, async (t) => {
+                it(`(1) ${model}/${name}/${dim}d: the grid tier's repulsion, whole and far field alone, against its own exact tier's (LAW ${LAW_OF[model]}) under grid-law.rms / grid-law.p99, twice bitwise`, async (t) => {
                     requireGpu(t);
-                    const rmsTolerance = gridTolerance("grid-exact.rms").value;
-                    const p99Tolerance = gridTolerance("grid-exact.p99").value;
+                    const rmsTolerance = gridTolerance("grid-law.rms").value;
+                    const p99Tolerance = gridTolerance("grid-law.p99").value;
                     const { snapshot: s, start } = lawFixture(name);
                     try {
                         const label = `${model}/${name}/${dim}d/n=${s.nodeCount}`;
@@ -195,7 +194,7 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
         }
     }
 
-    it("writes the spring-electrical widening members of grid-exact.rms / grid-exact.p99 on the UNSCALED random20k in 2D (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+    it("writes the spring-electrical members of grid-law.rms / grid-law.p99 on the UNSCALED random20k in 2D (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
         if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
             // the unscaled exact tier costs minutes on lavapipe; test/noise-floor.test.ts checks the committed fixtures
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");
@@ -249,42 +248,37 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
         }
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 18 s on lavapipe on the dev box under load, 14 s on CI's lavapipe, more than a third of the 30 s budget; tracked in #1636
-    it(
-        `(2, 3) the spring grid run on the story graph settles within ${MAX_STEPS} iterations cooler than its first batch, finite, twice bitwise; its pipeline keys carry LAW 2 on grid-far-field and grid-near-field`,
-        async (t) => {
-            requireGpu(t);
-            const s = storyGraph();
-            try {
-                const a = await seStoryRun(ctx, s, LAW_GRID_TUNING);
-                const b = await seStoryRun(ctx, s, LAW_GRID_TUNING);
-                expectBitwiseEqual(a.positions, b.positions, "se/story: run 1 vs run 2");
-                expectFinite(a.positions, "se/story");
-                console.warn(
-                    `[grid-law] se/story: settled ${a.settled} at ${a.iterationsDone} iterations; kineticEnergy first batch ${a.firstBatchEnergy.toExponential(3)}, stop ${a.lastEnergy.toExponential(3)}`,
-                );
-                expect(a.settled, "settled by the shared rule").toBe(true);
-                expect(a.iterationsDone).toBeLessThan(MAX_STEPS);
-                expect(a.firstBatchEnergy).toBeGreaterThan(0);
-                expect(Number.isFinite(a.lastEnergy)).toBe(true);
-                // Not capped at a 100x fall (finding G5-F12, docs/decisions/G5.md): the 7.17 rule stops the run on mean
-                // DISPLACEMENT while the kinetic energy still swings over one to two orders of magnitude, so the fall at
-                // the stop depends on where in the swing the rule fires. Dawn on D3D12 WARP settles this run at 376
-                // iterations at 1.947 from 158.3 (81x); NVIDIA T4 at 640 (226x), Metal at 664 (308x).
-                expect(a.lastEnergy, "the run cooled rather than diverged").toBeLessThan(a.firstBatchEnergy);
-                const keys = ctx.pipelines.keys();
-                for (const id of ["grid-far-field", "grid-near-field"]) {
-                    expect(
-                        keys.some((k) => k.startsWith(`${id}|`) && k.includes('"LAW":2')),
-                        `${id} compiled with LAW 2`,
-                    ).toBe(true);
-                }
-            } finally {
-                ctx.release(s);
+    it(`(2, 3) the spring grid run on the story graph settles within ${MAX_STEPS} iterations cooler than its first batch, finite, twice bitwise; its pipeline keys carry LAW 2 on grid-far-field and grid-near-field`, async (t) => {
+        requireGpu(t);
+        const s = storyGraph();
+        try {
+            const a = await seStoryRun(ctx, s, LAW_GRID_TUNING);
+            const b = await seStoryRun(ctx, s, LAW_GRID_TUNING);
+            expectBitwiseEqual(a.positions, b.positions, "se/story: run 1 vs run 2");
+            expectFinite(a.positions, "se/story");
+            console.warn(
+                `[grid-law] se/story: settled ${a.settled} at ${a.iterationsDone} iterations; kineticEnergy first batch ${a.firstBatchEnergy.toExponential(3)}, stop ${a.lastEnergy.toExponential(3)}`,
+            );
+            expect(a.settled, "settled by the shared rule").toBe(true);
+            expect(a.iterationsDone).toBeLessThan(MAX_STEPS);
+            expect(a.firstBatchEnergy).toBeGreaterThan(0);
+            expect(Number.isFinite(a.lastEnergy)).toBe(true);
+            // Not capped at a 100x fall (finding G5-F12, docs/decisions/G5.md): the 7.17 rule stops the run on mean
+            // DISPLACEMENT while the kinetic energy still swings over one to two orders of magnitude, so the fall at
+            // the stop depends on where in the swing the rule fires. Dawn on D3D12 WARP settles this run at 376
+            // iterations at 1.947 from 158.3 (81x); NVIDIA T4 at 640 (226x), Metal at 664 (308x).
+            expect(a.lastEnergy, "the run cooled rather than diverged").toBeLessThan(a.firstBatchEnergy);
+            const keys = ctx.pipelines.keys();
+            for (const id of ["grid-far-field", "grid-near-field"]) {
+                expect(
+                    keys.some((k) => k.startsWith(`${id}|`) && k.includes('"LAW":2')),
+                    `${id} compiled with LAW 2`,
+                ).toBe(true);
             }
-        },
-        CASE_TIMEOUT,
-    );
+        } finally {
+            ctx.release(s);
+        }
+    });
 
     it('(4) "auto" with exactMaxNodes 8 sends both models to the grid on karate (spec 7.8: by n alone)', async (t) => {
         requireGpu(t);

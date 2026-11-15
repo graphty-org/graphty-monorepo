@@ -97,16 +97,27 @@ lets a reader build the multi-field card ("+ field" inside any card), so "hide h
 
 ### Selection
 
-Select ignores visibility: it selects every match in the whole graph, visible or not. This keeps
-order out of it (adding keep then select, or select then keep, gives the same selection) and makes
-requirement 12 hold exactly: "with Select, 140 are selected" and the card counts 140. A selected
-element that is hidden stays selected, as it does today when a filter hides a selected node.
+Select selects only what is in the picture: the selection is the AND of every on select
+condition's matches, intersected with what the keep and exclude conditions (and the time window)
+leave visible. Why: "A filter step drops from the selection the ids it leaves out", and "what is
+ringed as selected and what the inspector describes never differ"
+(`design/ui/framework/interaction-patterns.md`, lines 321 and 333). Selecting hidden elements made
+the screen say "5 nodes selected" over 4 rings (tier 4 T65 pilots; team decision of 2026-10-29,
+`design/ui/studio/owner-decisions.md`). The result depends only on the set of conditions, never on
+their order: it is recomputed whenever the picture the conditions draw changes, so adding keep then
+select, or select then keep, gives the same selection.
 
-- **When it is applied.** Only when the select subset changes: a select condition is added, edited
-  (rule), switched on or off, removed, or a condition's effect enters or leaves `select`. Then the
-  selection becomes the AND of every on select condition's matches; with none on, the empty
-  selection (it replaces a selection the reader clicked; the docs say so). Keep and exclude edits,
-  `setSteps`, time-window moves and data loads never touch the selection.
+- **When it is applied.** When the select subset changes (a select condition is added, edited,
+  switched on or off, removed, or a condition's effect enters or leaves `select`), and when a keep or
+  exclude condition changes (including through `setSteps`) while a select condition is on. Then the
+  selection becomes the AND of every on select condition's matches among the visible elements; with
+  none on, the empty selection (it replaces a selection the reader clicked; the docs say so).
+  Time-window moves and data loads never touch the selection.
+- **A hand selection switches select conditions off.** When the reader changes the selection by hand
+  (cause `user`: a click on the canvas), every on select condition is switched off in one undoable
+  step and the reader's selection stays, so a card never claims a selection that is gone
+  (interaction-patterns.md line 321). Undo switches them back on and selects their matches again. A
+  selection a script sets (`selection.apply`, cause `api`) leaves them on.
 - **History.** The condition op's history step records the selection before and after (the
   selection has no history slice of its own today); undo and redo put that selection back.
 - **Never re-applied on restore.** Opening a project, replaying an autosave journal, applying a
@@ -138,6 +149,15 @@ nodes too; a Data source leaf reports both. The app shows the half that is not n
 edge chip), with no rule parsing. A rule on a column that does not resolve reports it in
 `unresolved` instead of a silent "0 of 900". The combined result stays the header chip's
 `140 of 900` (`visibility.summary`).
+
+One exception: a select condition counts what it would select. Unless every select condition that
+is on reads `within: "graph"` (an off card is judged as if it were on), the selection stays within
+what is drawn, so its count does too: `matched` is its rule's matches among the drawn elements and
+`total` is how many are drawn, on or off (the whole graph when nothing filters). It still holds
+whether the card is on or off and whatever the order, so an off card shows what switching it on
+would mark. When the selection reaches past the picture, and for every keep and exclude
+condition, the count is over the whole graph as above. A value list's per-value counts stay over
+the whole graph.
 
 ## 2. What today's steps become
 
@@ -199,7 +219,9 @@ New exported types: `FilterCondition`, `FilterConditionInput`, `FilterConditionC
   changes; a select-only change fires only `selection:changed` (section 1).
 - **Counts.** Synchronous like `summary` and `previewSteps`. Cached per condition, keyed by the
   canonical rule and the data revision: a count depends on neither effect, `on` nor the other
-  conditions, so one edited condition recomputes one count. Re-read on `visibility:changed` or
+  conditions, so one edited condition recomputes one count. A select count that stays within the
+  picture also keys on the drawn masks' version, so switching, editing, undoing or redoing a keep
+  or exclude condition recounts it. Re-read on `visibility:changed` or
   `history:changed` (a data load, a rename and every condition op are history steps).
 - **Select.** Applied inside the condition op's history step as
   `selection.apply({ scope: { define: { kind: "rule", where: all[on select rules] } } })` over the
@@ -501,5 +523,6 @@ a Select card, a Neighbors card and an old Hide step, reached by clicks in their
   unchanged, which is exact for every saved list (edge `ends` included) and makes steps ->
   conditions -> steps the identity. That also answers "Keep: has no value reads as Hide: has a
   value": it now reads back as itself.
-- **Select over visible elements.** Replaced by "Select ignores visibility" (order-free, matches
-  requirement 12's count), rather than recomputing on every keep change.
+- **Select over visible elements.** First replaced by "Select ignores visibility"; restored on
+  2026-10-29 by the team decision under "Selection": it is recomputed on every keep or exclude
+  change, which keeps it order-free, and the card's own count still says how many its rule matches.

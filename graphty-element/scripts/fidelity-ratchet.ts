@@ -2,9 +2,18 @@
  * Applies a style fidelity run to the committed records, in the same commit as the change that moved them:
  *
  * - takes off the known failures every element that passes now (one that is not measurable any more stays listed);
+ * - with `--prune`, also takes off a known failure that is not measurable because its element is gone from both
+ *   drawings (no property judges or fails it any more), or because its property is judged only on the drawing as a
+ *   whole now (an own-layout sample's `edge.curve`); one whose element is still drawn and judged one by one, or still
+ *   fails, stays;
  * - raises every recorded pass rate (the informational floors) to what the run measured, never lowering one;
  * - with `--add "<reason>"`, adds every element failing that the known failures do not list, and records the reason,
- *   the date and how many came from the drawing or from the comparator. Nothing is added without a reason.
+ *   the date and how many came from the drawing or from the comparator (`--keys` and `--properties` limit what is
+ *   added to those keys and properties). Nothing is added without a reason, and the reason names the issue tracking
+ *   it (`#1234`);
+ * - for the oracle scorecard, takes off an accepted drop (`drops` in the floors file) whose rate is back at its floor,
+ *   and with `--add "<reason>"` accepts every rate below its floor at the rate measured, with the reason. The floor
+ *   itself stays: it is the best the property has measured.
  *
  * It reads the verdicts the last run wrote: `tmp/oracle-report/gate.json` (the oracle scorecard,
  * `test/fidelity/oracle-report.test.ts`) into `test/fidelity/oracle-known-failures.json` and
@@ -12,12 +21,17 @@
  * `test/fidelity/fidelity.test.ts`) into `test/fidelity/baseline-scores.json`.
  *
  *     npm run fidelity:ratchet
- *     npm run fidelity:ratchet -- --add "why these elements fail now" [--keys <key>,<key>] [--suite oracle|drawn]
+ *     npm run fidelity:ratchet -- --add "why these elements fail now (#1234)" [--keys <key>,<key>] [--properties <p>,<p>]
+ *         [--suite oracle|drawn]
+ *     npm run fidelity:ratchet -- --prune [--keys <key>,<key>]
+ *
+ * `--keys` limits `--prune` to those keys too.
  */
 import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
 import {
+    type AcceptedDrops,
     FLOOR_SECTIONS,
     type Floors,
     type FloorSection,
@@ -25,6 +39,7 @@ import {
     type KnownRecords,
     knownText,
     raiseFloors,
+    ratchetDrops,
     ratchetKnown,
 } from "../test/fidelity/oracle/floors";
 
@@ -32,12 +47,19 @@ const { values } = parseArgs({
     options: {
         add: { type: "string" },
         keys: { type: "string" },
+        properties: { type: "string" },
+        prune: { type: "boolean" },
         suite: { type: "string" },
     },
 });
 
 const today = new Date().toISOString().slice(0, 10);
-const add = values.add === undefined ? undefined : { reason: values.add, date: today, keys: values.keys?.split(",") };
+const keys = values.keys?.split(",");
+const prune = values.prune === true && (keys ?? true);
+const add =
+    values.add === undefined
+        ? undefined
+        : { reason: values.add, date: today, keys, properties: values.properties?.split(",") };
 
 /** A run's verdicts, as the tests write them. */
 interface GateFile {
@@ -95,12 +117,14 @@ if (suite === "all" || suite === "oracle") {
         const floors = JSON.parse(readFileSync(floorsPath, "utf8")) as Partial<Record<FloorSection, Floors>> & {
             about: string;
             lowered: Record<string, unknown>;
+            drops?: AcceptedDrops;
         };
         const sections = Object.fromEntries(FLOOR_SECTIONS.map((s) => [s, floors[s] ?? {}])) as Record<
             FloorSection,
             Floors
         >;
-        const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add);
+        const out = ratchetKnown({ ...known, reasons: known.reasons ?? [] }, gate.keys, add, prune);
+        const drops = ratchetDrops(floors.drops ?? {}, gate.keys, add);
         let raised = 0;
         const sectionOf = new Map(gate.keys.map((g) => [g.key, g.section]));
         for (const g of gate.keys) {
@@ -129,12 +153,22 @@ if (suite === "all" || suite === "oracle") {
                     standInFloors: kept("standInFloors"),
                     specificationFloors: kept("specificationFloors"),
                     lowered: floors.lowered,
+                    drops: drops.drops,
                 },
                 null,
                 4,
             )}\n`,
         );
         report(knownPath, out, raised);
+        console.log(
+            `${floorsPath}: ${String(drops.removed)} accepted drops back at their floor taken off, ${String(drops.added)} accepted`,
+        );
+        if (drops.unaccepted > 0) {
+            console.log(
+                `${floorsPath}: ${String(drops.unaccepted)} rates are below their floor; fix them, or accept them with --add "<reason>" (see gate.txt)`,
+            );
+            process.exitCode = 1;
+        }
     }
 }
 
@@ -143,7 +177,12 @@ if (suite === "all" || suite === "drawn") {
     if (gate !== null) {
         const path = "test/fidelity/baseline-scores.json";
         const file = JSON.parse(readFileSync(path, "utf8")) as KnownRecords & { floors: Floors };
-        const out = ratchetKnown({ about: file.about, known: file.known, reasons: file.reasons }, gate.keys, add);
+        const out = ratchetKnown(
+            { about: file.about, known: file.known, reasons: file.reasons },
+            gate.keys,
+            add,
+            prune,
+        );
         let raised = 0;
         for (const g of gate.keys) {
             raised += raiseFloors(file.floors, g.key, g.scores);

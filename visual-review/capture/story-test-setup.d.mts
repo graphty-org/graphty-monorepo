@@ -6,3 +6,11 @@ export function installVisualStoryTest(options: {
     vi?: unknown;
     commands: unknown;
 }): void;
+
+export function modeGlobals(
+    globals: Record<string, unknown> | undefined,
+    forced: Record<string, unknown>,
+    mode: Record<string, unknown> | null | undefined,
+): Record<string, unknown>;
+
+export function shotsDisagreed(result: { status?: string; flaky?: boolean }): boolean;

@@ -515,8 +515,9 @@ Labels were not part of the section 8 measurement, so this item rests on section
 - Two guards cosmos.gl added after bugs: check that graphty's kernels kick nodes at identical
   positions apart and clamp per-tick movement. graphty already uses `lowbias32` hashing and
   integer-indexed storage buffers, which avoid cosmos.gl's texture-addressing bug.
-- A collision force for the force-simulation layouts, like d3's `forceCollide`. ForceAtlas2
-  already prevents overlap.
+- A collision force for the force-simulation layouts, like d3's `forceCollide`. Fact: graphty-element
+  added it as the `nodeGap` option of every force layout; ForceAtlas2 had none, its `nodeSize` being
+  deferred, so it treated nodes as points.
 - A cluster force with centroids computed on the GPU, pulling together the communities an
   algorithm found.
 
@@ -754,6 +755,53 @@ Judgments:
   alone (7.6).
 - **Layout borrowing stays low priority.** The GPU kernel was not the slow part anywhere in this
   measurement; the path from the kernel to the screen was.
+
+### 8.7 After the row renderer (2026-11-15)
+
+The row renderer (`design/rendering/row-renderer.md`) built most of section 7's recommendations behind
+`renderPath: "batched"`: node batches drawn from a GPU row table, layout positions handed to the renderer
+without a CPU loop, a column door for typed arrays, an ID-buffer pick, lazy `Node` and `Edge` objects, and a
+render ceiling a consumer can raise to a million nodes. Its close-out measured the same harness again, with
+cosmos.gl, both graphty-element paths and the starting build interleaved in one session, every counted run at
+a one-minute load of 8 or lower. Full tables: `benchmarks/results/close-out/summary.md`.
+
+Medians, 2D lean, ratio to cosmos.gl in brackets:
+
+| Graph      | Figure      | cosmos.gl | batched           | objects (default) | starting build |
+| ---------- | ----------- | --------- | ----------------- | ----------------- | -------------- |
+| 10k + 100k | First frame | 0.15 s    | 0.41 s (2.7x)     | 1.70 s (11x)      | 2.25 s (15x)   |
+| 10k + 100k | Still frame | 3.6 ms    | 7.75 ms (2.2x)    | 30.6 ms (8.5x)    | 29.8 ms (8.3x) |
+| 100k + 1k  | First frame | 0.12 s    | 0.47 s (4.0x)     | 3.58 s (31x)      | -              |
+| 100k + 1k  | Still frame | 1.5 ms    | 1.9 ms (1.3x)     | 60.4 ms (40x)     | -              |
+| 100k + 1M  | First frame | 0.56 s    | 3.47 s (6.2x)     | 22.9 s (41x)      | 38.5 s (69x)   |
+| 100k + 1M  | Still frame | 28.7 ms   | 73.3 ms (2.6x)    | 132 ms (4.6x)     | 133 ms (4.6x)  |
+| 100k + 1M  | Hover       | 28.6 ms   | 1.75 ms (0.06x)   | 30.3 ms (1.1x)    | -              |
+| 100k + 1M  | JS heap     | 161 MB    | 461 MB (2.9x)     | 2,473 MB (15x)    | 2,848 MB (18x) |
+| 100k + 1M  | Layout frame | 6.7 ms   | 77.5 ms (12x)     | 1,674 ms (250x)   | -              |
+| 1M + 10k   | First frame | 0.45 s    | 4.38 s (9.7x)     | refused           | refused        |
+| 1M + 10k   | Still frame | 2.1 ms    | 4.8 ms (2.3x)     | refused           | refused        |
+| 1M + 1M    | First frame | 0.92 s    | 9.97 s (11x)      | refused           | refused        |
+| 1M + 1M    | Still frame | 29.3 ms   | 76.3 ms (2.6x)    | refused           | refused        |
+| 1M + 1M    | Hover       | 59.7 ms   | 6.75 ms (0.11x)   | refused           | refused        |
+
+At a million nodes the batched path runs with `limits` raised past the 100,000-node default ceiling. "-" is a
+figure the starting build could not give (it predates the selection API the harness's hover uses) or a size
+not run for it.
+
+Judgments:
+
+- **Section 7's ranking held.** Vertex pulling, positions without a CPU loop and the ID buffer took the
+  100k + 1M first load from 69x to 6.2x cosmos.gl, the heap from 18x to 2.9x and hover from level (the objects path)
+  to 16x faster. The default `"objects"` path still carries the old costs.
+- **The million-edge frame is GPU fill.** 71.6 ms of the 73.3 ms still frame is GPU time, so it stays about
+  2.6x cosmos.gl with the default antialiased lines. Only cheaper lines, which change the picture, move it.
+- **The load stops at the session.** What remains of the first load is the session's history, the derivation
+  pass, garbage collection and Babylon's first render, as `design/rendering/cosmos-gap.md` predicted. The
+  column door, expected to be the fastest load, measured slower than record arrays (4.02 s against 3.47 s at
+  100k + 1M) while holding less heap.
+- **The layout frame ratio (12x at 100k + 1M) is not like for like.** graphty-element's layout frame, 77.5 ms,
+  is about its still frame, the same fill. cosmos.gl's, 6.7 ms, is far below its own 28.7 ms still frame, so it
+  does not draw the same work in each layout frame; why was not established.
 
 ---
 

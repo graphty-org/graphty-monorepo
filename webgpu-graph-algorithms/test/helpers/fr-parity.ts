@@ -303,10 +303,10 @@ export const P5_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; 
  * @returns the tolerance value and its basis row
  */
 export function frTolerance(id: string): { readonly value: number; readonly basis: string } {
-    const spec = P5_TOLERANCE_CAPS[id];
-    if (spec === undefined) {
+    if (!(id in P5_TOLERANCE_CAPS)) {
         throw new Error(`${id}: not a P5 FR tolerance id`);
     }
+    const spec = P5_TOLERANCE_CAPS[id];
     if (WRITE) {
         return { value: spec.cap, basis: spec.basis };
     }

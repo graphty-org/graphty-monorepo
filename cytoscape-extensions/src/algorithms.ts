@@ -499,10 +499,10 @@ function lookup(c: Ctx, ref: ElementRef, edges = false): number | undefined {
     const list = (edges ? c.cs.edges : c.cs.nodes) as unknown as Collection;
     // a selector goes through Cytoscape's own matching (a collection has no find() that takes one)
     const matches = typeof ref === "string" ? list.filter(ref) : (ref as Collection);
-    const ele = matches[0];
-    if (ele === undefined) {
+    if (matches.empty()) {
         return undefined;
     }
+    const ele = matches[0];
     if (!edges) {
         const i = c.s.ids.indexOf(ele.id());
         return i === INVALID_INDEX ? undefined : i;
@@ -631,7 +631,8 @@ function scored<T extends object>(c: Ctx, values: ArrayLike<number>, extra: T, e
  * @returns the partition
  */
 function partition<T extends object>(c: Ctx, labels: ArrayLike<number>, extra: T): Partition<T> {
-    const groups: number[][] = [];
+    // sparse: a label no node carries leaves a hole, which Array.from below reads as undefined
+    const groups: (number[] | undefined)[] = [];
     for (let i = 0; i < labels.length; i++) {
         const l = labels[i];
         if (l !== INVALID_INDEX) {
@@ -660,27 +661,37 @@ function partition<T extends object>(c: Ctx, labels: ArrayLike<number>, extra: T
  * @param r.parent - parent node index per node
  * @param r.depth - depth per node
  * @param r.visitedCount - number of visited nodes
+ * @param r.predArc - the arc each node was reached through; absent from a GPU BFS result
  * @param target - the target index, if any
  * @returns the search result
  */
 function search(
     c: Ctx,
-    r: { order: Uint32Array; parent: Uint32Array; depth: Uint32Array; visitedCount: number },
+    r: {
+        order: Uint32Array;
+        parent: Uint32Array;
+        depth: Uint32Array;
+        visitedCount: number;
+        predArc?: Uint32Array;
+    },
     target: number | undefined,
 ): SearchResult {
     const out: (NodeSingular | EdgeSingular)[] = [];
     for (let k = 0; k < r.visitedCount; k++) {
         const v = r.order[k];
         const p = r.parent[v];
-        if (p !== INVALID_INDEX) {
-            // The walk records the parent node, not the arc, so the tree edge is looked up: the first edge of the
-            // collection joining the two (CPU BFS/DFS results have no `predArc`, unlike Dijkstra's).
+        if (p !== INVALID_INDEX && r.predArc !== undefined) {
+            // the exact tree edge, even among parallel edges
+            out.push(c.cs.edges[c.s.arcToEdge[r.predArc[v]]]);
+        } else if (p !== INVALID_INDEX) {
+            // A GPU BFS records only the parent node, so the tree edge is looked up: the first edge of the
+            // collection joining the two.
             const from = c.cs.nodes[p];
             const to = c.cs.nodes[v];
             const joining = c.s.directed ? from.edgesTo(to) : from.edgesWith(to);
-            const e = joining.intersection(c.cs.edges)[0];
-            if (e !== undefined) {
-                out.push(e);
+            const e = joining.intersection(c.cs.edges);
+            if (e.nonempty()) {
+                out.push(e[0]);
             }
         }
         out.push(c.cs.nodes[v]);
@@ -1262,7 +1273,7 @@ const IMPLS = {
              * Process the largest pending delta first (`PriorityDeltaPageRank`, which ignores `personalization`); its
              * ranks match `graphtyPageRank({ directed: true })`. Without it the ranks can differ from PageRank's (by up
              * to 0.07 on the karate club), the run usually goes on until `maxIterations`, and a `maxIterations` in the
-             * thousands overflows and throws.
+             * thousands overflows the ranks, which throws a RangeError with code `E_BAD_OPTION`.
              */
             readonly priority?: boolean;
             /** The teleport set: a selection (uniform over it) or a weight per node. */
@@ -1280,14 +1291,6 @@ const IMPLS = {
             o.priority === true
                 ? new PriorityDeltaPageRank(c.s).computeWithPriority(opts)
                 : new DeltaPageRank(c.s).compute(opts);
-        // ponytail: @graphty/algorithms' DeltaPageRank overflows to NaN at a large maxIterations; refuse it here
-        // until that engine converges (then this check never fires)
-        if (v.some((x) => !Number.isFinite(x))) {
-            throw new RangeError(
-                `${c.name}: the ranks overflowed (maxIterations ${String(c.rest.maxIterations)} is too high for this graph); ` +
-                    "lower maxIterations, or pass priority: true",
-            );
-        }
         return scored(c, v, { rank: accessor(c, v) });
     },
     eigenvectorCentrality: (
@@ -1354,13 +1357,8 @@ const IMPLS = {
         const sources = o.sources === undefined ? undefined : indicesOf(c.cs, o.sources);
         return then(c.call("betweennessCentrality", c.s, { ...c.rest, sources }), (r) => {
             // Cytoscape's `betweenness` counts ordered pairs, so on an undirected graph it is twice the NetworkX
-            // convention `score` follows. The result does not say which scale it is in, so the factor is rebuilt here
-            // from the rules in @graphty/algorithms' BetweennessOptions.normalized.
-            const n = c.s.nodeCount;
-            const pairs = o.endpoints === true ? n * (n - 1) : (n - 1) * (n - 2);
-            const unordered = c.s.directed ? 1 : 2;
-            const toOrderedPairs = o.normalized === true && pairs > 0 ? pairs : unordered;
-            const raw = Float64Array.from(r.scores, (x) => x * toOrderedPairs);
+            // convention `score` follows; `divisor` is what the ordered-pair counts were divided by.
+            const raw = Float64Array.from(r.scores, (x) => x * r.divisor);
             const max = raw.reduce((m, x) => Math.max(m, x), 0);
             return scored(c, r.scores, {
                 betweenness: accessor(c, raw),
@@ -1756,6 +1754,18 @@ export const ASYNC_ALGORITHM_NAMES: readonly string[] = ASYNC_KEYS.map((k) => `$
 type Algos = Record<GpuKey, (...args: never[]) => unknown>;
 
 /**
+ * Checks that a JavaScript caller passed one options object (or nothing, which the default turns into one).
+ * @param name - the method name, for the message
+ * @param options - what the caller passed
+ */
+function checkOptions(name: string, options: unknown): asserts options is AlgorithmOptions {
+    // a Cytoscape built-in takes some arguments positionally (kruskal(weightFn)); one ignored here would run unweighted
+    if (typeof options !== "object" || options === null || Array.isArray(options)) {
+        throw new TypeError(`${name}: takes one options object; pass a weight function as { weight: fn }`);
+    }
+}
+
+/**
  * Runs one algorithm over a collection.
  * @param eles - the collection
  * @param key - the algorithm
@@ -1770,10 +1780,6 @@ function run(
     algos: Algos,
 ): { result: unknown; snapshot: GraphSnapshot } {
     const name = methodName(key);
-    // a Cytoscape built-in takes some arguments positionally (kruskal(weightFn)); one ignored here would run unweighted
-    if (typeof options !== "object" || options === null || Array.isArray(options)) {
-        throw new TypeError(`${name}: takes one options object; pass a weight function as { weight: fn }`);
-    }
     if (options.weight !== undefined && UNWEIGHTED.has(key)) {
         throw new Error(`${name}: this algorithm reads no edge weights; remove the weight option`);
     }
@@ -1851,8 +1857,9 @@ function named(error: unknown, key: keyof Impls): unknown {
  * @param options - the caller's options
  * @returns the result
  */
-function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): unknown {
-    checkGpuMode(methodName(key), options?.gpu);
+function runSync(eles: Collection, key: keyof Impls, options: unknown = {}): unknown {
+    checkOptions(methodName(key), options);
+    checkGpuMode(methodName(key), options.gpu);
     if (options.gpu === "require") {
         const name = methodName(key);
         throw new Error(
@@ -1872,8 +1879,9 @@ function runSync(eles: Collection, key: keyof Impls, options: AlgorithmOptions =
  * @param options - the caller's options
  * @returns the result with `backend`
  */
-async function runAsync(eles: Collection, key: keyof Impls, options: AlgorithmOptions = {}): Promise<unknown> {
-    checkGpuMode(`${methodName(key)}Async`, options?.gpu);
+async function runAsync(eles: Collection, key: keyof Impls, options: unknown = {}): Promise<unknown> {
+    checkOptions(methodName(key), options);
+    checkGpuMode(`${methodName(key)}Async`, options.gpu);
     const cy = coreOf(eles);
     const d = await gpuFor(cy, options.gpu);
     // destroyed while the device was acquired: its device is disposed and its elements are gone with it

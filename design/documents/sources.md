@@ -29,6 +29,7 @@ interface SourcesMember {
     data?: "embedded" | "steps"; // default "embedded": see "Embedded data and steps only"
     loads: LoadEntry[]; // oldest first; at most 1,000
     extensions?: Record<string, unknown>; // reverse-domain keys (container.md, "Extensions")
+    waiting?: string[]; // ids of source entries not run since the project opened ("Reopening" rule 5)
 }
 
 type LoadEntry = FileLoad | UrlLoad | NetworkLoad | SampleLoad;
@@ -390,6 +391,14 @@ again" is stored on the reader's machine, never in a project file.
 4. **A source id this release does not have registered** is kept: its elements are there (embedded)
    and the entry is written back, but it is not offered; the report carries
    `W_SOURCE_UNREGISTERED` with `{ id, source }`.
+5. **The reader's own autosave restored is not a file opened.** A writer lists in `waiting` the
+   ids of the source entries still waiting to be run. Opening a project file ignores `waiting`:
+   every network entry waits, because a file cannot approve its own fetches. Restoring the
+   reader's own work (the element's Autosaver, or `session.project.open(text, { ownWork: true })`
+   for a project the application itself kept in storage only it writes) keeps only the entries in
+   `waiting` waiting: a load the reader ran stays live, and one they never approved still waits
+   after any number of round trips. A writer always writes `waiting` (empty when nothing waits);
+   a member without it was written before the list existed, and every entry in it waits.
 
 ### Rebuilding a steps-only file (reserved)
 

@@ -15,7 +15,7 @@
  *   property to its Cytoscape.js default, whatever the rules beneath say.
  */
 
-import { canonColor } from "../canon/color.js";
+import { canonColor, hexChannels } from "../canon/color.js";
 import { CSS_COLORS } from "../canon/color-tables.js";
 import { canonEnum } from "../canon/enums.js";
 import { num6 } from "../canon/number.js";
@@ -25,7 +25,7 @@ import type { StyleTarget, StyleValue } from "../types.js";
 import { CYJS_FACE_PROPERTIES } from "./face.js";
 
 /** How Cytoscape.js types a property's value. */
-export type CyjsValueType =
+type CyjsValueType =
     | "color"
     | "zeroOne"
     | "size"
@@ -299,6 +299,27 @@ const CYJS_ROUND_SHAPES: ReadonlySet<string> = new Set([
     "round-hexagon",
     "round-octagon",
 ]);
+
+/**
+ * A Cytoscape.js node shape as the neutral shape.
+ * @param word - the shape as written
+ * @param site - where it was read
+ * @returns the neutral shape, or undefined when it does not parse (noted)
+ */
+function cyjsShape(word: string, site: CanonSite): string | undefined {
+    const polygon = word.toLowerCase();
+    if (polygon === "polygon") {
+        return "polygon";
+    }
+    // two square corners, which no neutral shape has; other formats still read the name as round-rectangle
+    if (polygon === "bottom-round-rectangle" || polygon === "bottomroundrectangle") {
+        return "other:bottom-round-rectangle";
+    }
+    // drawn exactly as the polygon Cytoscape.js builds, by `cyjsPolygonShapes`
+    return CYJS_POLYGON_SHAPES.has(polygon) || CYJS_ROUND_SHAPES.has(polygon)
+        ? `other:${polygon}`
+        : (canonEnum("shape", word, "cytoscape-js", site) ?? undefined);
+}
 
 /**
  * Draws every Cytoscape.js shape no neutral shape names (`other:heptagon`, `other:tag`) as the polygon Cytoscape.js
@@ -713,11 +734,7 @@ function namedColor(name: string): string | undefined {
 function colorTuple(value: string): [number, number, number] | null {
     const named = namedColor(value.toLowerCase());
     if (named !== undefined) {
-        return [
-            Number.parseInt(named.slice(1, 3), 16),
-            Number.parseInt(named.slice(3, 5), 16),
-            Number.parseInt(named.slice(5, 7), 16),
-        ];
+        return hexChannels(named);
     }
     if ((value.length === 4 || value.length === 7) && value.startsWith("#")) {
         const short = value.length === 4;
@@ -1281,16 +1298,8 @@ export function cyjsNeutral(spec: CyjsPropertySpec, v: CyjsFlat, site: CanonSite
         case "underlayShape":
         case "overlayShape":
             return canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined;
-        case "shape": {
-            const polygon = String(word).toLowerCase();
-            if (polygon === "polygon") {
-                return "polygon";
-            }
-            // drawn exactly as the polygon Cytoscape.js builds, by `cyjsPolygonShapes`
-            return CYJS_POLYGON_SHAPES.has(polygon) || CYJS_ROUND_SHAPES.has(polygon)
-                ? `other:${polygon}`
-                : (canonEnum("shape", String(word), "cytoscape-js", site) ?? undefined);
-        }
+        case "shape":
+            return cyjsShape(String(word), site);
         case "borderStyle":
             return canonEnum("borderStyle", String(word), "cytoscape-js", site) ?? undefined;
         case "outerBorderStyle":

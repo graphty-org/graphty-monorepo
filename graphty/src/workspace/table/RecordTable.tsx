@@ -6,6 +6,7 @@ import {
     PANEL_GRID,
 } from "@graphty/compact-mantine";
 import type {
+    EdgeId,
     EdgeRecord,
     GraphSession,
     IssueId,
@@ -18,7 +19,8 @@ import type {
 import { Menu } from "@mantine/core";
 import React, { useState } from "react";
 
-import { formatNumber } from "../inspector/words";
+import { useShowingBranches } from "../selection/useSteps";
+import { useNumberFormats } from "../settings/numberFormat";
 import { timeValue } from "../time/timeActions";
 import { elementSort, groupName, type RecordKind, type TableColumnChoice } from "./columns";
 
@@ -32,27 +34,35 @@ interface Row {
 }
 
 /**
- * What a cell shows: an edge's ends by their nodes' names (a node is called by its label), a time
- * field's values as dates, anything else as it is.
+ * What a cell shows: an edge's ends by their nodes' names (a node is called by its label), a date
+ * column's values as dates (its kind alone decides, never its role), anything else as it is.
  * @param session - the element's session.
  * @param kind - nodes or edges.
- * @param key - the column's attribute or key.
+ * @param column - the column.
  * @param record - the row's record.
+ * @param whole - a structure value (degree) is measured over the whole graph (All, or a filter's
+ *     own matches), else over what is shown.
  * @returns the cell's value.
  */
 function cellValue(
     session: GraphSession,
     kind: RecordKind,
-    key: string,
+    column: TableColumnChoice,
     record: NodeRecord | EdgeRecord,
+    whole: boolean,
 ): DataTableValue {
-    const value = record[key];
+    const key = column.attribute ?? column.id;
+    const scope = whole ? ({ scope: "graph" } as const) : {};
+    const value = column.structure === true ? session.data.structureValue(record.id, key, scope) : record[key];
     if (kind === "edge" && (key === "source" || key === "target")) {
         const id = value as NodeId;
-        return session.data.name(id) ?? String(id);
+        return session.data.nodeName(id).name;
     }
-    return tableValue(timeValue(session, kind, key, value));
+    return tableValue(timeValue(session, value, column.descriptor?.type === "time"));
 }
+
+/** Fired with a node id when a row is clicked while Pick on canvas is armed (the selection's reference picker). */
+export const PICK_NODE_EVENT = "graphty-pick-node";
 
 /** Props for RecordTable. */
 interface RecordTableProps {
@@ -62,6 +72,11 @@ interface RecordTableProps {
     columns: readonly TableColumnChoice[];
     /** Which records: the graph, or a group's members. */
     scope: ScopeInput;
+    /**
+     * Structure values (degree) are measured over the whole graph even when the records are a
+     * group's members: a filter's own matches, which read the whole graph. Implied by scope "graph".
+     */
+    wholeGraph?: boolean;
     /** Only the records an open issue is on: one issue's id, or "any" for every open issue; null for every record. */
     issue?: IssueId | null;
     /** The issues each column's warning carries, by column id: a cell on a record they are on is tinted. */
@@ -73,6 +88,18 @@ interface RecordTableProps {
     onMoveColumn?: (id: string, by: -1 | 1) => void;
     /** A column's header parts: its icons, summary, warning and menu. */
     header?: (column: TableColumnChoice) => Partial<DataTableColumn<object>>;
+    /** While a selection is edited: the group a record is in, whose color tints its row. */
+    groupOf?: (id: NodeId | EdgeId) => { name: string; color: string } | null;
+    /** Only the records that match this text, as graphty-element's `matching` finds them. */
+    matching?: string;
+    /** A click marks the row in this table only and leaves the graph's selection alone (an editor's preview). */
+    localSelection?: boolean;
+    /**
+     * With `groupOf`, a Group column drawn first (a chit and the group's name) in place of the row
+     * tint: the outline-and-pane selection editor's table, while the `selection-workspace`
+     * experiment is off.
+     */
+    groupColumn?: boolean;
 }
 
 /**
@@ -128,6 +155,24 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
 }
 
 /**
+ * A row's Group cell: its group's chit and name, or nothing.
+ * @param group - the row's group, or null.
+ * @param filled - whether the chit is filled with the group's color.
+ * @returns the cell.
+ */
+function groupCell(group: { name: string; color: string } | null, filled: boolean): React.ReactNode {
+    return group === null ? null : (
+        <span className="ws-table-group">
+            <span
+                className="sel-chit"
+                style={{ borderColor: group.color, background: filled ? group.color : "transparent" }}
+            />
+            {group.name}
+        </span>
+    );
+}
+
+/**
  * The records of one kind, read a window at a time from graphty-element's `nodePage` or
  * `edgePage`. The element sorts (a result column by the run's value, a grouping by group size),
  * reads each run's values, and holds the selection; the table draws what it is handed.
@@ -136,6 +181,7 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
  * @param props.kind - Nodes or edges
  * @param props.columns - The visible columns
  * @param props.scope - Which records
+ * @param props.wholeGraph - Structure values are measured over the whole graph
  * @param props.issue - Only the records an open issue is on
  * @param props.issueColumns - The issues each column's warning carries
  * @param props.sort - The sorted column
@@ -143,6 +189,10 @@ function joinMenus(own: React.ReactNode, move: React.ReactNode): React.ReactNode
  * @param props.height - The table's height in pixels
  * @param props.onMoveColumn - Moves a column one place
  * @param props.header - A column's header parts
+ * @param props.groupOf - The group a record is in, while a selection is edited
+ * @param props.matching - Only the records that match this text
+ * @param props.localSelection - A click marks the row here only, never the graph's selection
+ * @param props.groupColumn - A Group column first in place of the row tint
  * @returns The table
  */
 export function RecordTable({
@@ -157,8 +207,17 @@ export function RecordTable({
     height,
     onMoveColumn,
     header,
+    groupOf,
+    matching,
+    localSelection = false,
+    groupColumn = false,
+    wholeGraph = false,
 }: Readonly<RecordTableProps>): React.JSX.Element {
     const [range, setRange] = useState({ offset: 0, limit: 200 });
+    const [marked, setMarked] = useState<readonly (NodeId | EdgeId)[]>([]);
+    const numberFormats = useNumberFormats();
+    // Rows take their group's color only while the canvas draws the group colors.
+    const filled = useShowingBranches(session);
     const runIds = columns.flatMap((column) => (column.run === undefined ? [] : [column.run]));
     const sorted = columns.find((column) => column.id === sort?.id);
 
@@ -170,6 +229,7 @@ export function RecordTable({
         scope,
         columns: runIds,
         ...(issue === null ? {} : { issue }),
+        ...(matching === undefined ? {} : { matching: { text: matching } }),
         ...(sorted === undefined ? {} : { sort: elementSort(sorted, sort?.desc ?? false) }),
     };
     const page: RecordPage<NodeRecord | EdgeRecord> =
@@ -210,6 +270,9 @@ export function RecordTable({
             header: column.header,
             // A group's name is a word ("Group 3"), so it reads from the left like other words.
             align: column.numeric && column.grouping !== true ? "end" : "start",
+            // A first click sorts words and dates A to Z (oldest first), as a spreadsheet does,
+            // and numbers highest first; never by whatever the first row happens to hold.
+            descendingFirst: column.numeric,
             // The key names its row, so every other cell reads with it.
             rowHeader: column.group === "key",
             menu: joinMenus(parts?.menu, move),
@@ -223,12 +286,25 @@ export function RecordTable({
             value:
                 at >= 0
                     ? (row) => resultValue(page.columns?.[at], row.index)
-                    : (row) => cellValue(session, kind, column.attribute ?? column.id, row.record),
+                    : (row) => cellValue(session, kind, column, row.record, wholeGraph || scope === "graph"),
         };
     });
 
+    if (groupOf !== undefined && groupColumn) {
+        // A chit and the group's name, never a row tint: lime means selected (spec 8).
+        tableColumns.unshift({
+            id: "sel:group",
+            header: "Group",
+            sortable: false,
+            hideable: false,
+            value: (row) => groupOf(row.record.id)?.name,
+            cell: (row) => groupCell(groupOf(row.record.id), filled),
+        });
+    }
+
     // One selection, the element's: the rows draw it and a click on a row changes it.
-    const selected = kind === "node" ? session.selection.nodes : session.selection.edges;
+    const graphSelection = kind === "node" ? session.selection.nodes : session.selection.edges;
+    const selected = localSelection ? marked : graphSelection;
     const known = new Map<string, NodeId>();
     for (const id of selected) {
         known.set(String(id), id);
@@ -254,11 +330,21 @@ export function RecordTable({
             }}
             columns={tableColumns}
             getRowId={(row) => String(row.record.id)}
+            // Each row is tinted in its group's color while the canvas draws the group colors (the
+            // owner, 2026-11-04: no Group column).
+            rowColor={
+                groupOf === undefined || !filled || groupColumn
+                    ? undefined
+                    : (row) => {
+                          const color = groupOf(row.record.id)?.color;
+                          return color === "" ? undefined : color;
+                      }
+            }
             height={height}
             // A short column (an id, a number) is drawn whole; a long one takes what it needs.
             columnSizing="content"
             // The inspector's and the key's spelling, so one score reads alike in all three.
-            formatNumber={formatNumber}
+            formatNumber={numberFormats.number}
             sorting={sort === null ? [] : [sort]}
             onSortingChange={(next) => {
                 onSortChange(next[0] ?? null);
@@ -272,10 +358,23 @@ export function RecordTable({
                     const real = known.get(id);
                     return real === undefined ? [] : [real];
                 });
+                // Pick on canvas is armed: the row clicked is the reference, and the selection stays.
+                const clicked = picked.find((id) => !selected.some((each) => String(each) === String(id)));
+                if (document.body.dataset.pickingNode !== undefined && kind === "node" && clicked !== undefined) {
+                    globalThis.dispatchEvent(new CustomEvent(PICK_NODE_EVENT, { detail: clicked }));
+                    return;
+                }
+                if (localSelection) {
+                    setMarked(picked);
+                    return;
+                }
                 // The ids come from the page just read, so the element has no reason to refuse them;
                 // if it does, the selection it already has stays, which is what the table shows.
+                // The reader picked the rows, so the change acts like a click on the canvas.
                 session.selection
-                    .apply(kind === "node" ? { nodes: picked } : { edges: picked.map(String) })
+                    .apply(kind === "node" ? { nodes: picked } : { edges: picked.map(String) }, "replace", {
+                        cause: "user",
+                    })
                     .catch(() => undefined);
             }}
         />

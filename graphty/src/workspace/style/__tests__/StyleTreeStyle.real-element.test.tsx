@@ -14,9 +14,6 @@ import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 describe("a run's layer from the style tree", () => {
     // The design's frame. At the runner's default width the inspector has no room.
     beforeAll(async () => {
@@ -26,14 +23,11 @@ describe("a run's layer from the style tree", () => {
     it("opens its Style tab with the run's lines", async () => {
         const store = createWorkspaceStore({ project: { name: "Ring", id: 1 } });
         render(<Workspace store={store} />);
-        const session = await waitFor(
-            () => {
-                const found = document.querySelector("graphty-element")?.session;
-                assert.isDefined(found);
-                return found;
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const session = await waitFor(() => {
+            const found = document.querySelector("graphty-element")?.session;
+            assert.isDefined(found);
+            return found;
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
@@ -54,7 +48,7 @@ describe("a run's layer from the style tree", () => {
         const label = layer?.name ?? "";
 
         // The reader's path: the run's layer in the style tree opens its Style in the inspector.
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(
             await within(tree).findByRole("treeitem", {
                 name: new RegExp(

@@ -17,6 +17,7 @@ import { afterAll, afterEach, assert, beforeAll, describe, it, onTestFailed } fr
 import {
     assertInvariant,
     browserProcesses,
+    duplicateTab,
     type Engine,
     ENGINES,
     kill,
@@ -256,9 +257,7 @@ describe.each(ENGINES)("%s", (engine) => {
         assert.strictEqual(await entryOf(b), entryB, "the new tab's entry is untouched");
 
         // A duplicated tab (sessionStorage copied by window.open) restores a copy, never the original.
-        const opened = context.waitForEvent("page");
-        await a.evaluate(`window.open(${JSON.stringify(fx.url({ key, tab: tab("dup") }))})`);
-        const dup = await opened;
+        const dup = await duplicateTab(context, a, fx.url({ key, tab: tab("dup") }));
         await dup.waitForFunction("window.fixture !== undefined");
         await dup.evaluate("fixture.ready()");
         const dupCheck = await check(dup);

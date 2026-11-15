@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, waitFor } from "storybook/test";
 
 import { realInput } from "../../stories/real-input";
-import { storyWaitOptions } from "../../stories/wait";
 import { answerUsageData, forgetUsageAnswer } from "../privacy/usageData";
 import { clearRecent, rememberRecent } from "../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../settings/preferences";
@@ -41,7 +40,7 @@ async function heroDrawn(canvasElement: HTMLElement): Promise<void> {
     const started = performance.now();
     await waitFor(() => {
         expect(canvasElement.querySelector(".ws-land-said")?.textContent).toContain("Colored by community");
-    }, storyWaitOptions(30_000));
+    });
     const captionMs = Math.round(performance.now() - started);
     const element = canvasElement.querySelector("graphty-element");
     if (element === null) {
@@ -52,7 +51,7 @@ async function heroDrawn(canvasElement: HTMLElement): Promise<void> {
     // still owed and how long the caption took, not a bare test timeout. A bare timeout now means the caption
     // (the sample load and Louvain) never appeared.
     try {
-        await element.waitForStableFrame({ timeoutMs: Math.max(1_000, 25_000 - captionMs) });
+        await element.waitForStableFrame();
     } catch (error) {
         throw new Error(
             `hero caption shown after ${String(captionMs)} ms, then: ${error instanceof Error ? error.message : String(error)}`,
@@ -80,7 +79,7 @@ const meta: Meta<typeof Workspace> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-/** First launch: the usage data card at the foot, unanswered (the mock's `#/start-screen/first-run`). */
+/** First launch: the usage data question pinned to the window's foot, unanswered (the mock's `#/start-screen/first-run`). */
 export const FirstRun: Story = {};
 
 /** What is collected, open (`#/start-screen/disclosure`). */
@@ -107,7 +106,7 @@ export const Declined: Story = {
     },
 };
 
-/** A later launch: the card was answered before, so the foot is empty (`#/start-screen/returning`). */
+/** A later launch: the question was answered before, so it is not shown (`#/start-screen/returning`). */
 export const Returning: Story = {
     beforeEach: () => {
         answerUsageData("declined");
@@ -133,7 +132,7 @@ export const ReturningReader: Story = {
     },
 };
 
-/** Open network data: the sources on the way, and Open from a link. */
+/** Open network data: the chooser of the kinds of network, over the start page. */
 export const NetworkData: Story = {
     beforeEach: () => {
         answerUsageData("declined");
@@ -141,10 +140,7 @@ export const NetworkData: Story = {
     play: async ({ canvasElement, parameters }) => {
         await heroDrawn(canvasElement);
         await click(canvasElement, parameters, "Open network data");
-        await waitFor(
-            () => expect(canvasElement.ownerDocument.querySelector('[role="dialog"]')).not.toBeNull(),
-            storyWaitOptions(1000),
-        );
+        await waitFor(() => expect(canvasElement.ownerDocument.querySelector('[role="dialog"]')).not.toBeNull());
 
         // The dialog focuses its close button once it has opened, which draws a focus ring only when
         // the click that opened it was not a pointer's (a replayed click in Storybook's own UI). A
@@ -157,7 +153,7 @@ export const NetworkData: Story = {
                 throw new Error("the dialog has not taken focus yet");
             }
             return active;
-        }, storyWaitOptions(1000));
+        });
         // Mantine's focus trap focuses from two zero-delay timers queued together when the dialog
         // mounts, so the first focus can be seen before the second timer has run. A zero-delay timer
         // queued now runs after both: blur then, or the second timer would focus the button again.
@@ -165,6 +161,24 @@ export const NetworkData: Story = {
             setTimeout(resolve, 0);
         });
         focused.blur();
+    },
+};
+
+/** The sample library's network samples, one tile for each kind of network source. */
+export const NetworkSamples: Story = {
+    beforeEach: () => {
+        answerUsageData("declined");
+    },
+    play: async ({ canvasElement }) => {
+        await heroDrawn(canvasElement);
+        const section = await waitFor(() => {
+            const found = canvasElement.querySelector('section[aria-label="Load network data"]');
+            if (found === null) {
+                throw new Error("the network samples have not drawn yet");
+            }
+            return found;
+        });
+        section.scrollIntoView();
     },
 };
 
@@ -179,10 +193,7 @@ export const DropTarget: Story = {
         const real = realInput(parameters);
         if (real) {
             await real.dragFileOver(root);
-            await waitFor(
-                () => expect(canvasElement.querySelector(".ws-start-drop")).not.toBeNull(),
-                storyWaitOptions(1000),
-            );
+            await waitFor(() => expect(canvasElement.querySelector(".ws-start-drop")).not.toBeNull());
         } else {
             // In Storybook's own UI a page script cannot make a trusted drag, so it is replayed: a
             // drag that enters carrying a file, as the drop hook only lights for files.
@@ -191,10 +202,7 @@ export const DropTarget: Story = {
             for (const type of ["dragenter", "dragover"]) {
                 root.dispatchEvent(new DragEvent(type, { bubbles: true, dataTransfer }));
             }
-            await waitFor(
-                () => expect(canvasElement.querySelector(".ws-start-drop")).not.toBeNull(),
-                storyWaitOptions(1000),
-            );
+            await waitFor(() => expect(canvasElement.querySelector(".ws-start-drop")).not.toBeNull());
         }
     },
 };

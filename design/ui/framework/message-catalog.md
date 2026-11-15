@@ -109,6 +109,22 @@ second record of the same shape.
 | `reading.notComputed` | Not computed: {band} | mark | Run | state: reading | a Statistics row not yet asked for (`files-and-recipes.md` 2) | -- | -- | -- |
 | `overview.compute` | Compute the overview: {band} | tooltip | Compute the overview | state: overview | the Overview row's menu | -- | -- | -- |
 | `assistant.failed` | Could not reach {provider}: {cause} | error | Send again | error | the Assistant's conversation | -- | assertive | -- |
+| `assistant.intro` | Ask about this graph or change it. It can be wrong. | state line | AI provider... | app | the empty conversation and the no-provider screen | -- | -- | -- |
+| `assistant.setup.line` | Needs a key from an AI provider. Nothing is sent until you add one. | state line | AI provider... | app | the no-provider screen | -- | -- | -- |
+| `assistant.status.working` | Working | state line | -- | app | a message running over a second | -- | polite | -- |
+| `assistant.status.ready` | Answer ready | state line | -- | app | a message finished | -- | polite | -- |
+| `assistant.status.waiting` | Waiting for your approval: {title}; Waiting for your answer | state line | -- | app | a request waits with the panel open | -- | polite | -- |
+| `assistant.status.voice` | Listening; Transcript in the message box | state line | -- | app | listening starts; a transcript lands | -- | polite | -- |
+| `assistant.scope` | Whole graph; Selection; Use selection; {N} hidden | state line | Use selection; Ask about the whole graph | app | the scope line above the composer | -- | -- | -- |
+| `assistant.chip` | {N} nodes, select; {N} edges, select; Not in this graph | mark | Show in table | app | a turn that a tool result ended | -- | -- | -- |
+| `assistant.empty` | No matches for {searched}. | report line | -- | app | a read or write that matched nothing | -- | -- | -- |
+| `assistant.change` | Colored {N} nodes by {source}; Sized {N} nodes by {source}; Set {channel} on {N} nodes; Arranged as {layout}; Filtered to {kept} of {total} nodes; Computed {algorithm} for {N} nodes; Added or Removed {N} nodes and {M} edges; Changed {N} values; Selected {N} nodes; Moved the view; Changed the graph; {H} hidden nodes not colored; and {N} more | report line | Open layer; Open run; Undo | app | a turn that changed the graph | -- | polite | -- |
+| `assistant.undone` | Undone | mark | -- | app | no step of the message remains | -- | polite | -- |
+| `assistant.approval` | Remove {N} nodes and {M} edges?; Change {N} values?; Replace this graph's {N} nodes and {M} edges?; Run {name}?; Load {url}?, with Undo can bring them back.; Undo cannot bring this back.; About {N} seconds.; May run for a long time.; Reads a page outside graphty. | state line | Remove; Change; Replace; Run; Load; Allow; Change this; Keep them; Keep this graph; Skip; Decline | app | the waiting section | -- | polite | -- |
+| `assistant.question` | Or type an answer; That is not one of the choices. | state line | Answer | app | the waiting section and the composer | -- | -- | -- |
+| `assistant.away` | Waiting: {title}; The assistant answered; the turn's change lines | notice | Open; Undo | app | a request or a finished turn with the panel closed | out-of-sight | polite | -- |
+| `assistant.voice` | Speech goes to your browser's maker.; Speech goes to {provider}.; Allow the microphone to talk.; No microphone found.; This browser cannot take speech here.; Speech stopped: the connection dropped.; Speech needs a key.; Speech is not available. | state line | -- | app | one line under the composer | -- | -- | -- |
+| `assistant.list` | Chats; Chats {N}; New chat; Rename; Chat name; Delete; Delete this chat? Delete, Keep it; Not renamed; {title} menu | state line | the row opens the chat; Rename (F2); Delete | app | the Assistant header's chat switch and the list it opens in place of the log | -- | -- | -- |
 | `layout.hiddenRead` | lays out {N} nodes, {H} hidden | state line | Filter to drawn | state: layout scope | the Layout row after Hide others (`state-matrix.md` 4.2) | -- | polite | -- |
 | `edit.runLine` | waits for Run; applies as you edit | state line | Run | state: editor | the Run line of a result or layout editor (`interaction-patterns.md` 3.3) | -- | polite | -- |
 | `feedback.sent` | Feedback sent | notice | -- | app | the feedback form closed | outside-app | polite | -- |

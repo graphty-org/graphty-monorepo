@@ -36,8 +36,6 @@ import { blankHarness } from "./fixture-session";
 /** The largest graph a session holds, less room for the steps below to add to it. */
 const NODES = DEFAULT_LIMITS.renderCeiling - 1000;
 const EDGES = 2 * NODES;
-/** Building the baseline graph takes longer than the project's hook budget. */
-const TIMEOUT_MS = 120_000;
 
 /** A capture: 12 bytes of coordinates and an 8-byte id slot per row. */
 const CAPTURE_PER_ROW = 20;
@@ -84,7 +82,6 @@ describe("what each kind of step retains, at the largest graph a session holds",
     let session: ElementSession;
     let rows: number;
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, loading the 99,000-node, 198,000-edge baseline takes about 3.8 s locally and an estimated 18 s on CI (the file's 7.6 s locally is 37 s there), more than a third of the 10 s hook budget; tracked in #1636
     beforeAll(async () => {
         harness = await bigGraph();
         session = harness.session as ElementSession;
@@ -92,7 +89,7 @@ describe("what each kind of step retains, at the largest graph a session holds",
         assert.strictEqual(rows, NODES);
         assert.strictEqual(session.snapshot().edgeCount, EDGES);
         assert.lengthOf(session.history.steps, 0, "the graph is the baseline");
-    }, TIMEOUT_MS);
+    });
 
     it("editing one node's attributes: the prior values, under 1 KB", async () => {
         await session.data.updateNodes([{ id: "v5", values: { weight: 1 } }]);

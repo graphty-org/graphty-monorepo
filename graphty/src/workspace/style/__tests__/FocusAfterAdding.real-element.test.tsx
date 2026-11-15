@@ -1,8 +1,8 @@
 /**
  * After adding a style line or a condition card, on the REAL graphty-element and driven by real
  * clicks and keys, focus is where the next keystroke belongs: a new Color line's text box (not its
- * swatch), so a typed color and Enter repaint at once; a Width line added on a layer made from a
- * selection in its box; a new Shape line on its select, its value not drawn selected, and a typed
+ * swatch), so a typed color and Enter repaint at once; a Width line added on a found selection's
+ * Style tab in its box, written to the layer last opened; a new Shape line on its select, its value not drawn selected, and a typed
  * shape name opening its list on that shape; a new text card in its text box (not its match menu), so typing straight
  * after picking the column narrows the rule.
  */
@@ -16,13 +16,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with the starting rows, and one reader's layer on nodes and edges.
@@ -32,14 +35,11 @@ async function openScene(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -55,7 +55,7 @@ async function openScene(): Promise<GraphSession> {
  * @param name - the row's visible name.
  */
 async function openStyle(name: string): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
@@ -85,15 +85,12 @@ async function addLine(kind: "node" | "edge", title: string, item: string, chann
     if (menu !== null) {
         await userEvent.click(menu);
     }
-    return waitFor(
-        () => {
-            const line = document.querySelector<HTMLElement>(selector);
-            assert.isNotNull(line, `${channel} added`);
-            assert.isTrue(line?.contains(document.activeElement), `focus is in the new ${channel} line`);
-            return line;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    return waitFor(() => {
+        const line = document.querySelector<HTMLElement>(selector);
+        assert.isNotNull(line, `${channel} added`);
+        assert.isTrue(line?.contains(document.activeElement), `focus is in the new ${channel} line`);
+        return line;
+    });
 }
 
 /**
@@ -149,9 +146,12 @@ describe("focus after adding a line or a card", () => {
         });
     });
 
-    it("Width added on a layer made from a found selection focuses its box", async () => {
+    it("Width added on a found selection's Style tab focuses its box and writes the layer last opened", async () => {
         const session = await openScene();
-        const find = await screen.findByRole("combobox", { name: "Find" }, { timeout: TIMEOUT_MS });
+        // Both is the row last opened, so the selection's Style tab edits it.
+        await openStyle("Both");
+        const layers = session.styles.list().length;
+        const find = await screen.findByRole("combobox", { name: "Find" });
         await userEvent.click(find);
         await userEvent.keyboard("=shared_chapters >= `5`{Enter}");
         await waitFor(() => {
@@ -162,14 +162,22 @@ describe("focus after adding a line or a card", () => {
         if (style.getAttribute("aria-selected") !== "true") {
             await userEvent.click(style);
         }
+        // The tab edits the selected layer, which paints nodes and edges: show its Edge side.
+        await showKind("edge");
         const line = await addLine("edge", "line", "Width", "edge.width");
         const focused = document.activeElement as HTMLInputElement;
         assert.isTrue(line.querySelector(".ws-field-control")?.contains(focused), "focus is in the Width box");
         assert.strictEqual(focused.tagName, "INPUT");
         await userEvent.keyboard("4{Enter}");
         await waitFor(() => {
-            assert.include(written(session, "edge.width"), 4, "the typed width is written");
+            const both = session.styles.list().filter((layer) => layer.name === "Both");
+            assert.include(
+                both.map((layer) => layer.set?.["edge.width"]),
+                4,
+                "Both takes the typed width",
+            );
         });
+        assert.strictEqual(session.styles.list().length, layers, "no layer is made for the selection");
     });
 
     it("a new text card takes typing in its text box at once", async () => {
@@ -182,6 +190,8 @@ describe("focus after adding a line or a card", () => {
         });
         await session.styles.settled();
         await openStyle("Names");
+        // The cards of two selected layers: one alone opens the selection editor.
+        await selectWithTwin(session, "Names");
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));

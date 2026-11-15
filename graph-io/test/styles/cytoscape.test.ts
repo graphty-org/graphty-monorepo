@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import { hashCreationOrder } from "../../src/formats/cx/styles.js";
 import { createRegistry, importGraph } from "../../src/registry.js";
 import { dropMismatchedKeys } from "../../src/styles/cytoscape/mappings.js";
-import { edgeEnds } from "../../src/styles/cytoscape/resolve.js";
+import { edgeEnds, fileCreationOrder } from "../../src/styles/cytoscape/resolve.js";
 import {
     cx1Definition,
     type CytoscapeBypass,
@@ -105,7 +105,7 @@ function elementsOf(s: GraphSnapshot, target: StyleTarget, namespace: string): C
 
 /** A fixture's style, from what the importer kept, as the CX and CX2 readers build it. */
 function styleOf(s: GraphSnapshot, format: string): CytoscapeStyle {
-    const extra = (s.meta.extra ?? {}) as Record<string, Record<string, unknown> | undefined>;
+    const extra = s.meta.extra as Record<string, Record<string, unknown> | undefined>;
     if (format === "cx") {
         const vps = extra.cx?.cyVisualProperties;
         return cytoscapeStyleFromCx(Array.isArray(vps) ? vps : []);
@@ -120,7 +120,7 @@ function styleOf(s: GraphSnapshot, format: string): CytoscapeStyle {
  * @returns whether it is
  */
 function isCollection(s: GraphSnapshot): boolean {
-    const extra = (s.meta.extra ?? {}) as Record<string, Record<string, unknown> | undefined>;
+    const extra = s.meta.extra as Record<string, Record<string, unknown> | undefined>;
     const subs = extra.cx?.cySubNetworks;
     return Array.isArray(subs) && subs.length > 0;
 }
@@ -143,8 +143,10 @@ describe("Cytoscape resolution reproduces the prototype on the CX and CX2 fixtur
         for (const target of ["node", "edge"] as const) {
             const elements = elementsOf(s, target, `${format}.bypass`);
             // the edges' fan spacing is read against the nodes' sizes, as the readers pass them
-            // a CX version 1 file outside a collection is created in hash order, as readCxStyles passes it
-            const created = format === "cx" && !isCollection(s) ? (hashCreationOrder(s) ?? undefined) : undefined;
+            // a CX version 1 file outside a collection is created in hash order, as readCxStyles passes it, and a CX2
+            // file in file order, as readCx2Styles passes it
+            const hashed = format === "cx" && !isCollection(s) ? (hashCreationOrder(s) ?? undefined) : undefined;
+            const created = format === "cx2" ? fileCreationOrder(s) : hashed;
             const got = resolveCytoscape(
                 target,
                 style,

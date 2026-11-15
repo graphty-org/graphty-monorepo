@@ -129,6 +129,13 @@ export type StyleLabelPosition =
 export type StyleLabelTextAlign = "left" | "center" | "right";
 
 /**
+ * What a node label's box is sized to: its words, its words held against the side it is placed at however large they
+ * are, or its node's width.
+ * @category Styles
+ */
+export type StyleLabelBox = "words" | "words-at-side" | "target-width";
+
+/**
  * How a node grows to hold its label, when it does: its `width` and `height` are then minimums, and the label's box
  * (as wide as its widest line and as tall as its lines at one `labelSize` each), with `labelPaddingX` and
  * `labelPaddingY` added on each side, decides the rest.
@@ -171,6 +178,17 @@ export interface NodeStyleValues {
     readonly fillGradientStops: string;
     /** How a gradient fill runs: `linear` across the node (`fillGradientAngle`), or `radial` out from its middle. */
     readonly fillGradientKind: string;
+    /**
+     * Where a radial gradient fill's middle is across the node's box: 0 at its left side, 1 at its right. Unset, 0.5.
+     */
+    readonly fillGradientCenterX: number;
+    /** Where a radial gradient fill's middle is down the node's box: 0 at its top, 1 at its bottom. Unset, 0.5. */
+    readonly fillGradientCenterY: number;
+    /**
+     * How far a radial gradient fill's last stop reaches from its middle, in halves of the node's side; past it the
+     * last color goes on. Unset, 1 (the node's edge).
+     */
+    readonly fillGradientRadius: number;
     /** The border (outline) color. */
     readonly borderColor: StyleColor;
     /** The label's text color. */
@@ -216,6 +234,11 @@ export interface NodeStyleValues {
      */
     readonly labelWrapSpaceCount: number;
     /**
+     * Whether a blank line before or between lines of words is drawn one line of the label's font tall, as a text
+     * layout sets it (yEd's "\nCS" is two lines tall). Unset or false, a blank line takes no height.
+     */
+    readonly labelKeepBlankLines: boolean;
+    /**
      * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
      * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).
      */
@@ -228,12 +251,27 @@ export interface NodeStyleValues {
     readonly labelPaddingY: number;
     /** Whether a node that grows to fit its label stays as wide as it is tall (a circle, a square). */
     readonly labelFitSquare: boolean;
+    /**
+     * A length a node that grows to fit its label rounds its padded label box up to a multiple of, each way, before its
+     * outline is fitted round it (Graphviz's `quantum`).
+     */
+    readonly labelFitQuantum: number;
+    /**
+     * How long each of the node's picture's (`image`) own pixels is when a node that grows to fit its label holds its
+     * picture too: the picture's box, padded by `labelFitImagePadding` on each side, is held as the padded label box
+     * is, the larger each way deciding (Graphviz grows a node round its `image`).
+     */
+    readonly labelFitImage: number;
+    /** The room on each side of a picture a node holds (`labelFitImage`). */
+    readonly labelFitImagePadding: number;
     /** The shape. */
     readonly shape: StyleNodeShape;
     /**
      * A `polygon` node's corners, each as `x,y` relative to the node's center as fractions of its half width and half
      * height, y up, separated by spaces: `"0,1 1,-1 -1,-1"` is a triangle filling the box. A corner past 1 reaches
-     * outside the box; a node that grows to hold its label (`labelFit`) then grows as far as its corners reach.
+     * outside the box; a node that grows to hold its label (`labelFit`) then grows as far as its corners reach. A
+     * coordinate may add a length in the units of `width` after its fraction, kept whatever the node's size: `"-1+24"`
+     * is 24 in from the left side (Graphviz's synthetic-biology glyphs).
      */
     readonly shapePoints: string;
     /**
@@ -242,6 +280,11 @@ export interface NodeStyleValues {
      * inside the ellipse of the node's box).
      */
     readonly shapePointsStretch: boolean;
+    /**
+     * Degrees clockwise the node's outline is turned about its center, after it is drawn at its width and height:
+     * Pajek's `phi` turns an ellipse, a cross or a figure (`phi 60` is -60). Its label is not turned.
+     */
+    readonly shapeRotation: number;
     /**
      * Further closed pieces of the node's body beside its outline: polygons written as `shapePoints` is, separated by
      * ";", drawn where they say (never stretched), each filled as the node is and outlined in its border's color and
@@ -255,6 +298,10 @@ export interface NodeStyleValues {
     readonly shapeLines: string;
     /** How wide `shapeLines` are drawn; unset, the border's width. */
     readonly shapeLineWidth: number;
+    /** The color of a wider line drawn under each of `shapeLines`, down the same path: a yFiles bevel's lighter line. */
+    readonly shapeLineHaloColor: StyleColor;
+    /** How wide that line under `shapeLines` is drawn; unset or 0, none. */
+    readonly shapeLineHaloWidth: number;
     /**
      * Further texts drawn on the node in its label's font, size and color, each one line centered on its point: a JSON
      * list of `[x, y, text]`, the point as `shapeParts` writes one (Graphviz's record fields, `[[-0.5, 0, "a"], [0.5,
@@ -285,6 +332,34 @@ export interface NodeStyleValues {
      * `outline-offset` out, so that is what is read.
      */
     readonly outerBorderOffset: number;
+    /**
+     * How many such rings are drawn, each `outerBorderOffset` beyond the one before (Graphviz's `peripheries` less the
+     * node's own outline); absent, one.
+     */
+    readonly outerBorderCount: number;
+    /**
+     * The width of a raised border: strips along the inside of the node's edge, light on its left and top and dark on
+     * its bottom and right (a length; yEd's `use3DEffect` and `rectangle3d`, 1 px); 0 or absent draws none.
+     */
+    readonly raisedBorderWidth: number;
+    /** A raised border's color on the node's left and top. */
+    readonly raisedBorderLightColor: StyleColor;
+    /** A raised border's color on the node's bottom and right. */
+    readonly raisedBorderDarkColor: StyleColor;
+    /**
+     * The color of the shadow drawn beneath the node: the node's own shape, moved by `shadowOffsetX` and
+     * `shadowOffsetY` and softened over `shadowBlur` (yEd's `y:DropShadow` and its configurations painted with a
+     * shadow); drawn only with a `shadowOpacity` above 0.
+     */
+    readonly shadowColor: StyleColor;
+    /** The opacity of the shadow where it is solid, 0..1; 0 draws none. */
+    readonly shadowOpacity: number;
+    /** How far the shadow's edge fades in and out on each side of the moved outline (a length); 0 draws a hard edge. */
+    readonly shadowBlur: number;
+    /** How far right of the node the shadow is drawn (a length). */
+    readonly shadowOffsetX: number;
+    /** How far down from the node the shadow is drawn (a length). */
+    readonly shadowOffsetY: number;
     /**
      * The color of a filled shape drawn beneath the node, `underlayPadding` beyond its box on every side (Cytoscape.js
      * `underlay-*`); drawn only with an `underlayOpacity` above 0.
@@ -320,8 +395,40 @@ export interface NodeStyleValues {
      * throughout.
      */
     readonly labelRuns: string;
+    /**
+     * The label laid out as a table of cells (Graphviz's HTML-like `<TABLE>`), as JSON: `{ "border", "cellBorder",
+     * "cellSpacing", "cellPadding", "width"?, "height"?, "fixedSize"?, "align"?, "valign"?, "fill"?, "lineHeight"?,
+     * "textPixel"?, "baseline"?, "imagePixel"?, "rows" }`,
+     * lengths in the unit of `width`. `border` is the table's outline width, `cellBorder` and `cellPadding` every
+     * cell's own unless the cell gives one, `cellSpacing` the room between cells and round them, `width` and
+     * `height` a least size (exact with `fixedSize`), `align` (`left`, `right`) and `valign` (`top`, `bottom`) where
+     * the table sits in a cell larger than it, `fill` its background color, `lineHeight` how tall a text line is (a multiple of its font size, or
+     * `"font"`: its font's ascent plus descent, each rounded up to whole `textPixel`s when that is given), `baseline`
+     * how far a line's baseline sits below its top as a multiple of its font size (unset, its words centered in it),
+     * `imagePixel` how long each of a picture's own pixels is when its cell is sized by it (unset, as it is drawn).
+     * Each row is `{ "cells", "rule"? }` (`rule`: a line between it and the row above); each cell
+     * `{ "lines"?, "table"?, "image"?, "colspan"?, "rowspan"?, "width"?, "height"?, "fixedSize"?, "align"?, "valign"?,
+     * "balign"?, "border"?, "padding"?, "fill"?, "rule"?, "hidden"? }`: its text as lines `{ "runs", "align"? }` (runs as in
+     * `labelRuns`), a table of its own, or a picture `{ "src", "scale"? }` (its file as written; `scale` unset draws it
+     * at its own size, `true` keeps its proportions inside the cell's padding, `both` stretches it there, `width` or
+     * `height` stretches that side only); `fill` is its background color; `align` is also `text` (the lines line up across the whole cell),
+     * `balign` lines up the lines that give no `align`, `rule` is a line between it and the cell on its left, `hidden`
+     * keeps the cell's room and draws nothing in it (Graphviz's `STYLE="invis"`). The
+     * table's size, with `labelPaddingX` and `labelPaddingY` round it, is the label's box when the node grows to
+     * fit it. `label` holds its words.
+     */
+    readonly labelTable: string;
     /** The tooltip text. */
     readonly tooltip: string;
+    /**
+     * A second label drawn outside the node, beside it, in the label's font, size and color (Graphviz's `xlabel`).
+     * Unset `xlabelOffsetX` and `xlabelOffsetY`, it sits against the node's top left corner, outside it.
+     */
+    readonly xlabel: string;
+    /** How far right of the node's center the middle of `xlabel` is drawn (a length). */
+    readonly xlabelOffsetX: number;
+    /** How far down from the node's center the middle of `xlabel` is drawn (a length). */
+    readonly xlabelOffsetY: number;
     /** The label's font family, as the file names it. */
     readonly labelFont: string;
     /** The label's font weight. */
@@ -407,6 +514,13 @@ export interface NodeStyleValues {
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
+    /**
+     * What the label's box is sized to: `words`, a label inside the node too large for it being centered on it;
+     * `words-at-side`, a label inside the node staying against the side `labelPosition` names however large it is;
+     * `target-width`, as `words-at-side` and at least as wide as the node, a band across it (yEd's group header),
+     * `labelTextAlign` lining the words up in it. Unset, `words`.
+     */
+    readonly labelBox: StyleLabelBox;
     /** The URI of an image drawn on the node. */
     readonly image: string;
     /**
@@ -491,6 +605,11 @@ export interface NodeStyleValues {
     /** The size of the box the bands fill, as a fraction of the node's; unset, 1. */
     readonly stripeSize: number;
     /**
+     * Keeps only the rim of the bands' box, four fractions "top right bottom left" of its height and width deep: the
+     * band yEd Live draws round a group's panel.
+     */
+    readonly stripeFrame: string;
+    /**
      * A chart drawn over the node (Cytoscape's bar, line, box and heat map charts): `bar` (bars side by side),
      * `stacked-bar` (the values piled into one bar), `line`, `box` (the values are the low whisker, the lower
      * quartile, the median, the upper quartile and the high whisker) or `cells` (a row of colored cells).
@@ -508,6 +627,14 @@ export interface NodeStyleValues {
     readonly chartHorizontal: boolean;
     /** The size of the chart's plot box, as a fraction of the node's; unset, 1. */
     readonly chartSize: number;
+    /** The width of the chart's plot box, as a fraction of the node's width; unset, `chartSize`. */
+    readonly chartWidth: number;
+    /** The height of the chart's plot box, as a fraction of the node's height; unset, `chartSize`. */
+    readonly chartHeight: number;
+    /** How far right of the node's middle the plot box's middle is (a length); unset, 0. */
+    readonly chartOffsetX: number;
+    /** How far down from the node's middle the plot box's middle is (a length); unset, 0. */
+    readonly chartOffsetY: number;
     /** How much of the category side is left empty at each end, as a fraction of it; unset, 0. */
     readonly chartMargin: number;
     /** How much of the category side is left between the categories in all, as a fraction of it; unset, 0. */
@@ -518,6 +645,10 @@ export interface NodeStyleValues {
     readonly chartBorderColor: StyleColor;
     /** How wide a bar's and a box's outline is (a length); unset, none. */
     readonly chartBorderWidth: number;
+    /** The color filling the chart's plot box under its bars, cells or lines; unset, no fill. */
+    readonly chartBackgroundColor: StyleColor;
+    /** The opacity of `chartBackgroundColor`, 0 to 1; unset, 1. */
+    readonly chartBackgroundOpacity: number;
     /**
      * How far a group drawn round its members (a node other nodes name as their parent, with no box of its own) reaches
      * past their box on every side (a length; Cytoscape.js `padding` on a compound parent). Unset, the reader's own.
@@ -564,6 +695,13 @@ export interface EdgeStyleValues {
     readonly sourceArrowColor: StyleColor;
     /** The color of the arrow at the target end. */
     readonly targetArrowColor: StyleColor;
+    /**
+     * The color a hollow arrow at the source end is filled with, inside its outline in `sourceArrowColor` (yEd's framed
+     * edges); absent, its inside is empty.
+     */
+    readonly sourceArrowFillColor: StyleColor;
+    /** The color a hollow arrow at the target end is filled with, as `sourceArrowFillColor` says. */
+    readonly targetArrowFillColor: StyleColor;
     /** The label's text color. */
     readonly labelColor: StyleColor;
     /** The opacity of the whole edge, 0..1. */
@@ -651,6 +789,15 @@ export interface EdgeStyleValues {
     /** The side of its line the target arrowhead is drawn on alone, as `sourceArrowSide` says. */
     readonly targetArrowSide: StyleArrowSide;
     /**
+     * More arrowheads drawn in a row behind the source arrowhead, nearest first, each from where the one before it
+     * ends, the line stopping at the last (Graphviz's `boxdotnormal`, `lteeoldiamond`): arrow shapes separated by
+     * spaces, each optionally followed by `:left` or `:right` for the side it keeps alone (`circle triangle`,
+     * `diamond-open:left`). Unset, the arrowhead alone.
+     */
+    readonly sourceArrowParts: string;
+    /** More arrowheads drawn in a row behind the target arrowhead, as `sourceArrowParts` says. */
+    readonly targetArrowParts: string;
+    /**
      * Where along the line each arrowhead is drawn, as a fraction of the line measured from the arrow's own end: 0 (the
      * default) at the end, 0.5 at the middle, at most 1.
      */
@@ -664,6 +811,12 @@ export interface EdgeStyleValues {
     readonly waveAmplitude: number;
     /** How far along its path a zigzag or sine-wave line runs before it repeats (a length; Cytoscape's: 20 px). */
     readonly wavePeriod: number;
+    /**
+     * The line's width at the target as a multiple of its width at the source (`width`): 1 (the default) draws it the
+     * same width all along, 0 narrows it to a point at the target (Graphviz's `style=tapered`, `dir=forward`;
+     * Cytoscape.js's `curve-style: straight-triangle`).
+     */
+    readonly taper: number;
     /** The arrow at the source end. */
     readonly sourceArrow: StyleArrowShape;
     /** The arrow at the target end. */
@@ -751,6 +904,13 @@ export interface EdgeStyleValues {
     /** How hard a support point is pulled toward the middle of the nodes: a constant pull under barnesHut, in proportion to the distance under forceAtlas2. */
     readonly supportCentralGravity: number;
     /**
+     * What unit a support point's numbers are in: absent, the file's own; `"drawing"`, the drawing's, the size at which
+     * the forces hold the drawn nodes in balance, for a file the program lays out itself under the same forces
+     * (vis-network's physics, on a file that does not place every node), so a curve bows among the nodes another
+     * layout places as among the program's.
+     */
+    readonly supportScale: string;
+    /**
      * How far from each of its nodes' outlines the edge's line (and its arrowhead) stops, leaving that much empty
      * (a length; Gephi's `edge.radius`).
      */
@@ -796,6 +956,8 @@ export interface EdgeStyleValues {
     readonly labelWrapAnywhere: boolean;
     /** How many blanks a blank between two words counts as against `labelWrapWidth`; see the node's. */
     readonly labelWrapSpaceCount: number;
+    /** Whether a blank line before or between lines of words is drawn one line tall; see the node's. */
+    readonly labelKeepBlankLines: boolean;
     /**
      * Where runs of different sizes in one line of `labelRuns` meet: `baseline` (their alphabetic baselines, the
      * default), `hanging` (their hanging baselines, so their tops line up) or `middle` (their middles).
@@ -836,10 +998,24 @@ export interface EdgeStyleValues {
      * side, in the units of `labelSize`; 0 puts the border against the words. Unset, the drawing program's default.
      */
     readonly labelPadding: number;
+    /**
+     * The label laid out as a table of cells, as JSON in the form the node's `labelTable` takes (lengths in the units
+     * of `labelSize`). The table is then the label's box: `labelBackground` is its fill, `labelBorderColor` and
+     * `labelBorderWidth` its outline (and `labelBorderColor` its cells' outlines), and `labelPadding` the room from
+     * its outline to the words of a table of one cell, for a reader that does not lay the table out. `label` holds
+     * its words.
+     */
+    readonly labelTable: string;
     /** How far the corners of the box behind the label's words are rounded, in the units of `labelSize`. Unset, square. */
     readonly labelCornerRadius: number;
     /** How tall one line of the label is, as a multiple of its font's ascent plus descent. Unset, 1.2. */
     readonly labelLineHeight: number;
+    /**
+     * A second label drawn beside the line's middle, in the label's font, size and color (Graphviz's `xlabel` on an
+     * edge that also has a label). Unset a place of its own, up and left of the line's middle, its lower right corner
+     * on it.
+     */
+    readonly xlabel: string;
     /** The label text at the source end. */
     readonly sourceLabel: string;
     /** The label text at the target end. */
@@ -893,6 +1069,11 @@ export interface EdgeStyleValues {
 export interface GraphStyleValues {
     /** The background color. */
     readonly background: StyleColor;
+    /**
+     * How far the whole drawing (nodes, edges and labels) is turned counterclockwise on screen, in degrees, about its
+     * middle: Graphviz's `rotate=90` and `landscape` turn it 90. Absent, it is upright.
+     */
+    readonly rotation: number;
 }
 
 /**
@@ -956,6 +1137,8 @@ export type StyleDialect =
     | "css"
     /** X11 color names (`gray` is `#bebebe`). */
     | "x11"
+    /** The GML draft's Tk colors: CSS, then Tk's `#RRRGGGBBB`, `#RRRRGGGGBBBB` and X11 names written with spaces. */
+    | "tk"
     /** Graphviz: X11 and SVG names, color schemes and `/scheme/name`, `#rrggbbaa`, HSV triples, inches. */
     | "graphviz"
     /** Java's `java.awt.Color` names and `#rrggbb`. */

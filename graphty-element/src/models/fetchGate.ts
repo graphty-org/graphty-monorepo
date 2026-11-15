@@ -11,7 +11,7 @@ import type { CodedFact } from "../session/shared";
 import type { SessionStylesApi } from "../session/styles/StylesApi";
 
 /** The channels that name a fetched asset. */
-export type AssetChannel = "node.model" | "node.texture";
+export type AssetChannel = "node.model" | "node.texture" | "node.image";
 
 /** What the gate reads from the session. */
 export interface GateSession {

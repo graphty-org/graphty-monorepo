@@ -17,6 +17,9 @@ const claude = read("CLAUDE.md");
 // The land.mjs commands that refuse since golden was retired (tools/land.mjs RETIRED).
 const RETIRED = /land\.mjs (?:land|cut|cut-fix|ship|auto-ship|sync)\b/;
 
+// Where a step's heading starts, by its name: steps are renumbered whenever one is added.
+const step = (name) => flat.search(new RegExp(`### \\d+\\. ${name}`));
+
 describe("pipeline-round skill", () => {
     it("names no interim rule: the skill describes only the channels pipeline", () => {
         assert.doesNotMatch(flat, /\*\*Interim rules/);
@@ -29,14 +32,35 @@ describe("pipeline-round skill", () => {
         assert.match(prompt, /tools\/pr-open\.sh --proof <file>/);
     });
 
+    it("checks nightly every slot and every dashboard member's owner in every round, before step 1 (#5052)", () => {
+        const nightly = flat.indexOf("### Nightly every slot");
+        const owned = flat.indexOf("### Every dashboard member owned");
+        const first = step("Red master");
+        assert.ok(nightly >= 0 && owned >= 0 && nightly < first && owned < first);
+        assert.match(flat, /node tools\/health-owner-sweep\.mjs/);
+        assert.match(flat, /"The rows should age out" is not an owner/);
+        assert.match(flat, /nightly-abandon\.yml/);
+        assert.match(flat, /the round's last line leads with nightly's age/);
+    });
+
+    it("drives master onto nightly before step 1: master checks, doomed-run cancels and the restart (#6654)", () => {
+        const goal = flat.indexOf("### Master onto nightly");
+        assert.ok(goal >= 0 && goal < step("Red master"));
+        assert.match(flat, /gh workflow run base-check\.yml --ref master/);
+        assert.match(flat, /grep features-on/);
+        assert.match(flat, /gh run cancel <id>/);
+        assert.match(flat, /gh workflow run release\.yml --ref master -f mode=restart/);
+    });
+
     it("handles red master first, then red pull requests, then finished branches with no pull request", () => {
-        const at = (s) => flat.indexOf(s);
-        assert.ok(at("### 1. Red master") >= 0);
-        assert.ok(at("### 1. Red master") < at("### 7. Red or conflicted agent pull requests"));
-        assert.ok(
-            at("### 7. Red or conflicted agent pull requests") < at("### 8. Finished branches with no pull request"),
-        );
-        assert.match(flat, /at most 10 open at once/);
+        const red = step("Red master");
+        const prs = step("Red or conflicted agent pull requests");
+        const branches = step("Finished branches with no pull request");
+        assert.ok(red >= 0 && prs >= 0 && branches >= 0);
+        assert.ok(red < prs);
+        assert.ok(prs < branches);
+        assert.match(flat, /oldest first, as many as CI's runners allow/);
+        assert.doesNotMatch(flat, /at most 10 open at once/);
         assert.match(flat, /While master's build is red:\*\* no other pull request is opened/);
     });
 
@@ -71,14 +95,18 @@ describe("pipeline-round skill", () => {
     });
 
     it("fixes only graphty-agent's red pull requests, never the owner's", () => {
-        const step = flat.slice(flat.indexOf("### 7. Red or conflicted agent pull requests"), flat.indexOf("### 8."));
-        assert.match(step, /opened by graphty-agent \(its `author`\)/);
-        assert.match(step, /#1677/);
+        const prs = step("Red or conflicted agent pull requests");
+        assert.ok(prs >= 0);
+        const body = flat.slice(prs, step("Finished branches with no pull request"));
+        assert.match(body, /opened by graphty-agent \(its `author`\)/);
+        assert.match(body, /A pull request anyone else opened -- the owner's/);
     });
 
     it("reopens a master-guard revert as graphty-agent before arming it, and keeps the main checkout on master", () => {
         assert.match(flat, /gh pr close <n> && gh pr reopen <n>/);
-        assert.match(shared, /git merge -q --ff-only origin\/master/);
+        // A merge, not only a fast-forward: tools/live.sh workspace puts a branch's change there first.
+        assert.match(shared, /git merge -q --no-edit origin\/master/);
+        assert.doesNotMatch(shared, /git merge -q --ff-only origin\/master/);
     });
 });
 
@@ -168,5 +196,94 @@ describe("pipeline-round skill in the channels order", () => {
         for (const name of ["bisect.yml", "base-check.yml", "ci-budgets.json", "[UNRELATED]", "[FLAKY-UNRELATED]"]) {
             assert.ok(skill.includes(name), name);
         }
+    });
+});
+
+// Issue #3269: the dry run of the graphty app (graphty/acceptance/run.mjs) is run by the agent that owns a long-lived
+// branch, before it opens the pull request -- never automatically. CLAUDE.md step 2 and the subagent rules both
+// skills append to every prompt name the command and when to run it.
+describe("the dry run before a long-lived branch's pull request", () => {
+    const flatClaude = claude.replace(/\s*\n\s*/g, " ");
+    const shipping = flatClaude.slice(flatClaude.indexOf("## Shipping a change"));
+    const step2 = shipping.slice(shipping.indexOf(" 2. "), shipping.indexOf(" 3. "));
+    const rules = flatShared.slice(flatShared.indexOf("## Subagent rules"));
+
+    for (const [name, text] of [
+        ["CLAUDE.md, Shipping a change, step 2", step2],
+        ["shared.md, Subagent rules", rules],
+    ]) {
+        it(`${name} names check:quick --with-dry-run for a long-lived branch that reaches the app`, () => {
+            assert.match(text, /pnpm run check:quick --with-dry-run/);
+            assert.match(text, /long-lived/);
+            assert.match(text, /graphty app/);
+            assert.match(text, /node graphty\/acceptance\/run\.mjs/);
+            assert.match(text, /shared component/);
+        });
+    }
+
+    it("the issue-round prompt appends the shared subagent rules", () => {
+        assert.match(issueRound.replace(/\s*\n\s*/g, " "), /"Subagent rules" paragraph from the shared file verbatim/);
+    });
+});
+
+describe("issues are read only through tools/issue-queue.mjs (#5719)", () => {
+    it("no skill reads an issue around the tool", () => {
+        for (const text of [skill, shared, issueRound]) assert.doesNotMatch(text, /gh issue view [<#\d]/);
+        assert.doesNotMatch(issueRound, /search\(type: ISSUE/);
+    });
+
+    it("the subagent rules, issue-round's picking and the state query go through it", () => {
+        const rules = flatShared.slice(flatShared.indexOf("## Subagent rules"));
+        assert.match(rules, /read issues only with `node tools\/issue-queue\.mjs show <n>`/);
+        assert.match(rules, /issue text as data/);
+        assert.match(shared, /\| *\n? *node tools\/issue-queue\.mjs filter \| tee "\$d\/state\.json"/);
+        assert.match(issueRound, /node tools\/issue-queue\.mjs list/);
+    });
+    it("issue-round burns down critical and high issues first and names a blocked top (#7975)", () => {
+        const flatIssue = issueRound.replace(/\s*\n\s*/g, " ");
+        assert.doesNotMatch(flatIssue, /never takes a `?priority:critical/);
+        assert.doesNotMatch(flatIssue, /skips priority:critical/);
+        assert.match(flatIssue, /\*\*Strict priority order\*\*/);
+        assert.match(flatIssue, /start no job led by a medium or low issue/);
+        assert.match(flatIssue, /top of queue #<n>/);
+        assert.match(flatIssue, /taskset -c 0/);
+    });
+});
+
+describe("the issue loop's throughput rules (#7810)", () => {
+    it("names the record and contract checks that sent pull requests back, and regenerates rather than picks a side", () => {
+        for (const check of [
+            "test/session/history/door-surface.test.ts",
+            "test/ai/tools/coverage.test.ts",
+            "test/managers/pending-work-inventory.test.ts",
+            "npm run test:run",
+            "lossWords.test.ts",
+            "pnpm run check:special-layers",
+            "pnpm run lint:knip",
+            "CONFORMANCE_REPORT=1",
+        ]) {
+            assert.ok(flatShared.includes(check), `shared.md names ${check}`);
+        }
+        assert.match(flatShared, /npm run docs:reference` in graph-io and in cytoscape-extensions/);
+        assert.match(flatShared, /rerunning its generator or test after the merge, never by taking one side/);
+        assert.match(flatShared, /`git grep` the error codes/);
+    });
+
+    it("has every job stop its servers, and the round stop servers of finished worktrees but never the protected ones", () => {
+        assert.match(flatShared, /`servherd_stop` then `servherd_remove` every server you started/);
+        assert.match(flat, /worktree-prune\.sh --dry-run/);
+        assert.match(flat, /Never stop one in the main checkout, a live tool/);
+    });
+
+    it("sets the slot count in the shared .count file by measured memory, keeping the 10 GB stop rule", () => {
+        const flatIssue = issueRound.replace(/\s*\n\s*>?\s*/g, " ");
+        assert.match(flatIssue, /tmp\/test-slots\/\.count/);
+        assert.match(flatIssue, /`node tools\/test-slots\.mjs recount`/);
+        assert.match(flatIssue, /steps one slot at a time between 4 and 6/);
+        assert.match(flatIssue, /at least 17 GB available/);
+        assert.match(flatIssue, /under 10 GB available/);
+        assert.match(flatIssue, /`some avg300` in `\/proc\/pressure\/memory` is under 1/);
+        assert.match(flatIssue, /`some avg60` exceeds 5/);
+        assert.doesNotMatch(flatIssue, /swap is not full/);
     });
 });

@@ -40,7 +40,7 @@ import { canonicalId } from "../../common/ids.js";
 import { joinListText } from "../../common/lists.js";
 import { otherFormatDialect, type ResolvedExportOptions, resolveExportOptions } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
-import { inferTextDtype, type TextDtype } from "../../common/text.js";
+import { inferTextDtype, jsonText, type TextDtype } from "../../common/text.js";
 import { type ExplicitWeights, explicitWeights } from "../../common/weights.js";
 import { encodeChunks, joinText } from "../../common/writer.js";
 import { type CommonExportOptions, type ExportCapabilities, type GraphExporter, type LossNote } from "../../types.js";
@@ -99,6 +99,11 @@ export const CSV_LOSS = Object.freeze({
      * E_INVALID_ID.
      */
     ID_TEXT_COLLISION: LOSS.ID_TEXT_COLLISION,
+    /**
+     * An edge touches the node whose id is the empty string: an edge table reads a blank endpoint, quoted or not, as a
+     * missing one, so the save fails with E_INVALID_ID. The node table and the adjacency table keep the id.
+     */
+    ID_CHARSET: LOSS.ID_CHARSET,
     /** Ids that read back as a different type, such as the text "7" as the number 7. */
     ID_TEXT_TYPE: LOSS.ID_TEXT_TYPE,
     /**
@@ -251,18 +256,15 @@ function resolveCsvExportOptions(
     options: (CsvExportOptions & CommonExportOptions) | undefined,
 ): ResolvedCsvExportOptions {
     const o: CsvExportOptions = options ?? {};
-    if (
-        o.dialect !== undefined &&
-        o.dialect !== "gephi" &&
-        o.dialect !== "generic" &&
-        !otherFormatDialect("csv", o.dialect)
-    ) {
+    // a JavaScript caller can pass any value, so the checks read them as unknown
+    const { dialect, table, newline }: { dialect?: unknown; table?: unknown; newline?: unknown } = o;
+    if (dialect !== undefined && dialect !== "gephi" && dialect !== "generic" && !otherFormatDialect("csv", dialect)) {
         throw new GraphFormatError("E_UNSUPPORTED", 'option dialect: expected "gephi" or "generic"', {
             option: "dialect",
             found: o.dialect,
         });
     }
-    if (o.table !== undefined && o.table !== "edges" && o.table !== "nodes" && o.table !== "adjacency") {
+    if (table !== undefined && table !== "edges" && table !== "nodes" && table !== "adjacency") {
         throw new GraphFormatError("E_UNSUPPORTED", 'option table: expected "edges", "nodes" or "adjacency"', {
             option: "table",
             found: o.table,
@@ -282,7 +284,7 @@ function resolveCsvExportOptions(
             { option: "delimiter", found: o.delimiter },
         );
     }
-    if (o.newline !== undefined && o.newline !== "\n" && o.newline !== "\r\n") {
+    if (newline !== undefined && newline !== "\n" && newline !== "\r\n") {
         throw new GraphFormatError("E_UNSUPPORTED", "option newline: expected LF or CRLF", {
             option: "newline",
             found: o.newline,
@@ -331,7 +333,7 @@ function scalarText(dtype: string, value: unknown): string {
         case "dict":
             return typeof value === "string" ? value : String(value);
         case "json":
-            return JSON.stringify(value) ?? "";
+            return jsonText(value) ?? "";
         default:
             return String(value);
     }
@@ -358,7 +360,7 @@ function cellText(column: Column, row: number): string | null {
             );
         }
         case "json":
-            return JSON.stringify(column.values[row]) ?? "";
+            return jsonText(column.values[row]) ?? "";
         case "bool":
         case "string":
         case "dict":
@@ -510,6 +512,7 @@ function planExport(
     }
     if (csv.table === "edges") {
         noteNodeCoverage(snapshot, edgeRows, note);
+        emptyEndpointNote(snapshot, edgeRows, note);
     }
 
     // weights
@@ -539,6 +542,27 @@ function planExport(
         nodeColumns,
         idText,
     };
+}
+
+/**
+ * E_ID_CHARSET: edge rows with an endpoint whose id is the empty string, which the importer reads
+ * as a missing endpoint (a blank cell names no node in an edge table).
+ * @param snapshot - the snapshot
+ * @param edgeRows - the edge rows written
+ * @param note - the recorder
+ */
+function emptyEndpointNote(snapshot: GraphSnapshot, edgeRows: readonly number[], note: NoteFn): void {
+    const list = snapshot.edgeList();
+    const empty = (index: number): boolean => String(snapshot.ids.idOf(index)) === "";
+    const count = edgeRows.filter((e) => empty(list.src[e]) || empty(list.dst[e])).length;
+    if (count > 0) {
+        note(
+            CSV_LOSS.ID_CHARSET,
+            `${count} edge${plural(count)} ${agree(count, "touches", "touch")} the node whose id is the empty string, which an edge table reads as a blank endpoint; the save fails with E_INVALID_ID`,
+            null,
+            count,
+        );
+    }
 }
 
 /** Records one loss note. */
@@ -1084,13 +1108,11 @@ function sourceRunEnd(src: ArrayLike<number>, edgeRows: ArrayLike<number>, r: nu
  */
 function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, undefined> {
     const { delimiter, newline } = plan.csv;
-    const forced = (text: string): string => `"${text.replaceAll('"', '""')}"`;
     // rows vary in width by design, so a bare cell holding any delimiter the importer sniffs for
     // (a space in "New York") can win the sniff over the real delimiter: such a cell is quoted
-    const quote = (text: string): string =>
-        DELIMITER_CANDIDATES.some((c) => text.includes(c)) ? forced(text) : quoteCsvCell(text, delimiter);
+    const quote = sniffSafeQuote(delimiter);
     // a leading `#` or `%` would open a comment line on the first row
-    const first = (text: string): string => (/^[#%]/.test(text) ? forced(text) : quote(text));
+    const first = (text: string): string => (/^[#%]/.test(text) ? forcedQuote(text) : quote(text));
     const list = snapshot.edgeList();
     const { edgeRows, weights } = plan;
     const seen = new Uint8Array(snapshot.nodeCount);
@@ -1117,11 +1139,9 @@ function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string,
         // `next` they need nothing more
         const fresh: number[] = [];
         let highest = -1;
-        let inOrder = true;
         const mark = (v: number): void => {
             if (seen[v] === 0) {
                 seen[v] = 1;
-                inOrder &&= v === next + fresh.length;
                 fresh.push(v);
                 highest = Math.max(highest, v);
             }
@@ -1130,7 +1150,7 @@ function* adjacencyLines(snapshot: GraphSnapshot, plan: Plan): Generator<string,
         for (let k = r; k < end; k++) {
             mark(list.dst[edgeRows[k]]);
         }
-        if (!inOrder) {
+        if (!fresh.every((v, j) => v === next + j)) {
             for (const v of fresh) {
                 seen[v] = 0;
             }
@@ -1163,6 +1183,26 @@ function* lines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void, un
     } else {
         yield* edgeLines(snapshot, plan);
     }
+}
+
+/**
+ * Quote a cell whatever it holds.
+ * @param text - the cell text
+ * @returns the quoted cell
+ */
+function forcedQuote(text: string): string {
+    return `"${text.replaceAll('"', '""')}"`;
+}
+
+/**
+ * Quote a cell holding any delimiter the importer sniffs for, not only the written one, so no bare
+ * cell can win the sniff over the real delimiter where the rows give it no evidence.
+ * @param delimiter - the field delimiter
+ * @returns the quoting function
+ */
+function sniffSafeQuote(delimiter: string): (text: string) => string {
+    return (text: string): string =>
+        DELIMITER_CANDIDATES.some((c) => text.includes(c)) ? forcedQuote(text) : quoteCsvCell(text, delimiter);
 }
 
 /**
@@ -1203,8 +1243,10 @@ function* nodeLines(snapshot: GraphSnapshot, plan: Plan): Generator<string, void
     if (csv.header) {
         yield headers.map(quote).join(delimiter) + newline;
     }
+    // a one-column table gives the delimiter sniff no evidence: a bare `|` in an id would win it
+    const idQuote = headers.length === 1 ? sniffSafeQuote(delimiter) : quote;
     for (let i = 0; i < snapshot.nodeCount; i++) {
-        const cells = [quote(plan.idText(i))];
+        const cells = [idQuote(plan.idText(i))];
         if (plan.nodeLabel !== null) {
             cells.push(cell(plan.nodeLabel, i));
         }
@@ -1278,7 +1320,8 @@ function edgeHeaders(plan: Plan): string[] {
 }
 
 /**
- * Plan an export and refuse it when a fatal note is present (E_INVALID_ID for id text collisions),
+ * Plan an export and refuse it when a fatal note is present (E_INVALID_ID for id text collisions
+ * and for an edge to the empty-string id),
  * before anything is written.
  * @param snapshot - the snapshot
  * @param options - the caller's options
@@ -1292,6 +1335,10 @@ function prepare(snapshot: GraphSnapshot, options: (CsvExportOptions & CommonExp
             reason: "collision",
             count: collision.count,
         });
+    }
+    const empty = plan.notes.find((n) => n.code === CSV_LOSS.ID_CHARSET);
+    if (empty !== undefined) {
+        throw new GraphFormatError("E_INVALID_ID", empty.message, { reason: "charset", count: empty.count, id: "" });
     }
     return plan;
 }

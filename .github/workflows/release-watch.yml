@@ -17,6 +17,14 @@ on:
     workflow_run:
         workflows: ["Release"]
         types: [completed]
+    # a Release run on channel/full-run asks for itself (release.yml's watchers job): GitHub raises no workflow_run
+    # event for a run a workflow's GITHUB_TOKEN dispatched
+    workflow_dispatch:
+        inputs:
+            run:
+                description: "The Release run to decide on (its id)"
+                required: true
+                type: string
 
 permissions:
     actions: read
@@ -27,7 +35,7 @@ permissions:
 jobs:
     announce:
         name: Announce a release run that ended badly
-        if: ${{ !contains(fromJSON('["success","skipped","neutral"]'), github.event.workflow_run.conclusion) && github.event.workflow_run.display_title != 'Release (shadow)' }}
+        if: ${{ github.event_name == 'workflow_dispatch' || (!contains(fromJSON('["success","skipped","neutral"]'), github.event.workflow_run.conclusion) && github.event.workflow_run.display_title != 'Release (shadow)') }}
         runs-on: ubuntu-24.04
         timeout-minutes: 5
         steps:
@@ -36,20 +44,35 @@ jobs:
                   ref: master
                   sparse-checkout: tools
 
+            # dispatched by a channel/full-run Release run's watchers job (no workflow_run event for it): wait for that run
+            # to end, then describe it as the event would
+            - name: Wait for the dispatched run to end
+              if: github.event_name == 'workflow_dispatch'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  RUN: ${{ inputs.run }}
+              run: |
+                  set -euo pipefail
+                  gh run watch "$RUN" --repo "$GITHUB_REPOSITORY" --interval 20 > /dev/null || true
+                  gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RUN}" --jq '"D_RUN=\(.id)",
+                      "D_ATTEMPT=\(.run_attempt)", "D_CONCLUSION=\(.conclusion)", "D_TITLE=\(.display_title)",
+                      "D_URL=\(.html_url)", "D_HEAD_SHA=\(.head_sha)", "D_STARTED=\(.run_started_at)"' >> "$GITHUB_ENV"
+
             - name: Comment on the Release status issue
+              if: ${{ github.event_name != 'workflow_dispatch' || !contains(fromJSON('["success","skipped","neutral"]'), env.D_CONCLUSION) }}
               env:
                   GH_TOKEN: ${{ github.token }}
                   GITHUB_TOKEN: ${{ github.token }}
                   RELEASE_NOTIFY: ${{ vars.RELEASE_NOTIFY }}
                   PUSHOVER_APP_TOKEN: ${{ secrets.PUSHOVER_APP_TOKEN }}
                   PUSHOVER_USER_KEY: ${{ secrets.PUSHOVER_USER_KEY }}
-                  RUN_ID: ${{ github.event.workflow_run.id }}
-                  RUN_URL: ${{ github.event.workflow_run.html_url }}
-                  ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
-                  CONCLUSION: ${{ github.event.workflow_run.conclusion }}
-                  HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
-                  STARTED: ${{ github.event.workflow_run.run_started_at }}
-                  TITLE: ${{ github.event.workflow_run.display_title }}
+                  RUN_ID: ${{ github.event.workflow_run.id || env.D_RUN }}
+                  RUN_URL: ${{ github.event.workflow_run.html_url || env.D_URL }}
+                  ATTEMPT: ${{ github.event.workflow_run.run_attempt || env.D_ATTEMPT }}
+                  CONCLUSION: ${{ github.event.workflow_run.conclusion || env.D_CONCLUSION }}
+                  HEAD_SHA: ${{ github.event.workflow_run.head_sha || env.D_HEAD_SHA }}
+                  STARTED: ${{ github.event.workflow_run.run_started_at || env.D_STARTED }}
+                  TITLE: ${{ github.event.workflow_run.display_title || env.D_TITLE }}
               run: |
                   set -euo pipefail
                   # the decision release-rerun.yml takes on this run: anything but none, and that run announces it

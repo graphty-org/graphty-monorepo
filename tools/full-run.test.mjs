@@ -7,6 +7,10 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 import {
+    UNSIGNED_TITLE,
+    unsignedIssue,
+    unsignedTree,
+    actorOf,
     bestEffort,
     bisectPlan,
     captureLane,
@@ -14,8 +18,14 @@ import {
     deferred,
     differingImages,
     duplicateOf,
+    fileFlakies,
     fixedRecently,
+    laneRedTitle,
+    runsOnTitleCommit,
     flakyLanes,
+    t4Refusal,
+    FLAKY_GROUP,
+    flakyFilings,
     flakyStories,
     flakyStoryBody,
     greenCloses,
@@ -65,6 +75,22 @@ describe("isOnNightly", () => {
         git("merge", "-q", "--no-edit", versions);
         assert.equal(isOnNightly(git("rev-parse", "HEAD"), nightly, dir), true, "only versions differ");
         assert.equal(isOnNightly(baselines, "refs/heads/none", dir), false, "no channel/nightly yet");
+    });
+});
+
+describe("unsignedTree", () => {
+    const T = "1".repeat(40);
+    it("alarms only on a tree that is neither nightly's nor named by an approval statement", () => {
+        assert.equal(unsignedTree({ tree: T, nightlyTree: "2".repeat(40), hasStatement: false }), true);
+        assert.equal(unsignedTree({ tree: T, nightlyTree: T, hasStatement: false }), false);
+        assert.equal(unsignedTree({ tree: T, nightlyTree: "2".repeat(40), hasStatement: true }), false);
+        assert.equal(unsignedTree({ tree: T, nightlyTree: null, hasStatement: false }), false);
+    });
+
+    it("titles the alarm so one open issue is found again", () => {
+        const { title, body } = unsignedIssue("a".repeat(40), T);
+        assert.equal(title, `${UNSIGNED_TITLE} on aaaaaaa`);
+        assert.match(body, new RegExp(T));
     });
 });
 
@@ -126,7 +152,8 @@ describe("pick", () => {
         const seen = [];
         const hasNightly = (sha) => (seen.push(sha), false);
         const p = pick({ mode: "full", head: "h", store: store([]), firstParents, stray: code, hasNightly });
-        assert.deepEqual([p.run, p.sha, seen], [false, "c3", ["c3"]]);
+        // master's head h is asked too (#5671): it predates nightly as well, so nightly holds everything
+        assert.deepEqual([p.run, p.sha, p.current, seen], [false, "c3", true, ["c3", "c3", "h"]]);
         assert.match(p.why, /c3 lacks channel\/nightly: it is older than nightly/);
         // even a green-clean one nightly lacks: its promotion would be refused at land
         const own = store([{ sha: "c3", state: "green-clean" }]);
@@ -135,6 +162,23 @@ describe("pick", () => {
             pick({ mode: "full", head: "h", store: own, firstParents, stray: code, onNightly: off, hasNightly }).run,
             false,
         );
+    });
+
+    it("tests master's head when nightly was promoted just before the slot (#5671)", () => {
+        // the promotion's version merge h is master's head; c3, the newest built commit, is older than nightly
+        const parents = (sha) => (sha === "h" ? ["h", ...CHAIN] : firstParents(sha));
+        const hasNightly = (sha) => sha === "h";
+        const base = { mode: "full", head: "h", firstParents: parents, hasNightly, stray: code };
+        const p = pick({ ...base, store: store([]) });
+        assert.deepEqual([p.run, p.sha, p.current], [true, "h", false]);
+        assert.match(p.why, /c3 lacks channel\/nightly.*master's head h holds it: h is not judged yet/);
+        // h only adds versions to c3, the promoted commit: nightly holds everything, so no missed slot
+        const promoted = store([{ sha: "c3", state: "green-clean" }]);
+        const q = pick({ ...base, store: promoted, stray: () => [] });
+        assert.deepEqual([q.run, q.sha, q.current, q.inherit?.sha], [false, "h", true, "c3"]);
+        // a head that predates the promotion too: nothing to test, and still no missed slot
+        const r = pick({ ...base, store: store([]), hasNightly: () => false });
+        assert.deepEqual([r.run, r.sha, r.current], [false, "c3", true]);
     });
 
     it("finds the last green commit for the bisect, past a red one", () => {
@@ -191,6 +235,23 @@ describe("verdictOf", () => {
         assert.equal(verdictOf(lanes, 0, "Google refused the account").state, "owner-item");
         assert.equal(verdictOf(lanes, 0, "").state, "red");
         assert.equal(verdictOf({ ...lanes, ci: "failure" }, 0, "refused").state, "red");
+    });
+
+    it("is an owner item when only the T4 lane failed on a refused runner, alone or with a refused LLM lane", () => {
+        const lanes = { ...ALL_GREEN, t4: "failure" };
+        assert.deepEqual(verdictOf(lanes, 0, "", "", "out of credit"), { state: "owner-item", red: ["t4"] });
+        assert.equal(verdictOf(lanes, 0).state, "red", "a T4 job that ran and failed stays red");
+        assert.equal(verdictOf({ ...lanes, llm: "failure" }, 0, "refused", "", "out of credit").state, "owner-item");
+        assert.equal(verdictOf({ ...lanes, ci: "failure" }, 0, "", "", "out of credit").state, "red");
+    });
+
+    it("reads a refusal from the step Machine adds to the job, and from nothing else", () => {
+        // the step of run 41938085373 attempts 1 and 2, the only trace of the refusal: no log and no annotation
+        const step =
+            "Machine: This Machine account is out of credit. Add credit at https://app.machine.dev/settings/credits, then re-run this job.";
+        assert.match(t4Refusal(["", step]), /^machine\.dev refused the T4 job: This Machine account is out of credit/);
+        assert.equal(t4Refusal(["Run the GPU tests"]), "");
+        assert.equal(t4Refusal([""]), "");
     });
 
     it("is red, never green-images, when an expected capture is missing (#3698)", () => {
@@ -302,6 +363,25 @@ describe("the red issue and its bisect", () => {
         assert.match(body, /`Refs #<this issue>` restarts the full run after this run ends/);
     });
 
+    // #4556: GitHub reports a job that hit its timeout-minutes as "cancelled", and the verdict runs only in a run
+    // nobody cancelled (!cancelled()), so a cancelled lane there timed out: say so, or it reads as a cancelled run
+    it("calls a cancelled lane timed out, since the verdict never runs in a cancelled run", () => {
+        const { title, body } = redIssue({
+            sha: "abcdef1234",
+            red: ["llm"],
+            lanes: { ...ALL_GREEN, llm: "cancelled" },
+            run: "https://run",
+            bisect: "Bisect dispatched.",
+        });
+        assert.equal(title, "Full run red: LLM regression on abcdef1");
+        assert.match(body, /LLM regression timed out \(cancelled\), T4 GPU success/);
+        assert.match(body, /a lane GitHub reports as cancelled hit its job time limit/);
+        assert.doesNotMatch(
+            redIssue({ sha: "a", red: ["t4"], lanes: { ...ALL_GREEN, t4: "failure" }, run: "r", bisect: "" }).body,
+            /time limit/,
+        );
+    });
+
     it("dispatches one bisect, for the first lane that has one, with the run's failing tests", () => {
         const failures = { tests: [{ shard: "layout", file: "x", name: "y" }], failedBefore: ["layout: x > y"] };
         const plan = bisectPlan({ red: ["ci", "hosts"], sha: "bad", good: "good", run: 9, failures });
@@ -374,11 +454,56 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
                 stateReason: "completed",
             },
         ];
-        assert.equal(fixedRecently(closed, "abcdef1234", now), 9001);
+        const url = "https://github.com/o/r/actions/runs/41";
+        const names = () => `The full run failed on abcdef1234 (CI): ${url}`;
+        assert.equal(fixedRecently(closed, "abcdef1234", url, names, now), 9001);
         const dup = [{ ...closed[0], stateReason: "not_planned" }];
-        assert.equal(fixedRecently(dup, "abcdef1234", now), null, "a duplicate closed by fileRed is not a fix");
-        assert.equal(fixedRecently(closed, "1234567890", now), null, "another commit's issue");
-        assert.equal(fixedRecently(closed, "abcdef1234", now + 2 * 60 * 60 * 1000), null, "closed long ago");
+        assert.equal(
+            fixedRecently(dup, "abcdef1234", url, names, now),
+            null,
+            "a duplicate closed by fileRed is not a fix",
+        );
+        assert.equal(fixedRecently(closed, "1234567890", url, names, now), null, "another commit's issue");
+        const later = now + 2 * 60 * 60 * 1000;
+        assert.equal(fixedRecently(closed, "abcdef1234", url, names, later), null, "closed long ago");
+    });
+
+    it("files for a run the fixed issue does not name, which release-due leaves running (#3644)", () => {
+        const now = Date.parse("2026-10-25T12:00:00Z");
+        const closed = [
+            {
+                number: 9001,
+                title: "Full run red: CI on abcdef1",
+                closedAt: "2026-10-25T11:50:00Z",
+                stateReason: "completed",
+            },
+        ];
+        const other = "https://github.com/o/r/actions/runs/42";
+        const names = () => "The full run failed on abcdef1234 (CI): https://github.com/o/r/actions/runs/41";
+        assert.equal(fixedRecently(closed, "abcdef1234", other, names, now), null, "another run on the same commit");
+        // the same test as release-due's toCancel: a run named on another commit is not cancelled either
+        const elsewhere = () => "The full run failed on 1234567890 (CI): https://github.com/o/r/actions/runs/42";
+        assert.equal(fixedRecently(closed, "abcdef1234", other, elsewhere, now), null);
+        assert.deepEqual([...runsOnTitleCommit(closed[0].title, names())], [41]);
+        // a lane name with brackets in it still pairs the run with its commit
+        const mac = "The full run failed on abcdef1234 (work protection (macOS), CI): https://x/actions/runs/7";
+        assert.deepEqual([...runsOnTitleCommit(closed[0].title, mac)], [7]);
+    });
+
+    it("keeps the lanes the open issue already names on the same commit, in lane order (#3644)", () => {
+        assert.equal(
+            laneRedTitle("Full run red: T4 GPU on abcdef1", "Full run red: CI on abcdef1"),
+            "Full run red: CI, T4 GPU on abcdef1",
+        );
+        assert.equal(
+            laneRedTitle("Full run red: CI, T4 GPU on abcdef1", "Full run red: CI on abcdef1"),
+            "Full run red: CI, T4 GPU on abcdef1",
+        );
+        assert.equal(
+            laneRedTitle("Full run red: T4 GPU on 1234567", "Full run red: CI on abcdef1"),
+            "Full run red: CI on abcdef1",
+            "another commit's issue takes the new title",
+        );
     });
 
     it("keeps the oldest of two red issues lanes ending red together created, so both filers agree", () => {
@@ -403,7 +528,8 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
         writeFileSync(join(dir, "issues.json"), JSON.stringify(openIssues));
         writeFileSync(
             join(dir, "gh"),
-            `#!/bin/bash\necho "$*" >> "${log}"\nif [ "$1" = api ]; then jq -r "$4" "${join(dir, "issues.json")}"; fi\n` +
+            `#!/bin/bash\necho "$*" >> "${log}"\nif [[ "$2" == */attempts/* ]]; then echo "$T4_STEPS"; exit 0; fi\n` +
+                `if [ "$1" = api ]; then jq -r "$4" "${join(dir, "issues.json")}"; fi\n` +
                 `if [ "$1 $2" = "issue create" ]; then echo https://github.com/o/r/issues/77; fi\n`,
             { mode: 0o755 },
         );
@@ -443,6 +569,11 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
         assert.match(stdout, /^issue=9$/m);
     });
 
+    it("keeps the lane another lane of the run filed when it updates the issue on the same commit (#3644)", () => {
+        const { calls } = runLaneRed([{ number: 9, title: "Full run red: CI on abcdef1" }]);
+        assert.match(calls, /^issue edit 9 --title Full run red: CI, T4 GPU on abcdef1$/m);
+    });
+
     it("opens the issue when none is open, and leaves a lane with an owner item to the verdict", () => {
         const opened = runLaneRed([]);
         assert.match(
@@ -451,6 +582,8 @@ describe("lane-red: the red issue the moment one lane ends red", () => {
         );
         assert.match(opened.stdout, /^issue=77$/m);
         assert.equal(runLaneRed([], { LANE: "llm", OWNER_ITEM: "the key was refused" }).calls, "");
+        const refused = runLaneRed([], { T4_STEPS: "Machine: This Machine account is out of credit." });
+        assert.doesNotMatch(refused.calls, /issue/, "a refused T4 runner is the verdict's owner item too");
     });
 
     it("files on attempt 1 of a restart dispatched with GITHUB_TOKEN, which is never re-run (#4359)", () => {
@@ -497,6 +630,18 @@ describe("the held candidate", () => {
         assert.equal(holdAction({ held: "s", sha: "s", state: "green-clean" }), "update");
         assert.equal(holdAction({ held: "t", sha: "s", state: "red" }), "none", "a master slot never replaces it");
         assert.equal(holdAction({ held: "unknown", sha: "s", state: "red" }), "none");
+    });
+    it("replaces a held head with a newer green run, even one awaiting the owner's review (#5052, #6604)", () => {
+        const at = (state, heldState, newer = true) => holdAction({ held: "t", sha: "s", state, heldState, newer });
+        for (const heldState of ["red", "owner-item", "rejected", "refused", "green-images"]) {
+            assert.equal(at("green-images", heldState), "replace", heldState);
+            assert.equal(at("green-clean", heldState), "replace", heldState);
+        }
+        assert.equal(at("red", "red"), "none", "a red run never replaces a red hold");
+        assert.equal(at("owner-item", "red"), "none");
+        assert.equal(at("green-clean", "approved"), "none", "an approved head's promotion is due");
+        assert.equal(at("green-clean", ""), "none", "a held head no run judged yet is tested first");
+        assert.equal(at("green-clean", "red", false), "none", "an older commit's late verdict never replaces it");
     });
     it("re-tests a head that fixes moved past the held commit, and mode candidate never tests master", () => {
         const moved = (recent) => ({ ...store(recent), hold: { base: C, head: "h2", issue: 4 } });
@@ -548,17 +693,21 @@ describe("same-commit re-run", () => {
     it("calls a lane flaky when it was red before and passed on the re-run", () => {
         assert.deepEqual(flakyLanes(["ci", "t4"], ["ci"]), ["t4"]);
         assert.deepEqual(flakyLanes([], []), []);
+        assert.deepEqual(flakyLanes(["t4"], [], ["t4"]), [], "a refused lane ran nothing, so it proves nothing");
     });
 
     // the verdict as release.yml runs it, with a fake gh that logs every call and lists no open issue
     // openIssues: what the gh listing of priority:critical issues returns
-    const runVerdict = (env, { flaky = null, before = null, openIssues = [] } = {}) => {
+    // t4Steps: the failed steps of the T4 job that gh reports
+    const runVerdict = (env, { flaky = null, before = null, openIssues = [], t4Steps = "" } = {}) => {
         const dir = mkdtempSync(join(tmpdir(), "verdict-"));
         const log = join(dir, "calls.log");
         writeFileSync(join(dir, "issues.json"), JSON.stringify(openIssues));
         writeFileSync(
             join(dir, "gh"),
-            `#!/bin/bash\necho "$*" >> "${log}"\nif [ "$1" = api ]; then jq -r "$4" "${join(dir, "issues.json")}"; fi\n` +
+            `#!/bin/bash\necho "$*" >> "${log}"\n` +
+                `if [[ "$2" == */attempts/* ]]; then echo "${t4Steps}"; exit 0; fi\n` +
+                `if [ "$1" = api ]; then jq -r "$4" "${join(dir, "issues.json")}"; fi\n` +
                 `if [ "$1 $2" = "issue create" ]; then echo https://github.com/o/r/issues/88; fi\n`,
             {
                 mode: 0o755,
@@ -622,9 +771,24 @@ describe("same-commit re-run", () => {
 
     it("files nothing on attempt 1 red on a lane, records it for the re-run, and holds nothing yet", () => {
         const v = runVerdict({ RUN_ATTEMPT: "1", LANES: lanesJson({ t4: "failure" }) });
-        assert.equal(v.calls, "", "no red issue, no bisect");
+        assert.doesNotMatch(v.calls, /issue|workflow run/, "no red issue, no bisect");
         assert.deepEqual([v.outputs.state, v.outputs.deferred, v.outputs.hold], ["red", "true", "none"]);
         assert.deepEqual([v.record.deferred, v.record.red], [true, ["t4"]]);
+    });
+    it("calls a T4 job refused by its runner an owner item at once: no re-run, no red issue, no bisect", () => {
+        const v = runVerdict(
+            { RUN_ATTEMPT: "1", LANES: lanesJson({ t4: "failure" }) },
+            { t4Steps: "Machine: This Machine account is out of credit." },
+        );
+        assert.doesNotMatch(v.calls, /issue|workflow run/);
+        assert.deepEqual([v.outputs.state, v.outputs.deferred], ["owner-item", "false"]);
+        assert.match(v.outputs.what, /^machine\.dev refused the T4 job: This Machine account is out of credit/);
+        assert.deepEqual([v.record.deferred, v.record.refused], [false, ["t4"]]);
+    });
+    it("files no flaky lane when a re-run passes a lane the attempt before had refused", () => {
+        const v = runVerdict({ RUN_ATTEMPT: "2", LANES: lanesJson() }, { before: { red: ["t4"], refused: ["t4"] } });
+        assert.equal(v.outputs.state, "green-clean");
+        assert.doesNotMatch(v.calls, /issue create/);
     });
     it("files a lane green on the re-run, and a story the re-capture found flaky, as flaky, and blocks on neither", () => {
         const v = runVerdict(
@@ -802,7 +966,8 @@ describe("the verdict reads the hold from the store when it decides", () => {
 });
 
 describe("file-deferred", () => {
-    it("files nothing when a fix closed the commit's red issue in the last hour (release-due cancelled the run)", () => {
+    // file-deferred for run 5 on abcdef1234, with a gh whose closed red issue names `named` (a run URL)
+    const fileDeferred = (named) => {
         const dir = mkdtempSync(join(tmpdir(), "file-deferred-"));
         const log = join(dir, "calls.log");
         const sha = "abcdef1234";
@@ -815,13 +980,15 @@ describe("file-deferred", () => {
         });
         writeFileSync(
             join(dir, "gh"),
-            `#!/bin/bash\necho "$*" >> "${log}"\n[[ "$*" == *state=closed* ]] && echo '${closed}'\nexit 0\n`,
+            `#!/bin/bash\necho "$*" >> "${log}"\n[[ "$*" == *state=closed* ]] && echo '${closed}'\n` +
+                `[[ "$1 $2" == "issue view" ]] && echo 'The full run failed on ${sha} (T4 GPU): ${named}'\nexit 0\n`,
             { mode: 0o755 },
         );
         const record = join(dir, "verdict-1.json");
+        const runUrl = "https://github.com/o/r/actions/runs/5";
         writeFileSync(
             record,
-            JSON.stringify({ sha, good: "", runId: "5", runUrl: "u", red: ["t4"], lanes: {}, deferred: true }),
+            JSON.stringify({ sha, good: "", runId: "5", runUrl, red: ["t4"], lanes: {}, deferred: true }),
         );
         const r = spawnSync(process.execPath, ["tools/full-run.mjs", "file-deferred", record], {
             encoding: "utf8",
@@ -835,8 +1002,49 @@ describe("file-deferred", () => {
             },
         });
         assert.equal(r.status, 0, r.stderr);
-        assert.match(r.stdout, /^fixed=77$/m);
-        assert.doesNotMatch(readFileSync(log, "utf8"), /issue create|workflow run bisect/);
+        return { stdout: r.stdout, calls: readFileSync(log, "utf8") };
+    };
+
+    it("files nothing when a fix closed the commit's red issue in the last hour (release-due cancelled the run)", () => {
+        const { stdout, calls } = fileDeferred("https://github.com/o/r/actions/runs/5");
+        assert.match(stdout, /^fixed=77$/m);
+        assert.doesNotMatch(calls, /issue create|workflow run bisect/);
+    });
+
+    it("files when the fixed issue names another run, which release-due did not cancel (#3644)", () => {
+        const { stdout, calls } = fileDeferred("https://github.com/o/r/actions/runs/6");
+        assert.doesNotMatch(stdout, /^fixed=/m);
+        assert.match(calls, /^issue create --title Full run red: T4 GPU on abcdef1/m);
+    });
+});
+
+describe("flaky story issues", () => {
+    const story = (project, n) => ({
+        name: `${project}/s${n}.png`,
+        why: "drew a different picture",
+        test: { file: `${project}/stories/S.stories.ts`, name: `Story ${n}` },
+    });
+    it("files one issue per story while a project has only a few", () => {
+        const stories = Array.from({ length: FLAKY_GROUP }, (_, i) => story("layout", i));
+        const out = flakyFilings(stories, "on abc", "Fix it.");
+        assert.deepEqual(
+            out.map((f) => f.name),
+            stories.map((s) => s.name),
+        );
+    });
+    // #4940: a capture-code mismatch flipped 555 graph-io-fidelity stories at once and filed one issue for each
+    it("files one issue for a project whose stories flipped all at once, naming every story test", () => {
+        const many = Array.from({ length: 555 }, (_, i) => story("graph-io-fidelity", i));
+        const out = flakyFilings([...many, story("layout", 1)], "on abc", "Fix it.");
+        assert.deepEqual(
+            out.map((f) => f.name),
+            [`graph-io-fidelity (${FLAKY_GROUP}+ stories at once)`, "layout/s1.png"],
+        );
+        assert.match(out[0].body, /^555 stories of graph-io-fidelity were found flaky at once on abc\./);
+        assert.match(out[0].body, /Flaky test: graph-io-fidelity\/stories\/S\.stories\.ts > Story 0 /);
+        // GitHub's body limit: the list stops short of it and says so
+        assert.match(out[0].body, /and more/);
+        assert.ok(out[0].body.length < 65_536);
     });
 });
 
@@ -862,5 +1070,155 @@ describe("flaky story issues name their story test", () => {
             flakyStoryBody(s, "on abc", "Fix it."),
             "The story p/a.png matched its baseline on abc.\n\nFix it.",
         );
+    });
+});
+
+describe("fileFlakies", () => {
+    const env = { SHA: "abc", RUN_URL: "https://x/runs/1", RUN_ATTEMPT: "2" };
+    const story = (project, i) => ({ name: `${project}/s${i}.png`, why: "drew a different picture", test: undefined });
+    const fake = (openIssues) => {
+        const calls = [];
+        const run = (cmd, args) => {
+            calls.push(args);
+            if (args[0] === "api") return openIssues.map(([n, t]) => `${n}\t${t}`).join("\n");
+            return "";
+        };
+        return { calls, run };
+    };
+    const quietly = (fn) => {
+        const lines = [];
+        const log = console.log;
+        console.log = (l) => lines.push(l);
+        try {
+            fn();
+        } finally {
+            console.log = log;
+        }
+        return lines;
+    };
+
+    // run 41003760177 paged through every open critical issue once per filing, 337 times, and printed nothing (#4983)
+    it("reads the open critical issues once, comments on the open ones, files the rest and prints a line for each", () => {
+        const { calls, run } = fake([[7, "Flaky in full run: p/s1.png"]]);
+        const stories = [story("p", 0), story("p", 1), story("q", 0)];
+        const lines = quietly(() => fileFlakies(env, ["t4"], stories, run));
+        assert.equal(calls.filter((a) => a[0] === "api").length, 1);
+        assert.deepEqual(
+            calls.filter((a) => a[0] === "issue").map((a) => a.slice(0, 3).join(" ")),
+            [`issue create --title`, "issue create --title", "issue comment 7", "issue create --title"],
+        );
+        assert.equal(lines.length, 4);
+        assert.match(lines[2], /^flaky: commenting on #7 \(p\/s1\.png\)$/);
+        assert.match(lines[3], /^flaky: filing q\/s0\.png$/);
+    });
+
+    it("files one issue for a project's many flaky stories, with one read", () => {
+        const { calls, run } = fake([]);
+        const many = Array.from({ length: 300 }, (_, i) => story("graph-io-fidelity", i));
+        quietly(() => fileFlakies(env, [], many, run));
+        assert.equal(calls.length, 2);
+        assert.equal(calls[1][3], "Flaky in full run: graph-io-fidelity (5+ stories at once)");
+    });
+
+    it("reads nothing when nothing is flaky, and files nothing when the read fails", () => {
+        const { calls, run } = fake([]);
+        quietly(() => fileFlakies(env, [], [], run));
+        assert.equal(calls.length, 0);
+        const failing = [];
+        const lines = quietly(() =>
+            fileFlakies(env, [], [story("p", 0)], (cmd, args) => {
+                failing.push(args);
+                throw new Error("HTTP 502");
+            }),
+        );
+        assert.equal(failing.length, 1);
+        assert.match(lines[0], /reading the open critical issues failed: HTTP 502/);
+    });
+});
+
+describe("actorOf", () => {
+    it("treats a watched channel/full-run run as re-runnable, whoever dispatched it", () => {
+        assert.equal(actorOf({ GITHUB_ACTOR: "github-actions[bot]", WATCHED: "true" }), "");
+        assert.equal(actorOf({ GITHUB_ACTOR: "github-actions[bot]", WATCHED: "false" }), "github-actions[bot]");
+        assert.equal(actorOf({ GITHUB_ACTOR: "someone" }), "someone");
+    });
+});
+
+describe("the ordering-only pick rule (early-capture.md 4e)", () => {
+    // every commit kept its site; head's visual-baselines tree is T, and c0 predates the newest approval merge
+    const sites = { candidate: { sha: "c3", builtAt: 1 }, sites: CHAIN, recent: [] };
+    const sameBaselines = (from, to) => (from === "c0") === (to === "c0");
+    const shot = (sha, status = "changed", baselinesTree = "T") => ({
+        project: "p",
+        story: "s",
+        sha,
+        status,
+        baselinesTree,
+    });
+    const run = (captures, o = {}) =>
+        pick({
+            mode: "full",
+            head: "c3",
+            store: o.store ?? sites,
+            firstParents,
+            stray: code,
+            sameBaselines,
+            rolling: { on: o.on ?? true, tree: "T", captures },
+            ...o.extra,
+        });
+
+    it("prefers the newest kept-site commit older than the first unapproved rolling picture", () => {
+        const p = run([shot("c3"), shot("c2"), shot("c3", "unchanged")]);
+        assert.deepEqual([p.run, p.sha, p.today, p.rolling.sha], [true, "c1", "c3", "c1"]);
+        assert.match(p.why, /^ordering: .*c2.*: c1 is not judged yet/);
+    });
+
+    it("only logs its choice while the repository variable is off, so the trial can compare it", () => {
+        const p = run([shot("c2")], { on: false });
+        assert.deepEqual([p.sha, p.today, p.rolling.sha], ["c3", "c3", "c1"]);
+    });
+
+    it("never prefers a commit that predates the newest approval merge", () => {
+        const p = run([shot("c1")]);
+        assert.deepEqual([p.sha, p.rolling.sha], ["c3", ""]);
+        assert.match(p.rolling.why, /no kept-site commit older than c1 holds the newest approval/);
+    });
+
+    it("ignores pictures that are approved, or rendered under an older baselines tree", () => {
+        for (const captures of [[], [shot("c2", "unchanged")], [shot("c2", "changed", "OLD")], null]) {
+            const p = run(captures);
+            assert.deepEqual([p.sha, p.rolling.sha], ["c3", ""]);
+        }
+        for (const status of ["new", "unseeded"]) assert.equal(run([shot("c2", status)]).sha, "c1");
+    });
+
+    it("leaves the slot to today's rule when the preferred commit is judged, has no site or lacks nightly", () => {
+        const judged = { ...sites, recent: [{ sha: "c1", state: "red" }] };
+        assert.equal(run([shot("c2")], { store: judged }).sha, "c3");
+        assert.equal(run([shot("c2")], { store: { ...sites, sites: ["c3", "c2", "c0"] } }).sha, "c3");
+        const hasNightly = (s) => s !== "c1";
+        assert.equal(run([shot("c2")], { extra: { hasNightly } }).sha, "c3");
+    });
+
+    it("never idles a slot on a preferred commit that would only inherit a verdict", () => {
+        // c1 inherits c0's verdict (nothing but versions between them), so preferring it would test nothing
+        const stray = (_from, to) => (to === "c1" ? [] : code());
+        const store = { ...sites, recent: [{ sha: "c0", state: "red" }] };
+        const p = run([shot("c2")], { store, extra: { stray, sameBaselines: () => true } });
+        assert.deepEqual([p.run, p.sha, p.rolling.sha], [true, "c3", "c1"]);
+    });
+
+    it("bounds the preference by a story's first unapproved render, not its newest", () => {
+        // the story changed at c2 and a later slice rendered it again at c3: the rule still keeps to c1
+        const p = run([{ ...shot("c3"), firstUnapprovedSha: "c2" }]);
+        assert.deepEqual([p.sha, p.rolling.sha], ["c1", "c1"]);
+    });
+
+    it("never changes a restart, a candidate run or a pick without the store", () => {
+        const rolling = { on: true, tree: "T", captures: [shot("c2")] };
+        const base = { head: "c3", firstParents, stray: code, sameBaselines, rolling };
+        assert.equal(pick({ ...base, mode: "restart", store: sites }).sha, "c3");
+        assert.equal(pick({ ...base, mode: "candidate", store: sites }).run, false);
+        assert.equal(pick({ ...base, mode: "full", store: null }).sha, "c3");
     });
 });

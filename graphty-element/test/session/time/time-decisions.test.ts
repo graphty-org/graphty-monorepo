@@ -3,12 +3,18 @@
  * decisions.md), on a real session over imported CSV data.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../../session";
 import { GraphtyError } from "../../../src/errors";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 const DAY = 86_400_000;
 const T0 = Date.UTC(2026, 0, 1);
@@ -62,6 +68,7 @@ async function execute(context: RunExecutionContext): Promise<RunOutcome> {
 async function open(designate = true, csv = CSV): Promise<{ session: GraphSession; executions: () => number }> {
     let count = 0;
     const session = createGraphSession({
+        workingGraph: false,
         runs: {
             execute: async (context) => {
                 count++;
@@ -279,10 +286,12 @@ describe("the window, its step and playback", () => {
             results: "keep",
             missing: "inside",
             outside: "hide",
+            timeZone: "UTC",
+            ageFade: 1,
         });
 
         const { text } = await session.project.save();
-        const reopened = createGraphSession({ runs: { execute } });
+        const reopened = createGraphSession({ runs: { execute }, workingGraph: false });
         await reopened.project.open(text);
         assert.strictEqual(reopened.time.settings.mode, "cumulative");
         assert.strictEqual(reopened.time.settings.step, "day");

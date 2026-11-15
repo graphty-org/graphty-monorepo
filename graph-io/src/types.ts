@@ -17,9 +17,10 @@ import {
     type IdCoercion,
 } from "@graphty/graph-format";
 
-import type { ImporterPositions, PositionReadContext } from "./positions/types.js";
+import type { GraphTool, ImporterPositions, PositionReadContext } from "./positions/types.js";
 import { type SourceIssueCode } from "./sources/codes.js";
 import { type SourceReportInfo } from "./sources/types.js";
+import type { GraphAnnotation } from "./styles/annotations.js";
 import type {
     EdgeStyleProperty,
     GraphStyleProperty,
@@ -315,6 +316,59 @@ export interface GraphImporter<Opts = unknown> {
      * @returns the spelling, or null to read the role-`position` column as declared
      */
     positions?(snapshot: GraphSnapshot, ctx: PositionReadContext): ImporterPositions | null;
+    /**
+     * Optional: the layout the file asks to be drawn with, read from the snapshot this importer built
+     * (DOT's `layout`, `rankdir`, `nodesep` and `ranksep`). Null when the file names none.
+     * @param snapshot - the graph this importer read
+     * @returns the layout, or null
+     */
+    layout?(snapshot: GraphSnapshot): FileLayout | null;
+    /**
+     * Optional: what the format draws beside its graph that is no node or edge, read from the snapshot this importer
+     * built, in the position convention of `extractPositions()` (y up, the file's own units): DOT's root graph label
+     * (the diagram's title), placed where Graphviz draws it. Annotations a file keeps in a column of their own
+     * (Cytoscape's) are read by `readAnnotations()` instead.
+     * @param snapshot - the graph this importer read
+     * @returns the annotations; none when the file draws none
+     */
+    annotations?(snapshot: GraphSnapshot): readonly GraphAnnotation[];
+}
+
+/**
+ * The layout a file asks to be drawn with: the tool and program, and the settings the file gives
+ * it. A fact about the file, read by `importer.layout(snapshot)`; nothing is laid out.
+ *
+ * DOT supplies it: `program` is the graph's `layout` attribute, else `"dot"`, the program Graphviz
+ * draws a file with when the command names none.
+ * @example
+ * ```ts
+ * import { importGraph } from "@graphty/graph-io";
+ * import { dotImporter } from "@graphty/graph-io/dot";
+ *
+ * const { snapshot } = await importGraph("digraph { rankdir=LR; a -> b }", { format: "dot" });
+ * dotImporter.layout?.(snapshot);
+ * // { tool: "graphviz", program: "dot", ownFormat: true, direction: "right", settings: { rankdir: "LR" } }
+ * ```
+ * @category Loading
+ */
+export interface FileLayout {
+    /** The tool whose layout program the file names. */
+    readonly tool: GraphTool;
+    /** The program, by the tool's own name (`"dot"`, `"neato"`). */
+    readonly program: string;
+    /**
+     * True when the file is in the tool's own format, so its nodes and edges carry the attributes
+     * the tool sizes and draws them by (a DOT file for Graphviz).
+     */
+    readonly ownFormat: boolean;
+    /** Which way the ranks run, first rank to last; absent when the file does not say. */
+    readonly direction?: "down" | "up" | "right" | "left";
+    /** The least gap between two nodes of one rank, in points; absent when the file does not say. */
+    readonly nodeSpacing?: number;
+    /** The least gap between two ranks, in points; absent when the file does not say. */
+    readonly rankSpacing?: number;
+    /** Every layout setting the file gives the program, by the tool's own names, as the tool's text. */
+    readonly settings: Readonly<Record<string, string>>;
 }
 
 /**
@@ -553,7 +607,8 @@ export interface ImportIssue {
     readonly category: IssueCategory;
     /**
      * "error": the element was skipped and counts toward `errorLimit`. "warning": the element was
-     * kept, possibly changed.
+     * kept, possibly changed. An error whose `params.skipped` is "value" dropped one value only:
+     * its node or edge was kept.
      */
     readonly severity: "error" | "warning";
     /**

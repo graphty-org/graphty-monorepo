@@ -158,19 +158,6 @@ function lastParts(store: Recorded): string[] {
 }
 
 /**
- * What recovery must bring back.
- * @param session - The session.
- * @returns Its loads, sources and pending loads.
- */
-function recordsOf(session: GraphSession): unknown {
-    return {
-        loads: session.data.loads(),
-        sources: session.data.sources(),
-        pending: session.data.pendingSourceLoads(),
-    };
-}
-
-/**
  * Load records without their keys, which an opened project renames to its entry ids.
  * @param loads - The records.
  * @returns The records, keys left out.
@@ -194,7 +181,7 @@ describe("autosave and the source records", () => {
         before.saver.stop();
     });
 
-    it("recovery restores the loads, sources and pending loads with zero fetches", async () => {
+    it("recovery restores the loads and sources with zero fetches, and a load the reader ran stays live", async () => {
         const store = recorded();
         const before = page(store);
         await loadPeople(before.session);
@@ -213,10 +200,32 @@ describe("autosave and the source records", () => {
         assert.strictEqual(requests.length, fetched, "recovery fetched nothing");
         assert.lengthOf(after.session.data.loads(), 1);
         assert.lengthOf(after.session.data.loads()[0]?.expansions ?? [], 1);
-        assert.deepStrictEqual(recordsOf(after.session), recordsOf(reopened));
-        assert.lengthOf(after.session.data.pendingSourceLoads(), 1, "the network load waits for a refresh");
+        assert.deepStrictEqual(after.session.data.loads(), reopened.data.loads());
+        assert.deepStrictEqual(after.session.data.sources(), reopened.data.sources());
+        // A project file cannot approve its own fetches; the reader's own autosave is their work.
+        assert.lengthOf(reopened.data.pendingSourceLoads(), 1, "the opened file's load waits");
+        assert.deepStrictEqual(after.session.data.pendingSourceLoads(), [], "the recovered load is live");
         // An opened load is keyed by its entry id; everything else it records is the saving tab's.
         assert.deepStrictEqual(unkeyed(after.session.data.loads()), unkeyed(before.session.data.loads()));
+    });
+
+    it("a load still waiting when the autosave was written still waits after recovery, fetching nothing", async () => {
+        const loaded = sessionWithRuns();
+        await loadPeople(loaded);
+        const file = await saveText(loaded);
+
+        const store = recorded();
+        const before = page(store);
+        await before.session.project.open(file, { discard: true });
+        assert.lengthOf(before.session.data.pendingSourceLoads(), 1, "an opened file's load waits");
+        await before.saver.flush();
+        before.saver.stop();
+
+        const fetched = requests.length;
+        const after = page(store);
+        assert.isNotNull(await after.saver.recover());
+        assert.strictEqual(requests.length, fetched, "recovery fetched nothing");
+        assert.lengthOf(after.session.data.pendingSourceLoads(), 1, "it still waits for the reader");
     });
 
     it("data.more, an expansion and a refresh rewrite the sources part; a style change does not touch data", async () => {
@@ -247,6 +256,35 @@ describe("autosave and the source records", () => {
         await saver.flush();
         assert.notInclude(lastParts(store), "data", "a change outside the graph leaves the data part alone");
         assert.notInclude(lastParts(store), "sources");
+        saver.stop();
+    });
+
+    it("a replacing network load starts a new entry and keeps the work it replaced in the old one", async () => {
+        const store = recorded();
+        const { session, saver } = page(store);
+        await session.data.addNodes([{ id: "earlier" }]);
+        await saver.flush();
+        const old = saver.status.entry;
+        const before = await entryText(store, saver);
+
+        await loadPeople(session);
+        await saver.flush();
+
+        assert.notStrictEqual(saver.status.entry, old, "the load writes to a new entry");
+        const entries = await store.list(KEY);
+        assert.deepStrictEqual(
+            entries.map((meta) => [meta.id, meta.ended]).filter(([id]) => id === old),
+            [[old, "replaced"]],
+            "the old entry is ended as replaced",
+        );
+        const kept = await store.read(old ?? "");
+        assert.isDefined(kept, "the old entry is still in the store");
+        assert.strictEqual(
+            JSON.stringify(reassemble(kept?.meta ?? { id: "" }, kept?.parts ?? {})),
+            before,
+            "the old entry keeps the work it replaced",
+        );
+        assert.strictEqual(await entryText(store, saver), await saveText(session));
         saver.stop();
     });
 

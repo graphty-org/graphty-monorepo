@@ -31,6 +31,27 @@ describe("ErrorBoundary", () => {
         expect(screen.getByRole("button", { name: /Try again/i })).toBeInTheDocument();
         spy.mockRestore();
     });
+
+    it("lets a held loading screen go when a render crashes, so it never covers the fallback", () => {
+        const spy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        const signals: unknown[] = [];
+        const hear = (event: Event): void => {
+            signals.push((event as CustomEvent<unknown>).detail);
+        };
+        document.addEventListener("graphty-boot", hear);
+        render(
+            <ErrorBoundary>
+                <ThrowingComponent />
+            </ErrorBoundary>,
+        );
+        document.removeEventListener("graphty-boot", hear);
+        expect(signals).toContainEqual({
+            line: "render crashed: Error: Test render error",
+            error: true,
+            done: true,
+        });
+        spy.mockRestore();
+    });
 });
 
 describe("ErrorFallback", () => {

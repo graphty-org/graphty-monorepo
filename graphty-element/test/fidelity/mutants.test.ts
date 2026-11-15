@@ -152,6 +152,8 @@ describe("comparator mutants", () => {
         const out: Record<string, unknown> = {};
         let base: OracleReport | null = null;
         let oracle: PScene | null = null;
+        // graphty's drawing unplanted, which a defect scaling it is judged by where it can be planted
+        let drawn: PScene | null = null;
         // an oracle that records only where its program drew the nodes, or the labels' words and not their geometry
         // (a raster), cannot judge the rest: a defect only there is not judged by it
         let blind = false;
@@ -165,7 +167,7 @@ describe("comparator mutants", () => {
                 out[name] = { outcome: "not judged by this oracle" };
                 continue;
             }
-            if (base !== null && oracle !== null && !applies(base, oracle)) {
+            if (base !== null && oracle !== null && drawn !== null && !applies(base, oracle, drawn)) {
                 out[name] = { outcome: "not plantable here" };
                 continue;
             }
@@ -180,6 +182,7 @@ describe("comparator mutants", () => {
                 // the first is the unplanted run ("none"), the baseline every defect is judged against
                 base = r.report;
                 oracle = r.association.scene;
+                drawn = before;
                 blind = r.association.scene.nodesOnly === true || r.association.scene.labelGeometry === false;
                 continue;
             }

@@ -22,6 +22,7 @@ import {
 } from "./compare-oracle";
 import {
     boxOfPoints,
+    dashAsDrawn,
     outlinePaintedAsFill,
     PAINTED_OUTLINE,
     type PFill,
@@ -1004,6 +1005,33 @@ describe("oracle comparison", () => {
         );
     });
 
+    it("leaves out every line of a caption wrapped in three whose first two are another caption's words", () => {
+        // Cytoscape wraps "shape=PARALLELOGRAM 60x30" in three lines, the first two being the caption of the
+        // specimen beside it, "shape=PARALLELOGRAM" (cx-specimen-node-shapes): its third line is the caption's too
+        const g = {
+            ...graphtyScene(),
+            texts: [
+                text("shape=\nPARALLELOGRAM\n60x30", 50, 50, 12, { owner: "cap-shape-parallelogram-wide" }),
+                text("shape=PARALLELOGRAM", 150, 50, 12, { owner: "cap-shape-parallelogram" }),
+            ],
+        };
+        const o = {
+            ...graphtyScene(),
+            side: "oracle" as const,
+            texts: [
+                text("shape=", 50, 50),
+                text("PARALLELOGRAM", 50, 60),
+                text("60x30", 50, 70),
+                text("shape=PARALLELOGRAM", 150, 50),
+                text("note", 9, 9),
+            ],
+        };
+        assert.deepEqual(
+            withoutCaptions(o, g).texts.map((t) => t.content),
+            ["note"],
+        );
+    });
+
     it("leaves out a caption node a sheet ids by number once it is named by its cap-* attribute", () => {
         // a GML sheet ids its caption node 5 and keeps "cap-fill-red" in its comment; the program draws it as a node
         const o = { ...graphtyScene(), side: "oracle" as const };
@@ -1062,8 +1090,21 @@ describe("oracle comparison", () => {
             texts: [text("Short", 1665, 538), text("Seen", 100, 380)],
         };
         const r = compareOracle("t", o, graphtyScene());
-        assert.deepEqual(r.failures["stray.present"], ["text#0"]);
+        assert.deepEqual(r.failures["stray.present"], ["text@88,374,112,386"]);
         assert.strictEqual(r.properties["stray.present"].n, 1);
+    });
+
+    it("names a stray by what it is and where the program drew it, so one more or one fewer before it renames none", () => {
+        // the oracle-known-failures.json entries named strays by their place in the list, so every later stray was
+        // renumbered when the association left one more shape unmatched (#5384)
+        const o = (texts: PText[]): PScene => ({ ...graphtyScene(), side: "oracle" as const, texts });
+        const failing = (texts: PText[]): string[] =>
+            compareOracle("t", o(texts), graphtyScene()).failures["stray.present"] ?? [];
+        const seen = text("Seen", 100, 380);
+        assert.deepEqual(failing([seen]), ["text@88,374,112,386"]);
+        assert.deepEqual(failing([text("Also", 300, 380), seen]), ["text@288,374,312,386", "text@88,374,112,386"]);
+        // two alike in one place are told apart by a counter
+        assert.deepEqual(failing([seen, seen]), ["text@88,374,112,386", "text@88,374,112,386~2"]);
     });
 
     it("fixes the frame on anchors named by their role, so a misplaced specimen does not pull it", () => {
@@ -1534,6 +1575,33 @@ describe("an outline a program drew as a filled path", () => {
     });
 });
 
+describe("a wave round a small node", () => {
+    it("sizes the node by its body and half the wave's line, not by how far the wave swings", () => {
+        index = 0;
+        const hint: Prim["hint"] = { role: "node", id: "a", key: "a" };
+        const box = (w: number, h: number): Pt[] => [
+            [100 - w / 2, 100 - h / 2],
+            [100 + w / 2, 100 - h / 2],
+            [100 + w / 2, 100 + h / 2],
+            [100 - w / 2, 100 + h / 2],
+            [100 - w / 2, 100 - h / 2],
+        ];
+        const prims = [
+            prim({ tag: "path", corners: 4, points: box(48, 18), fill: fill("#ff0000"), hint }),
+            // as tall as twice the body, no wider than the rest of it: cx2-syn-mappings 195's wave
+            prim({
+                tag: PAINTED_OUTLINE,
+                points: box(52, 38),
+                stroke: { ...stroke("#000000", 2), dashClass: "zigzag" },
+                hint,
+            }),
+        ];
+        const node = associate(prims, 400, 300, { ...graphtyScene(), nodes: [] }).scene.nodes[0];
+        assert.closeTo(node.w, 50, 0.01);
+        assert.closeTo(node.h, 20, 0.01);
+    });
+});
+
 describe("bodies found by geometry", () => {
     it("gives a node drawn on the middle of a taller box its own shape, not the box's", () => {
         index = 0;
@@ -1664,6 +1732,13 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.isBelow(drawn.properties["node.width"].passRate ?? 1, 1);
     });
 
+    it("reads no fill on a node under half a pixel across, on either drawing", () => {
+        // yEd draws a white box 1 wide at 0.34 px, graphty-element at the same size (graphml-stm32-func)
+        const thin = (): PNode[] => [...grid(), node("thin", 300, 200, 40, { w: 0.34, h: 4, fill: fill("#ffffff") })];
+        const r = compareOracle("t", sceneOf("oracle", 600, 400, thin()), sceneOf("graphty", 600, 400, thin()));
+        assert.strictEqual(r.properties["node.fill"].passRate, 1);
+    });
+
     it("passes a drawing judged against itself, with a passing verdict and no failures", () => {
         const r = compareOracle("t", sceneOf("oracle", 600, 400, grid()), sceneOf("graphty", 600, 400, grid()));
         assert.deepEqual(failing(r), []);
@@ -1717,6 +1792,55 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         assert.deepEqual(r.failures["stray.extra"], ["graphty:annotation-shape#0"]);
     });
 
+    it("finds a stripe graphty draws on a node's face among the oracle's pieces of that face, and only there", () => {
+        const stripeAt = (y0: number, y1: number): ReturnType<typeof compareOracle> => {
+            const o = sceneOf("oracle", 600, 400, grid());
+            o.nodes[0].faces = [
+                { box: { x0: 80, y0: 80, x1: 120, y1: 90 }, color: "#ff0000" },
+                { box: { x0: 80, y0: 90, x1: 120, y1: 120 }, color: "#0000ff" },
+            ];
+            const g = sceneOf("graphty", 600, 400, grid());
+            g.strays = [
+                {
+                    index: 0,
+                    tag: "annotation-shape",
+                    kind: "shape",
+                    box: { x0: 80, y0, x1: 120, y1 },
+                    fill: null,
+                    stroke: null,
+                    text: null,
+                },
+            ];
+            return compareOracle("t", o, g);
+        };
+        assert.notInclude(failing(stripeAt(80, 90)), "stray.extra");
+        assert.deepEqual(stripeAt(300, 330).failures["stray.extra"], ["graphty:annotation-shape#0"]);
+    });
+
+    it("fails a piece of a node's face in another color that graphty draws nowhere (#6176)", () => {
+        // a node filled side by side in two colors: its own red, judged as its fill, and a blue stripe, which graphty
+        // draws as an annotation over the face, or not at all
+        const judge = (faces: NonNullable<PNode["faces"]>, strays: PScene["strays"] = []): string[] => {
+            const o = sceneOf("oracle", 600, 400, grid());
+            o.nodes[0].faces = faces;
+            return (
+                compareOracle("t", o, { ...sceneOf("graphty", 600, 400, grid()), strays }).failures["stray.present"] ??
+                []
+            );
+        };
+        const red = { box: { x0: 80, y0: 80, x1: 100, y1: 120 }, color: "#ff0000" };
+        const stripe = { x0: 100, y0: 80, x1: 120, y1: 120 };
+        assert.deepEqual(judge([red, { box: stripe, color: "#0000ff" }]), ["face@100,80,120,120"]);
+        const annotation = { index: 0, tag: "annotation-shape", kind: "shape" as const, box: stripe };
+        assert.deepEqual(
+            judge([red, { box: stripe, color: "#0000ff" }], [{ ...annotation, fill: null, stroke: null, text: null }]),
+            [],
+        );
+        // pieces drawn over one another are no fill in pieces: a drop shadow under the face, an overlay on it
+        const shadow = { box: { x0: 84, y0: 84, x1: 124, y1: 124 }, color: "#c8c8c8" };
+        assert.deepEqual(judge([{ box: { x0: 80, y0: 80, x1: 120, y1: 120 }, color: "#ff0000" }, shadow]), []);
+    });
+
     it("fails words graphty draws that the program draws nowhere near, a body-less node's label among them", () => {
         const o = sceneOf("oracle", 600, 400, grid());
         o.texts = [text("kept words", 300, 200)];
@@ -1742,6 +1866,19 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         g.texts = [text("kept words", 302, 201)];
         g.nodes = [...grid(), node("ghost", 450, 380, 40, { faceless: [text("PLANTED TEXT NODE", 450, 380)] })];
         assert.include(compareOracle("t", o, g).failures["stray.extra"] ?? [], "graphty:text#0");
+    });
+
+    it("finds the program's words in a text graphty draws with zero-width spaces between them", () => {
+        // json-cyjs-sbgn-sciluna: Cytoscape.js's SVG reads "HSPA8:Substrate:LAMP2a" (its zero-width spaces folded),
+        // graphty draws the label as the file spells it, "HSPA8:\u200bSubstrate:\u200bLAMP2a" (#5118)
+        const o = sceneOf("oracle", 600, 400, grid());
+        o.texts = [text("HSPA8:Substrate:LAMP2a", 300, 201)];
+        const g = sceneOf("graphty", 600, 400, grid());
+        g.texts = [text("HSPA8:\u200bSubstrate:\u200bLAMP2a", 300, 201)];
+        assert.notInclude(failing(compareOracle("t", o, g)), "stray.present");
+        // planted: words graphty does not draw there still fail
+        g.texts = [text("HSPA8:\u200bSubstrate", 300, 201)];
+        assert.deepEqual(compareOracle("t", o, g).failures["stray.present"], ["text@288,195,312,207"]);
     });
 
     it("matches a stray only to an annotation drawn over most of it", () => {
@@ -1821,6 +1958,20 @@ describe("what the fit, the averages and the stray match must not hide", () => {
             r(dashedWith("oracle", [5, 2], 1), dashedWith("graphty", [5.5, 2.1], 1))["edge.dashPeriod"].passRate,
             1,
         );
+        // yEd's dotted line, 0,12 under round caps at width 3: dots a width long, not nothing, so a line of those passes
+        // and graphty's denser dots still fail
+        const dots = dashAsDrawn([0, 12], 3, "round");
+        assert.deepEqual(dots, [3, 9]);
+        assert.deepEqual(dashAsDrawn([0, 12], 3, "butt"), [0, 12]);
+        assert.deepEqual(dashAsDrawn([4], 1, "square"), [5, 3]);
+        assert.strictEqual(
+            r(dashedWith("oracle", dots, 1), dashedWith("graphty", [3, 9], 1))["edge.dashPeriod"].passRate,
+            1,
+        );
+        assert.strictEqual(
+            r(dashedWith("oracle", dots, 1), dashedWith("graphty", [2.4, 1.2], 1))["edge.dashPeriod"].passRate,
+            0,
+        );
         // Graphviz's normalnormal, two heads in a row, drawn as one
         assert.strictEqual(
             r(dashedWith("oracle", [5, 2], 2), dashedWith("graphty", [5, 2], 1))["edge.arrowParts"].passRate,
@@ -1898,7 +2049,7 @@ describe("what the fit, the averages and the stray match must not hide", () => {
         g.texts = [text("9606.ENSP00000336894", 305, 185)];
         assert.strictEqual(compareOracle("t", o, g).properties["stray.present"].passRate, 1);
         g.texts = [];
-        assert.deepEqual(compareOracle("t", o, g).failures["stray.present"], ["lettering#0"]);
+        assert.deepEqual(compareOracle("t", o, g).failures["stray.present"], ["lettering@280,180,330,190"]);
     });
 
     it("fails an arrowhead a quarter too long, and lets a few-pixel head round by a pixel", () => {

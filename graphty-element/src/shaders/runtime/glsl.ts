@@ -78,6 +78,37 @@ struct GroupInput {
 };
 `;
 
+/** The built-ins the WebGPU translator cannot take, each a helper of the same name under WebGPU only. */
+export const WEBGPU_BUILT_INS = ["isnan", "isinf", "acosh", "asinh", "atanh"] as const;
+
+/**
+ * Those helpers, overloaded as the built-ins are. WGSL has no `isNan`, and the translator stops at
+ * the three inverse hyperbolics; these are the formulas the SPIR-V specification gives them. Only
+ * WebGPU compiles this text: under WebGL `wrappedLibrary()` points each name back at the built-in,
+ * which a constant expression may call and a function may not.
+ */
+const WEBGPU_HELPERS = [
+    ["float", "bool", "0x7fffffffu", "0x7f800000u", "%a > %b", "%a == %b"],
+    ...[2, 3, 4].map((n) => [
+        `vec${String(n)}`,
+        `bvec${String(n)}`,
+        `uvec${String(n)}(0x7fffffffu)`,
+        `uvec${String(n)}(0x7f800000u)`,
+        "greaterThan(%a, %b)",
+        "equal(%a, %b)",
+    ]),
+]
+    .map(([type, bools, magnitude, infinity, above, same]) => {
+        const compare = (test: string): string =>
+            test.replace("%a", `(floatBitsToUint(x) & ${magnitude})`).replace("%b", infinity);
+        return `${bools} isnan(${type} x) { return ${compare(above)}; }
+${bools} isinf(${type} x) { return ${compare(same)}; }
+${type} acosh(${type} x) { return log(x + sqrt(x * x - 1.0)); }
+${type} asinh(${type} x) { return sign(x) * log(abs(x) + sqrt(x * x + 1.0)); }
+${type} atanh(${type} x) { return 0.5 * log((1.0 + x) / (1.0 - x)); }`;
+    })
+    .join("\n");
+
 /**
  * The helpers. `graphty_quality` is the quality level (0 low, 1 medium, 2 high), a global the
  * program's main sets from the scene uniforms before it calls the body.
@@ -206,6 +237,16 @@ float iconSdf(int icon, vec2 p) {
     if (wrapped < 0) wrapped += 12;
     return wrapped > 5 ? abs(d + 0.02) - 0.04 : d;
 }
+
+// GLSL's modf under its own name: the WebGPU translator stops at the built-in, so a body's call lands here.
+float modf(float x, out float whole) { whole = trunc(x); return x - whole; }
+vec2 modf(vec2 x, out vec2 whole) { whole = trunc(x); return x - whole; }
+vec3 modf(vec3 x, out vec3 whole) { whole = trunc(x); return x - whole; }
+vec4 modf(vec4 x, out vec4 whole) { whole = trunc(x); return x - whole; }
+
+#ifdef WEBGPU
+${WEBGPU_HELPERS}
+#endif
 
 float fillAA(float d) { float w = fwidth(d); return 1.0 - smoothstep(-w, w, d); }
 float strokeAA(float d, float hw) { return fillAA(abs(d) - hw); }

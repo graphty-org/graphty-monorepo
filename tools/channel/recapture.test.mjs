@@ -197,6 +197,7 @@ describe("acceptedBy", () => {
     it("calls a story unchanged only when its captured PNG is the approved baseline byte for byte", () => {
         const [a, b, c] = [png(10), png(20), png(30)];
         const results = {
+            commit: "H",
             items: [
                 shot("approved", "changed", a, sha(png(1))),
                 shot("other", "changed", b, sha(png(2))),
@@ -208,7 +209,7 @@ describe("acceptedBy", () => {
         };
         const approved = { "approved.png": sha(a), "other.png": sha(png(99)), "added.png": sha(c), "kept.png": "x" };
         assert.equal(
-            acceptedBy(results, (f) => approved[f] ?? null),
+            acceptedBy(results, (f) => approved[f] ?? null, "H"),
             3,
         );
         assert.deepEqual(
@@ -224,6 +225,60 @@ describe("acceptedBy", () => {
         assert.equal(results.items[0].baseline, sha(a));
     });
 
+    it("excludes a story the head's settings file excludes, whatever its captured status", () => {
+        const a = png(10);
+        const results = {
+            commit: "H",
+            items: [
+                shot("shaky", "unstable", a),
+                { ...shot("broke", "failed", a), capture: null },
+                shot("kept", "unstable", a),
+                shot("off", "changed", a, sha(png(1))),
+            ],
+        };
+        const settings = {
+            shaky: { disableSnapshot: true, reason: "nondeterministic" },
+            broke: { disableSnapshot: true },
+            off: { disableSnapshot: false, reason: "not excluded" },
+        };
+        assert.equal(
+            acceptedBy(
+                results,
+                () => null,
+                "H",
+                (id) => settings[id] ?? null,
+            ),
+            2,
+        );
+        assert.deepEqual(
+            results.items.map((i) => [i.id, i.status, i.reason ?? null]),
+            [
+                ["shaky", "excluded", "nondeterministic"],
+                ["broke", "excluded", "excluded by the approved head"],
+                ["kept", "unstable", null],
+                ["off", "changed", null],
+            ],
+        );
+    });
+
+    it("leaves a capture rendered from another commit than the candidate as it is", () => {
+        const a = png(10);
+        const results = { commit: "C", items: [shot("approved", "changed", a, sha(png(1)))] };
+        assert.equal(
+            acceptedBy(results, () => sha(a), "H"),
+            0,
+        );
+        assert.equal(results.items[0].status, "changed");
+        const excluded = { commit: "C", items: [shot("shaky", "unstable", a)] };
+        acceptedBy(
+            excluded,
+            () => null,
+            "H",
+            () => ({ disableSnapshot: true }),
+        );
+        assert.equal(excluded.items[0].status, "unstable");
+    });
+
     it("reads the approval's Git LFS pointers, and the gate then passes the approved stories", async () => {
         const root = mkdtempSync(join(tmpdir(), "recapture-"));
         const git = (...a) => execFileSync("git", a, { cwd: root, encoding: "utf8" }).trim();
@@ -234,6 +289,7 @@ describe("acceptedBy", () => {
         writeFileSync(join(root, "visual-review.config.json"), JSON.stringify({ baselines: "visual-baselines" }));
         writeFileSync(join(root, "visual-baselines", "app", "a.png"), pointer(shotA));
         writeFileSync(join(root, "visual-baselines", "app", "b.png"), pointer(png(1)));
+        writeFileSync(join(root, "visual-baselines", "app", "c.json"), JSON.stringify({ disableSnapshot: true }));
         git("add", ".");
         git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "approve");
         const head = git("rev-parse", "HEAD");
@@ -241,9 +297,14 @@ describe("acceptedBy", () => {
         const results = {
             version: 1,
             project: "app",
+            commit: head,
             complete: true,
-            expected: 2,
-            items: [shot("a", "changed", shotA, sha(png(2))), shot("b", "changed", shotB, sha(png(3)))],
+            expected: 3,
+            items: [
+                shot("a", "changed", shotA, sha(png(2))),
+                shot("b", "changed", shotB, sha(png(3))),
+                shot("c", "unstable", shotB),
+            ],
         };
         capture(dir, []);
         writeFileSync(join(dir, "results.json"), JSON.stringify(results));
@@ -256,13 +317,15 @@ describe("acceptedBy", () => {
                 join(root, "captures"),
                 "--head",
                 head,
+                "--tested",
+                head,
             ],
             { cwd: root, stdio: "ignore" },
         );
         const after = JSON.parse(readFileSync(join(dir, "results.json"), "utf8"));
         assert.deepEqual(
             after.items.map((i) => i.status),
-            ["unchanged", "changed"],
+            ["unchanged", "changed", "excluded"],
             "b's capture is not the approved baseline: the gate still refuses it",
         );
     });

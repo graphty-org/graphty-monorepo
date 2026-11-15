@@ -1,20 +1,24 @@
 /**
- * The start page, Settings and the usage data card, without the element (its tag stays an
+ * The start page, Settings and the usage data question, without the element (its tag stays an
  * empty box): what the page says, the card's answers and the chip that follows them, Settings
  * and its sections, and the ways in, for a first visit and a returning reader. `StartScreen.real-element.test.tsx` opens the samples.
  */
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-const { initSentry, stopSentry } = vi.hoisted(() => ({ initSentry: vi.fn(), stopSentry: vi.fn() }));
-vi.mock("../../../lib/sentry", () => ({ initSentry, stopSentry, captureUserFeedback: vi.fn() }));
-
+import { sampleTile } from "../../../test/samples-dialog";
+import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
-import { forgetUsageAnswer } from "../../privacy/usageData";
+import { forgetUsageAnswer, setUsageSenderForTests } from "../../privacy/usageData";
 import { clearRecent, rememberRecent } from "../../project/recent";
 import { SINGLE_KEY_SHORTCUTS } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+/** Where Sentry would start and stop: the usage data card's Share and No call these instead. */
+const initSentry = vi.fn();
+const stopSentry = vi.fn();
+setUsageSenderForTests({ start: initSentry, stop: stopSentry });
 
 const OWNER_WORDS =
     "We will never see the data you analyze, but we would like to collect information about how you use the app so that we can improve the user experience. This data will only ever be used by the author of the application and his Claude Code sessions.";
@@ -30,6 +34,8 @@ function renderStart(initial?: Parameters<typeof createWorkspaceStore>[0]) {
 }
 
 beforeEach(async () => {
+    // The timeline is an experiment, and the timed samples wait for it.
+    await siteFeatures(["timeline"]);
     await clearRecent();
     forgetUsageAnswer();
     localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
@@ -39,9 +45,21 @@ beforeEach(async () => {
 afterEach(() => {
     forgetUsageAnswer();
     localStorage.removeItem(SINGLE_KEY_SHORTCUTS.key);
+    vi.unstubAllGlobals();
 });
 
 describe("the start screen", () => {
+    it("offers no timed sample with the timeline off", async () => {
+        await siteFeatures([]);
+        renderStart();
+        const library = within(screen.getByRole("region", { name: "Sample library" }));
+        const names = library
+            .getAllByRole("button", { name: /^Open the .+ sample: / })
+            .map((button) => button.getAttribute("aria-label") ?? "");
+        assert.lengthOf(names, 20);
+        assert.notMatch(names.join(), /Campus contacts|Graph researchers|Marvel films|Paper citations/);
+    });
+
     it("offers the first visit's ways in and the sample library, the four samples first", async () => {
         renderStart();
 
@@ -51,16 +69,15 @@ describe("the start screen", () => {
             "Analyze any network.Free and open source.",
         );
         assert.isNotNull(screen.getByRole("button", { name: /^Open a file/ }));
-        assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
         assert.isNotNull(screen.getByRole("button", { name: "Samples" }));
         assert.isNotNull(screen.getByRole("button", { name: "New project" }));
         assert.isNotNull(screen.getByRole("link", { name: "MIT licensed on GitHub" }));
         assert.isNotNull(screen.getByRole("link", { name: "Put it on your own site" }));
         assert.isNotNull(screen.getByRole("toolbar", { name: "Analyze the graph" }));
         const samples = within(screen.getByRole("region", { name: "Sample library" })).getAllByRole("button", {
-            name: /^Open the .+ sample$/,
+            name: /^Open the .+ sample: /,
         });
-        const names = samples.map((button) => button.getAttribute("aria-label"));
+        const names = samples.map((button) => (button.getAttribute("aria-label") ?? "").split(": ")[0]);
         assert.deepEqual(names.slice(0, 4), [
             "Open the Les Miserables sample",
             "Open the Zachary's karate club sample",
@@ -117,8 +134,8 @@ describe("the start screen", () => {
         await userEvent.type(within(library).getByRole("searchbox", { name: "Search samples" }), "dolphin");
 
         const names = within(library)
-            .getAllByRole("button", { name: /^Open the .+ sample$/ })
-            .map((button) => button.getAttribute("aria-label"));
+            .getAllByRole("button", { name: /^Open the .+ sample: / })
+            .map((button) => (button.getAttribute("aria-label") ?? "").split(": ")[0]);
         assert.deepEqual(names, ["Open the Doubtful Sound dolphins sample"]);
     });
 
@@ -128,21 +145,25 @@ describe("the start screen", () => {
 
         await userEvent.click(within(library).getByRole("button", { name: "Sports" }));
 
-        const tiles = within(library).getAllByRole("button", { name: /^Open the .+ sample$/ });
+        const tiles = within(library).getAllByRole("button", { name: /^Open the .+ sample: / });
         assert.deepEqual(
-            tiles.map((button) => button.getAttribute("aria-label")),
+            tiles.map((button) => (button.getAttribute("aria-label") ?? "").split(": ")[0]),
             ["Open the College football sample"],
         );
         assert.isNotNull(within(tiles[0]).getByText("Sports"));
         assert.isNotNull(within(tiles[0]).getByText("Conferences fall out of who played whom"));
         await userEvent.click(within(library).getByRole("button", { name: "Any" }));
-        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample$/ }), 24);
+        assert.lengthOf(within(library).getAllByRole("button", { name: /^Open the .+ sample: / }), 24);
     });
 
-    it("shows the usage data card in the owner's words, with What is collected behind a disclosure", async () => {
+    it("asks about usage data in the owner's words, pinned over the page, with What is collected behind a disclosure", async () => {
         renderStart();
 
         const card = screen.getByRole("complementary", { name: "Usage data" });
+        // Pinned to the window, not a card at the foot of the start page.
+        assert.isNull(card.closest(".ws-land"));
+        assert.equal(getComputedStyle(card).position, "fixed");
+        assert.isTrue(card.checkVisibility());
         assert.isNotNull(within(card).getByText("Your data is yours, but please help us."));
         assert.isNotNull(within(card).getByText(OWNER_WORDS));
         const collected = within(card).getByText("No file contents ever leave your computer.");
@@ -177,6 +198,24 @@ describe("the start screen", () => {
         assert.isNotNull(within(dialog).getByText("Usage data: off. Nothing is sent."));
     });
 
+    it("asks a first visit that lands straight in a project, and the answer line closes", async () => {
+        renderStart({ project: { name: "Les Miserables", id: 1 } });
+
+        const card = screen.getByRole("complementary", { name: "Usage data" });
+        await userEvent.click(within(card).getByRole("button", { name: "No thanks" }));
+        assert.equal(initSentry.mock.calls.length, 0);
+        assert.isNull(screen.queryByRole("complementary", { name: "Usage data" }));
+
+        const line = screen.getByText(/Usage data stays off\./, { selector: ".ws-start-answer" });
+        const notice = line.closest<HTMLElement>(".ws-usage-notice");
+        assert.exists(notice);
+        const close = within(notice).getByRole("button", { name: "Close" });
+        // The pressed button went with the question; focus waits on the answer line's close.
+        assert.equal(document.activeElement, close);
+        await userEvent.click(close);
+        assert.isNull(screen.queryByText(/Usage data stays off/));
+    });
+
     it("does not show the card again once it was answered", async () => {
         const first = render(<Workspace store={createWorkspaceStore()} />);
         await userEvent.click(screen.getByRole("button", { name: "No thanks" }));
@@ -190,12 +229,14 @@ describe("the start screen", () => {
     it("opens a sample as a project named after it, before the card is answered", async () => {
         const store = renderStart();
 
-        await userEvent.click(screen.getByRole("button", { name: "Open the Florentine families sample" }));
+        await userEvent.click(screen.getByRole("button", { name: sampleTile("Florentine families") }));
 
         assert.equal(store.get().project?.name, "Florentine families");
         assert.equal(store.get().opening?.name, "Florentine families");
         assert.isNotNull(screen.getByRole("button", { name: "Project: Florentine families" }));
         assert.isNotNull(screen.getByRole("button", { name: "Local only" }));
+        // The question stays on the project's page until it is answered.
+        assert.isNotNull(screen.getByRole("complementary", { name: "Usage data" }));
     });
 
     it("opens an empty project for New project", async () => {
@@ -220,18 +261,20 @@ describe("the start screen", () => {
         assert.isTrue(scrolled);
     });
 
-    it("lists the network sources, and opens a graph from a link", async () => {
+    it("pops up the kinds of network, opening no project", async () => {
         const store = renderStart();
 
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
-        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
-        for (const source of ["NDEx", "Neo4j", "Web API"]) {
-            assert.isNotNull(within(dialog).getByText(source));
-        }
-        // Memgraph cannot be reached from an https page without a server, so it is not offered.
-        assert.isNull(within(dialog).queryByText("Memgraph"));
-        const field = within(dialog).getByRole("textbox", { name: "Web address of a graph file" });
-        // Enter on something that is not a web address opens nothing.
+
+        await screen.findByRole("button", { name: /^Neo4j/ });
+        assert.isNull(store.get().project);
+    });
+
+    it("opens a graph from a typed web address, and nothing for words that are not one", async () => {
+        const store = renderStart();
+        await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Web address/ }));
+        const field = await screen.findByRole("textbox", { name: /Web address/ });
         await userEvent.type(field, "trade routes{Enter}");
         assert.isNull(store.get().project);
 
@@ -242,17 +285,21 @@ describe("the start screen", () => {
         assert.equal(store.get().opening?.name, "trade routes");
     });
 
-    it("opens the server form on the Data place for a network source", async () => {
+    it("opens a typed web address from the Open button beside the box", async () => {
         const store = renderStart();
-
         await userEvent.click(screen.getByRole("button", { name: "Open network data" }));
-        const dialog = await screen.findByRole("dialog", { name: "Open network data" });
-        await userEvent.click(within(dialog).getByText("Neo4j"));
+        await userEvent.click(await screen.findByRole("button", { name: /^Web address/ }));
+        const field = await screen.findByRole("textbox", { name: /Web address/ });
+        await userEvent.type(field, "https://example.com/data/sites.csv");
+        await userEvent.click(screen.getByRole("button", { name: "Open" }));
+        assert.equal(store.get().opening?.name, "sites");
+    });
 
-        const state = store.get();
-        assert.equal(state.project?.name, "Untitled");
-        assert.equal(state.place, "data");
-        assert.equal(state.dialog, "server");
+    it("draws Open network data beside Samples and New project", () => {
+        renderStart();
+        assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
+        assert.isNotNull(screen.getByRole("button", { name: "Samples" }));
+        assert.isNotNull(screen.getByRole("button", { name: "New project" }));
     });
 
     it("opens a dropped file as a project named after it", async () => {
@@ -293,7 +340,7 @@ describe("the start screen", () => {
         );
         assert.isNotNull(screen.getByRole("button", { name: /^Open a file/ }));
         assert.isNotNull(screen.getByRole("button", { name: "New project" }));
-        assert.isNull(screen.queryByRole("button", { name: "Open network data" }));
+        assert.isNotNull(screen.getByRole("button", { name: "Open network data" }));
     });
 });
 

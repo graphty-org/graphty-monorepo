@@ -12,8 +12,9 @@ import type { Meta, StoryObj } from "@storybook/web-components-vite";
 
 import type { ShaderParams } from "../../src/catalog/shaders";
 import type { Graphty } from "../../src/graphty-element";
-import { assertGraphLoaded, assertNodesInFromEdges, drawn } from "../assertions";
-import { eventWaitingDecorator, waitForGraphSettled } from "../helpers";
+import { NodeShaderDrawing } from "../../src/meshes/NodeShaderDrawing";
+import { assertGraphLoaded, assertNodesInFromEdges, drawn, eventually } from "../assertions";
+import { eventWaitingDecorator, isUnderRunner, waitForGraphSettled } from "../helpers";
 
 type LayerInput = Parameters<Graphty["session"]["styles"]["add"]>[0];
 
@@ -48,6 +49,10 @@ function surfaceScene(
     } = {},
 ): Graphty {
     const element: Graphty = document.createElement("graphty-element");
+    if (isUnderRunner()) {
+        element.shaderSettings = { motion: "off", guard: false };
+    }
+
     const add = (layer: LayerInput): void => {
         void element.session.styles.add(layer);
     };
@@ -68,10 +73,7 @@ function surfaceScene(
         name: "Surface",
         target: "node",
         selector: { match: "everything" },
-        set: {
-            "node.shaders": [{ shader: shader }],
-            ...(options.params === undefined ? {} : { "node.shaders": /* TODO params */ { [shader]: options.params } }),
-        },
+        set: { "node.shaders": [{ shader, ...(options.params === undefined ? {} : { params: options.params }) }] },
         ...(options.encode === undefined ? {} : { encode: options.encode }),
     });
     const nodes = [...(options.nodes ?? NODES)];
@@ -99,19 +101,40 @@ type Story = StoryObj;
 /**
  * The play function every story shares: the graph settles and draws.
  * @param name - The story's name, for the drawn check.
+ * @param shader - The preset the story draws every node with, which must reach the canvas.
  * @param counts - The nodes and edges it holds.
  * @param counts.nodes - The node count.
  * @param counts.edges - The edge count.
  * @param marginPx - How far in from the canvas's edges every node's center is drawn, room for its
  *   surface's rim or glow.
+ * @param smallProgram - Whether the nodes are small enough for the shader's small-size program.
  * @returns The play function.
  */
-function played(name: string, counts = { nodes: NODES.length, edges: EDGES.length }, marginPx = 100): Story["play"] {
+function played(
+    name: string,
+    shader: string,
+    counts = { nodes: NODES.length, edges: EDGES.length },
+    marginPx = 100,
+    smallProgram = false,
+): Story["play"] {
     return async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
         const scene = await drawn(canvasElement, `Shaders/Heavy Surfaces ${name}`);
         await assertGraphLoaded(scene, counts);
         await assertNodesInFromEdges(scene, marginPx);
+        const element = canvasElement.querySelector("graphty-element") as Graphty;
+        const scene3d = element.graph.getScene();
+        await eventually(
+            () => (NodeShaderDrawing.peek(scene3d)?.drawnById().get(shader)?.drawn ?? 0) > 0,
+            `Shaders/Heavy Surfaces ${name} draws its nodes with ${shader}`,
+        );
+        if (smallProgram) {
+            // The element swaps programs after the camera rests: a capture takes the picture that stays.
+            await eventually(
+                () => scene3d.meshes.some((mesh) => mesh.material?.name.endsWith("low") === true),
+                `Shaders/Heavy Surfaces ${name} draws the small-size program`,
+            );
+        }
     };
 }
 
@@ -119,20 +142,20 @@ function played(name: string, counts = { nodes: NODES.length, edges: EDGES.lengt
 export const GlassMarble: Story = {
     name: "Glass marble",
     render: () => surfaceScene("glass-marble", { params: { spin: 0 } }),
-    play: played("GlassMarble"),
+    play: played("GlassMarble", "glass-marble"),
 };
 
 /** Faceted gems throwing rainbow fire, one jewel color per group. */
 export const Gemstone: Story = {
     render: () => surfaceScene("gemstone", { params: { turn: 0 } }),
-    play: played("Gemstone"),
+    play: played("Gemstone", "gemstone"),
 };
 
 /** Mirror-tiled disco balls, lightly tinted by group. */
 export const DiscoBall: Story = {
     name: "Disco ball",
     render: () => surfaceScene("disco-ball", { params: { turn: 0 } }),
-    play: played("DiscoBall"),
+    play: played("DiscoBall", "disco-ball"),
 };
 
 /**
@@ -147,14 +170,14 @@ export const Lantern: Story = {
             encode: { "node.shaders.lantern.intensity": { by: "data.value", range: [0.15, 1.6] } },
             background: "#04050a",
         }),
-    play: played("Lantern"),
+    play: played("Lantern", "lantern"),
 };
 
 /** Glasss: see-through water with a caustic crescent and a glint. */
 export const Glass: Story = {
     name: "Glass",
     render: () => surfaceScene("glass", { background: "#0b1410" }),
-    play: played("Glass"),
+    play: played("Glass", "glass"),
 };
 
 /** 400 nodes in a 20 x 20 grid, colored by group, each under 12 px across in radius. */
@@ -168,5 +191,5 @@ const SMALL_NODES = Array.from({ length: 400 }, (_, i) => ({
 export const SmallMarbles: Story = {
     name: "Small marbles",
     render: () => surfaceScene("glass-marble", { params: { spin: 0 }, nodes: SMALL_NODES, size: 0.5 }),
-    play: played("SmallMarbles", { nodes: SMALL_NODES.length, edges: 0 }, 60),
+    play: played("SmallMarbles", "glass-marble", { nodes: SMALL_NODES.length, edges: 0 }, 60, true),
 };

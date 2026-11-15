@@ -8,15 +8,12 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, describe, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 const NODES = [
     { id: "MlleBaptistine", name: "Mademoiselle Baptistine", email: "baptistine@example.org" },
@@ -26,16 +23,16 @@ const NODES = [
 
 describe("reading the table dock", () => {
     it("draws short columns whole, speaks a sort and names an empty cell", async () => {
+        // Wide enough for the canvas, the dock and both side panels side by side, as in the
+        // other table dock tests: in the narrow test frame the dock has no room to open.
+        await page.viewport(1366, 900);
         const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
         render(<Workspace store={store} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }

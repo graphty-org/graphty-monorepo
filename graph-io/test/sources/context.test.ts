@@ -70,6 +70,26 @@ describe("credential binding", () => {
         expect([seen[1].cache, seen[1].redirect]).toEqual(["default", "follow"]);
     });
 
+    it("sends a User-Agent from Node only: the caller's, else the source's, else graph-io's", async () => {
+        const seen: Request[] = [];
+        const fetch = (input: RequestInfo | URL): Promise<Response> => {
+            seen.push(input as Request);
+            return Promise.resolve(new Response("{}"));
+        };
+        await bareContext({ fetch }, { endpoint: API }).ctx.fetch("/a");
+        await bareContext({ fetch, userAgent: "me/1" }, { endpoint: API }).ctx.fetch("/a", {
+            headers: { "user-agent": "source/1" },
+        });
+        await bareContext({ fetch }, { endpoint: API }).ctx.fetch("/a", { headers: { "user-agent": "source/1" } });
+        await bareContext({ fetch, userAgent: "me/1" }, { endpoint: API, runtime: "browser" }).ctx.fetch("/a");
+        expect(seen.map((r) => r.headers.get("user-agent"))).toEqual([
+            "graphty-graph-io (+https://graphty.app)",
+            "me/1",
+            "source/1",
+            null,
+        ]);
+    });
+
     it("uses redirect error in a browser, where a manual redirect is opaque", async () => {
         const seen: Request[] = [];
         const fetch = (input: RequestInfo | URL): Promise<Response> => {
@@ -186,7 +206,7 @@ describe("retries", () => {
             bareContext({ fetch: quota, retry: { retries: 2 } }, { endpoint: API }).ctx.fetch("/a"),
         );
         expect(q.issue?.code).toBe("E_SOURCE_QUOTA");
-        expect(q.issue?.params).toEqual({ retryAfterMs: 0 });
+        expect(q.issue?.params).toEqual({ origin: API, retryAfterMs: 0 });
         expect(quota.calls).toHaveLength(3);
         const down = replayFetch([{ url: `${API}/a`, status: 503 }]);
         const d = await rejection(
@@ -229,8 +249,8 @@ describe("retries", () => {
 describe("status mapping", () => {
     it.each([
         [401, "E_SOURCE_AUTH", { origin: API, status: 401, scheme: "Basic", serverCode: null }],
-        [403, "E_SOURCE_FORBIDDEN", { status: 403, serverCode: null }],
-        [404, "E_SOURCE_NOT_FOUND", { what: "url", value: `${API}/a` }],
+        [403, "E_SOURCE_FORBIDDEN", { origin: API, status: 403, serverCode: null }],
+        [404, "E_SOURCE_NOT_FOUND", { origin: API, what: "url", value: `${API}/a` }],
         [400, "E_FETCH", { url: `${API}/a`, status: 400 }],
     ])("maps %i to %s", async (status, code, params) => {
         const fetch = replayFetch([{ url: `${API}/a`, status, headers: { "www-authenticate": 'Basic realm="x"' } }]);
@@ -252,7 +272,7 @@ describe("status mapping", () => {
     it("refuses a body that is not JSON", async () => {
         const fetch = replayFetch([{ url: `${API}/a`, body: "<html>", headers: { "content-type": "text/html" } }]);
         const err = await rejection(bareContext({ fetch }, { endpoint: API }).ctx.fetchJson("/a"));
-        expect(err.issue?.params).toEqual({ expected: "json", contentType: "text/html" });
+        expect(err.issue?.params).toEqual({ origin: API, expected: "json", contentType: "text/html" });
     });
 });
 
@@ -292,7 +312,7 @@ describe("cancellation and timeouts", () => {
         const err = await rejection(created.ctx.fetch("/a"));
         created.dispose();
         expect(err.issue?.code).toBe("E_SOURCE_TIMEOUT");
-        expect(err.issue?.params).toEqual({ timeoutMs: 5, serverSide: false });
+        expect(err.issue?.params).toEqual({ origin: API, timeoutMs: 5, serverSide: false });
     });
 });
 
@@ -372,6 +392,36 @@ describe("pacing", () => {
         }
         await all;
         expect(peak).toBe(2);
+    });
+
+    it("rejects a request waiting for a slot as soon as its load aborts or times out", async () => {
+        let started = 0;
+        const held: (() => void)[] = [];
+        const fetch = (): Promise<Response> => {
+            started++;
+            return new Promise((resolve) => held.push(() => resolve(new Response("{}"))));
+        };
+        const extra = {
+            endpoint: API,
+            id: "paced-abort",
+            descriptor: { plainName: "P", params: [], rateLimit: { requests: 100, perMs: 1000, concurrent: 1 } },
+        };
+        // one load holds the only slot; the next two queue behind it
+        const holder = bareContext({ fetch }, extra).ctx.fetch("/a");
+        const controller = new AbortController();
+        const aborted = bareContext({ fetch, signal: controller.signal }, extra).ctx.fetch("/a");
+        const timed = bareContext({ fetch, limits: { timeoutMs: 5 } }, extra);
+        const timedOut = rejection(timed.ctx.fetch("/a"));
+        await new Promise((r) => setImmediate(r));
+        controller.abort("user");
+        await expect(aborted).rejects.toBe("user");
+        expect((await timedOut).issue?.code).toBe("E_SOURCE_TIMEOUT");
+        timed.dispose();
+        // the queued loads left the queue: neither was sent, and the slot passes to no one
+        expect(started).toBe(1);
+        held.shift()?.();
+        await holder;
+        expect(started).toBe(1);
     });
 });
 

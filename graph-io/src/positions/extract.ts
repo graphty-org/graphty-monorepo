@@ -141,7 +141,8 @@ function spellingOf(importer: GraphImporter, snapshot: GraphSnapshot, signal: Ab
         return hook?.unplacedCircle === undefined ? null : circleSpelling(snapshot, hook);
     }
     const extra = { ...extraOf(column.meta.extra), ...extraOf(hook ?? {}) };
-    return { read: vectorReader(column), size: sizeReader(snapshot, extra), extra, ...hookFields(hook) };
+    const read = vectorReader(column, hook?.centerOffset);
+    return { read, size: sizeReader(snapshot, extra), extra, ...hookFields(hook) };
 }
 
 /**
@@ -184,8 +185,9 @@ function plainSpelling(snapshot: GraphSnapshot, hook: ImporterPositions): Spelli
         if (!x.isSet(row) || !y.isSet(row)) {
             return false;
         }
-        out[0] = Number(x.value(row));
-        out[1] = Number(y.value(row));
+        const offset = hook.centerOffset?.(row) ?? [0, 0];
+        out[0] = Number(x.value(row)) + offset[0];
+        out[1] = Number(y.value(row)) + offset[1];
         out[2] = z?.isSet(row) === true ? Number(z.value(row)) : 0;
         return true;
     };
@@ -205,16 +207,18 @@ function hookFields(hook: ImporterPositions | null): Pick<Spelling, "groups" | "
 /**
  * A reader over a 2- or 3-component column.
  * @param column - the column
+ * @param centerOffset - the hook's offset from a node's stored coordinate to its center, if any
  * @returns the reader
  */
-function vectorReader(column: Column): RowReader {
+function vectorReader(column: Column, centerOffset?: ImporterPositions["centerOffset"]): RowReader {
     return (row, out) => {
         if (!column.isSet(row)) {
             return false;
         }
         const v = column.value(row) as ArrayLike<number>;
-        out[0] = v[0];
-        out[1] = v[1];
+        const offset = centerOffset?.(row) ?? [0, 0];
+        out[0] = v[0] + offset[0];
+        out[1] = v[1] + offset[1];
         out[2] = v.length > 2 ? v[2] : 0;
         return true;
     };
@@ -424,8 +428,8 @@ function containersOf(snapshot: GraphSnapshot): Set<number> {
 }
 
 /**
- * The hook's group boxes in the neutral convention; a container with no coordinate of its own is
- * placed at its box's center.
+ * The hook's group boxes in the neutral convention; each container is placed at its box's center, over a coordinate
+ * of its own (yEd draws an open group round its members, not at the box the file stores).
  * @param spelling - the spelling and the hook's boxes
  * @param rows - the coordinates, changed in place
  * @returns the boxes
@@ -435,9 +439,7 @@ function applyGroups(spelling: Spelling, rows: Rows): FilePositionGroup[] {
     for (const { node, box } of spelling.groups) {
         const p: Point = [box.x, box.y, 0];
         toNeutral(p, spelling.extra, [box.width, box.height], false);
-        if (Number.isNaN(rows.values[3 * node])) {
-            rows.values.set(p, 3 * node);
-        }
+        rows.values.set(p, 3 * node);
         if (!out.some((g) => g.node === node)) {
             out.push({ node, box: { x: p[0], y: p[1], width: box.width, height: box.height } });
         }

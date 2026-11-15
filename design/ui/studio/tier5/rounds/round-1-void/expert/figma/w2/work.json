@@ -1,0 +1,41 @@
+{
+ "start": {
+  "runs": [],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "volunteers.graphml"
+  ]
+ },
+ "end": {
+  "runs": [],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [
+   "filter-1 on {\"kind\":\"union\",\"side\":\"nodes\",\"within\":\"graph\",\"branches\":[{\"id\":\"bmw0iny201\",\"start\":\"all\",\"steps\":[{\"id\":\"smw0iolv92\",\"op\":\"keep\",\"rule\":{\"kind\":\"text\",\"reads\":\"data.trained\",\"mode\":\"exact\",\"text\":\"true\",\"caseSensitive\":true}}],\"color\":\"#009E73\"}]}"
+  ],
+  "sources": [
+   "volunteers.graphml"
+  ]
+ },
+ "gone": {}
+}

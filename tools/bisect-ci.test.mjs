@@ -10,6 +10,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
+import { parse as parseYaml } from "yaml";
+
 import {
     judge,
     laneFiles,
@@ -23,6 +25,7 @@ import {
     T4_CAP_MINUTES,
     unsafeTargets,
 } from "./bisect-ci.mjs";
+import { budgetFor, hangMinutes, loadBudgets } from "./ci-budgets.mjs";
 import { isolateGit } from "./isolated-git-env.mjs";
 
 isolateGit();
@@ -142,10 +145,25 @@ describe("the lane rules", () => {
         assert.equal(answer.status, "flaky");
     });
 
-    it("gives up after its round cap when a point never reports", () => {
+    it("stops when one point ends with no result twice, instead of paying for it every round (#5062)", () => {
+        let s = start(
+            { lane: "llm", good: "g", bad: "m8", targets: [TEST] },
+            fakeGit(8, () => true),
+        );
+        s = judge(s, [{ sha: "m8", runs: 2, failed: { [ID]: 2 } }]);
+        const point = s.next.points[0];
+        s = judge(s, []);
+        assert.equal(s.answer, undefined, "a point lost once is tested again");
+        assert.ok(s.next.points.includes(point));
+        s = judge(s, [{ sha: point, status: "cancelled" }]);
+        assert.match(s.answer.noLanding, new RegExp(`point ${point.slice(0, 10)}.* with no result 2 times`));
+    });
+
+    it("gives up after its round cap, whatever else would end it first", () => {
         let s = start({ lane: "ci", good: "g", bad: "m8", targets: [TEST] }, fakeGit(8));
         s = judge(s, [{ sha: "m8", runs: 5, failed: { [ID]: 5 } }]);
-        while (!s.answer) s = judge(s, []);
+        // lost counts cleared each round, so only the round cap can end it
+        while (!s.answer) s = judge({ ...s, lost: {} }, []);
         assert.match(s.answer.noLanding, /no answer after 12 rounds/);
     });
 
@@ -154,6 +172,23 @@ describe("the lane rules", () => {
         const again = judge(s, []);
         assert.equal(again.answer, undefined);
         assert.deepEqual(again.next, { points: ["m8"], runs: 5, confirm: true });
+    });
+
+    it("runs a point that ran out of time again for the rest, never judging an intermittent test on too few runs", () => {
+        let s = start({ lane: "ci", good: "g", bad: "m8", targets: [TEST] }, fakeGit(8));
+        // the confirming job finished 1 of 5 runs, and the test failed in it
+        s = judge(s, [{ sha: "m8", runs: 1, failed: { [ID]: 1 } }]);
+        assert.deepEqual(s.next, { points: ["m8"], runs: 4, confirm: true }, "not read as consistent from 1 run");
+        // the rest: it passes 2 of them, so it is newly intermittent and followed by its rate
+        s = judge(s, [{ sha: "m8", runs: 4, failed: { [ID]: 2 } }]);
+        assert.equal(s.next.confirm, undefined);
+        assert.deepEqual(s.followed, [{ ...TEST, id: ID, rate: true }]);
+        // a candidate that finished 1 of 5 runs and passed is run again, not marked good
+        const point = s.next.points[0];
+        const others = s.next.points.slice(1).map((sha) => ({ sha, runs: 5, failed: { [ID]: 0 } }));
+        s = judge(s, [{ sha: point, runs: 1, failed: {} }, ...others]);
+        assert.deepEqual(s.next.points, [point]);
+        assert.equal(s.next.runs, 4);
     });
 
     it("names no merge for a ci red that names no test or shard, and runs an LLM red's whole suite", () => {
@@ -231,7 +266,8 @@ describe("the lane rules", () => {
         let s = start({ lane: "gpu", good: "g", bad: "m40", targets: [], afterLocalCard: true }, fakeGit(40));
         let rounds = 0;
         while (!s.answer && rounds < 20) {
-            s = judge(s, [{ sha: s.next.points[0], status: "cancelled", minutes: 70 }]);
+            // lost counts cleared each round, so the T4 cap is what ends it (MAX_LOST would stop it sooner)
+            s = judge({ ...s, lost: {} }, [{ sha: s.next.points[0], status: "cancelled", minutes: 70 }]);
             rounds++;
         }
         assert.ok(s.answer, "lost spot runners still end the bisect at the cap");
@@ -269,6 +305,75 @@ describe("bisect.yml", () => {
             3,
             "every lane call passes it",
         );
+    });
+});
+
+describe("a lane point runs with its own workflow files", () => {
+    const read = (f) => readFileSync(new URL(`../.github/workflows/${f}`, import.meta.url), "utf8");
+    const bisect = parseYaml(read("bisect.yml")).jobs;
+    const LANE_FILES = { gpu: "gpu.yml", hosts: "hosts.yml", macos: "work-protection-macos.yml" };
+
+    it("every lane workflow can be dispatched as a bisect point, as own_lane's check reads it", () => {
+        for (const f of Object.values(LANE_FILES)) {
+            const inputs = parseYaml(read(f)).on.workflow_dispatch?.inputs ?? {};
+            assert.ok(inputs.bisect_point && inputs.files, f);
+        }
+    });
+
+    it("calls the lane in place only when the point could not be handed off, and judges by the handed-off run", () => {
+        for (const lane of Object.keys(LANE_FILES)) {
+            assert.deepEqual(bisect[lane].needs, ["plan", "own_lane"], lane);
+            assert.match(bisect[lane].if, /!cancelled\(\) .*needs\.own_lane\.outputs\.own != 'true'/, lane);
+        }
+        assert.ok(bisect.judge.needs.includes("own_lane"));
+        const status = bisect.judge.steps.find((s) => s.env?.STATUS).env.STATUS;
+        assert.match(status, /needs\.own_lane\.outputs\.own == 'true' && needs\.own_lane\.outputs\.result \|\|/);
+        assert.equal(bisect.own_lane.environment, "release");
+    });
+
+    // the dispatch step's script, with git, gh and yq stubbed: each logs its arguments
+    const dispatch = (pointKnows) => {
+        const dir = mkdtempSync(join(tmpdir(), "bisect-own-lane-"));
+        const stub = (name, body) =>
+            writeFileSync(join(dir, name), `#!/bin/bash\necho "${name} $*" >> "${dir}/calls"\n${body}\n`, {
+                mode: 0o755,
+            });
+        stub("git", pointKnows ? 'if [ "$1" = show ]; then echo "    workflow_dispatch:"; fi' : "");
+        stub("gh", "");
+        stub("yq", pointKnows ? "cat > /dev/null; echo true" : "cat > /dev/null; echo false");
+        writeFileSync(join(dir, "out"), "");
+        const step = bisect.own_lane.steps.find((s) => s.id === "dispatch");
+        execFileSync("bash", ["-c", step.run], {
+            env: {
+                PATH: `${dir}:${process.env.PATH}`,
+                SHA: "a".repeat(40),
+                BAD: "b".repeat(40),
+                FILES: "x.test.ts y.test.ts",
+                WF: "gpu.yml",
+                GITHUB_SHA: "c".repeat(40),
+                GITHUB_OUTPUT: join(dir, "out"),
+            },
+            stdio: "pipe",
+        });
+        const res = { calls: readFileSync(join(dir, "calls"), "utf8"), out: readFileSync(join(dir, "out"), "utf8") };
+        rmSync(dir, { recursive: true, force: true });
+        return res;
+    };
+
+    it("moves bisect/<red>-<point> to the point and dispatches its lane workflow there with the point's files", () => {
+        const { calls, out } = dispatch(true);
+        assert.match(calls, /git push --no-verify --force origin a{40}:refs\/heads\/bisect\/b{12}-a{12}\n/);
+        assert.match(
+            calls,
+            /gh workflow run gpu\.yml --ref bisect\/b{12}-a{12} -f files=x\.test\.ts y\.test\.ts -f bisect_point=b{40}-a{40}\n/,
+        );
+        assert.match(out, /^own=true\nbranch=bisect\/b{12}-a{12}\nsince=/);
+    });
+
+    it("leaves a point from before the hand-off to be called in place, pushing and dispatching nothing", () => {
+        const { calls, out } = dispatch(false);
+        assert.doesNotMatch(calls, /git push|gh workflow/);
+        assert.equal(out, "");
     });
 });
 
@@ -337,6 +442,182 @@ describe("runPoint", () => {
         assert.deepEqual(r, { sha: "p", runs: 2, failed: { a: 2 } });
         assert.equal(calls.length, 2);
         assert.equal(await runArgs("no-such-shard-at-this-point", []), null);
+    });
+
+    it("runs the files of a shard since split into parts in a part of its family", async () => {
+        // graphty-element-default became graphty-element-default-1 and -2 (#7849)
+        const [flag, shard, command] = await runArgs("graphty-element-default", ["graphty-element/test/x.test.ts"]);
+        assert.equal(flag, "--command");
+        assert.equal(shard, "graphty-element-default-1");
+        assert.match(command, /vitest run .*test\/x\.test\.ts'$/);
+        assert.doesNotMatch(command, /--shard/);
+        // a whole-shard run of a name that no longer exists is still none
+        assert.equal(await runArgs("graphty-element-default", []), null);
+    });
+
+    it("runs an LLM target under the point's own shard name at a point from before the split", () => {
+        const root = mkdtempSync(join(tmpdir(), "bisect-old-point-"));
+        try {
+            execFileSync("mkdir", ["-p", join(root, "tools")]);
+            writeFileSync(
+                join(root, "tools", "ci-test-matrix.mjs"),
+                'export const SHARDS = [{ shard: "graphty-element-default" }];\n',
+            );
+            const url = new URL("./bisect-ci.mjs", import.meta.url).href;
+            const out = execFileSync(
+                process.execPath,
+                [
+                    "--input-type=module",
+                    "-e",
+                    `const { runArgs } = await import(${JSON.stringify(url)}); console.log(JSON.stringify(await runArgs("llm-regression", ["test/ai/a.test.ts"])));`,
+                ],
+                { env: { ...process.env, BISECT_ROOT: root }, encoding: "utf8" },
+            );
+            assert.equal(JSON.parse(out)[1], "graphty-element-default");
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+});
+
+describe("a point's time limit", () => {
+    it("stops a run at its lane's limit and fails its targets, so the point writes a result", async () => {
+        const s = {
+            lane: "llm",
+            next: { confirm: true },
+            targets: [{ id: "a", shard: "llm-regression", file: "graphty-element/test/ai/x.test.ts" }],
+        };
+        const calls = [];
+        const spawn = (cmd, args) => (calls.push([cmd, ...args]), { status: 124 }); // timeout's "timed out"
+        const r = await runPoint(s, "p", 2, spawn, () => true);
+        assert.deepEqual(r, { sha: "p", runs: 2, failed: { a: 2 } });
+        assert.deepEqual(calls[0].slice(0, 3), ["timeout", "--kill-after=1m", "40m"]);
+        assert.match(calls[0][3], /tools\/run-tests\.sh$/);
+    });
+
+    // 5 runs of 3 shards at up to 30 minutes each passed bisect.yml's 120-minute job: no result, the point lost (#5845)
+    const threeShards = {
+        lane: "ci",
+        next: { confirm: true },
+        targets: ["graphty-element-default-1", "graphty-features-on-1", "graphty-features-on-2"].map((shard, i) => ({
+            id: `t${i}`,
+            shard,
+        })),
+    };
+
+    it("reports the rounds of runs it finished when the job's time runs out", async () => {
+        let clock = 0;
+        const calls = [];
+        // every run takes 10 minutes and fails; the job has 65 minutes, so two rounds of three runs fit
+        const spawn = (cmd, args) => {
+            calls.push(args[1]);
+            clock += 10 * 60_000;
+            return { status: 1 };
+        };
+        const r = await runPoint(
+            threeShards,
+            "p",
+            5,
+            spawn,
+            () => true,
+            65 * 60_000,
+            () => clock,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 2, failed: { t0: 2, t1: 2, t2: 2 } });
+        assert.deepEqual(calls.slice(0, 4), ["30m", "30m", "30m", "30m"]);
+        assert.equal(calls[4], "1440s"); // the fifth run gets what is left (65 - 40 - 1 kill-after = 24 min)
+    });
+
+    it("does not fail a target for a run the job's time cut short, and drops that round", async () => {
+        let clock = 0;
+        const spawn = (cmd, args) => {
+            if (args[1] !== "30m") return { status: 124 }; // the deadline's limit, not the lane's
+            clock += 25 * 60_000;
+            return { status: 0 };
+        };
+        const r = await runPoint(
+            threeShards,
+            "p",
+            5,
+            spawn,
+            () => true,
+            80 * 60_000,
+            () => clock,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 0, failed: {} });
+    });
+
+    // timeout's --kill-after SIGKILL kills timeout too, so spawnSync reports signal SIGKILL, not status 124
+    it("drops the round when the deadline's run ignores SIGTERM and is killed a minute later", async () => {
+        let clock = 0;
+        const spawn = (cmd, args) => {
+            if (args[1] === "30m") {
+                clock += 25 * 60_000;
+                return { status: 0 };
+            }
+            clock += 61 * 60_000; // ran its whole limit, then the kill-after minute
+            return { status: null, signal: "SIGKILL" };
+        };
+        const r = await runPoint(
+            threeShards,
+            "p",
+            5,
+            spawn,
+            () => true,
+            80 * 60_000,
+            () => clock,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 0, failed: {} });
+    });
+
+    it("fails a target whose run was killed by SIGKILL before its limit", async () => {
+        let clock = 0;
+        const spawn = (cmd, args) => {
+            if (args[1] === "30m") {
+                clock += 25 * 60_000;
+                return { status: 0 };
+            }
+            clock += 60_000; // killed long before its limit, as the out-of-memory killer would
+            return { status: null, signal: "SIGKILL" };
+        };
+        const r = await runPoint(
+            threeShards,
+            "p",
+            1,
+            spawn,
+            () => true,
+            80 * 60_000,
+            () => clock,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 1, failed: { t2: 1 } });
+    });
+
+    it("still fails a target whose run passes the lane's own limit before the deadline", async () => {
+        const spawn = () => ({ status: 124 });
+        const r = await runPoint(
+            threeShards,
+            "p",
+            1,
+            spawn,
+            () => true,
+            120 * 60_000,
+            () => 0,
+        );
+        assert.deepEqual(r, { sha: "p", runs: 1, failed: { t0: 1, t1: 1, t2: 1 } });
+    });
+
+    it("bisect.yml sets the deadline before its point's first step", () => {
+        const wf = parseYaml(readFileSync(new URL("../.github/workflows/bisect.yml", import.meta.url), "utf8"));
+        const point = wf.jobs.point;
+        assert.match(point.steps[0].run, /POINT_DEADLINE=\$\(\( \$\(date \+%s\) \+ 110 \* 60 \)\)/);
+        assert.ok(110 < point["timeout-minutes"]);
+    });
+
+    it("is the lane's own job timeout in the full run", () => {
+        const release = parseYaml(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
+        assert.equal(LANES.llm.minutes, release.jobs.llm["timeout-minutes"]);
+        const file = loadBudgets();
+        assert.equal(LANES.ci.minutes, hangMinutes(file, budgetFor(file, "job:ci.yml:Test (layout)").minutes));
     });
 });
 

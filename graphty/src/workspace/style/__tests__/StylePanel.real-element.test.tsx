@@ -14,13 +14,16 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * A new project on a five-node path with the starting rows on.
@@ -29,14 +32,11 @@ const TIMEOUT_MS = 90_000;
 async function openProject(): Promise<GraphSession> {
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -53,10 +53,8 @@ async function openProject(): Promise<GraphSession> {
  * @returns the Style tab.
  */
 async function openRow(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
-    await userEvent.click(
-        await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }, { timeout: TIMEOUT_MS }),
-    );
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
+    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     return screen.findByTestId("style-tab");
 }
 
@@ -176,7 +174,13 @@ describe("the Style tab's fields on the real element", () => {
         const tab = await openRow("Edge betweenness");
         const kinds = within(tab).getByRole("tablist", { name: "Style for" });
         assert.strictEqual(within(kinds).getByRole("tab", { name: /^Edge/ }).getAttribute("aria-selected"), "true");
-        assert.include(within(kinds).getByRole("tab", { name: /^Node/ }).textContent ?? "", "not styled");
+        const nodeTab = within(kinds).getByRole("tab", { name: /^Node/ }).textContent ?? "";
+        // The selection workspace drops the "not styled" note from the kind tabs (StylePanel.tsx).
+        if (selectionWorkspaceOn(session)) {
+            assert.notInclude(nodeTab, "not styled");
+        } else {
+            assert.include(nodeTab, "not styled");
+        }
         assert.isNotNull(tab.querySelector('[data-group="edge"]'));
         assert.isNull(tab.querySelector('[data-group="node"]'));
     });
@@ -251,14 +255,11 @@ interface Opened {
 async function openEverything(): Promise<Opened> {
     const store = createWorkspaceStore({ project: { name: "Ring", id: 1 }, inspected: { kind: "everything-row" } });
     render(<Workspace store={store} />);
-    const element = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const element = await waitFor(() => {
+        const found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+        return found;
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -279,7 +280,7 @@ function styleTab(): HTMLElement {
  * Picks the inspector's Style tab, as a reader does on a row that opens on Values.
  */
 async function pickStyleTab(): Promise<void> {
-    const tab = await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS });
+    const tab = await screen.findByRole("tab", { name: "Style" });
     if (tab.getAttribute("aria-selected") !== "true") {
         await userEvent.click(tab);
     }
@@ -332,14 +333,11 @@ async function rowOf(field: string): Promise<HTMLElement> {
             await userEvent.click(menu);
         }
     }
-    return waitFor(
-        () => {
-            const found = styleTab().querySelector<HTMLElement>(selector);
-            assert.isNotNull(found, `a ${field} row`);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    return waitFor(() => {
+        const found = styleTab().querySelector<HTMLElement>(selector);
+        assert.isNotNull(found, `a ${field} row`);
+        return found;
+    });
 }
 
 /**
@@ -388,7 +386,7 @@ describe("the Style tab's rows on the real element", () => {
     it("has no two controls with one accessible name", async () => {
         await page.viewport(1366, 768);
         await openEverything();
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByTestId("style-tab", {});
         const names = [...tab.querySelectorAll("button, input")]
             // ponytail: the label entries are named per kind by the label unit, in flight beside this one.
             .filter((el) => el.closest('[data-section="label"], [aria-hidden="true"]') === null)
@@ -404,11 +402,15 @@ describe("the Style tab's rows on the real element", () => {
     it("colors Everything by a file attribute on the row it is on, with no new row", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await varyBy("Node color", "dept");
         await waitFor(() => {
-            const mine = readerLayers(session);
-            assert.lengthOf(mine, 1, "one Everything layer, no other row");
+            const mine = readerLayers(session).filter((l) => l.target === "node");
+            assert.deepEqual(
+                readerLayers(session).map((l) => l.name),
+                ["Everything", "Everything"],
+                "one Everything row, its node and edge parts, no other row",
+            );
             const proposal = session.styles.proposeEncoding({
                 column: { kind: "node", name: "dept" },
                 channel: "node.color",
@@ -427,10 +429,10 @@ describe("the Style tab's rows on the real element", () => {
             throw new Error("no code column");
         }
         await session.data.declare(code, { measurement: "categorical" });
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await varyBy("Node color", "code");
         await waitFor(() => {
-            const binding = readerLayers(session)[0]?.encode?.["node.color"];
+            const binding = readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"];
             assert.equal(binding !== undefined && "by" in binding ? binding.scale : undefined, "ordinal");
         });
         await userEvent.click(await varyGlyph("Node size"));
@@ -453,12 +455,9 @@ describe("the Style tab's rows on the real element", () => {
         }
         store.set({ inspected: { kind: "measure-row", id: runId } });
         await pickStyleTab();
-        await waitFor(
-            () => {
-                assert.isNotNull(within(styleTab()).getByRole("button", { name: /Stop varying node color by data/ }));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNotNull(within(styleTab()).getByRole("button", { name: /Stop varying node color by data/ }));
+        });
         const chip = styleTab().querySelector<HTMLElement>(".cm-var-chit");
         assert.include(chip?.style.background ?? "", "linear-gradient", "the chip shows the ramp");
         // PageRank paints only nodes: no Edge tab.
@@ -481,25 +480,22 @@ describe("the Style tab's rows on the real element", () => {
         await session.data.addEdges([{ source: "1", target: "3" }]);
         const { runId } = await session.runs.start("degree");
         await session.styles.settled();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await userEvent.click(await varyGlyph("Node size"));
         const list = await findValuePicker();
         await userEvent.click(within(list).getByRole("option", { name: /^Degree(,|$)/ }));
         const path = session.results.path(runId);
-        await waitFor(
-            () => {
-                const mine = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
-                assert.lengthOf(mine, 1);
-                // The element skips an element the run did not measure, so the layer keeps its rule.
-                assert.deepEqual(mine[0].selector, { match: "everything" });
-                assert.equal((mine[0].encode?.["node.size"] as { by?: string } | undefined)?.by, path);
-                assert.isAbove(element.getNode("1")?.size ?? 0, element.getNode("2")?.size ?? 0);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const mine = readerLayers(session).filter((l) => l.name === "Everything" && l.target === "node");
+            assert.lengthOf(mine, 1);
+            // The element skips an element the run did not measure, so the layer keeps its rule.
+            assert.deepEqual(mine[0].selector, { match: "everything" });
+            assert.equal((mine[0].encode?.["node.size"] as { by?: string } | undefined)?.by, path);
+            assert.isAbove(element.getNode("1")?.size ?? 0, element.getNode("2")?.size ?? 0);
+        });
         await userEvent.click(within(styleTab()).getByRole("button", { name: /Stop varying node size by data/ }));
         await waitFor(() => {
-            const mine = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
+            const mine = readerLayers(session).filter((l) => l.name === "Everything" && l.target === "node");
             assert.lengthOf(mine, 1);
             assert.deepEqual(mine[0].selector, { match: "everything" });
             assert.isUndefined(mine[0].encode?.["node.size"]);
@@ -509,24 +505,22 @@ describe("the Style tab's rows on the real element", () => {
     it("Palette and Reverse write the binding; the field's Stop varying puts one value back", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await varyBy("Node color", "code");
         // The way back to one color is the field's own button, and its tooltip says so. A tooltip
         // opens a second after the pointer arrives (compact-mantine's open delay), as long as
         // waitFor's own default wait, so the wait is the hang guard, not that default.
         await userEvent.hover(within(styleTab()).getByRole("button", { name: "Stop varying node color by data" }));
-        await waitFor(
-            () => {
-                assert.include(
-                    screen.queryAllByRole("tooltip", { hidden: true }).map((t) => t.textContent),
-                    "Stop varying by data: use one color for all",
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.include(
+                screen.queryAllByRole("tooltip", { hidden: true }).map((t) => t.textContent),
+                "Stop varying node color by data",
+            );
+        });
         await userEvent.click(await within(styleTab()).findByRole("button", { name: /^Node color: code,/ }));
         const popover = await screen.findByRole("group", { name: "Color binding" });
-        const binding = (): Record<string, unknown> => readerLayers(session)[0]?.encode?.["node.color"] ?? {};
+        const binding = (): Record<string, unknown> =>
+            readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"] ?? {};
         await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
         await userEvent.click(await screen.findByRole("option", { name: /^Shades of blue/ }));
         await waitFor(() => {
@@ -540,15 +534,18 @@ describe("the Style tab's rows on the real element", () => {
         await userEvent.keyboard("{Escape}");
         await userEvent.click(within(styleTab()).getByRole("button", { name: "Stop varying node color by data" }));
         await waitFor(() => {
-            assert.isUndefined(readerLayers(session)[0]?.encode?.["node.color"]);
-            assert.isDefined(readerLayers(session)[0]?.set?.["node.color"], "a fixed value again");
+            assert.isUndefined(readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"]);
+            assert.isDefined(
+                readerLayers(session).find((l) => l.target === "node")?.set?.["node.color"],
+                "a fixed value again",
+            );
         });
     });
 
     it("binds with the keyboard alone: Tab from the field to the vary glyph, then the list", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         // The vary glyph is the next tab stop after the field's controls.
         const color = await rowOf("Node color");
         within(color)
@@ -564,7 +561,8 @@ describe("the Style tab's rows on the real element", () => {
         // The list opens with nothing active, as a select's does: Down reaches the first value.
         await userEvent.keyboard("{ArrowDown}{Enter}");
         await waitFor(() => {
-            const bound = readerLayers(session)[0]?.encode?.["node.color"] as { by?: string } | undefined;
+            const bound = readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"] as
+                { by?: string } | undefined;
             assert.equal(bound?.by, `data.${first}`);
         });
     });
@@ -572,7 +570,7 @@ describe("the Style tab's rows on the real element", () => {
     it("a drag across the color picker is one undo step", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         const color = await rowOf("Node color");
         await userEvent.click(within(color).getByRole("button", { name: /^Pick node color/ }));
         const field = await screen.findByTestId("color-picker-saturation");
@@ -584,22 +582,25 @@ describe("the Style tab's rows on the real element", () => {
             targetPosition: { x: box.width * 0.9, y: box.height * 0.9 },
         });
         await waitFor(() => {
-            assert.isString(readerLayers(session)[0]?.set?.["node.color"]);
+            assert.isString(readerLayers(session).find((l) => l.target === "node")?.set?.["node.color"]);
         });
         await session.styles.settled();
         assert.equal(session.history.steps.length, before + 1, "the drag wrote once, on release");
     });
 
-    it("Everything's edge color goes to the Everything layer, and an edge's to its own row", async () => {
+    it("Everything's edge color goes to the Everything layer, and an edge's to the selected layer", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await typeColor("Edge color", "FF0000");
         await waitFor(() => {
-            const everything = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
+            const everything = readerLayers(session).filter((l) => l.name === "Everything");
             assert.deepEqual(
                 everything.map((l) => [l.target, hexOf(l.set?.["edge.color"])]),
-                [["edge", "#FF0000"]],
+                [
+                    ["edge", "#FF0000"],
+                    ["node", null],
+                ],
             );
         });
         const [edge] = session.data.edges();
@@ -608,67 +609,61 @@ describe("the Style tab's rows on the real element", () => {
         });
         await pickStyleTab();
         await typeColor("Edge color", "00FF00");
+        // No row opened since: the selected layer is the row that paints every element (#3409).
         await waitFor(() => {
             assert.deepEqual(
-                idLayers(session).map((l) => [l.target, hexOf(l.set?.["edge.color"])]),
-                [["edge", "#00FF00"]],
+                readerLayers(session)
+                    .filter((l) => l.name === "Everything")
+                    .map((l) => [l.target, hexOf(l.set?.["edge.color"])]),
+                [
+                    ["edge", "#00FF00"],
+                    ["node", null],
+                ],
             );
         });
+        assert.lengthOf(idLayers(session), 0, "no row for the edge");
     });
 
-    it("a node's first edit adds its row named for it and selects it; selecting it again edits that row", async () => {
+    it("Everything's first edit adds an ordinary row, which stays when its last value is removed", async () => {
         await page.viewport(1366, 768);
-        const { session, store } = await openEverything();
-        await session.selection.apply({ nodes: ["1"] });
-        await pickStyleTab();
+        const { session } = await openEverything();
+        await screen.findByTestId("style-tab", {});
         const size = within(await rowOf("Node size")).getByRole("spinbutton", { name: /^Node size/ });
         await userEvent.tripleClick(size);
         await userEvent.keyboard("3{Enter}");
-        await waitFor(() => {
-            assert.equal(idLayers(session).length, 1);
-        });
-        const [row] = idLayers(session);
-        assert.equal(row.name, "1");
-        assert.deepEqual(row.selector, { match: "ids", nodes: ["1"], edges: [] });
-        await waitFor(() => {
-            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: row.id });
-        });
-
-        session.selection.clear();
-        await session.selection.apply({ nodes: ["1"] });
-        await pickStyleTab();
-        await typeColor("Node color", "00FF00");
-        await waitFor(() => {
-            assert.equal(hexOf(session.styles.get(row.id)?.set?.["node.color"]), "#00FF00");
-        });
-        assert.equal(idLayers(session).length, 1, "the same ids reuse their row");
-    });
-
-    it("several selected share one row, named by their count, and Undo takes it away", async () => {
-        await page.viewport(1366, 768);
-        const { session } = await openEverything();
-        await session.selection.apply({ nodes: ["2", "3", "4"] });
-        await pickStyleTab();
-        await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^Node id(,|$)/ }));
+        const everything = (): ReturnType<GraphSession["styles"]["list"]> =>
+            readerLayers(session).filter((l) => l.name === "Everything");
         await waitFor(() => {
             assert.deepEqual(
-                idLayers(session).map((l) => l.name),
-                ["3 nodes"],
+                everything().map((l) => [l.target, l.set?.["node.size"]]),
+                [
+                    ["edge", undefined],
+                    ["node", 3],
+                ],
             );
         });
-        await userEvent.keyboard("{Escape}");
-        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        const [part] = everything();
+        const row = part.row ?? part.id;
+        assert.isDefined(
+            session.styles.tree().find((each) => each.id === row),
+            "a row of the tree, as any row a reader adds",
+        );
+
+        // Emptying the field and pressing Enter removes the line; the row stays, as every row does.
+        const again = within(await rowOf("Node size")).getByRole("spinbutton", { name: /^Node size/ });
+        await userEvent.click(again);
+        await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
         await waitFor(() => {
-            assert.equal(idLayers(session).length, 0);
+            assert.isUndefined(everything().find((l) => l.target === "node")?.set?.["node.size"]);
         });
+        assert.lengthOf(everything(), 2, "the emptied row is kept");
+        assert.isDefined(session.styles.tree().find((each) => each.id === row));
     });
 
     it("a new Tooltip asks what it reads; Fixed text keeps typed words, and Undo takes them back", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         await userEvent.click(within(styleTab()).getByRole("button", { name: "Add to node text" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
         await userEvent.click(
@@ -679,7 +674,7 @@ describe("the Style tab's rows on the real element", () => {
         const field = await within(styleTab()).findByRole("textbox", { name: "Node tooltip text" });
         await userEvent.type(field, "hello{Enter}");
         await waitFor(() => {
-            assert.equal(readerLayers(session)[0]?.set?.["node.tooltip"], "hello");
+            assert.equal(readerLayers(session).find((l) => l.target === "node")?.set?.["node.tooltip"], "hello");
         });
         await session.undo();
         await waitFor(() => {
@@ -701,20 +696,17 @@ describe("the Style tab's rows on the real element", () => {
             encode: { "node.color": { by: "data.department", scale: "ordinal" } },
         });
         store.set({ inspected: { kind: "layer-row", id: layer.id } });
-        await waitFor(
-            () => {
-                assert.isNotNull(
-                    within(styleTab()).getByRole("button", { name: "Node color: data.department, reads nothing" }),
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isNotNull(
+                within(styleTab()).getByRole("button", { name: "Node color: data.department, reads nothing" }),
+            );
+        });
     });
 
     it("shows no Style tab for an inspected thing that is not a layer, instead of editing Everything", async () => {
         await page.viewport(1366, 768);
         const { session, store } = await openEverything();
-        await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        await screen.findByTestId("style-tab", {});
         const { runId } = await session.runs.start("degree");
         store.set({ inspected: { kind: "run", id: runId } });
         await waitFor(() => {

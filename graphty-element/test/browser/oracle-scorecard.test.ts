@@ -4,7 +4,9 @@
  * property, with the program's own SVG export of the same file (`graph-io/test/fidelity/oracles/`,
  * compared by `test/fidelity/oracle/`), region by region with its rasterized PNG, and again with graphty's nodes at the
  * program's own positions. A sample fails when an element fails a property that
- * `test/fidelity/oracle-known-failures.json` does not list for it; pass rates are never a gate here.
+ * `test/fidelity/oracle-known-failures.json` does not list for it, or when a rate judged element by element measures
+ * below its floor in `test/fidelity/oracle-floors.json` and below any drop accepted there; the raster regions are never
+ * a gate here.
  *
  * The set is the oracles whose comparison fits a browser shard's budget under SwiftShader; every
  * oracle, with the raster comparison and the report pages, is `test/fidelity/oracle-report.test.ts`
@@ -22,7 +24,7 @@ import CI_SAMPLES from "./oracle-scorecard-samples.json";
 /**
  * The CI set: one or more samples per program whose comparison took under 3 s on the workstation
  * (the full run takes 2 to 26 s a sample): Cytoscape desktop (CX, CX2, XGMML, GML), Graphviz,
- * Gephi, draw.io standing in for yEd, Cytoscape.js, vis-network and Pajek. The list is a JSON file so CI's test job
+ * Gephi, yEd, Cytoscape.js, vis-network and Pajek. The list is a JSON file so CI's test job
  * can fetch exactly these oracles' pictures from Git LFS for the raster comparison (`.github/workflows/ci.yml`).
  */
 const CI_ORACLES: readonly string[] = CI_SAMPLES;
@@ -46,7 +48,7 @@ describe("style fidelity against the programs' own SVG drawings", () => {
         assert.deepEqual(
             gateRun(run, stored).flatMap(gateMessages),
             [],
-            `${id}: an element fails that oracle-known-failures.json does not list`,
+            `${id}: an element fails that oracle-known-failures.json does not list, or a rate is below its floor`,
         );
     });
 });

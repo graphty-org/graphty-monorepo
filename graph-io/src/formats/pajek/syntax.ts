@@ -8,6 +8,8 @@
  * `&#dddd;` character references of labels, and the column names both sides agree on.
  */
 
+import { itemAt } from "../../common/text.js";
+
 /**
  * The node column holding the vertex label (role label).
  * @category Plugin helpers
@@ -64,10 +66,10 @@ export const VECTOR_COLUMN = "vector";
 
 /**
  * The vertex shape keywords of the Pajek manual, lower-cased; a file may write them in any case
- * (use isShapeKeyword()).
- * @category Plugin helpers
+ * (use isShapeKeyword()), and the importer keeps one as written, though Pajek draws a keyword in any
+ * other case (`Box`) as an ellipse.
  */
-export const SHAPES: ReadonlySet<string> = new Set([
+const SHAPES: ReadonlySet<string> = new Set([
     "ellipse",
     "box",
     "diamond",
@@ -503,7 +505,8 @@ function parseSpell(token: string, part: string): [number, number] {
     if (match === null) {
         throw new Error(`malformed time interval ${token}: "${part}" is not a-b, a-* or a`);
     }
-    const [, startText, endText] = match;
+    const [, startText] = match;
+    const endText = itemAt(match, 2);
     if (startText === "*" && endText === undefined) {
         throw new Error(`malformed time interval ${token}: "*" alone is not a time point`);
     }

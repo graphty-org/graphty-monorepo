@@ -15,7 +15,8 @@ the item named corrects the design's text in its own branch.
    $29 a month plus capped bisects, under the owner's ceiling of about $60 (2026-10-12). The
    `spend:llm` alarm at $60 a calendar month stays. Design section 9 already names this as the
    one-line fallback; the round posts the change on #3418 when it merges, and the owner reverses it
-   with that one line. Item `llm-once-a-day`.
+   with that one line. Item `llm-once-a-day`. Superseded 2026-10-29 (#4469): the owner reversed it, and
+   the lane runs in every full, restart and candidate run.
 2. **The owner keeps his own credentials.** Owner action 2 no longer asks him to log out of `gh`,
    delete SSH keys, `npm logout` or remove credential helpers. Agents and every servherd server run
    with `GH_CONFIG_DIR`, `GIT_CONFIG_GLOBAL` (which replaces `~/.gitconfig`, so its credential
@@ -234,7 +235,7 @@ hash; `deploy` from the site repositories. It stores and answers, nothing more. 
 from a branch ref is refused. Undo: delete the Worker.
 
 **results-reporter** (#3427) -- agent, M. The pure tools: `tools/results/` (client; `run-group.mjs`: inputs
-key, run, retry failed files once, one record per test group, spool); a Vitest failure reporter
+key, run, retry failed files once, one record per test group); a Vitest failure reporter
 (batched past the 20th); 5 s and 2 s timeouts, fail open; `test-history.mjs` and
 `vitest-time-budget.mjs` reading and writing the store (`vitest-time-budget.mjs` keeps its cache file
 as the fallback). No workflow edit. Done: tests, including a store that never answers.

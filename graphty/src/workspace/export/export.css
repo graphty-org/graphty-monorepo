@@ -112,8 +112,3 @@
     align-items: center;
     gap: 4px;
 }
-
-/* The Advanced fold takes its own full row under the key options. */
-.ws-export-fields > [data-testid="control-sub-group"] {
-    grid-column: 1 / -1;
-}

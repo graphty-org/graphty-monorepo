@@ -7,7 +7,7 @@
 #
 #   env HEAD_SHA (the commit whose baselines are gated), CAPTURES (a directory of visual-<project>-<attempt>),
 #       GITHUB_OUTPUT; the checkout is master's tip (its visual-review/trusted is the gate run), full history
-#   writes outcome (success | failure), first (true before channel/nightly exists) and screenshots ("unchanged", or
+#   writes outcome (success | failure), reason (on a refusal, the gate's error lines joined by "; "), first (true before channel/nightly exists) and screenshots ("unchanged", or
 #       "approved:<visual-baselines tree>") to GITHUB_OUTPUT
 #
 # The gate is master's tip's copy, run unchanged; before channel/nightly exists the base is the last version commit,
@@ -54,6 +54,9 @@ node "$gate/visual-review/trusted/cli.mjs" gate --captures "$CAPTURES" --base "$
     | tee "$gate/out.txt" || rc=$?
 if [ "$rc" = 1 ] && grep -q '^Review them with `visual-review serve`' "$gate/out.txt"; then
     echo "outcome=failure" >> "$GITHUB_OUTPUT"
+    # the gate's own reasons (its ::error:: lines), for the refusal's why in nightly.mjs decide
+    reason=$(sed -n 's/^::error::\(visual changes not accepted -- \)\{0,1\}//p' "$gate/out.txt" | awk 'NR > 1 { printf "; " } { printf "%s", $0 }')
+    echo "reason=$reason" >> "$GITHUB_OUTPUT"
     exit 0
 elif [ "$rc" != 0 ]; then
     echo "::error::the screenshot gate failed with an error (exit $rc), not a refusal: re-run the failed jobs"

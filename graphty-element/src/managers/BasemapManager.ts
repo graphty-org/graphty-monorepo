@@ -1,9 +1,13 @@
-import { type AbstractMesh, Matrix, Mesh, Quaternion, type Scene, Vector3 } from "@babylonjs/core";
+import { Matrix, Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import type { FlatMap, Globe, MapCredit, MapSource } from "babylonjs-map";
 
-import type { BasemapConfig, BasemapStatus } from "../config/Basemap";
+import type { BasemapConfig, BasemapStatus, GlobeLook } from "../config/Basemap";
 import type { BasemapStatusEvent } from "../events";
 import type { LocationMapFrame } from "../layout/locationMap/place";
+import { viewLog } from "./viewLog";
 
 type MapModule = typeof import("babylonjs-map");
 
@@ -15,9 +19,6 @@ const FLAT_MAP_BEHIND = 0.001;
  * shader compiling); one that never draws is left to the next change.
  */
 const MAX_DRAW_FRAMES = 600;
-
-/** Room the credits leave at the canvas's left before they fold into their button, in CSS pixels. */
-const CREDIT_ROOM = 8;
 
 /**
  * A geographic frame's extent in the scene, as two corners of its box: a flat map's rectangle at
@@ -92,9 +93,9 @@ function sourcesOf(
 /**
  * Draws the map under a geographic layout: a flat map or a globe from babylonjs-map, loaded the
  * first time one is needed, in the frame the `location-map` layout published, with the sources the
- * `basemap` setting names, and the credits of the sources drawn in the canvas's bottom-right
- * corner. Tiles are picked by babylonjs-map before each frame from the camera, so zooming in loads
- * finer ones. Every change of state (loading, drawn, fallen back to the bundled world) is told to
+ * `basemap` setting names. The credits of the sources drawn are reported in `status` as data and
+ * never drawn over the canvas (owner, 2026-11-15). Tiles are picked by babylonjs-map before each
+ * frame from the camera, so zooming in loads finer ones. Every change of state (loading, drawn, fallen back to the bundled world) is told to
  * `emit` once, as a `basemap-status` event.
  */
 export class BasemapManager {
@@ -105,88 +106,53 @@ export class BasemapManager {
     #config = "";
     #name = "none";
     #unknown = false;
-    #shown = true;
     #generation = 0;
     /** The status last told to `emit`, as JSON, so each change is told once. */
     #told = "";
-    /** Whether the reader opened the folded credits. */
-    #expanded = false;
-    readonly #strip: HTMLDivElement;
-    readonly #credits: HTMLSpanElement;
-    readonly #toggle: HTMLButtonElement;
-    readonly #container: Element;
-    readonly #resize: ResizeObserver | null;
-
     /** The scene the surface was made in; a renderer swap (WebGPU) brings a new one. */
     #scene: Scene | null = null;
 
     /**
      * Make the manager; nothing is loaded until a geographic layout publishes a frame.
      * @param getScene - The scene to draw in, read on every sync.
-     * @param container - The element the canvas is in; the credits are drawn over its corner.
      * @param requestFrame - Asks for a frame when a picture arrives.
      * @param emit - Told each change of the map's state.
      */
     constructor(
         private readonly getScene: () => Scene,
-        container: Element,
         private readonly requestFrame: () => void,
         private readonly emit: (event: Omit<BasemapStatusEvent, "type">) => void = () => undefined,
-    ) {
-        this.#container = container;
-        this.#strip = document.createElement("div");
-        this.#strip.dataset.graphtyAttribution = "";
-        Object.assign(this.#strip.style, {
-            position: "absolute",
-            right: "0",
-            bottom: "0",
-            maxWidth: `calc(100% - ${String(CREDIT_ROOM)}px)`,
-            boxSizing: "border-box",
-            padding: "1px 4px",
-            font: "11px sans-serif",
-            lineHeight: "16px",
-            color: "#333",
-            background: "rgba(255, 255, 255, 0.8)",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            display: "none",
-            zIndex: "1",
-        });
-        this.#credits = document.createElement("span");
-        this.#toggle = document.createElement("button");
-        this.#toggle.type = "button";
-        this.#toggle.textContent = "(c)";
-        Object.assign(this.#toggle.style, {
-            font: "inherit",
-            color: "inherit",
-            background: "none",
-            border: "none",
-            padding: "0 2px",
-            cursor: "pointer",
-            display: "none",
-        });
-        this.#toggle.addEventListener("click", () => {
-            this.#expanded = !this.#expanded;
-            this.#layoutCredits();
-        });
-        this.#strip.append(this.#toggle, this.#credits);
-        container.appendChild(this.#strip);
-        this.#resize =
-            typeof ResizeObserver === "undefined"
-                ? null
-                : new ResizeObserver(() => {
-                      this.#layoutCredits();
-                  });
-        this.#resize?.observe(container);
+    ) {}
+
+    /** How a globe looks beyond its map; see {@link GlobeLook}. */
+    #look: GlobeLook = {};
+
+    /**
+     * How a globe looks beyond its map: its air's glow and its sun. Applied to the globe drawn now,
+     * and to every globe made after.
+     * @param look - The look.
+     */
+    set globeLook(look: GlobeLook) {
+        this.#look = look;
+        if (this.#surface !== null && this.#module !== null) {
+            void this.#module.then((m) => {
+                if (this.#surface instanceof m.Globe) {
+                    this.#lookOf(this.#surface);
+                }
+            });
+        }
     }
 
     /**
-     * How far above the canvas's bottom edge the credits sit, in CSS pixels, so they clear a
-     * consumer's own controls there.
-     * @param pixels - The offset; 0 is the corner.
+     * Gives a globe the look.
+     * @param globe - The globe.
      */
-    set attributionOffset(pixels: number) {
-        this.#strip.style.bottom = `${String(Math.max(0, pixels))}px`;
+    #lookOf(globe: Globe): void {
+        globe.atmosphere = this.#look.atmosphere === true;
+        const sun = this.#look.sun ?? null;
+        if (JSON.stringify(sun) !== JSON.stringify(globe.sun)) {
+            globe.sun = sun;
+        }
     }
 
     /**
@@ -211,7 +177,6 @@ export class BasemapManager {
         this.#frame = frame;
         this.#basemap = basemap;
         this.#config = config;
-        this.#shown = basemap?.attributionShown !== false;
         const generation = ++this.#generation;
         if (frame === null || (basemap !== undefined && "source" in basemap && basemap.source === "none")) {
             this.#pending = false;
@@ -318,12 +283,10 @@ export class BasemapManager {
         return location?.kind === "place" ? location.attribution : [];
     }
 
-    /** Removes the map and the credits. */
+    /** Removes the map. */
     dispose(): void {
         this.#generation++;
-        this.#resize?.disconnect();
         this.#clear();
-        this.#strip.remove();
     }
 
     /**
@@ -345,6 +308,7 @@ export class BasemapManager {
                 frame.surface === "globe"
                     ? new m.Globe(this.getScene(), { sources, radius: frame.radius, name: "graphty-globe" })
                     : new m.FlatMap(this.getScene(), { sources, frame: frame.mapFrame, name: "graphty-flat-map" });
+            viewLog.info("map surface", { surface: frame.surface, source: name, layers: sources.length });
             surface.onChangedObservable.add(() => {
                 this.#changed();
             });
@@ -355,6 +319,7 @@ export class BasemapManager {
 
         if (frame.surface === "globe" && surface instanceof m.Globe) {
             surface.radius = frame.radius;
+            this.#lookOf(surface);
             const r = frame.rotation;
             surface.root.rotationQuaternion = Quaternion.FromRotationMatrix(
                 Matrix.FromValues(r[0], r[1], r[2], 0, r[3], r[4], r[5], 0, r[6], r[7], r[8], 0, 0, 0, 0, 1),
@@ -368,7 +333,7 @@ export class BasemapManager {
         this.#changed();
     }
 
-    /** A picture arrived or the map moved: keep its meshes out of picking, redraw, and refresh the credits. */
+    /** A picture arrived or the map moved: keep its meshes out of picking, redraw, and tell the status. */
     #changed(): void {
         const surface = this.#surface;
         if (surface === null) {
@@ -379,13 +344,15 @@ export class BasemapManager {
             mesh.isPickable = false;
         }
 
-        this.#showCredits([...surface.credits, ...this.#placeCredits()]);
         this.#drawSoon();
         this.#tell();
     }
 
     /** The map meshes drawn at least once, so a frame is asked for until each new one is. */
     readonly #drawnMeshes = new WeakSet<AbstractMesh>();
+
+    /** The map meshes already waiting for their first draw, so each gets one observer. */
+    readonly #awaitedMeshes = new WeakSet<AbstractMesh>();
 
     /** Whether frames are being asked for until every shown map mesh has been drawn. */
     #drawing = false;
@@ -403,7 +370,9 @@ export class BasemapManager {
         }
 
         for (const mesh of surface.root.getChildMeshes()) {
-            if (mesh instanceof Mesh && !this.#drawnMeshes.has(mesh)) {
+            // A cached tile not shown is disabled: it is awaited once it is shown again.
+            if (mesh instanceof Mesh && mesh.isEnabled() && !this.#awaitedMeshes.has(mesh)) {
+                this.#awaitedMeshes.add(mesh);
                 mesh.onAfterRenderObservable.addOnce(() => {
                     this.#drawnMeshes.add(mesh);
                 });
@@ -439,6 +408,14 @@ export class BasemapManager {
         }
 
         this.#told = text;
+        const counts = this.#surface?.status;
+        viewLog.info("map tiles", {
+            source: status.source,
+            state: status.state,
+            unknownSource: this.#unknown,
+            ready: counts?.ready ?? 0,
+            failed: counts?.failed ?? 0,
+        });
         this.emit({
             source: status.source,
             state: status.state,
@@ -449,69 +426,11 @@ export class BasemapManager {
         });
     }
 
-    /**
-     * Writes the credits of the sources drawn, each a link to its provider's page when it has one.
-     * @param credits - The credits.
-     */
-    #showCredits(credits: readonly MapCredit[]): void {
-        const parts: Node[] = [];
-        credits.forEach((credit, i) => {
-            if (i > 0) {
-                parts.push(document.createTextNode(" | "));
-            }
-
-            if (credit.url === "") {
-                parts.push(document.createTextNode(credit.text));
-            } else {
-                const link = document.createElement("a");
-                link.href = credit.url;
-                link.target = "_blank";
-                link.rel = "noopener noreferrer";
-                link.textContent = credit.text;
-                link.style.color = "inherit";
-                parts.push(link);
-            }
-        });
-        this.#credits.replaceChildren(...parts);
-        this.#toggle.title = credits.map((c) => c.text).join(" | ");
-        this.#toggle.setAttribute("aria-label", this.#toggle.title);
-        this.#strip.style.display = this.#shown && credits.length > 0 ? "block" : "none";
-        this.#layoutCredits();
-    }
-
-    /**
-     * Keeps the credits on one line: in full when they fit beside the canvas's left edge, else
-     * folded into their button, which shows them in full, wrapped, until it is pressed again.
-     */
-    #layoutCredits(): void {
-        if (this.#strip.style.display === "none") {
-            return;
-        }
-
-        // Measured unfolded on one line first.
-        Object.assign(this.#strip.style, { whiteSpace: "nowrap" });
-        this.#credits.style.display = "inline";
-        this.#toggle.style.display = "none";
-        const room = this.#container.clientWidth - CREDIT_ROOM;
-        const fits = room <= 0 || this.#strip.scrollWidth <= room;
-        if (fits) {
-            this.#expanded = false;
-            return;
-        }
-
-        this.#toggle.style.display = "inline";
-        this.#toggle.setAttribute("aria-expanded", String(this.#expanded));
-        this.#credits.style.display = this.#expanded ? "inline" : "none";
-        this.#strip.style.whiteSpace = this.#expanded ? "normal" : "nowrap";
-    }
-
-    /** Disposes the surface and hides the credits. */
+    /** Disposes the surface. */
     #clear(): void {
         this.#surface?.dispose();
         this.#surface = null;
         this.#unknown = false;
-        this.#strip.style.display = "none";
-        this.#credits.replaceChildren();
         this.requestFrame();
     }
 }

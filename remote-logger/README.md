@@ -145,6 +145,15 @@ Point your browser (including iOS Safari) at the proxy URL. The proxy:
 - WebSocket connections are not proxied
 - Sites with very aggressive bot detection may still block the proxy
 
+**Security:**
+
+The server listens on all interfaces (`0.0.0.0`) by default so phones and headsets on your network can send logs, and it has no authentication. Anyone who can reach the port can send logs, read them (`/logs`) and use the proxy. To limit that:
+
+- The proxy refuses targets on loopback, private, link-local (including cloud metadata at `169.254.169.254`) and unique-local addresses, so it cannot be used to reach services only your machine can see. Start the server with `--proxy-allow-private` to proxy such a host anyway.
+- The proxy verifies upstream TLS certificates.
+- Only `/log`, `/health` and `/remote-logger.js` answer web pages on other origins. A page on another origin cannot read or clear the logs, or drive the proxy.
+- Bind to `127.0.0.1` with `--host 127.0.0.1` when no other device needs to reach the server.
+
 ## CLI Reference
 
 ```
@@ -152,12 +161,13 @@ Usage:
   npx remote-log-server [options]
 
 Options:
-  --port, -p <port>       Port to listen on (default: 9080)
+  --port, -p <port>       Port to listen on (default: PORT, else 9080)
   --host, -h <host>       Hostname to bind to (default: 0.0.0.0)
   --cert, -c <path>       Path to SSL certificate file (enables HTTPS)
   --key, -k <path>        Path to SSL private key file (enables HTTPS)
   --log-file, -l <path>   Write logs to file (JSONL format)
   --quiet, -q             Suppress startup banner
+  --proxy-allow-private   Let /proxy/ reach loopback, private and link-local hosts
   --mcp-only              Start only MCP server (no HTTP)
   --http-only             Start only HTTP server (no MCP)
   --help                  Show help message
@@ -177,11 +187,24 @@ Examples:
 stops the server at startup with an error naming the option and the value, rather than
 listening on a different port.
 
+A port you choose, with `--port` or the `PORT` environment variable, is the port the server
+listens on: if it is already in use, the server stops at startup with an error naming the port,
+rather than moving to another one. Only with no port given does it start at 9080 and move up to
+the next free port. `--port` wins over `PORT`.
+
+To run it under a process manager that assigns ports through `PORT`, such as servherd:
+
+```jsonc
+servherd_start({ name: "remote-logger", command: "npx remote-log-server --http-only",
+  env: { PORT: "{{port}}" } })
+```
+
 ### Environment Variables
 
 | Variable                    | Default | Description                                                     |
 | --------------------------- | ------- | --------------------------------------------------------------- |
 | `REMOTE_LOG_RETENTION_DAYS` | `7`     | Number of days to retain logs before cleanup (whole number, 1+) |
+| `PORT`                      | `9080`  | Port to listen on, as `--port` (whole number, 1 to 65535)       |
 
 A `REMOTE_LOG_RETENTION_DAYS` that is not a whole number of at least 1 (for example `seven` or
 `0`) stops the server at startup with an error naming the variable and the value.

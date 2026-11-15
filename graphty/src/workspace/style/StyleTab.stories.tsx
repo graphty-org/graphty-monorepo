@@ -5,8 +5,8 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import { freshStore, storeOf } from "../../stories/freshStore";
-import { storyWaitOptions } from "../../stories/wait";
 import { fixWallClock } from "../../test/fixedWallClock";
+import { fileStylesOn } from "../features";
 import type { WorkspaceStore } from "../state/store";
 import { Workspace } from "../Workspace";
 import ring from "./__fixtures__/ring.json";
@@ -40,7 +40,7 @@ async function loadRing(canvasElement: HTMLElement): Promise<GraphtyElement> {
  */
 async function openStyleTab(canvasElement: HTMLElement): Promise<void> {
     const inspector = within(canvasElement).getByRole("complementary", { name: "Inspector" });
-    await userEvent.click(await within(inspector).findByRole("tab", { name: "Style" }, storyWaitOptions(1000)));
+    await userEvent.click(await within(inspector).findByRole("tab", { name: "Style" }));
 }
 
 /**
@@ -82,7 +82,7 @@ async function varyGlyph(canvasElement: HTMLElement, field: string): Promise<HTM
     }
     // The glyph shows while the field holds focus (a story's pointer events move no CSS hover).
     box.querySelector<HTMLElement>("input")?.focus();
-    return within(box).findByRole("button", { name: `${field} by attribute` }, storyWaitOptions(1000));
+    return within(box).findByRole("button", { name: `${field} by attribute` });
 }
 
 /** The Style tab's Nodes group: both groups draw a label entry. */
@@ -144,9 +144,7 @@ export const MeasureRow: Story = styleStory(async (canvasElement, element, store
 /** Shape "+" on the measure row: the options the row does not set yet (`#/style-pickers/plus-menu`). */
 export const PlusMenu: Story = styleStory(async (canvasElement, element, store) => {
     await inspectPageRank(canvasElement, element, store);
-    await userEvent.click(
-        await tab(canvasElement).findByRole("button", { name: "Add to node shape" }, storyWaitOptions(1000)),
-    );
+    await userEvent.click(await tab(canvasElement).findByRole("button", { name: "Add to node shape" }));
 });
 
 /** The color picker on Everything's color, opened from the field's chit (`#/style-pickers/color`). */
@@ -154,9 +152,15 @@ export const ColorPopover: Story = styleStory(async (canvasElement) => {
     await userEvent.click(tab(canvasElement).getByRole("button", { name: "Pick node color" }));
 });
 
-/** The Shape grid: every shape the element draws, by its picture and name (`#/style-pickers/shape`). */
-export const ShapePopover: Story = styleStory(async (canvasElement) => {
-    await userEvent.click(tab(canvasElement).getByRole("combobox", { name: /^Node shape/ }));
+/**
+ * The Shape grid: every shape the element draws, by its picture and name (`#/style-pickers/shape`).
+ * With file-styles on the tab is drawn by part, and Shape's value is a button opening the shape list.
+ */
+export const ShapePopover: Story = styleStory(async (canvasElement, element) => {
+    const field = fileStylesOn(element.session)
+        ? tab(canvasElement).getByRole("button", { name: /^Node shape, / })
+        : tab(canvasElement).getByRole("combobox", { name: /^Node shape/ });
+    await userEvent.click(field);
 });
 
 /** The bind icon opens the From data list: attributes, a refused one last (`#/style-pickers/bind-prop`). */
@@ -167,24 +171,20 @@ export const BindSize: Story = styleStory(async (canvasElement) => {
 /** Everything colored by department, the Binding popover open (`#/style-pickers/binding`). */
 export const BindingPopover: Story = styleStory(async (canvasElement) => {
     await userEvent.click(await varyGlyph(canvasElement, "Node color"));
-    await userEvent.click(await body().findByRole("option", { name: /^dept(,|$)/ }, storyWaitOptions(1000)));
+    await userEvent.click(await body().findByRole("option", { name: /^dept(,|$)/ }));
     await waitFor(() => {
         expect(body().queryByRole("combobox", { name: "Find an attribute" })).toBeNull();
-    }, storyWaitOptions(1000));
-    await userEvent.click(
-        await tab(canvasElement).findByRole("button", { name: /^Node color: dept,/ }, storyWaitOptions(1000)),
-    );
-    await body().findByRole("group", { name: "Color binding" }, storyWaitOptions(1000));
+    });
+    await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^Node color: dept,/ }));
+    await body().findByRole("group", { name: "Color binding" });
 });
 
 /** The Binding popover's palette list open, for the department colors (`#/style-pickers/palette`). */
 export const Palette: Story = styleStory(async (canvasElement) => {
     await userEvent.click(await varyGlyph(canvasElement, "Node color"));
-    await userEvent.click(await body().findByRole("option", { name: /^dept(,|$)/ }, storyWaitOptions(1000)));
-    await userEvent.click(
-        await tab(canvasElement).findByRole("button", { name: /^Node color: dept,/ }, storyWaitOptions(1000)),
-    );
-    const popover = await body().findByRole("group", { name: "Color binding" }, storyWaitOptions(1000));
+    await userEvent.click(await body().findByRole("option", { name: /^dept(,|$)/ }));
+    await userEvent.click(await tab(canvasElement).findByRole("button", { name: /^Node color: dept,/ }));
+    const popover = await body().findByRole("group", { name: "Color binding" });
     await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
 });
 
@@ -203,26 +203,26 @@ export const BindingUnknownPath: Story = styleStory(async (canvasElement, elemen
 /** Text "+", then Label: the source list open, nothing written yet (`#/style-pickers/label-new-line`). */
 export const LabelNewLine: Story = styleStory(async (canvasElement) => {
     await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to node text" }));
-    await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }, storyWaitOptions(1000)));
-    await body().findByRole("combobox", { name: "Find an attribute" }, storyWaitOptions(1000));
+    await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
+    await body().findByRole("combobox", { name: "Find an attribute" });
 });
 
 /** Esc on the source list: no entry is left behind (`#/inspector-group-set-path-row/label-empty`). */
 export const LabelEmpty: Story = styleStory(async (canvasElement) => {
     await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to node text" }));
-    await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }, storyWaitOptions(1000)));
-    await body().findByRole("combobox", { name: "Find an attribute" }, storyWaitOptions(1000));
+    await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
+    await body().findByRole("combobox", { name: "Find an attribute" });
     await userEvent.keyboard("{Escape}");
     await waitFor(() => {
         expect(body().queryByRole("combobox", { name: "Find an attribute" })).toBeNull();
-    }, storyWaitOptions(1000));
+    });
 });
 
 /** A label entry reading the name, with the element's count (`#/inspector-group-set-path-row/label-two`). */
 export const LabelBound: Story = styleStory(async (canvasElement, element) => {
     await userEvent.click(nodes(canvasElement).getByRole("button", { name: "Add to node text" }));
-    await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }, storyWaitOptions(1000)));
-    await userEvent.click(await body().findByRole("option", { name: /^name(,|$)/ }, storyWaitOptions(1000)));
-    await nodes(canvasElement).findByRole("button", { name: /^Label source: / }, storyWaitOptions(1000));
+    await userEvent.click(await body().findByRole("menuitem", { name: /^Label/ }));
+    await userEvent.click(await body().findByRole("option", { name: /^name(,|$)/ }));
+    await nodes(canvasElement).findByRole("button", { name: /^Label source: / });
     await element.waitForStableFrame();
 });

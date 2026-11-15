@@ -18,10 +18,21 @@ import { z } from "zod";
 import type { ToolDefinition } from "../../../src/ai/providers/types";
 import { WebLlmProvider } from "../../../src/ai/providers/WebLlmProvider";
 
+/** WebLLM's snake_case finish reason key. */
+const FINISH_REASON = "finish_reason";
 /** Every request the fake engine received. */
 const requests: Record<string, unknown>[] = [];
 /** The responses the fake engine gives, in order; an empty queue answers with plain text. */
 const responses: Record<string, unknown>[] = [];
+/**
+ * While true, a request stays open until `interruptGenerate()`, which ends it the way WebLLM
+ * does: a resolved completion with finish reason `"abort"`.
+ */
+let hold = false;
+/** Ends the request held open. */
+let release: (() => void) | undefined;
+/** How many times the provider called `interruptGenerate()`. */
+let interrupts = 0;
 
 vi.mock("@mlc-ai/web-llm", async (importOriginal) => {
     const actual = await importOriginal<typeof import("@mlc-ai/web-llm")>();
@@ -33,11 +44,25 @@ vi.mock("@mlc-ai/web-llm", async (importOriginal) => {
                     completions: {
                         create: (request: Record<string, unknown>) => {
                             requests.push(structuredClone(request));
+                            if (hold) {
+                                return new Promise((resolve) => {
+                                    release = () => {
+                                        resolve({
+                                            choices: [{ [FINISH_REASON]: "abort", message: { content: "par" } }],
+                                        });
+                                    };
+                                });
+                            }
+
                             return Promise.resolve(
                                 responses.shift() ?? { choices: [{ message: { content: "plain answer" } }] },
                             );
                         },
                     },
+                },
+                interruptGenerate: () => {
+                    interrupts++;
+                    release?.();
                 },
             }),
     };
@@ -73,6 +98,9 @@ describe("WebLlmProvider tool capability", () => {
     beforeEach(() => {
         requests.length = 0;
         responses.length = 0;
+        hold = false;
+        release = undefined;
+        interrupts = 0;
         vi.spyOn(WebLlmProvider, "isWebGPUAvailable").mockResolvedValue(true);
     });
 
@@ -149,6 +177,66 @@ describe("WebLlmProvider tool capability", () => {
         assert.deepEqual(response.toolCalls, [{ id: "c1", name: "zoomToNodes", arguments: { nodeIds: ["a"] } }]);
     });
 
+    it("streams text and each named tool call of a Hermes model, then completes with all of them", async () => {
+        const chunks = [
+            { choices: [{ delta: { content: "on " } }] },
+            // The usage chunk at the end of a stream carries no choice.
+            { choices: [] },
+            {
+                choices: [
+                    {
+                        delta: {
+                            content: "it",
+                            [TOOL_CALLS]: [
+                                { id: "c1", function: { name: "zoomToNodes", arguments: '{"nodeIds":["a"]}' } },
+                            ],
+                        },
+                    },
+                ],
+            },
+            {
+                choices: [
+                    {
+                        delta: {
+                            [TOOL_CALLS]: [
+                                { function: {} },
+                                { id: "c2", function: { name: "fitToGraph", arguments: { all: true } } },
+                            ],
+                        },
+                    },
+                ],
+            },
+        ];
+        responses.push({ [Symbol.asyncIterator]: () => chunks[Symbol.iterator]() });
+        const provider = await providerFor(HERMES);
+        const seen: string[] = [];
+        let completed: { text: string; toolCalls: { id: string; name: string }[] } | undefined;
+        await provider.generateStream([{ role: "user", content: "zoom to a" }], TOOLS, {
+            onChunk: (text) => seen.push(`chunk:${text}`),
+            onToolCall: (name, args) => seen.push(`tool:${name}:${JSON.stringify(args)}`),
+            onToolResult: () => undefined,
+            onComplete: (result) => {
+                completed = result;
+            },
+            onError: () => undefined,
+        });
+
+        assert.deepStrictEqual(seen, [
+            "chunk:on ",
+            "chunk:it",
+            'tool:zoomToNodes:{"nodeIds":["a"]}',
+            'tool:fitToGraph:{"all":true}',
+        ]);
+        assert.strictEqual(completed?.text, "on it");
+        assert.deepStrictEqual(
+            completed?.toolCalls.map((call) => [call.id, call.name]),
+            [
+                ["c1", "zoomToNodes"],
+                ["c2", "fitToGraph"],
+            ],
+        );
+    });
+
     it("asks a Hermes model again without tools when it calls none, for a text answer", async () => {
         responses.push({ choices: [{ message: { content: null, [TOOL_CALLS]: [] } }] });
         const provider = await providerFor(HERMES);
@@ -186,5 +274,33 @@ describe("WebLlmProvider tool capability", () => {
 
         const messages = requests[0].messages as { role: string; content: unknown }[];
         assert.strictEqual(messages[1].content, '[{"name":"zoomToNodes","arguments":{"nodeIds":["a"]}}]');
+    });
+
+    it("cancelling a request interrupts the engine's generation and rejects as aborted", async () => {
+        const provider = await providerFor(LLAMA);
+        hold = true;
+        const controller = new AbortController();
+        const answer = provider.generate([{ role: "user", content: "hello" }], TOOLS, { signal: controller.signal });
+        await vi.waitUntil(() => requests.length === 1);
+
+        controller.abort();
+
+        const error = await answer.then(
+            () => null,
+            (error_: unknown) => error_,
+        );
+        assert.instanceOf(error, Error);
+        assert.strictEqual(error.message, "Request was aborted");
+        assert.strictEqual(interrupts, 1);
+    });
+
+    it("a request that ends normally leaves no listener to interrupt a later one", async () => {
+        const provider = await providerFor(LLAMA);
+        const controller = new AbortController();
+        await provider.generate([{ role: "user", content: "hello" }], TOOLS, { signal: controller.signal });
+
+        controller.abort();
+
+        assert.strictEqual(interrupts, 0);
     });
 });

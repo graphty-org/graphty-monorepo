@@ -136,7 +136,7 @@ async function collectItems(parts, out, problems) {
             }
             seen.set(item.file, p.dir);
             items.push(item);
-            for (const sub of ["", "second", "baselines"]) {
+            for (const sub of ["", "second", "baselines", "flaky"]) {
                 await copyIfThere(join(p.dir, sub, item.file), join(out, sub, item.file));
             }
         }
@@ -190,7 +190,7 @@ export async function mergeResults({ project, baselines, out, dirs, blocking = f
         parts.push({ ...JSON.parse(await readFile(join(dir, "results.json"), "utf8")), dir });
     }
     const problems = completeness(project, parts);
-    for (const sub of ["second", "baselines"]) {
+    for (const sub of ["second", "baselines", "flaky"]) {
         await mkdir(join(out, sub), { recursive: true });
     }
     const items = await collectItems(parts, out, problems);
@@ -201,6 +201,11 @@ export async function mergeResults({ project, baselines, out, dirs, blocking = f
     const header = { ...parts[0] };
     for (const key of ["dir", "partial"]) {
         delete header[key];
+    }
+    // Each shard ran on its own runner: every CPU model they drew on, not the first shard's alone (#6351).
+    const cpus = [...new Set(parts.map((p) => p.environment?.cpu).filter((c) => typeof c === "string"))];
+    if (header.environment && cpus.length > 0) {
+        header.environment = { ...header.environment, cpu: cpus.join(" | ") };
     }
     const earliest = parts.map((p) => p.capturedAt).sort((a, b) => a.localeCompare(b))[0];
     const results = {

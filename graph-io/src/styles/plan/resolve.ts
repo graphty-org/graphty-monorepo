@@ -8,6 +8,7 @@
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { formatF32 } from "../../common/format.js";
+import { hexChannels } from "../canon/color.js";
 import { canonEnum } from "../canon/enums.js";
 import { canonBoolean, canonNumber, canonOpacity, canonSigned } from "../canon/number.js";
 import type { CanonSite } from "../canon/site.js";
@@ -221,7 +222,9 @@ export function isShortPredicate(where: Predicate): boolean {
  */
 function atomTerms(p: Predicate): number {
     if ("all" in p) {
-        return p.all ? 1 : 0;
+        // the rule is the caller's, so `all` can be any value
+        const { all }: { all: unknown } = p;
+        return all ? 1 : 0;
     }
     if ("has" in p) {
         return 1;
@@ -330,6 +333,7 @@ const ENUM_KINDS: ReadonlySet<string> = new Set([
     "weight",
     "position",
     "labelFit",
+    "labelBox",
     "borderPosition",
     "textAlign",
 ]);
@@ -402,7 +406,9 @@ export function discreteLookup(table: readonly (readonly [Scalar, StyleValue])[]
     const byNum = new Map<number, number>();
     const byBool = new Map<string, number>();
     table.forEach(([k], j) => {
-        if (k === null || typeof k === "object") {
+        // the table is the caller's, so a key can be any value
+        const given: unknown = k;
+        if (given === null || typeof given === "object") {
             return;
         }
         const ks = String(k);
@@ -479,13 +485,10 @@ export function interpolate(a: StyleValue, b: StyleValue, t: number): StyleValue
         return num6(a + (b - a) * t);
     }
     if (typeof a === "string" && typeof b === "string" && HEX6.test(a) && HEX6.test(b)) {
-        let out = "#";
-        for (const k of [1, 3, 5]) {
-            const ca = Number.parseInt(a.slice(k, k + 2), 16);
-            const cb = Number.parseInt(b.slice(k, k + 2), 16);
-            out += hex2(ca + (cb - ca) * t);
-        }
-        return out;
+        const y = hexChannels(b);
+        return `#${hexChannels(a)
+            .map((c, i) => hex2(c + (y[i] - c) * t))
+            .join("")}`;
     }
     return t < 1 ? a : b;
 }
@@ -680,6 +683,26 @@ export function resolveStyles(
 }
 
 /**
+ * Every element's value of one property under one rule of a file's styles, read the way `resolveStyles()` reads it:
+ * the rule's value where its condition selects the element and its value or mapping gives one, null elsewhere.
+ * @param extracted - the styles whose columns and features the rule reads
+ * @param rule - the rule (one of `extracted.styles.rules`, or one made from them)
+ * @param property - the property
+ * @param snapshot - the graph; when given, data columns and degrees are read from it, otherwise from
+ * `extracted.features`
+ * @returns each element of the rule's target's value, or null where the rule gives none
+ * @category Styles
+ */
+export function resolveRule(
+    extracted: ExtractedStyles,
+    rule: StyleRule,
+    property: StyleProperty,
+    snapshot?: GraphSnapshot,
+): readonly (StyleValue | null)[] {
+    return resolveRules([rule], rule.target, property, sourceOf(extracted, rule.target, snapshot));
+}
+
+/**
  * Which elements a rule's condition selects under a file's styles, read the way `resolveStyles()` reads it.
  * @param extracted - the styles whose columns and features the condition reads
  * @param target - nodes or edges
@@ -729,12 +752,8 @@ export function within(a: StyleValue | null, b: StyleValue | null): boolean {
         return Math.abs(a - b) <= 1e-5 * Math.max(Math.abs(a), Math.abs(b), 1e-9);
     }
     if (typeof a === "string" && typeof b === "string" && HEX6.test(a) && HEX6.test(b)) {
-        for (const k of [1, 3, 5]) {
-            if (Math.abs(Number.parseInt(a.slice(k, k + 2), 16) - Number.parseInt(b.slice(k, k + 2), 16)) > 2) {
-                return false;
-            }
-        }
-        return true;
+        const y = hexChannels(b);
+        return hexChannels(a).every((c, i) => Math.abs(c - y[i]) <= 2);
     }
     return false;
 }

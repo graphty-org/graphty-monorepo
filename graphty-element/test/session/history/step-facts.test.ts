@@ -9,13 +9,22 @@
  * here is a compile error too.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, beforeAll, describe, it } from "vitest";
 
 import { COMMANDS } from "../../../commands";
+import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { CodedFact } from "../../../src/session/shared";
 import type { HistoryCode, HistoryStep } from "../../../src/session/types";
+import { fileStylesOn } from "../../helpers/file-styles-on";
 import { fixtureSession } from "./fixture-session";
 import { FIXTURES } from "./fixtures";
+
+fileStylesOn();
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 /** The undoable ops of the vocabulary. */
 type UndoableOp = {
@@ -28,10 +37,12 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "algo.legacy": ["algo.legacy"],
     "algo.remove": ["algo.remove"],
     "algo.move": ["algo.move"],
+    "algo.rename": ["algo.rename"],
     batch: [
         "batch",
         "data.replace-nodes",
         "data.replace-edges",
+        "data.merge-nodes",
         "data.set",
         "layout.behavior",
         "data.fix-issue",
@@ -65,6 +76,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "data.setSource": ["data.set-source"],
     "data.label": ["data.label"],
     "data.columns": ["data.columns"],
+    "data.derive": ["data.derive"],
     "data.setFileStyles": ["data.set-file-styles"],
     "style.patch": [
         "style.add-layer",
@@ -81,7 +93,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
         "style.lock-row",
         "style.hide-row",
         "style.delete-row",
-        "style.restore-starting-rows",
+        "style.add-default-rows",
     ],
     "style.encode": ["style.encode"],
     "style.template": ["style.template"],
@@ -90,6 +102,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "visibility.window": ["visibility.window", "visibility.clear-window"],
     "visibility.context": ["visibility.show-context", "visibility.hide-context"],
     "visibility.playback": ["visibility.playback"],
+    "visibility.hide": ["visibility.hide-nodes", "visibility.show-nodes"],
     "visibility.steps": [
         "visibility.step-add",
         "visibility.step-edit",
@@ -122,6 +135,7 @@ const CODES_BY_OP: Readonly<Record<UndoableOp, readonly HistoryCode[]>> = {
     "positions.set": ["positions.set"],
     "positions.pin": ["positions.pin", "positions.release"],
     "layout.set": ["layout.set"],
+    "layout.rerun": ["layout.rerun"],
     "layout.scope": ["layout.scope", "layout.whole-graph"],
     "view.dimension": ["view.dimension"],
 };
@@ -132,6 +146,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "algo.legacy": ["algorithm"],
     "algo.remove": ["algorithm", "run"],
     "algo.move": ["algorithm", "run"],
+    "algo.rename": ["algorithm", "name", "run"],
     "algo.batch": ["count", "label"],
     "algo.template": [],
     batch: ["label", "steps"],
@@ -148,6 +163,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.set": [],
     "data.replace-nodes": [],
     "data.replace-edges": [],
+    "data.merge-nodes": ["count"],
     "data.import": ["name", "type"],
     "data.import-source": ["name", "source"],
     "data.expand": ["node"],
@@ -166,6 +182,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "data.hide-columns": ["count"],
     "data.show-columns": ["count"],
     "data.columns": [],
+    "data.derive": ["column", "kind"],
     "data.set-file-styles": ["loads"],
     "style.add-layer": ["layer"],
     "style.update-layer": ["channels", "layer"],
@@ -187,7 +204,7 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "style.lock-row": ["locked", "row"],
     "style.hide-row": ["hidden", "row"],
     "style.delete-row": ["row"],
-    "style.restore-starting-rows": [],
+    "style.add-default-rows": [],
     "visibility.filter": ["kind"],
     "visibility.clear-filter": [],
     "visibility.window": [],
@@ -206,6 +223,8 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "visibility.condition-remove": ["effect", "id"],
     "visibility.steps": [],
     "visibility.playback": [],
+    "visibility.hide-nodes": ["count"],
+    "visibility.show-nodes": ["count"],
     "time.field": ["column"],
     "time.clear-field": [],
     "set.create": ["name"],
@@ -228,10 +247,13 @@ const PARAMS: Readonly<Record<HistoryCode, readonly string[]>> = {
     "positions.release": ["count"],
     "node.drag": ["node"],
     "layout.set": ["layout"],
+    "layout.rerun": ["layout"],
     "layout.behavior": ["layout"],
     "layout.scope": [],
     "layout.whole-graph": [],
     "project.open": ["name"],
+    "groups.collapse": ["groupBy", "group", "size"],
+    "groups.expand": ["groupBy", "group", "size"],
     "document.open": [],
     transaction: ["label"],
 };
@@ -348,6 +370,26 @@ describe("history step facts", () => {
 
         assert.deepEqual(sized, { code: "style.update-layer", params: { layer: "Mine", channels: ["node.size"] } });
         assert.deepEqual(renamed, { code: "style.update-layer", params: { layer: "Mine", channels: [] } });
+        session.dispose();
+    });
+
+    it("names every channel of layer updates merged into one step", async () => {
+        const session = await fixtureSession({ now: () => 0 });
+        const layer = await session.styles.add({
+            name: "Mine",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#ff0000", "node.size": 1 },
+        });
+        const before = session.history.steps.length;
+        await session.styles.update(layer.id, { set: { "node.color": "#00ff00", "node.size": 1 } });
+        await session.styles.update(layer.id, { set: { "node.color": "#00ff00", "node.size": 2 } });
+
+        assert.equal(session.history.steps.length, before + 1);
+        assert.deepEqual(topOf(session.history.steps, session.history.position).fact, {
+            code: "style.update-layer",
+            params: { layer: "Mine", channels: ["node.color", "node.size"] },
+        });
         session.dispose();
     });
 

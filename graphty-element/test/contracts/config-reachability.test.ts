@@ -134,11 +134,20 @@ function painterOf(style: ResolvedStyle): StylePainter {
     const painter = new StylePainter();
     const stub: Pick<
         ElementPaint,
-        "styleOf" | "plainText" | "meshKeyOf" | "meshCount" | "lastPainted" | "onPainted" | "painting" | "problems"
+        | "styleOf"
+        | "plainText"
+        | "meshKeyOf"
+        | "meshStyleOf"
+        | "meshCount"
+        | "lastPainted"
+        | "onPainted"
+        | "painting"
+        | "problems"
     > = {
         styleOf: () => style,
         plainText: () => false,
         meshKeyOf: () => 1,
+        meshStyleOf: () => style,
         meshCount: () => 1,
         lastPainted: () => [],
         onPainted: () => () => undefined,
@@ -230,7 +239,11 @@ function reachedBy(descriptor: ChannelDescriptor): Set<string> {
     }
 
     const runs = ([0, 1] as const).map((run) => {
-        const painter = painterOf({ [descriptor.channel]: probeValue(descriptor, run) });
+        // A radial gradient's middle and reach are drawn only on a radial gradient.
+        const radial = /^node\.gradient(CenterX|CenterY|Radius)$/.test(descriptor.channel)
+            ? { "node.gradientKind": "radial" as const }
+            : {};
+        const painter = painterOf({ ...radial, [descriptor.channel]: probeValue(descriptor, run) });
         const paint = descriptor.target === "node" ? painter.nodePaint(0) : painter.edgePaint(0);
 
         assert.isNotNull(paint, `the painter returned no paint for ${descriptor.channel}`);

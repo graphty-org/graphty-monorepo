@@ -11,17 +11,12 @@
 import "@graphty/graphty-element";
 
 import type { GraphSession } from "@graphty/graphty-element/session";
-import userEvent from "@testing-library/user-event";
 import { assert, beforeAll, describe, it } from "vitest";
-import { page } from "vitest/browser";
+import { page, userEvent } from "vitest/browser";
 
-import { storyWaitOptions } from "../../../stories/wait";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /** Two rings of six joined by a bridge: Louvain finds the rings. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}`, team: i < 6 ? "North" : "South" }));
@@ -58,6 +53,10 @@ function drawnIds(): string[] {
     return drawnRows("Nodes").map((cells) => cells[0] ?? "");
 }
 
+// The weight card's on box: "Use weight", or just "Use" on a resting row with the selection workspace
+// experiment on (Filters.tsx, the row's group already names the filter). It is the only condition here.
+const USE_WEIGHT = /^Use( weight|$)/u;
+
 describe("the table dock", () => {
     beforeAll(async () => {
         // Wide enough for the canvas, the dock and both side panels side by side.
@@ -67,13 +66,10 @@ describe("the table dock", () => {
     it("shows the element's records, sorts a result column, narrows to a group and exports", async () => {
         render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
@@ -212,7 +208,7 @@ describe("the table dock", () => {
         const preview = within(dialog).getByLabelText("Preview of the exported data");
         await waitFor(() => {
             assert.notEqual(preview.textContent, "Writing the preview...");
-        }, storyWaitOptions(1000));
+        });
         assert.include(preview.textContent, "n0");
 
         // Shift+T again closes the dock.
@@ -236,13 +232,10 @@ describe("the table dock", () => {
         const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 }, place: "data" });
         render(<Workspace store={store} />);
         let session: GraphSession | undefined;
-        await waitFor(
-            () => {
-                session = document.querySelector("graphty-element")?.session;
-                assert.isDefined(session);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
         if (session === undefined) {
             throw new Error("the element never came up");
         }
@@ -260,8 +253,8 @@ describe("the table dock", () => {
         await within(dock).findByText("13 edges");
         assert.lengthOf(drawnRows("Edges"), 13);
 
-        // The card turned on from its box: the table lists the 6 edges it keeps.
-        await userEvent.click(await screen.findByRole("checkbox", { name: /^Apply weight is at least 7/ }));
+        // The card ("weight min 7") turned on from its box: the table lists the 6 edges it keeps.
+        await userEvent.click(await screen.findByRole("checkbox", { name: USE_WEIGHT }));
         await within(dock).findByText("6 of 13 edges");
         await waitFor(() => {
             assert.lengthOf(drawnRows("Edges"), 6);
@@ -269,10 +262,41 @@ describe("the table dock", () => {
         assert.equal(live.visibility.summary.visibleEdges, 6);
 
         // Off again: every edge, and the count says only that.
-        await userEvent.click(screen.getByRole("checkbox", { name: /^Apply weight is at least 7/ }));
+        await userEvent.click(screen.getByRole("checkbox", { name: USE_WEIGHT }));
         await within(dock).findByText("13 edges");
         await waitFor(() => {
             assert.lengthOf(drawnRows("Edges"), 13);
         });
+    });
+
+    it("names a rendered tab panel from every tab, and the showing one holds the table", async () => {
+        render(<Workspace initialState={{ project: { name: "Untitled", id: 1 } }} />);
+        let session: GraphSession | undefined;
+        await waitFor(() => {
+            session = document.querySelector("graphty-element")?.session;
+            assert.isDefined(session);
+        });
+        if (session === undefined) {
+            throw new Error("the element never came up");
+        }
+        await session.data.addNodes(NODES);
+        await session.data.addEdges(EDGES);
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        const dock = await screen.findByRole("region", { name: "Table" });
+        await within(dock).findByRole("tab", { name: "Edges" });
+        const check = (): void => {
+            for (const tab of within(dock).getAllByRole("tab")) {
+                const id = tab.getAttribute("aria-controls") ?? "";
+                const panel = document.getElementById(id);
+                assert.strictEqual(panel?.getAttribute("role"), "tabpanel", `${tab.textContent ?? ""} names ${id}`);
+            }
+            const shown = within(dock).getByRole("tabpanel");
+            assert.isNotNull(within(shown).queryByRole("grid"));
+        };
+        check();
+        // The reader moves to Edges by clicking its tab: the panel follows.
+        await userEvent.click(within(dock).getByRole("tab", { name: "Edges" }));
+        await within(dock).findByRole("grid", { name: "Edges" });
+        check();
     });
 });

@@ -32,13 +32,13 @@
 <!-- default -->
 <g id="node5" class="node">
 <title>default</title>
-<ellipse fill="none" stroke="black" cx="303" cy="-447" rx="46.47" ry="18"/>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-442.32" font-family="Times,serif" font-size="14.00">default</text>
+<ellipse fill="none" stroke="black" cx="303" cy="-447" rx="36.51" ry="18"/>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-441.95" font-family="Times,serif" font-size="14.00">default</text>
 </g>
 <!-- cap&#45;default -->
 <g id="node6" class="node">
 <title>cap&#45;default</title>
-<text xml:space="preserve" text-anchor="middle" x="303" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">default</text>
+<text xml:space="preserve" text-anchor="middle" x="303" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">default</text>
 </g>
 <!-- orientation&#45;landscape -->
 <g id="node7" class="node">
@@ -48,7 +48,7 @@
 <!-- cap&#45;orientation&#45;landscape -->
 <g id="node8" class="node">
 <title>cap&#45;orientation&#45;landscape</title>
-<text xml:space="preserve" text-anchor="middle" x="863" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">orientation=landscape</text>
+<text xml:space="preserve" text-anchor="middle" x="863" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">orientation=landscape</text>
 </g>
 </g>
 </svg>

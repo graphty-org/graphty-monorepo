@@ -3,15 +3,18 @@
  *
  * - ngraph.forcelayout never reads a generator handed to it: it seeds its own with a hard-coded
  *   42, so the element places each node from the `seed` itself before the simulation starts.
- * - The random layout ("Scattered") is what the element recommends for a large graph, with the
- *   promise "the same every time". A consumer applies it by name alone, so its seed has a fixed
- *   default rather than a fresh `Math.random()` one per load.
+ * - Every seeded layout takes one seed rule: an integer >= 0 (0 included) or null, and null is the
+ *   default. The element imposes no seed; a consumer that wants the same drawing passes one.
  */
+import "../../src/layout";
+
 import { assert, describe, it, vi } from "vitest";
 
 import type { Edge } from "../../src/Edge";
-import { layoutEngineInternals } from "../../src/layout/LayoutEngine";
+import { ArfLayout } from "../../src/layout/ArfLayoutEngine";
+import { LayoutEngine, layoutEngineInternals } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
+import { PlanarLayout } from "../../src/layout/PlanarLayoutEngine";
 import { RandomLayout } from "../../src/layout/RandomLayoutEngine";
 import type { Node } from "../../src/Node";
 
@@ -86,8 +89,44 @@ describe("seeded placement", () => {
         }
     });
 
-    it("scatters the random layout the same way twice when no seed is given", () => {
-        assert.deepEqual(runRandom({}), runRandom({}));
+    it("gives the random layout no default seed", () => {
+        assert.isNull(new RandomLayout({}).config.seed);
+    });
+
+    it("takes seed 0 as a repeatable seed", () => {
+        assert.deepEqual(runRandom({ seed: 0 }), runRandom({ seed: 0 }));
+        assert.strictEqual(new ArfLayout({ seed: 0 }).config.seed, 0);
+    });
+
+    it("gives every seeded layout one seed rule: an integer >= 0 or null, default null", () => {
+        const seeded = LayoutEngine.getRegisteredTypes().flatMap((type) => {
+            const option = LayoutEngine.getClass(type)?.zodOptionsSchema?.seed;
+            return option === undefined ? [] : [{ type, schema: option.schema }];
+        });
+        assert.includeMembers(
+            seeded.map(({ type }) => type),
+            ["arf", "planar", "random", "kamada-kawai", "ngraph", "forceatlas2", "spring"],
+        );
+        for (const { type, schema } of seeded) {
+            assert.isNull(schema.parse(undefined), type);
+            assert.strictEqual(schema.parse(0), 0, type);
+            assert.isNull(schema.parse(null), type);
+            for (const bad of [-1, 1.5]) {
+                assert.isFalse(schema.safeParse(bad).success, `${type} took ${String(bad)}`);
+            }
+        }
+    });
+
+    it("refuses a bad seed in the static layouts' configs", () => {
+        for (const seed of [-1, 1.5]) {
+            assert.throws(() => new RandomLayout({ seed }));
+            assert.throws(() => new ArfLayout({ seed }));
+            assert.throws(() => new PlanarLayout({ seed }));
+        }
+    });
+
+    it("scatters the random layout differently each time when no seed is given", () => {
+        assert.notDeepEqual(runRandom({}), runRandom({}));
     });
 
     it("still lets an explicit seed change the random layout", () => {
@@ -99,7 +138,7 @@ describe("seeded placement", () => {
         // of the simulation. With no repulsion and no edges, only the nodeGap separation moves the nodes, and the two
         // unpinned nodes sit exactly on the pinned one, so it takes the coincident branch.
         const nodes = ["a", "b", "c"].map(
-            (id, index) => ({ id, index, drawnRadius: 1, roundRadius: 1 }) as unknown as Node,
+            (id, index) => ({ id, index, layoutRadius: 1, roundRadius: 1 }) as unknown as Node,
         );
         const layout = new NGraphEngine({ seed: 1, dim: 2, nodeGap: 1, gravity: 0 });
         nodes.forEach((n) => {

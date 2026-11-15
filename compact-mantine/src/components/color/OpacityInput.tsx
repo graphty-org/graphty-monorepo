@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 
 import { useNumberFormatter, useNumberParser } from "../../i18n";
 import { shieldDragSelection } from "../chrome/dragSelectionShield";
-import { revertOnEscape } from "./escape";
+import { DiscardNote } from "../inputs/DiscardNote";
+import { useDiscardedEdit } from "./escape";
 
 /** The opacity range, in percent. */
 const MIN = 0;
@@ -74,6 +75,7 @@ export function OpacityInput({
     const [draft, setDraft] = useState(format.format(value));
     const scrub = useRef<{ startX: number; start: number; last: number } | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const discarded = useDiscardedEdit();
 
     useEffect(() => {
         setDraft(format.format(value));
@@ -102,12 +104,13 @@ export function OpacityInput({
             return;
         }
         if (event.key === "Escape") {
-            revertOnEscape(
+            discarded.revert(
                 event,
                 () => {
                     setDraft(format.format(value));
                 },
                 draft !== format.format(value),
+                `${format.format(value)}%`,
             );
             return;
         }
@@ -181,6 +184,7 @@ export function OpacityInput({
                 disabled={disabled}
                 value={draft}
                 onChange={(event) => {
+                    discarded.clear();
                     setDraft(event.currentTarget.value);
                 }}
                 onFocus={(event) => {
@@ -188,6 +192,7 @@ export function OpacityInput({
                     onFocus?.(event);
                 }}
                 onBlur={(event) => {
+                    discarded.clear();
                     commitDraft(event);
                     onBlur?.(event);
                 }}
@@ -203,6 +208,7 @@ export function OpacityInput({
             >
                 %
             </span>
+            <DiscardNote text={discarded.text} />
         </label>
     );
 }

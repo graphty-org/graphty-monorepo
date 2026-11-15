@@ -15,9 +15,9 @@ describe("Edge 2D Patterns Integration", () => {
     test("Patterned edge uses 2D materials in 2D mode", async () => {
         const graph = new Graph(container);
 
-        // Set 2D mode via style template with diamond pattern
+        // Set 2D mode via style template with dash-dot pattern
         await graph.setViewMode("2d");
-        await styleEveryEdge(graph, { "edge.style": "diamond", "edge.color": "darkgrey" });
+        await styleEveryEdge(graph, { "edge.style": "dash-dot", "edge.color": "darkgrey" });
         await operationQueueOf(graph).waitForCompletion();
 
         // Add nodes
@@ -70,9 +70,9 @@ describe("Edge 2D Patterns Integration", () => {
     test("Patterned edge uses 3D materials in 3D mode", async () => {
         const graph = new Graph(container);
 
-        // Set 3D mode via style template with diamond pattern
+        // Set 3D mode via style template with dash-dot pattern
         await graph.setViewMode("3d");
-        await styleEveryEdge(graph, { "edge.style": "diamond", "edge.color": "darkgrey" });
+        await styleEveryEdge(graph, { "edge.style": "dash-dot", "edge.color": "darkgrey" });
         await operationQueueOf(graph).waitForCompletion();
 
         // Add nodes
@@ -133,8 +133,9 @@ describe("Edge 2D Patterns Integration", () => {
         await graph.setViewMode("2d");
         await operationQueueOf(graph).waitForCompletion();
 
-        // Test different pattern types
-        const patterns = ["dot", "star", "diamond", "box", "dash"] as const;
+        // Test different pattern types drawn as elements (a dot, star, diamond, box or dash line is a joined line,
+        // whose shader draws its elements: issue #7404)
+        const patterns = ["dash-dot", "forward-slash", "double", "separate-arrow", "vertical-slash"] as const;
 
         for (const [index, pattern] of patterns.entries()) {
             const nodeId1 = `node${index * 2}`;
@@ -212,7 +213,7 @@ describe("Edge 2D Patterns Integration", () => {
     test("A patterned edge is drawn again, flat, after switching from 3D to 2D", async () => {
         const graph = new Graph(container);
 
-        await styleEveryEdge(graph, { "edge.style": "dash", "edge.color": "darkgrey" });
+        await styleEveryEdge(graph, { "edge.style": "dash-dot", "edge.color": "darkgrey" });
         await graph.addNode(asData({ id: "node1", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "node2", x: 5, y: 0, z: 0 }));
         await graph.addEdge(asData({ source: "node1", target: "node2" }), { source: "source", target: "target" });
@@ -240,7 +241,7 @@ describe("Edge 2D Patterns Integration", () => {
         ["vertical", { x: 0, y: 5 }],
         ["diagonal", { x: 4, y: 3 }],
     ] as const) {
-        for (const style of ["dash", "zigzag"] as const) {
+        for (const style of ["dash-dot", "zigzag"] as const) {
             test(`a 2D ${style} on a ${name} edge is drawn along its line`, async () => {
                 const graph = new Graph(container);
 
@@ -284,7 +285,7 @@ describe("Edge 2D Patterns Integration", () => {
         const graph = new Graph(container);
 
         await graph.setViewMode("3d");
-        await styleEveryEdge(graph, { "edge.style": "dash", "edge.color": "darkgrey", "edge.opacity": 0.5 });
+        await styleEveryEdge(graph, { "edge.style": "dash-dot", "edge.color": "darkgrey", "edge.opacity": 0.5 });
         await graph.addNode(asData({ id: "a", x: 0, y: 0, z: 0 }));
         await graph.addNode(asData({ id: "b", x: 5, y: 0, z: 0 }));
         await graph.addEdge(asData({ source: "a", target: "b" }), { source: "source", target: "target" });

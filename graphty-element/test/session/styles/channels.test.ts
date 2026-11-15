@@ -6,6 +6,7 @@ import { defaultEdgeStyle } from "../../../src/config/EdgeStyle";
 import { defaultNodeStyle, NodeShapes } from "../../../src/config/NodeStyle";
 import {
     type ArrowValue,
+    asColorValue,
     type AuthoredValue,
     CHANNEL_DESCRIPTORS,
     type ChannelDescriptor,
@@ -65,6 +66,9 @@ const DECLARED = [
     "node.labelOffsetY",
     "node.labelShiftX",
     "node.labelShiftY",
+    "node.labelShiftOf",
+    "node.labelGapOf",
+    "node.labelBox",
     "node.labelDeclutter",
     "node.labelMinNodeScreenSize",
     "node.labelTextAlign",
@@ -73,6 +77,7 @@ const DECLARED = [
     "node.tooltipStyle",
     "node.opacity",
     "node.outline",
+    "node.outlineWidth",
     "node.glow",
     "node.glowStrength",
     "node.halo",
@@ -87,6 +92,7 @@ const DECLARED = [
     "node.width",
     "node.height",
     "node.depth",
+    "node.relativeExtents",
     "node.planar",
     "node.zIndex",
     "node.drawOrder",
@@ -103,6 +109,15 @@ const DECLARED = [
     "node.outerBorderOpacity",
     "node.outerBorderStyle",
     "node.outerBorderOffset",
+    "node.outerBorderCount",
+    "node.raisedBorderWidth",
+    "node.raisedBorderLightColor",
+    "node.raisedBorderDarkColor",
+    "node.shadowColor",
+    "node.shadowOpacity",
+    "node.shadowBlur",
+    "node.shadowOffsetX",
+    "node.shadowOffsetY",
     "node.underlayColor",
     "node.underlayOpacity",
     "node.underlayPadding",
@@ -147,6 +162,7 @@ const DECLARED = [
     "node.stripeOpacities",
     "node.stripeDirection",
     "node.stripeSize",
+    "node.stripeFrame",
     "node.chartKind",
     "node.chartValues",
     "node.chartColors",
@@ -154,11 +170,17 @@ const DECLARED = [
     "node.chartMax",
     "node.chartHorizontal",
     "node.chartSize",
+    "node.chartWidth",
+    "node.chartHeight",
+    "node.chartOffsetX",
+    "node.chartOffsetY",
     "node.chartMargin",
     "node.chartGap",
     "node.chartLineWidth",
     "node.chartBorderColor",
     "node.chartBorderWidth",
+    "node.chartBackgroundColor",
+    "node.chartBackgroundOpacity",
     "node.groupPadding",
     "node.groupPaddingRatio",
     "node.groupPaddingOf",
@@ -169,25 +191,40 @@ const DECLARED = [
     "node.groupIncludeLabels",
     "node.cornerRadius",
     "node.exactCornerRadius",
+    "node.cornerFraction",
     "node.shapePoints",
     "node.shapeStretchPoints",
+    "node.shapeRotation",
     "node.shapeParts",
     "node.shapeLines",
     "node.shapeTexts",
+    "node.labelTable",
     "node.shapeLineWidth",
+    "node.shapeLineHaloColor",
+    "node.shapeLineHaloWidth",
     "node.labelFit",
     "node.labelPaddingX",
     "node.labelPaddingY",
     "node.labelFitSquare",
+    "node.labelFitQuantum",
+    "node.labelFitImage",
+    "node.labelFitImagePadding",
     "node.gradientColor",
     "node.gradientDirection",
     "node.gradientColors",
     "node.gradientStops",
     "node.gradientKind",
+    "node.gradientCenterX",
+    "node.gradientCenterY",
+    "node.gradientRadius",
     "node.model",
     "node.modelSourceUp",
     "node.modelTurn",
     "node.modelTint",
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelDoubleSided",
     "node.modelFit",
     "node.modelCenter",
     "node.texture",
@@ -195,6 +232,10 @@ const DECLARED = [
     "edge.width",
     "edge.minScreenWidth",
     "edge.opacity",
+    "edge.fadeEnd",
+    "edge.fadeStart",
+    "edge.fadeOpacity",
+    "edge.blending",
     "edge.bandColor",
     "edge.bandWidth",
     "edge.bandOpacity",
@@ -215,6 +256,8 @@ const DECLARED = [
     "edge.patternCount",
     "edge.waveAmplitude",
     "edge.wavePeriod",
+    "edge.dashLength",
+    "edge.dashGap",
     "edge.curvature",
     "edge.bends",
     "edge.fanSpacing",
@@ -227,6 +270,7 @@ const DECLARED = [
     "edge.supportRepulsion",
     "edge.supportCentralGravity",
     "edge.supportUnit",
+    "edge.supportScale",
     "edge.route",
     "edge.arcHeight",
     "edge.nodeGap",
@@ -238,9 +282,12 @@ const DECLARED = [
     "edge.arrowHeadSize",
     "edge.arrowHeadWidth",
     "edge.arrowHeadSide",
+    "edge.arrowHeadOutlineWidth",
     "edge.arrowHeadPosition",
     "edge.arrowHeadGap",
+    "edge.arrowHeadStack",
     "edge.arrowHeadColor",
+    "edge.arrowHeadFillColor",
     "edge.arrowHeadOpacity",
     "edge.arrowHeadImage",
     "edge.arrowHeadText",
@@ -259,9 +306,12 @@ const DECLARED = [
     "edge.arrowTailSize",
     "edge.arrowTailWidth",
     "edge.arrowTailSide",
+    "edge.arrowTailOutlineWidth",
     "edge.arrowTailPosition",
     "edge.arrowTailGap",
+    "edge.arrowTailStack",
     "edge.arrowTailColor",
+    "edge.arrowTailFillColor",
     "edge.arrowTailOpacity",
     "edge.arrowTailImage",
     "edge.arrowTailText",
@@ -280,16 +330,20 @@ const DECLARED = [
     "edge.arrowMiddleHeadSize",
     "edge.arrowMiddleHeadWidth",
     "edge.arrowMiddleHeadSide",
+    "edge.arrowMiddleHeadOutlineWidth",
     "edge.arrowMiddleHeadPosition",
     "edge.arrowMiddleHeadColor",
+    "edge.arrowMiddleHeadFillColor",
     "edge.arrowMiddleHeadOpacity",
     "edge.arrowMiddleHeadImage",
     "edge.arrowMiddleTail",
     "edge.arrowMiddleTailSize",
     "edge.arrowMiddleTailWidth",
     "edge.arrowMiddleTailSide",
+    "edge.arrowMiddleTailOutlineWidth",
     "edge.arrowMiddleTailPosition",
     "edge.arrowMiddleTailColor",
+    "edge.arrowMiddleTailFillColor",
     "edge.arrowMiddleTailOpacity",
     "edge.arrowMiddleTailImage",
     "edge.animationSpeed",
@@ -335,10 +389,24 @@ const DECLARED = [
     "edge.labelOffsetY",
     "edge.labelShiftX",
     "edge.labelShiftY",
+    "edge.labelShiftOf",
+    "edge.labelGapOf",
+    "edge.labelBox",
     "node.shaders",
     "edge.shaders",
     "edge.taper",
     "edge.lift",
+    "node.xlabel",
+    "node.xlabelStyle",
+    "node.xlabelLocation",
+    "node.xlabelOffsetX",
+    "node.xlabelOffsetY",
+    "edge.labelTable",
+    "edge.xlabel",
+    "edge.xlabelStyle",
+    "edge.xlabelLocation",
+    "edge.xlabelOffsetX",
+    "edge.xlabelOffsetY",
 ];
 
 describe("the channel set", () => {
@@ -365,9 +433,9 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into one hundred and sixty-eight node channels and one hundred and forty-three edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 168);
-        assert.strictEqual(channelsFor("edge").length, 143);
+    it("splits into two hundred and nine node channels and one hundred and sixty-nine edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 209);
+        assert.strictEqual(channelsFor("edge").length, 169);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
             DECLARED.filter((channel) => channel.startsWith("edge.")),
@@ -410,7 +478,9 @@ describe("what the element can really draw", () => {
         // A curvature is a switch, not an amount.
         assert.isDefined(CHANNEL_DESCRIPTORS["edge.curvature"].caveat);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.curvature"].accepts, "boolean");
-        assert.isDefined(CHANNEL_DESCRIPTORS["node.outline"].caveat);
+        // An outline's width is set per layer by `node.outlineWidth`, so the outline carries no caveat.
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].caveat);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].caveatCode);
         // A glow's strength is drawn per style (one source mesh per strength), so it carries no
         // caveat: the old one said two glowing styles shared whichever strength landed last.
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.glowStrength"].caveat);
@@ -588,18 +658,35 @@ describe("what a style editor needs to draw a row", () => {
 
     /** The channels whose unset value draws nothing, or is decided per element, so carry no default. */
     const NO_DEFAULT = new Set([
+        "edge.fadeEnd",
         // Unset, a group reaches its largest member's radius past its members.
         "node.groupPadding",
         "node.groupPaddingRatio",
         "node.shapeParts",
         "node.shapeLines",
         "node.shapeTexts",
+        "node.labelTable",
+        "edge.labelTable",
         "node.shapeLineWidth",
+        "node.shapeLineHaloColor",
+        "node.shapeLineHaloWidth",
         "node.gradientColors",
         "node.gradientStops",
         "node.label",
         "node.labelStyle",
         "node.tooltip",
+        // Unset, a node has no external label, and one that has sits at its corner or where the layout put it.
+        "node.xlabel",
+        "node.xlabelStyle",
+        "node.xlabelLocation",
+        "node.xlabelOffsetX",
+        "node.xlabelOffsetY",
+        // Unset, an edge has no external label, and one that has sits beside its middle or where the layout put it.
+        "edge.xlabel",
+        "edge.xlabelStyle",
+        "edge.xlabelLocation",
+        "edge.xlabelOffsetX",
+        "edge.xlabelOffsetY",
         "node.tooltipStyle",
         // Unset, a node is highlighted when it is selected and not otherwise.
         "node.halo",
@@ -616,6 +703,9 @@ describe("what a style editor needs to draw a row", () => {
         "node.cornerRadius",
         // Unset, a polygon is drawn as its box.
         "node.shapePoints",
+        // Unset, a chart's plot is as wide and as tall as `node.chartSize` says.
+        "node.chartWidth",
+        "node.chartHeight",
         // Unset, a node draws no image, pie or stripes over its face; the sizes and opacities of slices and
         // bands, and an image's width, height and pixel size, follow from the rest.
         "node.image",
@@ -636,21 +726,28 @@ describe("what a style editor needs to draw a row", () => {
         "node.chartMax",
         "node.chartLineWidth",
         "node.chartBorderColor",
+        "node.chartBackgroundColor",
         "node.stripeColors",
         "node.stripeSizes",
         "node.stripeOpacities",
+        "node.stripeFrame",
         // Unset, a node is the size it states rather than its label's.
         "node.labelFit",
         // Unset, a node is filled flat with its colour.
         "node.gradientColor",
         // Unset, a node draws its shape and no model.
         "node.model",
+        // Unset, a model is drawn still, in its rest pose.
+        "node.modelAnimation",
         // Unset, a node draws its own color and no picture.
         "node.texture",
         "edge.patternCount",
         // Unset, a wave is drawn within its line's width or its border's ring.
         "edge.waveAmplitude",
         "edge.wavePeriod",
+        // Unset, a dash is three widths long and the elements spread from end to end.
+        "edge.dashLength",
+        "edge.dashGap",
         "node.borderWaveAmplitude",
         "node.borderWavePeriod",
         // Unset, an underlay's or an overlay's shape is the node's own, its corners the node's.
@@ -663,6 +760,14 @@ describe("what a style editor needs to draw a row", () => {
         "edge.arrowTailImage",
         "edge.arrowMiddleHeadImage",
         "edge.arrowMiddleTailImage",
+        // Unset, an end cap is drawn alone, with no row of caps behind it.
+        "edge.arrowHeadStack",
+        "edge.arrowTailStack",
+        // Unset, an open cap's inside is left empty.
+        "edge.arrowHeadFillColor",
+        "edge.arrowTailFillColor",
+        "edge.arrowMiddleHeadFillColor",
+        "edge.arrowMiddleTailFillColor",
         // Unset, a cap is drawn whole.
         "edge.arrowHeadSide",
         "edge.arrowTailSide",
@@ -683,6 +788,7 @@ describe("what a style editor needs to draw a row", () => {
         "edge.supportRepulsion",
         "edge.supportCentralGravity",
         "edge.supportUnit",
+        "edge.supportScale",
         // Unset, the layout decides the route: straight but on a geographic map.
         "edge.route",
         "edge.sourcePort",
@@ -757,6 +863,9 @@ describe("what a style editor needs to draw a row", () => {
         "node.labelOffsetY",
         "node.labelShiftX",
         "node.labelShiftY",
+        "node.labelShiftOf",
+        "node.labelGapOf",
+        "node.labelBox",
         "edge.labelLetterSize",
         "edge.labelTextAlign",
         "edge.labelLocation",
@@ -784,6 +893,9 @@ describe("what a style editor needs to draw a row", () => {
         "edge.labelOffsetY",
         "edge.labelShiftX",
         "edge.labelShiftY",
+        "edge.labelShiftOf",
+        "edge.labelGapOf",
+        "edge.labelBox",
     ]);
 
     /** The JavaScript type a default must have, per value kind. */
@@ -857,19 +969,20 @@ describe("what a style editor needs to draw a row", () => {
         );
     });
 
-    it("says in a sentence why a channel cannot be set, exactly when it cannot", () => {
+    it("says with a code why a channel cannot be set, exactly when it cannot", () => {
         for (const channel of CHANNELS) {
-            const { renderable, unsupportedReason } = CHANNEL_DESCRIPTORS[channel];
+            const { renderable, unsupported } = CHANNEL_DESCRIPTORS[channel];
 
-            assert.strictEqual(unsupportedReason !== undefined, !renderable, channel);
+            assert.notProperty(CHANNEL_DESCRIPTORS[channel], "unsupportedReason", channel);
+            assert.strictEqual(unsupported !== undefined, !renderable, channel);
         }
 
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupportedReason, "The element draws no marker yet");
+        assert.deepEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupported, { code: "channel.not-drawn", params: {} });
     });
 });
 
 describe("colour channels", () => {
-    it("are the thirty-four that carry a colour, and the type says the same thirty-four", () => {
+    it("are the forty-one that carry a colour, and the type says the same forty-one", () => {
         const fromTheType: readonly ColorChannel[] = [
             "node.color",
             "node.labelColor",
@@ -881,10 +994,15 @@ describe("colour channels", () => {
             "node.haloColor",
             "node.borderColor",
             "node.outerBorderColor",
+            "node.raisedBorderLightColor",
+            "node.raisedBorderDarkColor",
+            "node.shadowColor",
             "node.underlayColor",
             "node.overlayColor",
             "node.glyphColor",
             "node.chartBorderColor",
+            "node.chartBackgroundColor",
+            "node.shapeLineHaloColor",
             "node.gradientColor",
             "edge.color",
             "edge.bandColor",
@@ -892,11 +1010,15 @@ describe("colour channels", () => {
             "edge.underlayColor",
             "edge.overlayColor",
             "edge.arrowHeadColor",
+            "edge.arrowHeadFillColor",
             "edge.arrowHeadTextColor",
             "edge.arrowTailColor",
+            "edge.arrowTailFillColor",
             "edge.arrowTailTextColor",
             "edge.arrowMiddleHeadColor",
+            "edge.arrowMiddleHeadFillColor",
             "edge.arrowMiddleTailColor",
+            "edge.arrowMiddleTailFillColor",
             "node.tooltipColor",
             "node.tooltipBackground",
             "edge.labelColor",
@@ -961,6 +1083,15 @@ describe("what each channel carries", () => {
 
         assert.strictEqual(kinds.filter((kind) => kind === "nothing").length, 1);
         assert.isFalse(drawn(CHANNEL_DESCRIPTORS["node.marker"]));
+    });
+});
+
+describe("asColorValue", () => {
+    it("accepts a carried colour and refuses an object whose hex is not a string", () => {
+        const color = toColorValue("#ff0000");
+        assert.strictEqual(asColorValue(color), color);
+        assert.isNull(asColorValue({ hex: 5 }));
+        assert.isNull(asColorValue("#ff0000"));
     });
 });
 
@@ -1114,5 +1245,7 @@ describe("which drawn part a channel adjusts", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].modifies, "node.label");
         assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadText"].modifies, "an end label is a part of its own");
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].modifies);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outlineWidth"].modifies, "node.outline");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outlineWidth"].stylePath, "effect.outline.width");
     });
 });

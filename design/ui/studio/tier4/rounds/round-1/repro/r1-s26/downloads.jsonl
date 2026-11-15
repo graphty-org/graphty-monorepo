@@ -1,0 +1,1 @@
+{"file":"gauges_graph.graphml","network":{"totalEdges":14,"totalNodes":12,"visibleEdges":13,"visibleNodes":11,"sources":[{"key":"s1","name":"gauges.csv","nodes":11,"edges":0},{"key":"s2","name":"flows.csv","nodes":12,"edges":14}]}}

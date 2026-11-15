@@ -14,13 +14,14 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { findTreeRow } from "../../graph-place/rows";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and the runs finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// The outline-and-pane selection editor: the `selection-workspace` experiment stays off here.
+withFeatures([]);
 
 /** The scene: the session, the store, and each run's tree row name. */
 interface Scene {
@@ -37,14 +38,11 @@ async function openScene(): Promise<Scene> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -80,7 +78,7 @@ function escape(name: string): string {
  * @returns the inspector.
  */
 async function openRow(name: string, tab: "Style" | "Values"): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${escape(name)}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const button = await within(inspector).findByRole("tab", { name: tab });
@@ -91,11 +89,11 @@ async function openRow(name: string, tab: "Style" | "Values"): Promise<HTMLEleme
 }
 
 /**
- * The Which nodes (or edges) row at rest of the open Style tab.
- * @returns the row's button.
+ * The open Style tab's Which nodes (or edges): at rest, its Style Nodes... line.
+ * @returns the picker.
  */
 async function whichLine(): Promise<HTMLElement> {
-    return screen.findByRole("button", { name: /^Which (nodes|edges), / }, { timeout: TIMEOUT_MS });
+    return screen.findByTestId("which-picker");
 }
 
 describe("one name per value, rules in words", () => {
@@ -108,10 +106,11 @@ describe("one name per value, rules in words", () => {
         }
         await openRow(rows.route, "Style");
         const line = await whichLine();
-        assert.include(line.textContent, "On the route: yes");
-        await userEvent.click(line);
+        // At rest the line is Style Edges... alone (issue #6810); the rule is read in its workspace.
+        assert.strictEqual(line.textContent, "Style Edges...");
+        await userEvent.click(within(line).getByRole("button", { name: /^Style Edges\.\.\./ }));
         const card = await screen.findByRole("group", { name: /^On the route(,|$)/ });
-        const match = within(card).getByRole<HTMLInputElement>("combobox", { name: "On the route: how to match" });
+        const match = within(card).getByRole<HTMLInputElement>("combobox", { name: "On the route is" });
         assert.equal(match.value, "Yes");
         // Nothing in the card is cut at the inspector's width: each field shows its whole value.
         for (const field of card.querySelectorAll("input:not([type=hidden])")) {
@@ -159,18 +158,16 @@ describe("one name per value, rules in words", () => {
 
     it("a new layer with a name card on 'Mme' counts 6 nodes before any value is set", async () => {
         const { session } = await openScene();
-        await userEvent.click(
-            await screen.findByRole("button", { name: "Add a layer or a folder" }, { timeout: TIMEOUT_MS }),
-        );
+        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
         await screen.findByRole("textbox", { name: "Layer name" });
         await userEvent.keyboard("{Escape}");
-        // A new layer opens its picker on arrival.
-        const region = await screen.findByRole("group", { name: "Which nodes" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
-        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
-        const card = await within(region).findByRole("group", { name: /^name(,|$)/ });
-        await userEvent.type(within(card).getByRole("combobox", { name: "name: text to match" }), "Mme");
+        // A new layer's Which nodes is edited in the selection workspace: its first step's value.
+        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        await userEvent.click(await screen.findByRole("button", { name: "Value" }));
+        await screen.findByRole("combobox", { name: "Find attributes, results" });
+        await userEvent.keyboard("name{Enter}");
+        await userEvent.type(await screen.findByRole("combobox", { name: "name: text to match" }), "Mme{Enter}");
         await waitFor(() => {
             const node = session.styles
                 .list()

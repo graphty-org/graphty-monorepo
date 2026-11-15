@@ -49,9 +49,9 @@ type RadialLayoutOpts = Partial<RadialLayoutConfigType>;
  * Radial layout engine that places nodes on rings by hop distance from a root node
  */
 export class RadialLayout extends SnapshotLayoutEngine {
-    static type = "radial";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = radialLayoutOptionsSchema;
+    static readonly type: string = "radial";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = radialLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: RadialLayoutConfigType;
 

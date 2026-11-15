@@ -1,8 +1,8 @@
 import type { F64, GraphSnapshot } from "@graphty/graph-format";
 
 import { type LayoutResult, rescaleInPlace } from "../positions.js";
+import { Lcg } from "../simulation/seed.js";
 import { toLayoutSnapshot } from "../simulation/snapshot.js";
-import { RandomNumberGenerator } from "../utils/random.js";
 import { type CommonLayoutOptions, resolve, result } from "./common.js";
 
 /** Residual `|L x - theta x|` at which an eigenvector counts as found, relative to the Gershgorin bound on L. */
@@ -10,6 +10,76 @@ const TOLERANCE = 1e-9;
 
 /** Iteration cap per component; a long path's crowded small eigenvalues are what reach it. */
 const MAX_ITERATIONS = 5000;
+
+/**
+ * The rows of a graph of at most two nodes: one node on the centre; two at the centre minus and plus `scale` in every
+ * component.
+ * @param n - 0, 1 or 2
+ * @param dim - components per row
+ * @param scale - the offset of two nodes
+ * @param center - `dim` components
+ * @returns `n * dim` values
+ */
+function tinyRows(n: number, dim: number, scale: number, center: readonly number[]): F64 {
+    const rows = new Float64Array(n * dim);
+    for (let i = 0; i < n; i++) {
+        const offset = i === 0 ? -scale : scale;
+        for (let k = 0; k < dim; k++) {
+            rows[dim * i + k] = n === 1 ? center[k] : center[k] + offset;
+        }
+    }
+    return rows;
+}
+
+/**
+ * Whether arc `a` of row u is the first arc to a neighbour other than u.
+ * @param g - the snapshot
+ * @param u - the row
+ * @param a - the arc
+ * @returns true when the arc counts in the Laplacian
+ */
+function distinctArc(g: GraphSnapshot, u: number, a: number): boolean {
+    const { rowPtr, colIdx } = g;
+    return colIdx[a] !== u && (a === rowPtr[u] || colIdx[a] !== colIdx[a - 1]);
+}
+
+/**
+ * Each node's count of distinct neighbours, self-loops ignored.
+ * @param g - the snapshot
+ * @returns n degrees
+ */
+function distinctDegrees(g: GraphSnapshot): F64 {
+    const n = g.nodeCount;
+    const degree = new Float64Array(n);
+    for (let u = 0; u < n; u++) {
+        for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
+            degree[u] += distinctArc(g, u, a) ? 1 : 0;
+        }
+    }
+    return degree;
+}
+
+/**
+ * L x for the Laplacian that counts each distinct neighbour once and ignores self-loops.
+ * @param g - the snapshot
+ * @param degree - the distinct degrees
+ * @param x - n values
+ * @returns L x
+ */
+function applyLaplacian(g: GraphSnapshot, degree: F64, x: F64): F64 {
+    const n = g.nodeCount;
+    const out = new Float64Array(n);
+    for (let u = 0; u < n; u++) {
+        let sum = degree[u] * x[u];
+        for (let a = g.rowPtr[u]; a < g.rowPtr[u + 1]; a++) {
+            if (distinctArc(g, u, a)) {
+                sum -= x[g.colIdx[a]];
+            }
+        }
+        out[u] = sum;
+    }
+    return out;
+}
 
 /**
  * Spectral rows over an undirected snapshot, as NetworkX's `spectral_layout`: component k is the Laplacian's
@@ -35,44 +105,19 @@ function spectralRows(
     seed: number | null,
 ): F64 {
     const n = g.nodeCount;
-    const rows = new Float64Array(n * dim);
     if (n <= 2) {
-        for (let i = 0; i < n; i++) {
-            const offset = i === 0 ? -scale : scale;
-            for (let k = 0; k < dim; k++) {
-                rows[dim * i + k] = n === 1 ? center[k] : center[k] + offset;
-            }
-        }
-        return rows;
+        return tinyRows(n, dim, scale, center);
     }
-    const { rowPtr, colIdx } = g;
-    const distinct = (u: number, a: number): boolean =>
-        colIdx[a] !== u && (a === rowPtr[u] || colIdx[a] !== colIdx[a - 1]);
-    const degree = new Float64Array(n);
-    for (let u = 0; u < n; u++) {
-        for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
-            degree[u] += distinct(u, a) ? 1 : 0;
-        }
-    }
-    const laplacian = (x: F64): F64 => {
-        const out = new Float64Array(n);
-        for (let u = 0; u < n; u++) {
-            let sum = degree[u] * x[u];
-            for (let a = rowPtr[u]; a < rowPtr[u + 1]; a++) {
-                if (distinct(u, a)) {
-                    sum -= x[colIdx[a]];
-                }
-            }
-            out[u] = sum;
-        }
-        return out;
-    };
-    const tolerance = TOLERANCE * 2 * Math.max(1, ...degree);
-    const rng = new RandomNumberGenerator(seed ?? undefined);
+    const rows = new Float64Array(n * dim);
+    const degree = distinctDegrees(g);
+    const laplacian = (x: F64): F64 => applyLaplacian(g, degree, x);
+    // a loop, not Math.max(...degree): spreading n arguments overflows the stack on large graphs (#7032)
+    const tolerance = TOLERANCE * 2 * degree.reduce((max, d) => Math.max(max, d), 1);
+    const rng = new Lcg(seed);
     // the constant vector, the eigenvector of 0, and then every component found so far
     const found: F64[] = [new Float64Array(n).fill(1 / Math.sqrt(n))];
     for (let d = 0; d < dim; d++) {
-        const start = Float64Array.from({ length: n }, () => (rng.rand() as number) - 0.5);
+        const start = Float64Array.from({ length: n }, () => rng.next() - 0.5);
         const component = orthonormal(start, found) ? smallest(laplacian, start, found, tolerance) : start.fill(0);
         found.push(component);
         for (let i = 0; i < n; i++) {

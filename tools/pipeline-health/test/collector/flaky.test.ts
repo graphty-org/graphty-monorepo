@@ -1,17 +1,21 @@
-import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
+
+import { describe, expect, it } from "vitest";
+
 import {
     blockedPrs,
+    cleanRunsNeeded,
     flakyMembers,
+    type FlakySeen,
+    type IssueText,
     namesTest,
     netChange,
     testKey,
-    type FlakySeen,
-    type IssueText,
 } from "../../src/collector/flaky.js";
 import { GitHub } from "../../src/collector/github.js";
 import type { GqlPr } from "../../src/collector/parse.js";
-import { DAY, floorTo, MIN, rollKey, type TestItem } from "../../src/model/items.js";
+import { type Bucket, DAY, floorTo, MIN, rollKey, type TestItem } from "../../src/model/items.js";
+import { fileRunKey } from "../../src/model/metrics.js";
 import { putRaw } from "../../src/model/raw.js";
 import { MemoryStore } from "../../src/model/store.js";
 
@@ -33,7 +37,7 @@ async function day(store: MemoryStore, start: number, tests: [string, string, st
     });
 }
 
-const test = (inv: string, file: string, name: string, outcome: TestItem["outcome"]): TestItem => ({
+const testItem = (inv: string, file: string, name: string, outcome: TestItem["outcome"]): TestItem => ({
     kind: "test",
     id: `${inv}#${file}#${name}`,
     attempt: 1,
@@ -49,45 +53,44 @@ const test = (inv: string, file: string, name: string, outcome: TestItem["outcom
 });
 
 /** An open, ready pull request whose head has these failing check runs (run id in the details URL). */
-const pr = (number: number, checks: { name: string; run: number }[]): GqlPr =>
-    ({
-        number,
-        title: "t",
-        state: "OPEN",
-        isDraft: false,
-        reviewDecision: null,
-        baseRefName: "master",
-        createdAt: "2026-10-26T00:00:00Z",
-        updatedAt: "2026-10-26T00:00:00Z",
-        mergedAt: null,
-        closedAt: null,
-        autoMergeRequest: null,
-        labels: { nodes: [] },
-        readyEvents: { nodes: [] },
-        commits: {
-            nodes: [
-                {
-                    commit: {
-                        statusCheckRollup: {
-                            state: "FAILURE",
-                            contexts: {
-                                nodes: [
-                                    ...checks.map((c) => ({
-                                        __typename: "CheckRun",
-                                        name: c.name,
-                                        conclusion: "FAILURE",
-                                        startedAt: "2026-10-26T19:00:00Z",
-                                        detailsUrl: `https://github.com/${REPO}/actions/runs/${c.run}/job/1`,
-                                    })),
-                                    { __typename: "CheckRun", name: "All Checks Pass", conclusion: "FAILURE" },
-                                ],
-                            },
+const pr = (number: number, checks: { name: string; run: number }[]): GqlPr => ({
+    number,
+    title: "t",
+    state: "OPEN",
+    isDraft: false,
+    reviewDecision: null,
+    baseRefName: "master",
+    createdAt: "2026-10-26T00:00:00Z",
+    updatedAt: "2026-10-26T00:00:00Z",
+    mergedAt: null,
+    closedAt: null,
+    autoMergeRequest: null,
+    labels: { nodes: [] },
+    readyEvents: { nodes: [] },
+    commits: {
+        nodes: [
+            {
+                commit: {
+                    statusCheckRollup: {
+                        state: "FAILURE",
+                        contexts: {
+                            nodes: [
+                                ...checks.map((c) => ({
+                                    __typename: "CheckRun",
+                                    name: c.name,
+                                    conclusion: "FAILURE",
+                                    startedAt: "2026-10-26T19:00:00Z",
+                                    detailsUrl: `https://github.com/${REPO}/actions/runs/${c.run}/job/1`,
+                                })),
+                                { __typename: "CheckRun", name: "All Checks Pass", conclusion: "FAILURE" },
+                            ],
                         },
                     },
                 },
-            ],
-        },
-    }) as GqlPr;
+            },
+        ],
+    },
+});
 
 /** An issue whose title names a test the way the quarantine files them: "Flaky test: <file> > <name>". */
 const filed = (file: string, name: string, closedAt?: string): IssueText => ({
@@ -96,17 +99,26 @@ const filed = (file: string, name: string, closedAt?: string): IssueText => ({
     ...(closedAt ? { closedAt } : {}),
 });
 
-/** A GitHub whose flaky issue search answers `open` and `closed`, and keeps the queries it was asked. */
+/**
+ * A GitHub whose flaky issue search answers `open` and `closed` in pages of 100, as GitHub does, and keeps each
+ * search it was asked (once, however many pages it read).
+ */
 function searchGitHub(open: IssueText[], closed: IssueText[] = []) {
     const asked: string[] = [];
-    const fetch = async (_url: string, init?: RequestInit) => {
-        const { variables } = JSON.parse(String(init?.body)) as { variables: Record<string, string> };
-        asked.push(...Object.values(variables));
-        return new Response(JSON.stringify({ data: { open: { nodes: open }, closed: { nodes: closed } } }), {
-            status: 200,
-        });
+    const fetch = (_url: string, init?: RequestInit) => {
+        const { variables } = JSON.parse(init?.body as string) as { variables: { q: string; after: string | null } };
+        const from = Number(variables.after ?? 0);
+        if (!from) {
+            asked.push(variables.q);
+        }
+        const all = variables.q.includes("is:open") ? open : closed;
+        const s = {
+            nodes: all.slice(from, from + 100),
+            pageInfo: { hasNextPage: from + 100 < all.length, endCursor: String(from + 100) },
+        };
+        return Promise.resolve(new Response(JSON.stringify({ data: { s } }), { status: 200 }));
     };
-    return { gh: new GitHub(async () => "ghs_test", fetch), asked };
+    return { gh: new GitHub(() => Promise.resolve("ghs_test"), fetch), asked };
 }
 
 describe("flaky in CI with no open issue", () => {
@@ -122,11 +134,26 @@ describe("flaky in CI with no open issue", () => {
         const { gh, asked } = searchGitHub([filed("a.test.ts", "named in an issue")]);
         const m = await flakyMembers(store, gh, REPO, [], NOW);
         expect(m["flaky.no_issue"]).toBe(2);
-        // One query: the open flaky issues, and those closed as fixed since the week began.
+        // Two searches: the open flaky issues, and those closed as fixed since the week began.
         expect(asked).toEqual([
             `repo:${REPO} is:issue flaky is:open`,
             `repo:${REPO} is:issue flaky is:closed reason:completed closed:>=${new Date(TODAY - 6 * DAY).toISOString().slice(0, 10)}`,
         ]);
+    });
+
+    it("reads every page of open flaky issues, so an issue past the first 100 still counts", async () => {
+        // 2026-10-30: about 147 "Flaky in full run" issues filed at once pushed #4414 and #4547 off the first page.
+        const store = new MemoryStore();
+        await day(store, TODAY, [["graphty", "LocationMap.real-element.test.tsx", "chooses the map in the Map form"]]);
+        const storm = Array.from({ length: 150 }, (_, i) =>
+            filed(`fidelity-${i}.stories.ts`, "drew a different picture"),
+        );
+        const { gh } = searchGitHub([
+            ...storm,
+            filed("LocationMap.real-element.test.tsx", "chooses the map in the Map form"),
+        ]);
+        const m = await flakyMembers(store, gh, REPO, [], NOW);
+        expect(m["flaky.no_issue"]).toBe(0);
     });
 
     it("is 0 when nothing was flaky, without asking GitHub", async () => {
@@ -137,8 +164,47 @@ describe("flaky in CI with no open issue", () => {
             "flaky.blocked_prs": 0,
             "flaky.blocked_oldest_ms": 0,
             "flaky.net_change": 0,
+            "flaky.net_added": 0,
+            "flaky.net_resolved": 0,
         });
         expect(asked).toEqual([]);
+    });
+});
+
+describe("a flaky test whose issue was closed as fixed", () => {
+    const file = "graphty-element/stories/Layout2D.stories.ts";
+    // #5820 as the search returned it, closed the day after the story's only flaky events.
+    const issue5820: IssueText = {
+        title: "Flaky story: Node Gap in Layout2D.stories.ts draws two different pictures (flaky.no_issue)",
+        body: "The test with no issue is the story **Node Gap** in `graphty-element/stories/Layout2D.stories.ts`.",
+        closedAt: new Date(NOW - 3_600_000).toISOString(),
+    };
+
+    it("is filed when the close came on a later day than its last flaky event", async () => {
+        const store = new MemoryStore();
+        await day(store, TODAY - DAY, [["graphty-element-stories", file, "Node Gap"]]);
+        const m = await flakyMembers(store, searchGitHub([], [issue5820]).gh, REPO, [], NOW);
+        expect(m["flaky.no_issue"]).toBe(0);
+    });
+
+    /** The story was flaky today at `seenAt`, and its issue closed an hour before NOW. */
+    async function flakyToday(seenAt: number) {
+        const store = new MemoryStore();
+        await day(store, TODAY, [["graphty-element-stories", file, "Node Gap"]]);
+        await putRaw(store, [{ ...testItem("1.1.a", file, "Node Gap", "flaky"), seenAt }], NOW);
+        return flakyMembers(store, searchGitHub([], [issue5820]).gh, REPO, [], NOW);
+    }
+
+    it("is filed when the close came later on the day of its last flaky event", async () => {
+        const m = await flakyToday(NOW - 2 * 3_600_000);
+        expect(m["flaky.no_issue"]).toBe(0);
+        expect(m["flaky.net_change"]).toBe(0); // new this week, and fixed
+    });
+
+    it("counts again when it goes flaky after the close on the same day", async () => {
+        const m = await flakyToday(NOW - 30 * MIN);
+        expect(m["flaky.no_issue"]).toBe(1);
+        expect(m["flaky.net_change"]).toBe(1); // new this week, and not fixed
     });
 });
 
@@ -175,8 +241,11 @@ describe("the six flaky issues of 2026-10-26", () => {
     ];
 
     it("each names its own test and no other", () => {
-        for (const [n, file, name] of tests)
-            for (const [m] of tests) expect(namesTest(issue(m), { file, name }), `#${m} names ${name}`).toBe(m === n);
+        for (const [n, file, name] of tests) {
+            for (const [m] of tests) {
+                expect(namesTest(issue(m), { file, name }), `#${m} names ${name}`).toBe(m === n);
+            }
+        }
     });
 
     it("counts none of them as having no issue: three are open, three were closed as fixed after their last detection", async () => {
@@ -244,23 +313,79 @@ describe("the quarantine issues of 2026-10-27", () => {
 describe("net new flaky", () => {
     const seen = (file: string, ...days: number[]): [string, FlakySeen] => [
         testKey(file, "t"),
-        { file, name: "t", days: days.map((d) => TODAY - d * DAY) },
+        { file, name: "t", days: days.map((d) => TODAY - d * DAY), families: ["graphty"], events: days.length },
     ];
+    /** flaky.file_runs daily buckets: on each day ago, each file ran `n` times, `clean` of them clean. */
+    const fileRuns = (runs: Record<string, { n: number; clean: number }>, daysAgo: number[]): Map<number, Bucket> =>
+        new Map(
+            daysAgo.map((d) => [
+                TODAY - d * DAY,
+                {
+                    n: 0,
+                    sum: 0,
+                    dims: Object.fromEntries(
+                        Object.entries(runs).map(([file, r]) => [
+                            fileRunKey("graphty", file),
+                            { n: r.n, sum: r.clean },
+                        ]),
+                    ),
+                },
+            ]),
+        );
+    const allDays = Array.from({ length: 28 }, (_, i) => i);
 
-    it("adds tests first seen this week and takes away tests quiet for 7 days or fixed since their last detection", () => {
+    it("adds tests first seen this week and takes away tests fixed since their last detection", () => {
         const history = new Map([
             seen("new.ts", 2), // new this week
             seen("new-and-fixed.ts", 1), // new, then fixed
             seen("old-still-flaky.ts", 20, 3), // neither
-            seen("went-quiet.ts", 20, 9), // quiet since 9 days: resolved this week
-            seen("quiet-long-ago.ts", 25), // resolved in an earlier week
             seen("fixed-then-flaky-again.ts", 20, 1), // its issue closed before the newest detection
         ]);
         const fixed = new Map([
             [testKey("new-and-fixed.ts", "t"), TODAY - DAY + 3 * 3_600_000],
             [testKey("fixed-then-flaky-again.ts", "t"), TODAY - 4 * DAY],
         ]);
-        expect(netChange(history, fixed, NOW)).toBe(2 - 2);
+        expect(netChange(history, fixed, new Map(), NOW)).toEqual({ added: 2, resolved: 1 });
+    });
+
+    it("resolves a quiet test only once its clean runs would have shown its old failure rate", () => {
+        // Each file ran 4 times a day, every run after its last detection (9 days ago) clean.
+        const runs = fileRuns(
+            {
+                "one-in-ten.ts": { n: 4, clean: 4 },
+                "one-in-fifty.ts": { n: 4, clean: 4 },
+                "deleted.ts": { n: 0, clean: 0 },
+            },
+            allDays,
+        );
+        const history = new Map([
+            // 10 events in the 76 runs of days 27..9: about 1 in 8, so 22 clean runs, reached 3 days ago: resolved this
+            // week.
+            seen("one-in-ten.ts", 27, 25, 23, 21, 19, 17, 15, 13, 11, 9),
+            // 1 event in 76 runs needs 227 clean runs: 8 quiet days are not enough.
+            seen("one-in-fifty.ts", 9),
+            // Its file stopped running: removed, not resolved.
+            seen("deleted.ts", 20, 9),
+        ]);
+        expect(netChange(history, new Map(), runs, NOW)).toEqual({ added: 0, resolved: 1 });
+    });
+
+    it("does not resolve a test again in a later week, nor count runs that were not clean", () => {
+        const history = new Map([seen("rare.ts", 27, 20)]);
+        // 2 events in the 32 runs of days 27..20: 47 clean runs needed, reached 8 days ago: in the week of 2 days ago,
+        // not in this one.
+        const clean = fileRuns({ "rare.ts": { n: 4, clean: 4 } }, allDays);
+        expect(netChange(history, new Map(), clean, NOW - 2 * DAY).resolved).toBe(1);
+        expect(netChange(history, new Map(), clean, NOW)).toEqual({ added: 0, resolved: 0 });
+        // Runs that never passed the test (its group failed outright) are not clean: never resolved.
+        expect(netChange(history, new Map(), fileRuns({ "rare.ts": { n: 4, clean: 0 } }, allDays), NOW)).toEqual({
+            added: 0,
+            resolved: 0,
+        });
+    });
+
+    it("needs more clean runs the rarer the failure", () => {
+        expect([0.2, 0.1, 0.05, 0.02, 1].map(cleanRunsNeeded)).toEqual([14, 29, 59, 149, 1]);
     });
 
     it("reads closed issues from the search into flakyMembers", async () => {
@@ -273,6 +398,7 @@ describe("net new flaky", () => {
         );
         const m = await flakyMembers(store, gh, REPO, [], NOW);
         expect(m["flaky.net_change"]).toBe(1); // two new, one fixed
+        expect([m["flaky.net_added"], m["flaky.net_resolved"]]).toEqual([2, 1]);
         expect(m["flaky.no_issue"]).toBe(0); // one open issue, one closed as fixed after its last detection
     });
 });
@@ -285,14 +411,14 @@ describe("blocked by a flake", () => {
         await putRaw(
             store,
             [
-                test("101.1.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
-                test("101.1.test.graphty-2.1", "b.test.ts", "flaky two", "failed"),
+                testItem("101.1.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
+                testItem("101.1.test.graphty-2.1", "b.test.ts", "flaky two", "failed"),
                 // 102 also failed a test never seen flaky: a real failure, not a block.
-                test("102.1.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
-                test("102.1.test.graphty-1.1", "c.test.ts", "real failure", "failed"),
+                testItem("102.1.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
+                testItem("102.1.test.graphty-1.1", "c.test.ts", "real failure", "failed"),
                 // 103's earlier attempt failed a real test; its newest attempt only the flaky one.
-                test("103.1.test.graphty-1.1", "c.test.ts", "real failure", "failed"),
-                test("103.2.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
+                testItem("103.1.test.graphty-1.1", "c.test.ts", "real failure", "failed"),
+                testItem("103.2.test.graphty-1.1", "a.test.ts", "flaky one", "failed"),
             ],
             NOW,
         );
@@ -317,10 +443,10 @@ describe("blocked by a flake", () => {
 
     it("drops a test from the run's failures once its retry passed (rewritten flaky)", async () => {
         const store = new MemoryStore();
-        await putRaw(store, [test("201.1.test.graphty-1.1", "c.test.ts", "real failure", "failed")], NOW);
+        await putRaw(store, [testItem("201.1.test.graphty-1.1", "c.test.ts", "real failure", "failed")], NOW);
         const open = [pr(7, [{ name: "Test (graphty-1)", run: 201 }])];
         expect((await blockedPrs(store, open, flaky, NOW)).prs).toEqual([]);
-        await putRaw(store, [test("201.1.test.graphty-1.1", "c.test.ts", "real failure", "flaky")], NOW);
+        await putRaw(store, [testItem("201.1.test.graphty-1.1", "c.test.ts", "real failure", "flaky")], NOW);
         // No failed test is left in the run, so nothing says the pull request is red on a flake.
         expect((await blockedPrs(store, open, flaky, NOW)).prs).toEqual([]);
         expect((await store.query("RUNTESTS#201")).map((r) => r.outcome)).toEqual(["flaky"]);

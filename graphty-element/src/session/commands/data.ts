@@ -29,12 +29,14 @@
  */
 
 import type { DuplicatePolicy } from "@graphty/graph-format";
+import type { FileLayout } from "@graphty/graph-io";
 
 import type { EdgeId, EdgeMember, LayerId, MeasurementDeclaration, NodeId, Path, SourceKey } from "../../catalog/types";
 import type { DeclaredDirection } from "../../data/DataSource";
 import { searchRecord } from "../../data/endpoints";
 import type { DataLoadingError } from "../../data/ErrorAggregator";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { featureOff } from "../../features/resolve";
 import { GRAPHVIZ_ENGINES, graphvizLayoutId } from "../../layout/graphviz/engines";
 import { POINTS_PER_UNIT } from "../../layout/graphviz/toDot";
 import { GraphtyLogger } from "../../logging/GraphtyLogger.js";
@@ -44,11 +46,12 @@ import type { Draft } from "../project/draft";
 import { edgeKey, nodeKey } from "../project/graphOps";
 import type { CodedFact } from "../shared";
 import { type Provenance, PROVENANCE_VALUE } from "../sources/provenance";
-import { applyFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
+import { applyFileStyles, asksFileStyles, type ImportOutcome } from "../styles/fileStyles/apply";
 import { FILE_STYLES_VALUE, type FileStyleLoadValues, fileStyleStoreOf } from "../styles/fileStyles/store";
 import type { FileStyleOptions } from "../styles/fileStyles/translate";
 import { deepEquals } from "../styles/predicate";
 import type { Selector } from "../styles/selector";
+import { designateDeclaredTime } from "../time/declared";
 import type {
     HistoryCode,
     JoinRecord,
@@ -61,6 +64,7 @@ import type {
     ValueType,
 } from "../types";
 import { valueLabelKey } from "../valueLabels";
+import { refreshDerivedAfter } from "./derive";
 import type { BatchCommand } from "./index";
 import type { DataImportSourceCommand } from "./source-load";
 
@@ -84,6 +88,15 @@ export type DataMutation =
           readonly target?: string;
           /** The repeated-edge policy for this call. */
           readonly repeated?: DuplicatePolicy;
+          /**
+           * The element-assigned ids to give the edges back, by position in `records`: for edges
+           * removed earlier and added again, so what is keyed by their ids (a run's edge values)
+           * still finds them. An id the graph holds, or one the element never assigned, gets a
+           * fresh one. Default: every edge gets a fresh id.
+           */
+          readonly ids?: readonly (EdgeId | undefined)[];
+          /** The record key weights are read from for this call, overriding `data.knownFields.edgeWeightPath`. */
+          readonly weight?: string;
           /**
            * The graph's direction, declared the way a node-link JSON file's `"directed"` key
            * declares it, and taken on the same terms: only while the graph holds no edges, and
@@ -124,6 +137,117 @@ export type DataMutation =
           readonly kind: "clear";
       };
 
+/**
+ * The refusal of a data door's malformed argument (issue #5504).
+ * @param door - The door's mutation kind.
+ * @param field - What is wrong: the argument itself, or the field of one row.
+ * @param index - The row's position, when one row is at fault.
+ * @returns An `E_BAD_COMMAND` error.
+ */
+function badArgument(door: DataMutation["kind"], field: string, index?: number): GraphtyError {
+    const where = index === undefined ? "" : ` (row ${String(index)})`;
+    return new GraphtyError({
+        code: "E_BAD_COMMAND",
+        source: "data",
+        message: `The ${door} argument is malformed: ${field}${where}.`,
+        details: { door, field, ...(index === undefined ? {} : { index }) },
+    });
+}
+
+/**
+ * Whether a value is a plain record: an object that is neither null nor an array.
+ * @param value - The value.
+ * @returns True when it is.
+ */
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Whether a value can be a node or edge id.
+ * @param value - The value.
+ * @returns True for a string or a number.
+ */
+function isId(value: unknown): value is NodeId {
+    return typeof value === "string" || typeof value === "number";
+}
+
+/**
+ * Check the rows a data door was handed, so a malformed one is refused with `E_BAD_COMMAND`
+ * before anything is written, instead of failing deep inside the write with a TypeError.
+ * @param kind - The door's mutation kind.
+ * @param rows - What it was handed in place of its row list.
+ * @param check - What each row must be, naming the field that is wrong, or null when it is fine.
+ * @throws `E_BAD_COMMAND` naming the door, the field and the row.
+ */
+export function checkRows(kind: DataMutation["kind"], rows: unknown, check: (row: unknown) => string | null): void {
+    if (!Array.isArray(rows)) {
+        throw badArgument(kind, "not an array");
+    }
+
+    rows.forEach((row: unknown, index) => {
+        const field = check(row);
+        if (field !== null) {
+            throw badArgument(kind, field, index);
+        }
+    });
+}
+
+/**
+ * What a record handed to an add, or to an element-level update, must be.
+ * @param row - The record.
+ * @returns The fault, or null.
+ */
+export function recordFault(row: unknown): string | null {
+    return isRecord(row) ? null : "a record is not an object";
+}
+
+/**
+ * What a row handed to `data.updateNodes` or `data.updateEdges` must be: `{ id, values }`.
+ * @param row - The row.
+ * @returns The fault, or null.
+ */
+function rowUpdateFault(row: unknown): string | null {
+    if (!isRecord(row)) {
+        return "a row is not an object";
+    }
+
+    if (!isId(row.id)) {
+        return "id is not a string or a number";
+    }
+
+    return isRecord(row.values) ? null : "values is not an object";
+}
+
+/**
+ * Refuse a malformed mutation from a public data door with `E_BAD_COMMAND` (issue #5504).
+ * @param mutation - The mutation, as a caller built it.
+ * @throws `E_BAD_COMMAND` naming the door, the field and the row.
+ */
+export function checkMutation(mutation: DataMutation): void {
+    switch (mutation.kind) {
+        case "add-nodes":
+        case "add-edges":
+            checkRows(mutation.kind, mutation.records, recordFault);
+            return;
+        case "update-rows":
+            checkRows(mutation.kind, mutation.rows, rowUpdateFault);
+            return;
+        case "set-attributes":
+            checkRows(mutation.kind, mutation.ids, (id) => (isId(id) ? null : "an id is not a string or a number"));
+            if (!isRecord(mutation.values)) {
+                throw badArgument(mutation.kind, "values is not an object");
+            }
+
+            return;
+        case "remove-nodes":
+        case "remove-edges":
+            checkRows(mutation.kind, mutation.ids, (id) => (isId(id) ? null : "an id is not a string or a number"));
+            return;
+        default:
+    }
+}
+
 /** `data.apply`. */
 interface DataApplyCommand {
     readonly op: "data.apply";
@@ -142,6 +266,8 @@ export interface ImportSource {
     readonly name?: string;
     /** The file's size in bytes, when a file was read. */
     readonly size?: number;
+    /** The name of the file it was read from. */
+    readonly fileName?: string;
 }
 
 /** `data.import`. */
@@ -187,9 +313,13 @@ export interface DataImportCommand {
     /**
      * `"file"` draws the file's own styles as layers, in the same step; `"none"` leaves them out.
      * Absent, the source's `styles` option decides, and without one the file's styles are left out.
+     * @experimental file-styles
      */
     readonly styles?: "file" | "none";
-    /** How the file's styles are turned into layers; the source's `styleOptions` when absent. */
+    /**
+     * How the file's styles are turned into layers; the source's `styleOptions` when absent.
+     * @experimental file-styles
+     */
     readonly styleOptions?: FileStyleOptions;
     /** Where the load came from, for its `data.sources()` entry; read from the source's type when absent. */
     readonly origin?: LoadedSourceKind;
@@ -218,6 +348,8 @@ export interface HeldRows {
     readonly edges: readonly Record<string, unknown>[];
     /** Each edge record's line, as `DraftRow.line` numbers it; its position from 1 when absent. */
     readonly edgeLines?: readonly number[] | null;
+    /** Each node record's line, as `DraftRow.line` numbers it; its position from 1 when absent. */
+    readonly nodeLines?: readonly number[] | null;
     /** The direction the file declared, read when the rows were. */
     readonly declaredDirection: DeclaredDirection | null;
     /** The rows reading the source refused. */
@@ -234,6 +366,8 @@ export interface HeldRows {
     readonly weight?: string | null;
     /** What a row naming a pair the graph already holds does; `data.knownFields.repeatedEdges` when absent. */
     readonly repeated?: DuplicatePolicy;
+    /** `"held"`: `repeated` covers only pairs held before this load; its own repeats follow the configuration. */
+    readonly repeatedScope?: "held";
 }
 
 /** The load choices a `data.import` command carries. */
@@ -336,8 +470,9 @@ interface DataLabelCommand {
 /**
  * `data.setFileStyles`: replace the per-element style values the layers made from files read, one
  * entry per load. An empty list removes them all.
+ * @experimental file-styles
  */
-export interface DataSetFileStylesCommand {
+interface DataSetFileStylesCommand {
     readonly op: "data.setFileStyles";
     readonly loads: readonly FileStyleLoadValues[];
 }
@@ -404,6 +539,11 @@ export function declarationKey(column: { readonly kind: string; readonly name: s
 /** How a session applies a data mutation: its ingest and its store. Set by whoever owns them. */
 export interface DataService {
     /**
+     * The loads under way, for a reader that waits for the rows to stop arriving.
+     * @returns Settles once every load running or waiting has; null when none is.
+     */
+    loading?(): Promise<void> | null;
+    /**
      * Apply one mutation, writing through the graph primitives in `draft`.
      * @param mutation - The mutation.
      * @param draft - The command's draft.
@@ -467,6 +607,8 @@ export const FILE_GRAPH_VALUE = "fileGraph";
 export interface FileGraphValue {
     readonly format: string;
     readonly attributes: Readonly<Record<string, unknown>>;
+    /** The layout the file asks to be drawn with, as graph-io read it; absent when it names none. */
+    readonly layout?: FileLayout;
 }
 
 /**
@@ -483,10 +625,12 @@ export function describeSource(source: ImportSource): ImportSource {
                   Object.fromEntries(Object.entries(source.config).filter(([key]) => key !== "data" && key !== "file")),
               );
 
+    const fileName = (source.config?.file as { readonly name?: unknown } | undefined)?.name;
     return Object.freeze({
         ...(source.type === undefined ? {} : { type: source.type }),
         ...(source.name === undefined ? {} : { name: source.name }),
         ...(source.size === undefined ? {} : { size: source.size }),
+        ...(typeof fileName === "string" ? { fileName } : {}),
         ...(config === undefined ? {} : { config }),
     });
 }
@@ -581,6 +725,55 @@ export function replaceNodesCommand(
         fact: { code: "data.replace-nodes", params: {} },
         steps,
         ...(setup ? { setup } : {}),
+    };
+}
+
+/** The keys a moved edge record names its endpoints by, as `add-edges` reads them. */
+export interface MovedEndpoints {
+    readonly source: string;
+    readonly target: string;
+}
+
+/**
+ * The step merging nodes into one: the kept node takes the chosen values, every edge of a merged
+ * node is added again with that end on the kept node, and the merged nodes are removed with
+ * their own edges. Undo takes back all three as one step.
+ * @param kept - The node the others merge into.
+ * @param values - The values the kept node takes; none when it keeps its record as it is.
+ * @param merged - The nodes merged away.
+ * @param moved - Their edges' records, with each end already on the kept node.
+ * @param endpoints - The keys `moved` names its ends by.
+ * @returns The command.
+ */
+export function mergeNodesCommand(
+    kept: NodeId,
+    values: Readonly<Record<string, unknown>> | undefined,
+    merged: readonly NodeId[],
+    moved: readonly RecordInput[],
+    endpoints: MovedEndpoints,
+): BatchCommand {
+    const steps: DataApplyCommand[] = [];
+    if (values !== undefined && Object.keys(values).length > 0) {
+        steps.push({
+            op: "data.apply",
+            mutation: { kind: "update-rows", target: "node", rows: [{ id: kept, values }] },
+        });
+    }
+
+    steps.push({ op: "data.apply", mutation: { kind: "remove-nodes", ids: [...merged] } });
+    if (moved.length > 0) {
+        steps.push({
+            op: "data.apply",
+            mutation: { kind: "add-edges", records: moved, source: endpoints.source, target: endpoints.target },
+        });
+    }
+
+    const count = merged.length + 1;
+    return {
+        op: "batch",
+        label: `Merged ${String(count)} nodes`,
+        fact: { code: "data.merge-nodes", params: { count } },
+        steps,
     };
 }
 
@@ -695,6 +888,7 @@ const dataApply: UndoableDefinition<DataApplyCommand> = {
     byReference: ["records"],
     execute: (command, ctx) => {
         serviceOf(ctx.services.data).apply(command.mutation, ctx.draft, ctx.after);
+        refreshDerivedAfter(ctx);
     },
 };
 
@@ -800,6 +994,11 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
     byReference: ["config", "held", "measure"],
     closesBaseline: true,
     execute: async (command, ctx) => {
+        // Refused before anything is read: drawing a file's styles is the file styles experiment.
+        if (asksFileStyles(command) && ctx.services.fileStyles?.() === false) {
+            throw featureOff("file-styles", "styles");
+        }
+
         // The scene units one unit of the file's lengths is drawn as, once its styles are drawn:
         // the stored drawing a recommended fixed layout keeps takes the same unit (issue #2322).
         let sceneScale: number | null = null;
@@ -810,10 +1009,13 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         const replacing = command.mode !== "merge" && command.measure === undefined;
         const picked = replacing ? pickedEdges(ctx) : [];
         const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        refreshDerivedAfter(ctx);
         if (outcome !== null && outcome !== undefined) {
             await repickEdges(picked, ctx);
         }
 
+        // The time field the file declares, designated in this same step.
+        await designateDeclaredTime(outcome?.reader?.declaredTime, ctx);
         // The file's styles, and the previous file's layers swept, in this same step.
         sceneScale = await applyFileStyles(command, outcome ?? null, ctx);
         if (layoutChoiceOf(command) === "recommended") {
@@ -907,8 +1109,13 @@ function adviseLayout(ctx: UndoableContext, sceneScale: () => number | null): vo
         // size against the spaces Graphviz leaves between them (with `lengths: "file"`, one point is
         // one scene unit, so an inch is 72).
         const unit = graphviz && scale !== null ? POINTS_PER_UNIT * scale : scale;
-        const options =
-            (advice.id === "fixed" || graphviz) && unit !== null ? { ...advice.options, scale: unit } : advice.options;
+        // With no unit (the file's styles are not drawn, or size nothing) the element draws its own node size, not the
+        // size Graphviz gives the file's nodes, so Graphviz lays the nodes out at their drawn size (issue #5293).
+        const sized =
+            graphviz && unit === null && advice.options?.nodeSize === "label"
+                ? { ...advice.options, nodeSize: "drawn" }
+                : advice.options;
+        const options = (advice.id === "fixed" || graphviz) && unit !== null ? { ...sized, scale: unit } : sized;
         const layout = dispatch({
             op: "layout.set",
             id: advice.id,
@@ -961,6 +1168,7 @@ const dataExpand: UndoableDefinition<DataExpandCommand> = {
     byReference: ["nodes", "edges"],
     execute: (command, ctx) => {
         const service = serviceOf(ctx.services.data);
+        refreshDerivedAfter(ctx);
         service.apply({ kind: "add-nodes", records: command.nodes }, ctx.draft, ctx.after);
         // `first`, because a neighbourhood legitimately names edges the graph already holds: the
         // edge the reader followed to get here is in both of its endpoints' neighbourhoods.
@@ -1074,6 +1282,12 @@ const dataSetFileStyles: UndoableDefinition<DataSetFileStylesCommand> = {
     keys: () => [`graph/v:${FILE_STYLES_VALUE}`],
     lane: { kind: "immediate" },
     execute: (command, ctx) => {
+        // Writing a file's style values is the file styles experiment; only a project open restores
+        // saved ones with it off, so reopening and saving a project keeps them.
+        if (ctx.services.fileStyles?.() === false && ctx.services.restoringFileStyles !== true) {
+            throw featureOff("file-styles", "data.setFileStyles");
+        }
+
         // Checked before anything is written: the values may come from a file anyone edited.
         const store = fileStyleStoreOf(command.loads);
         const service = serviceOf(ctx.services.data);

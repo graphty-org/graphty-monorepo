@@ -13,8 +13,9 @@ export type Histogram = number[];
 export const emptyHistogram = (): Histogram => new Array<number>(BINS).fill(0);
 
 /**
- *
- * @param value
+ * The bin a value falls in.
+ * @param value - a positive value, ms
+ * @returns the bin index, 0 to BINS - 1
  */
 export function binOf(value: number): number {
     if (Number.isNaN(value) || value <= LO) {
@@ -24,19 +25,19 @@ export function binOf(value: number): number {
 }
 
 /**
- *
- * @param h
- * @param value
- * @param count
+ * Counts a value into a histogram, in place.
+ * @param h - the histogram
+ * @param value - the value
+ * @param count - how many times to count it
  */
 export function addValue(h: Histogram, value: number, count = 1): void {
     h[binOf(value)] += count;
 }
 
 /**
- *
- * @param into
- * @param from
+ * Adds one histogram into another, in place.
+ * @param into - the histogram that receives
+ * @param from - the histogram added
  */
 export function mergeInto(into: Histogram, from: Histogram): void {
     for (let i = 0; i < BINS; i++) {
@@ -46,8 +47,9 @@ export function mergeInto(into: Histogram, from: Histogram): void {
 
 /**
  * The q-quantile (0..1) as the geometric middle of its bin; undefined for an empty histogram.
- * @param h
- * @param q
+ * @param h - the histogram
+ * @param q - the quantile, 0 to 1
+ * @returns the quantile's value
  */
 export function quantile(h: Histogram, q: number): number | undefined {
     const total = h.reduce((a, b) => a + b, 0);

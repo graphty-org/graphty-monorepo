@@ -1,13 +1,14 @@
 /**
  * API Key Manager Module - Session and persistent storage for API keys.
- * Uses encrypt-storage for AES encryption of persisted keys.
+ * Uses encrypt-storage for AES encryption of persisted keys (an optional peer; see ./encryptStorage).
  * @module ai/keys/ApiKeyManager
  */
 
-import { EncryptStorage } from "encrypt-storage";
+import type { EncryptStorage } from "encrypt-storage";
 
 import type { ProviderType } from "../providers";
 import { deriveKeyFromPassphrase } from "./deriveKeyFromPassphrase";
+import { encryptStorage } from "./encryptStorage";
 
 type StorageType = "localStorage" | "sessionStorage";
 
@@ -278,6 +279,81 @@ export class ApiKeyManager {
     }
 
     /**
+     * Remove a provider's key from memory and from both storages, wherever an earlier page or
+     * another `storage` setting left it. {@link removeKey} reaches only the storage in use. The
+     * other providers' keys stay where they are.
+     * @experimental assistant
+     * @param provider - The provider type
+     */
+    forgetKey(provider: ProviderType): void {
+        this.keys.delete(provider);
+        this.eachStore((store) => {
+            const stored = readKeys(store);
+            if (stored !== null && provider in stored) {
+                const { [provider]: _forgotten, ...kept } = stored;
+                store.setItem(KEYS_ITEM, kept);
+            }
+        });
+    }
+
+    /**
+     * Remove every provider's key from memory and from both storages; see {@link forgetKey}.
+     * @experimental assistant
+     */
+    forgetKeys(): void {
+        this.keys.clear();
+        this.eachStore((store) => {
+            store.removeItem(KEYS_ITEM);
+        });
+    }
+
+    /**
+     * Move the keys another `storage` setting left into the storage in use, so a key is never kept
+     * in the one the host just moved away from. Nothing without persistence on.
+     * @experimental assistant
+     */
+    retireOtherStorage(): void {
+        const config = this.persistenceConfig;
+        if (config === null || globalThis.window === undefined) {
+            return;
+        }
+
+        const storage = config.storage === "localStorage" ? "sessionStorage" : "localStorage";
+        const store = this.openStorage({ ...config, storage });
+        const stored = readKeys(store);
+        if (stored === null) {
+            return;
+        }
+
+        for (const [provider, key] of Object.entries(stored)) {
+            if (!this.keys.has(provider as ProviderType)) {
+                this.keys.set(provider as ProviderType, key);
+            }
+        }
+
+        this.persistKeys();
+        store.removeItem(KEYS_ITEM);
+    }
+
+    /**
+     * Visit the encrypted store of both storages, under the key persistence uses.
+     * @param visit - What to do with each.
+     */
+    private eachStore(visit: (store: EncryptStorage) => void): void {
+        if (globalThis.window === undefined) {
+            return;
+        }
+
+        const { encryptionKey, prefix } = this.persistenceConfig ?? {
+            encryptionKey: DEFAULT_ENCRYPTION_KEY,
+            prefix: this.prefix,
+        };
+        for (const storage of ["localStorage", "sessionStorage"] as const) {
+            visit(this.openStorage({ encryptionKey, storage, prefix }));
+        }
+    }
+
+    /**
      * Read a named item another namespace of the credential store keeps beside the keys, under the
      * same persistence and encryption (`CredentialStore` keeps the network-source credentials
      * here). In memory when persistence is off.
@@ -382,9 +458,11 @@ export class ApiKeyManager {
      * Open the encrypted store for a configuration.
      * @param config - The persistence configuration
      * @returns The encrypted store
+     * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `encrypt-storage` is not installed.
      */
     private openStorage(config: Required<PersistenceConfig>): EncryptStorage {
-        return new EncryptStorage(config.encryptionKey, {
+        const EncryptStorageClass = encryptStorage();
+        return new EncryptStorageClass(config.encryptionKey, {
             prefix: config.prefix,
             storageType: config.storage,
         });

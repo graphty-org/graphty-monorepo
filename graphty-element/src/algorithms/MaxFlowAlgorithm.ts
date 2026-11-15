@@ -62,19 +62,19 @@ interface MaxFlowOptions extends Record<string, unknown> {
  * Computes the maximum flow from a source to a sink node in a flow network.
  */
 export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
-    static namespace = "graphty";
-    static type = "max-flow";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "max-flow";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "capacity" as const;
     /** Flows within the run's scope: the node and edge lists come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = maxFlowOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = maxFlowOptionsSchema;
 
     /**
      * Options schema for Max Flow algorithm
      */
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         source: {
             type: "nodeId",
             default: null,
@@ -184,7 +184,7 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
             dst: networkDst,
         });
 
-        context.report({ phase: "Pushing flow", total: null });
+        context.report({ phase: "pushing-flow", total: null });
         // The dispatcher runs over the network built above, so no snapshot of the input is derived.
         const { run } = this.accelerated("maxFlow", "directed", { over: network });
         const { value: result, precision } = await run((dispatch, s) =>
@@ -206,7 +206,7 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
         }
 
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Measuring edges", graphEdges, (edge, k) => {
+        await forEachChunked(context, "measuring-edges", graphEdges, (edge, k) => {
             const pair = networkSrc[k] * n + networkDst[k];
             const flow = pairFlow.get(pair) ?? 0;
             const capacity = pairCapacity.get(pair) ?? 1;
@@ -216,7 +216,7 @@ export class MaxFlowAlgorithm extends DeclaredAlgorithm<MaxFlowOptions> {
         });
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Measuring nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "measuring-nodes", nodeIds, (nodeId) => {
             const values: Record<string, number | string> = { netFlow: net[graph.ids.indexOf(nodeId)] };
 
             // Only the two ends carry a role, so a picture drawn from it paints those two alone.

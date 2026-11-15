@@ -5,7 +5,7 @@ import { openFilterDraft, PLUS } from "../data-place/filterCards";
 import { neighborhoodKey } from "../inspector/inspected";
 import { framedWords, neighborhoodWords, selectionWords, xrEntryFailureWords, xrReasonWords } from "../inspector/words";
 import { togglePopover } from "./popover";
-import { nothingDrawn } from "./useSessionVersion";
+import { noGraph, nothingDrawn } from "./useSessionVersion";
 
 /**
  * Why Neighborhood cannot run: it acts on a selected node.
@@ -23,7 +23,7 @@ function noNodeSelected(session: GraphSession | null): string | null {
  * @param center - the node at the center.
  * @returns the hop count.
  */
-function filteredReach(session: GraphSession, center: NodeId): 1 | 2 | 3 {
+function filteredReach(session: GraphSession, center: NodeId): number {
     const step = session.visibility.conditions.find(
         (s) =>
             s.on &&
@@ -33,7 +33,16 @@ function filteredReach(session: GraphSession, center: NodeId): 1 | 2 | 3 {
             s.rule.seeds[0] === center,
     );
     const depth = step?.rule.kind === "neighborhood" ? step.rule.depth : 1;
-    return depth === 2 || depth === 3 ? depth : 1;
+    // A card at depth 0 keeps the center alone; the list still reaches one hop.
+    return Math.max(depth, 1);
+}
+
+/**
+ * Whether the system asks for reduced motion, which keeps the canvas from turning on its own.
+ * @returns True when it does.
+ */
+export function reducedMotion(): boolean {
+    return globalThis.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
 }
 
 /**
@@ -99,7 +108,7 @@ function enterImmersive(mode: "vr" | "ar"): {
     };
 }
 
-/** The element's standard 3D views the View flyout offers, with their keys (tier1-design.md 2.3). */
+/** The element's standard 3D views the Camera menu offers, with their keys (tier1-design.md 2.3). */
 const STANDARD_VIEWS = [
     { id: "view.front", label: "Front", camera: "frontView", key: "1" },
     { id: "view.side", label: "Side", camera: "sideView", key: "3" },
@@ -108,23 +117,47 @@ const STANDARD_VIEWS = [
 ] as const;
 
 /**
- * The Toolbar package's commands (tier1-design.md 2.3): the View flyout and what it holds, the
- * legend switch, Quick actions, and Neighborhood for the selection.
+ * The Toolbar package's commands (tier1-design.md 2.3): the Camera and Mode menus and what they
+ * hold, the legend switch, Quick actions, and Neighborhood for the selection.
  *
  * The camera moves (Fit, Frame selection, the standard views, zoom) are view state, so they go
- * through the element's camera methods and record no step; Switch to 2D or 3D is a project change
+ * through the element's camera methods and record no step, as Auto-rotate (a view preference)
+ * does; Switch to 2D or 3D is a project change
  * and goes through the session.
  */
 export const registration = defineRegistration({
     owner: "toolbar",
     commands: [
         {
+            // The Mode tool: 2D, 3D, VR, AR.
             id: "view.open",
-            label: "View",
+            label: "Mode",
             group: "View",
             disabled: ({ session }) => nothingDrawn(session),
             run: ({ workspace }) => {
                 togglePopover(workspace, "view");
+            },
+        },
+        {
+            id: "view.camera",
+            label: "Camera",
+            group: "View",
+            disabled: ({ session }) => nothingDrawn(session),
+            run: ({ workspace }) => {
+                togglePopover(workspace, "camera");
+            },
+        },
+        {
+            id: "view.auto-rotate",
+            label: "Auto-rotate",
+            group: "View",
+            // The element turns only the 3D view, and the host keeps it still for reduced motion.
+            disabled: ({ session }) =>
+                nothingDrawn(session) ??
+                (session?.layout.dimension === "2d" ? "Only in 3D" : null) ??
+                (reducedMotion() ? "Reduced motion is on" : null),
+            run: ({ workspace }) => {
+                workspace.set((state) => ({ autoRotate: !state.autoRotate }));
             },
         },
         {
@@ -248,7 +281,7 @@ export const registration = defineRegistration({
             id: "filters.open",
             label: "Filters",
             group: "Data",
-            disabled: ({ session }) => nothingDrawn(session),
+            disabled: ({ session }) => noGraph(session),
             run: ({ workspace }) => {
                 openFilterDraft(workspace, PLUS);
             },
@@ -274,7 +307,7 @@ export const registration = defineRegistration({
                 }
                 const centers = session.selection.nodes;
                 const depth = centers.length === 1 ? filteredReach(session, centers[0]) : 1;
-                await session.selection.apply({ neighborsOf: centers, depth });
+                await session.selection.apply({ neighborsOf: centers, depth }, "replace", { cause: "user" });
                 // The selection changed under the reader, so the change is said: "Ava and 14
                 // connections" for one center, the selection's size for several.
                 const { nodes } = session.selection;
@@ -285,7 +318,7 @@ export const registration = defineRegistration({
                     workspace.set({
                         inspected: { kind: "neighborhood", id: neighborhoodKey(center, depth) },
                         announcement: neighborhoodWords(
-                            session.data.name(center) ?? String(center),
+                            session.data.nodeName(center).name,
                             nodes.filter((node) => node !== center).length,
                             depth,
                         ),
@@ -309,7 +342,7 @@ export const registration = defineRegistration({
                     const edge = session.data.edge(id);
                     return edge === undefined ? [] : [edge.source, edge.target];
                 });
-                await session.selection.apply({ nodes: [...new Set(ends)] });
+                await session.selection.apply({ nodes: [...new Set(ends)] }, "replace", { cause: "user" });
             },
         },
     ],

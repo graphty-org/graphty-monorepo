@@ -37,6 +37,7 @@
  */
 
 import { scaleDescriptor } from "../../catalog/scales";
+import { plannedShaderDescriptor } from "../../catalog/shaderRegistry";
 import type {
     AlgorithmKey,
     AttributeDescriptor,
@@ -565,7 +566,8 @@ function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descripto
  */
 function requireEncodable(name: string): ChannelDescriptor {
     const address = parseShaderParamAddress(name);
-    return address === null ? requireChannel(name) : shaderParamDescriptor(address);
+    // A plan for a write: the write that adds its layer copies a catalog shader it names in.
+    return address === null ? requireChannel(name) : shaderParamDescriptor(address, plannedShaderDescriptor);
 }
 
 /**
@@ -673,7 +675,7 @@ function steppedBinding(descriptor: ChannelDescriptor): {
  * @param descriptor - The channel.
  * @returns The range, or undefined to leave the binding without one.
  */
-export function defaultRangeOf(descriptor: ChannelDescriptor): readonly [number, number] | undefined {
+function defaultRangeOf(descriptor: ChannelDescriptor): readonly [number, number] | undefined {
     const sized = DEFAULT_RANGES.get(descriptor.channel);
     if (sized !== undefined || descriptor.accepts !== "number") {
         return sized;

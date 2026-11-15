@@ -1,3 +1,110 @@
+## 0.0.36 (2026-11-12)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** find the large-graph stories under Gallery/Large graphs ([c2a678d343](https://github.com/graphty-org/graphty-monorepo/commit/c2a678d343))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.69
+- Updated graph-samples to 0.1.47
+- Updated visual-review to 0.2.43
+- Updated graph-format to 1.5.2
+- Updated algorithms to 3.4.22
+- Updated graph-io to 0.3.56
+- Updated layout to 2.7.1
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 0.0.35 (2026-11-10)
+
+### 🚀 Features
+
+- **graphty-element:** put styles from files behind the file-styles experiment ([#706](https://github.com/graphty-org/graphty-monorepo/issues/706))
+
+### 🩹 Fixes
+
+- **tools:** move to knip 6 so the dead-code check peaks at 1.4 GB, not 3 GB ([#6142](https://github.com/graphty-org/graphty-monorepo/issues/6142), [#6147](https://github.com/graphty-org/graphty-monorepo/issues/6147))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.68
+- Updated graph-samples to 0.1.46
+- Updated visual-review to 0.2.42
+- Updated graph-format to 1.5.1
+- Updated algorithms to 3.4.21
+- Updated graph-io to 0.3.55
+- Updated layout to 2.7.0
+
+### ❤️ Thank You
+
+- graphty-agent @graphty-agent
+
+## 0.0.34 (2026-11-09)
+
+### 🩹 Fixes
+
+- **cytoscape-extensions:** build the package before linting its consumer test ([c9fd8cdfdb](https://github.com/graphty-org/graphty-monorepo/commit/c9fd8cdfdb))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.67
+- Updated graph-samples to 0.1.45
+- Updated visual-review to 0.2.41
+- Updated graph-format to 1.5.0
+- Updated algorithms to 3.4.20
+- Updated graph-io to 0.3.54
+- Updated layout to 2.6.0
+
+## 0.0.33 (2026-11-02)
+
+### 🩹 Fixes
+
+- **workspace:** bundle storybook test dependencies afresh every run ([#5240](https://github.com/graphty-org/graphty-monorepo/issues/5240))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.66
+- Updated graph-samples to 0.1.44
+- Updated visual-review to 0.2.40
+- Updated graph-format to 1.4.12
+- Updated algorithms to 3.4.19
+- Updated graph-io to 0.3.53
+- Updated layout to 2.5.15
+
+## 0.0.32 (2026-11-01)
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.65
+- Updated graph-samples to 0.1.43
+- Updated visual-review to 0.2.39
+- Updated graph-format to 1.4.11
+- Updated algorithms to 3.4.18
+- Updated graph-io to 0.3.52
+- Updated layout to 2.5.14
+
+## 0.0.31 (2026-10-31)
+
+### 🩹 Fixes
+
+- **layout:** add a Barnes-Hut repulsion to ForceAtlas2 and use it for the large dataset stories ([#5001](https://github.com/graphty-org/graphty-monorepo/issues/5001), [#3849](https://github.com/graphty-org/graphty-monorepo/issues/3849), [#3848](https://github.com/graphty-org/graphty-monorepo/issues/3848))
+- **algorithms:** score every ordered pair in directed link prediction ([#961](https://github.com/graphty-org/graphty-monorepo/issues/961))
+- **cytoscape-extensions:** measure the network sources as loaded after the file formats ([1e66fbbcce](https://github.com/graphty-org/graphty-monorepo/commit/1e66fbbcce))
+- **cytoscape-extensions:** keep the script-tag bundle's lazy file formats under Vite 8 ([#4230](https://github.com/graphty-org/graphty-monorepo/issues/4230))
+
+### 🧱 Updated Dependencies
+
+- Updated webgpu-graph-algorithms to 0.6.64
+- Updated graph-samples to 0.1.42
+- Updated visual-review to 0.2.38
+- Updated graph-format to 1.4.10
+- Updated algorithms to 3.4.17
+- Updated graph-io to 0.3.51
+- Updated layout to 2.5.13
+
 ## 0.0.30 (2026-10-29)
 
 ### 🧱 Updated Dependencies

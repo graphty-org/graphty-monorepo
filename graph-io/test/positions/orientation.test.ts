@@ -98,4 +98,23 @@ describe("DOT positions come out the way Graphviz draws them", () => {
         }
         expect(edges).toBe(30);
     });
+
+    it("stretches a laid-out drawing to a numeric ratio as Graphviz does, the short side scaled up", async () => {
+        const read = async (ratio: string): Promise<{ x: number; y: number; pxPerUnit: number | undefined }> => {
+            const text = `digraph { graph [bb="0,0,200,100", ratio="${ratio}"]; a [pos="0,0!"]; b [pos="200,100!"] }`;
+            const { snapshot, report } = await registry.importGraph(text, { format: "dot" });
+            const positions = extractPositions(registry.importer("dot"), snapshot, report);
+            const k = positions?.pxPerUnit ?? 1;
+            const c = positions?.coords ?? [];
+            return { x: (c[3] - c[0]) * k, y: (c[4] - c[1]) * k, pxPerUnit: positions?.pxPerUnit };
+        };
+        // 100 / 200 is less than 2: the height is scaled up to twice the width
+        const tall = await read("2");
+        expect([tall.x, tall.y]).toEqual([200, 400]);
+        // 100 / 200 is more than 0.25: the width is scaled up to four times the height
+        const wide = await read("0.25");
+        expect([wide.x, wide.y]).toEqual([400, 100]);
+        // a ratio that is not a number leaves the drawing as laid out
+        expect((await read("fill")).pxPerUnit).toBeUndefined();
+    });
 });

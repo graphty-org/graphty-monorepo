@@ -1,11 +1,14 @@
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 import type { BrowserCommand } from "vitest/node";
 
+import { shardCacheDir } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { baseTest } from "../vitest.base.mjs";
 
 /**
@@ -17,7 +20,7 @@ import { baseTest } from "../vitest.base.mjs";
  */
 function figmaStudyDir(): string | null {
     if (process.env.FIGMA_STUDY_DIR) {
-        return process.env.FIGMA_STUDY_DIR;
+        return resolve(process.env.FIGMA_STUDY_DIR);
     }
     for (let dir = __dirname; dir !== dirname(dir); dir = dirname(dir)) {
         const candidate = join(dir, "design/ui/figma");
@@ -46,7 +49,8 @@ const readFigmaCapture: BrowserCommand<[path: string]> = (_ctx, path) => {
         throw new Error("the Figma study (design/ui/figma) is not in this checkout; set FIGMA_STUDY_DIR");
     }
     const file = resolve(root, `${path}.styles.json`);
-    if (!file.startsWith(root)) {
+    const inside = relative(root, file);
+    if (inside.startsWith("..") || isAbsolute(inside)) {
         throw new Error(`${path} is outside the Figma study`);
     }
     return JSON.parse(readFileSync(file, "utf8")) as unknown;
@@ -177,6 +181,36 @@ const mouseUp: BrowserCommand<[]> = async (ctx) => {
     await ctx.page.mouse.up();
 };
 
+/**
+ * A real mouse drag: press at a point measured from the top-right corner of the first element
+ * matching `selector` (where a vertical scrollbar sits), move `dy` pixels down in steps, release.
+ * @param ctx - the browser command context
+ * @param selector - CSS selector of the element, inside the test frame
+ * @param fromRight - pixels in from the element's right edge
+ * @param fromTop - pixels down from the element's top edge
+ * @param dy - vertical distance to drag, in pixels (0 for a press and release)
+ */
+const mouseDragAt: BrowserCommand<[selector: string, fromRight: number, fromTop: number, dy: number]> = async (
+    ctx,
+    selector,
+    fromRight,
+    fromTop,
+    dy,
+) => {
+    const box = await (await ctx.frame()).locator(selector).first().boundingBox();
+    if (!box) {
+        throw new Error(`${selector} is not on screen`);
+    }
+    const x = box.x + box.width - fromRight;
+    const y = box.y + fromTop;
+    await ctx.page.mouse.move(x, y);
+    await ctx.page.mouse.down();
+    if (dy !== 0) {
+        await ctx.page.mouse.move(x, y + dy, { steps: 8 });
+    }
+    await ctx.page.mouse.up();
+};
+
 /** One node of Chromium's accessibility tree, reduced to what a screen reader announces. */
 interface AxNode {
     /** The computed role. */
@@ -250,7 +284,9 @@ const dropFiles: BrowserCommand<[selector: string, files: TestFile[]]> = async (
 
 /**
  * Click the first element `selector` names with the real mouse and answer the file picker it opens
- * with `files`, as a reader choosing them in the browser's dialog.
+ * with `files`, as a reader choosing them in the browser's dialog. Files named by a path
+ * ("kit/car.obj") are written to a fresh folder on disk and that folder ("kit") is chosen, as the
+ * folder picker gives them.
  * @param ctx - the browser command context
  * @param selector - CSS selector of the control that opens the picker, inside the test frame
  * @param files - the files to choose
@@ -261,6 +297,15 @@ const chooseFiles: BrowserCommand<[selector: string, files: TestFile[]]> = async
         ctx.page.waitForEvent("filechooser"),
         frame.locator(selector).first().click(),
     ]);
+    if (files.some((file) => file.name.includes("/"))) {
+        const root = mkdtempSync(join(tmpdir(), "cm-folder-"));
+        for (const file of files) {
+            mkdirSync(dirname(join(root, file.name)), { recursive: true });
+            writeFileSync(join(root, file.name), file.text);
+        }
+        await chooser.setFiles(join(root, files[0].name.split("/")[0]));
+        return;
+    }
     await chooser.setFiles(
         files.map((file) => ({ name: file.name, mimeType: file.type, buffer: Buffer.from(file.text) })),
     );
@@ -277,6 +322,7 @@ const browserCommands = {
     mouseAway,
     mouseDown,
     mouseUp,
+    mouseDragAt,
     touchDrag,
     touchTap,
     emulateReducedMotion,
@@ -291,10 +337,13 @@ const browserCommands = {
 // imported since then (react/jsx-dev-runtime from the stories, @testing-library/react from the
 // tests and their setup files) is discovered mid-run: Vite re-optimizes and reloads the page, the file
 // being imported fails with "Vitest failed to find the runner", and every story rendered after that
-// comes out empty.
-const browserOptimizeDeps = { include: ["react/jsx-dev-runtime", "@testing-library/react"] };
+// comes out empty. `force` makes every run scan and bundle afresh, so an import added since the last run (a
+// merge, a new test) is bundled before the first page loads too (#5134); each pre-push gate shard bundles into
+// its own directory (tools/test-slots.mjs shardCacheDir()), so side-by-side runs keep each other's bundles.
+const browserOptimizeDeps = { include: ["react/jsx-dev-runtime", "@testing-library/react"], force: true };
+const browserCacheDir = shardCacheDir();
 
-export default defineConfig({
+const config = defineConfig({
     plugins: [react()],
     test: {
         ...baseTest(),
@@ -304,6 +353,9 @@ export default defineConfig({
                 test: {
                     name: "default",
                     globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
                     environment: "jsdom",
                     setupFiles: ["./tests/setup.ts"],
                     include: ["tests/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
@@ -319,14 +371,18 @@ export default defineConfig({
             },
             // Browser project - runs in real Chromium via Playwright
             {
+                cacheDir: browserCacheDir,
                 optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "browser",
                     globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.browser.test.{ts,tsx}"],
-                    exclude: ["**/node_modules/**", "**/dist/**"],
+                    exclude: ["**/node_modules/**", "**/dist/**", "tests/**/*.scrollbars.browser.test.{ts,tsx}"],
                     // Disable file parallelism to prevent race conditions
                     fileParallelism: false,
                     browser: {
@@ -340,11 +396,59 @@ export default defineConfig({
                     },
                 },
             },
+            // Touch project - the files named *.touch.browser.test.tsx again, on a touch screen. Its own
+            // browser context, because touch emulation leaves `(hover: none)` on for the rest of a run.
+            {
+                cacheDir: browserCacheDir,
+                optimizeDeps: browserOptimizeDeps,
+                test: {
+                    name: "touch",
+                    globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
+                    include: ["tests/**/*.touch.browser.test.{ts,tsx}"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        provider: playwright({ contextOptions: { hasTouch: true } }),
+                        instances: [{ browser: "chromium" }],
+                        commands: browserCommands,
+                    },
+                },
+            },
+            // Scrollbars project - the files named *.scrollbars.browser.test.tsx, with the native
+            // scrollbars drawn and pressable, which headless Chromium hides (--hide-scrollbars).
+            {
+                cacheDir: browserCacheDir,
+                optimizeDeps: browserOptimizeDeps,
+                test: {
+                    name: "scrollbars",
+                    globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
+                    setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
+                    include: ["tests/**/*.scrollbars.browser.test.{ts,tsx}"],
+                    fileParallelism: false,
+                    browser: {
+                        enabled: true,
+                        headless: true,
+                        provider: playwright({ launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } }),
+                        instances: [{ browser: "chromium" }],
+                        commands: browserCommands,
+                    },
+                },
+            },
             // Storybook project - every story rendered and its play function run, in Chromium
             {
+                cacheDir: browserCacheDir,
                 optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "storybook",
+                    restoreMocks: true,
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.storybook.test.{ts,tsx}"],
@@ -376,3 +480,6 @@ export default defineConfig({
         },
     },
 });
+
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(config);

@@ -11,20 +11,22 @@
  * whole duration once its answer arrives.
  */
 
-import type { Scene } from "@babylonjs/core/scene";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { Vec3 } from "../camera/types";
 import { resolveOptionValues } from "../catalog/options";
+import type { Rgba } from "../catalog/types";
 import type { LayoutTransitionConfig } from "../config/GraphStyle";
 import type { Edge } from "../Edge";
 import { GraphtyLogger, type Logger } from "../logging/GraphtyLogger.js";
+import type { RowTable } from "../render/RowTable";
 import type { RenderQuality } from "../session/shaders";
 import { ParticleDrawable } from "./ParticleDrawable";
 import { easeInOut } from "./presets/glide";
 import { type RegisteredTransition, transitionById, type TransitionNode } from "./registry";
 
 /** A transition's duration when `seconds` is not set. */
-export const DEFAULT_TRANSITION_SECONDS = 0.8;
+const DEFAULT_TRANSITION_SECONDS = 0.8;
 
 /** A move shorter than this, in scene units, is no move: the clock does not start for it. */
 const STILL = 1e-6;
@@ -32,12 +34,12 @@ const STILL = 1e-6;
 /** What the runner moves: the part of a node it reads and writes. */
 export interface TransitionSubject {
     readonly index: number;
-    readonly mesh: {
-        readonly position: Vec3;
-        /** The mesh's scale: a particle transition shrinks the node while its cloud is in flight. */
-        readonly scaling?: { readonly x: number; setAll(value: number): unknown };
-        computeWorldMatrix(force?: boolean): unknown;
-    };
+    readonly drawnPosition: Vec3;
+    /** A particle transition shrinks the node while its cloud is in flight. */
+    readonly drawnScale: number;
+    /** Draw it at `scale`, part of its `whole` size: a particle transition's shrink. */
+    drawShrunk(scale: number, whole: number): void;
+    drawnWorldMatrix(force?: boolean): unknown;
     readonly drawnRadius: number;
     readonly paintedColor: { r: number; g: number; b: number; a: number } | null;
     setMeshPosition(x: number, y: number, z: number): void;
@@ -53,15 +55,104 @@ export interface TransitionHost {
     quality(): RenderQuality;
     /** Every node the layout places. */
     nodes(): Iterable<TransitionSubject>;
+    /**
+     * The rows drawn with no `Node` (renderPath "batched"), which no `Node.update` places: the
+     * runner moves them by their rows. None under "objects".
+     */
+    rows?(): Iterable<RowSubject>;
     /** Every edge, for the hops from the selection. */
     edges(): Iterable<Pick<Edge, "srcNode" | "dstNode">>;
     /** The selected nodes. */
     selected(): readonly TransitionSubject[];
+    /** Whether the graph reduces motion, which draws a new layout in one frame. */
+    reducedMotion?(): boolean;
     /** Whether the layout is still running. */
     layoutRunning(): boolean;
 }
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "layout", "transition"]);
+
+/**
+ * A row drawn with no `Node`, moved through the row table: where it is drawn, its size and its
+ * paint are the table's and the painter's, and it is placed where the coordinate lane puts it.
+ */
+export class RowSubject implements TransitionSubject {
+    /**
+     * A row.
+     * @param table - The row table that draws it.
+     * @param index - Its row.
+     * @param paintedColor - The color it is painted, or null.
+     */
+    constructor(
+        private readonly table: RowTable,
+        readonly index: number,
+        readonly paintedColor: Rgba | null,
+    ) {}
+
+    /**
+     * Where the row is drawn now.
+     * @returns A new vector.
+     */
+    get drawnPosition(): Vec3 {
+        return this.table.centerOf(this.index);
+    }
+
+    /**
+     * The scale the row is drawn at.
+     * @returns The scale.
+     */
+    get drawnScale(): number {
+        return this.table.extentOf(this.index).scale;
+    }
+
+    /**
+     * The radius of the row's drawn shape.
+     * @returns The radius, in graph-root units.
+     */
+    get drawnRadius(): number {
+        const { round, half } = this.table.extentOf(this.index);
+        return round ?? Math.max(half.x, half.y, half.z);
+    }
+
+    /**
+     * Draw the row part of its size, as a particle transition's shrink.
+     * @param scale - The scale to draw it at.
+     * @param whole - Its scale when it is not shrunk.
+     */
+    drawShrunk(scale: number, whole: number): void {
+        this.table.shrink(this.index, whole === 0 ? 1 : scale / whole);
+    }
+
+    /**
+     * A row has no world matrix of its own: a pick reads the table.
+     * @returns Nothing.
+     */
+    drawnWorldMatrix(): undefined {
+        return undefined;
+    }
+
+    /**
+     * Draw the row at a point.
+     * @param x - Drawn x.
+     * @param y - Drawn y.
+     * @param z - Drawn z.
+     */
+    setMeshPosition(x: number, y: number, z: number): void {
+        this.table.place(this.index, x, y, z);
+    }
+
+    /**
+     * Where the layout puts the row now.
+     * @param out - Written with the place.
+     * @param out.x - X.
+     * @param out.y - Y.
+     * @param out.z - Z.
+     * @returns False when it puts it nowhere.
+     */
+    target(out: { x: number; y: number; z: number }): boolean {
+        return this.table.laneOf(this.index, out);
+    }
+}
 
 /** One moving node. */
 interface Mover {
@@ -89,6 +180,8 @@ export interface TransitionSnapshot {
     readonly params: Readonly<Record<string, unknown>>;
     readonly durationMs: number;
     readonly movers: Map<TransitionSubject, Mover>;
+    /** The movers that are rows with no `Node`, which {@link LayoutTransitionRunner.placeRows} places. */
+    readonly rows: readonly RowSubject[];
 }
 
 /** The runner of each scene, for picking. */
@@ -119,12 +212,21 @@ export function attachTransitions(layoutManager: object, runner: LayoutTransitio
 /**
  * Run a pick against the layout's answer rather than the moving picture.
  * @param scene - The scene picked in.
- * @param pick - The pick.
+ * @param pick - The pick, told whether a transition is moving the nodes.
  * @returns What the pick returned.
  */
-export function pickAtLayout<T>(scene: Scene, pick: () => T): T {
+export function pickAtLayout<T>(scene: Scene, pick: (moving: boolean) => T): T {
     const runner = runners.get(scene);
-    return runner === undefined ? pick() : runner.atLayout(pick);
+    return runner === undefined ? pick(false) : runner.atLayout(pick);
+}
+
+/**
+ * Whether a layout transition is under way in a scene, without moving anything to ask.
+ * @param scene - The scene.
+ * @returns True while one is.
+ */
+export function transitionUnderWay(scene: Scene): boolean {
+    return runners.get(scene)?.active === true;
 }
 
 /**
@@ -283,7 +385,7 @@ export class LayoutTransitionRunner {
      */
     snapshot(): TransitionSnapshot | null {
         const config = this.host.config();
-        if (config === undefined || this.host.quality().motion === "still") {
+        if (config === undefined || this.host.quality().motion === "still" || this.host.reducedMotion?.() === true) {
             return null;
         }
 
@@ -316,11 +418,12 @@ export class LayoutTransitionRunner {
             return null;
         }
 
-        const nodes = [...this.host.nodes()];
+        const rows = [...(this.host.rows?.() ?? [])];
+        const nodes = [...this.host.nodes(), ...rows];
         const from = nodes.map((node) => ({
-            x: node.mesh.position.x,
-            y: node.mesh.position.y,
-            z: node.mesh.position.z,
+            x: node.drawnPosition.x,
+            y: node.drawnPosition.y,
+            z: node.drawnPosition.z,
         }));
         const center = { x: 0, y: 0, z: 0 };
         for (const at of from) {
@@ -344,12 +447,12 @@ export class LayoutTransitionRunner {
                     hopFromSelection: hops?.get(node),
                     distanceFromCenter: distances[i] / farthest,
                 }),
-                scale: node.mesh.scaling?.x ?? 1,
+                scale: node.drawnScale,
                 travel: 0,
             });
         });
 
-        return { transition, params, durationMs: seconds * 1000, movers };
+        return { transition, params, durationMs: seconds * 1000, movers, rows };
     }
 
     /**
@@ -431,10 +534,25 @@ export class LayoutTransitionRunner {
         mover.drawn.z = drawn.z;
         mover.travel = t >= 1 ? 1 : travelOf(mover, t);
         if (state.transition.descriptor.drawable === "particles") {
-            node.mesh.scaling?.setAll(this.hold === undefined ? drawnScale(mover) : mover.scale);
+            node.drawShrunk(this.hold === undefined ? drawnScale(mover) : mover.scale, mover.scale);
         }
 
         return drawn;
+    }
+
+    /**
+     * Place the rows drawn with no `Node`, which no `Node.update` reaches: each where the move
+     * draws it this frame on its way to where the lane puts it. Run after the frame's node walk.
+     */
+    placeRows(): void {
+        const rows = this.state?.rows ?? [];
+        const at = { x: 0, y: 0, z: 0 };
+        for (const row of rows) {
+            if (row.target(at)) {
+                const drawn = this.place(row, at);
+                row.setMeshPosition(drawn.x, drawn.y, drawn.z);
+            }
+        }
     }
 
     /**
@@ -513,16 +631,19 @@ export class LayoutTransitionRunner {
     /**
      * Run something with every moving node at its place in the new layout, then put the picture back.
      *
+     * The move goes through the mesh funnel, so an open row table holds the same places and the
+     * row scan needs nothing of its own here.
+     *
      * ponytail: moves each moving node's mesh twice per pick (a pointer move picks once); a pick
      * against a position table instead of the meshes, if a graph of 100,000 moving nodes ever
      * hitches on hover.
-     * @param pick - What to run: a pick.
+     * @param pick - What to run: a pick, told whether anything is moving.
      * @returns What it returned.
      */
-    atLayout<T>(pick: () => T): T {
+    atLayout<T>(pick: (moving: boolean) => T): T {
         const { state } = this;
         if (state?.start === null || state === null) {
-            return pick();
+            return pick(false);
         }
 
         const moved: [TransitionSubject, Mover][] = [];
@@ -533,27 +654,27 @@ export class LayoutTransitionRunner {
                 node.setMeshPosition(to.x, to.y, to.z);
                 if (shrinks) {
                     // Picked at its whole size, not shrunk into its cloud.
-                    node.mesh.scaling?.setAll(mover.scale);
+                    node.drawShrunk(mover.scale, mover.scale);
                 }
 
                 // Forced: between two frames Babylon keeps the world matrix of the last frame
                 // drawn, so a pick would still see the node where it is drawn.
-                node.mesh.computeWorldMatrix(true);
+                node.drawnWorldMatrix(true);
                 moved.push([node, mover]);
             }
         }
 
         try {
-            return pick();
+            return pick(true);
         } finally {
             for (const [node, mover] of moved) {
                 const { drawn } = mover;
                 node.setMeshPosition(drawn.x, drawn.y, drawn.z);
                 if (shrinks) {
-                    node.mesh.scaling?.setAll(this.hold === undefined ? drawnScale(mover) : mover.scale);
+                    node.drawShrunk(this.hold === undefined ? drawnScale(mover) : mover.scale, mover.scale);
                 }
 
-                node.mesh.computeWorldMatrix(true);
+                node.drawnWorldMatrix(true);
             }
         }
     }
@@ -562,7 +683,15 @@ export class LayoutTransitionRunner {
     end(): void {
         if (this.state?.transition.descriptor.drawable === "particles") {
             for (const [node, mover] of this.state.movers) {
-                node.mesh.scaling?.setAll(mover.scale);
+                node.drawShrunk(mover.scale, mover.scale);
+            }
+        }
+
+        // A row with no Node is drawn where it was put until something puts it again: back to the lane.
+        const at = { x: 0, y: 0, z: 0 };
+        for (const row of this.state?.rows ?? []) {
+            if (row.target(at)) {
+                row.setMeshPosition(at.x, at.y, at.z);
             }
         }
 

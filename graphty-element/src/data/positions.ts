@@ -125,6 +125,8 @@ export class ElementPositions {
 
     private moves = 0;
     private changeCount = 0;
+    /** A publish a layout owes the rows: see {@link ElementPositions.owe}. */
+    private owed: (() => void) | null = null;
 
     /**
      * Allocate the backing array, every row unplaced and unpinned.
@@ -172,10 +174,79 @@ export class ElementPositions {
         return this.changeCount;
     }
 
-    /** Say that coordinates were written straight into the lent array. */
-    moved(): void {
-        this.moves++;
-        this.changeCount++;
+    /**
+     * Say that coordinates were written straight into the lent array.
+     * @param written - how many rows were written
+     * @param changed - how many of them now hold something else
+     */
+    moved(written = 1, changed = written): void {
+        this.moves += written;
+        this.changeCount += changed;
+    }
+
+    /**
+     * Owe the rows a publish instead of writing them now: a layout whose answer is already drawn
+     * from the card (design/rendering/row-renderer.md 4.5) writes no row per frame, and the rows are
+     * published the first time anything reads or writes them. `generation` and `changes` do not ask
+     * for it, so a frame that only checks whether the lane moved writes nothing. Owing moves
+     * `generation`, since the coordinates a reader would get have changed; `changes` moves when the
+     * publish is written.
+     * @param publish - Writes the rows; null to owe nothing.
+     * @internal
+     */
+    owe(publish: (() => void) | null): void {
+        this.owed = publish;
+        if (publish !== null) {
+            this.moves++;
+        }
+    }
+
+    /**
+     * Whether a row is pinned where it is placed: a row an owed publish leaves alone, so reading it
+     * needs no {@link ElementPositions.settle}.
+     * @param index - node index
+     * @returns True when the row is pinned and carries a storable x.
+     * @internal
+     */
+    keeps(index: number): boolean {
+        return this.isPinned(index) && this.hasStorableX(POSITION_COMPONENTS * index);
+    }
+
+    /**
+     * The rows as they stand, without writing an owed publish: only for a reader of rows that
+     * publish leaves alone (a layout's pinned rows).
+     * @returns The backing array; rows past `count` are not live.
+     * @internal
+     */
+    unsettledView(): Readonly<F32> {
+        return this.array;
+    }
+
+    /**
+     * Take back a publish owed by {@link ElementPositions.owe}, if it is still this one.
+     * @param publish - The publish.
+     * @internal
+     */
+    forgive(publish: () => void): void {
+        if (this.owed === publish) {
+            this.owed = null;
+        }
+    }
+
+    /**
+     * Write the publish owed, if any, before the rows are read or written.
+     * @returns True when one was written.
+     * @internal
+     */
+    settle(): boolean {
+        const publish = this.owed;
+        if (publish === null) {
+            return false;
+        }
+
+        this.owed = null;
+        publish();
+        return true;
     }
 
     /**
@@ -207,6 +278,7 @@ export class ElementPositions {
      * @returns how many rows in `[0, count)` carry a storable x
      */
     get placedCount(): number {
+        this.settle();
         let placed = 0;
 
         for (let base = 0; base < POSITION_COMPONENTS * this.rows; base += POSITION_COMPONENTS) {
@@ -232,6 +304,7 @@ export class ElementPositions {
      * @throws RangeError when `nodeCount` is not a non-negative integer, or exceeds the live count
      */
     view(nodeCount: number): F32 {
+        this.settle();
         requireRowCount(nodeCount, "nodeCount");
         if (nodeCount > this.rows) {
             throw new RangeError(
@@ -253,6 +326,7 @@ export class ElementPositions {
      * @throws RangeError when `nodeCount` is not a non-negative integer
      */
     grow(nodeCount: number): void {
+        this.settle();
         requireRowCount(nodeCount, "nodeCount");
         if (nodeCount > this.capacity) {
             const capacity = Math.max(this.capacity * 2, nodeCount);
@@ -301,6 +375,7 @@ export class ElementPositions {
      * @throws RangeError when `nodeCount` is not a non-negative integer
      */
     remap(nodeRemap: U32, nodeCount: number): void {
+        this.settle();
         requireRowCount(nodeCount, "nodeCount");
         this.array = remapArray(this.array, nodeRemap, nodeCount, Number.NaN, POSITION_COMPONENTS);
         // The pin lane moves WITH the coordinates, through the same map in the same call, because
@@ -344,6 +419,7 @@ export class ElementPositions {
      * @returns true when the lane was written, false when the index names no row
      */
     setPinned(index: number, pinned: boolean): boolean {
+        this.settle();
         if (index === INVALID_INDEX || !Number.isInteger(index) || index < 0) {
             return false;
         }
@@ -403,6 +479,7 @@ export class ElementPositions {
      * @returns true when the row is inside the live count AND carries a storable x
      */
     isPlaced(index: number): boolean {
+        this.settle();
         if (!Number.isInteger(index) || index < 0 || index >= this.rows) {
             return false;
         }
@@ -420,6 +497,7 @@ export class ElementPositions {
      * @throws RangeError when `index` is not an integer in `[0, count)`
      */
     read(index: number, out: { x: number; y: number; z: number }): void {
+        this.settle();
         const base = this.rowBase(index);
         // The fallbacks are unreachable past rowBase(), and NaN rather than 0 so that a future
         // change which makes them reachable reports "unplaced" instead of "at the origin".
@@ -447,6 +525,7 @@ export class ElementPositions {
      * @throws RangeError when any component is NaN, an infinity, or a double that overflows f32
      */
     write(index: number, x: number, y: number, z: number): void {
+        this.settle();
         const base = this.rowBase(index);
         if (!isStorableCoordinate(x) || !isStorableCoordinate(y) || !isStorableCoordinate(z)) {
             throw new RangeError(
@@ -488,6 +567,7 @@ export class ElementPositions {
      *     through `write()`
      */
     fillUnplaced(index: number, x: number, y: number, z: number): boolean {
+        this.settle();
         const base = this.rowBase(index);
         if (this.hasStorableX(base)) {
             return false;

@@ -60,7 +60,7 @@ import {
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
-import { isNumericText, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
+import { isNumericText, itemAt, jsonText, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
 import type { ImporterPositions } from "../../positions/types.js";
 import {
@@ -269,6 +269,8 @@ const FIRST_VERTEX_VALUES: ReadonlySet<unknown> = new Set([0, 1, "auto"]);
 /** A numeral that is not a finite number (`1e999`, `NaN`, `Infinity`): never a parameter key. */
 const NUMERAL = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i;
 const NON_FINITE_WORD = /^[+-]?(?:nan|inf|infinity)$/i;
+/** An infinite line value as the exporter writes it (the spellings the weight grammar reads). */
+const INFINITE_VALUE = /^[+-]?(?:INF|Infinity)$/;
 /** A line value Pajek writes for a missing value. */
 const NAN_WORD = /^[+-]?nan$/i;
 
@@ -1043,7 +1045,8 @@ class PajekParser {
         this.createNodes();
         if (this.idOfPos !== null) {
             for (let pos = 0; pos < n; pos++) {
-                if (this.idOfPos[pos] === undefined) {
+                // a position with no vertex line yet is a hole of the sparse array
+                if (itemAt(this.idOfPos, pos) === undefined) {
                     this.numberedNode(this.idOfPos, pos);
                 }
             }
@@ -1079,7 +1082,7 @@ class PajekParser {
         this.checkCoordinates(text, tokens, i, dims === 2 && label !== null, k, line);
         let shape: string | null = null;
         if (i < tokens.length && isShapeKeyword(tokens[i])) {
-            shape = tokens[i].toLowerCase();
+            shape = tokens[i];
             i++;
         }
         const extras = this.extras(tokens, i, "node", line);
@@ -1218,12 +1221,12 @@ class PajekParser {
         if (idOfPos !== null && !repeated && this.options.nodeIdFrom === "label") {
             return this.deferredNode(idOfPos, pos, k, label, line, "label");
         }
-        if (idOfPos !== null && idOfPos[pos] === undefined) {
+        if (idOfPos !== null && itemAt(idOfPos, pos) === undefined) {
             // restore mode: the earlier positions without a line yet get their numbers first, so the
             // index order is the vertex number order whatever the line order (the identity id map
             // of an ordered file); then this vertex with its original id, or its number
             for (let p = this.filledBelow; p < pos; p++) {
-                if (idOfPos[p] === undefined) {
+                if (itemAt(idOfPos, p) === undefined) {
                     this.numberedNode(idOfPos, p);
                 }
             }
@@ -1476,7 +1479,7 @@ class PajekParser {
         const v = this.endpoint(Number(tokens[1]));
         let i = 2;
         let valueText: string | null = null;
-        if (i < tokens.length && isNumericText(tokens[i])) {
+        if (i < tokens.length && (isNumericText(tokens[i]) || INFINITE_VALUE.test(tokens[i]))) {
             valueText = tokens[i];
             i++;
         } else if (i < tokens.length && NAN_WORD.test(tokens[i])) {
@@ -1775,7 +1778,7 @@ class PajekParser {
                 continue;
             }
             if (domain === "node" && isShapeKeyword(token)) {
-                extras.shape = token.toLowerCase();
+                extras.shape = token;
                 i++;
                 continue;
             }
@@ -1956,7 +1959,7 @@ function firstVertexOption(value: unknown): 0 | 1 | "auto" {
     }
     throw new GraphFormatError(
         "E_UNSUPPORTED",
-        `option firstVertex: ${JSON.stringify(value) ?? typeof value} is not 0, 1 or "auto"`,
+        `option firstVertex: ${jsonText(value) ?? typeof value} is not 0, 1 or "auto"`,
         {
             option: "firstVertex",
             found: value,
@@ -2016,8 +2019,8 @@ export const pajekImporter: GraphImporter<PajekImportOptions> = Object.freeze({
      * @returns 0.9 for a `*Vertices` start, 0.8 for `*Network`, 0 otherwise
      */
     sniff(head: Uint8Array): number {
-        const text = new TextDecoder("utf-8").decode(head);
-        const section = headSection(text.startsWith("\ufeff") ? text.slice(1) : text);
+        // the decoder removes a leading byte order mark
+        const section = headSection(new TextDecoder("utf-8").decode(head));
         if (section === null) {
             return 0;
         }

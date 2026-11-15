@@ -5,8 +5,8 @@
  * undone value in the open card; letters typed and Tab take the attribute they highlight; Enter on
  * a ticked value presses Done; a chip opens its card with focus drawn on its first field; Highest
  * hands focus to its number box, as Starts with does to its text box; a single layer's count names
- * its noun, a number committed with Enter says the new count, and typing says the count once, when
- * it pauses; Escape in a text card's box keeps the text and the picker open.
+ * its noun, a number committed with Enter says the new count, and typing says the count when it
+ * pauses, never one for text already typed past; Escape in a text card's box keeps the text and the picker open.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
@@ -17,13 +17,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { cardFields } from "../cards";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** The rule of the layer most tests open: names holding "Mlle" (3 of 77). */
 const POSTER: Selector = {
@@ -46,14 +49,11 @@ async function openLayer(
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -64,8 +64,7 @@ async function openLayer(
     }
     const layer = await session.styles.add({ name, target: "node", selector, set: { "node.color": "#d55e00" } });
     await session.styles.settled();
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
+    await selectWithTwin(session, name);
     return { session, store, id: layer.id };
 }
 
@@ -74,7 +73,7 @@ async function openLayer(
  * @returns The row button.
  */
 async function whichRow(): Promise<HTMLElement> {
-    return screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("button", { name: /^Which nodes, / });
 }
 
 /**
@@ -117,7 +116,9 @@ describe("keys in the condition cards, on the real element", () => {
     it("a card's Tab order is its remove button, its match, its values, then Add a condition and Done", async () => {
         await openLayer("Poster", POSTER);
         const region = await openCards();
-        const card = within(region).getByRole("group", { name: /^name/ });
+        // The count arrives after the card draws (the element counts asynchronously): wait for the
+        // card to say it, as a reader would, then read the header.
+        const card = await within(region).findByRole("group", { name: /^name, 3 nodes$/ });
         // The header names its count with its noun.
         assert.include(card.querySelector(".ws-card-head")?.textContent ?? "", "3 nodes");
         // Focus opened on the text box: two steps back is the remove button, drawn first.
@@ -135,6 +136,40 @@ describe("keys in the condition cards, on the real element", () => {
             );
         }
         assert.deepEqual(order, ["name: how to match", "name: text to match", "Match case", "Add a condition", "Done"]);
+    });
+
+    it("a change the count does not read, a color, leaves the card's count said while it counts again", async () => {
+        const { session, id } = await openLayer("Poster", POSTER);
+        const region = await openCards();
+        const card = await within(region).findByRole("group", { name: /^name, 3 nodes$/ });
+        const heard: string[] = [];
+        const watch = new MutationObserver(() => {
+            heard.push(
+                `${card.getAttribute("aria-label") ?? ""} | ${card.querySelector(".ws-card-head")?.textContent ?? ""}`,
+            );
+        });
+        watch.observe(card, { subtree: true, childList: true, characterData: true, attributes: true });
+        const { version } = session.history;
+        await session.styles.update(id, { set: { "node.color": "#0072b2" } });
+        await session.styles.settled();
+        assert.isAbove(session.history.version, version, "the color is a step");
+        // The card counts again after the step: once that count is in, the card says 3 nodes.
+        await session.scope.count({
+            define: {
+                kind: "rule",
+                where: { kind: "text", reads: "data.name", mode: "substring", text: "Mlle" },
+                reading: "clipped",
+            },
+        });
+        await waitFor(() => {
+            assert.strictEqual(card.getAttribute("aria-label"), "name, 3 nodes");
+        });
+        watch.disconnect();
+        assert.deepEqual(
+            heard.filter((each) => !each.includes("3 nodes")),
+            [],
+            "the count never blinked out",
+        );
     });
 
     it("opening a card leaves its list closed, so ArrowDown and Enter keep the rule", async () => {
@@ -158,8 +193,8 @@ describe("keys in the condition cards, on the real element", () => {
         const box = await screen.findByRole<HTMLInputElement>("combobox", { name: "name: text to match" });
         // A suggestion taken from the list (not typing, which the box's own undo would take back).
         await userEvent.keyboard("{ArrowDown}");
-        await screen.findByRole("listbox");
-        await userEvent.keyboard("{ArrowDown}{Enter}");
+        const list = await screen.findByRole("listbox");
+        await userEvent.click(within(list).getAllByRole("option", { name: /^Mlle ./ })[0]);
         await waitFor(() => {
             assert.match(textOf(session, id) ?? "", /^Mlle ./);
         });
@@ -241,7 +276,7 @@ describe("keys in the condition cards, on the real element", () => {
         });
     });
 
-    it("Starts with hands focus to the text box: the letters land there, and the count is spoken once", async () => {
+    it("Starts with hands focus to the text box: the letters land there, and the count said is the text's", async () => {
         const { session, store, id } = await openLayer("Names", { match: "everything" });
         const region = await openCards();
         const card = await addCard(region, "name");
@@ -251,20 +286,35 @@ describe("keys in the condition cards, on the real element", () => {
         await waitFor(() => {
             assert.strictEqual(document.activeElement, box, "focus is in the text box");
         });
-        const spoken: string[] = [];
+        // Each count said, with the text in the box when it was said. The count is said when typing
+        // pauses: a fast typist hears it once, and a machine slow enough to leave a pause between
+        // two letters hears it there too -- so the test asserts what each count says, not how many.
+        const spoken: { words: string; text: string }[] = [];
         const stop = store.subscribe(() => {
             const words = store.get().announcement ?? "";
-            if (/ of 77 nodes$/.test(words) && spoken.at(-1) !== words) {
-                spoken.push(words);
+            if (/ of 77 nodes$/.test(words) && spoken.at(-1)?.words !== words) {
+                spoken.push({ words, text: box.value });
             }
         });
         await userEvent.keyboard("Mlle");
         assert.strictEqual(box.value, "Mlle", "the letters are in the box");
         await waitFor(() => {
             assert.strictEqual(textOf(session, id), "Mlle");
-            assert.deepEqual(spoken, ["3 of 77 nodes"], "one count, once typing paused");
+            assert.strictEqual(spoken.at(-1)?.words, "3 of 77 nodes", "the settled count is the last said");
         });
         stop();
+        // No count said was for text already typed past: each is the count of the text it was said over.
+        const selector = session.styles.get(id)?.selector;
+        assert.isTrue(selector?.match === "rule" && selector.where.kind === "text");
+        if (selector?.match !== "rule" || selector.where.kind !== "text") {
+            return;
+        }
+        for (const { words, text } of spoken) {
+            const counted = await session.scope.count({
+                define: { kind: "rule", where: { ...selector.where, text }, reading: "clipped" },
+            });
+            assert.strictEqual(words, `${String(counted.nodes)} of 77 nodes`, `the count said over "${text}"`);
+        }
     });
 
     it("Escape in a text card's box keeps the text and the picker open", async () => {

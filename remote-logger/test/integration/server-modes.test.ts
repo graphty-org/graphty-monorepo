@@ -55,7 +55,7 @@ describe("Server modes", () => {
             });
 
             expect(response.ok).toBe(true);
-            const data = await response.json();
+            const data = (await response.json()) as { success: boolean };
             expect(data.success).toBe(true);
         });
 
@@ -72,7 +72,7 @@ describe("Server modes", () => {
 
             const response = await fetch(`http://localhost:${BASE_PORT + 1}/health`);
             expect(response.ok).toBe(true);
-            const data = await response.json();
+            const data = (await response.json()) as { status: string };
             expect(data.status).toBe("ok");
         });
 
@@ -89,7 +89,7 @@ describe("Server modes", () => {
 
             const response = await fetch(`http://localhost:${BASE_PORT + 2}/logs`);
             expect(response.status).toBe(404);
-            const data = await response.json();
+            const data = (await response.json()) as { error: string };
             expect(data.error).toContain("log receive only mode");
         });
 

@@ -11,6 +11,7 @@ import { parse as parseYaml } from "yaml";
 import {
     applyTrend,
     budgetFor,
+    closeVanished,
     COMMENT_MARKER,
     evaluate,
     fileProblems,
@@ -25,6 +26,7 @@ import {
     taskRows,
     trend,
     upsertComment,
+    VANISHED_RUNS,
 } from "./ci-budgets.mjs";
 
 const FILE = {
@@ -208,6 +210,65 @@ describe("report", () => {
         assert.deepEqual(calls.at(-1).slice(0, 2), ["PATCH", "/issues/81"]);
     });
 
+    it("closes an open alarm whose job or step stopped getting samples, and leaves live ones open", async () => {
+        const release = { path: ".github/workflows/release.yml" };
+        const open = [
+            { number: 3966, title: "CI budget: job:release.yml:CI / visual (graphty) (full) 12m58s -> 18m37s" },
+            {
+                number: 3967,
+                title: "CI budget: step:release.yml:CI / visual (graphty):Capture (full) 12m00s -> 17m17s",
+            },
+            { number: 3990, title: "CI budget: queue:release.yml:CI / visual (graphty) (full) 10s -> 2m00s" },
+            { number: 4001, title: "CI budget: job:release.yml:CI / Story tests (graphty-1) (full) 9m00s -> 14m00s" },
+            { number: 4002, title: "CI budget: job:ci.yml:Build (full) 4m00s -> 9m00s" },
+            { number: 4003, title: "CI budget: job:release.yml:CI / visual (graphty) (master) 1m00s -> 3m00s" },
+            { number: 4004, title: "CI budget: run:release.yml:full (full) 50m00s -> 80m00s" },
+        ];
+        const calls = [];
+        const gh = async (path, init) => {
+            calls.push([init?.method ?? "GET", path, init && JSON.parse(init.body)]);
+            return path.startsWith("/issues?") ? open : {};
+        };
+        const lastSeen = {
+            "job:release.yml:CI / visual (graphty)": {
+                runId: 4090,
+                sha: "7f3c2a9d1e00",
+                at: 0,
+                runsSince: VANISHED_RUNS,
+            },
+            // the Capture step has no sample in the 30-day window at all; the queue row is the job's (queue) step
+            "step:release.yml:CI / visual (graphty):(queue)": {
+                runId: 4090,
+                sha: "7f3c2a9d1e00",
+                at: 0,
+                runsSince: 14,
+            },
+            "job:release.yml:CI / Story tests (graphty-1)": {
+                runId: 4200,
+                sha: "aaa",
+                at: 0,
+                runsSince: VANISHED_RUNS - 1,
+            },
+        };
+        assert.deepEqual(await closeVanished(gh, release, "full", lastSeen), [
+            { action: "vanished", key: "job:release.yml:CI / visual (graphty)", kind: "full", number: 3966 },
+            { action: "vanished", key: "step:release.yml:CI / visual (graphty):Capture", kind: "full", number: 3967 },
+            { action: "vanished", key: "queue:release.yml:CI / visual (graphty)", kind: "full", number: 3990 },
+        ]);
+        const comment = calls.find(([m, p]) => m === "POST" && p === "/issues/3966/comments")[2].body;
+        assert.match(comment, /no longer runs/);
+        assert.match(comment, /run 4090 on 7f3c2a9d1e at 1970-01-01T00:00:00.000Z, and 10 full runs/);
+        assert.match(calls.find(([, p]) => p === "/issues/3967/comments")[2].body, /no sample in the results store/);
+        assert.deepEqual(
+            calls.filter(([m]) => m === "PATCH").map(([, p, b]) => [p, b.state]),
+            [
+                ["/issues/3966", "closed"],
+                ["/issues/3967", "closed"],
+                ["/issues/3990", "closed"],
+            ],
+        );
+    });
+
     it("maps the store's medians, keyed by stored identity, back to each row's key", () => {
         const rows = [
             ...rowsFromJobs(run, jobs, "pr"),
@@ -374,6 +435,27 @@ describe("trend", () => {
         history.push({ ...history[0], seconds: 9999, outcome: "cancelled", recorded_at: "2026-10-30" });
         const by = Object.fromEntries(trend(history, FILE).map((v) => [v.kind, v.alarm]));
         assert.deepEqual(by, { master: false, pr: true });
+    });
+
+    it("gives no verdict for a key no run of its workflow and kind sampled in the last VANISHED_RUNS runs", () => {
+        const old = rows(
+            [60, 60, 60, 60, 60, 200, 200, 200, 200, 200],
+            "job:release.yml:CI / visual (graphty)",
+            "full",
+        );
+        const later = (n) =>
+            Array.from({ length: n }, (_, i) => ({
+                key: "job:release.yml:CI / Story tests (graphty-1)",
+                run_kind: "full",
+                seconds: 60,
+                sha: `later${i}`,
+                recorded_at: `2026-10-${String(20 + i).padStart(2, "0")}`,
+                outcome: "success",
+            }));
+        const verdict = (history) =>
+            trend(history, FILE).find((v) => v.key === "job:release.yml:CI / visual (graphty)");
+        assert.equal(verdict([...old, ...later(VANISHED_RUNS - 1)]).alarm, true);
+        assert.equal(verdict([...old, ...later(VANISHED_RUNS)]), undefined);
     });
 
     it("files one issue per key, comments on it later, closes it when back under", async () => {

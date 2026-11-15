@@ -142,9 +142,14 @@ edges (a node is shown while any of its shown edges is), set by the app as an el
 - A source that a server feeds adds `500 of 40,000`, a "changed" dot when a check found changes,
   and two icon buttons on hover: Load more, Refresh. A reopened project's waiting load shows
   Approve (requirement 27).
-- Click a row: selects it; the Fields section below shows that source's special fields.
+- Click a row: selects it; the Fields section below shows that source's special fields, and the
+  right panel shows the source: Type (File, Web address, Server, Sample, Joined table), File or
+  Address, Format, Size, Retrieved, the Nodes and Edges it brought, Open issues and, for a joined
+  table, Joined onto, Reads as, Key, Through, Table rows, Lines not read, how many matched and
+  Columns added. A fact a source lacks draws no row, so a project saved before retrieval times were
+  kept shows no Retrieved. A credential is never shown or stored here.
 - Row context menu (right-click or the row's `...`): Edit join (joined only), Replace with file...,
-  Refresh, Load more, Edit query (server), Rename, Remove. Items whose precondition is missing are
+  Refresh, Load more, Edit... (network source), Rename, Remove. Items whose precondition is missing are
   absent, not disabled.
 - `+` on the section: a menu with File..., Samples..., Server..., Paste. Dropping a file anywhere
   is the same as File....
@@ -179,6 +184,8 @@ source`, a category card whose values are the source names with counts. Style la
   the same card, because they use the same picker.
 - The header filter chip `(o) 140 of 900` appears while anything is hidden; clicking it opens the
   Filters section. Its `x` clears all filters (one undo step).
+- Filters are reached from this section and from Quick actions. The canvas toolbar has no Filters
+  button.
 
 ### 3.5 The table dock
 
@@ -261,6 +268,9 @@ source, or by the header menu `Match on this`.
 - The element suggests the key pair and the shape (values for nodes, edges between nodes, or new
   nodes). The reader changes the key with the Match dropdowns or with `Match on this` on either
   side's header, which moves the key icon.
+- When rows match no node and the join is on one key with no mapping table, a menu chip beside
+  the counts offers Add as new nodes or Leave those rows out (the default), as an edge join's unknown
+  ends do. The new nodes are undone, edited and removed with the join.
 - Match chips update live from the element's join report: matched, not in graph, nodes with no
   value, repeated keys (warning, hover fixes: Keep first, Keep both, Ignore), extra matches if
   case or spaces are ignored with `[Use]`.
@@ -308,7 +318,10 @@ the prior design (`structure-b-refined.md` section 12.1):
 
 ### 3.9 Server sources
 
-`+` > Server... opens a pop-over form in the left sidebar (not a modal), Figma-style rows:
+`+` > Server... opens a pop-over form in the left sidebar (not a modal), Figma-style rows. The start
+page's Open network data pops up a chooser of the kinds of network; picking one opens the app on an
+empty project with this form popped up on that kind. Closing it stays in the app, on the empty
+project (only closing the chooser itself stays on the start page). The form never lists an example or a sample:
 
 ```
 Kind      [Neo4j / Cypher v]     (Cypher, SPARQL, NDEx, OpenAlex, REST mapping)
@@ -339,6 +352,16 @@ Expand    [x] on double-click   (pop-over: depth 1, direction both, edge types a
   (row menu) sets the changed dot without loading, for sources whose check is cheap.
 - What a source cannot do is absent: no Load more for NDEx and STRING; no Expand for a REST
   mapping without `expand`.
+- **From the start page:** the form runs inside the empty project the chooser opened. A refused
+  Load keeps the form and its error, and closing the form during a Load stops it and stays in the app.
+- **Editing a network source:** a network source's details in the right panel show what it connects
+  to and fetches, and Edit source (also Edit... on its row) opens this form filled in with its
+  settings. Load replaces that source in place, with the same key and name; passwords are empty, and
+  left empty the login held for the session is used. A file or sample file source has none of this.
+- **Network samples** are not in the form. The start page's "Load network data" section, immediately
+  before "Generate a graph", has one tile for each kind of network (NDEx, Neo4j, SPARQL endpoint,
+  Web API), with a thumbnail of its graph. A tile reads its graph first, shows as busy while it
+  does, and then lands on the graph with the Style panel open.
 
 ### 3.10 Timeline
 
@@ -359,7 +382,7 @@ Expand    [x] on double-click   (pop-over: depth 1, direction both, edge types a
 | Feature        | Immediate                                 | One click                               | Menu                                                                         |
 | -------------- | ----------------------------------------- | --------------------------------------- | ---------------------------------------------------------------------------- |
 | Load a file    | Drop anywhere; Sources `+`                | File picker, Samples                    | Paste, Server                                                                |
-| Sources        | Source rows with chips                    | Select row: its fields                  | Row menu: Replace, Refresh, Remove, Rename, Edit join, Edit query            |
+| Sources        | Source rows with chips                    | Select row: fields and right panel      | Row menu: Replace, Refresh, Remove, Rename, Edit join, Edit...               |
 | Special fields | Fields rows with chosen column            | Each dropdown                           | Weight meaning, kind ids rule                                                |
 | Warnings       | Header warning icons; source row icon     | Hover: details and fixes                | Maximized Issues list; Ignored toggle                                        |
 | Table          | Table button                              | Maximize; sort; summary hover           | Header menu: Type, Role, Rename, Hide, Hide others, Unhide                   |
@@ -425,6 +448,11 @@ Live server sources (no fixture file; listed under Samples > Live):
 
 The existing `graphty/public/samples/*.gml` and the graph-samples datasets stay in the Samples
 list.
+
+The Samples dialog's Join group lists the files for each way of joining, in the order to load them
+(`JOIN_WALKS` in `graphty/src/workspace/start/samples.ts`). The first file starts the project and
+each later file opens the join screen. Status, and the files for each kind:
+`research/joins.md`, "Status of each kind in the app".
 
 ## 7. Work packages
 

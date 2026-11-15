@@ -22,7 +22,7 @@ import { createGraphSession, defineSource, type GraphSession, registerSource } f
 import { type Door, DOOR_ROOTS, type DoorCall, LOAD_ORDER } from "../../src/session/commands/doors";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { loadLineOf } from "../../src/session/loadLine";
-import { callOf } from "./history/door-harness";
+import { callOf, pinLoadedAt } from "./history/door-harness";
 
 /** The ops that write the graph's rows. */
 const GRAPH_OPS = new Set([
@@ -39,6 +39,45 @@ const CHECKED_ELSEWHERE: Readonly<Record<string, string>> = {
     "SessionDataApi.expand": "test/session/load-order-doors.test.ts (a load that adds to the graph)",
     "SessionDataApi.collapse": "test/session/sources/expand.test.ts; needs a node a source expanded",
 };
+
+/**
+ * The renderer rows `test/browser/renderer-load-entry.test.ts` calls with a load held in line,
+ * or a test it names checks; kept in step with that file's own list.
+ */
+const RENDERER_CHECKED = new Set([
+    ...[
+        "addNode",
+        "addNodes",
+        "addEdge",
+        "addEdges",
+        "removeNodes",
+        "removeEdges",
+        "updateNodes",
+        "updateEdges",
+    ].flatMap((member) => [`Graph.${member}`, `Graphty.${member}`]),
+    ...["batchOperations", "setData", "addDataFromSource", "loadFromFile", "loadFromUrl", "clearData"].flatMap(
+        (member) => [`Graph.${member}`, `Graphty.${member}`],
+    ),
+    "Graph.setNodes",
+    "Graph.setEdges",
+    "Graphty.loadFromSource",
+    "Graphty.dataSource",
+    "Graphty.dataSourceConfig",
+    "Graphty.nodeData",
+    "Graphty.edgeData",
+    ...[
+        "addNode",
+        "addNodes",
+        "addEdge",
+        "addEdges",
+        "removeEdge",
+        "removeNodeAndIncidentEdges",
+        "setNodes",
+        "setEdges",
+        "clear",
+        "addDataFromSource",
+    ].map((member) => `DataManager.${member}`),
+]);
 
 /** The document the `LoadDraft` row of `doors.ts` prepares. */
 const TINY_JSON = JSON.stringify({ nodes: [{ id: "j1" }, { id: "j2" }], edges: [{ src: "j1", dst: "j2" }] });
@@ -220,13 +259,16 @@ describe("the load entry's ratchet", () => {
         assert.deepEqual(stray, []);
     });
 
-    it("routes every session door through the entry, and names the issue of every renderer door that is not", () => {
-        const session = new Set(rowsOf("session").map(([label]) => label));
-        const wrong = Object.entries(LOAD_ORDER)
-            .filter(([label, order]) => typeof order !== "string" && (session.has(label) || !(order.direct > 0)))
-            .map(([label]) => label);
+    it("checks every renderer door in the browser", () => {
+        const renderer = rowsOf("renderer")
+            .map(([label]) => label)
+            .filter((label) => label in LOAD_ORDER);
 
-        assert.deepEqual(wrong, []);
+        assert.deepEqual(
+            renderer.filter((label) => !RENDERER_CHECKED.has(label)),
+            [],
+            "renderer doors in LOAD_ORDER that test/browser/renderer-load-entry.test.ts does not call",
+        );
     });
 
     it("calls every ordered door here, or names the test that checks it", () => {
@@ -249,6 +291,15 @@ const REACH: Readonly<Record<string, (session: GraphSession) => object | Promise
     SessionDataApi: (session) => session.data,
     LoadDraft: (session) => session.data.prepare({ type: "json", config: { data: TINY_JSON } }),
     ProjectApi: (session) => session.project,
+    // As the doors test gives it: g1 and g2 of team "door" and g3, with g1-g2 and g2-g3.
+    GroupsApi: async (session) => {
+        await session.data.addNodes([{ id: "g1", team: "door" }, { id: "g2", team: "door" }, { id: "g3" }]);
+        await session.data.addEdges([
+            { source: "g1", target: "g2" },
+            { source: "g2", target: "g3" },
+        ]);
+        return session.groups;
+    },
 };
 
 describe("every ordered door, called while a load is held in line", () => {
@@ -300,7 +351,11 @@ describe("every ordered door, called while a load is held in line", () => {
                 reading.leave();
                 await result;
                 if (door.kind === "dispatches") {
-                    assert.deepEqual(seen, door.expect, `${label} dispatched something other than its row expects`);
+                    assert.deepEqual(
+                        pinLoadedAt(seen),
+                        door.expect,
+                        `${label} dispatched something other than its row expects`,
+                    );
                 } else {
                     assert.isNotEmpty(seen, `${label} dispatched nothing once the load ahead of it left`);
                 }
@@ -317,20 +372,6 @@ describe("a clear cancels a session load that is still reading (issue #3524)", (
         readonly start: (session: GraphSession) => Promise<{ load: Promise<unknown>; read: Held }>;
     }[] = [
         { name: "import from a network source", start: (session) => heldLoad(session, 4) },
-        {
-            name: "loadSample",
-            start: async (session) => {
-                const read = hold("sample");
-                const fetch = async (): Promise<Response> => {
-                    await heldRead("sample");
-                    return new Response(KARATE, { headers: { "content-type": "application/gzip" } });
-                };
-                const load = session.data.loadSample("graph-samples-karate", { fetch });
-                load.catch(() => undefined);
-                await read.started;
-                return { load, read };
-            },
-        },
         {
             name: "loadDataset",
             start: async (session) => {
@@ -445,6 +486,8 @@ describe("session.data edits land after a load queued before them (issue #3526)"
         readonly name: string;
         readonly edit: (session: GraphSession) => Promise<unknown>;
         readonly check: (session: GraphSession) => void;
+        /** The edit cancels the load still reading, which then rejects with `E_SUPERSEDED`. */
+        readonly supersedes?: true;
     }[] = [
         {
             name: "addNodes",
@@ -477,6 +520,7 @@ describe("session.data edits land after a load queued before them (issue #3526)"
         {
             name: "clear",
             edit: (session) => session.data.clear(),
+            supersedes: true,
             check: (session) => {
                 assert.strictEqual(session.data.snapshot().nodeCount, 0, "the clear landed under the load");
             },
@@ -489,7 +533,10 @@ describe("session.data edits land after a load queued before them (issue #3526)"
             const older = await heldLoad(session, 5);
             const edited = each.edit(session);
             older.read.open();
-            await Promise.all([older.load.catch(() => undefined), edited]);
+            await Promise.all([
+                each.supersedes === true ? assertSuperseded(older.load, "the load under the clear") : older.load,
+                edited,
+            ]);
             each.check(session);
         });
     }
@@ -513,6 +560,27 @@ describe("session.data edits land after a load queued before them (issue #3526)"
             await edited.catch(() => undefined);
             assert.deepEqual(ops, ["data.import-source", "data.apply"], `${verb} dispatched under the load`);
         }
+    });
+});
+
+describe("a write beside a running load is not counted as the load's rows (issue #5416)", () => {
+    it("an add-nodes member of a batch beside an import leaves the import's tally alone", async () => {
+        const session = fresh();
+        await dispatcherOf(session).dispatchNow({
+            op: "batch",
+            fact: { code: "data.import", params: { name: null, type: "csv" } },
+            steps: [
+                {
+                    op: "data.import",
+                    source: { type: "csv", config: { data: "source,target\nA,B\n" }, name: "f.csv" },
+                    mode: "merge",
+                },
+                { op: "data.apply", mutation: { kind: "add-nodes", records: [{ id: "X" }, { id: "Y" }] } },
+            ],
+        });
+
+        assert.deepEqual(session.data.sources()[0].added, { nodes: 2, edges: 1 });
+        assert.strictEqual(session.data.snapshot().nodeCount, 4, "the write's own nodes were not added");
     });
 });
 

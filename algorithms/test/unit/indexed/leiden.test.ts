@@ -6,6 +6,7 @@ import { leiden } from "../../../src/indexed/leiden.js";
 import { modularity } from "../../../src/indexed/modularity.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
+import type { LeidenResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { gnm, undirectedFixtures } from "./port-fixtures.js";
 

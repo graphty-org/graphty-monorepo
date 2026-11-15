@@ -1,13 +1,13 @@
 /**
  * Semantic audit of the DOT importer against the corpus files themselves (facts derived here by
  * hand-walked line parsing of the raw text) and against the quirks graphty-element's
- * DOTDataSource, the Graphviz grammar and research note 07 section 2.4 describe. Tests named
- * "DEFECT:" pin a defect and fail until the importer is fixed.
+ * DOTDataSource, the Graphviz grammar and research note 07 section 2.4 describe.
  */
 
 import { type GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
+import { itemAt } from "../../src/common/text.js";
 import { importGraph, type ImportGraphOptions, type ImportGraphResult } from "../../src/registry.js";
 import { readCorpusBytes, readCorpusText } from "../helpers/corpus.js";
 
@@ -59,7 +59,7 @@ describe("DOT corpus facts: root.gv (1054 node statements, 1083 edge statements)
     ].map((m) => ({
         source: unquote(m[1]),
         target: unquote(m[2]),
-        attrs: attrsOf(m[3] ?? ""),
+        attrs: attrsOf(itemAt(m, 3) ?? ""),
     }));
 
     it("the raw file: a digraph named G_component_0 with 1054 distinct nodes and 1083 edges, no undeclared endpoint", () => {
@@ -436,11 +436,10 @@ describe("DOT quirks from DOTDataSource, the Graphviz grammar and research note 
         expect(continuation.snapshot.nodes.value("label", 0)).toBe("long line");
     });
 
-    it('DEFECT: a quoted string ending in an escaped backslash ("x\\\\") is valid DOT and must not be unterminated', async () => {
+    it('a quoted string ending in an escaped backslash ("x\\\\") is valid DOT, not unterminated', async () => {
         // Graphviz's scanner (scan.l) consumes backslash pairs: <qstring>[\\][\\] addstr("\\\\"), so
-        // "x\\" is the two-character string x\\ followed by the closing quote. The importer only pairs
-        // \" and treats the second backslash as escaping the closing quote, then reports the string as
-        // unterminated. `echo 'digraph { a [label="x\\"]; a -> b }' | dot -Tdot` accepts the file.
+        // "x\\" is the two-character string x\\ followed by the closing quote, not an escaped quote.
+        // `echo 'digraph { a [label="x\\"]; a -> b }' | dot -Tdot` accepts the file.
         const { snapshot, report } = await parse('digraph { a [label="x\\\\"]; a -> b }');
         expect(report.errorCount).toBe(0);
         expect(snapshot.nodes.value("label", 0)).toBe("x\\\\");
@@ -573,7 +572,7 @@ describe("DOT quirks from DOTDataSource, the Graphviz grammar and research note 
         await expect(parse('digraph { a [label="open]; a -> b }')).rejects.toMatchObject({ code: "E_IMPORT" });
     });
 
-    it("DEFECT: a badly delimited numeral such as 1e3 is split into two tokens silently; Graphviz warns", async () => {
+    it("a badly delimited numeral such as 1e3 is split into two tokens with a warning, as Graphviz does", async () => {
         // dot: "Warning: syntax ambiguity - badly delimited number '1e' in line 1 ... splits into two tokens".
         const { snapshot, report } = await parse("digraph { 1e3 -> x }");
         expect(snapshot.ids.toArray()).toEqual([1, "e3", "x"]);

@@ -1,19 +1,19 @@
-// Installs scene.pickWithRay; see test/packaging/babylon-side-effects.test.ts.
-import "@babylonjs/core/Culling/ray";
+import type { WebXRInputSource } from "@babylonjs/core";
+import { Ray } from "@babylonjs/core/Culling/ray.js";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
+import type { Scene } from "@babylonjs/core/scene.js";
+import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 
-import {
-    Quaternion,
-    Ray,
-    type Scene,
-    Vector3,
-    type WebXRDefaultExperience,
-    type WebXRInputSource,
-} from "@babylonjs/core";
-
+import type { NodeId } from "../catalog/types";
+import type { XRControllerButton } from "../config/XRConfig";
 import { GraphtyLogger, type Logger } from "../logging";
-import { alongRay, type NodeDragHandler } from "../NodeBehavior";
-import { isPinching, pinchStrength, thumbstickDeltas, twoHandGestureDelta } from "./InputUtils";
+import type { NodeDragHandler } from "../NodeBehavior";
+import { pickRayAsDrawn } from "../render/PickService";
+import { isPinching, pinchStrength, thumbstickDeltas } from "./InputUtils";
 import type { PivotController } from "./PivotController";
+import { twoHandGestureDelta } from "./twoHandGesture";
 
 const logger: Logger = GraphtyLogger.getLogger(["graphty", "camera", "xr", "input"]);
 
@@ -37,6 +37,50 @@ interface ControllerEntry {
     controller: WebXRInputSource;
     handedness: string;
 }
+
+/** The part of a Babylon motion controller the trigger is read from. */
+interface MotionControllerLike {
+    getComponent: (id: string) => { pressed?: boolean; value?: number } | null;
+}
+
+/** The part of a Babylon tracked hand the pinch is read from. */
+interface TrackedHandLike {
+    getJointMesh: (joint: string) => { position: Vector3; rotationQuaternion?: Quaternion } | null;
+}
+
+/**
+ * What the assistant binds to an immersive session's input (`src/ai/voice/xr.ts`): which face
+ * buttons talk, approve and deny, whether the wrist microphone orb talks, and what each does.
+ */
+export interface XRAssistantInput {
+    readonly talkButtons: readonly XRControllerButton[];
+    readonly approveButtons: readonly XRControllerButton[];
+    readonly denyButtons: readonly XRControllerButton[];
+    readonly wristOrb: boolean;
+    /** Talk was pressed (true) or released. */
+    talk(down: boolean): void;
+    /** An approve button was pressed. */
+    approve(): void;
+    /** A deny button was pressed. */
+    deny(): void;
+    /** While talk is held, a controller's or a hand's ray entered a node. */
+    pointed(id: NodeId): void;
+}
+
+/** Where a Quest Touch face button sits in its controller's xr-standard gamepad. */
+const FACE_BUTTONS: Record<XRControllerButton, { hand: "left" | "right"; index: number }> = {
+    a: { hand: "right", index: 4 },
+    b: { hand: "right", index: 5 },
+    x: { hand: "left", index: 4 },
+    y: { hand: "left", index: 5 },
+};
+
+/** The orb's name, so a page or a test can find it. */
+export const XR_ASSISTANT_ORB = "graphty-xr-ai-orb";
+/** How far above the left wrist the orb floats, in metres. */
+const ORB_LIFT = 0.06;
+/** How close a pinch must start to the orb to take it, in metres. */
+const ORB_REACH = 0.06;
 
 /**
  * XRInputHandler processes XR controller and hand tracking input.
@@ -75,8 +119,11 @@ export class XRInputHandler {
     private previousDistance: number | null = null;
     private previousDirection: Vector3 | null = null;
 
-    // Track previous pinch state for hysteresis
-    private wasPinching: Record<string, boolean> = { left: false, right: false };
+    // Previous pinch state, kept per input: a controller and a tracked hand on the same side are
+    // read every frame, so one shared flag would read the hand's pinch as the trigger's release
+    // and reset the gesture each frame (#5649).
+    private wasTriggerPinching: Record<string, boolean> = { left: false, right: false };
+    private wasHandPinching: Record<string, boolean> = { left: false, right: false };
 
     // Hand tracking feature reference
     private handTrackingFeature: unknown = null;
@@ -87,26 +134,20 @@ export class XRInputHandler {
     private lastControllerRemovedTime = 0;
     private readonly INPUT_SWITCH_DELAY_MS = 100;
 
+    // What enable() attached (observers, timers): disable() runs and empties it, so nothing
+    // set up while enabled outlives it (#7239).
+    private teardown: (() => void)[] = [];
+
     // Node drag state - for XR node interaction
     private isDraggingNode = false;
     private draggedNodeHandler: NodeDragHandler | null = null;
     private dragHand: "left" | "right" | null = null;
     private lastDragHandPosition: Vector3 | null = null; // Previous frame position for delta calculation
 
-    // Velocity-based gain (PRISM technique from VR research)
-    // Raw hand deltas are tiny (~0.3mm/frame at 72fps), need significant amplification
-    // User feedback: 5× was too slow - "full arm only moves 3 units"
-    // Target: full arm movement (0.6m) should move node ~15-20 units
-    private readonly VELOCITY_SLOW_THRESHOLD = 0.005; // meters/second - below this = precision mode
-    private readonly VELOCITY_FAST_THRESHOLD = 0.03; // meters/second - above this = speed mode
-    private readonly AMP_SLOW = 5; // Precision zone: usable but controlled
-    private readonly _AMP_MEDIUM = 10; // Natural zone: comfortable movement (kept for reference)
-    private readonly AMP_FAST = 20; // Speed zone: fast repositioning
-    private lastDragTime = 0; // For velocity calculation
-
-    // Smoothing to reduce jitter from hand tracking noise
-    private readonly SMOOTHING_FACTOR = 0.7; // 0 = no smoothing, 1 = max smoothing
-    private smoothedDelta: Vector3 | null = null;
+    // Where the dragging hand has carried the node's drag pointer, in scene space. The node's drag
+    // handler follows it, amplifying depth by `xr.input.zAxisAmplification` and absorbing a jump
+    // that is a controller losing and reacquiring tracking, as it does for every XR drag.
+    private dragPointer: Vector3 | null = null;
 
     // Drag threshold - must move this far from pick point before node actually moves
     // Set high enough that natural hand tremor during a "click" doesn't trigger drag
@@ -114,6 +155,15 @@ export class XRInputHandler {
     private readonly DRAG_THRESHOLD = 0.08; // 8cm - requires intentional movement to drag
     private dragStartHandPosition: Vector3 | null = null; // Position when drag started
     private dragThresholdExceeded = false; // True once user moves far enough to start actual drag
+
+    // The assistant: its bindings, the face buttons down last frame, whether talk is held, the
+    // hand whose pinch took the wrist orb, the orb, and the node each ray last entered.
+    private assistant: XRAssistantInput | null = null;
+    private facePressed = new Set<XRControllerButton>();
+    private talkHeld = false;
+    private orbClaimed = false;
+    private orb: Mesh | null = null;
+    private readonly pointedBy = new Map<string, NodeId>();
 
     // Debug
     private frameCount = 0;
@@ -147,7 +197,8 @@ export class XRInputHandler {
         this.enableHandTracking();
 
         // Subscribe to controller events
-        this.xr.input.onControllerAddedObservable.add((controller) => {
+        const { onControllerAddedObservable, onControllerRemovedObservable } = this.xr.input;
+        const added = onControllerAddedObservable.add((controller) => {
             const now = performance.now();
             const timeSinceRemoval = now - this.lastControllerRemovedTime;
 
@@ -155,19 +206,26 @@ export class XRInputHandler {
                 // Delay setup to prevent race conditions during controller switching
                 const remainingDelay = this.INPUT_SWITCH_DELAY_MS - timeSinceRemoval;
 
-                setTimeout(() => {
+                const timer = setTimeout(() => {
                     this.setupController(controller);
                     this.addGestureController(controller);
                 }, remainingDelay);
+                this.teardown.push(() => {
+                    clearTimeout(timer);
+                });
             } else {
                 this.setupController(controller);
                 this.addGestureController(controller);
             }
         });
 
-        this.xr.input.onControllerRemovedObservable.add((controller) => {
+        const removed = onControllerRemovedObservable.add((controller) => {
             this.cleanupController(controller);
             this.removeGestureController(controller);
+        });
+        this.teardown.push(() => {
+            onControllerAddedObservable.remove(added);
+            onControllerRemovedObservable.remove(removed);
         });
 
         // Process existing controllers
@@ -228,6 +286,12 @@ export class XRInputHandler {
 
         this.enabled = false;
 
+        for (const undo of this.teardown) {
+            undo();
+        }
+
+        this.teardown = [];
+
         // Cleanup all controllers
         this.setupControllers.forEach((_value, uniqueId) => {
             const cleanup = this.controllerCleanup.get(uniqueId);
@@ -243,9 +307,26 @@ export class XRInputHandler {
         this.rightStick = { x: 0, y: 0 };
         this.leftHand = null;
         this.rightHand = null;
-        this.wasPinching = { left: false, right: false };
+        this.wasTriggerPinching = { left: false, right: false };
+        this.wasHandPinching = { left: false, right: false };
         this.handTrackingFeature = null;
         this.resetGestureState();
+        this.setAssistant(null);
+    }
+
+    /**
+     * Bind the assistant to this session's input, or unbind it (null). Unbinding sends no release:
+     * the assistant cancels a held talk itself when it leaves the session.
+     * @param input - The bindings, or null.
+     */
+    setAssistant(input: XRAssistantInput | null): void {
+        this.assistant = input;
+        this.facePressed.clear();
+        this.talkHeld = false;
+        this.orbClaimed = false;
+        this.pointedBy.clear();
+        this.orb?.dispose();
+        this.orb = null;
     }
 
     private setupController(controller: WebXRInputSource): void {
@@ -267,7 +348,7 @@ export class XRInputHandler {
         }
 
         const setupThumbstick = (motionController: unknown): void => {
-            if (this.setupControllers.has(uniqueId)) {
+            if (!this.enabled || this.setupControllers.has(uniqueId)) {
                 return;
             }
 
@@ -382,13 +463,16 @@ export class XRInputHandler {
 
         const mc = controller as unknown as {
             motionController?: unknown;
-            onMotionControllerInitObservable: { add: (callback: (mc: unknown) => void) => void };
+            onMotionControllerInitObservable: {
+                add: (callback: (mc: unknown) => void) => unknown;
+                remove: (observer: unknown) => void;
+            };
         };
 
         if (mc.motionController) {
             setupThumbstick(mc.motionController);
         } else {
-            mc.onMotionControllerInitObservable.add((motionController) => {
+            const initObserver = mc.onMotionControllerInitObservable.add((motionController) => {
                 setupThumbstick(motionController);
             });
 
@@ -406,6 +490,10 @@ export class XRInputHandler {
                     clearInterval(poll);
                 }
             }, 100);
+            this.teardown.push(() => {
+                mc.onMotionControllerInitObservable.remove(initObserver);
+                clearInterval(poll);
+            });
         }
     }
 
@@ -448,6 +536,12 @@ export class XRInputHandler {
 
         // Update hand states before processing interactions
         this.updateHandStates();
+        this.processAssistant();
+
+        // While talk is held the hands point; the trigger and pinches start no drag or gesture.
+        if (this.talkHeld) {
+            return;
+        }
 
         // Process node interaction first (single-hand picking/dragging)
         // This must happen before gesture processing
@@ -457,6 +551,152 @@ export class XRInputHandler {
         // Two-hand gestures are for view manipulation, not while dragging nodes
         if (!this.isDraggingNode) {
             this.processHandGesturesInternal();
+        }
+    }
+
+    /**
+     * The assistant's input: face buttons talk, approve and deny; a pinch that starts at the wrist
+     * orb talks until it ends; while talking, each ray reports the node it enters.
+     */
+    private processAssistant(): void {
+        const { assistant } = this;
+        if (assistant === null) {
+            return;
+        }
+
+        const pressed = this.readFaceButtons();
+        const rising = (buttons: readonly XRControllerButton[]): boolean =>
+            buttons.some((button) => pressed.has(button) && !this.facePressed.has(button));
+        if (rising(assistant.approveButtons)) {
+            assistant.approve();
+        }
+
+        if (rising(assistant.denyButtons)) {
+            assistant.deny();
+        }
+
+        this.facePressed = pressed;
+
+        const orb = assistant.wristOrb ? this.placeOrb() : null;
+        if (!this.wasTriggerPinching.right && !this.wasHandPinching.right) {
+            this.orbClaimed = false;
+        } else if (!this.orbClaimed && orb !== null && !(this.isDraggingNode && this.dragHand === "right")) {
+            // A pinch that has not taken a node takes the orb once it closes on it: the joints can
+            // reach the pinched pose a frame after the pinch starts.
+            // ponytail: the orb is on the left wrist and taken by the right hand; mirror it for
+            // left-handed readers when someone asks.
+            const tip = this.pinchPoint("right");
+            this.orbClaimed = tip !== null && Vector3.Distance(tip, orb.getAbsolutePosition()) < ORB_REACH;
+        }
+
+        if (this.orbClaimed) {
+            // The orb's pinch is the orb's: it starts no drag and no two-hand gesture.
+            this.rightHand = null;
+        }
+
+        const talking = this.orbClaimed || assistant.talkButtons.some((button) => pressed.has(button));
+        if (talking !== this.talkHeld) {
+            this.talkHeld = talking;
+            this.pointedBy.clear();
+            assistant.talk(talking);
+        }
+
+        if (talking) {
+            this.reportPointed(assistant);
+        }
+    }
+
+    /**
+     * The face buttons down now, on the controllers (not hands) connected.
+     * @returns The buttons.
+     */
+    private readFaceButtons(): Set<XRControllerButton> {
+        const pressed = new Set<XRControllerButton>();
+        for (const controller of this.xr.input.controllers) {
+            const { gamepad, handedness, hand } = controller.inputSource;
+            if (gamepad === undefined || hand) {
+                continue;
+            }
+
+            for (const [button, place] of Object.entries(FACE_BUTTONS) as [
+                XRControllerButton,
+                (typeof FACE_BUTTONS)[XRControllerButton],
+            ][]) {
+                if (place.hand === handedness && gamepad.buttons[place.index]?.pressed) {
+                    pressed.add(button);
+                }
+            }
+        }
+
+        return pressed;
+    }
+
+    /**
+     * A tracked hand's joint, in world space.
+     * @param handedness - Which hand.
+     * @param joint - The joint's WebXR name.
+     * @returns Its position, or null when the hand or joint is not tracked.
+     */
+    private joint(handedness: "left" | "right", joint: string): Vector3 | null {
+        const feature = this.handTrackingFeature as {
+            getHandByHandedness?: (h: string) => {
+                getJointMesh: (name: string) => { position: Vector3; getAbsolutePosition?: () => Vector3 } | null;
+            } | null;
+        } | null;
+        const mesh = feature?.getHandByHandedness?.(handedness)?.getJointMesh(joint) ?? null;
+        const position = mesh === null ? null : (mesh.getAbsolutePosition?.() ?? mesh.position);
+        return position !== null && Number.isFinite(position.x) ? position : null;
+    }
+
+    /**
+     * Where a hand pinches: between its thumb and index tips.
+     * @param handedness - Which hand.
+     * @returns The point, or null without hand tracking.
+     */
+    private pinchPoint(handedness: "left" | "right"): Vector3 | null {
+        const thumb = this.joint(handedness, "thumb-tip");
+        const index = this.joint(handedness, "index-finger-tip");
+        return thumb === null || index === null ? null : Vector3.Center(thumb, index);
+    }
+
+    /**
+     * Put the microphone orb above the left wrist, made on first use.
+     * @returns The orb, or null while the left hand is not tracked.
+     */
+    private placeOrb(): Mesh | null {
+        const wrist = this.joint("left", "wrist");
+        if (wrist === null) {
+            this.orb?.setEnabled(false);
+            return null;
+        }
+
+        if (this.orb === null) {
+            this.orb = MeshBuilder.CreateSphere(XR_ASSISTANT_ORB, { diameter: 0.04 }, this.scene);
+            this.orb.isPickable = false;
+        }
+
+        this.orb.setEnabled(true);
+        this.orb.position.copyFrom(wrist).addInPlaceFromFloats(0, ORB_LIFT, 0);
+        this.orb.computeWorldMatrix(true);
+        // Larger while it is held, so the reader sees it is listening.
+        this.orb.scaling.setAll(this.orbClaimed ? 1.5 : 1);
+        return this.orb;
+    }
+
+    /**
+     * Report the node each ray points at, when it changes.
+     * @param assistant - The bindings.
+     */
+    private reportPointed(assistant: XRAssistantInput): void {
+        const ray = new Ray(Vector3.Zero(), Vector3.Forward(), 100);
+        for (const controller of this.xr.input.controllers) {
+            controller.getWorldPointerRayToRef(ray);
+            const { mesh } = pickRayAsDrawn(this.scene, ray);
+            const id = (mesh?.metadata as { graphNode?: { id?: NodeId } } | null | undefined)?.graphNode?.id;
+            if (id !== undefined && this.pointedBy.get(controller.uniqueId) !== id) {
+                this.pointedBy.set(controller.uniqueId, id);
+                assistant.pointed(id);
+            }
         }
     }
 
@@ -513,7 +753,7 @@ export class XRInputHandler {
 
         this.pivotController.zoom(zoom);
         if (axis) {
-            this.pivotController.rotateAroundAxis(axis, angle);
+            this.pivotController.rotateAroundAxis(new Vector3(axis.x, axis.y, axis.z), angle);
         }
 
         this.previousDistance = currentDistance;
@@ -536,112 +776,156 @@ export class XRInputHandler {
      * @returns Hand state including position, rotation, and pinch info, or null if unavailable
      */
     private getHandState(handedness: "left" | "right"): HandState | null {
-        // PATH 1: Try controller trigger first
-        // Find controller by handedness
+        return this.controllerHandState(handedness) ?? this.trackedHandState(handedness);
+    }
+
+    /**
+     * The hand's state from its controller's trigger, when the trigger pinches. A tracked hand is
+     * an input source too, whose "trigger" is the runtime's pinch button; it is read from its
+     * joints instead, with the pinch distances' hysteresis (#6949).
+     * @param handedness - Which hand
+     * @returns The state while the trigger is held, or null to fall through to hand tracking
+     */
+    private controllerHandState(handedness: "left" | "right"): HandState | null {
         let controllerEntry: ControllerEntry | null = null;
         for (const entry of this.gestureControllers.values()) {
-            if (entry.handedness === handedness) {
+            if (entry.handedness === handedness && !entry.controller.inputSource.hand) {
                 controllerEntry = entry;
                 break;
             }
         }
 
-        if (controllerEntry) {
-            const { controller } = controllerEntry;
-            const { grip } = controller;
-            const mc = controller as unknown as {
-                motionController?: { getComponent: (id: string) => { pressed?: boolean; value?: number } | null };
-            };
-
-            // Check if grip and motion controller are valid
-            if (grip && mc.motionController) {
-                try {
-                    const gripPos = grip.position;
-                    // Verify position is valid (not disposed)
-                    if (Number.isFinite(gripPos.x) && Number.isFinite(gripPos.y) && Number.isFinite(gripPos.z)) {
-                        const trigger = mc.motionController.getComponent("xr-standard-trigger");
-                        if (trigger) {
-                            // Use trigger.pressed OR value > 0.5 for pinching
-                            const triggerValue = trigger.value ?? 0;
-                            const isPinching = trigger.pressed === true || triggerValue > 0.5;
-
-                            if (isPinching) {
-                                // Log when trigger state changes
-                                if (!this.wasPinching[handedness]) {
-                                    logger.debug("Trigger press", { handedness, value: triggerValue });
-                                }
-
-                                this.wasPinching[handedness] = true;
-
-                                return {
-                                    position: gripPos.clone(),
-                                    rotation: grip.rotationQuaternion?.clone() ?? Quaternion.Identity(),
-                                    isPinching: true,
-                                    pinchStrength: triggerValue,
-                                };
-                            } else if (this.wasPinching[handedness]) {
-                                logger.debug("Trigger release", { handedness, value: triggerValue });
-                                this.wasPinching[handedness] = false;
-                                this.resetGestureState();
-                            }
-                        }
-                    }
-                } catch {
-                    // Controller is likely disposed, fall through to hand tracking
-                }
-            }
+        if (!controllerEntry) {
+            return null;
         }
 
-        // PATH 2: Try hand tracking
-        if (this.handTrackingFeature) {
-            try {
-                const htFeature = this.handTrackingFeature as {
-                    getHandByHandedness?: (h: string) => {
-                        getJointMesh: (joint: string) => { position: Vector3; rotationQuaternion?: Quaternion } | null;
-                    } | null;
-                };
+        const { controller } = controllerEntry;
+        const { grip } = controller;
+        const mc = controller as unknown as { motionController?: MotionControllerLike };
+        if (!grip || !mc.motionController) {
+            return null;
+        }
 
-                const hand = htFeature.getHandByHandedness?.(handedness);
-                if (hand) {
-                    const wrist = hand.getJointMesh("wrist");
-                    const thumbTip = hand.getJointMesh("thumb-tip");
-                    const indexTip = hand.getJointMesh("index-finger-tip");
+        try {
+            return this.triggerHandState(handedness, grip, mc.motionController);
+        } catch {
+            // Controller is likely disposed, fall through to hand tracking
+            return null;
+        }
+    }
 
-                    if (wrist && thumbTip && indexTip) {
-                        // Verify positions are valid (not NaN from disposed objects)
-                        if (!Number.isFinite(wrist.position.x) || !Number.isFinite(thumbTip.position.x)) {
-                            return null;
-                        }
+    /**
+     * Read the trigger: pinching while pressed or past half travel. A release logs, clears the
+     * hand's pinch and resets the gesture.
+     * @param handedness - Which hand
+     * @param grip - The controller's grip
+     * @param motionController - The controller's motion controller
+     * @returns The state while the trigger is held, or null
+     */
+    private triggerHandState(
+        handedness: "left" | "right",
+        grip: NonNullable<WebXRInputSource["grip"]>,
+        motionController: MotionControllerLike,
+    ): HandState | null {
+        const gripPos = grip.position;
+        // Verify position is valid (not disposed)
+        if (!Number.isFinite(gripPos.x) || !Number.isFinite(gripPos.y) || !Number.isFinite(gripPos.z)) {
+            return null;
+        }
 
-                        const pinchDist = Vector3.Distance(thumbTip.position, indexTip.position);
-                        const wasP = this.wasPinching[handedness];
-                        const isP = isPinching(pinchDist, wasP);
+        const trigger = motionController.getComponent("xr-standard-trigger");
+        if (!trigger) {
+            return null;
+        }
 
-                        if (isP !== wasP) {
-                            logger.debug(isP ? "Pinch start" : "Pinch end", { handedness, distance: pinchDist });
-                            if (!isP) {
-                                this.resetGestureState();
-                            }
-                        }
-
-                        this.wasPinching[handedness] = isP;
-
-                        if (isP) {
-                            return {
-                                position: wrist.position.clone(),
-                                rotation: wrist.rotationQuaternion?.clone() ?? Quaternion.Identity(),
-                                isPinching: true,
-                                pinchStrength: pinchStrength(pinchDist),
-                            };
-                        }
-                    }
-                }
-            } catch {
-                // Hand tracking access error - ignore
+        // Use trigger.pressed OR value > 0.5 for pinching
+        const triggerValue = trigger.value ?? 0;
+        if (trigger.pressed === true || triggerValue > 0.5) {
+            // Log when trigger state changes
+            if (!this.wasTriggerPinching[handedness]) {
+                logger.debug("Trigger press", { handedness, value: triggerValue });
             }
+
+            this.wasTriggerPinching[handedness] = true;
+            return {
+                position: gripPos.clone(),
+                rotation: grip.rotationQuaternion?.clone() ?? Quaternion.Identity(),
+                isPinching: true,
+                pinchStrength: triggerValue,
+            };
+        }
+
+        if (this.wasTriggerPinching[handedness]) {
+            logger.debug("Trigger release", { handedness, value: triggerValue });
+            this.wasTriggerPinching[handedness] = false;
+            this.resetGestureState();
         }
 
         return null;
+    }
+
+    /**
+     * The hand's state from hand tracking, when the hand pinches.
+     * @param handedness - Which hand
+     * @returns The state while the hand pinches, or null
+     */
+    private trackedHandState(handedness: "left" | "right"): HandState | null {
+        if (!this.handTrackingFeature) {
+            return null;
+        }
+
+        try {
+            const htFeature = this.handTrackingFeature as {
+                getHandByHandedness?: (h: string) => TrackedHandLike | null;
+            };
+            const hand = htFeature.getHandByHandedness?.(handedness);
+            return hand ? this.pinchHandState(handedness, hand) : null;
+        } catch {
+            // Hand tracking access error - ignore
+            return null;
+        }
+    }
+
+    /**
+     * Read a tracked hand's pinch, with hysteresis. A pinch that ends logs and resets the gesture.
+     * @param handedness - Which hand
+     * @param hand - The tracked hand
+     * @returns The state while the hand pinches, or null
+     */
+    private pinchHandState(handedness: "left" | "right", hand: TrackedHandLike): HandState | null {
+        const wrist = hand.getJointMesh("wrist");
+        const thumbTip = hand.getJointMesh("thumb-tip");
+        const indexTip = hand.getJointMesh("index-finger-tip");
+        if (!wrist || !thumbTip || !indexTip) {
+            return null;
+        }
+
+        // Verify positions are valid (not NaN from disposed objects)
+        if (!Number.isFinite(wrist.position.x) || !Number.isFinite(thumbTip.position.x)) {
+            return null;
+        }
+
+        const pinchDist = Vector3.Distance(thumbTip.position, indexTip.position);
+        const wasP = this.wasHandPinching[handedness];
+        const isP = isPinching(pinchDist, wasP);
+        if (isP !== wasP) {
+            logger.debug(isP ? "Pinch start" : "Pinch end", { handedness, distance: pinchDist });
+            if (!isP) {
+                this.resetGestureState();
+            }
+        }
+
+        this.wasHandPinching[handedness] = isP;
+        if (!isP) {
+            return null;
+        }
+
+        return {
+            position: wrist.position.clone(),
+            rotation: wrist.rotationQuaternion?.clone() ?? Quaternion.Identity(),
+            isPinching: true,
+            pinchStrength: pinchStrength(pinchDist),
+        };
     }
 
     /**
@@ -755,25 +1039,20 @@ export class XRInputHandler {
 
         // Pick meshes in the scene
         // Only pick node meshes (they have dragHandler in metadata or on the node)
-        const pickInfo = this.scene.pickWithRay(
-            ray,
-            alongRay(this.scene, ray, (mesh) => mesh.isPickable && mesh.isEnabled()),
-        );
-
-        if (!pickInfo?.hit || !pickInfo.pickedMesh) {
+        const { mesh: picked, point: pickedPoint } = pickRayAsDrawn(this.scene, ray);
+        if (picked === null) {
             return;
         }
 
         // Try to find the NodeDragHandler for this mesh
-        const dragHandler = this.findDragHandlerForMesh(pickInfo.pickedMesh);
+        const dragHandler = this.findDragHandlerForMesh(picked);
         if (!dragHandler) {
             return;
         }
 
         // Get the node's current position for debugging
         const node = dragHandler.getNode();
-        const nodeMeshPosition = node.mesh.position;
-        const { pickedPoint } = pickInfo;
+        const nodeMeshPosition = node.drawnPosition;
 
         logger.debug("Drag start", {
             handedness,
@@ -788,7 +1067,6 @@ export class XRInputHandler {
         this.lastDragHandPosition = handPosition.clone(); // Store for delta calculation
         this.dragStartHandPosition = handPosition.clone(); // Store initial position for threshold check
         this.dragThresholdExceeded = false; // Reset threshold flag
-        this.lastDragTime = performance.now(); // Initialize time for velocity calculation
 
         // DON'T call onDragStart yet - wait until threshold is exceeded
         // This prevents the node from "twitching" from hand tremor
@@ -797,13 +1075,10 @@ export class XRInputHandler {
     /**
      * Update node drag position based on controller movement.
      *
-     * Uses delta-based movement from the working demo:
-     * 1. Calculate delta from previous frame (not drag start)
-     * 2. Transform delta through pivot rotation
-     * 3. Apply amplification
-     * 4. Add to current node position
-     *
-     * This approach correctly handles pivot rotation changes during drag.
+     * The hand's movement since the previous frame, turned through the pivot's rotation, moves a
+     * pointer in scene space, and the node's drag handler follows that pointer: one to one across,
+     * depth multiplied by `xr.input.zAxisAmplification`, and a jump faster than a hand can move (a
+     * tracking glitch) ignored. Per-frame deltas are what keep the drag right while the pivot turns.
      * @param currentHandPosition - The current world position of the dragging hand
      */
     // Track drag update count for limiting debug logs
@@ -814,17 +1089,13 @@ export class XRInputHandler {
             return;
         }
 
-        const now = performance.now();
-
         // Check if we've exceeded the drag threshold yet
         if (!this.dragThresholdExceeded) {
             const distanceFromStart = Vector3.Distance(currentHandPosition, this.dragStartHandPosition);
 
             if (distanceFromStart < this.DRAG_THRESHOLD) {
                 // Still within threshold - don't move the node yet
-                // Update lastDragHandPosition so we track movement for when threshold is exceeded
                 this.lastDragHandPosition = currentHandPosition.clone();
-                this.lastDragTime = now;
                 return;
             }
 
@@ -833,12 +1104,12 @@ export class XRInputHandler {
             logger.debug("Drag threshold exceeded", { distance: distanceFromStart });
 
             // NOW call onDragStart since user has committed to dragging
-            const node = this.draggedNodeHandler.getNode();
-            this.draggedNodeHandler.onDragStart(node.mesh.position.clone());
+            const start = this.draggedNodeHandler.getNode().drawnPosition.clone();
+            this.draggedNodeHandler.onDragStart(start);
+            this.dragPointer = start.clone();
 
             // Reset lastDragHandPosition to current so first delta is from threshold point
             this.lastDragHandPosition = currentHandPosition.clone();
-            this.lastDragTime = now;
             return;
         }
 
@@ -846,88 +1117,25 @@ export class XRInputHandler {
         const xrDelta = currentHandPosition.subtract(this.lastDragHandPosition);
 
         // Skip if no significant movement
-        const deltaLength = xrDelta.length();
-        if (deltaLength < 0.0001) {
+        if (xrDelta.length() < 0.0001 || this.dragPointer === null) {
             return;
         }
 
         this.dragUpdateCount++;
-
-        // Calculate velocity for PRISM-style adaptive gain
-        const deltaTimeMs = now - this.lastDragTime;
-        const deltaTimeSec = Math.max(deltaTimeMs / 1000, 0.001); // Minimum 1ms to avoid division by zero
-        const velocity = deltaLength / deltaTimeSec; // meters per second
-
-        // Apply velocity-based amplification (PRISM technique)
-        const amplification = this.calculateVelocityBasedGain(velocity);
-
-        // Transform delta through pivot rotation
-        const sceneDelta = this.transformDeltaToSceneSpace(xrDelta);
-
-        // Apply velocity-based amplification
-        sceneDelta.scaleInPlace(amplification);
-
-        // Apply smoothing to reduce jitter from hand tracking noise
-        if (this.smoothedDelta === null) {
-            this.smoothedDelta = sceneDelta.clone();
-        } else {
-            // Exponential moving average: smoothed = smoothed * factor + new * (1 - factor)
-            this.smoothedDelta.scaleInPlace(this.SMOOTHING_FACTOR);
-            this.smoothedDelta.addInPlace(sceneDelta.scale(1 - this.SMOOTHING_FACTOR));
-        }
-
-        // Use smoothed delta for position update
-        const finalDelta = this.smoothedDelta.clone();
-
-        // Get current node position and add delta
-        const node = this.draggedNodeHandler.getNode();
-        const currentNodePos = node.mesh.position.clone();
-        const newPosition = currentNodePos.add(finalDelta);
+        this.dragPointer.addInPlace(this.transformDeltaToSceneSpace(xrDelta));
+        this.draggedNodeHandler.onDragUpdate(this.dragPointer);
 
         // Log only first 5 updates to catch initial movement issues
         if (this.dragUpdateCount <= 5) {
             logger.trace("Drag update", {
                 updateCount: this.dragUpdateCount,
                 delta: { x: xrDelta.x, y: xrDelta.y, z: xrDelta.z },
-                velocity,
-                amplification,
-                newPos: { x: newPosition.x, y: newPosition.y, z: newPosition.z },
+                pointer: { x: this.dragPointer.x, y: this.dragPointer.y, z: this.dragPointer.z },
             });
         }
 
-        // Update via drag handler (handles layout engine)
-        this.draggedNodeHandler.setPositionDirect(newPosition);
-
         // Store for next frame
         this.lastDragHandPosition = currentHandPosition.clone();
-        this.lastDragTime = now;
-    }
-
-    /**
-     * Calculate velocity-based gain using PRISM technique.
-     * Slow movements → low amplification (precision)
-     * Fast movements → higher amplification (speed)
-     *
-     * This provides intuitive control: fine adjustments when moving slowly,
-     * quick repositioning when moving fast.
-     * @param velocity - The velocity of hand movement in world units per second.
-     * @returns The amplification gain factor to apply to the movement.
-     */
-    private calculateVelocityBasedGain(velocity: number): number {
-        if (velocity < this.VELOCITY_SLOW_THRESHOLD) {
-            // Precision zone: reduce amplification for fine control
-            return this.AMP_SLOW;
-        }
-
-        if (velocity > this.VELOCITY_FAST_THRESHOLD) {
-            // Speed zone: increase amplification for faster repositioning
-            return this.AMP_FAST;
-        }
-
-        // Transition zone: linear interpolation between slow and fast
-        const t =
-            (velocity - this.VELOCITY_SLOW_THRESHOLD) / (this.VELOCITY_FAST_THRESHOLD - this.VELOCITY_SLOW_THRESHOLD);
-        return this.AMP_SLOW + t * (this.AMP_FAST - this.AMP_SLOW);
     }
 
     /**
@@ -978,8 +1186,7 @@ export class XRInputHandler {
         this.dragStartHandPosition = null;
         this.dragThresholdExceeded = false;
         this.dragUpdateCount = 0; // Reset for next drag
-        this.lastDragTime = 0; // Reset velocity tracking
-        this.smoothedDelta = null; // Reset smoothing for next drag
+        this.dragPointer = null;
     }
 
     /**

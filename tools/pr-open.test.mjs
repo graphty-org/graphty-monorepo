@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { after, beforeEach, describe, it } from "node:test";
 
 import { isolatedGitEnv } from "./isolated-git-env.mjs";
-import { patchId } from "./pr-integrity.mjs";
+import { hasProof, patchId } from "./pr-integrity.mjs";
 
 const script = fileURLToPath(new URL("./pr-open.sh", import.meta.url));
 const dir = mkdtempSync(join(tmpdir(), "pr-open-test-"));
@@ -28,7 +28,8 @@ writeFileSync(
 );
 mkdirSync(bin);
 // The fake gh: one JSON line per call (its arguments and the identity it ran as); `pr list` answers
-// with FAKE_EXISTING, `pr create` with a new URL and saves the body it was given.
+// with FAKE_EXISTING, `pr view --json body` with FAKE_BODY, `pr create` with a new URL; create and the REST
+// PATCH of a pull request save the body they were given (the PATCH fails with FAKE_PATCH_FAIL).
 writeFileSync(
     join(bin, "gh"),
     `#!/usr/bin/env node
@@ -36,7 +37,11 @@ const fs = require("node:fs");
 const a = process.argv.slice(2);
 fs.appendFileSync(${JSON.stringify(ghLog)}, JSON.stringify({ a, gh: process.env.GH_CONFIG_DIR, git: process.env.GIT_CONFIG_GLOBAL, count: process.env.GIT_CONFIG_COUNT ?? null }) + "\\n");
 if (a[0] === "pr" && a[1] === "list") process.stdout.write(process.env.FAKE_EXISTING ?? "");
-if (a[0] === "pr" && a[1] === "view") process.stdout.write(process.env.FAKE_REVIEWS ?? "");
+if (a[0] === "pr" && a[1] === "view") process.stdout.write((a.includes("body") ? process.env.FAKE_BODY : process.env.FAKE_REVIEWS) ?? "");
+if (a[0] === "api" && a.includes("PATCH")) {
+    if (process.env.FAKE_PATCH_FAIL) process.exit(1);
+    fs.copyFileSync(a.find((x) => x.startsWith("body=@")).slice(6), ${JSON.stringify(join(dir, "body.md"))});
+}
 if (a[0] === "pr" && a[1] === "create") {
     fs.copyFileSync(a[a.indexOf("--body-file") + 1], ${JSON.stringify(join(dir, "body.md"))});
     process.stdout.write("https://github.com/o/r/pull/42\\n");
@@ -56,6 +61,19 @@ exit "\${FAKE_REVIEW_RC:-0}"
 `,
 );
 chmodSync(review, 0o755);
+
+// Where the runs log their times (tools/step-log.mjs).
+const stepLog = join(dir, "steps.jsonl");
+const steps = () => {
+    try {
+        return readFileSync(stepLog, "utf8")
+            .trim()
+            .split("\n")
+            .map((l) => JSON.parse(l));
+    } catch {
+        return [];
+    }
+};
 
 // Setup git runs isolated and unsigned; the script under test gets the fake HOME and PATH, plus a
 // session override it must drop.
@@ -103,6 +121,7 @@ const run = (args = ["--proof", proof], extra = {}) => {
         GIT_CONFIG_KEY_0: "user.name",
         GIT_CONFIG_VALUE_0: "the-owner",
         GH_TOKEN: "owner-token-must-not-be-used",
+        PIPELINE_STEP_LOG: stepLog,
         ...extra,
     };
     for (const k of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_CONFIG_GLOBAL", "GH_CONFIG_DIR"]) delete env[k];
@@ -148,6 +167,29 @@ describe("pr-open.sh", () => {
         assert.match(body, /^## Proof\n\nnode tools\/x\.test\.mjs: 3 pass$/m);
     });
 
+    it("logs the whole run's time and the review's, with their exit codes, to the step log", () => {
+        branch("fix/1242-times");
+        rmSync(stepLog, { force: true });
+        assert.equal(run(["--proof", proof], { FAKE_REVIEW_RC: "3" }).code, 3);
+        assert.deepEqual(
+            steps().map((s) => [s.kind, s.exit]),
+            [
+                ["pr-open-review", 3],
+                ["pr-open", 3],
+            ],
+        );
+        rmSync(stepLog, { force: true });
+        assert.equal(run().code, 0);
+        assert.deepEqual(
+            steps().map((s) => [s.kind, s.exit]),
+            [
+                ["pr-open-review", 0],
+                ["pr-open", 0],
+            ],
+        );
+        for (const s of steps()) assert.ok(Number.isInteger(s.ms) && s.ms >= 0, JSON.stringify(s));
+    });
+
     it("drops a Proof file's own Proof heading and keeps its other headings inside the Proof section", () => {
         branch("fix/1241-headings");
         const titled = join(dir, "titled.md");
@@ -155,8 +197,9 @@ describe("pr-open.sh", () => {
         const r = run(["--proof", titled]);
         assert.equal(r.code, 0, r.out);
         const body = readFileSync(join(dir, "body.md"), "utf8");
-        assert.match(body, /^## Proof\n\n### Run\n\nnode tools\/x\.test\.mjs: 3 pass$/m);
+        assert.match(body, /^## Proof\n\n### Run\n\nnode tools\/x\.test\.mjs: 3 pass\n\n<!-- \/proof -->$/m);
         assert.equal(body.match(/^##[ \t]/gm).length, 1, "only pr-open's own Proof heading is level 2");
+        assert.ok(hasProof(body), "PR Integrity reads the Proof");
     });
 
     let moves = 0;
@@ -209,6 +252,50 @@ describe("pr-open.sh", () => {
                 .a.slice(2, 3),
             ["https://github.com/o/r/pull/7"],
         );
+    });
+
+    it("refreshes the Proof of an open pull request's description on a re-run, keeping the rest", () => {
+        branch("fix/1247-refresh");
+        const fresh = join(dir, "fresh.md");
+        writeFileSync(fresh, "# Proof\n\n## Tests\n\nnode tools/y.test.mjs: 5 pass\n");
+        const cases = [
+            ["marked", "- fix\n\nFixes #1247\n\n## Proof\n\nold run\n## Old\nold\n\n<!-- /proof -->\n\n## Notes\nkeep"],
+            ["unmarked", "- fix\n\nFixes #1247\n\n## Proof\n\nold run\n\n## Notes\nkeep"],
+            ["empty", "- fix\n\nFixes #1247\n\n## Proof\n\n## Notes\nkeep"],
+        ];
+        for (const [name, old] of cases) {
+            const r = run(["--proof", fresh], {
+                FAKE_EXISTING: "https://github.com/o/r/pull/7 graphty-agent",
+                FAKE_BODY: old,
+            });
+            assert.equal(r.code, 0, r.out);
+            const body = readFileSync(join(dir, "body.md"), "utf8");
+            assert.equal(
+                body,
+                "- fix\n\nFixes #1247\n\n## Proof\n\n### Tests\n\nnode tools/y.test.mjs: 5 pass\n\n<!-- /proof -->\n\n## Notes\nkeep\n",
+                name,
+            );
+            assert.ok(hasProof(body), name);
+        }
+        const r = run(["--proof", fresh], {
+            FAKE_EXISTING: "https://github.com/o/r/pull/7 graphty-agent",
+            FAKE_BODY: "hand written",
+        });
+        assert.equal(r.code, 0, r.out);
+        assert.match(readFileSync(join(dir, "body.md"), "utf8"), /^hand written\n\n## Proof\n\n### Tests\n/);
+        assert.ok(
+            calls().some(
+                (x) => x.a.join(" ") === `api -X PATCH repos/{owner}/{repo}/pulls/7 -F body=@${x.a.at(-1).slice(6)}`,
+            ),
+            "the REST PATCH, not gh pr edit",
+        );
+        const failed = run(["--proof", fresh], {
+            FAKE_EXISTING: "https://github.com/o/r/pull/7 graphty-agent",
+            FAKE_PATCH_FAIL: "1",
+        });
+        assert.equal(failed.code, 0, failed.out);
+        assert.match(failed.out, /could not be refreshed/);
+        assert.ok(armed().length > 0, "a failed refresh still arms auto-merge");
     });
 
     it("refuses, pushing and opening nothing: no Proof, no issue, uncommitted changes, master, nothing new", () => {
@@ -285,6 +372,27 @@ describe("pr-open.sh", () => {
         assert.match(r.out, /auto-merge is NOT on for .*: it holds a breaking change/);
         assert.equal(armed().length, 0);
         assert.equal(calls().filter((x) => x.a[1] === "create").length, 1);
+    });
+
+    it("arms auto-merge for a breaking commit master's release-not-breaking.json rules not breaking", () => {
+        branch("feat/1249-ruled", { "b.txt": "b\n" }, "feat(tools)!: drop a flag");
+        const ruled = git(work, "rev-parse", "HEAD");
+        git(work, "checkout", "-q", "master");
+        writeFileSync(
+            join(work, "release-not-breaking.json"),
+            JSON.stringify({
+                notBreaking: [{ commit: ruled, project: "tools", reason: "owner", since: "2026-11-09" }],
+            }),
+        );
+        git(work, "add", ".");
+        git(work, "commit", "-q", "-m", "chore: the owner's ruling");
+        git(work, "push", "-q", "origin", "master");
+        git(work, "checkout", "-q", "feat/1249-ruled");
+        git(work, "merge", "-q", "--no-edit", "master");
+        const r = run(undefined, { FAKE_EXISTING: "https://github.com/o/r/pull/11 graphty-agent" });
+        assert.equal(r.code, 0, r.out);
+        assert.doesNotMatch(r.out, /auto-merge is NOT on/);
+        assert.equal(armed().length, 1);
     });
 
     it("arms auto-merge for a change to CI", () => {

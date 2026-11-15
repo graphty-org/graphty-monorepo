@@ -1,0 +1,9 @@
+{
+ "checked": "2026-11-06T06:57:40.780Z",
+ "briefing": "/home/apowers/Projects/graphty-monorepo/.worktrees/feat-tanstack-ai/tmp/studio-sessions/tier6/rounds/round-2/sessions/r2-s10/briefing.md",
+ "transcripts": [
+  "/home/apowers/.claude/projects/-home-apowers-Projects-graphty-monorepo/aed0b498-225e-4f87-aa8f-e943a6c3fd7b/subagents/workflows/wf_a4e5e1ca-234/agent-a2e430b74a9d399a6.jsonl"
+ ],
+ "calls": 30,
+ "leaks": []
+}

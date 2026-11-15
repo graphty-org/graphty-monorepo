@@ -24,7 +24,6 @@ import {
     resetHighlights,
     updateStatus,
 } from "../utils/visualization.js";
-import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
@@ -445,7 +444,7 @@ export const FloydWarshall: Story = {
         // that are too long for one capture (15s render + 15s interaction)
         chromatic: { disableSnapshot: true },
     },
-    play: async ({ canvasElement, args }) => {
+    play: async ({ canvasElement }) => {
         const canvas = within(canvasElement);
 
         // Click play button to start animation
@@ -453,12 +452,9 @@ export const FloydWarshall: Story = {
         await userEvent.click(playButton);
 
         // Wait for animation to complete
-        await waitFor(
-            async () => {
-                const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
-                await expect(statusText).toContain("complete");
-            },
-            storyWaitOptions((args.nodeCount ** 3 * 2 + 20) * args.animationSpeed),
-        );
+        await waitFor(async () => {
+            const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
+            await expect(statusText).toContain("complete");
+        });
     },
 };

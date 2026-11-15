@@ -326,20 +326,15 @@ export class History<P> {
             time - top.lastMerge < this.coalesceMs &&
             time - top.started < COALESCE_SPAN_MS
         ) {
-            // The step now ends where the newest edit left it, so it is named for that edit.
+            // The step now ends where the newest edit left it, so it is named for that edit, and it
+            // still names every channel it changed: undo reverts them all.
             top.label = input.label;
-            top.fact = factOf(input);
+            top.fact = mergedFact(top.fact, factOf(input));
             this.mergeInto(top, input, time, at);
             return top.id;
         }
 
-        if (this.counted !== null && this.cursor < this.counted.steps) {
-            this.counted = null;
-        }
-
-        for (const step of this.entries.splice(this.cursor)) {
-            this.total -= this.size(step, false);
-        }
+        this.discardUndone();
 
         const id = `step-${this.nextId++}`;
         this.entries.push({
@@ -568,6 +563,17 @@ export class History<P> {
     }
 
     /**
+     * Forget the undone steps, as a new edit would, with nothing recorded: Redo has nothing left.
+     * Published as an eviction: steps left the history and the graph did not change.
+     */
+    dropUndone(): void {
+        if (this.cursor < this.entries.length) {
+            this.discardUndone();
+            this.changed("evict");
+        }
+    }
+
+    /**
      * Move to the state just after a step, or to the baseline, as the equivalent sequence of undos
      * or redos.
      * @param id - The step, or null for the baseline.
@@ -599,6 +605,26 @@ export class History<P> {
         }
 
         return Object.freeze(passed);
+    }
+
+    /**
+     * Discard the redo tail, as recording a new step does: the undone steps can no longer be redone.
+     */
+    dropRedo(): void {
+        if (this.cursor === this.entries.length) {
+            return;
+        }
+
+        if (this.counted !== null && this.cursor < this.counted.steps) {
+            this.counted = null;
+        }
+
+        for (const step of this.entries.splice(this.cursor)) {
+            this.total -= this.size(step, false);
+        }
+
+        this.mergeable = false;
+        this.changed("restore");
     }
 
     /**
@@ -638,6 +664,17 @@ export class History<P> {
         // A boundary, as `clear()` is: the next edit does not coalesce into a step before it.
         this.mergeable = false;
         this.changed("clear");
+    }
+
+    /** Discard the redo tail. */
+    private discardUndone(): void {
+        if (this.counted !== null && this.cursor < this.counted.steps) {
+            this.counted = null;
+        }
+
+        for (const step of this.entries.splice(this.cursor)) {
+            this.total -= this.size(step, false);
+        }
     }
 
     /**
@@ -1198,6 +1235,23 @@ function copyCapture(capture: ArrangementCapture): ArrangementCapture {
  */
 function factOf(input: RecordInput<unknown>): CodedFact<HistoryCode> {
     return frozenFact(input.fact ?? { code: "transaction", params: { label: input.label } });
+}
+
+/**
+ * The fact of a step an edit merged into: the newer edit's, with the `channels` both name when
+ * they share a code, so a color edit and a size edit merged into one step name both channels.
+ * @param older - The step's fact so far.
+ * @param newer - The merged edit's fact.
+ * @returns The merged fact.
+ */
+function mergedFact(older: CodedFact<HistoryCode>, newer: CodedFact<HistoryCode>): CodedFact<HistoryCode> {
+    const before = older.params.channels;
+    const after = newer.params.channels;
+    if (older.code !== newer.code || !Array.isArray(before) || !Array.isArray(after)) {
+        return newer;
+    }
+
+    return frozenFact({ code: newer.code, params: { ...newer.params, channels: [...new Set([...before, ...after])] } });
 }
 
 /**

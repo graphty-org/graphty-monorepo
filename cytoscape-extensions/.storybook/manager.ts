@@ -10,7 +10,7 @@ import { storybookBrandColors } from "../../tools/storybook-brand-theme.mjs";
 // brandTitle as HTML, not brandImage, so it is drawn 24 px tall (the brand's minimum) instead
 // of being squeezed into the 150 px Storybook allows a brandImage.
 const dark = globalThis.matchMedia("(prefers-color-scheme: dark)").matches;
-const logo = `./graphty-lockup-color-on-${dark ? "dark" : "light"}.svg`;
+const logo = `./graphty-cytoscape-extensions-lockup-color-on-${dark ? "dark" : "light"}.svg`;
 
 addons.setConfig({
     theme: create({

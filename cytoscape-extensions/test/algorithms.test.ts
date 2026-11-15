@@ -115,10 +115,16 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         expect(ours.rank("#a")).toBeCloseTo(37 / 114, 12);
         expect(ours.rank("#b")).toBeCloseTo(20 / 114, 12);
         expect(ours.converged).toBe(true);
-        // Cytoscape adds the teleport (1 - d) / n to every column without scaling the links by d, then
-        // renormalises, so its dampingFactor d behaves as the standard damping 1 / (2 - d).
+        // Before 3.34.5, Cytoscape added the teleport (1 - d) / n to every column without scaling the links by d,
+        // then renormalised, so its dampingFactor d behaved as the standard damping 1 / (2 - d). 3.34.5 fixed that
+        // (upstream commit acaa3ad, "Apply the damping factor to the link term in pageRank()"), so from then on
+        // its d is the standard damping and needs no conversion.
+        const [major, minor, patch] = (cytoscape as unknown as { version: string }).version.split(".").map(Number);
+        const fixed = major > 3 || (major === 3 && (minor > 34 || (minor === 34 && patch >= 5)));
         const theirs = cy.elements().pageRank({ dampingFactor: 0.85, precision: 1e-14, iterations: 10000 });
-        const same = cy.elements().graphtyPageRank({ directed: true, dampingFactor: 1 / 1.15, tolerance: 1e-14 });
+        const same = cy
+            .elements()
+            .graphtyPageRank({ directed: true, dampingFactor: fixed ? 0.85 : 1 / 1.15, tolerance: 1e-14 });
         for (const n of cy.nodes()) {
             expect(same.rank(n)).toBeCloseTo(theirs.rank(n), 6);
         }
@@ -323,6 +329,22 @@ describe("compared with Cytoscape's built-in algorithms", () => {
         expect(cy.$("#f").data("hops")).toBe(3);
     });
 
+    it("breadthFirstSearch and depthFirstSearch: one tree edge per node on a multigraph, the one the walk took", () => {
+        // b-a then a-b twice: the walk from a reaches b over its first arc, edge e0, in either direction
+        const cy = graph([
+            ["b", "a"],
+            ["a", "b"],
+            ["a", "b"],
+            ["b", "c"],
+        ]);
+        for (const directed of [false, true]) {
+            const tree = directed ? ["a", "e1", "b", "e3", "c"] : ["a", "e0", "b", "e3", "c"];
+            expect(ids(cy.graphtyBreadthFirstSearch({ root: "#a", directed }).path)).toEqual(tree);
+            expect(ids(cy.graphtyDepthFirstSearch({ root: "#a", directed }).path)).toEqual(tree);
+            expect(ids(cy.graphtyDirectionOptimizedBfs({ root: "#a", directed }).path)).toEqual(tree);
+        }
+    });
+
     it("closenessCentrality and nodeClosenessCentrality: known values, and the same order as closenessCentralityNormalized", () => {
         const cy = graph([
             ["a", "b"],
@@ -514,9 +536,9 @@ describe("communities and clustering", () => {
 
     it("teraHAC and hierarchicalClustering refuse more than maxNodes nodes with E_TOO_LARGE", () => {
         const e = graph(BARBELL).elements();
-        const refusal = expect.objectContaining({
+        const refusal: unknown = expect.objectContaining({
             code: "E_TOO_LARGE",
-            params: expect.objectContaining({ maxNodes: 5 }),
+            params: expect.objectContaining({ maxNodes: 5 }) as unknown,
         });
         expect(() => e.graphtyTeraHAC({ maxNodes: 5 })).toThrow(refusal);
         expect(() => e.graphtyHierarchicalClustering({ maxNodes: 5 })).toThrow(refusal);
@@ -685,6 +707,25 @@ describe("link prediction", () => {
         expect(e.graphtyEvaluateAdamicAdar(held).auc).toBe(1);
         expect(e.graphtyCompareAdamicAdarWithCommonNeighbors(held).commonNeighbors.auc).toBe(1);
     });
+
+    it("predicts every ordered pair of a directed graph, whatever the node order (#961)", () => {
+        // Nodes a, b, c added in that order, arcs c -> b and b -> a: c reaches a through b.
+        const cy = cytoscape({
+            headless: true,
+            elements: [
+                ...["a", "b", "c"].map((id) => ({ data: { id } })),
+                { data: { id: "cb", source: "c", target: "b" } },
+                { data: { id: "ba", source: "b", target: "a" } },
+            ],
+        });
+        const e = cy.elements();
+        const pairs = (r: { source: { id(): string }; target: { id(): string } }[]): string[] =>
+            r.map((p) => `${p.source.id()}->${p.target.id()}`);
+        expect(pairs(e.graphtyCommonNeighborsPrediction({ directed: true }))).toEqual(["c->a"]);
+        expect(pairs(e.graphtyAdamicAdarPrediction({ directed: true }))).toEqual(["c->a"]);
+        expect(e.graphtyCommonNeighborsScore({ directed: true, source: "#c", target: "#a" })).toBe(1);
+        expect(pairs(e.graphtyTopCandidatesForNode({ directed: true, root: "#c" }))).toEqual(["c->a"]);
+    });
 });
 
 describe("errors", () => {
@@ -832,8 +873,9 @@ describe("results and errors in Cytoscape terms", () => {
             ["f", "g"],
         ]);
         cy.add({ data: { id: "h" } });
+        expect(() => cy.graphtyDeltaPageRank({ maxIterations: 2000 })).toThrow(/DeltaPageRank: the ranks overflowed/);
         expect(() => cy.graphtyDeltaPageRank({ maxIterations: 2000 })).toThrow(
-            /graphtyDeltaPageRank: the ranks overflowed/,
+            expect.objectContaining({ code: "E_BAD_OPTION" }),
         );
         const prio = cy.graphtyDeltaPageRank({ priority: true, maxIterations: 2000 });
         expect(prio.rank("#a")).toBeCloseTo(cy.graphtyPageRank({ directed: true }).rank("#a") ?? NaN, 6);
@@ -873,6 +915,13 @@ describe("library fixes found by the docs review", () => {
         expect(() => cy.graphtyKruskalMST((() => 1) as never)).toThrow(
             "graphtyKruskalMST: takes one options object; pass a weight function as { weight: fn }",
         );
+    });
+
+    it("refuses null options with its own message, synchronously and asynchronously", async () => {
+        const cy = graph(BARBELL);
+        const message = "graphtyPageRank: takes one options object; pass a weight function as { weight: fn }";
+        expect(() => cy.graphtyPageRank(null as never)).toThrow(message);
+        await expect(cy.graphtyPageRankAsync(null as never)).rejects.toThrow(message);
     });
 
     it("throws on a negative weight in Dijkstra and A*, which would otherwise hang or be wrong", async () => {
@@ -944,5 +993,138 @@ describe("library fixes found by the docs review", () => {
         expect(() => cy.graphtyLabelPropagationSemiSupervised({ seeds: ["#zz", "#yy"] })).toThrow(
             "graphtyLabelPropagationSemiSupervised: seeds matches no node",
         );
+    });
+});
+
+describe("elements outside the run and options left to their defaults", () => {
+    it("answers for a node or edge object that is not in the collection the way it answers for a selector", () => {
+        const cy = graph(BARBELL);
+        const r = cy.$("#a, #b, #c").union(cy.$("#a, #b, #c").edgesWith("#a, #b, #c")).graphtyDijkstra({ root: "#a" });
+        expect(r.distanceTo(cy.$("#c"))).toBe(1);
+        expect(r.distanceTo(cy.$("#f"))).toBe(Infinity);
+        expect(ids(r.pathTo(cy.$("#f")))).toEqual([]);
+        const flow = graph([
+            ["s", "a", 3],
+            ["a", "t", 2],
+            ["t", "x", 1],
+        ]);
+        const run = flow
+            .elements()
+            .not("#e2")
+            .graphtyMaxFlow({ source: "#s", sink: "#t", weight: "w", directed: true });
+        expect(run.flow(flow.$("#e1"))).toBe(2);
+        expect(run.flow(flow.$("#e2"))).toBeUndefined();
+    });
+
+    it("allPairsShortestPath answers Infinity and an empty path for a node outside the collection", () => {
+        const cy = graph(WEIGHTED, ["z"]);
+        const r = cy.elements().not("#z").graphtyAllPairsShortestPath({ weight: "w" });
+        expect(r.distance("#a", "#e")).toBe(11);
+        expect(r.distance("#a", "#z")).toBe(Infinity);
+        expect(r.distance(cy.$("#z"), "#a")).toBe(Infinity);
+        expect(ids(r.path("#a", "#z"))).toEqual([]);
+    });
+
+    it("breadthFirstSearch writes NaN as the depth of a node it never reached", () => {
+        const cy = graph(BARBELL, ["z"]);
+        const r = cy.graphtyBreadthFirstSearch({ root: "#a", field: "hops" });
+        expect(r.depth("#z")).toBeUndefined();
+        expect(cy.$("#d").data("hops")).toBe(2);
+        expect(cy.$("#z").data("hops")).toBeNaN();
+    });
+
+    it("aStar with no heuristic is Dijkstra", () => {
+        const cy = graph(WEIGHTED);
+        const r = cy.graphtyAStar({ root: "#a", goal: "#e", weight: "w" });
+        expect(r.distance).toBe(cy.graphtyDijkstra({ root: "#a", weight: "w" }).distanceTo("#e"));
+        expect(ids(r.path.nodes())).toEqual(["a", "c", "b", "d", "e"]);
+    });
+
+    it("matching mate is undefined for a node left unmatched or outside the collection", () => {
+        const cy = graph([
+            ["a", "b"],
+            ["a", "c"],
+        ]);
+        cy.add({ data: { id: "z" } });
+        const m = cy.elements().not("#z").graphtyMaximumBipartiteMatching();
+        expect(m.size).toBe(1);
+        const unmatched = ["b", "c"].filter((id) => m.mate(`#${id}`) === undefined);
+        expect(unmatched).toHaveLength(1);
+        expect(m.mate(cy.$("#z"))).toBeUndefined();
+    });
+
+    it("isomorphism consults edgeMatch, and its mapping is undefined for a node outside the collection", () => {
+        const cy = graph([
+            ["a", "b", 1],
+            ["b", "c", 2],
+            ["x", "y", 1],
+            ["y", "z", 2],
+        ]);
+        const left = cy.$("#a, #b, #c").closedNeighborhood();
+        const right = cy.$("#x, #y, #z").closedNeighborhood();
+        const sameWeight = (p: cytoscape.EdgeSingular, q: cytoscape.EdgeSingular): boolean =>
+            p.data("w") === q.data("w");
+        const r = left.graphtyIsGraphIsomorphic({ other: right, edgeMatch: sameWeight });
+        expect(r.isomorphic).toBe(true);
+        // only the mapping that keeps the weights: a to x, not a to z
+        expect(r.mapping("#a")?.id()).toBe("x");
+        expect(r.mapping(cy.$("#x"))).toBeUndefined();
+        expect(left.graphtyFindAllIsomorphisms({ other: right, edgeMatch: sameWeight }).length).toBe(1);
+        expect(left.graphtyIsGraphIsomorphic({ other: right, edgeMatch: () => false }).isomorphic).toBe(false);
+    });
+
+    it("a value thrown by a callback that is not an Error passes through unchanged", () => {
+        const cy = graph(SQUARE);
+        const thrown: unknown = { reason: "stop" };
+        expect(() =>
+            cy.elements().graphtyIsGraphIsomorphic({
+                other: cy.elements(),
+                nodeMatch: () => {
+                    throw thrown;
+                },
+            }),
+        ).toThrow(expect.objectContaining({ reason: "stop" }));
+    });
+
+    it("centralities with every node as sources give the same scores as no sources", () => {
+        const cy = graph(BARBELL);
+        const all = cy.nodes();
+        const close = cy.graphtyClosenessCentrality();
+        const closeAll = cy.graphtyClosenessCentrality({ sources: all });
+        const btw = cy.graphtyBetweennessCentrality();
+        const btwAll = cy.graphtyBetweennessCentrality({ sources: all });
+        for (const n of all) {
+            expect(closeAll.closeness(n)).toBeCloseTo(close.closeness(n) ?? NaN, 9);
+            expect(btwAll.betweenness(n)).toBeCloseTo(btw.betweenness(n) ?? NaN, 9);
+        }
+        const eb = cy.graphtyEdgeBetweennessCentrality({ normalized: false });
+        const ebAll = cy.graphtyEdgeBetweennessCentrality({ normalized: false, sources: "node" });
+        for (const e of cy.edges()) {
+            expect(ebAll.score(e)).toBeCloseTo(eb.score(e) ?? NaN, 9);
+        }
+        // one source: only paths from #a count, so the bridge's far end carries less
+        const fromA = cy.graphtyBetweennessCentrality({ sources: "#a" });
+        expect(fromA.betweenness("#d")).toBeLessThan(btw.betweenness("#d") ?? NaN);
+    });
+
+    it("betweennessNormalized is 0, not NaN, where no node lies between two others", () => {
+        const cy = graph([["a", "b"]]);
+        const r = cy.graphtyBetweennessCentrality();
+        expect(r.betweenness("#a")).toBe(0);
+        expect(r.betweennessNormalized("#a")).toBe(0);
+    });
+
+    it("topCandidatesForNode scores only the candidates given", () => {
+        const cy = graph(BARBELL);
+        const base = { root: "#a", topK: 0, includeExisting: true };
+        expect(
+            cy
+                .graphtyTopCandidatesForNode(base)
+                .map((p) => p.target.id())
+                .sort(),
+        ).toEqual(["b", "c", "d"]);
+        const only = cy.graphtyTopCandidatesForNode({ ...base, candidates: "#b, #d" });
+        expect(only.map((p) => p.target.id()).sort()).toEqual(["b", "d"]);
+        expect(cy.graphtyTopCandidatesForNode({ ...base, candidates: "#f" })).toEqual([]);
     });
 });

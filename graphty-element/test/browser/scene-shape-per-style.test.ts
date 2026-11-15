@@ -17,9 +17,9 @@
  * EVERY LINE STYLE, IN BOTH MODES (issue #444). A curve, an animated line, each of the eight
  * patterns and every 2D line is held to the same bound as the default straight 3D line.
  */
-import "@babylonjs/core/Meshes/thinInstanceMesh";
+import "@babylonjs/core/Meshes/thinInstanceMesh.js";
 
-import { Mesh, Vector3 } from "@babylonjs/core";
+import { type Buffer, Mesh, Vector3 } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import type { StaticStyle } from "../../src/catalog/types";
@@ -175,6 +175,25 @@ describe("the scene grows with styles and nodes, not with edges", () => {
     });
 
     it("adds exactly one line batch for a second edge style", async () => {
+        // A head keeps the line in the line batch: "batched" pulls a capless straight line, whose width keys no batch.
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
+        await frame();
+        const oneStyle = graph.scene.meshes.length;
+
+        await addStyleLayer(graph, {
+            name: "half the edges",
+            target: "edge",
+            selector: { match: "expression", where: "data.half == 'b'" },
+            set: { "edge.width": 3 },
+        });
+        await frame();
+
+        const batches = new Set(edges().map((edge) => edge.mesh));
+        assert.equal(batches.size, 2, "the second style draws its edges from a second batch");
+        assert.equal(graph.scene.meshes.length, oneStyle + 1, "and that batch is the one mesh it adds");
+    });
+
+    it("adds no line batch for a second edge style that changes only the color", async () => {
         await styleEveryEdge(graph, { "edge.arrowHead": "none" });
         await frame();
         const oneStyle = graph.scene.meshes.length;
@@ -187,9 +206,31 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         });
         await frame();
 
+        // A plain line's color is its slot's (issue #6026); an opacity under 1 is another pass, and
+        // so another batch.
         const batches = new Set(edges().map((edge) => edge.mesh));
-        assert.equal(batches.size, 2, "the second style draws its edges from a second batch");
+        assert.equal(batches.size, 1, "both looks draw from one batch");
+        assert.equal(graph.scene.meshes.length, oneStyle, "and it adds no mesh");
+    });
+
+    it("adds one line batch for a second edge style that makes the line translucent", async () => {
+        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
+        await frame();
+        const oneStyle = graph.scene.meshes.length;
+
+        await addStyleLayer(graph, {
+            name: "half the edges",
+            target: "edge",
+            selector: { match: "expression", where: "data.half == 'b'" },
+            set: { "edge.color": "#ff00ff", "edge.opacity": 0.4 },
+        });
+        await frame();
+
+        // A translucent line is drawn in the other pass, so from another batch (issue #6326).
+        const batches = new Set(edges().map((edge) => edge.mesh));
+        assert.equal(batches.size, 2, "the translucent edges draw from a second batch");
         assert.equal(graph.scene.meshes.length, oneStyle + 1, "and that batch is the one mesh it adds");
+        assert.sameMembers([...new Set(edges().map((edge) => edge.drawnLine?.visibility))], [1, 0.4]);
     });
 
     it("draws a few hundred arrow caps of one shape as one batch", async () => {
@@ -229,14 +270,20 @@ describe("the scene grows with styles and nodes, not with edges", () => {
             uploads.push(kind);
             upload(kind);
         };
-        // A joined line's slots are one instanced buffer of their own (EdgeLineBatch).
-        const slots = mesh.getVertexBuffer("pA")?.getWrapperBuffer();
-        if (slots) {
-            const update = slots.update.bind(slots);
-            slots.update = (data): void => {
-                uploads.push("slots");
-                update(data);
-            };
+        // A joined line's slots are one instanced buffer of their own (EdgeLineBatch), and a cap's
+        // billboard values are buffers of theirs (ArrowCapBatch).
+        for (const [kind, name] of [
+            ["pA", "slots"],
+            ["arrowDirection", "arrowDirection"],
+        ]) {
+            const buffer = mesh.getVertexBuffer(kind)?.getWrapperBuffer();
+            if (buffer) {
+                const update = buffer.updateDirectly.bind(buffer);
+                buffer.updateDirectly = (...args): void => {
+                    uploads.push(name);
+                    update(...args);
+                };
+            }
         }
 
         const moved = graph.getDataManager().nodes.get(node);
@@ -279,7 +326,8 @@ describe("the scene grows with styles and nodes, not with edges", () => {
     }
 
     it("uploads a line batch's slots, and draws the moved slot, when a node moves", async () => {
-        await styleEveryEdge(graph, { "edge.arrowHead": "none" });
+        // A head keeps the line in the line batch: "batched" pulls a capless straight line instead.
+        await styleEveryEdge(graph, { "edge.arrowHead": "normal" });
         await frame();
 
         const edge = edges().find((candidate) => candidate.srcId === "n0");
@@ -346,11 +394,15 @@ describe("the scene grows with styles and nodes, not with edges", () => {
         assert.isDefined(capBatch);
         assert.isNotNull(capBatch);
         const uploads: string[] = [];
-        const upload = capBatch.thinInstanceBufferUpdated.bind(capBatch);
-        capBatch.thinInstanceBufferUpdated = (kind: string): void => {
-            uploads.push(kind);
-            upload(kind);
-        };
+        for (const kind of ["arrowColor", "arrowSize"]) {
+            const buffer: Buffer | undefined = capBatch.getVertexBuffer(kind)?.getWrapperBuffer();
+            assert.isDefined(buffer, `${kind} is a buffer of the batch`);
+            const upload = buffer.updateDirectly.bind(buffer);
+            buffer.updateDirectly = (...args): void => {
+                uploads.push(kind);
+                upload(...args);
+            };
+        }
 
         await styleEveryEdge(graph, { "edge.arrowHeadColor": "#ff00ff", "edge.arrowHeadSize": 3 }, "restyle caps");
         await frame();

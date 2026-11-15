@@ -23,7 +23,8 @@
 #      again with --review-answered;
 #   4. scans the branch's changed files for secrets, uploads its Git LFS objects, and pushes the branch;
 #   5. opens the pull request (title: the branch's first commit header; body: the commit list, a line
-#      "Fixes #N", or "Refs #N" with --refs, and a "## Proof" section from the file), or reuses the open one, and
+#      "Fixes #N", or "Refs #N" with --refs, and a "## Proof" section from the file), or reuses the open one and
+#      refreshes the Proof section of its description, and
 #      posts the review's report as a COMMENT review (its `<!-- fresh-review <patch id> -->` line is what PR
 #      Integrity checks) unless one with that marker is already there;
 #   6. turns on auto-merge with a merge commit, and prints the pull request's URL. It leaves auto-merge off (and
@@ -31,9 +32,9 @@
 #      to one of the few files that guard the owner (GUARD_PATHS below), and a pull request someone other than
 #      the agent opened. A change to CI or to what guards the owner merges like any
 #      other once green (owner, 2026-10-25: "I don't agree that I should be required to manually merge to change
-#      CI"). Until code-owner review is turned on (the last rollout step, .github/CODEOWNERS), such a pull
-#      request -- one that can change the very checks that judge it -- merges with only the fresh review and
-#      PR Integrity looking at it; the owner accepted that gap.
+#      CI"). Such a pull request -- one that can change the very checks that judge it -- merges with only the
+#      fresh review and PR Integrity looking at it; the guard planned for that gap is to run master's copy of
+#      those checks, not the pull request's (issue #4421).
 #
 # Every git and gh call runs as the agent account, never as the owner: GIT_CONFIG_GLOBAL is the agent's
 # git config (its name, its signing key, its SSH key), GH_CONFIG_DIR its gh login, and the session's
@@ -42,6 +43,16 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# How long the whole run and its review took, one line each in <main checkout>/tmp/step-times.jsonl
+# (tools/step-log.mjs). The log never fails or changes the run.
+log_step() { node "$here/step-log.mjs" "$@" >/dev/null 2>&1 || true; }
+run_start=$(date +%s%3N)
+on_exit() {
+    local rc=$?
+    log_step pr-open "$run_start" total "$rc"
+    [ -z "${tmp_files:-}" ] || rm -f $tmp_files
+}
+trap on_exit EXIT
 die() {
     echo "pr-open: $*" >&2
     exit "${code:-1}"
@@ -72,23 +83,25 @@ for v in $(env | sed -n 's/^\(GIT_CONFIG_\(COUNT\|KEY_[0-9]*\|VALUE_[0-9]*\)\)=.
 [ -n "$proof" ] && [ -s "$proof" ] || die "--proof <file> is required and must not be empty: what you ran and what it showed"
 branch=$(git symbolic-ref -q --short HEAD) || die "HEAD is detached; check out the branch"
 case "$branch" in master | golden | golden-cut | golden-verified) die "refusing to open a pull request from $branch" ;; esac
-[ -n "$issue" ] || issue=$(git config "branch.$branch.issue" || true)
-# Only the number right after the type prefix: a date or a commit id elsewhere in the name is not an issue.
-[ -n "$issue" ] || issue=$(printf '%s\n' "$branch" | sed -nE 's#^[a-z0-9-]+/([0-9]{3,})(-[a-zA-Z].*)?$#\1#p')
+# Its branch.<b>.issue setting, else the number right after the type prefix (tools/branch-note.mjs issueInName).
+[ -n "$issue" ] || issue=$(node "$here/branch-note.mjs" issue-of "$branch" || true)
 [[ "$issue" =~ ^[0-9]+$ ]] || die "$branch names no issue (pass --issue N, or name it as in fix/1234-topic)"
 [ -z "$(git status --porcelain)" ] || die "the worktree has uncommitted or untracked changes; commit them first"
 [ ! -e "$(git rev-parse --git-path MERGE_HEAD)" ] || die "a merge is in progress; finish it first"
 
 # GitHub's copy of the branch first: the owner's Finish commits screenshot approvals to it, and a push that
 # lacks them is rejected. Merged without hooks, like origin/master below.
-if git fetch -q origin "+refs/heads/$branch:refs/remotes/origin/$branch" 2>/dev/null &&
+# Fetches update refs/remotes/origin/*, which a concurrent tools/worktree-new.sh fetch also writes: under
+# its lock (issues #5213, #5466).
+lock="$(git rev-parse --path-format=absolute --git-common-dir)/config.flock"
+if flock "$lock" git fetch -q origin "+refs/heads/$branch:refs/remotes/origin/$branch" 2>/dev/null &&
     ! git merge-base --is-ancestor "origin/$branch" HEAD; then
     if ! git -c core.hooksPath=/dev/null merge -q --no-edit "origin/$branch"; then
         git merge --abort >/dev/null 2>&1 || true
         code=2 die "origin/$branch (commits pushed to GitHub's copy) does not merge cleanly; merge it by hand, resolve, commit, run again"
     fi
 fi
-git fetch -q origin master
+flock "$lock" git fetch -q origin master
 clash="origin/master does not merge cleanly into $branch; merge it by hand (git merge origin/master), resolve, commit, run again"
 if [ "$merge_master" = 0 ]; then
     # Exit 1 is a conflict; anything else (an old git) is not ours to judge, and CI will say.
@@ -107,7 +120,9 @@ fi
 # The fresh-context review, before anything is pushed. It prints its report's path; exit 3 is a blocking finding.
 review="${PR_OPEN_REVIEW:-$here/pr-review.sh}"
 rc=0
+review_start=$(date +%s%3N)
 report=$("$review" --proof "$proof" --issue "$issue" --reuse) || rc=$?
+log_step pr-open-review "$review_start" review "$rc"
 if [ "$rc" = 3 ] && [ "$answered" = 1 ]; then
     echo "pr-open: opening with the review's blocking findings answered in the Proof (--review-answered)" >&2
 elif [ "$rc" = 3 ]; then
@@ -123,7 +138,9 @@ zero=0000000000000000000000000000000000000000
 remote_sha=$(git rev-parse -q --verify "refs/remotes/origin/$branch" || echo "$zero")
 printf 'refs/heads/%s %s refs/heads/%s %s\n' "$branch" "$(git rev-parse HEAD)" "$branch" "$remote_sha" |
     "$here/lfs-pre-push.sh" origin "$(git remote get-url origin)" || die "the Git LFS upload failed"
-git -c core.hooksPath=/dev/null push -q -u origin "HEAD:refs/heads/$branch" || die "the push of $branch failed"
+git -c core.hooksPath=/dev/null push -q origin "HEAD:refs/heads/$branch" || die "the push of $branch failed"
+# Setting the upstream writes .git/config: under tools/worktree-new.sh's lock (issue #5213).
+flock "$lock" git branch -q --set-upstream-to="origin/$branch" || die "could not set $branch's upstream"
 
 [ -n "$title" ] || title=$(git log --reverse --no-merges --format=%s "$base..HEAD" | sed -n 1p)
 lint="${PR_OPEN_TITLE_LINT:-$here/../node_modules/.bin/commitlint --cwd $here/..}"
@@ -133,10 +150,20 @@ agent="${PR_OPEN_AGENT_LOGIN:-graphty-agent}"
 existing=$(gh pr list --head "$branch" --base master --state open --json url,author --jq '.[0] // empty | "\(.url) \(.author.login)"')
 url=${existing%% *}
 author=${existing#* }
+body=$(mktemp) section=$(mktemp)
+tmp_files="$body $section"
+{
+    echo "## Proof"
+    echo
+    # A file's own leading "Proof" heading is dropped (the heading is above), and its other "#" and "##"
+    # headings become "###", so they stay inside the Proof section. The end marker is where PR Integrity's
+    # hasProof stops reading and what a re-run below replaces up to.
+    awk '!s && /^[ \t]*$/ { next } !s && /^##?[ \t]+Proof[ \t]*$/ { next } { s = 1; sub(/^##?[ \t]+/, "### "); print }' "$proof"
+    echo
+    echo "<!-- /proof -->"
+} >"$section"
 if [ -z "$url" ]; then
     author="$agent"
-    body=$(mktemp)
-    trap 'rm -f "$body"' EXIT
     {
         # GitHub refuses a description over 65,536 characters: list at most 50 commits.
         git log --reverse --no-merges --max-count=50 --format='- %s' "$base..HEAD"
@@ -145,31 +172,57 @@ if [ -z "$url" ]; then
         echo
         if [ "$refs" = 1 ]; then echo "Refs #$issue"; else echo "Fixes #$issue"; fi
         echo
-        echo "## Proof"
-        echo
-        # A file's own leading "Proof" heading is dropped (the heading is above), and its other "#" and "##"
-        # headings become "###", so they stay inside the Proof section (PR Integrity reads the section up to the
-        # next "##"; a file starting "## Proof" left it empty).
-        awk '!s && /^[ \t]*$/ { next } !s && /^##?[ \t]+Proof[ \t]*$/ { next } { s = 1; sub(/^##?[ \t]+/, "### "); print }' "$proof"
+        cat "$section"
     } >"$body"
     url=$(gh pr create --base master --head "$branch" --title "$title" --body-file "$body")
+else
+    # A re-run refreshes the Proof: the description's Proof section (up to its end marker, or, in one written
+    # before the marker, up to the next "##" heading) becomes the file's; a description without one gets it
+    # appended. Everything else in the description is kept.
+    old=$(gh pr view "$url" --json body --jq .body)
+    marked=0
+    grep -qE '^<!-- /proof -->'$'\r''?$' <<<"$old" && marked=1
+    awk -v sec="$section" -v marked="$marked" '
+        function put(  l) { while ((getline l < sec) > 0) print l }
+        !done && /^##[ \t]+Proof[ \t]*\r?$/ { put(); done = skip = 1; next }
+        skip && /^<!-- \/proof -->\r?$/ { skip = 0; next }
+        skip && !marked && /^##[ \t]/ { skip = 0; print "" }
+        !skip { print }
+        END { if (!done) { print ""; put() } }' <<<"$old" >"$body"
+    # The REST call, not `gh pr edit`, which fails on this repository while GitHub retires classic Projects
+    # (tools/land.mjs does the same). A failed refresh only warns: the push, the review and auto-merge go on.
+    gh api -X PATCH "repos/{owner}/{repo}/pulls/${url##*/}" -F "body=@$body" >/dev/null ||
+        echo "pr-open: the Proof could not be refreshed on $url; edit its description by hand" >&2
 fi
 # The review goes on the pull request once per patch id: a re-run after a master merge does not post it again.
-marker=$(head -n 1 "$report")
-if ! grep -qF -- "$marker" <<<"$(gh pr view "$url" --json reviews --jq '.reviews[].body')"; then
+# A report that answers test-integrity findings also names its head, so one for a new head is posted again.
+posted=$(gh pr view "$url" --json reviews --jq '.reviews[].body')
+missing=0
+while IFS= read -r marker; do
+    grep -qF -- "$marker" <<<"$posted" || missing=1
+done < <(grep -E '^<!-- (fresh|integrity)-review [^ ]+ -->$' "$report")
+if [ "$missing" = 1 ]; then
     gh pr review "$url" --comment --body-file "$report" >/dev/null || die "the review could not be posted on $url"
 fi
 # The files that guard the owner rather than judge CI: the screenshot gate (keys, trusted gate, capture,
 # config, graphty's in-test comparison), the release (approvals, holds, release.yml and the scripts that read
 # them), the agents' credential guard and settings, the quarantine list and its reader, the two safeguards
 # left on an unheld CI change (the fresh review and PR Integrity), and the two that hold breaking changes
-# (this script and pr-title.yml). A change to one waits for the owner; every other CI change merges on green.
+# (this script and pr-title.yml), and the save-file checks with their exceptions list (graphty-element/test/
+# saved-format/ and its push check). A change to one waits for the owner; every other CI change merges on green.
 # Gap the owner accepted: ci.yml's own gate steps are not held, so a pull request can still change a check
 # that judges it; code-owner review closes that when it is turned on.
-GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$)'
+GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$|graphty-element/test/saved-format/|tools/check-saved-format-allowlist\.mjs$)'
 hold=""
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
-if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$(git log --no-merges --format='%s%n%b' "$base..HEAD")"; then
+# A commit master's release-not-breaking.json lists is the owner's ruling that it is not breaking: skipped.
+# master's list, never the branch's: a branch cannot rule its own commit not breaking (none before the file exists).
+ruled=$(git show origin/master:release-not-breaking.json 2>/dev/null | jq -r '.notBreaking[].commit') || ruled=""
+msgs=""
+for c in $(git rev-list --no-merges "$base..HEAD"); do
+    grep -qxF "$c" <<<"$ruled" || msgs+="$(git log -1 --format='%s%n%b' "$c")"$'\n'
+done
+if grep -qE '^[a-z]+(\([^)]*\))?!:|^BREAKING[ -]CHANGE:' <<<"$msgs"; then
     hold="it holds a breaking change (it bumps a published major)"
 elif guarded=$(git diff --name-only --no-renames "$base" HEAD | grep -E "$GUARD_PATHS"); then
     hold="it changes what guards the owner: $(echo $guarded)"

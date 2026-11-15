@@ -8,6 +8,8 @@ import { type AttachmentData, captureUserFeedback, type FeedbackResult } from ".
 interface FeedbackModalProps {
     opened: boolean;
     onClose: () => void;
+    /** Sends the feedback; Sentry's by default. Tests pass one that records it. */
+    send?: typeof captureUserFeedback;
 }
 
 /**
@@ -29,15 +31,30 @@ async function fileToAttachment(file: File): Promise<AttachmentData> {
  * @param root0 - Component props
  * @param root0.opened - Whether the modal is open
  * @param root0.onClose - Close the modal
+ * @param root0.send - Sends the feedback; Sentry's by default
  * @returns The feedback modal component
  */
-export function FeedbackModal({ opened, onClose }: Readonly<FeedbackModalProps>): React.JSX.Element {
+export function FeedbackModal({
+    opened,
+    onClose,
+    send = captureUserFeedback,
+}: Readonly<FeedbackModalProps>): React.JSX.Element {
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [message, setMessage] = useState("");
     const [files, setFiles] = useState<File[]>([]);
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<FeedbackResult | null>(null);
+
+    const handleClose = (): void => {
+        // Reset form on close
+        setName("");
+        setEmail("");
+        setMessage("");
+        setFiles([]);
+        setResult(null);
+        onClose();
+    };
 
     const handleSubmit = (): void => {
         setLoading(true);
@@ -46,23 +63,20 @@ export function FeedbackModal({ opened, onClose }: Readonly<FeedbackModalProps>)
         // Convert files to attachments and submit
         void Promise.all(files.map(fileToAttachment))
             .then((attachments) => {
-                const feedbackResult = captureUserFeedback({
+                const feedbackResult = send({
                     name: name || undefined,
                     email: email || undefined,
                     message,
                     attachments: attachments.length > 0 ? attachments : undefined,
                 });
-                setResult(feedbackResult);
-
                 if (feedbackResult.success) {
-                    // Reset form and close modal on success
-                    setName("");
-                    setEmail("");
-                    setMessage("");
-                    setFiles([]);
-                    onClose();
+                    // Reset everything, the result included: the modal stays mounted, so a
+                    // kept result would greet the next open with a stale alert.
+                    handleClose();
+                } else {
+                    // Keep the modal open so the user sees the error
+                    setResult(feedbackResult);
                 }
-                // On failure, keep the modal open so user sees the error
             })
             .catch((error: unknown) => {
                 console.error("[FeedbackModal] Error during submission:", error);
@@ -74,16 +88,6 @@ export function FeedbackModal({ opened, onClose }: Readonly<FeedbackModalProps>)
             .finally(() => {
                 setLoading(false);
             });
-    };
-
-    const handleClose = (): void => {
-        // Reset form on close
-        setName("");
-        setEmail("");
-        setMessage("");
-        setFiles([]);
-        setResult(null);
-        onClose();
     };
 
     return (

@@ -32,7 +32,7 @@ const CATEGORIES: ReadonlySet<IssueCategory> = new Set<IssueCategory>([
 ]);
 
 /** Malformed-corpus files that are well-formed for their format, with the reason they import. */
-const ACCEPTED: Readonly<Record<string, string>> = {
+const ACCEPTED: Readonly<Partial<Record<string, string>>> = {
     "csv/header-only.csv": "a header row and no records is an empty edge table (W_CSV_NO_DATA_ROWS)",
     "csv/wrong-delimiter.csv": "a `;`-delimited edge list; the delimiter sniff reads it",
     "cx2/duplicate-node-ids.cx2":
@@ -184,8 +184,8 @@ describe("fuzz audit: report.counts.nodes versus the sink when edges create node
             const report = await registry.importer(format).import(text, sink, { addMissingNodes: true });
             expect(sink.nodeCount).toBe(4);
             expect(report.counts.edges).toBe(2);
-            // FAILS for json, graphml and gml: they report 2 (declared nodes only); csv and dot
-            // report 4. A consumer reading the report cannot tell what the sink holds.
+            // counting only the declared nodes (2) would leave a consumer reading the report unable
+            // to tell what the sink holds
             expect(report.counts.nodes, `${format} report ${report.counts.nodes} vs sink ${sink.nodeCount}`).toBe(4);
         });
     }

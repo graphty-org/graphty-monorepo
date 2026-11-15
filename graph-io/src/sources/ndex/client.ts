@@ -79,9 +79,10 @@ export async function ndexFetch(
         });
     }
     if (status === 403) {
-        failOn(ctx.report, "E_SOURCE_FORBIDDEN", "NDEx answered 403", { status, serverCode });
+        failOn(ctx.report, "E_SOURCE_FORBIDDEN", "NDEx answered 403", { origin: url.origin, status, serverCode });
     }
     return failOn(ctx.report, "E_SOURCE_NOT_FOUND", "NDEx has no such network", {
+        origin: url.origin,
         what: uuid === null ? "url" : "network",
         value: uuid ?? `${url.origin}${url.pathname}`,
     });

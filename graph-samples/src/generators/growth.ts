@@ -296,6 +296,36 @@ export interface BianconiBarabasiOptions extends WeightOptions {
 }
 
 /**
+ * Check the given fitness values, or draw node i's as 1 - nextFloat() from (seed, "fitness", i).
+ * @param given - the fitness option
+ * @param seed - the resolved seed
+ * @param n - the node count
+ * @returns n finite positive values
+ */
+function resolveFitness(given: ArrayLike<number> | undefined, seed: number, n: number): Float64Array<ArrayBuffer> {
+    const fitness = new Float64Array(n);
+    if (given === undefined) {
+        const draw = new RandomStream(seed, "fitness", 0);
+        for (let i = 0; i < n; i++) {
+            draw.reset(i);
+            fitness[i] = 1 - draw.nextFloat();
+        }
+        return fitness;
+    }
+    if (given.length !== n) {
+        throw new RangeError(`fitness must have n = ${n} values, got ${given.length}`);
+    }
+    for (let i = 0; i < n; i++) {
+        const f = given[i];
+        if (!(f > 0 && Number.isFinite(f))) {
+            throw new RangeError(`fitness[${i}] must be finite and positive, got ${String(f)}`);
+        }
+        fitness[i] = f;
+    }
+    return fitness;
+}
+
+/**
  * The Bianconi-Barabasi fitness model (G. Bianconi and A.-L. Barabasi, "Competition and
  * multiscaling in evolving networks", Europhys. Lett. 54, 436-442, 2001,
  * doi:10.1209/epl/i2001-00260-6): preferential attachment weighted by fitness, so a fit latecomer
@@ -316,25 +346,7 @@ export function bianconiBarabasiGraph(options: BianconiBarabasiOptions): SampleG
     checkInt("n", n, m + 1);
     const seed = resolveSeed(options.seed);
     checkEdgeCount((m * (m + 1)) / 2 + (n - m - 1) * m);
-    const fitness = new Float64Array(n);
-    if (options.fitness === undefined) {
-        const draw = new RandomStream(seed, "fitness", 0);
-        for (let i = 0; i < n; i++) {
-            draw.reset(i);
-            fitness[i] = 1 - draw.nextFloat();
-        }
-    } else {
-        if (options.fitness.length !== n) {
-            throw new RangeError(`fitness must have n = ${n} values, got ${options.fitness.length}`);
-        }
-        for (let i = 0; i < n; i++) {
-            const f = options.fitness[i];
-            if (!(f > 0 && Number.isFinite(f))) {
-                throw new RangeError(`fitness[${i}] must be finite and positive, got ${String(f)}`);
-            }
-            fitness[i] = f;
-        }
-    }
+    const fitness = resolveFitness(options.fitness, seed, n);
     const edges = new EdgeBuffer((m * (m + 1)) / 2 + (n - m - 1) * m);
     const degree = new Uint32Array(n);
     for (let a = 0; a <= m; a++) {

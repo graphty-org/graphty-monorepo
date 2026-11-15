@@ -23,10 +23,10 @@ import { operationQueueOf } from "../../../src/Graph";
 import { everyFrameAnimationsOn } from "../../../src/managers/everyFrameAnimations";
 import type { RenderManager } from "../../../src/managers/RenderManager";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
-import { type RenderQualityChange, shadersControllerOf } from "../../../src/session/shaders";
+import { type RenderQualityChange, shaderContentHash, shadersControllerOf } from "../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../src/shaders/chunk";
 import { defineShader } from "../../../src/simple/defineShader";
-import { sha256Hex } from "../../../src/utils/sha256";
+import { pixelAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 
 const WIDTH = 400;
@@ -76,9 +76,12 @@ beforeAll(() => {
         }`,
     });
     // Enough work per pixel that SwiftShader takes well over 50 ms a frame on a canvas this size.
+    // An effect drawn around its node and see-through, so sprites over one another all shade:
+    // none is hidden from the GPU's work by the one in front of it.
     defineShader({
         id: "e4/slow",
-        place: "replace",
+        place: "around",
+        reach: 2,
         motion: "loop",
         glsl: `vec4 shade(NodeInput n) {
             float v = n.time;
@@ -87,7 +90,7 @@ beforeAll(() => {
                     v = fract(sin(v + 1.7) * 43.5);
                 }
             }
-            return vec4(vec3(v), 1.0);
+            return vec4(vec3(v), 0.5);
         }`,
     });
     registerShader({
@@ -254,11 +257,14 @@ describe("the frame guard", () => {
     });
 
     it("steps quality down when a heavy shader really keeps the GPU behind, with no fence simulated", async () => {
-        // Three sprites drawn over one another: each frame shades the canvas about three times
-        // over, with almost none of it on the CPU. How long that takes is the machine's: over the
-        // slow-frame line (50 ms) the guard steps the quality down, over the long-frame line
-        // (250 ms, a slower software rasterizer) it steps heavy shaders off. Either is the GPU
-        // really being behind; which one depends on the runner, not on the guard.
+        // See-through sprites drawn over one another, all of the frame's work on the GPU. How long
+        // that takes is the machine's (issue #5575: three stayed under the 50 ms slow-frame line on
+        // the dev machine's card, so the guard rightly never stepped), so the test does not hope
+        // one count is slow enough: it doubles the sprites every 40 frames drawn until the guard's
+        // own measurement says the GPU is behind (768 on that card, three under SwiftShader).
+        // Over the slow-frame line the guard steps the quality down, over the long-frame line
+        // (250 ms, a slow software rasterizer) it steps heavy shaders off. Either is the GPU really
+        // being behind; which one depends on the runner, not on the guard.
         const element = await mounted(
             [
                 { id: "a", x: 0, y: 0 },
@@ -275,9 +281,26 @@ describe("the frame guard", () => {
         cleanups.unshift(() => {
             scene.onBeforeRenderObservable.remove(timing);
         });
-        await until(element, "the guard stepped down", () => seen.length > 0 || starts.length > 40);
+        const { ticks } = renderManagerOf(element);
+        let sprites = 3;
+        for (let round = 0; round < 12 && seen.length === 0; round++) {
+            if (round > 0) {
+                await element.session.data.addNodes(
+                    Array.from({ length: sprites }, (_, i) => ({
+                        id: `more-${String(sprites + i)}`,
+                        position: { x: 0.001 * (i % 32), y: 0.001 * Math.floor(i / 32), z: 0 },
+                    })),
+                );
+                sprites *= 2;
+            }
+
+            starts.length = 0;
+            const from = ticks.drawn;
+            await until(element, "40 frames drawn", () => seen.length > 0 || ticks.drawn - from >= 40);
+        }
+
         const gaps = starts.slice(1).map((at, i) => Math.round(at - starts[i]));
-        assert.isAbove(seen.length, 0, `frame intervals ${gaps.join(" ")}`);
+        assert.isAbove(seen.length, 0, `${String(sprites)} sprites, last frame intervals ${gaps.join(" ")}`);
         assert.oneOf(seen[0].code, ["guard.slow-gpu", "guard.long-frame"]);
         if (seen[0].code === "guard.slow-gpu") {
             assert.strictEqual(element.renderQuality.level, "medium");
@@ -407,30 +430,10 @@ describe("motion", () => {
                 state: "still",
                 problem: { code: "shader.flashing", params: { id } },
             });
-            assert.isAtLeast(hostOf(element).loaded?.uniforms.frozenTime(sha256Hex(text)) ?? -1, 0);
+            assert.isAtLeast(hostOf(element).loaded?.uniforms.frozenTime(shaderContentHash(text)) ?? -1, 0);
         });
     }
 });
-
-/**
- * Read one pixel of the canvas, at a point in CSS pixels.
- * @param element - The element.
- * @param x - x.
- * @param y - y.
- * @returns r, g, b, a.
- */
-async function pixelAt(element: Graphty, x: number, y: number): Promise<number[]> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 1);
-    const scale = 1 / engine.getHardwareScalingLevel();
-    const read = (await engine.readPixels(
-        Math.round(x * scale),
-        Math.round(engine.getRenderHeight() - y * scale),
-        1,
-        1,
-    )) as unknown as Uint8Array;
-    return [read[0], read[1], read[2], read[3]];
-}
 
 describe("the level's caps and detail", () => {
     it("crops an effect's square to 128 px at low quality and leaves it whole at high", async () => {
@@ -453,7 +456,7 @@ describe("the level's caps and detail", () => {
         const ringX = center.x + (edge.x - center.x) * 3;
 
         const isRed = async (): Promise<boolean> => {
-            const [r, g] = await pixelAt(element, ringX, center.y);
+            const [r, g] = await pixelAt(element, { x: ringX, y: center.y });
             return r > 200 && g < 60;
         };
         let red = false;

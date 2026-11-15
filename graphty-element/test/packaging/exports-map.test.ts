@@ -19,6 +19,9 @@ interface Manifest {
     module?: string;
     types?: string;
     customElements?: string;
+    name: string;
+    version: string;
+    scripts: Record<string, string>;
     exports: Record<string, string | Record<string, string>>;
     sideEffects: string[];
     files: string[];
@@ -85,6 +88,11 @@ const REGISTRATION_MODULES = [
     "./src/algorithms/index.ts",
     "./src/data/index.ts",
     "./src/layout/index.ts",
+    // Registers encrypt-storage for the ./ai and ./credentials entry points (src/ai/keys/encryptStorage.ts).
+    "./src/ai/keys/withEncryptStorage.ts",
+    // The Babylon.js engine extensions the element relies on (#6389). It exports nothing, so
+    // without this the library build drops it and Engine.captureGPUFrameTime goes missing.
+    "./src/managers/babylonEngineExtensions.ts",
 ];
 
 /**
@@ -97,6 +105,15 @@ const REGISTRATION_MODULES = [
  * only a production build (a static Storybook, a visual-review capture) shows it.
  */
 const SOURCE_ENTRY_MODULES = ["./index.ts", "./src/graphty-element.ts"];
+
+/**
+ * The guide's example files (docs/examples/), which stories run as the reader would. A plugin
+ * example registers itself when it is imported -- `defineAlgorithm(...)`, `definePalette(...)` --
+ * and exports nothing, so a build told it is pure emits an empty chunk for it: the built
+ * Storybook's simple-tier algorithm and palette stories then ran with nothing registered (#5201).
+ * Not published, so it changes nothing for a consumer.
+ */
+const DOC_EXAMPLE_MODULES = ["./docs/examples/**/*.ts"];
 
 /**
  * Names that mean three incompatible things across this package and its siblings, so no barrel
@@ -222,6 +239,42 @@ describe("the exports map", () => {
         assert.strictEqual(manifest.customElements, "./dist/custom-elements.json");
     });
 
+    it("publishes exactly the subpaths named here, so adding, removing or renaming one fails this file", () => {
+        assert.deepEqual(
+            Object.keys(manifest.exports).sort(),
+            [
+                ...MODULE_ENTRIES.map((entry) => entry.subpath),
+                "./bundle",
+                "./jsx",
+                "./custom-elements.json",
+                "./graphty-catalog.json",
+            ].sort(),
+        );
+    });
+
+    it("publishes the catalogue JSON the agent guide sends consumers to, and the build writes it", () => {
+        assert.strictEqual(manifest.exports["./graphty-catalog.json"], "./dist/graphty-catalog.json");
+        assert.include(manifest.scripts.build, "node scripts/generate-catalog-json.mjs");
+        assert.isTrue(existsSync(resolve(PACKAGE_ROOT, "scripts/generate-catalog-json.mjs")));
+    });
+
+    it("writes a catalogue JSON that carries every built-in table, stamped with this version", () => {
+        const written = JSON.parse(readFileSync(resolve(PACKAGE_ROOT, "dist/graphty-catalog.json"), "utf8")) as Record<
+            string,
+            unknown
+        >;
+
+        assert.strictEqual(written.package, manifest.name);
+        assert.strictEqual(written.version, manifest.version);
+        assert.deepEqual(written.algorithms, JSON.parse(JSON.stringify(catalog.BUILT_IN_ALGORITHMS)));
+        assert.deepEqual(written.layouts, JSON.parse(JSON.stringify(catalog.LAYOUT_DESCRIPTORS)));
+        assert.deepEqual(written.formats, JSON.parse(JSON.stringify(catalog.FORMAT_DESCRIPTORS)));
+        assert.deepEqual(written.palettes, JSON.parse(JSON.stringify(catalog.PALETTE_DESCRIPTORS)));
+        assert.deepEqual(written.scales, JSON.parse(JSON.stringify(catalog.SCALE_DESCRIPTORS)));
+        assert.lengthOf(written.channels as unknown[], Object.keys(catalog.CHANNEL_DESCRIPTORS).length);
+        assert.isNotEmpty(written.errorCodes);
+    });
+
     it("is ESM only: no CommonJS entry, in a package whose default import defines a custom element", () => {
         assert.isUndefined(manifest.main);
         for (const conditions of Object.values(manifest.exports)) {
@@ -245,7 +298,7 @@ describe("what the package promises about side effects and size", () => {
     it("declares a side effect for every published file that has one, and for nothing else", () => {
         assert.deepEqual(
             [...manifest.sideEffects].sort(),
-            [...SIDE_EFFECTFUL, ...REGISTRATION_MODULES, ...SOURCE_ENTRY_MODULES].sort(),
+            [...SIDE_EFFECTFUL, ...REGISTRATION_MODULES, ...SOURCE_ENTRY_MODULES, ...DOC_EXAMPLE_MODULES].sort(),
         );
     });
 

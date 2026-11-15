@@ -29,6 +29,7 @@ import {
     routeOutside,
     surfaceReach,
 } from "../../src/meshes/edgeRoute";
+import { flatShapeOutline, inUnitBox, type Point2, rayReach } from "../../src/meshes/shapeOutlines";
 
 const at = (x: number, y: number, z = 0): { x: number; y: number; z: number } => ({ x, y, z });
 
@@ -287,6 +288,17 @@ describe("edge route geometry", () => {
             ),
             [10, 0, 0, 9, 3, 0, 11, 3, 0, 10, 0, 0],
         );
+        // a route whose first and last bends are the layout's own line ends adds no node center
+        assert.deepEqual(
+            fileRoute(
+                at(0, 0),
+                at(8, 0),
+                { bends: [0.25, 0, 0.5, -0.5, 0.75, 0], srcPort: null, dstPort: null, loop: false, ends: true },
+                half,
+                half,
+            ),
+            [2, 0, 0, 4, -4, 0, 6, 0, 0],
+        );
     });
 
     it("draws a stored route from its first point outside the source to its last outside the target, or from its ports", () => {
@@ -328,6 +340,40 @@ describe("an arrow cap part-way along a line", () => {
         // an ellipse 4 by 2: its sides along the axes
         assert.closeTo(surfaceReach(at(1, 0), at(2, 1, 0), null, true), 2, 1e-12);
         assert.closeTo(surfaceReach(at(0, -1), at(2, 1, 0), null, true), 1, 1e-12);
+    });
+
+    it("reaches a dented shape's own outline, not its box's corner (issue #5793)", () => {
+        const unit = (shape: string): Point2[] => inUnitBox(flatShapeOutline(shape, 2, 2)) ?? [];
+        const diagonal = at(Math.SQRT1_2, Math.SQRT1_2);
+        // a cross 6 wide: the diagonal meets its inner corner at (1, 1), not the box's corner at (3, 3)
+        assert.closeTo(surfaceReach(diagonal, at(3, 3, 0.01), null, unit("cross")), Math.SQRT2, 1e-9);
+        // a star: its top point is the top of its box; between two points the line ends in the dent, well inside
+        const star = unit("star");
+        assert.closeTo(surfaceReach(at(0, 1), at(2, 2, 0.01), null, star), 2, 1e-9);
+        assert.isBelow(surfaceReach(at(0, -1), at(2, 2, 0.01), null, star), 1.5);
+        // Pajek's man, straight down from his middle: between his legs, at the crotch, not the bottom of his box
+        assert.isBelow(surfaceReach(at(0, -1), at(1, 2.5, 0.01), null, unit("man")), 0.6);
+        // a diamond stretched 4 by 2: its slanted side, the line x/2 + y = 1
+        const reach = surfaceReach(diagonal, at(2, 1, 0.01), null, unit("diamond"));
+        assert.closeTo((reach * Math.SQRT1_2) / 2 + reach * Math.SQRT1_2, 1, 1e-9);
+    });
+
+    it("takes a ray's farthest crossing of an outline, and none when it crosses no side", () => {
+        // a square 2 wide, its right side notched in to x = 0.5 across y = -0.25..0.25: along +x the notch is
+        // crossed first, the square's side is never reached on this row; above the notch, the side at 1
+        const notched: Point2[] = [
+            [-1, -1],
+            [1, -1],
+            [1, -0.25],
+            [0.5, -0.25],
+            [0.5, 0.25],
+            [1, 0.25],
+            [1, 1],
+            [-1, 1],
+        ];
+        assert.closeTo(rayReach(notched, 1, 0), 0.5, 1e-12);
+        assert.closeTo(rayReach(notched, 1, 0.5), 1, 1e-12);
+        assert.strictEqual(rayReach([], 1, 0), 0);
     });
 
     it("leaves a node where an arc crosses its outline, on the curve", () => {

@@ -1,5 +1,7 @@
 // CameraManager.ts
-import { Camera, Scene, Vector3 } from "@babylonjs/core";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import type { ViewInsets } from "../camera/types";
 import type { FitBounds, FitInsets } from "../config/GraphBehavior";
@@ -55,8 +57,12 @@ export interface CameraController {
     fitInsets?: FitInsets;
     /** What a 3D fit fits into view; see `camera.fitBounds`. */
     fitBounds?: FitBounds;
+    /** CSS pixels a fit keeps clear at each end of the free area's shorter side; see `ProjectConfig.framing`. */
+    fitPadding?: number;
     /** Turn the view on its own by an angle, for `camera.autoRotate`; a camera that never turns has none. */
     autoTurn?(radians: number): void;
+    /** Stand where a camera of the same kind on another scene stands. */
+    takeView?(from: this): void;
 }
 
 interface InputHandler {
@@ -99,6 +105,9 @@ export class CameraManager {
     /** Told each time the reader's own input -- a wheel, a drag, a pinch, a key -- moves a camera. */
     public onReaderMove: (() => void) | null = null;
 
+    /** Frame time since the reader last moved the camera, for `camera.autoRotateResume`; null, not since it turned. */
+    #idleMs: number | null = null;
+
     /**
      * Creates a new CameraManager instance.
      * @param scene - The Babylon.js scene to manage cameras for
@@ -117,6 +126,7 @@ export class CameraManager {
         this.controllers.set(key, controller);
         this.inputs.set(key, inputHandler);
         controller.onReaderMove = () => {
+            this.#idleMs = 0;
             this.onReaderMove?.();
         };
     }
@@ -181,9 +191,11 @@ export class CameraManager {
      * glides its pivot to it.
      * @param point - The point, in world space.
      * @param frames - How many nominal 60 Hz frames this pass stands for; see `glideTowards`.
+     * @param instant - Reach the point at once rather than gliding there; by default, whether the
+     *     reader prefers reduced motion (see `setInstantGlides`).
      * @returns Whether the camera moved, so the picture is not final yet.
      */
-    public followPoint(point: Vector3, frames = 1): boolean {
+    public followPoint(point: Vector3, frames = 1, instant = this.#instantGlides): boolean {
         const xr = this.scene.metadata?.xrCameraController as XRPivotCameraController | null | undefined;
         if (xr) {
             xr.pivotController.center = point;
@@ -191,7 +203,7 @@ export class CameraManager {
         }
 
         const controller = this.activeCameraController;
-        if (!this.#instantGlides) {
+        if (!instant) {
             return controller?.followPoint?.(point, frames) ?? false;
         }
 
@@ -241,6 +253,16 @@ export class CameraManager {
     }
 
     /**
+     * Hand every camera the padding a fit keeps clear, in place of its own margin.
+     * @param padding - CSS pixels at each end of the shorter side, or undefined for the camera's margin.
+     */
+    public setFitPadding(padding: number | undefined): void {
+        for (const controller of this.controllers.values()) {
+            controller.fitPadding = padding;
+        }
+    }
+
+    /**
      * Tell every camera what a 3D fit fits into view.
      * @param bounds - The nodes' box, or the ball around them.
      */
@@ -251,18 +273,40 @@ export class CameraManager {
     }
 
     /**
-     * Turn the active camera on its own by an angle, unless the reader is moving it.
+     * Turn the active camera on its own by an angle, unless the reader is moving it or moved it
+     * less than `resumeAfter` of frame time ago.
      * @param radians - The angle.
+     * @param frameMs - The frame's time, counted toward `resumeAfter` once the reader stops.
+     * @param resumeAfter - How long to wait after the reader's last move, or "never"; see `camera.autoRotateResume`.
      * @returns Whether it turned, so the next frame has to be drawn.
      */
-    public autoTurn(radians: number): boolean {
+    public autoTurn(radians: number, frameMs = 0, resumeAfter: number | "never" = 0): boolean {
         const controller = this.activeCameraController;
-        if (radians <= 0 || controller?.autoTurn === undefined || this.activeInputHandler?.busy === true) {
+        if (radians <= 0 || controller?.autoTurn === undefined) {
             return false;
+        }
+
+        if (this.activeInputHandler?.busy === true) {
+            this.#idleMs = 0;
+            return false;
+        }
+
+        if (this.#idleMs !== null) {
+            this.#idleMs += frameMs;
+            if (resumeAfter === "never" || this.#idleMs < resumeAfter) {
+                return false;
+            }
+
+            this.#idleMs = null;
         }
 
         controller.autoTurn(radians);
         return true;
+    }
+
+    /** Forget the reader's last move, so `autoTurn` turns again at once (`camera.autoRotate` was changed). */
+    public resumeAutoTurn(): void {
+        this.#idleMs = null;
     }
 
     /**
@@ -298,6 +342,20 @@ export class CameraManager {
      */
     public getController(key: CameraKey): CameraController | undefined {
         return this.controllers.get(key);
+    }
+
+    /**
+     * Put each camera where the same camera of another manager stands, for a scene built to
+     * replace that manager's.
+     * @param previous - The manager being replaced.
+     */
+    public takeViewOf(previous: CameraManager): void {
+        for (const [key, controller] of this.controllers) {
+            const from = previous.controllers.get(key);
+            if (from !== undefined) {
+                controller.takeView?.(from);
+            }
+        }
     }
 
     /**

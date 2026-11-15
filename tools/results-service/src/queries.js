@@ -1,6 +1,6 @@
 // The results Worker's read side (design/ci/channels-pipeline/results-service.md 5.3 and 6; channels.md 5 and
 // 7; budgets-and-trust.md 1.6). Every answer is computed when it is read: no cron, no stored conclusion.
-import { refuse } from "./service.js";
+import { refuse, ROWS_MAX } from "./service.js";
 import { issueKey } from "./signature.js";
 
 const DAY = 86_400_000;
@@ -9,7 +9,15 @@ const FULL_RUN_SLOT = DAY / 4;
 const EVIDENCE = "('pr','full','bisect','base')"; // what reuse and history may count (never local)
 const MASTER_EVIDENCE = "('full','bisect','base')"; // master's own code: the only kinds that excuse or pass a quarantine
 const QUARANTINE_PASSES = 20;
-const NEVER_QUARANTINED = /^webgpu-graph-algorithms/;
+const PLAN_VARIANTS_MAX = 100;
+// A variant's per-file durations read only its newest invocations: file_run is never pruned, and reading a variant's
+// whole history grew until a light check's plan read overloaded D1 (HTTP 500), its bins were packed without
+// history and pull requests ran about five times as many test jobs (#5404). A selected run's bin holds about 7
+// files, so 1,000 bins still give most files their 9 runs; a whole run's parts give every file far more.
+export const HISTORY_INVOCATIONS = 1000;
+// GPU tests, and the style fidelity slices: a sample judged differently on the same inputs is a determinism
+// defect in the drawing or the comparator (#4270)
+const NEVER_QUARANTINED = /^(webgpu-graph-algorithms|graphty-element-fidelity)/;
 
 const list = (value) => (value ?? "").split(",").filter(Boolean);
 const placeholders = (values) => values.map(() => "?").join(",");
@@ -56,26 +64,40 @@ async function passesSince(db, q, before = Number.MAX_SAFE_INTEGER) {
  * The quarantine as it stands now: entries not left, not expired, without 20 passes since their last
  * failure, and never a GPU family.
  * @param db the D1 database
- * @param families shard families
+ * @param families shard families, or null for every family
  * @param now milliseconds
- * @returns the entries, each with family, file, name, issue, expires and passes
+ * @returns the entries, each with family, file, name, issue, since, expires and passes
  */
 async function activeQuarantine(db, families, now) {
-    const wanted = families.filter((f) => !NEVER_QUARANTINED.test(f));
-    if (!wanted.length) return [];
+    const wanted = families?.filter((f) => !NEVER_QUARANTINED.test(f));
+    if (wanted?.length === 0) return [];
+    const byFamily = wanted ? ` AND family IN (${placeholders(wanted)})` : "";
     const rows = await all(
         db,
         `SELECT family, file, name, issue, since, expires FROM quarantine
-         WHERE left_at IS NULL AND expires > ? AND family IN (${placeholders(wanted)})`,
+         WHERE left_at IS NULL AND expires > ?${byFamily}`,
         now,
-        ...wanted,
+        ...(wanted ?? []),
     );
     const out = [];
     for (const q of rows) {
+        if (NEVER_QUARANTINED.test(q.family)) continue;
         const passes = await passesSince(db, q);
-        if (passes < QUARANTINE_PASSES) out.push({ ...q, since: undefined, passes });
+        if (passes < QUARANTINE_PASSES) out.push({ ...q, passes });
     }
     return out;
+}
+
+/**
+ * GET /v1/quarantine : every entry in force, of every family, for the health dashboard's quarantine list.
+ * @param _q the query (unused)
+ * @param _who the caller
+ * @param db the D1 database
+ * @param now milliseconds
+ * @returns quarantine: family, file, name, issue, since, expires (milliseconds) and passes
+ */
+export async function getQuarantine(_q, _who, db, now) {
+    return { quarantine: await activeQuarantine(db, null, now) };
 }
 
 /**
@@ -96,24 +118,45 @@ export async function trackedIssues(db, family, now) {
     return rows.map((r) => r.issue);
 }
 
-// Failures master's own runs of the asked variants saw on exactly `base`, or with the same variant and
-// inputs key (6.3). Another variant's failure (flags=on for a flags=off run) excuses nothing.
+// Failures master's own runs of the asked variants saw on exactly `base`, with the same variant and inputs key, or
+// in the variant's newest full run (6.3): a master break shows there before any base check runs on a pull
+// request's own base (#8051). Another variant's failure (flags=on for a flags=off run) excuses nothing.
 async function failingOnBase(db, base, pairs, changed) {
-    if (!pairs.length) return [];
+    // 1 + 4 parameters a variant: chunks of 24 stay under D1's 100 (an everything run asks about ~55 variants)
+    const rows = [];
+    for (let i = 0; i < pairs.length; i += 24)
+        rows.push(...(await failingOnBaseChunk(db, base, pairs.slice(i, i + 24))));
+    return rows.filter((r) => !changed.has(r.file)); // rule 1: a changed test file is never excused
+}
+
+// The newest full run's failures are a second SELECT driven from each variant's newest full commit, joined by the
+// inv_sha index. As a third OR term with a correlated subquery, the newest commit was looked up again for every
+// failed master invocation of the variants, and the read held the single-threaded D1 database long enough that
+// half of pull request plan reads answered HTTP 500 (#8208). UNION keeps DISTINCT across both halves.
+async function failingOnBaseChunk(db, base, pairs) {
     const variants = pairs.map(([v]) => v);
     const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
-    const rows = await all(
+    const columns = "i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue";
+    return all(
         db,
-        `SELECT DISTINCT i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
+        `SELECT ${columns}
          FROM failure f JOIN invocation i ON i.id = f.invocation
          LEFT JOIN tracked_issue t ON t.signature = f.signature
          WHERE i.kind IN ${MASTER_EVIDENCE} AND i.outcome = 'failed'
-           AND ((i.sha = ? AND i.variant IN (${placeholders(variants)}))${same})`,
+           AND ((i.sha = ? AND i.variant IN (${placeholders(variants)}))${same})
+         UNION
+         SELECT ${columns}
+         FROM (SELECT variant, sha, max(started_at) FROM invocation
+               WHERE kind = 'full' AND variant IN (${placeholders(variants)}) GROUP BY variant) n
+         JOIN invocation i ON i.sha = n.sha AND i.variant = n.variant
+         JOIN failure f ON f.invocation = i.id
+         LEFT JOIN tracked_issue t ON t.signature = f.signature
+         WHERE i.kind = 'full' AND i.outcome = 'failed'`,
         base ?? "",
         ...variants,
         ...pairs.flat(),
+        ...variants,
     );
-    return rows.filter((r) => !changed.has(r.file)); // rule 1, the file itself; its import closure is the client's
 }
 
 async function variantFacts(db, variant, inputs, now) {
@@ -135,10 +178,14 @@ async function variantFacts(db, variant, inputs, now) {
     const runs = await all(
         db,
         `SELECT file, ms FROM (SELECT r.file, r.ms, row_number() OVER (PARTITION BY r.file ORDER BY i.started_at DESC) AS n
-           FROM file_run r JOIN invocation i ON i.id = r.invocation
-           WHERE i.variant = ? AND i.kind IN ${EVIDENCE} AND i.outcome IN ('passed','failed') AND r.ms IS NOT NULL)
+           FROM (SELECT id, started_at FROM invocation
+                 WHERE variant = ? AND kind IN ${EVIDENCE} AND outcome IN ('passed','failed')
+                 ORDER BY started_at DESC LIMIT ?) i
+           JOIN file_run r ON r.invocation = i.id
+           WHERE r.ms IS NOT NULL)
          WHERE n <= 9`,
         variant,
+        HISTORY_INVOCATIONS,
     );
     const byFile = Map.groupBy(runs, (r) => r.file);
     const fileMs = Object.fromEntries([...byFile].map(([file, rs]) => [file, median(rs.map((r) => r.ms))]));
@@ -190,13 +237,19 @@ export async function getPlan(q, who, db, now) {
     const variants = list(q.get("variants"));
     const inputs = list(q.get("inputs"));
     if (variants.length !== inputs.length) refuse(400, "variants and inputs must be lists of the same length");
+    // each variant fans out several queries at once: an everything run asks for ~55
+    if (variants.length > PLAN_VARIANTS_MAX) refuse(400, `a plan reads at most ${PLAN_VARIANTS_MAX} variants`);
     const pairs = variants.map((v, i) => [v, inputs[i]]);
     const families = [...new Set(variants.map((v) => v.split("|")[0]))];
-    const facts = {};
-    for (const [v, k] of pairs) facts[v] = await variantFacts(db, v, k, now);
+    // in parallel: one after another, an everything run's ~55 variants took past the client's wait, so its bins
+    // were packed without history, about eight times too many test jobs, and they queued pull requests for an hour
+    const facts = Object.fromEntries(
+        await Promise.all(pairs.map(async ([v, k]) => [v, await variantFacts(db, v, k, now)])),
+    );
     const files = list(q.get("files"));
+    if (files.length > ROWS_MAX) refuse(400, `a plan reads at most ${ROWS_MAX} files`);
     return {
-        quarantine: await activeQuarantine(db, families, now),
+        quarantine: (await activeQuarantine(db, families, now)).map((q) => ({ ...q, since: undefined })),
         failingOnBase: await failingOnBase(db, q.get("base"), pairs, new Set(files)),
         variants: facts,
         ...(pairs.length === 0 && files.length ? await fileFacts(db, files, now) : {}),
@@ -297,6 +350,7 @@ const BLOCKING = {
     "green-images": "waiting-for-screenshots",
     approved: "resume-due",
     rejected: "rejected",
+    refused: "refused",
     "green-clean": "promotable",
 };
 
@@ -352,7 +406,7 @@ export async function getReleaseState(q, who, db, now) {
         ? ((await db.prepare("SELECT built_at FROM site WHERE sha = ?").bind(nightly.sha).first())?.built_at ??
           nightly.movedAt - FULL_RUN_SLOT)
         : 0;
-    const last = states.findLast((s) => !["approved", "rejected"].includes(s.state));
+    const last = states.findLast((s) => !["approved", "rejected", "refused"].includes(s.state));
     const canary = await newestSite(db);
     const canaryVerdict = states.find((s) => s.sha === canary?.sha);
     const unpromoted = !!canary && !sameAsNightly(canary.sha, nightly?.sha, states) && canary.builtAt > nightlyBuilt;
@@ -373,6 +427,7 @@ export async function getReleaseState(q, who, db, now) {
     if (hold) offered = heldHead?.state === "green-images" ? heldHead : null;
     let blocking = unpromoted ? (BLOCKING[canaryState] ?? "unjudged") : null;
     if (hold) blocking = "held";
+    const ageNightlyMs = unpromoted ? now - start : 0;
     return {
         nightly,
         red: last?.state === "red" ? last : null,
@@ -382,7 +437,7 @@ export async function getReleaseState(q, who, db, now) {
         offered,
         canary,
         // null while nightly has never moved: not started, so the stall alarm has nothing to count from
-        ageNightlyMs: nightly ? (unpromoted ? now - start : 0) : null,
+        ageNightlyMs: nightly ? ageNightlyMs : null,
         blocking,
         hold,
     };
@@ -450,24 +505,87 @@ export async function getMedians(query, _who, db, now) {
  * @returns key, kind, recent, earlier, alarm and range for each key with at least 5 runs
  */
 export async function trendFor(db, kind, posted, budgets, now) {
-    const workflows = [...new Set(posted.map((r) => r.workflow))];
-    const keys = new Set(posted.map((r) => keyOf({ step: "", task: "", ...r })));
-    // ponytail: 30-day window scanned per post; a per-key summary table if D1 reads get slow
-    const rows = await all(
-        db,
-        `SELECT workflow, job, step, task, sha, ms FROM (SELECT d.*, row_number() OVER
-           (PARTITION BY workflow, job, step, task ORDER BY started_at DESC) AS n FROM duration d
-           WHERE kind = ? AND workflow IN (${placeholders(workflows)}) AND started_at >= ?
-             AND coalesce(conclusion, '') != 'cancelled')
-         WHERE n <= 15 ORDER BY started_at`,
-        kind,
-        ...workflows,
-        now - 30 * DAY,
-    );
-    const byKey = Map.groupBy(rows, keyOf);
-    return [...byKey]
-        .filter(([key, rs]) => keys.has(key) && rs.length >= 5)
+    const since = now - 30 * DAY;
+    const rows = [];
+    // Each posted key's newest 15 samples, sought through an index (#5597): a window over the whole 30 days held D1
+    // past 10 s once the table grew, and every other read queued behind it. A task key is its newest 15 over
+    // every job that ran it, which is all of them judgeTrend reads. The keys are one JSON parameter (D1 binds 100).
+    const keys = (r) => (r.task ? [r.workflow, r.task] : [r.workflow, r.job, r.step ?? ""]);
+    const tasks = posted.filter((r) => r.task).map(keys);
+    const steps = posted.filter((r) => !r.task).map(keys);
+    if (steps.length) rows.push(...(await all(db, NEWEST_STEPS, kind, JSON.stringify(steps), since)));
+    if (tasks.length) rows.push(...(await all(db, NEWEST_TASKS, kind, JSON.stringify(tasks), since)));
+    rows.sort((a, b) => a.started_at - b.started_at);
+    return [...Map.groupBy(rows, keyOf)]
+        .filter(([, rs]) => rs.length >= 5)
         .map(([key, rs]) => ({ key, kind, ...judgeTrend(rs, budgets?.[key]) }));
+}
+
+// A key's samples from its 15th newest on (ties on the start may add a few older ones, which judgeTrend drops)
+const NEWEST_STEPS = `WITH k AS (SELECT DISTINCT json_extract(value, '$[0]') AS workflow, json_extract(value, '$[1]') AS job,
+      json_extract(value, '$[2]') AS step FROM json_each(?2))
+    SELECT e.workflow, e.job, e.step, e.task, e.sha, e.ms, e.started_at FROM k JOIN duration e INDEXED BY duration_key
+      ON e.kind = ?1 AND e.workflow = k.workflow AND e.job = k.job AND e.step = k.step AND e.task = ''
+     WHERE coalesce(e.conclusion, '') != 'cancelled' AND e.started_at >= coalesce((SELECT x.started_at FROM duration x INDEXED BY duration_key
+       WHERE x.kind = ?1 AND x.workflow = k.workflow AND x.job = k.job AND x.step = k.step AND x.task = ''
+         AND x.started_at >= ?3 AND coalesce(x.conclusion, '') != 'cancelled' ORDER BY x.started_at DESC LIMIT 1 OFFSET 14), ?3)`;
+const NEWEST_TASKS = `WITH k AS (SELECT DISTINCT json_extract(value, '$[0]') AS workflow, json_extract(value, '$[1]') AS task
+      FROM json_each(?2))
+    SELECT e.workflow, e.job, e.step, e.task, e.sha, e.ms, e.started_at FROM k JOIN duration e INDEXED BY duration_task
+      ON e.kind = ?1 AND e.workflow = k.workflow AND e.task = k.task AND e.task != ''
+     WHERE coalesce(e.conclusion, '') != 'cancelled' AND e.started_at >= coalesce((SELECT x.started_at FROM duration x INDEXED BY duration_task
+       WHERE x.kind = ?1 AND x.workflow = k.workflow AND x.task = k.task AND x.task != ''
+         AND x.started_at >= ?3 AND coalesce(x.conclusion, '') != 'cancelled' ORDER BY x.started_at DESC LIMIT 1 OFFSET 14), ?3)`;
+
+/**
+ * Whether the durations post may answer its trend and lastSeen (#5597): only once migration 0009's summary
+ * tables and task index exist and backfill.sql has copied every older row into them. Before that the post
+ * leaves both out -- the old way, scanning the duration table, held D1 past 10 s per post and kept its queue
+ * full, so the migration could not run -- and ci-budgets.mjs files and closes nothing for that run.
+ * @param db the D1 database
+ * @returns true once duration_backfill says finished
+ */
+export async function summariesReady(db) {
+    try {
+        return Boolean((await db.prepare("SELECT done >= last AS ready FROM duration_backfill").first())?.ready);
+    } catch (error) {
+        if (/no such table/.test(String(error?.message))) return false;
+        throw error;
+    }
+}
+
+/**
+ * Each key's last sample within a run kind, and how many runs of its workflow and kind came after it (#5176): a
+ * key that stops getting samples (its job or step was renamed or removed) has an alarm the trend never judges
+ * again, and the posting `timings` job closes it once the key has missed enough runs. 30 days, cancelled rows
+ * left out; a key with no sample in the window is not named at all.
+ * @param db the D1 database
+ * @param kind the run kind
+ * @param workflows the posted run's workflow files
+ * @param now milliseconds
+ * @returns `{ [key]: { runId, sha, at, runsSince } }`
+ */
+export async function lastSeenFor(db, kind, workflows, now) {
+    // from the summary tables a trigger keeps (migrations/0009), never a scan of the duration table (#5597)
+    const args = [kind, ...workflows, now - 30 * DAY];
+    const where = `kind = ? AND workflow IN (${placeholders(workflows)}) AND started_at >= ?`;
+    const last = await all(
+        db,
+        `SELECT workflow, job, step, task, run_id, sha, started_at FROM duration_last WHERE ${where}`,
+        ...args,
+    );
+    const runs = Map.groupBy(
+        await all(db, `SELECT workflow, run_id FROM duration_run WHERE ${where}`, ...args),
+        (r) => r.workflow,
+    );
+    const out = {};
+    for (const r of last) {
+        const key = keyOf(r);
+        if (out[key] && out[key].runId >= r.run_id) continue;
+        const runsSince = (runs.get(r.workflow) ?? []).filter((x) => x.run_id > r.run_id).length;
+        out[key] = { runId: r.run_id, sha: r.sha, at: r.started_at, runsSince };
+    }
+    return out;
 }
 
 // Tests two master-evidence runs of one variant, commit and inputs key disagree on: one failed the test, the other

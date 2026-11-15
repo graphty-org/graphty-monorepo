@@ -26,11 +26,9 @@ import "../../src/graphty-element";
 import { Camera } from "@babylonjs/core";
 import { afterEach, assert, describe, test, vi } from "vitest";
 
+import { isGraphtyError } from "../../src/errors";
 import { Graph } from "../../src/Graph";
 import { assertPlaced } from "../helpers/placed-position";
-
-/** How long to wait for the element to connect and finish `Graph.init()`: the test's own budget. */
-const INIT_BUDGET_MS = 10_000;
 
 const NODES = [{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }];
 const EDGES = [
@@ -71,12 +69,9 @@ function makeHost(): HTMLDivElement {
  * @param graph - The element's graph.
  */
 async function initialised(graph: Graph): Promise<void> {
-    await vi.waitFor(
-        () => {
-            assert.isTrue(graph.initialized, "the element finished initialising");
-        },
-        { timeout: INIT_BUDGET_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(graph.initialized, "the element finished initialising");
+    });
 }
 
 /**
@@ -274,7 +269,11 @@ describe("a graph that opens in 2D", () => {
 
         graphs.push(graph);
         await graph.init();
-        await graph.setViewMode("vr");
+        const refused: unknown = await graph.setViewMode("vr").then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+        assert.isTrue(isGraphtyError(refused) && refused.code === "E_UNSUPPORTED", "the entry did not reject, coded");
         await settle(graph);
 
         // There is no WebXR here, so the switch falls back. What matters beyond the fallback is

@@ -1,11 +1,16 @@
 // Installs Mesh.prototype.createInstance, which get() calls. This module loads it itself so any
 // path that reaches get() -- including a consumer resolving the element from source -- has it.
 // See test/packaging/babylon-side-effects.test.ts.
-import "@babylonjs/core/Meshes/instancedMesh";
+import "@babylonjs/core/Meshes/instancedMesh.js";
 
-import { InstancedMesh, Mesh, type Scene } from "@babylonjs/core";
+import type { InstancedMesh } from "@babylonjs/core";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { EdgeLineBatch } from "./EdgeLineBatch";
+import { NodeBatch } from "./NodeBatch";
+import type { PulledLineBatch } from "./PulledLineBatch";
 
 type MeshCreatorFn = () => Mesh;
 
@@ -27,6 +32,19 @@ export class MeshCache {
      * holding a slot in a mesh that no longer exists.
      */
     batchCacheMap = new Map<string, EdgeLineBatch>();
+
+    /** Pulled line batches by look, cleared with the rest so a 2D switch rebuilds their edges. */
+    pulledBatchMap = new Map<string, PulledLineBatch>();
+
+    /** The node batches, by the source mesh they share a material with, which they die with. */
+    nodeBatchMap = new Map<Mesh, NodeBatch>();
+
+    /**
+     * Sources whose rows a batch draws. A batch is built from one source of its shape and draws the
+     * other sizes scaled, so those sources have no instance and no batch of their own; this keeps
+     * a prune from taking them while their rows are drawn.
+     */
+    readonly batchedSources = new Set<Mesh>();
     hits = 0;
     misses = 0;
 
@@ -37,10 +55,21 @@ export class MeshCache {
      * @returns Instanced mesh from cache or newly created
      */
     get(name: string, creator: MeshCreatorFn): InstancedMesh {
+        return this.sourceFor(name, creator).createInstance(name);
+    }
+
+    /**
+     * Get or create a source mesh, with no instance of it: what a row with no mesh of its own is
+     * drawn and picked from.
+     * @param name - Cache key for the mesh
+     * @param creator - Function to create the mesh if not cached
+     * @returns The source mesh
+     */
+    sourceFor(name: string, creator: MeshCreatorFn): Mesh {
         let mesh = this.meshCacheMap.get(name);
         if (mesh) {
             this.hits++;
-            return mesh.createInstance(name);
+            return mesh;
         }
 
         this.misses++;
@@ -55,7 +84,7 @@ export class MeshCache {
 
         mesh.freezeWorldMatrix();
         this.meshCacheMap.set(name, mesh);
-        return mesh.createInstance(name);
+        return mesh;
     }
 
     /**
@@ -96,6 +125,40 @@ export class MeshCache {
     }
 
     /**
+     * Get or create the pulled line batch of one look.
+     * @param name - The look's key, which also names the batch's mesh.
+     * @param creator - Builds the batch the first time.
+     * @returns The batch.
+     */
+    getPulledBatch(name: string, creator: () => PulledLineBatch): PulledLineBatch {
+        let batch = this.pulledBatchMap.get(name);
+        if (batch === undefined) {
+            batch = creator();
+            batch.mesh.name = name;
+            this.pulledBatchMap.set(name, batch);
+        }
+
+        return batch;
+    }
+
+    /**
+     * Get or create the batch drawing a source mesh's rows.
+     * @param source - The source mesh.
+     * @param places - The table that places the rows.
+     * @param root - What the rows are drawn inside.
+     * @returns The batch.
+     */
+    batchFor(source: Mesh, places: ConstructorParameters<typeof NodeBatch>[1], root: TransformNode | null): NodeBatch {
+        let batch = this.nodeBatchMap.get(source);
+        if (batch === undefined) {
+            batch = new NodeBatch(source, places, root);
+            this.nodeBatchMap.set(source, batch);
+        }
+
+        return batch;
+    }
+
+    /**
      * Reset cache statistics (hits and misses)
      */
     reset(): void {
@@ -108,7 +171,7 @@ export class MeshCache {
      */
     clear(): void {
         for (const mesh of this.meshCacheMap.values()) {
-            MeshCache.disposeSource(mesh);
+            this.disposeSource(mesh);
         }
         this.meshCacheMap.clear();
 
@@ -117,6 +180,12 @@ export class MeshCache {
         }
 
         this.batchCacheMap.clear();
+
+        for (const batch of this.pulledBatchMap.values()) {
+            batch.dispose();
+        }
+
+        this.pulledBatchMap.clear();
         this.reset();
     }
 
@@ -130,11 +199,35 @@ export class MeshCache {
      */
     prune(): void {
         for (const [name, mesh] of this.meshCacheMap) {
-            if (mesh.instances.length === 0) {
-                MeshCache.disposeSource(mesh);
+            if (
+                mesh.instances.length === 0 &&
+                !this.nodeBatchMap.get(mesh)?.liveSlots &&
+                !this.batchedSources.has(mesh)
+            ) {
+                this.disposeSource(mesh);
                 this.meshCacheMap.delete(name);
             }
         }
+    }
+
+    /**
+     * Dispose and forget the cached meshes that match, with every instance drawn from them, so the
+     * next `get` of their name builds them again: a look whose drawing went stale (a glyph drawn in
+     * the fallback while its web font loaded). Whoever held an instance finds it disposed.
+     * @param match - Whether a cached source mesh is stale.
+     * @returns True when any was forgotten.
+     */
+    forget(match: (mesh: Mesh) => boolean): boolean {
+        let forgot = false;
+        for (const [name, mesh] of this.meshCacheMap) {
+            if (match(mesh)) {
+                this.disposeSource(mesh);
+                this.meshCacheMap.delete(name);
+                forgot = true;
+            }
+        }
+
+        return forgot;
     }
 
     /**
@@ -142,10 +235,15 @@ export class MeshCache {
      *
      * Every creator handed to get() builds a fresh material for its mesh, so the material dies
      * with it; `mesh.dispose()` alone would leave it in `scene.materials` for good. Textures are
-     * kept: node gradient textures are shared across materials per scene.
+     * kept: node gradient textures are shared across materials per scene, and NodeMesh disposes
+     * one when the last material drawing it is disposed. A batch of the mesh goes
+     * first, as it draws with that material.
      * @param mesh - The cached source mesh
      */
-    private static disposeSource(mesh: Mesh): void {
+    private disposeSource(mesh: Mesh): void {
+        this.nodeBatchMap.get(mesh)?.dispose();
+        this.nodeBatchMap.delete(mesh);
+        this.batchedSources.delete(mesh);
         const { material } = mesh;
         mesh.dispose();
         material?.dispose(false, false);

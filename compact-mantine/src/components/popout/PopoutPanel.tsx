@@ -153,6 +153,7 @@ function stopBeside(origin: HTMLElement, panel: HTMLElement, back: boolean): HTM
  * @param props.placement - Which side of the anchor the panel sits on
  * @param props.alignment - Alignment along the axis the panel is placed against
  * @param props.gap - Gap between the panel and the anchor in pixels; negative values overlap them
+ * @param props.closeLabel - The close button's accessible name
  * @param props.actions - Action buttons to display in the header
  * @param props.manageFocus - Whether opening the panel moves focus into it and closing returns it
  * @param props.boundaryTop - The highest the panel's top may sit, in viewport pixels (below a header)
@@ -168,6 +169,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
         height,
         header,
         label,
+        closeLabel,
         children,
         anchorX,
         anchorY,
@@ -642,6 +644,7 @@ export function PopoutPanel(props: PopoutPanelProps): ReactPortal | null {
                     activeTab={activeTab}
                     onTabChange={handleTabChange}
                     actions={actions}
+                    closeLabel={closeLabel}
                     titleId={titleId}
                     tabsId={tabsBaseId}
                 />

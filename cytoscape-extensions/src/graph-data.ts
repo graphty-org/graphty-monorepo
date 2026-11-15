@@ -39,6 +39,7 @@ export interface ImportedGraph extends AddedGraph {
      * the core's stylesheet; otherwise append it yourself, rule by rule:
      * `for (const r of stylesheet) cy.style().selector(r.selector).style(r.style); cy.style().update()`.
      * Absent without `styles`.
+     * @experimental
      */
     readonly stylesheet?: CytoscapeStylesheetRule[];
 }
@@ -178,13 +179,14 @@ function applyBypass(
 ): void {
     let j = 0;
     defs.forEach((def, i) => {
-        const ele = added[j];
-        if (ele?.id() !== def.data.id) {
+        // cy.add skips a definition it refuses, so `added` can be shorter than `defs`
+        if (j >= added.length || added[j].id() !== def.data.id) {
             return;
         }
+        const ele = added[j];
         j++;
         const b = bypass[i];
-        if (b !== null && b !== undefined) {
+        if (b !== null) {
             ele.style(b as never);
         }
     });
@@ -224,7 +226,7 @@ export function registerGraphData(cytoscape: Register): void {
                 applyBypass(elements, r.elements, r.bypass);
             }
             const style = this.style() as unknown as AppendableStyle | undefined;
-            if (apply && r.stylesheet !== undefined && style !== undefined) {
+            if (apply && style !== undefined) {
                 // appended rule by rule: a round trip through style.json() turns the core's own function-valued
                 // properties into the string "fn", which Cytoscape then rejects
                 let s = style;

@@ -4,9 +4,14 @@
 
 ```ts
 
-import { AbstractMesh } from '@babylonjs/core';
-import { Camera } from '@babylonjs/core';
-import { Color3 } from '@babylonjs/core';
+import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh.js';
+import { AbstractMesh as AbstractMesh_2 } from '@babylonjs/core';
+import type { ActionManager } from '@babylonjs/core/Actions/actionManager.js';
+import type { BaseTexture } from '@babylonjs/core';
+import type { BoundingBox } from '@babylonjs/core/Culling/boundingBox.js';
+import { BoundingInfo } from '@babylonjs/core/Culling/boundingInfo.js';
+import { Camera } from '@babylonjs/core/Cameras/camera.js';
+import { Color3 } from '@babylonjs/core/Maths/math.color.js';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
 import { Credential as Credential_2 } from '@graphty/graph-io';
@@ -20,8 +25,8 @@ import type { DatasetMeta } from '@graphty/graph-samples';
 import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
-import { Engine } from '@babylonjs/core';
-import { EngineInstrumentation } from '@babylonjs/core';
+import { Engine } from '@babylonjs/core/Engines/engine.js';
+import { EngineInstrumentation } from '@babylonjs/core/Instrumentation/engineInstrumentation.js';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
 import { FreezeReport } from '@graphty/graph-format';
@@ -30,32 +35,36 @@ import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
 import { GML_LOSS } from '@graphty/graph-io';
+import { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GraphBuilder } from '@graphty/graph-format';
 import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSnapshot } from '@graphty/graph-format';
-import { InstancedMesh } from '@babylonjs/core';
+import type { InstancedMesh } from '@babylonjs/core';
 import { JSON_LOSS } from '@graphty/graph-io';
 import { LitElement } from 'lit';
 import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
-import { Matrix } from '@babylonjs/core';
-import { Mesh } from '@babylonjs/core';
+import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
+import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
+import { ModelFormat } from 'babylonjs-models/detect';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
-import { Observable } from '@babylonjs/core';
-import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable';
+import { Observable } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
-import { PerfCounter } from '@babylonjs/core';
-import { PointerInfoPre } from '@babylonjs/core';
+import { PerfCounter } from '@babylonjs/core/Misc/perfCounter.js';
+import type { Plane } from '@babylonjs/core';
+import type { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { PropertyValues } from 'lit';
-import { Quaternion } from '@babylonjs/core';
-import { Ray } from '@babylonjs/core';
+import { Quaternion } from '@babylonjs/core/Maths/math.vector.js';
+import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture.js';
+import { Ray } from '@babylonjs/core/Culling/ray.js';
 import type { RetryOptions } from '@graphty/graph-io';
-import { Scene } from '@babylonjs/core';
-import { SceneInstrumentation } from '@babylonjs/core';
+import { Scene } from '@babylonjs/core/scene.js';
+import { Scene as Scene_2 } from '@babylonjs/core';
+import { SceneInstrumentation } from '@babylonjs/core/Instrumentation/sceneInstrumentation.js';
 import type { SourceCursor } from '@graphty/graph-io';
 import type { SourceLimitOptions } from '@graphty/graph-io';
 import type { SourceListing } from '@graphty/graph-io';
@@ -67,21 +76,22 @@ import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
-import { Vector2 } from '@babylonjs/core/Maths/math.vector';
-import { Vector3 } from '@babylonjs/core';
-import { WebGPUEngine } from '@babylonjs/core';
-import { WebXRDefaultExperience } from '@babylonjs/core';
+import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
+import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine.js';
+import type { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience.js';
 import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
 
 // @public
 export interface GraphtyElementJSXProps {
     "acceleration-min-nodes"?: string;
+    "accessible-node-list"?: boolean;
     // (undocumented)
     "aria-label"?: string;
-    "attribution-offset"?: string;
     "auto-frame"?: boolean;
     "auto-rotate"?: string;
     "autosave-restore"?: string;
@@ -92,6 +102,7 @@ export interface GraphtyElementJSXProps {
     "edge-dst-id-path"?: string;
     "edge-id-path"?: string;
     "edge-src-id-path"?: string;
+    "edge-time-end-path"?: string;
     "edge-time-path"?: string;
     "edge-time-unit"?: string;
     "edge-weight-path"?: string;
@@ -101,21 +112,38 @@ export interface GraphtyElementJSXProps {
     "layout-2d"?: boolean;
     "layout-config"?: string;
     "layout-scope"?: string;
+    "legend-label"?: string;
+    "legend-position"?: string;
+    "minimap-label"?: string;
     "node-data"?: string;
     "node-id-path"?: string;
     "node-label-path"?: string;
+    "node-time-end-path"?: string;
     "node-time-path"?: string;
     "node-time-unit"?: string;
+    "onai-agent-end"?: (event: CustomEvent<EventOfType<"ai-agent-end">>) => void;
+    "onai-agent-start"?: (event: CustomEvent<EventOfType<"ai-agent-start">>) => void;
+    "onai-approval-requested"?: (event: CustomEvent<EventOfType<"ai-approval-requested">>) => void;
+    "onai-capability-unavailable"?: (event: CustomEvent<EventOfType<"ai-capability-unavailable">>) => void;
     "onai-command-cancelled"?: (event: CustomEvent<EventOfType<"ai-command-cancelled">>) => void;
     "onai-command-complete"?: (event: CustomEvent<EventOfType<"ai-command-complete">>) => void;
     "onai-command-error"?: (event: CustomEvent<EventOfType<"ai-command-error">>) => void;
     "onai-command-start"?: (event: CustomEvent<EventOfType<"ai-command-start">>) => void;
+    "onai-conversation-changed"?: (event: CustomEvent<EventOfType<"ai-conversation-changed">>) => void;
+    "onai-export-ready"?: (event: CustomEvent<EventOfType<"ai-export-ready">>) => void;
+    "onai-hosted-tool-result"?: (event: CustomEvent<EventOfType<"ai-hosted-tool-result">>) => void;
+    "onai-pending-resolved"?: (event: CustomEvent<EventOfType<"ai-pending-resolved">>) => void;
+    "onai-question-asked"?: (event: CustomEvent<EventOfType<"ai-question-asked">>) => void;
+    "onai-speech-end"?: (event: CustomEvent<EventOfType<"ai-speech-end">>) => void;
+    "onai-speech-start"?: (event: CustomEvent<EventOfType<"ai-speech-start">>) => void;
     "onai-status-change"?: (event: CustomEvent<EventOfType<"ai-status-change">>) => void;
     "onai-stream-chunk"?: (event: CustomEvent<EventOfType<"ai-stream-chunk">>) => void;
     "onai-stream-tool-call"?: (event: CustomEvent<EventOfType<"ai-stream-tool-call">>) => void;
     "onai-stream-tool-result"?: (event: CustomEvent<EventOfType<"ai-stream-tool-result">>) => void;
     "onai-voice-end"?: (event: CustomEvent<EventOfType<"ai-voice-end">>) => void;
+    "onai-voice-level"?: (event: CustomEvent<EventOfType<"ai-voice-level">>) => void;
     "onai-voice-start"?: (event: CustomEvent<EventOfType<"ai-voice-start">>) => void;
+    "onai-voice-support-change"?: (event: CustomEvent<EventOfType<"ai-voice-support-change">>) => void;
     "onai-voice-transcript"?: (event: CustomEvent<EventOfType<"ai-voice-transcript">>) => void;
     // (undocumented)
     "onanimation-cancelled"?: (event: CustomEvent<EventOfType<"animation-cancelled">>) => void;
@@ -133,11 +161,12 @@ export interface GraphtyElementJSXProps {
     "ondata-loading-complete"?: (event: CustomEvent<EventOfType<"data-loading-complete">>) => void;
     // (undocumented)
     "ondata-loading-error"?: (event: CustomEvent<EventOfType<"data-loading-error">>) => void;
-    // (undocumented)
     "ondata-loading-error-summary"?: (event: CustomEvent<EventOfType<"data-loading-error-summary">>) => void;
     // (undocumented)
     "ondata-loading-progress"?: (event: CustomEvent<EventOfType<"data-loading-progress">>) => void;
     "onelements-removed"?: (event: CustomEvent<EventOfType<"elements-removed">>) => void;
+    // (undocumented)
+    "ongraph-first-frame"?: (event: CustomEvent<EventOfType<"graph-first-frame">>) => void;
     // (undocumented)
     "ongraph-frame-stable"?: (event: CustomEvent<EventOfType<"graph-frame-stable">>) => void;
     // (undocumented)
@@ -180,6 +209,10 @@ export interface GraphtyElementJSXProps {
     // (undocumented)
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
     // (undocumented)
+    "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    // (undocumented)
+    "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
+    // (undocumented)
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     // (undocumented)
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
@@ -187,6 +220,8 @@ export interface GraphtyElementJSXProps {
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
     // (undocumented)
     "ongraphty-visibility-change"?: (event: GraphtyElementEventMap["graphty-visibility-change"]) => void;
+    // (undocumented)
+    "ongraphty-warning"?: (event: GraphtyElementEventMap["graphty-warning"]) => void;
     "oninput-enabled-changed"?: (event: CustomEvent<EventOfType<"input-enabled-changed">>) => void;
     "oninput:key-down"?: (event: CustomEvent<EventOfType<"input:key-down">>) => void;
     "oninput:key-up"?: (event: CustomEvent<EventOfType<"input:key-up">>) => void;
@@ -210,6 +245,7 @@ export interface GraphtyElementJSXProps {
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     // (undocumented)
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
+    "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
     // (undocumented)
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
     // (undocumented)
@@ -227,14 +263,19 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     // (undocumented)
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
+    "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
     // (undocumented)
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
+    "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
+    "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
     // (undocumented)
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
     // (undocumented)
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     // (undocumented)
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
+    // (undocumented)
+    "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
     // (undocumented)
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     "onstats-update"?: (event: CustomEvent<EventOfType<"stats-update">>) => void;
@@ -245,16 +286,22 @@ export interface GraphtyElementJSXProps {
     "onzoom-to-fit-complete"?: (event: CustomEvent<EventOfType<"zoom-to-fit-complete">>) => void;
     "pixel-ratio"?: string;
     "position-scale"?: string;
+    "reduced-motion"?: string;
     "render-on-demand"?: boolean;
+    "render-path"?: string;
     "repeated-edges"?: string;
     "run-algorithms-on-load"?: boolean;
     "starting-camera-distance"?: string;
     "view-mode"?: string;
+    "working-graph"?: boolean;
     "zoom-to-pointer"?: boolean;
     acceleration?: Graphty["acceleration"];
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
+    accessibleAnnouncement?: Graphty["accessibleAnnouncement"];
+    accessibleDescription?: Graphty["accessibleDescription"];
+    accessibleNodeList?: Graphty["accessibleNodeList"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
-    attributionOffset?: Graphty["attributionOffset"];
+    antialias?: Graphty["antialias"];
     autoFrame?: Graphty["autoFrame"];
     autoRotate?: Graphty["autoRotate"];
     autosave?: Graphty["autosave"];
@@ -269,12 +316,14 @@ export interface GraphtyElementJSXProps {
     edgeDstIdPath?: Graphty["edgeDstIdPath"];
     edgeIdPath?: Graphty["edgeIdPath"];
     edgeSrcIdPath?: Graphty["edgeSrcIdPath"];
+    edgeTimeEndPath?: Graphty["edgeTimeEndPath"];
     edgeTimePath?: Graphty["edgeTimePath"];
     edgeTimeUnit?: Graphty["edgeTimeUnit"];
     edgeWeightPath?: Graphty["edgeWeightPath"];
     enableDetailedProfiling?: Graphty["enableDetailedProfiling"];
     features?: Graphty["features"];
     fitInsets?: Graphty["fitInsets"];
+    globeLook?: Graphty["globeLook"];
     historyKeys?: Graphty["historyKeys"];
     labelDeclutter?: Graphty["labelDeclutter"];
     layout?: Graphty["layout"];
@@ -282,18 +331,27 @@ export interface GraphtyElementJSXProps {
     layoutBehavior?: Graphty["layoutBehavior"];
     layoutConfig?: Graphty["layoutConfig"];
     layoutScope?: Graphty["layoutScope"];
+    legend?: Graphty["legend"];
+    legendLabel?: Graphty["legendLabel"];
+    legendPosition?: Graphty["legendPosition"];
     lighting?: Graphty["lighting"];
+    limits?: Graphty["limits"];
+    minimap?: Graphty["minimap"];
+    minimapLabel?: Graphty["minimapLabel"];
     nodeData?: Graphty["nodeData"];
     nodeIdPath?: Graphty["nodeIdPath"];
     nodeLabelPath?: Graphty["nodeLabelPath"];
+    nodeTimeEndPath?: Graphty["nodeTimeEndPath"];
     nodeTimePath?: Graphty["nodeTimePath"];
     nodeTimeUnit?: Graphty["nodeTimeUnit"];
     // (undocumented)
     onerror?: (event: CustomEvent<EventOfType<"error">>) => void;
     pixelRatio?: Graphty["pixelRatio"];
     positionScale?: Graphty["positionScale"];
+    reducedMotion?: Graphty["reducedMotion"];
     renderer?: Graphty["renderer"];
     renderOnDemand?: Graphty["renderOnDemand"];
+    renderPath?: Graphty["renderPath"];
     repeatedEdges?: Graphty["repeatedEdges"];
     runAlgorithmsOnLoad?: Graphty["runAlgorithmsOnLoad"];
     selectionStyle?: Graphty["selectionStyle"];
@@ -301,6 +359,7 @@ export interface GraphtyElementJSXProps {
     startingCameraDistance?: Graphty["startingCameraDistance"];
     viewInsets?: Graphty["viewInsets"];
     viewMode?: Graphty["viewMode"];
+    workingGraph?: Graphty["workingGraph"];
     xr?: Graphty["xr"];
     zoomToPointer?: Graphty["zoomToPointer"];
 }

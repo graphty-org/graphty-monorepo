@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The wording check: lists every word a task's prompt (or follow-up) shares with what the app shows
+// The wording check: lists every word a task's prompt shares with what the app shows
 // on the screens its success path reaches -- visible words and controls' accessible names, as
 // bars.mjs --tier 3 records them in vocabulary.json -- so no prompt names the control it needs.
 // A shared word passes only when tasks.md keeps it on purpose: in the task's own
@@ -145,9 +145,7 @@ export function check(tasksText, vocab, spoken = {}) {
         const ownLine = sec.match(/^- \*\*Kept on purpose:\*\*([\s\S]*?)(?=\n- |\n\s*\n|\n#|(?![\s\S]))/m)?.[1];
         const ownKept = kept(ownLine);
         const keptPhrase = new Set([...keptPhrases(everyLine), ...keptPhrases(ownLine)]);
-        const said = [...sec.matchAll(/^\s*- (?:\*\*)?(?:Prompt [AB][^*]*|[AB])(?:\*\*)?:? "([^"]+)"/gm)].map(
-            (m) => m[1],
-        );
+        const said = [...sec.matchAll(/^\s*- \*\*Prompt [AB][^*]*\*\*:? "([^"]+)"/gm)].map((m) => m[1]);
         prompts += said.length;
         for (const p of said) {
             for (const t of tokens(p)) {

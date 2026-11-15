@@ -138,6 +138,7 @@ export type {
     ContextMenuProps,
     MenuCheckItemProps,
     ModalFooterProps,
+    TargetTooltipProps,
     ToastAction,
     ToastApi,
     ToastOptions,

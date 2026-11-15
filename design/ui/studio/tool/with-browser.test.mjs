@@ -11,6 +11,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const gate = join(dirname(fileURLToPath(import.meta.url)), "with-browser.sh");
+// run under tools/low-priority.sh, every waiter here would be in the low lane
+delete process.env.BROWSER_SLOT_PRIORITY;
 const until = async (cond) => {
     while (!cond()) await new Promise((ok) => setTimeout(ok, 50));
 };
@@ -135,4 +137,121 @@ test("BROWSER_SLOTS above 16 is refused", () => {
     const r = spawnSync(gate, ["true"], { env: { ...process.env, BROWSER_SLOTS: "17" }, encoding: "utf8" });
     assert.equal(r.status, 2);
     assert.match(r.stderr, /1 to 16/);
+});
+
+test("a planted pool with BROWSER_SLOT_ALSO also waits for, and holds, a slot of that pool", async () => {
+    const [planted, machine] = [0, 1].map(() => mkdtempSync(join(tmpdir(), "with-browser-test-")));
+    const held = (pool) => spawnSync("flock", ["-n", join(pool, "slot1"), "true"]).status !== 0;
+    // the other pool full: its four slots (a command not drawn on the GPU takes one of 1 to 4)
+    const hold = [1, 2, 3, 4].flatMap((i) => ["flock", join(machine, `slot${i}`)]);
+    const holder = spawn(hold[0], [...hold.slice(1), "sleep", "600"], { stdio: "ignore", detached: true });
+    const said = join(planted, "said");
+    const go = join(planted, "go");
+    spawnSync("mkfifo", [go]);
+    try {
+        await until(() => spawnSync("flock", ["-n", join(machine, "slot4"), "true"]).status !== 0);
+        const env = { ...process.env, BROWSER_SLOT_DIR: planted, BROWSER_SLOTS: "1", BROWSER_SLOT_ALSO: machine };
+        // the command says which slot it holds, then runs until the test lets it go
+        const w = spawn(gate, ["sh", "-c", `echo "$BROWSER_SLOT_FILE" > ${said}; read x < ${go}`], {
+            env,
+            stdio: "ignore",
+        });
+        const done = new Promise((ok) => w.on("exit", ok));
+        // its own slot taken, it queues in the other pool and runs nothing while that one is full
+        await until(() => existsSync(join(machine, "queue")) && readdirSync(join(machine, "queue")).length === 1);
+        assert.ok(held(planted), "the planted slot was let go while waiting");
+        assert.ok(!existsSync(said), "the command ran with the other pool full");
+        process.kill(-holder.pid);
+        await until(() => existsSync(said) && readFileSync(said, "utf8").trim());
+        assert.equal(readFileSync(said, "utf8").trim(), join(machine, "slot1"));
+        assert.ok(held(planted) && held(machine), "a slot was let go while the command ran");
+        writeFileSync(go, "\n");
+        assert.equal(await done, 0);
+        assert.ok(!held(planted) && !held(machine), "a slot outlived the command");
+    } finally {
+        try {
+            process.kill(-holder.pid);
+        } catch {
+            // already let go
+        }
+        for (const p of [planted, machine]) rmSync(p, { recursive: true, force: true });
+    }
+});
+
+test("a warm browser of --prove's warm-pool check (REAL_WARM_HOLD=1) waits in the queue for a slot", async () => {
+    // in try mode it gave up at once with every spare slot busy, so the check's verdict followed how
+    // busy the machine was, not whether a warm browser is taken over
+    const pool = mkdtempSync(join(tmpdir(), "with-browser-test-"));
+    const build = mkdtempSync(join(tmpdir(), "with-browser-build-"));
+    const holder = spawn("flock", [join(pool, "slot1"), "sleep", "600"], { stdio: "ignore", detached: true });
+    const queue = join(pool, "queue");
+    const tickets = () => (existsSync(queue) ? readdirSync(queue) : []);
+    try {
+        await until(() => spawnSync("flock", ["-n", join(pool, "slot1"), "true"]).status !== 0);
+        // an --end that names its build tops the warm pool up; the session it names does not exist
+        const real = join(dirname(gate), "real.mjs");
+        const env = {
+            ...process.env,
+            BROWSER_SLOT_DIR: pool,
+            BROWSER_SLOTS: "1",
+            REAL_DIST: build,
+            REAL_WARM_POOL: "1",
+            REAL_WARM_HOLD: "1",
+        };
+        const r = spawnSync(process.execPath, [real, "--end", join(build, "no-session")], { env, encoding: "utf8" });
+        assert.equal(r.status, 0, r.stderr);
+        await until(() => tickets().length > 0);
+        assert.equal(tickets().length, 1);
+    } finally {
+        for (const t of tickets()) {
+            try {
+                process.kill(-Number(t.split("-").pop()));
+            } catch {
+                // already gone
+            }
+        }
+        try {
+            process.kill(-holder.pid);
+        } catch {
+            // already let go
+        }
+        for (const p of [pool, build]) rmSync(p, { recursive: true, force: true });
+    }
+});
+
+test("the studio's waits keep the shared gate's lanes: a low-lane waiter never holds up an ordinary one, a high mark holds both", async () => {
+    // the studio's own copy of the gate let only the oldest ticket look, so a low-lane waiter for slots
+    // 4 to 8 kept an ordinary one from a free slot 1, and it never looked at the high lane's marks
+    const pool = mkdtempSync(join(tmpdir(), "with-browser-test-"));
+    const holders = [4, 5, 6, 7, 8].map((i) =>
+        spawn("flock", [join(pool, `slot${i}`), "sleep", "600"], { stdio: "ignore", detached: true }),
+    );
+    const env = { ...process.env, BROWSER_SLOT_DIR: pool, BROWSER_GPU: "1" };
+    const high = join(pool, `.high-${process.pid}`);
+    let low;
+    try {
+        await until(() => spawnSync("flock", ["-n", join(pool, "slot8"), "true"]).status !== 0);
+        low = spawn(gate, ["true"], { env: { ...env, BROWSER_SLOT_PRIORITY: "low" }, stdio: "ignore" });
+        await until(() => readdirSync(pool).some((f) => f.startsWith(".low-")));
+        writeFileSync(high, "");
+        const said = join(pool, "said");
+        const ordinary = spawn(
+            gate,
+            ["sh", "-c", `cp "$BROWSER_SLOT_FILE.holder" ${said}.holder; echo $BROWSER_SLOT > ${said}`],
+            { env },
+        );
+        let err = "";
+        ordinary.stderr.on("data", (d) => (err += d));
+        const done = new Promise((ok) => ordinary.on("exit", ok));
+        await until(() => /waiting for one of 8 browser slots/.test(err));
+        assert.ok(!existsSync(said), "an ordinary waiter took a slot while a high-lane mark was live");
+        rmSync(high);
+        assert.equal(await done, 0, err);
+        assert.equal(readFileSync(said, "utf8").trim(), "1");
+        assert.match(readFileSync(`${said}.holder`, "utf8"), /^\d+ \S+ .* :: sh -c cp /);
+    } finally {
+        low?.kill("SIGTERM");
+        for (const h of holders) process.kill(-h.pid);
+        rmSync(pool, { recursive: true, force: true });
+    }
 });

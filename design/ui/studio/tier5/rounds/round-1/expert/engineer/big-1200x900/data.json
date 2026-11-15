@@ -1,0 +1,79 @@
+{
+ "counts": {
+  "totalEdges": 100000,
+  "totalNodes": 50000,
+  "visibleEdges": 100000,
+  "visibleNodes": 50000,
+  "selectedNodes": 5000,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "staff-50k.graphml",
+   "kind": "file",
+   "counts": {
+    "nodes": 50000,
+    "edges": 100000
+   },
+   "recount": {
+    "nodes": 50000,
+    "edges": 100000
+   },
+   "chips": {
+    "nodes": 50000,
+    "edges": 100000
+   },
+   "join": null,
+   "leftOut": null,
+   "mapping": null
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": "label",
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "weight",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": null,
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.name",
+   "name": "name",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.dept",
+   "name": "dept",
+   "type": "category",
+   "roles": [],
+   "hidden": false
+  }
+ ],
+ "filters": [],
+ "filter": null,
+ "window": null
+}

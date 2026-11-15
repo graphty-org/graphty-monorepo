@@ -29,6 +29,13 @@ export interface Vec3 {
 /** Which way the element is drawing: flat, or in three dimensions. */
 export type DrawingMode = "2d" | "3d";
 
+/**
+ * What each node counts as in the box a camera view frames: `"centers"` its centre alone,
+ * `"drawn"` the box it is drawn in, so a big node at the edge of the frame is not cut off. A camera
+ * view framing the whole graph defaults to `"drawn"`; one framing a subset defaults to `"centers"`.
+ */
+export type CameraViewExtent = "centers" | "drawn";
+
 /** An axis-aligned box around the elements a view is being asked to frame, in world units. */
 export interface GraphBounds {
     readonly min: Vec3;
@@ -43,6 +50,14 @@ export interface GraphBounds {
      * behave differently for "nothing to frame" checks this rather than inspecting the numbers.
      */
     readonly measured: number;
+    /**
+     * The points the box was measured over, in world units: where each element is, and the
+     * corners of the box each is drawn in when measured by its drawn extent. A perspective view
+     * that fits these rather than the box's eight corners frames what is drawn and not the empty
+     * corners around it, which on a round graph seen from an angle is most of the box. Absent for
+     * the default box and for a box around a single point.
+     */
+    readonly points?: readonly Vec3[];
 }
 
 /**
@@ -78,6 +93,11 @@ export interface CameraState {
      */
     zoom?: number;
     pan?: { x: number; y: number };
+    /**
+     * How far a 2D view is turned: the angle the drawing is turned counterclockwise on screen, in
+     * radians, about the view's center (`pan`). 0 is unturned. A reader's two-finger turn and the
+     * project setting `viewRotation` both set it.
+     */
     rotation?: number;
 
     // Orthographic frustum (advanced)

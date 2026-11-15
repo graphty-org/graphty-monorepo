@@ -9,9 +9,11 @@ import {
     chartPieces,
     clipToBox,
     databaseRim,
+    framedBand,
     imageBox,
     pieSlices,
     pointLists,
+    raisedStrips,
     shapeLinePieces,
     shapePartPieces,
     stripeBands,
@@ -80,6 +82,17 @@ describe("stripes", () => {
         );
         const right = stripeBands({ colors: "red green", direction: "right", size: 0.5 }, 10, 20);
         assert.deepEqual(right[0].box, { x0: -2.5, x1: 0, y0: -5, y1: 5 });
+    });
+
+    test("keep only the rim of a frame, four fractions deep from the top, right, bottom and left", () => {
+        const box = { x0: -10, x1: 10, y0: -5, y1: 5 };
+        assert.deepEqual(framedBand("0.2 0.1 0.1 0.1", box), [
+            { x0: -10, x1: 10, y0: 3, y1: 5 },
+            { x0: -10, x1: 10, y0: -5, y1: -4 },
+            { x0: -10, x1: -8, y0: -4, y1: 3 },
+            { x0: 8, x1: 10, y0: -4, y1: 3 },
+        ]);
+        assert.deepEqual(framedBand(undefined, box), [box]);
     });
 });
 
@@ -176,15 +189,23 @@ describe("a database's rim", () => {
 
 describe("a node's further parts and lines (shape.parts, shape.lines)", () => {
     test("reads lists of points separated by semicolons, dropping a list with a bad pair", () => {
+        // each point its x and y fractions, each followed by the length added to it (none here)
         assert.deepEqual(pointLists("-1,0 1,0; 0,0 0,1 2,2; 1,x 2,2"), [
             [
-                [-1, 0],
-                [1, 0],
+                [-1, 0, 0, 0],
+                [1, 0, 0, 0],
             ],
             [
-                [0, 0],
-                [0, 1],
-                [2, 2],
+                [0, 0, 0, 0],
+                [0, 0, 1, 0],
+                [2, 0, 2, 0],
+            ],
+        ]);
+        // a coordinate may add a length to its fraction
+        assert.deepEqual(pointLists("-1+24,0-1.5 0.25-6,1"), [
+            [
+                [-1, 24, 0, -1.5],
+                [0.25, -6, 1, 0],
             ],
         ]);
         assert.deepEqual(pointLists(undefined), []);
@@ -204,6 +225,22 @@ describe("a node's further parts and lines (shape.parts, shape.lines)", () => {
         const wide = shapeLinePieces({ lines: "-1,-1 1,-1", lineWidth: 4 }, { width: 0, color: "#000000" }, 20, 10);
         assert.approximately(boxOf(wide[0].outline).y1 - boxOf(wide[0].outline).y0, 4, 1e-9);
         assert.deepEqual(shapeLinePieces({ lines: "-1,-1 1,-1" }, { color: "#000000" }, 20, 10), []);
+    });
+
+    test("draws a halo under each line, wider, in its own color, and none without a halo width or color", () => {
+        const [halo, line] = shapeLinePieces(
+            { lines: "-1,0 1,0", lineWidth: 1, lineHaloWidth: 2, lineHaloColor: "#f7f7f7" },
+            { width: 0, color: "#c8c8c8" },
+            36,
+            36,
+        );
+        assert.deepEqual(halo.rgb, [247 / 255, 247 / 255, 247 / 255]);
+        assert.approximately(boxOf(halo.outline).y1 - boxOf(halo.outline).y0, 2, 1e-9);
+        assert.deepEqual(line.rgb, [200 / 255, 200 / 255, 200 / 255]);
+        assert.approximately(boxOf(line.outline).y1 - boxOf(line.outline).y0, 1, 1e-9);
+        const plain = { width: 1, color: "#000000" };
+        assert.equal(shapeLinePieces({ lines: "-1,0 1,0", lineHaloColor: "#f7f7f7" }, plain, 36, 36).length, 1);
+        assert.equal(shapeLinePieces({ lines: "-1,0 1,0", lineHaloWidth: 2 }, plain, 36, 36).length, 1);
     });
 
     test("closes a line that ends where it starts: a square ring of four sides meeting at their miters", () => {
@@ -237,6 +274,26 @@ describe("a node's further parts and lines (shape.parts, shape.lines)", () => {
     });
 });
 
+describe("a node's parts and lines given in lengths", () => {
+    test("keep a length's size and its distance from a side whatever the node's width", () => {
+        // a bar 24 long against the node's left side, 2 world units per unit of length
+        for (const width of [100, 300]) {
+            const { fills } = shapePartPieces(
+                { parts: "-1,0 -1+24,0 -1+24,0+6 -1,0+6" },
+                { width: 1, color: "#000000" },
+                "#ffffff",
+                width,
+                40,
+                2,
+            );
+            assert.deepEqual(boxOf(fills[0].outline), { x0: -width / 2, y0: 0, x1: -width / 2 + 48, y1: 12 });
+        }
+        const lines = shapeLinePieces({ lines: "-1+24,0 1,0" }, { width: 1, color: "#000000" }, 300, 40, 2);
+        const box = boxOf(lines[0].outline);
+        assert.deepEqual([box.x0, box.x1], [-150 + 48, 150]);
+    });
+});
+
 describe("a chart", () => {
     // Cytoscape 3.10.5's bar chart of 3, 5 and 2 over 0..10 on a 60 node: a plot 52.1 across, bars 16.5 wide from
     // 24.75 left of the middle, the first 15.63 tall (xgmml-specimen-images-charts, bar-grouped)
@@ -254,6 +311,28 @@ describe("a chart", () => {
         assert.approximately(a.y1, -26.05 + 15.63, 0.01);
         assert.approximately(b.y1, 0, 0.01);
         assert.deepEqual(pieces[1].rgb, [0x2c / 255, 0xa0 / 255, 0x2c / 255]);
+    });
+
+    test("draws its plot in a box of its own width, height and place when it has one", () => {
+        // Cytoscape's bar chart with its range and domain axes at label size 10 (xgmml-specimen-images-charts-p7,
+        // bar-axis-label-font-size-10): the axes take 16.7 at the left and 15.6 at the bottom of the 52.1 plot, so
+        // the bars stand in a box 35.4 wide and 36.5 tall, 8.36 right of the node's middle and 7.82 up (y down)
+        const pieces = chartPieces(
+            { ...bars, width: 35.375 / 60, height: 36.46 / 60, offsetX: 8.3625, offsetY: -7.82 },
+            60,
+            60,
+        );
+        const [a, b, c] = pieces.map((p) => boxOf(p.outline));
+        // the left bar from 0.025 of the box in, the bars down on the box's bottom (y up)
+        assert.approximately(a.x0, 8.3625 - 35.375 / 2 + 0.025 * 35.375, 1e-6);
+        assert.approximately(c.x1, 8.3625 + 35.375 / 2 - 0.025 * 35.375, 1e-6);
+        assert.approximately(a.y0, 7.82 - 36.46 / 2, 1e-6);
+        assert.approximately(b.y1 - b.y0, 0.5 * 36.46, 1e-6);
+        // the offset is in the node's lengths: twice the scale moves the plot twice as far
+        const [far] = chartPieces({ ...bars, width: 0.5, height: 0.5, offsetX: 3 }, 60, 60, 2).map((p) =>
+            boxOf(p.outline),
+        );
+        assert.approximately(far.x0, 6 - 15 + 0.025 * 30, 1e-6);
     });
 
     test("leaves its gap between the bars and lays them across the node when horizontal", () => {
@@ -335,9 +414,40 @@ describe("a chart", () => {
         assert.approximately(top.x1 - top.x0, 60, 1e-9);
     });
 
+    test("fills the plot box under the chart with its background, and none unset", () => {
+        const chart = { kind: "cells" as const, values: "3 5", colors: "#b7cce1", size: 0.5 };
+        assert.lengthOf(chartPieces(chart, 60, 60), 2);
+        const [back, ...cells] = chartPieces({ ...chart, backgroundColor: "#e8eae8", backgroundOpacity: 0.5 }, 60, 60);
+        assert.lengthOf(cells, 2);
+        assert.deepEqual(boxOf(back.outline), { x0: -15, y0: -15, x1: 15, y1: 15 });
+        assert.approximately(back.opacity, 0.5, 1e-9);
+    });
+
     test("draws nothing without values or colors", () => {
         assert.lengthOf(chartPieces(undefined, 60, 60), 0);
         assert.lengthOf(chartPieces({ values: "1 2" }, 60, 60), 0);
         assert.lengthOf(chartPieces({ colors: "#ff0000" }, 60, 60), 0);
+    });
+});
+
+describe("raisedStrips", () => {
+    const raised = { width: 1, lightColor: "#ffff00", darkColor: "#b28e00" };
+
+    test("lays strips along the box's inside as Java's fill3DRect does, light left and top, dark bottom and right", () => {
+        const [left, top, bottom, right] = raisedStrips(raised, 10, 6);
+        assert.deepEqual(left.box, { x0: -5, y0: -3, x1: -4, y1: 3 });
+        assert.deepEqual(top.box, { x0: -4, y0: 2, x1: 4, y1: 3 });
+        assert.deepEqual(bottom.box, { x0: -4, y0: -3, x1: 5, y1: -2 });
+        assert.deepEqual(right.box, { x0: 4, y0: -2, x1: 5, y1: 3 });
+        assert.deepEqual(left.rgb, [1, 1, 0]);
+        assert.deepEqual(top.rgb, [1, 1, 0]);
+        assert.deepEqual(bottom.rgb, right.rgb);
+        assert.notDeepEqual(bottom.rgb, left.rgb);
+    });
+
+    test("scales its width and draws nothing with none", () => {
+        assert.strictEqual(raisedStrips(raised, 10, 6, 2)[0].box.x1, -3);
+        assert.lengthOf(raisedStrips({ ...raised, width: 0 }, 10, 6), 0);
+        assert.lengthOf(raisedStrips(undefined, 10, 6), 0);
     });
 });

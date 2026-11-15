@@ -36,6 +36,7 @@ import {
 import { GLASS_MARBLE } from "../../../src/shaders/presets/glass-marble/descriptor";
 import { BODY as LANTERN_BODY, LOW_DETAIL as LANTERN_LOW } from "../../../src/shaders/presets/lantern/body";
 import { LANTERN } from "../../../src/shaders/presets/lantern/descriptor";
+import { pixelAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import type { Point } from "../../helpers/real-input";
 
@@ -85,7 +86,10 @@ async function mounted(
         element.remove();
     });
     await element.updateComplete;
-    element.shaderSettings = { quality: "high", ...element.shaderSettings };
+    // These tests are about what a preset draws, not the frame guard. On a loaded runner one frame
+    // over 250 ms with a heavy preset on screen makes the guard turn heavy shaders off
+    // ("guard.long-frame"), and the node then draws plain; shader-depth.test.ts does the same.
+    element.shaderSettings = { quality: "high", ...element.shaderSettings, guard: false };
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.data.addNodes(nodes.map(({ id, x, y }) => ({ id, position: { x, y, z: 0 } })));
     await element.graph.setLayout("fixed", { dim: 3 });
@@ -138,22 +142,6 @@ function drawsReady(element: Graphty, count: number): boolean {
         [...drawing.stats().slots.values()].includes(count) &&
         mesh?.material?.isReady(mesh) === true
     );
-}
-
-/**
- * Read one pixel of the canvas at a point in CSS pixels, after the next frame.
- * @param element - The element.
- * @param point - The point.
- * @returns r, g, b, a.
- */
-async function pixelAt(element: Graphty, point: Point): Promise<[number, number, number, number]> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 2);
-    const scale = engine.getRenderWidth() / WIDTH;
-    const x = Math.round(point.x * scale);
-    const y = Math.round(engine.getRenderHeight() - point.y * scale);
-    const read = (await engine.readPixels(x, y, 1, 1)) as unknown as Uint8Array;
-    return [read[0], read[1], read[2], read[3]];
 }
 
 /**
@@ -418,6 +406,77 @@ describe("the small-size program", () => {
             );
         },
     );
+
+    it.each(HEAVY.map((id) => [id] as const))(
+        "%s draws its small-size program on the frame waitForStableFrame() calls final",
+        async (id) => {
+            const element = await mounted(GRID, [
+                {
+                    name: "Surface",
+                    target: "node",
+                    selector: { match: "everything" },
+                    set: { "node.shaders": [{ shader: id }] },
+                },
+            ]);
+            await element.waitForStableFrame();
+            assert.strictEqual(impostor(element)?.material?.name.endsWith("low"), true);
+        },
+    );
+
+    it("waits for the small-size program after the element moves the camera away from large nodes", async () => {
+        const element = await mounted(GRID.slice(0, 4), [
+            {
+                name: "Surface",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.shaders": [{ shader: "gemstone" }] },
+            },
+        ]);
+        await element.waitForStableFrame();
+        assert.isFalse(impostor(element)?.material?.name.endsWith("low"), "the large nodes start on the full program");
+
+        await element.setCameraState({ zoom: 0.02 });
+        await element.waitForStableFrame();
+        assert.isTrue(impostor(element)?.material?.name.endsWith("low"));
+    });
+
+    it("does not wait for a rest that a camera turning by itself never reaches", async () => {
+        const element = await mounted(GRID, [
+            {
+                name: "Surface",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.shaders": [{ shader: "gemstone" }] },
+            },
+        ]);
+        await element.setViewMode("3d");
+        element.autoRotate = 1;
+        const scene = element.graph.getScene();
+        await until(element, "the frame is final while the camera turns", () => element.isFrameStable);
+        await drawnFrames(scene, 2);
+        await element.waitForStableFrame();
+        assert.isTrue(element.isFrameStable);
+    });
+
+    it("does not wait for a small-size program that cannot compile", async () => {
+        const { origin: _origin, ...facts } = GEMSTONE;
+        const id = "probe/broken-small-size";
+        registerShader({
+            descriptor: { ...facts, id },
+            glsl: GEMSTONE_BODY,
+            lowDetail: "vec4 shade(NodeInput n) { return this is not glsl; }",
+        });
+        const element = await mounted(GRID, [
+            {
+                name: "Surface",
+                target: "node",
+                selector: { match: "everything" },
+                set: { "node.shaders": [{ shader: id }] },
+            },
+        ]);
+        await element.waitForStableFrame();
+        assert.isFalse(impostor(element)?.material?.name.endsWith("low"));
+    });
 
     it.each(HEAVY.map((id) => [id] as const))("%s keeps its full program when its nodes are large", async (id) => {
         const element = await mounted(

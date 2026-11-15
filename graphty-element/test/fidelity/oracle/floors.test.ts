@@ -1,24 +1,31 @@
 /**
- * The style fidelity gate, on hand-made records: a sample fails only for an element failing that the known failures do
- * not list, never for a pass rate; a newly failing element is said to come from the drawing or the comparator when a
+ * The style fidelity gate, on hand-made records: a sample fails for an element failing that the known failures do not
+ * list, and on the oracle scorecard for an element-judged rate below its floor and any accepted drop, never for a raster
+ * region; a newly failing element is said to come from the drawing or the comparator when a
  * baseline was judged again; a known failure that is not measurable any more is reported, not failed; the raster
  * regions are reported past 0.02 only; and the ratchet takes off what passes, raises floors, never lowers one, and adds
  * only with a reason.
  */
+import { readFileSync } from "node:fs";
+
 import { assert, describe, it } from "vitest";
 
 import {
     type Baseline,
+    citedIssues,
     gateMessages,
     gateReportText,
     judgeKey,
     type Judgement,
     type KnownRecords,
     oracleFileSha256,
+    oracleSlice,
     raiseFloors,
+    ratchetDrops,
     ratchetKnown,
     recordableScores,
     sourceOf,
+    untrackedKnown,
 } from "./floors";
 
 const run = (
@@ -42,6 +49,44 @@ describe("style fidelity gate", () => {
             low.changes.map((c) => [c.property, c.kind]),
             [["node.fill", "drop"]],
         );
+    });
+
+    it("fails the oracle scorecard for a rate below its recorded floor, unless the drop is accepted at that rate", () => {
+        const known = { "node.position": ["a"] };
+        const accepted = {
+            "node.position": { floor: 0.9, to: 0.5, reason: "the oracle was redrawn", date: "2026-10-31" },
+        };
+        const at = (now: number, drops?: typeof accepted): string[] =>
+            gateMessages(
+                judgeKey(
+                    "s",
+                    run({ "node.position": ["a"] }, { "node.position": now, "raster.edge": 0.5 }),
+                    known,
+                    { "node.position": 0.9, "raster.edge": 0.97 },
+                    { gateFloors: true, ...(drops === undefined ? {} : { accepted: drops }) },
+                ),
+            );
+        // at its floor, and a raster region far under its own: the raster regions are never gated
+        assert.deepEqual(at(0.9), []);
+        assert.deepEqual(at(0.5), ["s node.position: 0.5 is below its recorded floor 0.9"]);
+        assert.deepEqual(at(0.5, accepted), []);
+        assert.deepEqual(at(0.4, accepted), [
+            "s node.position: 0.4 is below its recorded floor 0.9 and its accepted drop to 0.5",
+        ]);
+        const report = gateReportText(
+            [
+                judgeKey(
+                    "s",
+                    run({}, { "node.position": 0.5 }),
+                    undefined,
+                    { "node.position": 0.9 },
+                    { gateFloors: true },
+                ),
+            ],
+            "none",
+            null,
+        );
+        assert.include(report, "Failing keys: 1;");
     });
 
     it("fails an element failing a property with no record, as a new failure", () => {
@@ -132,19 +177,171 @@ describe("style fidelity gate", () => {
             () => ratchetKnown(records({}), [gate], { reason: "", date: "2026-10-22" }),
             /reason of 10 or more/,
         );
+        assert.throws(
+            () => ratchetKnown(records({}), [gate], { reason: "a reason that names no issue", date: "2026-10-22" }),
+            /names the issue/,
+        );
         const added = ratchetKnown(records({ s: { "node.fill": ["a", "b", "gone"] } }), [gate], {
-            reason: "c fails since the comparator reads fills off the body",
+            reason: "c fails since the comparator reads fills off the body (#7015)",
             date: "2026-10-22",
         });
         assert.deepEqual(added.records.known.s, { "node.fill": ["b", "c", "gone"] });
         assert.deepEqual(added.records.reasons, [
             {
                 date: "2026-10-22",
-                reason: "c fails since the comparator reads fills off the body",
+                reason: "c fails since the comparator reads fills off the body (#7015)",
                 added: { s: { "node.fill": ["c"] } },
                 sources: { unclassified: 1 },
             },
         ]);
+    });
+
+    it("records a drop below a floor only with a reason, and forgets it once the rate is back at its floor", () => {
+        const low = judgeKey(
+            "s",
+            run({}, { "node.position": 0.5 }),
+            undefined,
+            { "node.position": 0.9 },
+            { gateFloors: true },
+        );
+        const none = ratchetDrops({}, [low]);
+        assert.deepEqual([none.drops, none.added, none.unaccepted], [{}, 0, 1]);
+        assert.throws(() => ratchetDrops({}, [low], { reason: "", date: "2026-10-31" }), /reason of 10 or more/);
+        assert.throws(
+            () => ratchetDrops({}, [low], { reason: "a reason that names no issue", date: "2026-10-31" }),
+            /names the issue/,
+        );
+        const reason = "the oracle now measures the face Graphviz means (#7015)";
+        const added = ratchetDrops({}, [low], { reason, date: "2026-10-31" });
+        assert.deepEqual(added.drops, { s: { "node.position": { floor: 0.9, to: 0.5, reason, date: "2026-10-31" } } });
+        const back = judgeKey(
+            "s",
+            run({}, { "node.position": 0.9 }),
+            undefined,
+            { "node.position": 0.9 },
+            {
+                gateFloors: true,
+                accepted: added.drops.s,
+            },
+        );
+        const kept = ratchetDrops(added.drops, [back]);
+        assert.deepEqual([kept.drops, kept.removed], [{}, 1]);
+    });
+
+    it("reads an issue number in a reason, never a color or an HTML entity", () => {
+        assert.deepEqual(
+            citedIssues("fill #C8C8C8, outline #505050, band #5F809D; see #5785-#5787 and (#42)"),
+            [5785, 5787, 42],
+        );
+        assert.deepEqual(citedIssues("drawn &#123; as #1234abc"), []);
+        const gate = judgeKey("s", run({ "node.fill": ["a"] }), undefined, undefined);
+        assert.throws(
+            () => ratchetKnown(records({}), [gate], { reason: "the fill is #505050 here", date: "2026-11-13" }),
+            /names the issue/,
+        );
+    });
+
+    it("finds the known failures no open issue tracks: no reason, a reason citing none, or only closed issues", () => {
+        const listed: KnownRecords = {
+            about: "",
+            known: { s: { "node.fill": ["open", "mixed", "closed", "none", "bare"] } },
+            reasons: [
+                { date: "", reason: "tracked (#2)", added: { s: { "node.fill": ["open", "mixed"] } }, sources: {} },
+                { date: "", reason: "fixed in #1", added: { s: { "node.fill": ["mixed", "closed"] } }, sources: {} },
+                { date: "", reason: "outline #505050", added: { s: { "node.fill": ["none"] } }, sources: {} },
+            ],
+        };
+        assert.deepEqual(untrackedKnown(listed, new Set([2])), [
+            { key: "s", property: "node.fill", id: "closed", cited: [1] },
+            { key: "s", property: "node.fill", id: "none", cited: [] },
+            { key: "s", property: "node.fill", id: "bare", cited: [] },
+        ]);
+    });
+
+    // Whether a cited issue is still open needs GitHub: `npm run fidelity:issues` checks that in CI's Checks job (#7015)
+    it("lists no known failure whose reasons name no issue, in the committed lists", () => {
+        for (const path of ["test/fidelity/oracle-known-failures.json", "test/fidelity/baseline-scores.json"]) {
+            const records = JSON.parse(readFileSync(path, "utf8")) as KnownRecords;
+            const cited = new Set(records.reasons.flatMap((r) => citedIssues(r.reason)));
+            const untracked = untrackedKnown(records, cited).map((u) => `${u.key} ${u.property} ${u.id}`);
+            assert.deepEqual(untracked.slice(0, 20), [], `${path}: ${String(untracked.length)} cite no issue`);
+        }
+    });
+
+    it("adds only the properties named, so a drop is accepted without the key's other failures", () => {
+        const gate = judgeKey(
+            "s",
+            run(
+                { "node.position": ["a"], "edge.route": ["e"] },
+                { "node.position": 0.5, "edge.route": 0.5 },
+                { "node.position": ["a", "b"], "edge.route": ["e", "f"] },
+            ),
+            undefined,
+            { "node.position": 0.9, "edge.route": 0.9 },
+            { gateFloors: true },
+        );
+        const add = {
+            reason: "the comparator reads the place anew (#7015)",
+            date: "2026-11-01",
+            properties: ["node.position"],
+        };
+        const known = ratchetKnown(records({}), [gate], add);
+        assert.deepEqual(known.records.known.s, { "node.position": ["a"] });
+        assert.deepEqual([known.added, known.unlisted], [1, 1]);
+        const drops = ratchetDrops({}, [gate], add);
+        assert.deepEqual(Object.keys(drops.drops.s), ["node.position"]);
+        assert.deepEqual([drops.added, drops.unaccepted], [1, 1]);
+    });
+
+    it("prunes only a known failure whose element neither drawing has any more, and only when asked", () => {
+        // the program's square rect@1 is gone (read as one picture now); node d is not judged for fill but is still
+        // drawn (graphty's extra d); x still fails; graphty's stray graphty:s1 is gone too
+        const gate = judgeKey(
+            "s",
+            run(
+                { "stray.present": ["x"], "node.extra": ["graphty:d"] },
+                { "stray.present": 0.5 },
+                { "stray.present": ["picture@0", "x"], "node.fill": ["a"], "node.extra": ["graphty:d"] },
+            ),
+            { "stray.present": ["rect@1", "x"], "node.fill": ["d"], "stray.extra": ["graphty:s1"] },
+            undefined,
+        );
+        assert.deepEqual(gate.gone, { "stray.present": ["rect@1"], "stray.extra": ["graphty:s1"] });
+        const known = { s: { "stray.present": ["rect@1", "x"], "node.fill": ["d"], "stray.extra": ["graphty:s1"] } };
+        assert.deepEqual(ratchetKnown(records(known), [gate]).records.known.s, known.s);
+        const pruned = ratchetKnown(records(known), [gate], undefined, true);
+        assert.deepEqual(pruned.records.known.s, { "stray.present": ["x"], "node.fill": ["d"], "stray.extra": [] });
+        assert.strictEqual(pruned.removed, 2);
+        // a list of keys prunes only those keys
+        assert.deepEqual(ratchetKnown(records(known), [gate], undefined, ["other"]).records.known.s, known.s);
+        assert.strictEqual(ratchetKnown(records(known), [gate], undefined, ["s"]).removed, 2);
+        assert.include(gateReportText([gate], "none", null), "s stray.present: rect@1");
+        // a run that judged no element (a sample that drew nothing) prunes nothing
+        const blank = judgeKey("s", run({}, {}, {}), known.s, undefined);
+        assert.deepEqual(blank.gone, {});
+    });
+
+    it("prunes a known failure of a property the sample now judges only on the drawing as a whole", () => {
+        // json-vis-siblings: edge.curve is judged once for the drawing ("edges"), so its per-edge entries can never pass
+        // or fail, though the edges are still drawn; node.fill still judges node a one by one, so drawn node b, not
+        // judged for its fill now, is kept
+        const judged = {
+            "edge.curve": ["edges"],
+            "edge.present": ["a->b", "c->d"],
+            "node.fill": ["a"],
+            "node.present": ["a", "b"],
+        };
+        const known = { s: { "edge.curve": ["a->b", "c->d"], "node.fill": ["b"] } };
+        const gate = judgeKey(
+            "s",
+            { ...run({}, { "edge.curve": 1 }, judged), wholeDrawing: ["edges"] },
+            known.s,
+            undefined,
+        );
+        assert.deepEqual(gate.gone, { "edge.curve": ["a->b", "c->d"] });
+        // a run that does not say what it judged as the whole drawing (a gate file written before) prunes none of them
+        const kept = judgeKey("s", run({}, { "edge.curve": 1 }, judged), known.s, undefined);
+        assert.deepEqual(kept.gone, {});
     });
 
     it("raises a floor and records a new one, and never lowers one", () => {
@@ -159,6 +356,19 @@ describe("style fidelity gate", () => {
             judgeKey("s~specification", run({}), undefined, undefined, { section: "specificationFloors" }).section,
             "specificationFloors",
         );
+    });
+
+    it("spreads the full run over slices that are disjoint and cover every sample, and refuses a bad slice", () => {
+        const ids = ["a", "b", "c", "d", "e"];
+        assert.deepEqual(oracleSlice(ids, undefined), ids);
+        assert.deepEqual(oracleSlice(ids, ""), ids);
+        assert.deepEqual(oracleSlice(ids, "1/2"), ["a", "c", "e"]);
+        assert.deepEqual(oracleSlice(ids, "2/2"), ["b", "d"]);
+        const three = ["1/3", "2/3", "3/3"].flatMap((s) => oracleSlice(ids, s));
+        assert.deepEqual([...three].sort(), ids);
+        for (const bad of ["0/2", "3/2", "2", "a/b", "1/0"]) {
+            assert.throws(() => oracleSlice(ids, bad), /GRAPHTY_ORACLE_SLICE/);
+        }
     });
 });
 

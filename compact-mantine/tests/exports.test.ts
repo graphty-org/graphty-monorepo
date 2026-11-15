@@ -16,6 +16,8 @@ import type {
     AdvancedButtonProps,
     AlignmentMatrixProps,
     AlignmentMatrixValue,
+    CardListItem,
+    CardListProps,
     ChangeHandler,
     ColorPickerFormat,
     ColorPickerPaintType,
@@ -126,6 +128,7 @@ import type {
     SparklineRowProps,
     SplitButtonProps,
     StatusBarProps,
+    TargetTooltipProps,
     ToastAction,
     ToastApi,
     ToastOptions,
@@ -175,6 +178,8 @@ interface SampleRow {
  */
 type PublicTypeSurface = {
     actionRow: ActionRowProps;
+    cardList: CardListProps;
+    cardListItem: CardListItem;
     activationEvent: ActivationEvent;
     activationHandler: ActivationHandler;
     activationHandlerWithMeta: ActivationHandlerWithMeta;
@@ -287,6 +292,7 @@ type PublicTypeSurface = {
     contextMenu: ContextMenuProps;
     menuCheckItem: MenuCheckItemProps;
     modalFooter: ModalFooterProps;
+    targetTooltip: TargetTooltipProps;
     toastAction: ToastAction;
     toastApi: ToastApi;
     toastOptions: ToastOptions;
@@ -343,6 +349,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "ensureCompactStyles",
 
     // Components
+    "CardList",
     "CompactColorInput",
     "ControlGroup",
     "ControlSection",
@@ -373,6 +380,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "MenuItemDescription",
     "MenuShortcut",
     "ModalFooter",
+    "TargetTooltip",
     "Toast",
     "ToastProvider",
     "TooltipShortcut",
@@ -436,6 +444,10 @@ const PUBLIC_RUNTIME_EXPORTS = [
     // Internationalization
     "defaultLabels",
     "LabelsProvider",
+    "ListboxCheck",
+    "LISTBOX_CLASS_NAMES",
+    // The select trigger's caret, for a field built on InputBase as a button
+    "FieldCaret",
     "parseLocaleNumber",
     "useCollator",
     "useLabels",
@@ -449,6 +461,7 @@ const PUBLIC_RUNTIME_EXPORTS = [
     "useActualColorScheme",
     "useDirection",
     "usePanelLabels",
+    "usePopout",
     "usePopoutManager",
     "usePopoutRegion",
 
@@ -681,7 +694,7 @@ describe("Package exports", () => {
             it("exports the closed glyph registers", () => {
                 expect(mainExports.FIELD_GLYPH_NAMES).toHaveLength(8);
                 expect(mainExports.FIELD_LETTERS).toEqual(["N", "E", "W", "D", "K"]);
-                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(45);
+                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(46);
             });
 
             it("exports the guards that read the registers", () => {
@@ -769,6 +782,8 @@ describe("Package exports", () => {
                 // error, so the list cannot drift from the published types.
                 const listed = {
                     actionRow: true,
+                    cardList: true,
+                    cardListItem: true,
                     activationEvent: true,
                     activationHandler: true,
                     activationHandlerWithMeta: true,
@@ -883,6 +898,7 @@ describe("Package exports", () => {
                     contextMenu: true,
                     menuCheckItem: true,
                     modalFooter: true,
+                    targetTooltip: true,
                     toastAction: true,
                     toastApi: true,
                     toastOptions: true,
@@ -915,7 +931,7 @@ describe("Package exports", () => {
                 } satisfies Record<keyof PublicTypeSurface, true>;
                 const names = Object.keys(listed);
 
-                expect(names).toHaveLength(142);
+                expect(names).toHaveLength(145);
             });
         });
 

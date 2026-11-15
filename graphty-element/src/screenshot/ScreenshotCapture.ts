@@ -1,36 +1,36 @@
-import {
-    type AbstractMesh,
-    type Camera,
-    CreateScreenshotAsync,
-    CreateScreenshotUsingRenderTarget,
-    DefaultRenderingPipeline,
-    EncodeArrayBufferToBase64,
-    EncodeImageAsync,
-    type Engine,
-    FxaaPostProcess,
-    type Mesh,
-    type RenderTargetTexture,
-    type Scene,
-    type WebGPUEngine,
-} from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import type { Engine } from "@babylonjs/core/Engines/engine.js";
+import type { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import type { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { EncodeImageAsync } from "@babylonjs/core/Misc/dumpTools.js";
+import { CreateScreenshotAsync, CreateScreenshotUsingRenderTarget } from "@babylonjs/core/Misc/screenshotTools.js";
+import { EncodeArrayBufferToBase64 } from "@babylonjs/core/Misc/stringTools.js";
+import { FxaaPostProcess } from "@babylonjs/core/PostProcesses/fxaaPostProcess.js";
+import { DefaultRenderingPipeline } from "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { ViewInsets } from "../camera/types.js";
 import { type Graph, operationQueueOf } from "../Graph.js";
 import { CustomLineRenderer } from "../meshes/CustomLineRenderer.js";
 import { RichTextLabel } from "../meshes/RichTextLabel.js";
 import { SELECTION_HALO_MESH } from "../Node.js";
+import type { LegendBlock } from "../session/styles/legend.js";
 import { downloadBlob } from "../utils/download.js";
+import { captureError } from "./captureError.js";
 import { copyToClipboard } from "./clipboard.js";
 import { SCREENSHOT_CONSTANTS } from "./constants.js";
 import { calculateDimensions } from "./dimensions.js";
-import { drawLegend, legendBox } from "./drawLegend.js";
+import { drawLegend, legendBox, legendSections } from "./drawLegend.js";
 import { resolvePreset } from "./presets.js";
-import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
 import { enableTransparentBackground, restoreBackground } from "./transparency.js";
 import type {
     CameraState,
     ClipboardStatus,
     QualityEnhancementOptions,
+    ScreenshotLegendPosition,
     ScreenshotLegendSection,
     ScreenshotOptions,
     ScreenshotResult,
@@ -47,6 +47,12 @@ export class ScreenshotCapture {
      */
     private readonly skyboxMeshNames = ["testdome", "skybox", "skyBox", "Skybox"];
 
+    /** The key this capture draws and its corner, settled once the capture's waits are over. */
+    private legend: { sections: readonly ScreenshotLegendSection[]; position: ScreenshotLegendPosition } = {
+        sections: [],
+        position: "top-left",
+    };
+
     /**
      * Creates a new ScreenshotCapture instance
      * @param engine - The Babylon.js rendering engine
@@ -55,6 +61,7 @@ export class ScreenshotCapture {
      * @param graph - The graph instance for accessing layout and camera state
      * @param requestFrame - Asks the render loop to draw the next frame, even when the picture
      *     looks final: a graph drawn on demand draws none for a background cleared for a moment
+     * @param readLegend - The element's legend (`session.styles.legend()`), for `legend: true`
      */
     constructor(
         private readonly engine: Engine | WebGPUEngine,
@@ -62,6 +69,7 @@ export class ScreenshotCapture {
         private readonly canvas: HTMLCanvasElement,
         private readonly graph: Graph,
         private readonly requestFrame: () => void = () => undefined,
+        private readonly readLegend: () => readonly LegendBlock[] = () => [],
     ) {}
 
     /**
@@ -120,16 +128,44 @@ export class ScreenshotCapture {
 
     /**
      * The view insets that keep the key's own box clear: on the side that costs the canvas the
-     * smaller share, left of a tall key or above a wide one.
-     * @param legend - The key the capture draws.
+     * smaller share, beside a tall key or above or below a wide one, on the key's own corner.
      * @returns The insets to frame the capture with, in CSS pixels.
      */
-    private reserveLegend(legend: readonly ScreenshotLegendSection[]): ViewInsets {
-        const { right, bottom } = legendBox(legend);
+    private reserveLegend(): ViewInsets {
+        const { sections, position } = this.legend;
+        const { right, bottom } = legendBox(sections);
         const width = this.canvas.clientWidth || this.canvas.width;
         const height = this.canvas.clientHeight || this.canvas.height;
+        const side = position.endsWith("left") ? "left" : "right";
+        const edge = position.startsWith("top") ? "top" : "bottom";
 
-        return right / width <= bottom / height ? { left: right } : { top: bottom };
+        return right / width <= bottom / height ? { [side]: right } : { [edge]: bottom };
+    }
+
+    /**
+     * Settle what `options.legend` asks for: the caller's sections as given, or the element's own
+     * legend for `true`, `"auto"` and an options object.
+     * @param legend - The capture's `legend` option.
+     * @returns The sections to draw (none for no key) and their corner.
+     */
+    private resolveLegend(legend: ScreenshotOptions["legend"]): ScreenshotCapture["legend"] {
+        if (legend === undefined || legend === false) {
+            return { sections: [], position: "top-left" };
+        }
+        // Array.isArray does not narrow a readonly array out of a union.
+        if (typeof legend === "object" && "length" in legend) {
+            return { sections: legend, position: "top-left" };
+        }
+
+        const options = typeof legend === "object" ? legend : {};
+        const bound = legendSections(this.readLegend());
+        // "auto" draws only when a layer binds a value; true draws the heading even when none does.
+        const sections =
+            legend === "auto" && bound.length === 0
+                ? []
+                : [...(options.title === undefined ? [] : [{ title: options.title }]), ...bound];
+
+        return { sections, position: options.position ?? "bottom-right" };
     }
 
     /**
@@ -148,9 +184,10 @@ export class ScreenshotCapture {
         const gl = (this.engine as Engine)._gl;
 
         if (gl && !gl.getContextAttributes()?.preserveDrawingBuffer) {
-            throw new ScreenshotError(
+            throw captureError(
+                "E_UNSUPPORTED",
                 "Screenshot requires Engine to be created with preserveDrawingBuffer: true",
-                ScreenshotErrorCode.ENGINE_NOT_CONFIGURED,
+                { reason: "preserve-drawing-buffer" },
             );
         }
 
@@ -171,6 +208,9 @@ export class ScreenshotCapture {
             await this.waitForLayoutSettle(timing.settleTimeoutMs ?? SCREENSHOT_CONSTANTS.LAYOUT_SETTLE_TIMEOUT_MS);
         }
 
+        // The legend is read once the queued edits have landed, so the key matches the picture.
+        this.legend = this.resolveLegend(options.legend);
+
         // 3. Handle camera override
         const cameraOverride = options.camera ? await this.overrideCamera(options, options.camera) : undefined;
 
@@ -187,6 +227,11 @@ export class ScreenshotCapture {
             return await this.captureFramed(options, startTime);
         } finally {
             this.showSelectionHalos(hiddenHalos);
+            // And a frame drawn with them before the capture returns: a capture read right after
+            // would otherwise get the frame without them, when its tick skips drawing.
+            if (hiddenHalos.length > 0) {
+                await this.waitForRender();
+            }
             if (cameraOverride) {
                 await this.restoreCamera(cameraOverride);
             }
@@ -245,8 +290,7 @@ export class ScreenshotCapture {
         options: ScreenshotOptions,
         camera: Extract<NonNullable<ScreenshotOptions["camera"]>, { preset: string }>,
     ): CameraState {
-        const legend = options.legend ?? [];
-        this.graph.setViewInsets(legend.length > 0 ? this.reserveLegend(legend) : {});
+        this.graph.setViewInsets(this.legend.sections.length > 0 ? this.reserveLegend() : {});
         const { params } = camera;
         return this.graph.resolveCameraPreset(camera.preset, params === undefined ? undefined : { params });
     }
@@ -280,6 +324,9 @@ export class ScreenshotCapture {
         }
         if (halos.length > 0) {
             this.graph.getUpdateManager().meshesShownOrHidden();
+            // A graph drawn on demand cannot see a mesh enabled or disabled, and would rest on
+            // the frame it last drew.
+            this.requestFrame();
         }
 
         return halos;
@@ -297,6 +344,9 @@ export class ScreenshotCapture {
         }
         if (halos.length > 0) {
             this.graph.getUpdateManager().meshesShownOrHidden();
+            // A graph drawn on demand cannot see a mesh enabled or disabled, and would rest on
+            // the frame it last drew.
+            this.requestFrame();
         }
     }
 
@@ -322,10 +372,10 @@ export class ScreenshotCapture {
 
         // Validate format-specific options
         if (finalOptions.transparentBackground && format !== "png" && format !== "webp") {
-            throw new ScreenshotError(
-                "Transparent background requires PNG or WebP format",
-                ScreenshotErrorCode.TRANSPARENT_REQUIRES_PNG,
-            );
+            throw captureError("E_BAD_COMMAND", "Transparent background requires PNG or WebP format", {
+                fields: ["transparentBackground", "format"],
+                format,
+            });
         }
 
         // Handle transparent background
@@ -399,7 +449,7 @@ export class ScreenshotCapture {
         const enhancementState = enhancement?.state;
         // Handle destinations
         const destinations = finalOptions.destination ?? { blob: true };
-        let clipboardStatus: ClipboardStatus = "success";
+        let clipboardStatus: ClipboardStatus = "not-requested";
         let clipboardError: Error | undefined;
 
         // Start capturing the blob (this promise will be shared)
@@ -414,10 +464,12 @@ export class ScreenshotCapture {
             dimensions.height,
         );
         // The key goes on after any downscale, sized as on the canvas: output pixels per CSS pixel.
-        const legend = finalOptions.legend ?? [];
+        const { sections, position } = this.legend;
         const scale = dimensions.width / (this.canvas.clientWidth || this.canvas.width);
         const blobPromise =
-            legend.length === 0 ? captured : captured.then((blob) => drawLegend(blob, legend, scale, quality));
+            sections.length === 0
+                ? captured
+                : captured.then((blob) => drawLegend(blob, sections, scale, quality, position));
 
         // If clipboard is requested, start clipboard write immediately (before blob is ready)
         // This preserves the user gesture context
@@ -479,7 +531,7 @@ export class ScreenshotCapture {
     /**
      * Waits for the layout engine to settle before capturing a screenshot.
      * If no layout engine is active or it's already settled, returns immediately.
-     * Throws ScreenshotError with LAYOUT_SETTLE_TIMEOUT if the layout doesn't settle
+     * Throws a GraphtyError with E_NOT_SETTLED if the layout doesn't settle
      * within the given timeout.
      * @param timeoutMs - How long to wait, in milliseconds.
      * @returns Promise that resolves when layout has settled
@@ -518,12 +570,7 @@ export class ScreenshotCapture {
                 if (!completed) {
                     completed = true;
                     cleanup();
-                    reject(
-                        new ScreenshotError(
-                            "Layout did not settle within timeout",
-                            ScreenshotErrorCode.LAYOUT_SETTLE_TIMEOUT,
-                        ),
-                    );
+                    reject(captureError("E_NOT_SETTLED", "Layout did not settle within timeout", { timeoutMs }));
                 }
             }, timeoutMs);
 
@@ -595,7 +642,7 @@ export class ScreenshotCapture {
 
             // Use Babylon.js CreateScreenshotAsync
             if (!this.scene.activeCamera) {
-                throw new ScreenshotError("No active camera in scene", ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED);
+                throw captureError("E_CAPTURE_FAILED", "No active camera in scene", { media: "image" });
             }
 
             // A copy of the canvas is only as sharp as the canvas: one of any other size is the
@@ -643,11 +690,7 @@ export class ScreenshotCapture {
 
             return blob;
         } catch (error) {
-            throw new ScreenshotError(
-                "Screenshot capture failed",
-                ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-                error,
-            );
+            throw captureError("E_CAPTURE_FAILED", "Screenshot capture failed", { media: "image" }, error);
         }
     }
 
@@ -690,10 +733,7 @@ export class ScreenshotCapture {
         const ctx = canvas.getContext("2d");
 
         if (!ctx) {
-            throw new ScreenshotError(
-                "Failed to get 2D context for format conversion",
-                ScreenshotErrorCode.CANVAS_ALLOCATION_FAILED,
-            );
+            throw captureError("E_OUT_OF_MEMORY", "Failed to get 2D context for format conversion", { of: "canvas" });
         }
 
         const imgUrl = URL.createObjectURL(blob);
@@ -711,10 +751,9 @@ export class ScreenshotCapture {
                             resolve(convertedBlob);
                         } else {
                             reject(
-                                new ScreenshotError(
-                                    "Failed to convert image format",
-                                    ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-                                ),
+                                captureError("E_CAPTURE_FAILED", "Failed to convert image format", {
+                                    media: "image",
+                                }),
                             );
                         }
                     },
@@ -726,10 +765,7 @@ export class ScreenshotCapture {
             img.onerror = () => {
                 URL.revokeObjectURL(imgUrl);
                 reject(
-                    new ScreenshotError(
-                        "Failed to load image for format conversion",
-                        ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-                    ),
+                    captureError("E_CAPTURE_FAILED", "Failed to load image for format conversion", { media: "image" }),
                 );
             };
 
@@ -760,10 +796,7 @@ export class ScreenshotCapture {
         const ctx = canvas.getContext("2d");
 
         if (!ctx) {
-            throw new ScreenshotError(
-                "Failed to get 2D context for downscaling",
-                ScreenshotErrorCode.CANVAS_ALLOCATION_FAILED,
-            );
+            throw captureError("E_OUT_OF_MEMORY", "Failed to get 2D context for downscaling", { of: "canvas" });
         }
 
         const imgUrl = URL.createObjectURL(blob);
@@ -786,12 +819,7 @@ export class ScreenshotCapture {
                         if (downscaledBlob) {
                             resolve(downscaledBlob);
                         } else {
-                            reject(
-                                new ScreenshotError(
-                                    "Failed to downscale image",
-                                    ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-                                ),
-                            );
+                            reject(captureError("E_CAPTURE_FAILED", "Failed to downscale image", { media: "image" }));
                         }
                     },
                     mimeType,
@@ -801,12 +829,7 @@ export class ScreenshotCapture {
 
             img.onerror = () => {
                 URL.revokeObjectURL(imgUrl);
-                reject(
-                    new ScreenshotError(
-                        "Failed to load image for downscaling",
-                        ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-                    ),
-                );
+                reject(captureError("E_CAPTURE_FAILED", "Failed to load image for downscaling", { media: "image" }));
             };
 
             img.src = imgUrl;
@@ -828,10 +851,7 @@ export class ScreenshotCapture {
     ): EnhancementState {
         const camera = this.scene.activeCamera;
         if (!camera) {
-            throw new ScreenshotError(
-                "No active camera for quality enhancement",
-                ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED,
-            );
+            throw captureError("E_CAPTURE_FAILED", "No active camera for quality enhancement", { media: "image" });
         }
 
         // Default values
@@ -922,6 +942,61 @@ interface EnhancementState {
 }
 
 /**
+ * Make a render target's read-back wait on the GPU without holding the main thread. Babylon's WebGL
+ * read is a synchronous `readPixels` into client memory, which stalls the main thread until the GPU
+ * has finished everything queued -- one stall per capture, so a key of thirty node pictures blocked
+ * for seconds. On WebGL2 the read goes into a pixel buffer behind a fence, polled from timers, and
+ * is copied out once the fence has passed. WebGPU's read already waits on `mapAsync`, and WebGL1
+ * has no pixel buffers, so both keep Babylon's read.
+ * @param engine - the scene's engine
+ * @param texture - the capture's render target
+ * @param fail - rejects the capture when the fenced read fails (a lost context)
+ */
+function readWithoutBlocking(
+    engine: Engine | WebGPUEngine,
+    texture: RenderTargetTexture,
+    fail: (error: unknown) => void,
+): void {
+    const webgl = engine as Engine;
+    if (engine.isWebGPU || webgl.webGLVersion < 2) {
+        return;
+    }
+
+    const original = texture.readPixels.bind(texture);
+    texture.readPixels = (...args) => {
+        const internal = texture.getInternalTexture();
+        if (internal?.type !== Constants.TEXTURETYPE_UNSIGNED_BYTE) {
+            return original(...args);
+        }
+
+        const gl = webgl._gl;
+        const { width, height } = texture.getSize();
+        const framebuffer = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.framebufferTexture2D(
+            gl.FRAMEBUFFER,
+            gl.COLOR_ATTACHMENT0,
+            gl.TEXTURE_2D,
+            internal._hardwareTexture?.underlyingResource as WebGLTexture,
+            0,
+        );
+        const pixels = new Uint8Array(4 * width * height);
+        const pending = webgl._readPixelsAsync(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, webgl._currentFramebuffer);
+        // The read is already queued; GL keeps the framebuffer alive until it is done.
+        gl.deleteFramebuffer(framebuffer);
+        if (pending === null) {
+            return original(...args);
+        }
+
+        return pending.catch((error: unknown) => {
+            fail(error);
+            return pixels;
+        });
+    };
+}
+
+/**
  * Babylon's render-target capture, with its encode step owned here. Babylon encodes the pixels in a
  * promise nobody awaits, on a shared engine it disposes when the last scene engine goes; a graph
  * torn down mid-capture then threw an unhandled rejection and left the capture pending forever.
@@ -970,7 +1045,10 @@ export async function renderTargetCapture(
             false,
             true,
             undefined,
-            customize,
+            (texture) => {
+                readWithoutBlocking(engine, texture, reject);
+                customize?.(texture);
+            },
             encode,
             undefined,
             () => {

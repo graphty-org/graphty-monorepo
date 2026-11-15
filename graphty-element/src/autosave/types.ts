@@ -137,7 +137,7 @@ export function autosaveAbortError(): DOMException {
  * | `E_AUTOSAVE_UNAVAILABLE` | `{ api }` | IndexedDB is missing or throws on open |
  * | `E_AUTOSAVE_KEY_AMBIGUOUS` | `{ elements }` | a bare `autosave` on several elements without an `id` |
  * | `E_AUTOSAVE_QUOTA` | `{ usage, quota }` | the storage quota is full, even after old clean entries were removed |
- * | `E_AUTOSAVE_STALLED` | `{ afterMs, step }` | the listing or a write did not finish in time |
+ * | `E_AUTOSAVE_STALLED` | `{ afterMs, step }` | the listing, a read, a restore's write or a write did not finish in time; `step` is `list`, `read`, `restore` or `write` |
  * | `E_AUTOSAVE_CONNECTION_LOST` | `{}` | the database connection is gone and reopening it failed |
  * | `E_AUTOSAVE_TOO_LARGE` | `{ part }` | a part of the project could not be built (string length limit) |
  * | `E_AUTOSAVE_FAILED` | `{ name }` | any other write failure; `name` is the error's name |
@@ -255,7 +255,8 @@ export interface AutosaveAvailable {
     /** The entry. */
     readonly entry: AutosaveEntry;
     /**
-     * `"page-data-changed"`: the page loaded different data, which replaced the restored work.
+     * `"page-data-changed"`: the page loaded different data, which replaced the restored work, or
+     * which it asked for before the restore could open, so the work was not reopened over it.
      * `"held-by-other-tab"`: another tab is writing it. `"restore-failed"`: it could not be read,
      * was written by newer code, or its restore did not finish twice (`problem` says which).
      * `"manual"`: automatic restore is off.
@@ -292,6 +293,12 @@ export interface AutosaveOptions {
     readonly unloadGuard: "pending" | "unexported" | "off";
     /** Where entries are kept; the browser's IndexedDB (database `graphty-autosave`) by default. */
     readonly store: AutosaveStore;
+    /**
+     * Put the camera back where this tab left it when this tab's work reopens after a reload or a
+     * discarded tab, instead of framing the graph; false. The camera is kept for the tab, not with
+     * the work, so work opened in another tab is framed as usual.
+     */
+    readonly keepCamera: boolean;
 }
 
 /** `element.autosaver`: the state of autosave, and what can be done with the saved entries. */
@@ -312,7 +319,9 @@ export interface AutosaveApi {
      * @param options - How to open it.
      * @param options.discard - Open it over changes never saved to a file.
      * @throws A `GraphtyError` (as a rejection): `E_UNSAVED_CHANGES`, `E_AUTOSAVE_UNKNOWN_ENTRY`,
-     *     `E_AUTOSAVE_ENTRY_TAKEN`, or `E_BAD_DOCUMENT` for an entry that cannot be read.
+     *     `E_AUTOSAVE_ENTRY_TAKEN`, `E_BAD_DOCUMENT` for an entry that cannot be read, or
+     *     `E_AUTOSAVE_STALLED` (`details: { afterMs, step }`, `step` `"list"`, `"read"` or `"restore"`)
+     *     when the browser's database did not answer in time; the entry is left as it was.
      */
     restore(id: string, options?: { readonly discard?: boolean }): Promise<ProjectOpenReport>;
     /**

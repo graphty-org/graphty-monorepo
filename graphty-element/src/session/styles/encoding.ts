@@ -58,7 +58,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { shaderDescriptor } from "../../catalog/shaderRegistry";
+import { plannedShaderDescriptor, projectShaderDescriptor } from "../../catalog/shaderRegistry";
+import type { ShaderDescriptor } from "../../catalog/shaders";
 import type {
     Binding,
     BindingNumberFormat,
@@ -89,6 +90,7 @@ import {
     prototypeFreeMap,
     type ShaderParamTarget,
     toColorValue,
+    withoutFileStyleValues,
 } from "./channels";
 import { parseTemplate, prepareTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import type { LegendFact } from "./legend";
@@ -282,6 +284,12 @@ export interface PrepareBindingOptions {
      * afresh.
      */
     readonly order?: Map<string, number>;
+    /**
+     * Whether the session switched the file styles experiment on; absent reads on. Off, a binding
+     * that spreads over a channel's values (a number onto a shape, groups onto line patterns)
+     * spreads over the values the channel had without it.
+     */
+    readonly fileStyles?: boolean;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -737,6 +745,11 @@ function settleAutomaticDomain(
     }
 
     if (placesDomain(map, base, [low, high])) {
+        // Every value the same: the scale paints the middle, and the reader is told why.
+        if (low === high) {
+            facts.push({ code: "legend.no-spread", params: { value: low } });
+        }
+
         return { domain: [low, high], notPlottable: 0, clamped, facts };
     }
 
@@ -1231,12 +1244,15 @@ function combineFactor(value: ChannelValue, what: string): number {
  *
  * A channel that carries a measurement reads one; a channel that carries a name, a word or a
  * switch takes the value as it is, because there is nothing between "gene" and a shape to
- * interpolate.
+ * interpolate. A binding that names its values with `map` takes them as they are on every
+ * channel: a map is a list of categories, not a measurement, and reading it through `"linear"`
+ * painted the map's colours while the legend described a ramp nobody drew.
  * @param kind - The kind of value the channel accepts.
+ * @param binding - The binding, read for `map`.
  * @returns The scale's name.
  */
-function defaultScaleFor(kind: ChannelValueKind): string {
-    return kind === "color" || kind === "number" ? "linear" : "passthrough";
+export function defaultScaleFor(kind: ChannelValueKind, binding: RuleBinding): string {
+    return binding.map === undefined && (kind === "color" || kind === "number") ? "linear" : "passthrough";
 }
 
 /**
@@ -1336,6 +1352,11 @@ interface AssemblyParts {
     readonly numeric: boolean;
     /** How many elements in scope the run measured nothing for. */
     readonly unmeasured: number;
+    /**
+     * The channel whose values a slot or a group lands on, when that is not the channel as
+     * declared: without the file styles experiment's values while it is off.
+     */
+    readonly slots?: ChannelDescriptor;
 }
 
 /** What either painter hands back. */
@@ -1609,6 +1630,8 @@ function withChoices(descriptor: ChannelDescriptor, choices: readonly string[] |
  */
 function valuePainter(declared: ChannelDescriptor, binding: RuleBinding, parts: AssemblyParts): Painter {
     const descriptor = withChoices(declared, binding.choices);
+    // A value the binding names itself is checked against every value; slots land on the offered ones.
+    const slots = binding.choices === undefined ? (parts.slots ?? descriptor) : descriptor;
     if (binding.overflow === "shape" && descriptor.channel === "node.shape") {
         return cyclePainter(binding, parts, OVERFLOW_SHAPES);
     }
@@ -1616,9 +1639,9 @@ function valuePainter(declared: ChannelDescriptor, binding: RuleBinding, parts: 
         return cyclePainter(binding, parts, OVERFLOW_PATTERNS);
     }
 
-    const convert = converterFor(descriptor, binding.format);
+    const convert = converterFor(slots, binding.format);
     const groups = groupCount(parts.scale, parts.context);
-    const context = rangeFor(descriptor, binding, parts, groups);
+    const context = rangeFor(slots, binding, parts, groups);
     const absent = missingValue(descriptor, binding);
     const overrides = valueOverrides(binding, parts.categories.lumped, descriptor);
     const otherwise =
@@ -1951,7 +1974,7 @@ function prepareRule(
         return prepareStops(descriptor, binding, options);
     }
 
-    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts);
+    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts, binding);
     const map = options.scales.require(scale);
     const described = options.scales.describe(scale);
     if (described === undefined) {
@@ -1975,7 +1998,8 @@ function prepareRule(
     }
 
     const facts = walkColumn(options.column, numeric);
-    const categories = settleCategories(facts, binding.other, overflowKeep(descriptor, binding, numeric));
+    const slots = options.fileStyles === false ? withoutFileStyleValues(descriptor) : descriptor;
+    const categories = settleCategories(facts, binding.other, overflowKeep(slots, binding, numeric));
     const order = scale === "index" ? (options.order ?? new Map<string, number>()) : undefined;
     if (order !== undefined) {
         // First seen in element order, before any element is painted, so which value gets which
@@ -2010,6 +2034,7 @@ function prepareRule(
         context: { ...base, domain: settled.domain },
         numeric,
         unmeasured: options.unmeasured ?? 0,
+        ...(slots === descriptor ? {} : { slots }),
     });
 }
 
@@ -2415,6 +2440,8 @@ export interface PreviewBindingOptions {
      * {@link BindingPreview.defaulted} is read against. `binding` when absent.
      */
     readonly asWritten?: RuleBinding;
+    /** Whether the file styles experiment is on; see {@link PrepareBindingOptions.fileStyles}. */
+    readonly fileStyles?: boolean;
 }
 
 /**
@@ -2538,7 +2565,13 @@ function previewEnds(
  */
 export function previewBinding(options: PreviewBindingOptions): BindingPreview {
     const { channel, binding, column, scales } = options;
-    const prepared = prepareBinding({ channel, binding, column, scales });
+    const prepared = prepareBinding({
+        channel,
+        binding,
+        column,
+        scales,
+        ...(options.fileStyles === undefined ? {} : { fileStyles: options.fileStyles }),
+    });
     const tally = options.counted ?? column;
     const ends = previewEnds(column, prepared.domain);
     const scale = prepared.scale ?? "linear";
@@ -2846,6 +2879,8 @@ export interface SequenceOptions {
     readonly count: number;
     /** The session's scales. */
     readonly scales: ScaleRegistry;
+    /** Whether the file styles experiment is on; see {@link PrepareBindingOptions.fileStyles}. */
+    readonly fileStyles?: boolean;
 }
 
 /**
@@ -2862,9 +2897,12 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
     const descriptor = requireChannel(channel);
     const count = Math.max(0, Math.floor(options.count));
     const numeric = descriptor.accepts === "number";
-    // Items are groups for a colour or a list value, amounts for a number.
+    // Items are groups for a colour or a list value, amounts for a number. The scale is named here
+    // because a map keyed by item position would otherwise default a number to "passthrough".
     const binding: RuleBinding =
-        options.binding.scale === undefined && !numeric ? { ...options.binding, scale: "ordinal" } : options.binding;
+        options.binding.scale === undefined
+            ? { ...options.binding, scale: numeric ? "linear" : "ordinal" }
+            : options.binding;
     if (count === 0) {
         return { channel: descriptor.channel, values: [], cue: null, palette: null };
     }
@@ -2872,7 +2910,13 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
     // One item on a number has no extent of its own: it stands at the range's first end.
     const column = count === 1 && numeric ? [0, 1] : items;
     const prepare = (bound: Channel, rule: RuleBinding): PreparedBinding =>
-        prepareBinding({ channel: bound, binding: rule, column, scales });
+        prepareBinding({
+            channel: bound,
+            binding: rule,
+            column,
+            scales,
+            ...(options.fileStyles === undefined ? {} : { fileStyles: options.fileStyles }),
+        });
     const main = prepare(descriptor.channel, binding);
     const half = overflowHalf(descriptor.channel, binding);
     const cue = half === null ? null : prepare(half[0], half[1]);
@@ -2894,12 +2938,16 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
  * The channel a bound shader parameter reads as: a number or a color between the parameter's
  * declared ends, landing on the layer's uses of its shader.
  * @param address - Where the binding points.
+ * @param describe - How the shader is looked up: the project's own, unless planning a write.
  * @returns A descriptor the binding is prepared against.
  * @throws A `GraphtyError`: `E_UNKNOWN_SHADER` when the catalog lists no such shader, and
  *   `E_UNKNOWN_SHADER_PARAM` when it declares no such parameter or does not let it vary.
  */
-export function shaderParamDescriptor(address: ShaderParamTarget): ChannelDescriptor {
-    const shader = shaderDescriptor(address.shader);
+export function shaderParamDescriptor(
+    address: ShaderParamTarget,
+    describe: (id: string) => ShaderDescriptor | undefined = projectShaderDescriptor,
+): ChannelDescriptor {
+    const shader = describe(address.shader);
     if (shader === undefined) {
         throw new GraphtyError({
             code: "E_UNKNOWN_SHADER",
@@ -2956,7 +3004,8 @@ export function shaderParamChannel(address: ShaderParamAddress): ChannelDescript
         });
     }
 
-    return shaderParamDescriptor(target);
+    // A description for a picker, before any write: a catalog shader the write would copy in counts.
+    return shaderParamDescriptor(target, plannedShaderDescriptor);
 }
 
 /**
@@ -2971,7 +3020,8 @@ function prepareParamBinding(address: ShaderParamTarget, options: PrepareBinding
     const descriptor = shaderParamDescriptor(address);
     const { binding } = options;
     const integer =
-        shaderDescriptor(address.shader)?.params.find((entry) => entry.name === address.param)?.type === "integer";
+        projectShaderDescriptor(address.shader)?.params.find((entry) => entry.name === address.param)?.type ===
+        "integer";
     const ranged =
         "by" in binding &&
         binding.range === undefined &&
@@ -3017,4 +3067,15 @@ function prepareParamBinding(address: ShaderParamTarget, options: PrepareBinding
         paint: (value) => patch(prepared.paint(value)),
         paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
     };
+}
+
+/**
+ * The built-in node shapes and edge line patterns an overflow policy steps through, for the saved-name scan: a save file that names one by id depends on this
+ * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.
+ * @returns The kind and its ids.
+ * @public
+ */
+export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
+    return { kind: "overflowLists", ids: [...OVERFLOW_SHAPES, ...OVERFLOW_PATTERNS] };
 }

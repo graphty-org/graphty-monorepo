@@ -4,7 +4,8 @@ import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv, type Plugin, UserConfig } from "vite";
 
-import { aliases } from "./vite.aliases";
+import { aliases, elementSourcePlugins } from "./vite.aliases";
+import { bootFilesPlugin } from "./vite.boot-files";
 import { buildStampPlugin } from "./vite.build-stamp";
 import { sampleDataPlugin } from "./vite.sample-data";
 
@@ -38,6 +39,45 @@ function unversionedDepsNotImmutable(): Plugin {
     };
 }
 
+/**
+ * Serves the https dev server over HTTP/1.1 instead of HTTP/2.
+ *
+ * Vite always serves https over HTTP/2. Its dev server sends the app as roughly 1,400 separate
+ * modules, and on that connection iPad Safari (27.2) fails a few module requests at random without
+ * telling the page: the server finishes every stream, the file re-fetches fine, yet the import fails
+ * ("Importing a module script failed.") and the app cannot start (#6223). Over HTTP/1.1 it loads.
+ * Offering only `http/1.1` in the TLS handshake keeps https and makes every browser use HTTP/1.1.
+ * @returns The dev-server plugin.
+ */
+function http1DevServer(): Plugin {
+    return {
+        name: "graphty:http1-dev-server",
+        apply: "serve",
+        configureServer(server) {
+            // The TLS server reads this wire-format ALPN list for each new connection.
+            const tlsServer = server.httpServer as { ALPNProtocols?: Buffer } | null;
+            if (server.config.server.https && tlsServer) {
+                tlsServer.ALPNProtocols = Buffer.from("\x08http/1.1", "latin1");
+            }
+        },
+    };
+}
+
+/**
+ * Loads the remote logger's browser script ahead of everything else in the dev server's page.
+ * @param server - the log server's address.
+ * @returns the Vite plugin.
+ */
+function remoteLogScript(server: string): Plugin {
+    return {
+        name: "graphty-remote-log-script",
+        apply: "serve",
+        transformIndexHtml: () => [
+            { tag: "script", attrs: { src: `${server}/remote-logger.js` }, injectTo: "head-prepend" },
+        ],
+    };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
     // Load env file from monorepo root (one level up from this package).
@@ -46,11 +86,18 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, monorepoRoot, "");
     const plugins = [
         react(),
+        ...elementSourcePlugins,
         unversionedDepsNotImmutable(),
+        http1DevServer(),
         // The commit and release tag in a <meta name="graphty-build">, read by Help > About.
         buildStampPlugin(),
+        // The files each loading step waits for, so the loading screen's log can measure them.
+        bootFilesPlugin(),
         // graph-samples' datasets at graphty.app's path, from this machine (dev server only).
         sampleDataPlugin(),
+        // The remote logger's script, first in the page so it hears a load that fails before the
+        // app starts (dev server only; VITE_REMOTE_LOG_URL is the log server's address).
+        ...(env.VITE_REMOTE_LOG_URL ? [remoteLogScript(env.VITE_REMOTE_LOG_URL)] : []),
     ];
 
     const config: UserConfig = {
@@ -73,6 +120,10 @@ export default defineConfig(({ mode }) => {
             // build (.github/workflows/ci.yml, "Upload graphty's source maps to Sentry").
             ...(process.env.SENTRY_RELEASE ? { __SENTRY_RELEASE__: JSON.stringify(process.env.SENTRY_RELEASE) } : {}),
         },
+        // graphty-element's credential store loads encrypt-storage on its first use. Found that late,
+        // the dev server optimizes it then and reloads the page under the reader; listed here, it
+        // is optimized at startup. Dev server only.
+        optimizeDeps: { include: ["encrypt-storage"] },
         server: {
             host: true,
             fs: {

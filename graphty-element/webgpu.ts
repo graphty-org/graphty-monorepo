@@ -62,11 +62,34 @@
  * there is a real failure and is reported as one.
  */
 
-import { EXACT_MAX_NODES, type GpuAccelerator } from "@graphty/webgpu-graph-algorithms";
-import { type AcceleratorDeclined, acquireAccelerator } from "@graphty/webgpu-graph-algorithms/browser";
+import type { GpuAccelerator } from "@graphty/webgpu-graph-algorithms";
+import type { AcceleratorDeclined } from "@graphty/webgpu-graph-algorithms/browser";
 
 import { type AcceleratorFactoryOptions, type GraphAccelerator, registerAccelerator } from "./src/acceleration";
 import { GraphtyError } from "./src/errors";
+
+/**
+ * The peer, loaded on first use rather than with this entry point (issue #6389): importing this
+ * file registers the accelerator, and the peer's 1 MB of kernels arrives while the first frame is
+ * being set up instead of before it. Both modules are fetched at most once.
+ */
+let peer:
+    | Promise<
+          [typeof import("@graphty/webgpu-graph-algorithms"), typeof import("@graphty/webgpu-graph-algorithms/browser")]
+      >
+    | undefined;
+
+/**
+ * Loads the peer's root and browser entry points, once.
+ * @returns Both modules.
+ */
+function loadPeer(): NonNullable<typeof peer> {
+    peer ??= Promise.all([
+        import("@graphty/webgpu-graph-algorithms"),
+        import("@graphty/webgpu-graph-algorithms/browser"),
+    ]);
+    return peer;
+}
 
 /** The name the WebGPU accelerator is registered and reported under. */
 const WEBGPU_ACCELERATOR_NAME = "webgpu-graph-algorithms";
@@ -225,6 +248,7 @@ function toGraphAccelerator(accelerator: GpuAccelerator, release: () => void): G
  * `capabilities.acceleration`.
  */
 async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Promise<GraphAccelerator | null> {
+    const [{ EXACT_MAX_NODES }, { acquireAccelerator }] = await loadPeer();
     const { exactMaxNodes } = options ?? {};
     if (exactMaxNodes !== undefined && exactMaxNodes > EXACT_MAX_NODES) {
         throw new GraphtyError({
@@ -238,6 +262,7 @@ async function createWebGpuAccelerator(options?: AcceleratorFactoryOptions): Pro
     const gpu = acquireAccelerator({
         acceptSoftware: options?.acceptSoftware ?? false,
         accelerator: exactMaxNodes === undefined ? undefined : { layout: { exactMaxNodes } },
+        ...(options?.device === undefined ? {} : { device: options.device as GPUDevice }),
     });
     const result = await gpu.current();
     if (!result.ok) {
@@ -253,4 +278,9 @@ registerAccelerator({
     name: WEBGPU_ACCELERATOR_NAME,
     backend: "webgpu",
     factory: createWebGpuAccelerator,
+    // A software adapter draws a frame slower with the layout on the same device than beside it.
+    sharesDevice: async (adapter) => {
+        const [, { summarizeAdapter }] = await loadPeer();
+        return !summarizeAdapter(adapter as GPUAdapter).software;
+    },
 });

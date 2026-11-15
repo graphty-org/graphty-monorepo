@@ -7,7 +7,7 @@
 
 import "../../../src/graphty-element";
 
-import { afterAll, afterEach, assert, beforeAll, describe, it } from "vitest";
+import { afterAll, afterEach, assert, beforeAll, describe, it, vi } from "vitest";
 
 import {
     type AuthoredLayoutDescriptor,
@@ -266,7 +266,28 @@ describe("layout transitions", () => {
         });
         const element = await mounted();
         const scene = element.graph.getScene();
+        // The move runs on the wall clock, and the test samples it once a drawn frame: one slow
+        // frame (the cloud's first draw compiles its shader) stepped the 0.4 s move past the
+        // whole span where node a is shrunk, and the wait never saw it. So time advances one
+        // 60 Hz frame per drawn frame, and the move takes the same 24 frames however slow they are.
+        let clock = performance.now();
+        const now = vi.spyOn(performance, "now").mockImplementation(() => clock);
+        const tick = scene.onBeforeRenderObservable.add(() => {
+            clock += 1000 / 60;
+        });
+        cleanups.push(() => {
+            scene.onBeforeRenderObservable.remove(tick);
+            now.mockRestore();
+        });
         const cloud = (): boolean => scene.meshes.some((mesh) => mesh.name === "graphtyTransitionParticles");
+        // Every drawn frame of the move is checked, not the frames a wait happens to sample: node a
+        // must be drawn shrunk on some frame that also draws its cloud.
+        const a = nodeOf(element, "a");
+        let gaveWay = false;
+        const watch = scene.onAfterRenderObservable.add(() => {
+            gaveWay ||= cloud() && a.mesh.scaling.x < 0.5;
+        });
+        cleanups.push(() => scene.onAfterRenderObservable.remove(watch));
         await element.session.config.set({
             layoutTransition: { transition: "e7/particles", seconds: 0.4, params: { particles: 4 } },
         });
@@ -274,9 +295,8 @@ describe("layout transitions", () => {
         await until(element, "the cloud is drawn while the nodes move", cloud);
         const mesh = scene.meshes.find((each) => each.name === "graphtyTransitionParticles");
         assert.strictEqual((mesh as { forcedInstanceCount?: number }).forcedInstanceCount, 8, "4 per node");
-        const a = nodeOf(element, "a");
-        await until(element, "node a gives way to its cloud on its way", () => a.mesh.scaling.x < 0.5);
         await until(element, "the cloud is gone once they land", () => !cloud());
+        assert.isTrue(gaveWay, "node a gives way to its cloud on its way");
         assert.strictEqual(a.mesh.scaling.x, 1, "node a is whole once it lands");
     });
 

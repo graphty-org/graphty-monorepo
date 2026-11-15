@@ -543,6 +543,37 @@ describe("checksums (design section 5.8)", () => {
         expect(() => s.validate({ checksum: true })).not.toThrow();
     });
 
+    it("catches a json write that JSON text cannot see: NaN, Infinity, -0, an unset row, a bigint", () => {
+        const writes: ((values: unknown[]) => void)[] = [
+            (values) => (values[0] = Number.NaN),
+            (values) => (values[0] = Infinity),
+            (values) => (values[1] = -0),
+            (values) => (values[2] = null),
+            (values) => (values[1] = 0n),
+        ];
+        for (const write of writes) {
+            const s = makeSnapshot({
+                ...UNDIRECTED,
+                checksum: true,
+                nodeColumns: { j: { values: [null, 0, undefined], decl: { dtype: "json" } } },
+            });
+            expect(() => s.validate({ checksum: true })).not.toThrow();
+            const column = s.nodes.require("j");
+            if (column.dtype !== "json") {
+                throw new Error("expected a json column");
+            }
+            write(column.values as unknown[]);
+            let caught: unknown = null;
+            try {
+                s.validate({ checksum: true });
+            } catch (err) {
+                caught = err;
+            }
+            expect(caught).toBeInstanceOf(GraphFormatError);
+            expect((caught as GraphFormatError).details).toMatchObject({ reason: "checksum", column: "j" });
+        }
+    });
+
     it("records a lazily materialised identity permutation and a mutable column is never recorded", () => {
         const s = makeSnapshot({
             directed: true,

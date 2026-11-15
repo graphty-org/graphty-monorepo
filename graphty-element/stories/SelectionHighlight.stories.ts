@@ -17,7 +17,7 @@ import type { GraphSelectionStyleInput } from "../src/config";
 import type { Graphty } from "../src/graphty-element";
 // Importing the module is what defines the <graphty-element> custom element, so this line is
 // load-bearing even though only the type is named.
-import { assertGraphLoaded, type Drawn, drawn, holds, renderedElement } from "./assertions";
+import { assertGraphLoaded, type Drawn, drawn, eventually, holds, renderedElement } from "./assertions";
 import { eventWaitingDecorator, setLayoutPreSteps, waitForGraphSettled } from "./helpers";
 
 /** Five nodes, far enough apart that a halo around one is a halo around one. */
@@ -33,9 +33,6 @@ const EDGES = [
 
 /** The node every story selects, so the pictures differ only in the halo. */
 const SELECTED = "gamma";
-
-/** How long to leave for the halo to reach the frame after a selection or a restyle. */
-const SETTLE_MS = 400;
 
 /** What a story's args carry: the element's properties plus the highlight to set. */
 interface HighlightArgs {
@@ -115,7 +112,8 @@ async function selected(canvasElement: HTMLElement, story: string): Promise<Draw
     await assertGraphLoaded(scene, { nodes: 5, edges: 4 });
 
     scene.graph.selectNode(SELECTED);
-    await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+    // The halo reaches the frame: the picture once the selection has been drawn.
+    await scene.element.waitForStableFrame();
 
     return scene;
 }
@@ -153,7 +151,11 @@ function haloOnScreen(scene: Drawn): { color: string; alpha: number; clearance: 
     // MEASURED AGAINST THE NODE, never as a raw scaling number. The halo used to be drawn
     // smaller than the node it rings, so it was inside it and invisible -- and a scaling of 1.45
     // looked perfectly correct while that was true.
-    return { color: lit.emissiveColor.toHexString(), alpha: lit.alpha, clearance: of(mesh) / of(node.mesh) };
+    return {
+        color: lit.emissiveColor.toHexString(),
+        alpha: lit.alpha,
+        clearance: of(mesh) / of({ getBoundingInfo: () => node.drawnBoundingInfo }),
+    };
 }
 
 /**
@@ -187,12 +189,12 @@ async function assertHalo(scene: Drawn, want: { color: string; alpha: number; cl
     );
 }
 
-/** The gold halo an element nobody has configured draws. */
+/** The halo an element nobody has configured draws: solid blue, 3:1 or better on light and dark canvases (#811). */
 export const Default: Story = {
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "Default");
 
-        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
+        await assertHalo(scene, { color: "#0077BB", alpha: 1, clearance: 1.45 });
     },
 };
 
@@ -203,7 +205,7 @@ export const Color: Story = {
         const scene = await selected(canvasElement, "Color");
 
         // The scale and the opacity are untouched: the setting is merged, not replaced.
-        await assertHalo(scene, { color: "#00BCD4", alpha: 0.4, clearance: 1.45 });
+        await assertHalo(scene, { color: "#00BCD4", alpha: 1, clearance: 1.45 });
     },
 };
 
@@ -213,11 +215,11 @@ export const Scale: Story = {
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "Scale");
 
-        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 2.6 });
+        await assertHalo(scene, { color: "#0077BB", alpha: 1, clearance: 2.6 });
     },
 };
 
-/** A solid halo rather than a faint one. */
+/** A see-through halo rather than the solid default. */
 export const Opacity: Story = {
     args: { selectionStyle: { color: "#E91E63", opacity: 0.85 } },
     play: async ({ canvasElement }) => {
@@ -232,11 +234,12 @@ export const RestyledWhileSelected: Story = {
     play: async ({ canvasElement }) => {
         const scene = await selected(canvasElement, "RestyledWhileSelected");
 
-        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
+        await assertHalo(scene, { color: "#0077BB", alpha: 1, clearance: 1.45 });
 
         const element = await renderedElement(canvasElement, "RestyledWhileSelected: no <graphty-element> rendered");
         element.selectionStyle = { color: "#7CB342", scale: 2, opacity: 0.7 };
-        await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+        // The new style reaches the halo on a later pass, and the stable frame is the one that draws it.
+        await element.waitForStableFrame();
 
         await assertHalo(scene, { color: "#7CB342", alpha: 0.7, clearance: 2 });
     },
@@ -267,7 +270,9 @@ export const SelectedEdge: Story = {
     play: async ({ canvasElement }) => {
         await waitForGraphSettled(canvasElement);
         const element = await renderedElement(canvasElement, "SelectedEdge: no <graphty-element> rendered");
-        await new Promise((resolve) => setTimeout(resolve, SETTLE_MS));
+        // The render function selects the edge once the graph has settled.
+        await eventually(() => element.session.selection.edges.length > 0, "SelectedEdge: the edge was never selected");
+        await element.waitForStableFrame();
 
         const { selection } = element.session;
         await holds(
@@ -289,6 +294,6 @@ export const Box: Story = {
 
         await holds(scene.graph.getNode(SELECTED)?.shapeType === "box", "Box: the selected node is drawn as a box");
 
-        await assertHalo(scene, { color: "#FFD700", alpha: 0.4, clearance: 1.45 });
+        await assertHalo(scene, { color: "#0077BB", alpha: 1, clearance: 1.45 });
     },
 };

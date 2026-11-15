@@ -1,5 +1,6 @@
-import { EntityChip } from "@graphty/compact-mantine";
+import { EntityChip, ScrollArea } from "@graphty/compact-mantine";
 import type { CodedFact, SourcePreview } from "@graphty/graphty-element/session";
+import { Badge, Divider, Group, Stack, Text } from "@mantine/core";
 import React from "react";
 
 import { GLYPHS } from "../glyphs";
@@ -11,16 +12,24 @@ import { codeWords } from "./words";
 const NAMES = 25;
 
 /**
- * One coded chip: a failure or a warning, as a label.
+ * One coded fact: a failure in the danger ink, as the app's other inline errors are; a warning as
+ * an outlined badge.
  * @param props - Component props
  * @param props.fact - the code and its params.
- * @returns the chip.
+ * @returns the fact.
  */
 export function CodeChip({ fact }: Readonly<{ fact: CodedFact }>): React.JSX.Element {
+    if (fact.code.startsWith("E_")) {
+        return (
+            <Text span size="xs" c="var(--cm-text-danger)" data-code={fact.code} data-error="" truncate>
+                {codeWords(fact)}
+            </Text>
+        );
+    }
     return (
-        <span className="sv-code" data-code={fact.code} data-error={fact.code.startsWith("E_") ? "" : undefined}>
+        <Badge size="sm" variant="outline" data-code={fact.code} maw="100%">
             {codeWords(fact)}
-        </span>
+        </Badge>
     );
 }
 
@@ -49,47 +58,60 @@ function rowName(row: Readonly<Record<string, unknown>>): string {
 export function PreviewRows({ preview }: Readonly<{ preview: SourcePreview }>): React.JSX.Element {
     const more = preview.more ? "+" : "";
     return (
-        <div // NOSONAR(S6819): a <fieldset> brings a border and legend layout the compact row does not use; the role names the group
-            className="sv-preview"
-            role="group"
-            aria-label="Preview"
-        >
-            <div className="sv-chips">
-                <EntityChip kind="node">{`${formatNumber(preview.nodes.length)}${more}`}</EntityChip>
-                <EntityChip kind="edge">{formatNumber(preview.edges.length)}</EntityChip>
-                {preview.serverFacts.map(({ code, params }) => (
-                    <span
-                        key={code}
-                        className="sv-fact"
-                        title={`${code.replace(/^source\./, "")}: ${String(params.value)}`}
-                    >
-                        {String(params.value)}
-                    </span>
-                ))}
-                {preview.issues.map((issue, i) => (
-                    <CodeChip key={`${issue.code}-${String(i)}`} fact={issue} />
-                ))}
-            </div>
-            {preview.columns.length === 0 ? null : (
-                <ul className="sv-columns" aria-label="Columns">
-                    {preview.columns.map((column) => {
-                        const Icon = TYPE_ICONS[column.type] ?? GLYPHS.mixed;
-                        return (
-                            <li key={`${column.kind}:${column.name}`} data-kind={column.kind}>
-                                <Icon size={12} aria-label={column.type} />
-                                {column.plainName}
-                            </li>
-                        );
-                    })}
-                </ul>
-            )}
-            <div className="sv-names" aria-label="Preview nodes">
-                {preview.nodes.slice(0, NAMES).map((row, i) => (
-                    <EntityChip key={`${rowName(row)}-${String(i)}`} kind="node">
-                        {rowName(row)}
-                    </EntityChip>
-                ))}
-            </div>
-        </div>
+        <>
+            <Divider />
+            <ScrollArea.Autosize mah={280}>
+                <Stack
+                    // NOSONAR(S6819): a <fieldset> brings a border and legend layout the compact row does not use; the role names the group
+                    role="group"
+                    aria-label="Preview"
+                    gap={6}
+                >
+                    <Group gap={4}>
+                        <EntityChip kind="node">{`${formatNumber(preview.nodes.length)}${more}`}</EntityChip>
+                        <EntityChip kind="edge">{formatNumber(preview.edges.length)}</EntityChip>
+                        {preview.serverFacts.map(({ code, params }) => (
+                            <Badge
+                                key={code}
+                                size="sm"
+                                variant="outline"
+                                title={`${code.replace(/^source\./, "")}: ${String(params.value)}`}
+                            >
+                                {String(params.value)}
+                            </Badge>
+                        ))}
+                        {preview.issues.map((issue, i) => (
+                            <CodeChip key={`${issue.code}-${String(i)}`} fact={issue} />
+                        ))}
+                    </Group>
+                    {preview.columns.length === 0 ? null : (
+                        <Group gap={4} role="list" aria-label="Columns">
+                            {preview.columns.map((column) => {
+                                const Icon = TYPE_ICONS[column.type] ?? GLYPHS.mixed;
+                                return (
+                                    <Badge
+                                        key={`${column.kind}:${column.name}`}
+                                        role="listitem"
+                                        size="sm"
+                                        variant="outline"
+                                        data-kind={column.kind}
+                                        leftSection={<Icon size={12} aria-label={column.type} />}
+                                    >
+                                        {column.plainName}
+                                    </Badge>
+                                );
+                            })}
+                        </Group>
+                    )}
+                    <Group gap={4} aria-label="Preview nodes">
+                        {preview.nodes.slice(0, NAMES).map((row, i) => (
+                            <EntityChip key={`${rowName(row)}-${String(i)}`} kind="node">
+                                {rowName(row)}
+                            </EntityChip>
+                        ))}
+                    </Group>
+                </Stack>
+            </ScrollArea.Autosize>
+        </>
     );
 }

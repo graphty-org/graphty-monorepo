@@ -10,13 +10,16 @@
  *
  * **A failed compile rests the loop.** Babylon keeps every effect it was asked for in its engine,
  * and `areAllEffectsReady()` stays false for one that never compiles, which keeps a graph drawn on
- * demand drawing every frame for ever. So a failed effect is disposed -- taken out of the engine
- * and out of the shader store -- before the failure is reported.
+ * demand drawing every frame for ever. So a failed effect is disposed -- taken out of the engine --
+ * before the failure is reported.
  *
- * **Sources are inline.** Each program's text goes into Babylon's shader store under a name made
- * from its text hash, so nothing is fetched lazily at draw time (iPad Safari reports a failed
- * module import as a material that never becomes ready), and two graphs on one page with the same
- * id and different text never share a program.
+ * **Sources are inline.** Each program's text goes straight to the engine, so nothing is fetched
+ * lazily at draw time (iPad Safari reports a failed module import as a material that never becomes
+ * ready), and two graphs on one page with the same id and different text never share a program:
+ * the engine files an effect by its text and a define naming the shader's hash. Babylon's shader
+ * store is not used: this module loads lazily, and on a page where that gave it a second copy of
+ * Babylon, its store is not the one the engine reads, so the engine would fetch the program and get
+ * a 404 (issue #5894).
  *
  * **The test frame is advisory.** It catches a runaway shader the static bound missed; it does not
  * bound cost. It draws on a 4 x 4 square, then 64 x 64, then 256 x 256 of a render target, at the
@@ -24,28 +27,37 @@
  * grows faster than the pixel count. A shader whose cost per pixel, over the largest area its kind
  * can cover here, would take longer than {@link FRAME_LIMIT_MS} is refused with
  * `shader.over-budget`.
+ *
+ * **A pause is not a cost.** A size's time is wall-clock time, and a pause of the whole process --
+ * a CPU quota running out, a busy GPU process -- lands in it as tens of milliseconds the shader
+ * never spent. A pause only ever adds time, so a size that would refuse the shader is drawn again,
+ * up to {@link TEST_REPEATS} times, and judged on its fastest drawing: a runaway is slow every time,
+ * a pause is not.
  */
 
-import {
-    type AbstractEngine,
-    Constants,
-    type Effect,
-    EffectRenderer,
-    type Observer,
-    type RenderTargetWrapper,
-    type Scene,
-    ShaderStore,
-    Viewport,
-} from "@babylonjs/core";
+import type { AbstractEngine, Observer, RenderTargetWrapper } from "@babylonjs/core";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import type { Effect } from "@babylonjs/core/Materials/effect.js";
+import { EffectRenderer } from "@babylonjs/core/Materials/effectRenderer.js";
+import { Viewport } from "@babylonjs/core/Maths/math.viewport.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { drawingOf, type ShaderParamDescriptor, type ShaderParams, type ShaderProblem } from "../../catalog/shaders";
+import type { GraphtyError } from "../../errors/GraphtyError";
+import { GraphtyLogger, type Logger } from "../../logging";
 import { type HostShader, SHADER_THUMBNAIL_SIZE } from "../../session/shaders";
+import { disposedError } from "../chunk";
 import { clearCrash, markCrash } from "../crashMarker";
 import { SceneUniforms } from "./sceneUniforms";
 import { compileProblem, sampleProgram, uniformValueOf } from "./wrap";
 
+const logger: Logger = GraphtyLogger.getLogger(["graphty", "shaders", "runtime"]);
+
 /** The longest one frame of a shader may be estimated at before the test frame refuses it. */
-export const FRAME_LIMIT_MS = 250;
+const FRAME_LIMIT_MS = 250;
+
+/** The most times the test frame draws a size that would refuse the shader, keeping the fastest. */
+const TEST_REPEATS = 3;
 
 /** The test frame's square sizes, in pixels. */
 const TEST_SIZES = [4, 64, 256] as const;
@@ -90,7 +102,7 @@ export class ShaderRuntime {
     private readonly engine: AbstractEngine;
     private queue: Promise<unknown> = Promise.resolve();
     /** The sample programs, by text hash. */
-    private readonly effects = new Map<string, { effect: Effect; name: string }>();
+    private readonly effects = new Map<string, Effect>();
     /** When each hash was last drawn, by `performance.now()`. */
     private readonly drawn = new Map<string, number>();
     /** The hashes this runtime put in the crash marker. */
@@ -102,6 +114,11 @@ export class ShaderRuntime {
     /** Until when the page counts as having been hidden recently. */
     private hiddenUntil = 0;
     private disposed = false;
+    private abandon: (reason: GraphtyError) => void = () => undefined;
+    /** Rejected by dispose: an engine that is gone may never call back, and the queue must answer. */
+    private readonly abandoned = new Promise<never>((_resolve, reject) => {
+        this.abandon = reject;
+    });
     private readonly onVisibility = (): void => {
         this.hiddenUntil = performance.now() + VISIBLE_WINDOW_MS;
     };
@@ -217,24 +234,43 @@ export class ShaderRuntime {
         }
 
         this.disposed = true;
+        // A runtime with nothing queued has nobody listening, and that is not an unhandled failure.
+        this.abandoned.catch(() => undefined);
+        this.abandon(disposedError());
         this.engine.onContextLostObservable.remove(this.lostObserver);
         globalThis.document?.removeEventListener("visibilitychange", this.onVisibility);
         globalThis.removeEventListener?.("pagehide", this.onPageHide);
         this.releaseMarks([...this.marked]);
         this.lostListeners.clear();
         // The engine may already be gone (a graph that switched renderers disposes the old one
-        // first), and a GPU object released after its engine has nothing left to release.
-        try {
+        // first), and a GPU object released after its engine has nothing left to release. While it
+        // is alive, each object is released on its own, so one that throws does not leak the rest.
+        if (!this.engine.isDisposed) {
+            const release = (what: string, run: () => void): void => {
+                try {
+                    run();
+                } catch (error) {
+                    logger.error(
+                        "Shader runtime release failed",
+                        error instanceof Error ? error : new Error(String(error)),
+                        { what },
+                    );
+                }
+            };
             for (const hash of [...this.effects.keys()]) {
-                this.forget(hash);
+                release("effect", () => {
+                    this.forget(hash);
+                });
             }
 
-            this.target?.dispose();
-            this.renderer?.dispose();
-            this.uniforms.dispose();
-        } catch {
-            // Released with the engine.
+            release("target", () => this.target?.dispose());
+            release("renderer", () => this.renderer?.dispose());
+            release("uniforms", () => {
+                this.uniforms.dispose();
+            });
         }
+
+        this.effects.clear();
 
         this.target = null;
         this.renderer = null;
@@ -243,15 +279,15 @@ export class ShaderRuntime {
     /**
      * Run work after everything queued before it.
      * @param work - The work.
-     * @returns What it resolves with.
+     * @returns What it resolves with; rejects with `E_DISPOSED` when a dispose comes first.
      */
     private enqueue<T>(work: () => Promise<T>): Promise<T> {
         const run = this.queue.then(async () => {
             if (this.disposed) {
-                throw new Error("The shader runtime was disposed.");
+                throw disposedError();
             }
 
-            return work();
+            return Promise.race([work(), this.abandoned]);
         });
         this.queue = run.catch(() => undefined);
         return run;
@@ -265,14 +301,12 @@ export class ShaderRuntime {
     private compile(shader: HostShader): Promise<Effect | ShaderProblem> {
         const known = this.effects.get(shader.hash);
         if (known !== undefined) {
-            return Promise.resolve(known.effect);
+            return Promise.resolve(known);
         }
 
         const { descriptor, glsl } = shader.registration;
         const program = sampleProgram(descriptor, glsl);
         const name = `graphtyShader${shader.hash.slice(0, 24)}`;
-        ShaderStore.ShadersStore[`${name}VertexShader`] = program.vertex;
-        ShaderStore.ShadersStore[`${name}FragmentShader`] = program.fragment;
 
         return new Promise((resolve) => {
             // A driver that compiles synchronously reports the error from inside createEffect,
@@ -283,20 +317,23 @@ export class ShaderRuntime {
             const fail = (effect: Effect, errors: string): void => {
                 // Out of the engine before anything is reported, so the loop can rest.
                 effect.dispose(true);
-                forgetSource(name);
                 resolve(compileProblem(errors, shader.bodyLine));
             };
             this.engine.createEffect(
-                { vertex: name, fragment: name },
+                { vertexSource: program.vertex, fragmentSource: program.fragment, spectorName: name },
                 {
                     attributes: ["position"],
                     uniformsNames: [...program.uniforms],
                     uniformBuffersNames: [...program.uniformBuffers],
                     samplers: [],
-                    defines: "",
+                    // One effect per shader. The engine files an effect by its text and defines,
+                    // and two shaders can share a text (a parameter's default is not in it); for an
+                    // effect it already holds it never calls this `onCompiled`, which would leave
+                    // the second shader, and the queue behind it, waiting for ever.
+                    defines: `#define GRAPHTY_SHADER ${name}`,
                     fallbacks: null,
                     onCompiled: (effect) => {
-                        this.effects.set(shader.hash, { effect, name });
+                        this.effects.set(shader.hash, effect);
                         resolve(effect);
                     },
                     onError: (effect, errors) => {
@@ -318,7 +355,7 @@ export class ShaderRuntime {
     }
 
     /**
-     * Take a compiled program out of the engine and the store.
+     * Take a compiled program out of the engine.
      * @param hash - Its text hash.
      */
     private forget(hash: string): void {
@@ -328,8 +365,7 @@ export class ShaderRuntime {
         }
 
         this.effects.delete(hash);
-        known.effect.dispose(true);
-        forgetSource(known.name);
+        known.dispose(true);
     }
 
     /**
@@ -388,6 +424,35 @@ export class ShaderRuntime {
     }
 
     /**
+     * Draw every variant at every time on one square size and wait for the GPU to finish.
+     * @param effect - The compiled program.
+     * @param shader - The shader.
+     * @param size - The square's side, in pixels.
+     * @param variants - The parameter values to draw at.
+     * @returns How long it took, in milliseconds.
+     */
+    private async timeSize(
+        effect: Effect,
+        shader: HostShader,
+        size: number,
+        variants: readonly ShaderParams[],
+    ): Promise<number> {
+        const { target } = this.surface();
+        const started = performance.now();
+        this.engine.bindFramebuffer(target, undefined, undefined, undefined, true);
+        for (const values of variants) {
+            for (const time of TEST_TIMES) {
+                this.draw(effect, shader, size, values, time);
+            }
+        }
+
+        // Reading a pixel waits for the GPU to finish what it was given.
+        await this.engine.readPixels(0, 0, 1, 1, true, false);
+        this.engine.unBindFramebuffer(target);
+        return performance.now() - started;
+    }
+
+    /**
      * Run the test frame.
      * @param effect - The compiled program.
      * @param shader - The shader.
@@ -396,28 +461,26 @@ export class ShaderRuntime {
     private async testFrame(effect: Effect, shader: HostShader): Promise<ShaderProblem | null> {
         const { params } = shader.registration.descriptor;
         const variants = (["default", "min", "max"] as const).map((end) => variantOf(params, end));
-        const { target } = this.surface();
+        const draws = variants.length * TEST_TIMES.length;
+        const area = this.areaOf(shader);
+        const largest = TEST_SIZES.at(-1);
         const resting = this.uniforms.currentTime;
         let previous: { size: number; ms: number } | null = null;
         let perPixel = 0;
         try {
             for (const size of TEST_SIZES) {
-                const started = performance.now();
-                this.engine.bindFramebuffer(target, undefined, undefined, undefined, true);
-                for (const values of variants) {
-                    for (const time of TEST_TIMES) {
-                        this.draw(effect, shader, size, values, time);
-                    }
+                const last = previous;
+                const refuses = (ms: number): boolean =>
+                    // Growth faster than the pixel count (with room for fixed costs) is a runaway.
+                    (last !== null && ms > 4 && ms / last.ms > ((size * size) / last.size ** 2) * 2) ||
+                    (size === largest && (ms / (draws * size * size)) * area > FRAME_LIMIT_MS);
+                let ms = await this.timeSize(effect, shader, size, variants);
+                for (let repeat = 1; repeat < TEST_REPEATS && refuses(ms); repeat++) {
+                    ms = Math.min(ms, await this.timeSize(effect, shader, size, variants));
                 }
 
-                // Reading a pixel waits for the GPU to finish what it was given.
-                await this.engine.readPixels(0, 0, 1, 1, true, false);
-                this.engine.unBindFramebuffer(target);
-                const ms = performance.now() - started;
-                const draws = variants.length * TEST_TIMES.length;
                 perPixel = ms / (draws * size * size);
-                // Growth faster than the pixel count (with room for fixed costs) is a runaway.
-                if (previous !== null && ms > 4 && ms / previous.ms > ((size * size) / previous.size ** 2) * 2) {
+                if (refuses(ms)) {
                     return this.overBudget(perPixel, shader);
                 }
 
@@ -429,8 +492,7 @@ export class ShaderRuntime {
             this.engine.wipeCaches(true);
         }
 
-        const area = this.areaOf(shader);
-        return perPixel * area > FRAME_LIMIT_MS ? this.overBudget(perPixel, shader) : null;
+        return null;
     }
 
     /**
@@ -543,15 +605,6 @@ export class ShaderRuntime {
 
         clearCrash(hashes);
     }
-}
-
-/**
- * Take a program's two stages out of Babylon's shader store.
- * @param name - The program's name in the store.
- */
-function forgetSource(name: string): void {
-    Reflect.deleteProperty(ShaderStore.ShadersStore, `${name}VertexShader`);
-    Reflect.deleteProperty(ShaderStore.ShadersStore, `${name}FragmentShader`);
 }
 
 /**

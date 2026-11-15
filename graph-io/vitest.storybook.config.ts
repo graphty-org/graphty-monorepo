@@ -5,6 +5,8 @@ import { storybookTest } from "@storybook/addon-vitest/vitest-plugin";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
+import { shardCacheDir } from "../tools/test-slots.mjs";
+import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
 import { baseTest } from "../vitest.base.mjs";
 
@@ -23,26 +25,34 @@ const VISUAL = process.env.VISUAL_REVIEW_STORY_OUT
 // Every story of the style fidelity Storybook (fidelity-stories/) run as a test (@storybook/addon-vitest), in a
 // config of its own so the package's shards and their coverage are unchanged:
 // `vitest run --config vitest.storybook.config.ts`.
-export default defineConfig({
-    plugins: [storybookTest({ configDir: path.join(dirname, "fidelity-stories/.storybook") })],
-    ...(VISUAL && PRODUCTION),
-    test: {
-        ...baseTest({ reporters: ["default", ...(VISUAL ? [VISUAL.reporter] : [])] }),
-        name: "storybook",
-        browser: {
-            enabled: true,
-            headless: true,
-            provider: playwright(VISUAL?.providerOptions),
-            instances: [{ browser: "chromium" }],
-            // The size the visual capture draws every story at.
-            viewport: VISUAL?.viewport ?? { width: 1200, height: 900 },
-            ...(VISUAL && { commands: VISUAL.commands }),
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
+export default withTestGuards(
+    defineConfig({
+        plugins: [storybookTest({ configDir: path.join(dirname, "fidelity-stories/.storybook") })],
+        ...(VISUAL && PRODUCTION),
+        // Scan the stories and bundle their dependencies afresh every run, so an import added since an earlier run's
+        // cache (a merge, a new story) is never found mid-run, where Vite reloads the page under the running test
+        // (#5134, #5240); each pre-push gate shard bundles into its own directory (tools/test-slots.mjs shardCacheDir()).
+        cacheDir: shardCacheDir(),
+        optimizeDeps: { force: true },
+        test: {
+            ...baseTest({ reporters: ["default", ...(VISUAL ? [VISUAL.reporter] : [])] }),
+            name: "storybook",
+            browser: {
+                enabled: true,
+                headless: true,
+                provider: playwright(VISUAL?.providerOptions),
+                instances: [{ browser: "chromium" }],
+                // The size the visual capture draws every story at.
+                viewport: VISUAL?.viewport ?? { width: 1200, height: 900 },
+                ...(VISUAL && { commands: VISUAL.commands }),
+            },
+            setupFiles: [
+                ...(VISUAL ? ["fidelity-stories/.storybook/vitest.setup.visual.ts"] : []),
+                "fidelity-stories/.storybook/vitest.setup.ts",
+            ],
+            // One story file at a time, as graphty-element's and graphty's storybook projects.
+            fileParallelism: false,
         },
-        setupFiles: [
-            ...(VISUAL ? ["fidelity-stories/.storybook/vitest.setup.visual.ts"] : []),
-            "fidelity-stories/.storybook/vitest.setup.ts",
-        ],
-        // One story file at a time, as graphty-element's and graphty's storybook projects.
-        fileParallelism: false,
-    },
-});
+    }),
+);

@@ -19,7 +19,6 @@ import { CALIBRATE_SIZES, calibrateLayout, suggestedExactMaxNodes } from "../../
 import { acquire, requireGpu } from "../setup/gpu.js";
 
 const SIZES = [1024, 2048];
-const CASE_TIMEOUT = 300_000;
 
 /** The twin's answer over a calibration's records, or null when it hands the value to an owner decision (throws). */
 function twinAnswer(
@@ -84,64 +83,55 @@ describe("calibrateLayout (spec 2.2; P4-T14)", () => {
         expect(suggestedExactMaxNodes([1], { 1: 5 }, { 1: 1 })).toBe(1);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 15 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "reports finite positive times for both tiers at both sizes, the rule's answer, a positive firstCallMs; the first call compiles, a second call compiles nothing more and leaks nothing",
-        async (t) => {
-            requireGpu(t);
-            // a fresh context (acquire): the first call compiles the tiers' pipelines
-            const pipelinesAtStart = ctx.pipelines.size;
-            const first = await calibrateLayout(ctx, { sizes: SIZES });
-            expect(ctx.pipelines.size, "the first call compiled the tiers' pipelines").toBeGreaterThan(
-                pipelinesAtStart,
-            );
-            expect(
-                Object.keys(first.exactMsPerIter)
-                    .map(Number)
-                    .sort((a, b) => a - b),
-            ).toEqual(SIZES);
-            expect(
-                Object.keys(first.gridMsPerIter)
-                    .map(Number)
-                    .sort((a, b) => a - b),
-            ).toEqual(SIZES);
-            for (const n of SIZES) {
-                expect(Number.isFinite(first.exactMsPerIter[n]) && first.exactMsPerIter[n] > 0, `exact ${n}`).toBe(
-                    true,
-                );
-                expect(Number.isFinite(first.gridMsPerIter[n]) && first.gridMsPerIter[n] > 0, `grid ${n}`).toBe(true);
-            }
-            expect(first.firstCallMs).toBeGreaterThan(0);
-            expect(Number.isFinite(first.pairsPerSecond) && first.pairsPerSecond > 0).toBe(true);
-            // the rate is pairs per second at the largest probed size; compare the quotient, not the ~1e10 value (an
-            // absolute window would fail on the last ulp of a fast hardware timing)
-            expect(first.pairsPerSecond / ((2048 * 2047 * 1000) / first.exactMsPerIter[2048])).toBeCloseTo(1, 12);
-            // the rule: the twin's answer over the reported numbers (a power of two in [1024, 2048]), else (no probed
-            // size qualifies) the largest power of two strictly below the smallest probe: 512
-            const twin = twinAnswer(SIZES, first.exactMsPerIter, first.gridMsPerIter);
-            expect(first.suggestedExactMaxNodes).toBe(twin ?? floorPow2(SIZES[0] - 1));
-            expect(Math.log2(first.suggestedExactMaxNodes) % 1).toBe(0);
-            if (twin !== null) {
-                expect(first.suggestedExactMaxNodes).toBeGreaterThanOrEqual(1024);
-                expect(first.suggestedExactMaxNodes).toBeLessThanOrEqual(2048);
-            } else {
-                expect(first.suggestedExactMaxNodes).toBe(512);
-            }
+    it("reports finite positive times for both tiers at both sizes, the rule's answer, a positive firstCallMs; the first call compiles, a second call compiles nothing more and leaks nothing", async (t) => {
+        requireGpu(t);
+        // a fresh context (acquire): the first call compiles the tiers' pipelines
+        const pipelinesAtStart = ctx.pipelines.size;
+        const first = await calibrateLayout(ctx, { sizes: SIZES });
+        expect(ctx.pipelines.size, "the first call compiled the tiers' pipelines").toBeGreaterThan(pipelinesAtStart);
+        expect(
+            Object.keys(first.exactMsPerIter)
+                .map(Number)
+                .sort((a, b) => a - b),
+        ).toEqual(SIZES);
+        expect(
+            Object.keys(first.gridMsPerIter)
+                .map(Number)
+                .sort((a, b) => a - b),
+        ).toEqual(SIZES);
+        for (const n of SIZES) {
+            expect(Number.isFinite(first.exactMsPerIter[n]) && first.exactMsPerIter[n] > 0, `exact ${n}`).toBe(true);
+            expect(Number.isFinite(first.gridMsPerIter[n]) && first.gridMsPerIter[n] > 0, `grid ${n}`).toBe(true);
+        }
+        expect(first.firstCallMs).toBeGreaterThan(0);
+        expect(Number.isFinite(first.pairsPerSecond) && first.pairsPerSecond > 0).toBe(true);
+        // the rate is pairs per second at the largest probed size; compare the quotient, not the ~1e10 value (an
+        // absolute window would fail on the last ulp of a fast hardware timing)
+        expect(first.pairsPerSecond / ((2048 * 2047 * 1000) / first.exactMsPerIter[2048])).toBeCloseTo(1, 12);
+        // the rule: the twin's answer over the reported numbers (a power of two in [1024, 2048]), else (no probed
+        // size qualifies) the largest power of two strictly below the smallest probe: 512
+        const twin = twinAnswer(SIZES, first.exactMsPerIter, first.gridMsPerIter);
+        expect(first.suggestedExactMaxNodes).toBe(twin ?? floorPow2(SIZES[0] - 1));
+        expect(Math.log2(first.suggestedExactMaxNodes) % 1).toBe(0);
+        if (twin !== null) {
+            expect(first.suggestedExactMaxNodes).toBeGreaterThanOrEqual(1024);
+            expect(first.suggestedExactMaxNodes).toBeLessThanOrEqual(2048);
+        } else {
+            expect(first.suggestedExactMaxNodes).toBe(512);
+        }
 
-            // the second call compiles nothing more (the pipeline cache does not grow; a wall-time comparison would
-            // be noise on a loaded software adapter) and releases every probe
-            const liveBefore = ctx.allocator.liveBuffers;
-            const residentBefore = ctx.residency.stats().buffers;
-            const pipelinesBefore = ctx.pipelines.size;
-            const second = await calibrateLayout(ctx, { sizes: SIZES });
-            expect(second.firstCallMs).toBeGreaterThan(0);
-            expect(ctx.pipelines.size, "the second call compiled nothing more").toBe(pipelinesBefore);
-            expect(ctx.allocator.liveBuffers, "every probe released").toBe(liveBefore);
-            expect(ctx.residency.stats().buffers).toBe(residentBefore);
-            expect(ctx.pool.liveBytes).toBe(0);
-        },
-        CASE_TIMEOUT,
-    );
+        // the second call compiles nothing more (the pipeline cache does not grow; a wall-time comparison would
+        // be noise on a loaded software adapter) and releases every probe
+        const liveBefore = ctx.allocator.liveBuffers;
+        const residentBefore = ctx.residency.stats().buffers;
+        const pipelinesBefore = ctx.pipelines.size;
+        const second = await calibrateLayout(ctx, { sizes: SIZES });
+        expect(second.firstCallMs).toBeGreaterThan(0);
+        expect(ctx.pipelines.size, "the second call compiled nothing more").toBe(pipelinesBefore);
+        expect(ctx.allocator.liveBuffers, "every probe released").toBe(liveBefore);
+        expect(ctx.residency.stats().buffers).toBe(residentBefore);
+        expect(ctx.pool.liveBytes).toBe(0);
+    });
 
     it("rejects sizes that are not positive integers with E_INVALID_ARGUMENT", async (t) => {
         requireGpu(t);

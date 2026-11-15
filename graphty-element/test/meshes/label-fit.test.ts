@@ -33,6 +33,26 @@ describe("labelFitExtent", () => {
         });
     });
 
+    it("holds its picture too, padded on its own, where that is larger than the padded label (image-fixedsize-false)", () => {
+        // Graphviz: a 24 pixel picture at 96 pixels an inch is 18 points, 2 more each way: a 20 x 20 box
+        const shape = { type: "rectangle" as const, labelFit: "inside" as const, labelFitImage: 0.75, size: 0 };
+        const picture = { width: 24, height: 24 };
+        const none = { width: 0, height: 0 };
+        assert.deepEqual(labelFitExtent({ ...shape, labelFitImagePadding: 1 }, none, picture), {
+            width: 20,
+            height: 20,
+        });
+        // the padded label where it is larger, each way on its own
+        const padded = { ...shape, labelFitImagePadding: 1, labelPaddingX: 8, labelPaddingY: 4 };
+        assert.deepEqual(labelFitExtent(padded, box, picture), { width: 26, height: 20 });
+        // not known yet, or no labelFitImage: the label alone
+        assert.deepEqual(labelFitExtent(padded, box, null), { width: 26, height: 10 });
+        assert.deepEqual(labelFitExtent({ ...padded, labelFitImage: undefined }, box, picture), {
+            width: 26,
+            height: 10,
+        });
+    });
+
     it("grows an ellipse by the square root of 2 around the box, as Graphviz does", () => {
         const fitted = labelFitExtent({ type: "ellipse", labelFit: "inside", width: 1, height: 1 }, box);
         assert.closeTo(fitted?.width ?? 0, 10 * Math.SQRT2, 1e-9);
@@ -44,6 +64,25 @@ describe("labelFitExtent", () => {
         // (5 / a)^2 + (1 / 2)^2 = 1
         assert.closeTo(fitted?.width ?? 0, 10 / Math.sqrt(1 - (2 / 4) ** 2), 1e-9);
         assert.equal(fitted?.height, 4);
+    });
+
+    it("rounds the padded box up to a multiple of the quantum before fitting the outline round it", () => {
+        const shape = { labelFit: "inside" as const, labelPaddingX: 1, labelPaddingY: 1, size: 0, labelFitQuantum: 5 };
+        // 12 by 4 rounds up to 15 by 5
+        assert.deepEqual(labelFitExtent({ ...shape, type: "rectangle" }, box), { width: 15, height: 5 });
+        const ellipse = labelFitExtent({ ...shape, type: "ellipse" }, box);
+        assert.closeTo(ellipse?.width ?? 0, 15 * Math.SQRT2, 1e-9);
+        assert.closeTo(ellipse?.height ?? 0, 5 * Math.SQRT2, 1e-9);
+    });
+
+    it("grows a star until the box fits inside its inner points, as Graphviz's star_size does", () => {
+        const fitted = labelFitExtent({ type: "star", labelFit: "inside", size: 0 }, { width: 40, height: 22.4 });
+        // the outer radius that holds the box between the star's arms, its bounding box drawn
+        const a = Math.PI / 10;
+        const r0 = Math.max(40 / (2 * Math.cos(a)), 22.4 / (Math.sin(a) + Math.sin(3 * a)));
+        const r = (r0 * Math.sin(4 * a) * Math.cos(2 * a)) / (Math.cos(a) * Math.cos(4 * a));
+        assert.closeTo(fitted?.width ?? 0, 2 * r * Math.cos(a), 1e-9);
+        assert.closeTo(fitted?.height ?? 0, r * (1 + Math.sin(3 * a)), 1e-9);
     });
 
     it("reaches a polygon out by 1 / cos(pi / sides) past the ellipse", () => {
@@ -90,6 +129,22 @@ describe("labelFitExtent", () => {
             { width: 100, height: 40 },
         );
         assert.deepEqual(short, { width: 50, height: 20 });
+    });
+
+    it("fits the box of a polygon whose corners carry lengths, which do not grow or draw it in", () => {
+        // a terminator: a glyph a fixed size in the middle, its baseline across the node
+        const fitted = labelFitExtent(
+            {
+                type: "polygon",
+                points: "0+3,0 0+3,0+6 0+9,0+6 0+9,0+12 0-9,0+12 0-9,0+6 0-3,0+6 0-3,0",
+                stretchPoints: false,
+                labelFit: "bounds",
+                width: 54,
+                height: 36,
+            },
+            { width: 100, height: 40 },
+        );
+        assert.deepEqual(fitted, { width: 100, height: 40 });
     });
 
     it("never shrinks a node below its own size for a short label", () => {

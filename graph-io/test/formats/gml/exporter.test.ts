@@ -301,6 +301,62 @@ graph [
     });
 });
 
+describe("gmlExporter: OGDF clusters", () => {
+    it("writes the group nodes read from a rootcluster back as nested clusters with their label and box", async () => {
+        const box = (fill: string): string =>
+            `graphics [ x 10 y 20 width 100 height 60 fill "${fill}" color "#0000FF" stipple "Dash" style "rectangle" ]`;
+        const snapshot = await importGml(
+            [
+                'Creator "ogdf::GraphIO::writeGML"',
+                "graph [",
+                'node [ id 0 label "a" graphics [ x 30 y 40 w 18 h 18 ] ]',
+                'node [ id 1 label "b" graphics [ x 60 y 40 w 18 h 18 ] ]',
+                "edge [ source 0 target 1 ]",
+                "]",
+                'rootcluster [ vertex "0"',
+                `  cluster [ id 1 label "Outer" ${box("#F5F5F5")}`,
+                `    cluster [ id 2 label "Inner" ${box("#E0E0FF")} vertex "1" ] ]`,
+                "]",
+            ].join("\n"),
+        );
+        expect(snapshot.ids.toArray()).toEqual([0, 1, "cluster1", "cluster2"]);
+        // the graphics records' numbers are the one note: GML records cannot tell 18 from 18.0
+        expect(codes(gmlExporter.check(snapshot))).toEqual(["W_GML_RECORD_NUMBER_TYPE"]);
+        const { text, snapshot: back } = await roundTrip(snapshot, gmlExporter, gmlImporter);
+        expectSameSnapshot(snapshot, back, { tolerance: 1e-9 });
+        expect(lines(text)).toEqual(
+            expect.arrayContaining(["rootcluster [", "cluster [", "id 1", 'label "Outer"', "id 2", 'vertex "1"']),
+        );
+        expect(text).not.toContain("cluster1");
+    });
+});
+
+describe("gmlExporter: texts equal to NetworkX's list markers", () => {
+    it("escapes a text cell and a list item equal to a marker so they read back as text (#7649)", async () => {
+        const builder = new GraphBuilder({ directed: false });
+        builder.declareNodeColumn({ name: "t", dtype: "string" });
+        builder.declareNodeColumn({ name: "l", dtype: "list", itemDtype: "string" });
+        builder.setNodeValue("t", builder.addNode(1), "[]");
+        builder.setNodeValue("l", builder.addNode(2), ["()", LIST_START_MARKER]);
+        const snapshot = builder.freeze();
+        expect(gmlExporter.check(snapshot)).toEqual([]);
+        const rt = await roundTrip(snapshot, gmlExporter, gmlImporter);
+        expect(rt.text).toContain('t "&#91;]"');
+        expect(rt.text).toContain('l "&#40;)"');
+        expectSameSnapshot(snapshot, rt.snapshot, { allowExtraColumns: false });
+    });
+
+    it("escapes a marker text inside a JSON record so it reads back as text (#7649)", async () => {
+        const builder = new GraphBuilder({ directed: false });
+        builder.declareNodeColumn({ name: "j", dtype: "json" });
+        builder.setNodeValue("j", builder.addNode(1), { a: "[]", b: "()", c: LIST_START_MARKER, d: "x" });
+        const snapshot = builder.freeze();
+        expect(gmlExporter.check(snapshot)).toEqual([]);
+        const rt = await roundTrip(snapshot, gmlExporter, gmlImporter);
+        expect(rt.snapshot.nodes.require("j").value(0)).toEqual({ a: "[]", b: "()", c: LIST_START_MARKER, d: "x" });
+    });
+});
+
 describe("gmlExporter: graphics and positions", () => {
     it("round-trips positions through graphics x / y / z merged with the graphics record", async () => {
         const text =

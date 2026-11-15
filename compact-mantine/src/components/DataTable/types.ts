@@ -287,6 +287,13 @@ export interface DataTableProps<TRow extends object> {
      */
     rowLabel?: (row: TRow) => string;
     /**
+     * A row's color, any CSS color: the row is tinted in it and marked by a bar at its start, so
+     * rows of one group read together (the members of a selection's group). A selected row keeps
+     * the selected background and its bar. Left out, or undefined for a row, the row is drawn as
+     * usual. Pair it with a word in the row, so color is never the only signal.
+     */
+    rowColor?: (row: TRow) => string | undefined;
+    /**
      * The table's accessible name, such as "Nodes" or "Search results".
      *
      * Supply this or `labelledBy` whenever the page holds more than one table,

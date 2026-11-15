@@ -4,11 +4,12 @@
  *
  * GML has one syntax and many vocabularies. The `Creator` line (top level, or inside the graph as Gephi writes it,
  * quoted or not) names the writer: yEd and yFiles, Cytoscape, Gephi, OGDF and igraph are recognized; every other file
- * (NetworkX writes no `Creator`) is read with the keys of the GML draft (Graphlet). A recognized drawing program's
- * defaults go beneath the file's own values; igraph and unknown writers get none.
+ * (NetworkX writes no `Creator`) is read with the keys of the GML draft (Graphlet), drawn as the Tk canvas its graphics
+ * follow draws them. A recognized drawing program's defaults go beneath the file's own values; igraph and unknown
+ * writers get none.
  *
  * Writing: the yEd keys (`fill`, `outline`, `outlineWidth`, `outlineStyle`, `w`, `h`, `type`; edge `fill`, `width`,
- * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fontSize`, `fontName`,
+ * `style`, `sourceArrow`, `targetArrow`, `smoothBends`; `LabelGraphics` `text`, `color`, `fill`, `fontSize`, `fontName`,
  * `fontStyle`) replace every style key any reader here reads, inside the records the graph already has, so positions,
  * bends and other keys stay. The `graphty.styles` block and the per-element values its rules read are keys too,
  * named by the GML writer's rule for names that are not GML keys (`graphty_styles`, `graphty_style_node_<key>`).
@@ -28,8 +29,15 @@ import { canonEnum } from "../../styles/canon/enums.js";
 import { canonNumber, canonSigned, num6 } from "../../styles/canon/number.js";
 import { type CanonSite, MAX_STYLE_VALUE_LENGTH, noteAt, scalarText } from "../../styles/canon/site.js";
 import { canonText } from "../../styles/canon/text.js";
+import { putYedRamp, yedGradientAngle } from "../../styles/canon/yed-gradient.js";
+import {
+    YED_INSIDE_INSET,
+    YED_OUTSIDE_DISTANCE,
+    yedLabelBox,
+    yedLabelFillsNodeHeight,
+} from "../../styles/canon/yed-label.js";
 import { STYLE_ISSUE } from "../../styles/codes.js";
-import { CYTOSCAPE_LEXICON, javaFamily } from "../../styles/cytoscape/lexicon.js";
+import { arrowGap, arrowProportion, CYTOSCAPE_LEXICON, javaFamily } from "../../styles/cytoscape/lexicon.js";
 import { StyleApproximations } from "../../styles/io/approximations.js";
 import {
     parseStyleBlock,
@@ -56,28 +64,41 @@ import type {
 import type { LossNote } from "../../types.js";
 import { GRAPHVIZ_GLYPH_SHAPES } from "../dot/drawing.js";
 import {
-    graphvizArrowValue,
     graphvizHasNoOutline,
     graphvizOutline,
     graphvizRouteBends,
     PERIPHERY_GAP,
     putGlyph,
+    readEdgeArrow,
     SHAPE_PERIPHERIES,
 } from "../dot/styles.js";
 import { gephiRules } from "../gexf/styles.js";
 import {
     configurationOutline,
     FONT_STYLES,
+    putOutline,
+    putRaisedBorder,
+    putYedEdgeLabel,
+    routeMiddle,
+    typeOutline,
     type ValueColumns,
     valueColumns,
     YED_ARROWS,
+    YED_LABEL_BOX_PADDING,
+    YED_LABEL_CHARACTER,
+    YED_LABEL_LINE,
     YED_LINES,
     YED_SHAPES,
+    yedArrowLength,
+    yedArrowWidth,
     yedColor,
+    yedDrawnWidth,
     yedFontName,
     yedSpelled,
     yedValue,
 } from "../graphml/styles-yed.js";
+import type { YedBox } from "../graphml/yed-group-bounds.js";
+import { gmlGroupBounds } from "./groups.js";
 import { writtenByGv2gml } from "./positions.js";
 import { KEY_MANGLED_CODE, mangleGmlKey } from "./syntax.js";
 
@@ -172,6 +193,58 @@ const GV2GML_WRITER: GmlWriter = {
 const GRAPHTY_WRITER: GmlWriter = { ...WRITERS[0][1], tool: null };
 
 /**
+ * Whether a file's graphics are the GML draft's alone, no program's beneath: drawn as the draft says, by the Tk canvas
+ * its graphics are "modelled after" (A.4) -- Tk's colors, stipples, outline widths, picture items and smoothed lines.
+ * @param writer - the writer
+ * @returns true for the draft's keys with no program's defaults
+ */
+function drawnByDraft(writer: GmlWriter): boolean {
+    return writer.tool === null && writer.vocabulary === "graphlet";
+}
+
+/**
+ * Tk's gray stipples (Tk_GetBitmap, https://www.tcl.tk/man/tcl8.6/TkLib/GetBitmap.htm): the fraction of the bits on,
+ * where Tk draws the fill or line through the bitmap and nothing where a bit is off.
+ */
+const TK_STIPPLES: ReadonlyMap<string, number> = new Map([
+    ["gray12", 0.125],
+    ["gray25", 0.25],
+    ["gray50", 0.5],
+    ["gray75", 0.75],
+]);
+
+/**
+ * How much of a fill or line a draft file's `stipple` lets through, as an opacity.
+ * @param raw - the `stipple` value
+ * @param site - where it was read
+ * @returns the fraction, or null with no stipple or one Tk draws no gray with (noted)
+ */
+function tkStipple(raw: unknown, site: CanonSite): number | null {
+    if (raw === undefined) {
+        return null;
+    }
+    const name = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+    const fraction = TK_STIPPLES.get(name);
+    if (fraction === undefined) {
+        noteAt(site, STYLE_ISSUE.UNKNOWN_VALUE, sampleOf(raw));
+        return null;
+    }
+    return fraction;
+}
+
+/** The draft's node types Tk draws as a picture, a rectangle with no outline: A.4 image and bitmap. */
+const TK_PICTURES: ReadonlySet<string> = new Set(["image", "bitmap"]);
+
+/**
+ * A node `type`'s name, lowercase.
+ * @param type - the `type` value
+ * @returns the name, or "" when it is not text
+ */
+function typeName(type: unknown): string {
+    return typeof type === "string" ? type.trim().toLowerCase() : "";
+}
+
+/**
  * The graph key holding the `graphty.styles` block: the block's name under the GML writer's rule for names that are
  * not GML keys.
  * @category Built-in formats
@@ -209,12 +282,20 @@ function graphText(snapshot: GraphSnapshot, name: string): string | null {
 }
 
 /**
- * A node label's `anchor` as a label position: yEd's `n`, `s`, `e`, `w` and the corners `nw`, `ne`, `sw`, `se` place it
- * outside the node; `c` and the inside places `t`, `b`, `l`, `r`, `tl`, `tr`, `bl`, `br` keep it inside, which graphty
- * draws centered.
+ * A node label's `anchor` as a label position, as in yFiles' InteriorLabelModel and ExteriorLabelModel: `c` and the
+ * places `t`, `b`, `l`, `r`, `tl`, `tr`, `bl`, `br` are inside the node; `n`, `s`, `e`, `w` and the corners `nw`,
+ * `ne`, `sw`, `se` are outside it.
  */
 const GML_ANCHORS: ReadonlyMap<string, string> = new Map([
-    ...["c", "t", "b", "l", "r", "tl", "tr", "bl", "br"].map((a): [string, string] => [a, "center"]),
+    ["c", "center"],
+    ["t", "inside-top"],
+    ["b", "inside-bottom"],
+    ["l", "inside-left"],
+    ["r", "inside-right"],
+    ["tl", "inside-top-left"],
+    ["tr", "inside-top-right"],
+    ["bl", "inside-bottom-left"],
+    ["br", "inside-bottom-right"],
     ["n", "top"],
     ["s", "bottom"],
     ["e", "right"],
@@ -224,6 +305,9 @@ const GML_ANCHORS: ReadonlyMap<string, string> = new Map([
     ["sw", "bottom-left"],
     ["se", "bottom-right"],
 ]);
+
+/** A node label position as yEd's GML `anchor`, every neutral position having one. */
+const GML_ANCHOR_OF: ReadonlyMap<string, string> = new Map([...GML_ANCHORS].map(([a, p]) => [p, a]));
 
 /** Node keys only yEd writes: its group hierarchy. */
 const YED_NODE_KEYS: readonly string[] = ["isGroup", "gid"];
@@ -390,17 +474,26 @@ function first(r: Rec, ...keys: string[]): unknown {
  * @param writer - the writer
  * @param put - receives the values
  * @param at - the sites
+ * @param stated - an opacity the file states apart from the color (a draft file's stipple), or null
  */
-function readColor(raw: unknown, property: string, opacity: string | null, writer: GmlWriter, put: Put, at: At): void {
+function readColor(
+    raw: unknown,
+    property: string,
+    opacity: string | null,
+    writer: GmlWriter,
+    put: Put,
+    at: At,
+    stated: number | null = null,
+): void {
     if (raw === undefined) {
         return;
     }
-    const c = canonColor(raw, writer.spelling, at(property));
+    const c = canonColor(raw, drawnByDraft(writer) ? "tk" : writer.spelling, at(property));
     if (c === null) {
         return;
     }
     put(property, c.color);
-    const alpha = colorOpacity(c, null, at(property), opacity !== null);
+    const alpha = colorOpacity(c, stated, at(property), opacity !== null);
     if (opacity !== null) {
         put(opacity, alpha);
     }
@@ -527,16 +620,48 @@ function readNodeShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
             noteAt(at("shape"), STYLE_ISSUE.UNKNOWN_VALUE, name.slice(0, MAX_STYLE_VALUE_LENGTH));
         }
         put("shape", shape ?? null);
+    } else if (drawnByDraft(writer) && TK_PICTURES.has(typeName(g.type))) {
+        // the picture, scaled to the node's size, draws the node (A.4 image and bitmap)
+        put("shape", "rectangle");
     } else if (g.type !== undefined) {
-        put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
+        readTypedShape(g, writer, put, at);
     } else if (v === "yed" && typeof g.customconfiguration === "string") {
         // yEd's flowchart palette keeps a node's shape as a configuration, not a `type`.
         const outline = configurationOutline(g.customconfiguration);
-        put("shape", outline?.shape ?? null);
-        if (outline?.points !== undefined) {
-            put("shapePoints", outline.points);
+        if (outline !== null) {
+            putOutline(outline, boxSide(g.w), boxSide(g.h), put);
         }
     }
+}
+
+/**
+ * Reads a node's `type`, by what yEd draws for it where the writer is yEd.
+ * @param g - the graphics record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readTypedShape(g: Rec, writer: GmlWriter, put: Put, at: At): void {
+    const outline = writer.vocabulary === "yed" ? typeOutline(g.type, "ellipse") : null;
+    if (outline === null) {
+        put("shape", canonEnum("shape", g.type, writer.spelling, at("shape")));
+        return;
+    }
+    putOutline(outline, boxSide(g.w), boxSide(g.h), put);
+    if (outline.raised === true) {
+        const fill = Number(g.hasFill) === 0 ? undefined : g.fill;
+        putRaisedBorder(canonColor(fill, writer.spelling, at("fill"))?.color ?? null, put);
+    }
+}
+
+/**
+ * A side of a node's box, for a shape drawn by its size.
+ * @param side - the `w` or `h` value
+ * @returns the number, or null when it is not one
+ */
+function boxSide(side: unknown): number | null {
+    const n = Number(side);
+    return side !== undefined && Number.isFinite(n) ? n : null;
 }
 
 /**
@@ -630,8 +755,8 @@ function readGv2gmlNode(g: Rec, writer: GmlWriter, put: Put, at: At): void {
 
 /**
  * Reads the second outline Graphviz draws round a `doublecircle`, `doubleoctagon` or `tripleoctagon` (shapes.c):
- * `PERIPHERY_GAP` points outside the first, in its color, width and dashes, as the DOT reader reads it. graphty draws
- * one outer ring, so a third outline is noted as not carried.
+ * `PERIPHERY_GAP` points outside the first, in its color, width and dashes, as the DOT reader reads it (a
+ * `tripleoctagon`'s third outline as a second ring).
  * @param g - the record
  * @param shape - its Graphviz shape, lowercase
  * @param style - its outline's dashes, as read
@@ -661,7 +786,7 @@ function readGv2gmlRings(g: Rec, shape: string, style: string | null, writer: Gm
         put("outerBorderStyle", style);
     }
     if (count > 2) {
-        noteAt(at("outerBorderWidth"), STYLE_ISSUE.NOT_CARRIED, `type ${shape}`);
+        put("outerBorderCount", count - 1);
     }
 }
 
@@ -678,10 +803,42 @@ function readNodeFill(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         put("fillOpacity", 0);
         return;
     }
-    readColor(g.fill, "fill", "fillOpacity", writer, put, at);
-    if (g.fill2 !== undefined) {
-        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, sampleOf(g.fill2));
+    const read = new Map<string, StyleValue | null>();
+    readColor(
+        g.fill,
+        "fill",
+        "fillOpacity",
+        writer,
+        (property, value) => {
+            read.set(property, value);
+            put(property, value);
+        },
+        at,
+        drawnByDraft(writer) ? tkStipple(g.stipple, at("fillOpacity")) : null,
+    );
+    if (g.fill2 === undefined) {
+        return;
     }
+    // `fill2` is yEd's: a node with a flowchart configuration is its generic node, and a diamond, both run corner to
+    // corner; any other shape runs left to right (gml-specimen-node-fills-borders-p2)
+    const to = canonColor(g.fill2, writer.spelling, at("fillGradient"));
+    if (to === null) {
+        noteAt(at("fill"), STYLE_ISSUE.GRADIENT, sampleOf(g.fill2));
+        return;
+    }
+    const type = typeof g.type === "string" ? g.type.trim().toLowerCase() : "";
+    const corner = typeof g.customconfiguration === "string" || type === "diamond";
+    put("fillGradient", to.color);
+    put("fillGradientAngle", yedGradientAngle(corner ? "corner" : "across", Number(g.w), Number(g.h)));
+    // a left-to-right ramp mirrors back over its left third, and fill2's alpha is its stop's (`yedGradientRamp`)
+    const shape = type === "" ? "rectangle" : type;
+    putYedRamp(
+        put,
+        corner ? "corner" : "across",
+        { color: read.get("fill"), alpha: read.get("fillOpacity") },
+        to,
+        shape,
+    );
 }
 
 /**
@@ -700,7 +857,15 @@ function readNodeOutline(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     // OGDF's GraphIO::writeGML writes the stroke color as `outline`; older OGDF wrote `line`
     readColor(v === "ogdf" ? first(g, "outline", "line") : g.outline, "borderColor", null, writer, put, at);
     const width = outlineWidthOf(g, v);
-    put("borderWidth", width === undefined ? null : canonNumber(width, at("borderWidth")));
+    const read = width === undefined ? null : canonNumber(width, at("borderWidth"));
+    if (drawnByDraft(writer)) {
+        // Tk draws a picture item with no outline, and any other outline at least one pixel wide (an X11 line of
+        // width 0 is a thin line)
+        const thin = read === null ? null : Math.max(read, 1);
+        put("borderWidth", TK_PICTURES.has(typeName(g.type)) ? 0 : thin);
+        return;
+    }
+    put("borderWidth", writer.tool === "yed" ? yedDrawnWidth(read) : read);
 }
 
 /**
@@ -735,9 +900,16 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         readGv2gmlEdge(g, writer, put, at);
         return;
     }
-    readColor(g.fill, "color", "opacity", writer, put, at);
+    const draft = drawnByDraft(writer);
+    readColor(g.fill, "color", "opacity", writer, put, at, draft ? tkStipple(g.stipple, at("opacity")) : null);
+    if (v === "cytoscape") {
+        // Cytoscape's GML reader paints the whole edge with `fill`, its arrowheads too (gml-specimen-arrows-p4)
+        readColor(g.fill, "sourceArrowColor", null, writer, put, at);
+        readColor(g.fill, "targetArrowColor", null, writer, put, at);
+    }
     const width = v === "ogdf" ? first(g, "lineWidth", "width") : g.width;
-    put("width", width === undefined ? null : canonNumber(width, at("width")));
+    const read = width === undefined ? null : canonNumber(width, at("width"));
+    put("width", writer.tool === "yed" ? yedDrawnWidth(read) : read);
     put("lineStyle", strokeStyle(v === "ogdf" ? g.stipple : g.style, "lineStyle", writer, at("lineStyle")));
     if (v === "ogdf" && g.stipple !== undefined && ogdfStroke(g.stipple) === "none") {
         put("visible", false);
@@ -745,6 +917,24 @@ function readEdgeGraphics(g: Rec, writer: GmlWriter, put: Put, at: At): void {
     readEdgeArrows(g, writer, put, at);
     if (v === "yed") {
         readYedCurve(g, put);
+    }
+    if (draft) {
+        readTkSmooth(g, put);
+    }
+}
+
+/**
+ * Reads a draft file's `smooth`: Tk draws a smoothed line as parabolic splines, one for each two segments, from its
+ * first point to its last (tkTrig.c TkMakeBezierCurve) -- a curve through the middle of each segment with the bends as
+ * its control points; a line of two points stays straight.
+ * @param g - the edge's `graphics` record
+ * @param put - receives the values
+ */
+function readTkSmooth(g: Rec, put: Put): void {
+    const points = isRec(g.Line) ? g.Line.point : undefined;
+    if (Number(g.smooth) === 1 && Array.isArray(points) && points.length > 2) {
+        put("curved", true);
+        put("bendCurve", "midpoints");
     }
 }
 
@@ -762,8 +952,10 @@ function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         if (ends === undefined) {
             noteAt(at("targetArrow"), STYLE_ISSUE.UNKNOWN_VALUE, g.arrow.slice(0, MAX_STYLE_VALUE_LENGTH));
         } else {
-            put("sourceArrow", ends[0]);
-            put("targetArrow", ends[1]);
+            // yEd draws the `arrow` key's heads as its standard head, 10 wide where its triangle is 12
+            const head = (end: string): string => (writer.tool === "yed" && end === "triangle" ? "vee" : end);
+            put("sourceArrow", head(ends[0]));
+            put("targetArrow", head(ends[1]));
         }
     }
     for (const [keys, property] of [
@@ -780,7 +972,31 @@ function readEdgeArrows(g: Rec, writer: GmlWriter, put: Put, at: At): void {
                 ? cytoscapeArrow(raw, at(property))
                 : canonEnum("arrow", raw, writer.spelling, at(property)),
         );
+        if (writer.vocabulary === "cytoscape") {
+            readCytoscapeArrowGeometry(property, raw, put, at);
+        }
+        if (writer.tool === "yed") {
+            put(`${property}Length`, yedArrowLength(raw));
+            put(`${property}Width`, yedArrowWidth(raw));
+        }
     }
+}
+
+/**
+ * The length, width and stand-off of a Cytoscape arrow drawn otherwise than its shape's neutral one, read from its
+ * name or 2.x number as a CYS session's are (a T stands 4 of its lengths off the node), the neutral values left unset.
+ * @param property - `sourceArrow` or `targetArrow`
+ * @param raw - the arrow's name or number
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readCytoscapeArrowGeometry(property: "sourceArrow" | "targetArrow", raw: unknown, put: Put, at: At): void {
+    const length = arrowProportion("length")(raw, at(`${property}Length`));
+    const width = arrowProportion("width")(raw, at(`${property}Width`));
+    const gap = arrowGap(raw, at(`${property}Gap`));
+    put(`${property}Length`, length === 1 ? null : length);
+    put(`${property}Width`, width === 1 ? null : width);
+    put(`${property}Gap`, gap === 0 ? null : gap);
 }
 
 /** gv2gml's `arrow`, from Graphviz's `dir`: `first` is `dir=forward` (the head's arrow), `last` is `dir=back`. */
@@ -816,12 +1032,7 @@ function readGv2gmlEdge(g: Rec, writer: GmlWriter, put: Put, at: At): void {
         ["target", g.targetArrow, ends[1]],
         ["source", g.sourceArrow, ends[0]],
     ] as const) {
-        const name = typeof raw === "string" ? raw : "normal";
-        const arrow = on ? graphvizArrowValue(name, at(`${end}Arrow`)) : null;
-        put(`${end}Arrow`, arrow === null ? "none" : arrow.value);
-        if (arrow?.side !== null && arrow?.side !== undefined) {
-            put(`${end}ArrowSide`, arrow.side);
-        }
+        readEdgeArrow(end, typeof raw === "string" ? raw : null, on, put, at);
     }
 }
 
@@ -889,18 +1100,92 @@ function readLabelGraphics(raw: unknown, writer: GmlWriter, node: boolean, put: 
     } else if (lg.fill !== undefined && !yedLabel) {
         readColor(lg.fill, "labelColor", null, writer, put, at);
     }
-    if (lg.fill !== undefined && yedLabel) {
-        noteAt(at("label"), STYLE_ISSUE.NOT_CARRIED, "label background");
+    if (yedLabel) {
+        readYedLabelBox(lg, writer, put, at);
     }
     // yEd and Cytoscape are Java programs: a Java logical font (Dialog, SansSerif, ...) is drawn in Java's face for it
     readLabelFont(lg, yedLabel || writer.vocabulary === "cytoscape", put, at);
-    if (node && lg.anchor !== undefined) {
+    if (node) {
+        readLabelPlace(lg, writer.tool === "yed", put, at);
+    }
+}
+
+/**
+ * Reads where a node's label is drawn: its `anchor`, and for yEd where its label box puts the words. A label as tall
+ * as its node (`autoSizePolicy`) fills the node, with the words at the box's top; a label inside against a side is its
+ * model's inset in from that side, and stays there however large it is; a label beside a side is its model's distance
+ * out from it, and a label at a corner that distance out to the side alone. GML stores no label box to read these from,
+ * unlike yEd's GraphML (`readInsideInset`, `readOutsideOffset`).
+ * @param lg - the label record
+ * @param yed - whether yEd wrote the file
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readLabelPlace(lg: Rec, yed: boolean, put: Put, at: At): void {
+    let place: string | null | undefined;
+    if (lg.anchor !== undefined) {
         const anchor = scalarText(lg.anchor, at("labelPosition"))?.trim().toLowerCase() ?? "";
-        const known = GML_ANCHORS.get(anchor);
-        if (known === undefined) {
+        place = GML_ANCHORS.get(anchor) ?? null;
+        if (place === null) {
             noteAt(at("labelPosition"), STYLE_ISSUE.UNKNOWN_VALUE, anchor.slice(0, MAX_STYLE_VALUE_LENGTH));
         }
-        put("labelPosition", known ?? null);
+        if (
+            yed &&
+            place?.includes("-") === true &&
+            !place.startsWith("inside-") &&
+            typeof lg.model === "string" &&
+            lg.model.trim().toLowerCase() === "sides"
+        ) {
+            // yEd's `sides` model has only the four sides: it draws a corner anchor at its default, the top
+            // (gml-synthetic-coverage 11, 31, 81: `nw`, `se` and `sw` all drawn above the node)
+            place = "top";
+        }
+        put("labelPosition", place);
+    }
+    if (!yed) {
+        return;
+    }
+    const policy = scalarText(lg.autoSizePolicy, at("labelPosition"))?.trim();
+    if ((place === undefined || place === "center") && yedLabelFillsNodeHeight(policy)) {
+        place = "inside-top";
+        put("labelPosition", place);
+    } else if (place?.startsWith("inside-") === true) {
+        put("labelOffsetX", sideSign(place, "left", "right") * YED_INSIDE_INSET || null);
+        put("labelOffsetY", sideSign(place, "top", "bottom") * YED_INSIDE_INSET || null);
+    } else if (place !== undefined && place !== null && place !== "center") {
+        const across = sideSign(place, "right", "left");
+        put("labelOffsetX", across * YED_OUTSIDE_DISTANCE || null);
+        put("labelOffsetY", across === 0 ? sideSign(place, "bottom", "top") * YED_OUTSIDE_DISTANCE : null);
+    }
+    put("labelBox", yedLabelBox(policy, place));
+}
+
+/**
+ * Which way a label is moved along an axis, right or down being positive.
+ * @param place - its position
+ * @param low - the side that moves it along the axis
+ * @param high - the side that moves it the other way
+ * @returns 1 for the low side, -1 for the high one, or 0 where it names neither
+ */
+function sideSign(place: string, low: string, high: string): number {
+    if (place.includes(low)) {
+        return 1;
+    }
+    return place.includes(high) ? -1 : 0;
+}
+
+/**
+ * Reads the box yEd draws behind a label's words: its `fill`, and its `outline`, a one-pixel line round the box.
+ * @param lg - the label record
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readYedLabelBox(lg: Rec, writer: GmlWriter, put: Put, at: At): void {
+    readColor(lg.fill, "labelBackground", null, writer, put, at);
+    if (lg.outline !== undefined) {
+        readColor(lg.outline, "labelBorderColor", null, writer, put, at);
+        put("labelBorderWidth", 1);
     }
 }
 
@@ -958,21 +1243,22 @@ function readElement(
     put: Put,
     at: At,
 ): void {
-    let text = false;
+    // set by putLabel, which TypeScript does not see change it
+    let text = false as boolean;
     const putLabel: Put = (property, value) => {
         text ||= property === "label" && value !== null;
         put(property, value);
     };
+    // gv2gml writes no graphics before a layout; Graphviz still draws its defaults (a digraph's arrowheads)
     if (isRec(g)) {
         (target === "node" ? readNodeGraphics : readEdgeGraphics)(g, writer, put, at);
+    } else if (writer.vocabulary === "graphviz" && target === "edge") {
+        readEdgeGraphics({}, writer, put, at);
     }
     if (lg !== null && lg !== undefined) {
         readLabelGraphics(lg, writer, target === "node", putLabel, at);
     }
-    // the GML draft draws the label key; Cytoscape reads it as the node's name, which its default style shows
-    const drawn =
-        writer.vocabulary === "cytoscape" ? target === "node" : writer.labelKey && (isRec(g) || lg !== undefined);
-    if (!text && drawn && label !== null && label !== undefined) {
+    if (!text && labelKeyDrawn(target, writer, isRec(g) || lg !== undefined) && label !== null && label !== undefined) {
         put(
             "label",
             writer.vocabulary === "graphviz" ? graphvizText(label, at("label")) : canonText(label, at("label")),
@@ -983,6 +1269,22 @@ function readElement(
             put("labelPosition", "center");
         }
     }
+}
+
+/**
+ * Whether the writer's program draws an element's `label` key: the GML draft draws it on an element with graphics;
+ * Cytoscape reads it as the node's name, which its default style shows, and Graphviz labels every node (its label
+ * default is \N, the node's name).
+ * @param target - nodes or edges
+ * @param writer - the writer
+ * @param hasGraphics - whether the element has `graphics` or `LabelGraphics`
+ * @returns whether the label is drawn
+ */
+function labelKeyDrawn(target: StyleTarget, writer: GmlWriter, hasGraphics: boolean): boolean {
+    if (writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz") {
+        return target === "node";
+    }
+    return writer.labelKey && hasGraphics;
 }
 
 /** The font size GraphIO::drawSVG draws every label in (SVGSettings), by which it sets a cluster's label off its box. */
@@ -1047,6 +1349,13 @@ function labelOf(snapshot: GraphSnapshot, writer: GmlWriter, target: StyleTarget
     const label = cellOf(table, "label", i);
     if (writer.vocabulary === "cytoscape" && target === "node" && (label === undefined || label === "")) {
         return String(snapshot.ids.idOf(i));
+    }
+    // gv2gml writes `label` only once a layout has set it; Graphviz draws `\N`, the `name` gv2gml always writes. A
+    // layout writes every node's label (its `\N` default too) and its graphics, so a laid-out node gv2gml wrote with
+    // no `label` has an empty one and Graphviz draws none
+    const laidOut = isRec(cellOf(table, "graphics", i));
+    if (writer.vocabulary === "graphviz" && target === "node" && label === undefined && !laidOut) {
+        return cellOf(table, "name", i);
     }
     return label;
 }
@@ -1176,22 +1485,6 @@ function readGv2gmlRoute(
 }
 
 /**
- * Where graphty-element hangs an edge's label on a route drawn through these points (its centers and bends): the
- * middle of its middle segment, or the joint between its two middle ones; `labelOffsetX` / `labelOffsetY` move it
- * from there.
- * @param points - the route, from the source's center to the target's
- * @returns the point
- */
-function routeMiddle(points: readonly BendPoint[]): BendPoint {
-    const m = points.length - 1;
-    if (m % 2 === 0) {
-        return points[m / 2];
-    }
-    const [a, b] = [points[(m - 1) / 2], points[(m + 1) / 2]];
-    return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-}
-
-/**
  * Puts an edge label's offset from where graphty-element hangs it, when the program draws it elsewhere.
  * @param at - the label's center, in the file's coordinates
  * @param middle - where graphty-element hangs it, in the same coordinates
@@ -1276,6 +1569,85 @@ function readOgdfLabelPlace(
 }
 
 /**
+ * A yEd GML edge label's place: the box `x` and `y` store, its top left corner on the page, else its `model` and
+ * `position`, as yEd's GraphML keeps them (`putYedEdgeLabel`). A curved line or a self-loop keeps graphty's place.
+ * @param snapshot - the graph
+ * @param g - the edge's `graphics` value
+ * @param lg - the edge's `LabelGraphics` value
+ * @param e - the edge's row
+ * @param put - receives the values
+ */
+function readYedLabelPlace(
+    snapshot: GraphSnapshot,
+    g: unknown,
+    lg: unknown,
+    e: number,
+    put: (property: string, value: StyleValue | null) => void,
+): void {
+    const label = Array.isArray(lg) ? (lg as unknown[]).find(isRec) : lg;
+    const raw = isRec(g) && isRec(g.Line) ? g.Line.point : undefined;
+    const list: unknown[] = Array.isArray(raw) ? raw : [raw].filter(isRec);
+    const [source, target] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
+    if (!isRec(label) || typeof label.model !== "string" || source === target) {
+        return;
+    }
+    if (isRec(g) && Number(g.smoothBends) === 1 && list.length > 2) {
+        return;
+    }
+    const [s, t] = [centerOf(snapshot, source), centerOf(snapshot, target)];
+    const route = list.map((p): BendPoint => (isRec(p) ? [Number(p.x), Number(p.y)] : [Number.NaN, 0]));
+    const text = typeof label.text === "string" ? label.text : "";
+    const size = Number(label.fontSize) || 12;
+    const lines = text.split("\n");
+    const width = Math.max(...lines.map((l) => l.length)) * YED_LABEL_CHARACTER * size + YED_LABEL_BOX_PADDING;
+    const [x, y] = [Number(label.x), Number(label.y)];
+    const stored = label.x !== undefined && label.y !== undefined && Number.isFinite(x) && Number.isFinite(y);
+    // a slider with no stored box sits somewhere along the line that the file does not say; a free label's box is not
+    // in the file's coordinates
+    if (label.model === "free" || (!stored && label.model.endsWith("_slider"))) {
+        return;
+    }
+    putYedEdgeLabel(
+        [
+            [...s, ...sizeOf(snapshot, source)],
+            [...t, ...sizeOf(snapshot, target)],
+        ],
+        route.length >= 2 ? route : [s, t],
+        {
+            spot: `${label.model}/${typeof label.position === "string" ? label.position : "center"}`,
+            stored: stored ? [x, y, width, lines.length * YED_LABEL_LINE * size + YED_LABEL_BOX_PADDING] : null,
+            storedOnPage: true,
+            distance: 2,
+            width,
+            fontSize: size,
+            lines: lines.length,
+        },
+        put,
+    );
+}
+
+/**
+ * An edge label's place, for the writers that draw it somewhere of their own.
+ * @param snapshot - the graph
+ * @param writer - the file's writer
+ * @param e - the edge's row
+ * @param put - receives the values
+ */
+function readDrawnLabelPlace(
+    snapshot: GraphSnapshot,
+    writer: GmlWriter,
+    e: number,
+    put: (property: string, value: StyleValue | null) => void,
+): void {
+    const graphics = cellOf(snapshot.edges, "graphics", e);
+    if (writer.vocabulary === "ogdf") {
+        readOgdfLabelPlace(snapshot, graphics, e, put);
+    } else if (writer.tool === "yed") {
+        readYedLabelPlace(snapshot, graphics, cellOf(snapshot.edges, "LabelGraphics", e), e, put);
+    }
+}
+
+/**
  * Hides the edges Gephi's own GML importer leaves out: an edge whose `directed` key disagrees with the graph's
  * `directed` header (Gephi 0.11 loads 4 of `specimen-arrows-p6`'s 5 edges). A file with no header is read as mixed and
  * every edge is loaded. The edge and its data stay; Gephi draws nothing there, so graphty draws nothing.
@@ -1318,15 +1690,22 @@ function readValues(
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const out = valueColumns(n);
-        if (!table.has("graphics") && !table.has("LabelGraphics") && writer.vocabulary !== "cytoscape") {
+        // Cytoscape names every element, and Graphviz labels every node and arrows a digraph's edges, with or
+        // without graphics (gv2gml writes graphics only once a layout ran)
+        const drawnBare = writer.vocabulary === "cytoscape" || writer.vocabulary === "graphviz";
+        if (!table.has("graphics") && !table.has("LabelGraphics") && !drawnBare) {
             return out.values;
         }
+        // yEd draws an open group round its members, not at the size the file stores
+        const groups = target === "node" ? gmlGroupBounds(snapshot) : new Map<number, YedBox>();
         for (let i = 0; i < n; i++) {
             context.budget.spend(target, 1);
             const at: At = (property) => ({ notes, target, property, element: i, budget: context.budget });
+            const g = cellOf(table, "graphics", i);
+            const box = groups.get(i);
             readElement(
                 target,
-                cellOf(table, "graphics", i),
+                box === undefined || !isRec(g) ? g : { ...g, w: box[2] - box[0], h: box[3] - box[1] },
                 cellOf(table, "LabelGraphics", i),
                 labelOf(snapshot, writer, target, i),
                 writer,
@@ -1348,8 +1727,8 @@ function readValues(
                 readGv2gmlLabelPlace(snapshot, i, bent, (property, value) => {
                     out.put(i, property, value);
                 });
-            } else if (target === "edge" && writer.vocabulary === "ogdf") {
-                readOgdfLabelPlace(snapshot, cellOf(table, "graphics", i), i, (property, value) => {
+            } else if (target === "edge") {
+                readDrawnLabelPlace(snapshot, writer, i, (property, value) => {
                     out.put(i, property, value);
                 });
             }
@@ -1520,6 +1899,8 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelFont",
         "labelWeight",
         "labelItalic",
+        "labelPosition",
+        "labelBackground",
     ] as const),
     edge: Object.freeze([
         "color",
@@ -1538,6 +1919,7 @@ export const GML_STYLE_CAPABILITIES: StyleWriteCapabilities = Object.freeze({
         "labelFont",
         "labelWeight",
         "labelItalic",
+        "labelBackground",
     ] as const),
     block: "native",
 });
@@ -1574,7 +1956,7 @@ const OWNED: Readonly<Record<"node" | "edge" | "label", ReadonlySet<string>>> = 
         "target_arrow",
         "smoothBends",
     ]),
-    label: new Set(["text", "color", "fill", "fontSize", "fontName", "fontStyle", "visible"]),
+    label: new Set(["text", "color", "fill", "outline", "fontSize", "fontName", "fontStyle", "visible", "anchor"]),
 };
 
 /** One element's value of a property. */
@@ -1689,6 +2071,10 @@ function labelGraphics(get: Get): Rec | null {
     if (typeof color === "string") {
         lg.color = color.toUpperCase();
     }
+    const background = get("labelBackground");
+    if (typeof background === "string") {
+        lg.fill = background.toUpperCase();
+    }
     const size = get("labelSize");
     if (typeof size === "number") {
         lg.fontSize = size;
@@ -1703,6 +2089,11 @@ function labelGraphics(get: Get): Rec | null {
     if (weight !== null || italic !== null) {
         const style = (weight === "bold" ? "bold" : "") + (italic === true ? "italic" : "");
         lg.fontStyle = style.length === 0 ? "plain" : style;
+    }
+    // a node label's place
+    const anchor = GML_ANCHOR_OF.get(String(get("labelPosition")));
+    if (anchor !== undefined) {
+        lg.anchor = anchor;
     }
     return lg;
 }
@@ -1734,7 +2125,7 @@ function merged(old: unknown, owned: ReadonlySet<string>, written: Rec): Rec | u
  * @returns the value, or undefined (an unset cell)
  */
 function mergedLabels(old: unknown, written: Rec | null): unknown {
-    const labels = Array.isArray(old) ? old : [old];
+    const labels: unknown[] = Array.isArray(old) ? old : [old];
     const head = merged(labels[0], OWNED.label, written ?? {});
     const rest = labels.slice(1).filter((l) => l !== null && l !== undefined);
     if (rest.length === 0) {
@@ -1875,8 +2266,8 @@ function writeGraphicsColumns(
     const approximate: Approximate = (property, value) => {
         approximated.add(target, property, value);
     };
-    const get = elementValues((t, p) => input.picture(t, p as never), target, GML_STYLE_CAPABILITIES[target]);
-    const getNode = elementValues((t, p) => input.picture(t, p as never), "node", GML_STYLE_CAPABILITIES.node);
+    const get = elementValues((t, p) => input.picture(t, p), target, GML_STYLE_CAPABILITIES[target]);
+    const getNode = elementValues((t, p) => input.picture(t, p), "node", GML_STYLE_CAPABILITIES.node);
     const size = (k: number): BendPoint => {
         const [w, h] = [getNode(k)("width"), getNode(k)("height")];
         return typeof w === "number" && typeof h === "number" ? [w, h] : sizeOf(snapshot, k);

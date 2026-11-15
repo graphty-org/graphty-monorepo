@@ -1,18 +1,37 @@
 /**
  * @file The one module that imports the Graphviz package. It runs inside the Worker.
  *
- * The import is static: a Worker without the package fails to start, which the host reads as
- * `graphviz.unavailable`, and a static import keeps the Worker one chunk, which is what a
- * consumer's bundler can build in its default Worker format.
+ * The package is an optional peer, so it is the literal target of an `await import()` inside
+ * `try`, never a static import: a consumer's bundler resolves a static import when it builds the
+ * Worker, so a static import of a package the consumer did not install failed their build (Vite 8
+ * reported a missing export of its placeholder module). Where it does not load, every request is
+ * answered `graphviz.unavailable`.
  *
  * Every layout gets a fresh WebAssembly instance (`unload()` then `load()`): a reused instance
  * was measured to give wrong answers and to crash after an earlier layout failed.
  */
 
-import { Graphviz } from "@hpcc-js/wasm-graphviz";
-
-import type { GraphvizEngine } from "./engines";
+import { GRAPHVIZ_PACKAGE, type GraphvizEngine } from "./engines";
 import type { GraphvizReply } from "./protocol";
+
+/** The answer where the package does not load. */
+const UNAVAILABLE: GraphvizReply = {
+    ok: false,
+    code: "graphviz.unavailable",
+    params: { package: GRAPHVIZ_PACKAGE, feature: "graphviz" },
+};
+
+/**
+ * Load the package.
+ * @returns its `Graphviz` class, or null where it is not installed
+ */
+async function loadGraphviz(): Promise<typeof import("@hpcc-js/wasm-graphviz").Graphviz | null> {
+    try {
+        return (await import("@hpcc-js/wasm-graphviz")).Graphviz;
+    } catch {
+        return null;
+    }
+}
 
 /** Messages a WebAssembly fault or a blown stack throws, as opposed to Graphviz refusing the graph. */
 const CRASH = /maximum call stack|out of bounds|unreachable|runtimeerror|memory access|aborted|abort\(/i;
@@ -21,11 +40,11 @@ const CRASH = /maximum call stack|out of bounds|unreachable|runtimeerror|memory 
 const SYNTAX = /syntax error in line (\d+) near '([^']*)'/i;
 
 /**
- * Whether the package loads here. Reached only once the module, and so the package, has loaded.
- * @returns ok
+ * Whether the package loads here.
+ * @returns ok, or `graphviz.unavailable`
  */
-export function probe(): Promise<GraphvizReply> {
-    return Promise.resolve({ ok: true, json: "" });
+export async function probe(): Promise<GraphvizReply> {
+    return (await loadGraphviz()) === null ? UNAVAILABLE : { ok: true, json: "" };
 }
 
 /**
@@ -60,6 +79,10 @@ export function classify(engine: GraphvizEngine, error: unknown): GraphvizReply 
  * @returns Graphviz's `-Tjson` text, or why it failed
  */
 export async function layout(dot: string, engine: GraphvizEngine, pinned = false): Promise<GraphvizReply> {
+    const Graphviz = await loadGraphviz();
+    if (Graphviz === null) {
+        return UNAVAILABLE;
+    }
     try {
         Graphviz.unload();
         const graphviz = await Graphviz.load();

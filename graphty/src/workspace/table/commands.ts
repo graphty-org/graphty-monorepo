@@ -19,13 +19,16 @@ export const registration = defineRegistration({
                     return "The graph is still loading";
                 }
                 // A loaded source, or nodes added without one (through the element's API).
-                const empty = session.data.sources().length === 0 && session.data.statistics().nodeCount === 0;
+                const empty =
+                    session.data.sources().length === 0 && session.data.statistics({ scope: "all" }).nodeCount === 0;
                 return empty ? "No data yet" : null;
             },
             run: ({ workspace }) => {
                 const opening = !workspace.get().dockOpen;
                 workspace.set({ dockOpen: opening });
-                if (opening) {
+                // While a selection workspace is open, the table waits hidden under it and focus stays
+                // in the workspace.
+                if (opening && workspace.get().selectionWorkspace === null) {
                     // A command that opens a region puts focus in it: the table's own Tab stop,
                     // once the dock is drawn.
                     requestAnimationFrame(() => {

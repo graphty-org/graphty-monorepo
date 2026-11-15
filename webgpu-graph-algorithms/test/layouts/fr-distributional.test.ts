@@ -51,7 +51,6 @@ import { FruchtermanReingoldOracle } from "../oracle/fruchterman-reingold.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const ITERATIONS = 100;
-const CASE_TIMEOUT = 600_000;
 
 interface DistributionalCase {
     readonly graph: ParityGraph;
@@ -119,47 +118,42 @@ async function runLayout(
 }
 
 describe("FR distributional parity: the admission rule (the f64 oracle alone, no GPU)", () => {
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 102 s on the T4 lane, 86 s on the dev box's RTX 4070 SUPER under load, 46 s on the macOS Metal host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        `every candidate's oracle spread under ${PERTURBATIONS} one-ulp start perturbations is printed; the admitted ones are under a third of the cap`,
-        async () => {
-            const third = P5_TOLERANCE_CAPS["fr-distributional"].cap / 3;
-            // the ensemble runs at gpuScale() and its numbers are printed only on a software adapter (the P3 precedent of fa2-distributional.test.ts: a 4-core CI runner under coverage cannot finish the full-size random1k ensemble inside the case timeout, ci.yml run 35548431040)
-            const scale = gpuScale();
-            const full = scale === 1;
-            const spreads = [];
-            for (const c of CANDIDATES) {
-                const s = paritySnapshot(c.graph, scale, false);
-                const options = optionsOf(c.dim);
-                const start = startPositions(s, options, false);
-                await yieldToEventLoop(); // every oracle layout is seconds of synchronous f64 work
-                const base = layoutMetrics(s, oracleLayout(s, start, options), c.dim);
-                let spread = 0;
-                for (let k = 0; k < PERTURBATIONS; k++) {
-                    await yieldToEventLoop();
-                    const other = layoutMetrics(
-                        s,
-                        oracleLayout(s, perturbedStart(start, s.nodeCount, c.dim, k), options),
-                        c.dim,
-                    );
-                    spread = Math.max(spread, distributionalError(other, base));
-                }
-                const admitted = ADMITTED.some((a) => a.graph === c.graph && a.dim === c.dim);
-                console.warn(
-                    `[fr-distributional] admission ${labelOf(c)}${full ? "" : ` (scaled x${scale}, printed only)`}: oracle spread ${spread.toExponential(3)} (a third of the cap ${third.toExponential(3)}): ${admitted ? "admitted" : "left out"}`,
+    it(`every candidate's oracle spread under ${PERTURBATIONS} one-ulp start perturbations is printed; the admitted ones are under a third of the cap`, async () => {
+        const third = P5_TOLERANCE_CAPS["fr-distributional"].cap / 3;
+        // the ensemble runs at gpuScale() and its numbers are printed only on a software adapter (the P3 precedent of fa2-distributional.test.ts: a 4-core CI runner under coverage cannot finish the full-size random1k ensemble inside the case timeout, ci.yml run 35548431040)
+        const scale = gpuScale();
+        const full = scale === 1;
+        const spreads = [];
+        for (const c of CANDIDATES) {
+            const s = paritySnapshot(c.graph, scale, false);
+            const options = optionsOf(c.dim);
+            const start = startPositions(s, options, false);
+            await yieldToEventLoop(); // every oracle layout is seconds of synchronous f64 work
+            const base = layoutMetrics(s, oracleLayout(s, start, options), c.dim);
+            let spread = 0;
+            for (let k = 0; k < PERTURBATIONS; k++) {
+                await yieldToEventLoop();
+                const other = layoutMetrics(
+                    s,
+                    oracleLayout(s, perturbedStart(start, s.nodeCount, c.dim, k), options),
+                    c.dim,
                 );
-                spreads.push({ c, spread, admitted });
+                spread = Math.max(spread, distributionalError(other, base));
             }
-            for (const { c, spread, admitted } of spreads) {
-                if (admitted && full) {
-                    expect(spread, `${labelOf(c)}: admitted under a third of the cap`).toBeLessThanOrEqual(third);
-                }
+            const admitted = ADMITTED.some((a) => a.graph === c.graph && a.dim === c.dim);
+            console.warn(
+                `[fr-distributional] admission ${labelOf(c)}${full ? "" : ` (scaled x${scale}, printed only)`}: oracle spread ${spread.toExponential(3)} (a third of the cap ${third.toExponential(3)}): ${admitted ? "admitted" : "left out"}`,
+            );
+            spreads.push({ c, spread, admitted });
+        }
+        for (const { c, spread, admitted } of spreads) {
+            if (admitted && full) {
+                expect(spread, `${labelOf(c)}: admitted under a third of the cap`).toBeLessThanOrEqual(third);
             }
-            expect(ADMITTED, "the noise member is an admitted case").toContainEqual(MEMBER);
-            expect(FR_NOISE_FIXTURES.metrics100.fixture).toBe(`fr-${MEMBER.graph}-${MEMBER.dim}d-metrics100`);
-        },
-        CASE_TIMEOUT,
-    );
+        }
+        expect(ADMITTED, "the noise member is an admitted case").toContainEqual(MEMBER);
+        expect(FR_NOISE_FIXTURES.metrics100.fixture).toBe(`fr-${MEMBER.graph}-${MEMBER.dim}d-metrics100`);
+    });
 });
 
 describe("FR distributional parity: 100 iterations, metrics within the traced 10% (spec 11.4)", () => {

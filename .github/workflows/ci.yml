@@ -40,8 +40,22 @@ on:
                 type: string
                 required: false
                 default: ""
+        # The caller's needs.<job>.result is cancelled when any job here ended cancelled, an advisory
+        # (continue-on-error) one included: continue-on-error covers a failure, not a cancel. So the release train
+        # judges a cancelled call by this instead (#4556): All Checks Pass needs every job that gates.
+        outputs:
+            checks:
+                description: "All Checks Pass's result: success when every job that gates passed"
+                value: ${{ jobs.all-checks.result }}
     workflow_dispatch:
         inputs:
+            # `gh workflow run ci.yml --ref <branch> -f shards='["<shard>"]'` times a full-run-only shard on a runner
+            # before its pull request merges (#4270), without running the whole suite.
+            shards:
+                description: "a JSON list of test shard names: run only these, as a light run (no screenshots)"
+                type: string
+                required: false
+                default: ""
             reuse_build_run:
                 description: "the id of a run that built this same commit (the master push run): download its builds instead of building, when they are all still there"
                 type: string
@@ -96,24 +110,40 @@ permissions:
     checks: write
 
 env:
+    # A cache restore whose download fails (GitHub answering "Egress is over the account limit") leaves
+    # @actions/cache's segment timer, 10 minutes by default, running: actions/setup-node and actions/cache then
+    # hold the step for 10 minutes after "Failed to restore", and Lint, Docs and Stories ran into their job
+    # timeouts (run 41095808301, #5098). One minute bounds that wait; a cold pnpm install takes about 15 s.
+    SEGMENT_DOWNLOAD_TIMEOUT_MINS: "1"
+    # A cache a job saves is restored by every later run in the same ref's scope, master's included. The release
+    # train's call checks out inputs.ref, which can be an older or held commit, not the commit the run belongs to:
+    # a job saves its caches only when it checked out the run's own commit, and otherwise only restores them
+    # (CodeQL actions/cache-poisoning, #3261). A master push and a dispatch always check out their own commit, so
+    # they save. A pull request never saves: its saves land in its own ref's scope, which only it reads, and every
+    # open one held its own copy of each big cache (#3591); it restores master's instead.
+    SAVE_CACHES: ${{ (!inputs.ref || inputs.ref == github.sha) && github.event_name != 'pull_request' }}
     # Chromium crashes at launch (SIGSEGV) unless this is preset: see vitest.base.mjs (#3787).
     FC_FONTATIONS: "1"
     MERGE_QUEUE: ${{ startsWith(github.head_ref, 'mergify/merge-queue/') && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login == 'mergify[bot]' }}
 
 jobs:
     # The cap on concurrent pull request runs (tools/ci-run-cap.mjs). On a pull request it waits, on one small
-    # runner, while CI_PR_RUN_CAP (a repository variable, default 2) or more earlier pull request runs are
-    # active, or while a release.yml run waits for a runner, so the full run goes first. Every other job needs
-    # the Build job, which needs this one, so a waiting run holds nothing else. It never fails the run: an API
-    # error or 25 minutes of waiting proceeds. A push to master, a dispatch and the release train's call skip
-    # the wait. Change the cap with `gh variable set CI_PR_RUN_CAP --body <n|off>`.
+    # runner, while earlier pull request runs hold CI_PR_JOB_BUDGET (a repository variable, default 150) or more
+    # jobs, while CI_PR_RUN_CAP (default 2) or more of them are active, or while a release.yml run waits for a
+    # runner, so the full run goes first. Every other job needs the Build job, which needs this one, so a waiting
+    # run holds nothing else. It never fails the run: an API error proceeds, and the wait ends (the run proceeds)
+    # at the script's MAX_WAIT_MINUTES, before this job's timeout, since a timed-out job is cancelled and that
+    # skips Build and every job after it (#8219). A push to master, a dispatch and the release train's call
+    # skip the wait. Change the limits with `gh variable set CI_PR_JOB_BUDGET --body <n|off>` and
+    # `gh variable set CI_PR_RUN_CAP --body <n|off>`.
     run-cap:
         name: Run cap
         runs-on: ubuntu-24.04
-        timeout-minutes: 30
+        timeout-minutes: 120
         # the job runs on every event (a skipped job would skip every job below Build); only its steps are
         # limited to a pull request, so elsewhere it is a few seconds on one runner
-        # never fails the run, a timeout included, and so is no required check (tools/ci-advisory-checks.json)
+        # never fails the run (its wait ends before this timeout), and so is no required check
+        # (tools/ci-advisory-checks.json)
         continue-on-error: true
         permissions:
             contents: read
@@ -135,7 +165,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Wait for a turn
@@ -143,6 +172,7 @@ jobs:
               env:
                   GITHUB_TOKEN: ${{ github.token }}
                   CAP: ${{ vars.CI_PR_RUN_CAP || '2' }}
+                  BUDGET: ${{ vars.CI_PR_JOB_BUDGET }}
               run: node tools/ci-run-cap.mjs
 
     # The packages job: decides what the run tests, builds every package and uploads their dist folders,
@@ -180,6 +210,10 @@ jobs:
             # the light check's bins when the bins step planned them, else the Plan step's whole shards
             test-matrix: ${{ steps.bins.outputs.test-matrix || steps.plan.outputs.test-matrix }}
             test-count: ${{ steps.bins.outputs.test-count || steps.plan.outputs.test-count }}
+            # a plan above GitHub's 256-job matrix cap, cut in two for the test and test-2 jobs (#5537); unset at
+            # or below it. Only the bins can pass the cap: the Plan step's whole shards are SHARDS, far fewer.
+            test-matrix-1: ${{ steps.bins.outputs.test-matrix-1 }}
+            test-matrix-2: ${{ steps.bins.outputs.test-matrix-2 }}
             # the light check's story bins (the Stories jobs); unset when the bins step made no plan
             stories-matrix: ${{ steps.bins.outputs.stories-matrix }}
             stories-count: ${{ steps.bins.outputs.stories-count }}
@@ -188,6 +222,7 @@ jobs:
             visual-on: ${{ steps.plan.outputs.visual-on }}
             docs: ${{ steps.optional.outputs.docs }}
             cost-accuracy: ${{ steps.optional.outputs.cost-accuracy }}
+            capture-impact: ${{ steps.capture.outputs.capture-impact }}
             reuse-run: ${{ steps.reuse.outputs.reuse-run }}
             reuse-url: ${{ steps.reuse.outputs.reuse-url }}
             artifacts-run: ${{ steps.reuse.outputs.artifacts-run || steps.reuse-build.outputs.artifacts-run }}
@@ -205,8 +240,16 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            # One approval in flight (design/visual-testing/early-capture.md, 4d rule 4): a pull request that changes
+            # visual-baselines/ fails unless merging it leaves master with exactly the baselines tree its head carries,
+            # the tree the owner signed (tools/channel/baselines-tree.mjs). Here in Build, not in Checks: an approval
+            # head that only adds screenshot records reuses an earlier run and skips Checks, and that is the case this
+            # check exists for.
+            - name: Check that merging keeps the signed baselines tree
+              if: github.event_name == 'pull_request'
+              run: node tools/channel/baselines-tree.mjs
 
             # New required checks start as warnings. tools/ci-advisory-checks.json lists each new job or step
             # with the date it becomes required ("enforce"). The output is the JSON list of "<job>" and
@@ -240,7 +283,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
@@ -364,6 +412,15 @@ jobs:
                       # graph-format, and what runs the job: graphty-element's test:cost script and vitest config, the lockfile, ci.yml
                       echo "cost-accuracy=$(has '^graphty-element/(src/(session|catalog|algorithms)/|test/session/cost/|package\.json$|vitest\.config\.ts$)|^(algorithms|graph-format)/src/|^pnpm-lock\.yaml$|^\.github/workflows/ci\.yml$')"
                   } | tee -a "$GITHUB_OUTPUT"
+
+            # The Capture impact job runs only on a pull request that changes how every picture is drawn
+            # (tools/capture-impact.sh changed).
+            - name: Plan the capture impact check
+              id: capture
+              if: github.event_name == 'pull_request' && env.MERGE_QUEUE != 'true'
+              env:
+                  BASE_REF: ${{ github.base_ref }}
+              run: echo "capture-impact=$(tools/capture-impact.sh changed "origin/$BASE_REF" HEAD)" | tee -a "$GITHUB_OUTPUT"
 
             # A commit that changes only screenshot records (the owner's Finish on the review page commits
             # the accepted baselines and the signed approval to the branch) needs no new test run. When
@@ -497,6 +554,18 @@ jobs:
             # build every graph fails to transform and every package runs whole). Fails open: a store that does
             # not answer packs bins without history, and a selector that fails keeps the Plan step's matrix, every
             # affected shard whole.
+            # Master's newest durations snapshot (the Durations snapshot job): the bins step packs by it when the store
+            # does not answer its plan read, which was 28.6% of pull request runs in the week to 11-14; without it
+            # those runs packed without history and planned about three times the test jobs (#7851).
+            - name: Restore the durations snapshot
+              if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.reuse-run == ''
+              continue-on-error: true
+              uses: actions/cache/restore@v6
+              with:
+                  path: ${{ runner.temp }}/durations-snapshot
+                  key: results-durations-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: results-durations-
+
             - name: Plan the light check's test bins
               id: bins
               if: steps.plan.outputs.full == 'false' && steps.reuse.outputs.reuse-run == ''
@@ -511,7 +580,8 @@ jobs:
                   plan="$RUNNER_TEMP/results-plan"
                   git diff --name-only "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/changed.txt" || true
                   node tools/results/plan-read.mjs "$AFFECTED" "$plan" --sha "$HEAD_SHA" \
-                      --base "$(git rev-parse HEAD^1)" --files "$RUNNER_TEMP/changed.txt" || true
+                      --base "$(git rev-parse HEAD^1)" --files "$RUNNER_TEMP/changed.txt" \
+                      --snapshot "$RUNNER_TEMP/durations-snapshot/durations.json" || true
                   if ! node tools/test-select.mjs --base "origin/$BASE_REF" --head HEAD --plan \
                       --durations "$plan/durations.json" > "$plan/light-plan.json"; then
                       echo "::warning::the test selector failed; every affected shard runs whole"
@@ -536,7 +606,7 @@ jobs:
                       "$plan/results-plan.json" "$plan/light-plan.json" > "$plan/rules.json" \
                       && mv "$plan/rules.json" "$plan/results-plan.json"
                   node tools/ci-test-matrix.mjs "$(pnpm exec nx show projects --json)" "$AFFECTED" --plan "$plan/light-plan.json" --pull-request \
-                      | grep -E '^(test|stories)-(matrix|count)=' | tee -a "$GITHUB_OUTPUT"
+                      | grep -E '^(test|stories)-(matrix|count)(-[12])?=' | tee -a "$GITHUB_OUTPUT"
                   # the summary describes the bins only when their matrix was written (else every shard runs whole)
                   if grep -q '^test-matrix=' "$GITHUB_OUTPUT"; then
                       node tools/test-select.mjs --summary "$plan/light-plan.json" --affected "$AFFECTED" \
@@ -626,6 +696,7 @@ jobs:
                       webgpu-graph-algorithms/dist/
                       graph-samples/dist/
                       babylonjs-map/dist/
+                      babylonjs-models/dist/
                       algorithms/dist/
                       layout/dist/
                       cytoscape-extensions/dist/
@@ -680,6 +751,13 @@ jobs:
               with:
                   name: build-babylonjs-map
                   path: babylonjs-map/dist/
+                  retention-days: 1
+
+            - name: Upload babylonjs-models build
+              uses: actions/upload-artifact@v7
+              with:
+                  name: build-babylonjs-models
+                  path: babylonjs-models/dist/
                   retention-days: 1
 
             - name: Upload algorithms build
@@ -777,7 +855,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # The same check as the packages job's step of this name: the run reuse_build_run names built this
@@ -799,7 +876,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: steps.reuse-build.outputs.artifacts-run == '' && env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               if: steps.reuse-build.outputs.artifacts-run == ''
@@ -808,16 +890,18 @@ jobs:
                   HUSKY: "0"
 
             # Every package's dist, as the packages job built it.
-            # The fidelity stories' reference pictures are Git LFS objects, cached like the story tests'
-            # baselines so a run downloads only the pictures added since the cache was saved. graph-io's
-            # build-storybook pulls them (a no-op once the cache restored them).
+            # The style fidelity oracles' rasterized PNGs, which the fidelity stories draw, are Git LFS objects,
+            # cached like the story tests' baselines so a run downloads only the pictures added since the cache
+            # was saved. graph-io's build-storybook pulls them (a no-op once the cache restored them). The key
+            # hashes those same PNGs, so a new oracle picture saves a new cache.
             - name: Restore the style fidelity reference pictures
+              id: fidelity-references
               if: steps.reuse-build.outputs.artifacts-run == ''
-              uses: actions/cache@v6
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
-                  key: lfs-fidelity-references-${{ hashFiles('graph-io/fidelity-stories/references/*.png') }}
-                  restore-keys: lfs-fidelity-references-
+                  key: lfs-fidelity-oracles-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
+                  restore-keys: lfs-fidelity-oracles-
 
             - name: Probe the nx remote cache
               if: steps.reuse-build.outputs.artifacts-run == ''
@@ -856,6 +940,46 @@ jobs:
               run: >-
                   pnpm exec nx run-many -t build-storybook --parallel=3
                   --projects=graphty-element,graphty,compact-mantine,algorithms,layout,cytoscape-extensions,graph-io
+
+            # The browser test shards restore Babylon.js's GLSL compilers from master's cache (the Test job's "Restore
+            # the Babylon.js GLSL compilers"), and a pull request never saves a cache, while a master push runs no
+            # tests: so the master build fetches and saves them here, once per Babylon.js version, or every browser
+            # shard of every pull request fetched its own copy from cdn.babylonjs.com, which answered 403 (#6787).
+            - name: Key the Babylon.js GLSL compilers by version
+              id: babylon-compilers-key
+              if: steps.reuse-build.outputs.artifacts-run == '' && env.SAVE_CACHES == 'true'
+              run: echo "key=babylon-shader-compilers-$(node -p "require('./graphty-element/node_modules/@babylonjs/core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+            - name: Look up the Babylon.js GLSL compilers
+              id: babylon-compilers
+              if: steps.babylon-compilers-key.outputs.key
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
+                  lookup-only: true
+
+            # Warming a cache must never turn the master build red: a CDN refusal here leaves the entry unsaved, and
+            # the shards fetch on their own as before until a later master push saves it.
+            - name: Fetch the Babylon.js GLSL compilers
+              id: babylon-compilers-fetch
+              if: steps.babylon-compilers-key.outputs.key && steps.babylon-compilers.outputs.cache-hit != 'true'
+              continue-on-error: true
+              run: node vitest.babylon-compilers.mjs
+
+            - name: Save the Babylon.js GLSL compilers
+              if: steps.babylon-compilers-fetch.outcome == 'success' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
+
+            - name: Save the style fidelity reference pictures
+              if: steps.reuse-build.outputs.artifacts-run == '' && steps.fidelity-references.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-fidelity-oracles-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
 
             # A run that reuses an earlier run's results (the packages job's Reuse step) takes that run's
             # Storybooks, built from the same tree, instead of building them again; the Stories job
@@ -942,6 +1066,9 @@ jobs:
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 15
+        env:
+            # graphty-element's and graphty's lint targets pass this to ESLint; see "Key the ESLint caches"
+            ESLINT_CACHE: --cache --cache-strategy content --cache-location node_modules/.cache/eslint/
         # lint is an nx-cached target (nx.json), so a project whose lint inputs equal master's (a pull request
         # that touches nx.json or a project.json marks every project affected) replays master's result from
         # the remote cache instead of linting again (graphty-element alone takes about 3.5 minutes). Only
@@ -961,7 +1088,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -970,7 +1096,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
@@ -1014,13 +1145,54 @@ jobs:
               continue-on-error: true
               run: echo "LINT_START=$(date +%s)" >> "$GITHUB_ENV"
 
+            # graphty-element and graphty lint with an ESLint content cache in CI ($ESLINT_CACHE in their project.json
+            # lint targets; a local lint never caches). Master's full lint fills it and saves it; a pull request restores the newest one, so ESLint
+            # re-lints only the files whose content differs from master's (graphty-element took about 300 s here,
+            # beside two other packages on the runner's 4 cores). The key holds what changes a rule's verdict on an
+            # unchanged file -- the lockfile, the ESLint configs and rules, the tsconfigs -- so a change to any of
+            # them lints everything. An unchanged file that a pull request's type change makes fail a type-aware
+            # rule is caught by master's and the full run's lint, which never restore the cache. The key's last part
+            # is the day, so master saves one cache a day (about 3 MB), not one per commit.
+            - name: Key the ESLint caches
+              id: eslint-cache
+              run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"; echo "prefix=eslint-v1-${{ hashFiles('pnpm-lock.yaml', 'eslint.config.js', 'tsconfig.base.json', 'tools/eslint-rules/**', 'compact-mantine/eslint/**', 'graphty-element/eslint.config.js', 'graphty-element/eslint-rules/**', 'graphty-element/tsconfig*.json', 'graphty/eslint.config.js', 'graphty/eslint-rules/**', 'graphty/tsconfig*.json') }}-" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the ESLint caches (PR)
+              if: needs.packages.outputs.full == 'false'
+              continue-on-error: true
+              uses: actions/cache/restore@v6
+              with:
+                  path: |
+                      graphty-element/node_modules/.cache/eslint
+                      graphty/node_modules/.cache/eslint
+                  key: ${{ steps.eslint-cache.outputs.prefix }}${{ steps.eslint-cache.outputs.day }}
+                  restore-keys: ${{ steps.eslint-cache.outputs.prefix }}
+
             - name: Lint affected (PR)
               if: needs.packages.outputs.full == 'false'
               run: pnpm exec nx affected -t lint --parallel=3 --exclude-task-dependencies --base=origin/${{ github.base_ref }} --head=HEAD
 
+            # graph-io's lint typechecks its fidelity stories, which import graphty-element's source and test
+            # helpers; graph-io/project.json negates that dependency (it would be a cycle), so nx never calls
+            # graph-io affected by a graphty-element change, and this step lints it then (#7196). graph-io's lint
+            # inputs (graph-io/project.json) name graphty-element, so nx's cache never replays master's result here.
+            - name: Lint graph-io's fidelity stories (PR, graphty-element affected)
+              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty-element') && !contains(fromJSON(needs.packages.outputs.affected), 'graph-io')
+              run: pnpm exec nx run graph-io:lint --exclude-task-dependencies
+
             - name: Lint all (master, a manual dispatch or the merge queue)
               if: needs.packages.outputs.full == 'true'
               run: pnpm exec nx run-many -t lint --parallel=3 --exclude-task-dependencies
+
+            - name: Save the ESLint caches (full lint)
+              if: needs.packages.outputs.full == 'true' && env.SAVE_CACHES == 'true'
+              continue-on-error: true
+              uses: actions/cache/save@v6
+              with:
+                  path: |
+                      graphty-element/node_modules/.cache/eslint
+                      graphty/node_modules/.cache/eslint
+                  key: ${{ steps.eslint-cache.outputs.prefix }}${{ steps.eslint-cache.outputs.day }}
 
             # Lint all took 3 to 5 minutes until a typescript-eslint update made one rule take 7 of them
             # (2026-10-06, about 14 minutes in all), and nothing said so for two days. A run past the budget
@@ -1047,6 +1219,12 @@ jobs:
               env:
                   VITE_BASE_PATH: /
 
+            # What the built graphty app asks a browser to download, against graphty/size-budgets.json (issue #8018).
+            # Here because this is the only pull-request job that builds the app: the Build job's artifact leaves it out.
+            - name: Bundle size (graphty app, PR, when affected)
+              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              run: pnpm --filter @graphty/graphty run size
+
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -1057,7 +1235,7 @@ jobs:
 
     # The repository checks that read source or the built packages: the CI workflow tests, knip,
     # formatting, the bundle sizes, the public API report and the rest. The same checks run in
-    # tools/prepush.sh. On a pull request, a step that reads one package's files runs only when that package
+    # tools/check-quick.sh, except the whole-repository formatting check (issue #8052). On a pull request, a step that reads one package's files runs only when that package
     # is affected (the packages job's affected list); every other run (push, workflow_call, the full run) runs all.
     checks:
         name: Checks
@@ -1065,6 +1243,12 @@ jobs:
         if: needs.packages.outputs.reuse-run == ''
         runs-on: ubuntu-24.04
         timeout-minutes: 20
+        # issues and pull requests: read, for the style fidelity known failures' tracking issues below
+        permissions:
+            contents: read
+            checks: write
+            issues: read
+            pull-requests: read
         steps:
             - uses: actions/checkout@v7
               with:
@@ -1079,7 +1263,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -1088,7 +1271,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
@@ -1115,6 +1303,10 @@ jobs:
 
             # Relative links, anchors and links to this repository's own files, against this checkout, with no
             # network (about a second). The network half runs in the full run's Links job.
+            # lychee from the Actions cache, not a GitHub release download on every run (#6308).
+            - name: Install lychee
+              uses: ./.github/actions/lychee
+
             - name: Links (offline)
               run: ./tools/check-links.sh --offline
 
@@ -1126,7 +1318,7 @@ jobs:
             # Every package's dist is downloaded above (the packages job builds every project on both
             # paths). knip reads source; the production pass counts only published entry points. The published-deps
             # check packs each package and compares what it ships with what it declares, so it
-            # must run after the build. The same three steps run in tools/prepush.sh.
+            # must run after the build. The same three steps run in tools/check-quick.sh.
             # The two knip passes share nothing and each is mostly single-threaded, so they run side by side
             # (47 s + 16 s in a row on a runner); the step fails when either does.
             - name: Knip (dead code detection and production dependencies)
@@ -1140,7 +1332,7 @@ jobs:
             - name: Published dependencies
               run: pnpm run check:published-deps
 
-            # The same three checks run in tools/prepush.sh. The first two read no build output; the
+            # The same three checks run in tools/check-quick.sh. The first two read no build output; the
             # bundle size check measures graphty-element's dist/ against graphty-element/size-budgets.json.
             - name: ESLint root config
               run: pnpm run lint:eslint-root
@@ -1157,7 +1349,7 @@ jobs:
                   BASE_REF: ${{ github.base_ref }}
               run: |
                   if [[ "$FULL" == "true" ]]; then
-                      printf '%s=true\n' format-all bundle api datasource cytoscape >> "$GITHUB_OUTPUT"
+                      printf '%s=true\n' format-all bundle api datasource cytoscape fidelity >> "$GITHUB_OUTPUT"
                       exit 0
                   fi
                   changed=$(git diff --name-only "$(git merge-base "origin/$BASE_REF" HEAD)" HEAD)
@@ -1167,6 +1359,11 @@ jobs:
                   out api graphty-element '^tools/api-report'
                   out datasource graphty-element '^tools/check-data-source-migration'
                   out cytoscape cytoscape-extensions '^cytoscape-extensions/'
+                  if grep -qE '^graphty-element/(test/fidelity/|scripts/fidelity-)' <<<"$changed"; then
+                      echo "fidelity=true" >> "$GITHUB_OUTPUT"
+                  else
+                      echo "fidelity=false" >> "$GITHUB_OUTPUT"
+                  fi
                   if grep -qE '(^|/)(\.prettierrc|\.prettierignore|prettier\.config|\.editorconfig|\.gitignore)|^package\.json$|^pnpm-lock\.yaml$' <<<"$changed"; then
                       echo "format-all=true" >> "$GITHUB_OUTPUT"
                   else
@@ -1198,27 +1395,48 @@ jobs:
             # (graphty-element/api/*.api.md, one per typed entry point in its package.json "exports").
             # A change fails here until `npm run api:report` in graphty-element regenerates the report,
             # so every API change shows up in the pull request as a diff of that report.
-            # The same check runs in tools/prepush.sh.
+            # The same check runs in tools/check-quick.sh.
             - name: Public API report (graphty-element)
               if: steps.scope.outputs.api == 'true'
               run: pnpm run check:api-report
 
             # Experiment flags (graphty-element's FEATURES): every id the code, stories and site configurations
             # name is declared, every row has its issue, the features module reads nothing from the host, and
-            # no experimental item is in the public API report. The same check runs in tools/prepush.sh.
+            # no experimental item is in the public API report. The same check runs in tools/check-quick.sh.
             - name: Feature flags
               run: pnpm run check:features
+
+            # Every style fidelity known failure (graphty-element/test/fidelity/oracle-known-failures.json and
+            # baseline-scores.json) names an open issue: a reason citing none, or only closed issues, fails (#7015).
+            # One GraphQL query. The full run checks it, and a pull request that changes the lists or the harness;
+            # other pull requests and the master push build (the light run) skip it, so closing an issue fails
+            # neither every open pull request nor the next master build, only the next full run.
+            - name: Style fidelity known failures tracked
+              if: steps.scope.outputs.fidelity == 'true' && needs.packages.outputs.light != 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: pnpm --filter @graphty/graphty-element run fidelity:issues
 
             - name: Declared build tools
               run: pnpm run check:declared-tools
 
+            # No pull request removes or changes an outcome check of the dry run (graphty/acceptance/), or
+            # the code that decides one passes, except a check-change branch (graphty/acceptance/README.md).
+            - name: Dry-run outcome checks kept
+              run: pnpm run check:dry-run-checks
+
             # release-hold.json names only real nx projects, each with a reason and a date, so a typo
-            # cannot silently release a package someone meant to hold. The same check runs in tools/prepush.sh.
+            # cannot silently release a package someone meant to hold. The same check runs in tools/check-quick.sh.
             - name: Release hold list
               run: pnpm run check:release-hold
 
+            # A published package's peer dependencies change only in a major (tools/check-peer-deps-stable.mjs).
+            # The same check runs in tools/prepush.sh.
+            - name: Peer dependencies stable
+              run: pnpm run check:peer-deps
+
             # Element data sources read files through @graphty/graph-io importers, not their own
-            # parsers. The same check runs in tools/prepush.sh.
+            # parsers. The same check runs in tools/check-quick.sh.
             - name: Element data sources on graph-io
               if: steps.scope.outputs.datasource == 'true'
               run: pnpm run check:data-source-migration
@@ -1229,9 +1447,21 @@ jobs:
 
             # Reads source only. Any use of the legacy graph API (a legacy algorithms or layout
             # name, the legacy Graph, a positional layout, an element parser not on graph-io) fails.
-            # The same check runs in tools/prepush.sh.
+            # The same check runs in tools/check-quick.sh.
             - name: Legacy graph API use
               run: pnpm run check:legacy-use
+
+            # No style layer is special (#5905): graphty/special-layers-baseline.json may only shrink against
+            # the merge base, and its lint and API rows may not go stale. The same check runs in
+            # tools/check-quick.sh.
+            - name: No special style layers
+              run: pnpm run check:special-layers
+
+            # Every reader reads the working graph (design/working-graph/design.md section 9):
+            # graphty-element/working-graph-whole-readers.json, the readers that read the whole graph by
+            # agreement, may only shrink against the merge base. The same check runs in tools/check-quick.sh.
+            - name: Readers honor the working graph
+              run: pnpm run check:working-graph
 
             # No pile of images committed outside the folders that hold them (more than 20 new images or
             # 20 MB against the base; an `Images-Approved: <reason>` trailer passes a deliberate addition).
@@ -1244,6 +1474,12 @@ jobs:
             # that makes it. The same check runs in tools/prepush-source-checks.sh.
             - name: compact-mantine Figma lock
               run: pnpm run check:figma-lock
+
+            # Save files carry what they use: adding a known exception to graphty-element's saved-format
+            # checks needs the owner's `Saved-Format-Exception-Approved: <reason>` trailer, and a shipped
+            # shader hash leaves only by being revoked. The same check runs in tools/prepush-source-checks.sh.
+            - name: Saved-format exceptions
+              run: pnpm run check:saved-format-allowlist
 
             # A failure here settles "All Checks Pass": say so now, not when the slowest job of the run
             # ends (.github/actions/early-verdict).
@@ -1277,7 +1513,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -1286,7 +1521,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
@@ -1303,9 +1543,13 @@ jobs:
             # Build unified documentation on every run that has a Docs job (a pull request only on a docs input,
             # the Build job's "Plan the optional jobs"), so one that breaks the docs (a dead link included:
             # VitePress fails the build on one) fails here rather than on master. The docs and both gh-pages builds are uploaded on every run because the
-            # "Links" job checks every link to graphty.app against the site they assemble into.
+            # "Links" job checks every link to graphty.app against the site they assemble into. A pull request's
+            # site is never published or link-checked, so it builds without the API sidebars (DOCS_API_SIDEBARS,
+            # docs/.vitepress/config.ts; every page and the dead-link check stay) and uploads nothing.
             - name: Build docs
               run: npm run docs:build
+              env:
+                  DOCS_API_SIDEBARS: ${{ github.event_name == 'pull_request' && 'off' || 'on' }}
 
             - name: Build algorithms gh-pages
               run: pnpm exec nx run algorithms:build:gh-pages --exclude-task-dependencies
@@ -1315,6 +1559,7 @@ jobs:
 
             # Upload documentation artifacts (deploy-pages publishes them; the Links job checks them)
             - name: Upload unified docs
+              if: github.event_name != 'pull_request'
               uses: actions/upload-artifact@v7
               with:
                   name: build-docs
@@ -1322,6 +1567,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload algorithms gh-pages
+              if: github.event_name != 'pull_request'
               uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-algorithms
@@ -1329,6 +1575,7 @@ jobs:
                   retention-days: 1
 
             - name: Upload layout gh-pages
+              if: github.event_name != 'pull_request'
               uses: actions/upload-artifact@v7
               with:
                   name: build-ghpages-layout
@@ -1349,6 +1596,8 @@ jobs:
     # which only restores them (budgets-and-trust.md 1.8: only master writes the entry a pull request trusts).
     # Master's push build only: one walk of every package, walked cold whenever the key moved, so the entry
     # holds only current graphs. Gates nothing; a failure here only makes the next pull request's plan walk more packages.
+    # It also records the story units this merge reaches, which the rolling screenshot slices render first
+    # (design/visual-testing/early-capture.md 4a): ordering only, never a reason to skip a render.
     select-graphs:
         name: Selector import graphs
         needs: packages
@@ -1356,6 +1605,10 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 20
         continue-on-error: true
+        # id-token: write is the results store's credential for the reach rows
+        permissions:
+            contents: read
+            id-token: write
         steps:
             - uses: actions/checkout@v7
               with:
@@ -1370,7 +1623,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v4
@@ -1391,14 +1643,14 @@ jobs:
               run: echo "key=test-select-graphs-$(node tools/test-select.mjs --cache-key)" >> "$GITHUB_OUTPUT"
 
             # Exact key only, no prefix restore: the saved set then holds only the current graphs, never the
-            # superseded ones of earlier commits, so the entry does not grow.
-            - name: Look up the import graphs
+            # superseded ones of earlier commits, so the entry does not grow. Restored (not only looked up): the
+            # reach step below selects with them.
+            - name: Restore the import graphs
               id: graphs
               uses: actions/cache/restore@v6
               with:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
-                  lookup-only: true
 
             # The graphs resolve the other packages through their dist folders.
             - name: Download all package builds
@@ -1420,6 +1672,18 @@ jobs:
                   path: tmp/test-select/graphs
                   key: ${{ steps.graphs-key.outputs.key }}
 
+            # The story units this merge (HEAD^1..HEAD) reaches, as the light check would select them, posted to the
+            # results store for the rolling slices' order (tools/channel/story-slices.mjs). Ordering only: a missing
+            # row means this merge's stories are rendered by age alone.
+            - name: Record the story units this merge reaches
+              continue-on-error: true
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: |
+                  node tools/test-select.mjs --base HEAD^1 --head HEAD --plan > "$RUNNER_TEMP/reach-plan.json"
+                  node tools/channel/story-slices.mjs reach --plan "$RUNNER_TEMP/reach-plan.json" --sha "$GITHUB_SHA"
+
     # Sharded test jobs - run in parallel, collect coverage. The matrix comes from the packages job's plan
     # (tools/ci-test-matrix.mjs holds every shard and why it is split the way it is): every shard on master,
     # only the affected packages' shards on a pull request. A pull request that affects no package (a docs
@@ -1433,7 +1697,7 @@ jobs:
         runs-on: ubuntu-24.04
         timeout-minutes: 30
         # id-token: write is the results store's credential (tools/results/run-group.mjs posts each shard's record)
-        permissions:
+        permissions: &test-permissions
             contents: read
             checks: write
             id-token: write
@@ -1441,16 +1705,19 @@ jobs:
             issues: write
         strategy:
             fail-fast: false
-            # A full run (release.yml, a dispatch, a bisect) runs at most 14 shards at once and its story tests at
-            # most 6, 20 runners in all, so the full run never starves pull requests of runners (#3448); the
+            # A full run (release.yml, a dispatch, a bisect) runs at most 24 shards at once and its story tests at
+            # most 6, 30 runners in all, so the full run never starves pull requests of runners (#3448); the
             # Run cap lets pull requests go once the full run holds that share (RELEASE_SHARE in
-            # tools/ci-run-cap.mjs). Its ~25 shards are ~260 runner-minutes, the longest ~19: about 25 minutes
-            # at 14. A pull request keeps 40. The features-on shards come last in the matrix
+            # tools/ci-run-cap.mjs), and the default pull request job budget is the ~180-runner ceiling less
+            # it: 150 (CI_PR_JOB_BUDGET overrides it). At 14 its Test jobs ended at about 66 minutes; 24 brings
+            # that to about 35-38 (#7849). A pull request keeps 40. The features-on shards come last in the matrix
             # (tools/ci-test-matrix.mjs), so the Off shards start first and the On ones queue behind them.
-            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 14 }}
-            matrix: ${{ fromJSON(needs.packages.outputs.test-matrix) }}
+            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 24 }}
+            # a plan above GitHub's 256-job cap runs its first 256 here and the rest in test-2
+            matrix: ${{ fromJSON(needs.packages.outputs.test-matrix-1 || needs.packages.outputs.test-matrix) }}
 
-        steps:
+        # test-2 runs these same steps (*test-steps)
+        steps: &test-steps
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
@@ -1467,7 +1734,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -1476,7 +1742,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
@@ -1506,8 +1777,9 @@ jobs:
             # canvas with each oracle's rasterized PNG, a Git LFS object: fetch only the pictures of the oracles it
             # names (about 3 MB), cached like the story tests' baselines.
             - name: Restore the style fidelity oracle pictures
+              id: oracle-pictures
               if: startsWith(matrix.shard, 'graphty-element-browser')
-              uses: actions/cache@v6
+              uses: actions/cache/restore@v6
               with:
                   path: .git/lfs/objects
                   key: lfs-oracle-scorecard-${{ hashFiles('graphty-element/test/browser/oracle-scorecard-samples.json') }}
@@ -1517,9 +1789,39 @@ jobs:
               if: startsWith(matrix.shard, 'graphty-element-browser')
               run: git lfs pull --include "$(node -p "require('./graphty-element/test/browser/oracle-scorecard-samples.json').map((id) => 'graph-io/test/fidelity/oracles/' + id + '.png').join(',')")"
 
-            - name: Cache Playwright browsers
+            - name: Save the style fidelity oracle pictures
+              if: startsWith(matrix.shard, 'graphty-element-browser') && steps.oracle-pictures.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-oracle-scorecard-${{ hashFiles('graphty-element/test/browser/oracle-scorecard-samples.json') }}
+
+            # The Git LFS files a shard reads (its "lfs" in tools/ci-test-matrix.mjs, a group's members' joined):
+            # graph-io-storybook's fidelity stories draw the oracles' rasterized PNGs, and without this pull the
+            # checkout holds pointer text that fails to decode (#4989). Cached like the story tests' baselines.
+            - name: Restore the Git LFS files the shard reads
+              id: shard-lfs
+              if: matrix.lfs
+              uses: actions/cache/restore@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-shard-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
+                  restore-keys: lfs-shard-
+
+            - name: Fetch the Git LFS files the shard reads
+              if: matrix.lfs
+              run: git lfs pull --include "${{ matrix.lfs }}"
+
+            - name: Save the Git LFS files the shard reads
+              if: matrix.lfs && steps.shard-lfs.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: .git/lfs/objects
+                  key: lfs-shard-${{ hashFiles('graph-io/test/fidelity/oracles/*.png') }}
+
+            - name: Restore Playwright browsers
               if: matrix.needs-browser
-              uses: actions/cache@v6
+              uses: actions/cache/restore@v6
               id: playwright-cache
               with:
                   path: ~/.cache/ms-playwright
@@ -1537,6 +1839,14 @@ jobs:
               if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true'
               run: pnpm exec playwright install chromium
 
+            # Saved before the step below adds Firefox and WebKit, so the shared key holds Chromium only.
+            - name: Save Playwright browsers
+              if: matrix.needs-browser && steps.playwright-cache.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-lock-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
             # The graphty-element lifecycle shard launches Firefox and WebKit too (matrix.browsers). A
             # cache hit may hold only Chromium, so this runs on every such job; a browser already
             # installed is skipped.
@@ -1544,10 +1854,81 @@ jobs:
               if: matrix.browsers
               run: pnpm exec playwright install ${{ matrix.browsers }}
 
-            # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled
+            # graphty-element loads Babylon.js's GLSL compilers before it opens WebGPU, and the browser tests answer
+            # those requests from a local copy (vitest.babylon-compilers.mjs), never cdn.babylonjs.com: a CDN that
+            # did not answer once failed a gpu-loss shard on an unrelated pull request (#6787). Cached per Babylon.js
+            # version, so the CDN is asked only when the version changes; the fetch step fills a miss. The copy pull
+            # requests restore is the one the Storybooks job saves on each master push (a pull request saves nothing).
+            # The version is graphty-element's Babylon.js, the one the script fetches: the root package does not
+            # depend on it and resolves it only through pnpm's hoisting.
+            - name: Key the Babylon.js GLSL compilers by version
+              id: babylon-compilers-key
+              if: matrix.needs-browser
+              run: echo "key=babylon-shader-compilers-$(node -p "require('./graphty-element/node_modules/@babylonjs/core/package.json').version")" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the Babylon.js GLSL compilers
+              id: babylon-compilers
+              if: matrix.needs-browser
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
+
+            - name: Fetch the Babylon.js GLSL compilers
+              if: matrix.needs-browser
+              run: node vitest.babylon-compilers.mjs
+
+            - name: Save the Babylon.js GLSL compilers
+              if: matrix.needs-browser && steps.babylon-compilers.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/babylon-shader-compilers
+                  key: ${{ steps.babylon-compilers-key.outputs.key }}
+
+            # webgpu-graph-algorithms node shard: Dawn needs a Vulkan ICD; ubuntu-24.04 has none preinstalled.
+            # The .deb files apt chose are cached per runner image, as playwright-system-deps does for Chromium's,
+            # so a hit installs with dpkg and never touches the network: in run 41256221732 both no-subgroups jobs
+            # sat in `apt-get update` for 29 minutes after Ubuntu's mirror stopped answering mid-fetch (a trickle
+            # apt's 20 s idle timeout never ends) and hit the job's limit before a test ran (#5343).
+            - name: Key the Mesa lavapipe packages by runner image
+              id: lavapipe-key
+              if: matrix.needs-lavapipe
+              run: echo "key=lavapipe-debs-${ImageOS:?}-${ImageVersion:?}" >> "$GITHUB_OUTPUT"
+
+            - name: Restore the Mesa lavapipe packages
+              id: lavapipe-debs
+              if: matrix.needs-lavapipe
+              uses: actions/cache/restore@v6
+              with:
+                  path: ~/.cache/lavapipe-debs
+                  key: ${{ steps.lavapipe-key.outputs.key }}
+
             - name: Install Mesa lavapipe
               if: matrix.needs-lavapipe
-              run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mesa-vulkan-drivers libvulkan1 vulkan-tools
+              env:
+                  HIT: ${{ steps.lavapipe-debs.outputs.cache-hit }}
+                  PACKAGES: mesa-vulkan-drivers libvulkan1 vulkan-tools
+              run: |
+                  dir="$HOME/.cache/lavapipe-debs"
+                  if [ "$HIT" = true ]; then
+                      sudo dpkg -i "$dir"/*.deb
+                  else
+                      # apt downloads into $dir and keeps the files there for the save step below
+                      mkdir -p "$dir/partial"
+                      sudo apt-get update
+                      sudo apt-get install -y --no-install-recommends -o Dir::Cache::Archives="$dir" $PACKAGES
+                      sudo rm -rf "$dir/partial" "$dir/lock"
+                  fi
+                  # a hit that held too little fails here, not later as a missing Vulkan ICD
+                  missing=$(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' $PACKAGES 2>&1 | grep -v '^ii ' || true)
+                  if [ -n "$missing" ]; then echo "::error::Mesa lavapipe's packages are not all installed: $missing"; exit 1; fi
+
+            - name: Save the Mesa lavapipe packages
+              if: matrix.needs-lavapipe && steps.lavapipe-debs.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/lavapipe-debs
+                  key: ${{ steps.lavapipe-key.outputs.key }}
 
             # The software rasteriser this lane judges every kernel on is whatever apt resolves on the day, and it
             # moved two major Mesa versions (23.2.1 / LLVM 15 -> 25.2.8 / LLVM 20) without anything recording it.
@@ -1593,7 +1974,7 @@ jobs:
             # median over the last 9 runs). Restored from the newest run of this shard, saved under this run.
             # "--" ends the shard's name, so graphty-storybook never restores graphty-storybook-features-on's.
             - name: Restore the shard's test durations
-              uses: actions/cache@v6
+              uses: actions/cache/restore@v6
               with:
                   path: test-durations
                   key: test-durations-${{ matrix.shard }}--${{ github.run_id }}-${{ github.run_attempt }}
@@ -1628,6 +2009,13 @@ jobs:
                   VITEST_BUDGET_CHECK: "1"
                   VITEST_DURATION_HISTORY: ${{ github.workspace }}/test-durations/${{ matrix.shard }}.json
 
+            - name: Save the shard's test durations
+              if: env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: test-durations
+                  key: test-durations-${{ matrix.shard }}--${{ github.run_id }}-${{ github.run_attempt }}
+
             - name: Upload the base checks to dispatch
               if: ${{ !cancelled() && github.event_name == 'pull_request' }}
               continue-on-error: true
@@ -1639,8 +2027,8 @@ jobs:
                   if-no-files-found: ignore
                   overwrite: true
 
-            # The shard's JUnit reports, so verification of golden (tools/verify.mjs) can name the exact
-            # failing test files and run only those on this machine. continue-on-error: a report that did
+            # The shard's JUnit reports, so the exact failing test files can be named and run on their
+            # own. continue-on-error: a report that did
             # not upload never changes the shard's verdict.
             - name: Upload JUnit results
               if: ${{ !cancelled() }}
@@ -1735,6 +2123,23 @@ jobs:
                   job: test
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
+    # The Test legs of a plan above GitHub's 256-job matrix cap past the first 256 (#5537): GitHub fails a larger
+    # matrix's job without running a leg. The same job as test (its permissions and steps are YAML aliases, so the
+    # two cannot drift, and its legs report as test); All Checks Pass counts the two as one Test result.
+    test-2:
+        name: Test (${{ matrix.shard }})
+        needs: packages
+        if: needs.packages.outputs.test-matrix-2 != '' && needs.packages.outputs.reuse-run == ''
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        permissions: *test-permissions
+        strategy:
+            fail-fast: false
+            # only a pull request's bins pass the cap, so only the pull request value matters here
+            max-parallel: ${{ github.event_name == 'pull_request' && 40 || 24 }}
+            matrix: ${{ fromJSON(needs.packages.outputs.test-matrix-2) }}
+        steps: *test-steps
+
     # Dead links: relative links and anchors, this repository's files on GitHub, everything else
     # under github.com/graphty-org, and every link to graphty.app -- checked against the site the
     # next deploy would publish, assembled here from this run's artifacts by the same script
@@ -1759,7 +2164,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Setup Node.js
@@ -1836,6 +2240,9 @@ jobs:
             - name: Assemble the GitHub Pages site
               run: ./tools/assemble-pages-site.sh "$RUNNER_TEMP/site"
 
+            - name: Install lychee
+              uses: ./.github/actions/lychee
+
             - name: Check links
               run: ./tools/check-links.sh --site "$RUNNER_TEMP/site"
               env:
@@ -1856,7 +2263,11 @@ jobs:
     # shards) skips them. They need only the build, not the tests, so they run beside the shards and
     # never hold up the end of a full run (design/ci/channels-pipeline/channels.md section 5).
     # Advisory: release.yml, deploy-pages.yml and coverage.yml read the run's conclusion, and a
-    # measurement with no pass/fail role must not hold them.
+    # measurement with no pass/fail role must not hold them. continue-on-error absorbs a failed job but not a
+    # cancelled one, and a job that reaches its timeout-minutes is cancelled, which makes the whole run conclude
+    # cancelled (issue #7986). So the benchmarks stop themselves first: each runs under tools/before-deadline.sh,
+    # which fails its step at DEADLINE (44 minutes in), and the steps after them carry their own
+    # timeout-minutes, all inside the job's 50.
     performance:
         name: Performance Benchmarks
         needs: packages
@@ -1869,6 +2280,9 @@ jobs:
             contents: read
             id-token: write
         steps:
+            - name: Note when the benchmarks must end
+              run: echo "DEADLINE=$(( $(date +%s) + 44 * 60 ))" >> "$GITHUB_ENV"
+
             - uses: actions/checkout@v7
               with:
                   ref: ${{ inputs.ref }}
@@ -1881,7 +2295,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -1907,7 +2320,7 @@ jobs:
 
             - name: Run the algorithms benchmarks
               id: algorithms-bench
-              run: pnpm exec nx run algorithms:benchmark
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec nx run algorithms:benchmark
               env:
                   CI: "true"
                   NODE_OPTIONS: "--max-old-space-size=8192 --expose-gc"
@@ -1956,7 +2369,7 @@ jobs:
             - name: Run the graphty-element browser timing benchmarks
               if: ${{ !cancelled() }}
               working-directory: graphty-element
-              run: pnpm exec vitest run --project=browser-bench
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=browser-bench
 
             # The repaint's frame budget and undo's cost against a load, timed without coverage. A
             # stopwatch measures whatever else the machine is doing, so these never gate a push;
@@ -1964,7 +2377,31 @@ jobs:
             - name: Run the graphty-element timing benchmarks
               if: ${{ !cancelled() }}
               working-directory: graphty-element
-              run: pnpm exec vitest run --project=bench
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=bench
+
+            # The built app's landing page timed in Chromium (graphty/bench/load-time.bench.test.ts): usable, its graph's
+            # first frame and first settled frame, medians of 15 first visits. The element's own connect-to-settled
+            # rows were written by the bench project above (test/load/load-time.bench.test.ts). Issue #8018.
+            - name: Run the graphty app load-time benchmark
+              if: ${{ !cancelled() }}
+              working-directory: graphty
+              run: $GITHUB_WORKSPACE/tools/before-deadline.sh pnpm exec vitest run --project=bench
+
+            # Fails the job when a median and its minimum both regressed past tools/load-time.mjs's margin against the
+            # baseline of this runner's CPU model (benchmarks/results/load-time.json); a CPU model with no baseline
+            # prints every row as new.
+            - name: Compare the load times with the baseline
+              id: load-time
+              if: ${{ !cancelled() }}
+              timeout-minutes: 2
+              run: node tools/load-time.mjs
+
+            - name: Post the load times to the health dashboard
+              if: ${{ !cancelled() }}
+              timeout-minutes: 2
+              env:
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node tools/results/post-benchmarks.mjs graphty-load benchmarks/out/load-time-*.json
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the
@@ -1991,7 +2428,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: pnpm/action-setup@v6
@@ -2000,7 +2436,12 @@ jobs:
               uses: actions/setup-node@v7
               with:
                   node-version: 22.x
-                  cache: "pnpm"
+                  cache: ${{ env.SAVE_CACHES == 'true' && 'pnpm' || '' }}
+
+            # a pull request restores master's pnpm store and never saves its own (#3591)
+            - name: Restore the pnpm store
+              if: env.SAVE_CACHES != 'true'
+              uses: ./.github/actions/restore-pnpm-store
 
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
@@ -2077,7 +2518,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # the Stories jobs' rule: a pull request runs the base branch's capture code, never its own
@@ -2122,7 +2562,8 @@ jobs:
 
     # The light check's Stories jobs (design/ci/channels-pipeline/merging.md section 4.1, #3443 part b): the
     # stories a pull request's change can reach (the Build job's light plan, tools/test-select.mjs storyBins()),
-    # packed into bins of about 3 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate),
+    # packed into bins of about 3 minutes of capture (STORY_BIN_LIMIT_MS, at each project's measured capture rate;
+    # longer, up to STORY_BIN_MAX_MS, when that would make more than STORY_JOB_BUDGET jobs),
     # each captured with visual-review capture (the built-Storybook capture), but only those stories
     # (--stories). A broken story blocks its pull request: one that
     # fails to render or whose play function throws (`failed` in results.json), one that draws two different
@@ -2162,7 +2603,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Restore this project's baseline images
@@ -2351,23 +2791,139 @@ jobs:
                   job: stories
                   advisory: ${{ needs.packages.outputs.advisory-checks }}
 
+    # Capture impact (#5304): the Stories jobs run the base branch's capture code, so a pull request that changes
+    # how every picture is drawn (the capture code or settings, the pinned fonts, the Playwright or Chromium
+    # version, a Storybook preview; tools/capture-impact.sh changed) never shows its own effect there. #4603 moved
+    # about 1,700 screenshots by one device pixel that way and was first seen on a held nightly candidate. Only for
+    # such a pull request, this job captures a fixed sample of every project's stories from this run's Storybooks
+    # with the base's capture environment and with the pull request's, and counts the pictures that differ. At
+    # CAPTURE_IMPACT_THRESHOLD or more it labels the pull request capture-impact and comments the count;
+    # "All Checks Pass" then fails while the label is on, which keeps auto-merge from merging. Removing the label
+    # acknowledges the change (accepted as one group at the promotion, or fixed); re-run the failed jobs and a later
+    # push never labels it again. The job itself is report-only (continue-on-error): it never fails the run, and it
+    # touches neither the gate nor the story-test captures.
+    capture-impact:
+        name: Capture impact
+        needs: [packages, build]
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.packages.outputs.capture-impact == 'true' && needs.build.result == 'success' }}
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 30
+        permissions:
+            contents: read
+            # the label and the comment
+            issues: write
+            pull-requests: write
+        outputs:
+            held: ${{ steps.label.outputs.held }}
+        env:
+            CAPTURE_IMPACT_THRESHOLD: "5"
+            LABEL: capture-impact
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+                  fetch-depth: 2
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Download the Storybooks
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: build-storybook-*
+                  path: ${{ runner.temp }}/storybooks
+
+            # the artifacts' names to the paths visual-review.config.json names (tools/ci-reuse-plan.mjs)
+            - name: Put the Storybooks where the config names them
+              run: |
+                  while read -r name dir; do
+                      [ -d "$RUNNER_TEMP/storybooks/$name" ] || continue
+                      mkdir -p "$(dirname "$dir")"
+                      mv "$RUNNER_TEMP/storybooks/$name" "$dir"
+                  done < <(node --input-type=module -e 'import { STORYBOOKS } from "./tools/ci-reuse-plan.mjs"; for (const [n, d] of Object.entries(STORYBOOKS)) console.log(n, d);')
+
+            - uses: ./.github/actions/drop-microsoft-apt-source
+
+            - name: Capture a sample with the base's and the pull request's capture environment
+              id: measure
+              run: tools/capture-impact.sh measure HEAD^1 HEAD "$RUNNER_TEMP/capture-impact" | tee -a "$GITHUB_OUTPUT"
+
+            - name: Upload the captures
+              if: always()
+              uses: actions/upload-artifact@v7
+              with:
+                  name: capture-impact-${{ github.run_attempt }}
+                  path: |
+                      ${{ runner.temp }}/capture-impact/*/*/
+                      ${{ runner.temp }}/capture-impact/*/*.log
+                      ${{ runner.temp }}/capture-impact/summary.md
+                      !${{ runner.temp }}/capture-impact/*/repo
+                      !${{ runner.temp }}/capture-impact/*/node_modules
+                  retention-days: 7
+                  if-no-files-found: ignore
+
+            # Labels at the threshold unless someone already removed the label from this pull request (its events),
+            # which acknowledged the change. held says the label is meant to be on; All Checks Pass reads the label.
+            - name: Label a mass visual change
+              id: label
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR: ${{ github.event.pull_request.number }}
+                  CHANGED: ${{ steps.measure.outputs.changed }}
+              run: |
+                  cat "$RUNNER_TEMP/capture-impact/summary.md" >> "$GITHUB_STEP_SUMMARY"
+                  if (( CHANGED < CAPTURE_IMPACT_THRESHOLD )); then
+                      echo "below the threshold of $CAPTURE_IMPACT_THRESHOLD changed pictures"
+                      exit 0
+                  fi
+                  removed=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/events" \
+                      --jq "[.[] | select(.event == \"unlabeled\" and .label.name == \"$LABEL\")] | length" | jq -s add)
+                  if (( removed > 0 )); then
+                      echo "::notice title=Capture impact::$CHANGED sampled pictures change; the $LABEL label was removed before, so the change is acknowledged"
+                      exit 0
+                  fi
+                  echo "held=true" >> "$GITHUB_OUTPUT"
+                  if ! gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -qx "$LABEL"; then
+                      gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" -f "labels[]=$LABEL" --silent
+                      {
+                          cat "$RUNNER_TEMP/capture-impact/summary.md"
+                          echo ""
+                          echo "This pull request changes how every picture is drawn, and $CHANGED sampled pictures change with it. Auto-merge waits until the \`$LABEL\` label is removed: remove it to accept the change as one group (or fix it), then re-run the failed jobs."
+                      } | gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@- --silent
+                  fi
+                  echo "::warning title=Capture impact::$CHANGED sampled pictures change; labeled $LABEL"
+
     # Stories as tests (design/ci/channels-pipeline/stories-as-tests.md, issue #3472): a project's story tests
     # shoot every story and mode at the end of its test and compare it with its baseline, writing the capture
     # the review page and the gate read. Every project has switched (two full runs with zero parity differences
     # against the old built-Storybook capture, CI 40515529497 and 40524757006), so this is the capture: it is
     # uploaded as visual-<project>-<attempt>, the artifact `visual-review serve`, the gate (visual-report) and
-    # release.yml read. Report-only, outside All Checks Pass.
+    # release.yml read.
     # Runs through tools/results/run-group.mjs like every test shard (the quarantine wrapper, then the results
     # store), so an unstable story (two renders that drew different pictures fail its test) is retried once,
-    # reported flaky when the retry passes, and recorded with status `unstable`. VISUAL_REVIEW_BLOCKING=1 on the
-    # combine step (story-outcomes.mjs) makes a broken or newly unstable story fail it and a changed picture set
-    # promotion.blocked; it stays unset (report only) until the project switches.
+    # reported flaky when the retry passes, and recorded with status `unstable`. It blocks (#4612): with
+    # VISUAL_REVIEW_BLOCKING=1 on the combine step (story-outcomes.mjs), a broken story or one still unstable and
+    # not quarantined fails the job, and with no job-level continue-on-error that fails the workflow, so the full
+    # run's CI lane is red (bisect, revert). A changed, new or removed picture never fails it: it only sets
+    # promotion.blocked and counts as a changed image, which holds the promotion to nightly (green-images) until
+    # the owner approves. A pull request is gated by its own Stories jobs in All Checks Pass, not by this job.
     story-tests:
         name: Story tests (${{ matrix.name || matrix.project }})
         needs: packages
         if: needs.packages.outputs.reuse-run == '' && (contains(needs.packages.outputs.test-matrix, '"graphty-storybook"') || contains(needs.packages.outputs.test-matrix, '"graphty-element-storybook-1"') || contains(needs.packages.outputs.test-matrix, '"layout"') || contains(needs.packages.outputs.test-matrix, '"algorithms-browser"') || contains(needs.packages.outputs.test-matrix, '"compact-mantine"') || contains(needs.packages.outputs.test-matrix, '"cytoscape-extensions"') || contains(needs.packages.outputs.test-matrix, '"graph-io-browser"'))
         runs-on: ubuntu-24.04
-        continue-on-error: true
         timeout-minutes: 45
         # id-token: write is the results store's credential (tools/results/run-group.mjs posts the group's record);
         # issues: write files the issue of a story the store quarantines
@@ -2398,11 +2954,28 @@ jobs:
                       parts: 2
                       shard: graphty-storybook
                       command: cd graphty && pnpm exec vitest run --project=storybook --shard=2/2
-                    # One job for the whole project: without coverage its story tests do not slow down as
-                    # they run, which is why the coverage shards split it in five.
+                    # Three legs (vitest --shard=N/3), merged by story-tests-merge (#6178, owner 2026-11-08): one job
+                    # was 20 minutes (1140 s of tests, fileParallelism: false), the critical path of every pull request
+                    # run that tests graphty-element's stories (25.9 min median against a 20-minute budget) and of the
+                    # full run's graphty-element-storybook-shots (median 1017 s against 900 s). 64 story files: 22, 21, 21.
                     - project: graphty-element
+                      name: graphty-element-1
+                      part: 1
+                      parts: 3
                       shard: graphty-element-storybook-1
-                      command: cd graphty-element && pnpm exec vitest run --project=storybook
+                      command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=1/3
+                    - project: graphty-element
+                      name: graphty-element-2
+                      part: 2
+                      parts: 3
+                      shard: graphty-element-storybook-1
+                      command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=2/3
+                    - project: graphty-element
+                      name: graphty-element-3
+                      part: 3
+                      parts: 3
+                      shard: graphty-element-storybook-1
+                      command: cd graphty-element && pnpm exec vitest run --project=storybook --shard=3/3
                     - project: algorithms
                       shard: algorithms-browser
                       command: cd algorithms && pnpm exec vitest run --config vitest.storybook.config.ts
@@ -2494,7 +3067,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             # A pull request's screenshots are taken and written by the base branch's capture code, never its
@@ -2584,6 +3156,20 @@ jobs:
                   name: results-plan
                   path: ${{ runner.temp }}/results-plan
 
+            # Outside a pull request (the full run) no Packages job reads the store, so this job reads the plan of
+            # its own shard's package, `-shots` family included (#4612): a story the store quarantined as
+            # screenshot-flaky must not turn the blocking full run red. No answer leaves the committed list.
+            - name: Read the results plan
+              if: steps.skip.outputs.skip != 'true' && github.event_name != 'pull_request'
+              continue-on-error: true
+              env:
+                  SHARD: ${{ matrix.shard }}
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: |
+                  pkg=$(node --input-type=module -e 'const { SHARDS } = await import("./tools/ci-test-matrix.mjs"); console.log(JSON.stringify([SHARDS.find((s) => s.shard === process.env.SHARD).package]))')
+                  node tools/results/plan-read.mjs "$pkg" "$RUNNER_TEMP/results-plan" --sha "$GITHUB_SHA"
+
             - name: Run the story tests with their screenshots
               if: steps.skip.outputs.skip != 'true'
               env:
@@ -2623,6 +3209,8 @@ jobs:
 
             - name: Combine the capture
               if: ${{ steps.skip.outputs.skip != 'true' && !cancelled() && !matrix.parts }}
+              env:
+                  VISUAL_REVIEW_BLOCKING: "1"
               run: node visual-review/trusted/cli.mjs merge-results --project ${{ matrix.project }} --quarantine "$RUNNER_TEMP/stories/quarantine.json" --out "$RUNNER_TEMP/stories/merged" "$RUNNER_TEMP/stories/part-1"
 
             - name: Upload the capture
@@ -2652,27 +3240,28 @@ jobs:
                       fi
                   } >> "$GITHUB_STEP_SUMMARY"
 
-    # The parts of a project the story-tests job splits in legs (graph-io-fidelity, graphty), combined into the one capture the
+    # The parts of a project the story-tests job splits in legs (graph-io-fidelity, graphty, graphty-element), combined into the one capture the
     # project's single leg would have uploaded (visual-<project>-<attempt>):
     # merge-results checks every part ran once and every story file ran once, else the capture is complete: false.
+    # Blocks as story-tests does: a broken or still-unstable story fails it, a changed picture only holds nightly.
     story-tests-merge:
         name: Story tests merge (${{ matrix.project }})
         needs: story-tests
         if: ${{ !cancelled() && needs.story-tests.result != 'skipped' }}
         runs-on: ubuntu-24.04
-        continue-on-error: true
         timeout-minutes: 10
         strategy:
             fail-fast: false
             matrix:
-                project: [graph-io-fidelity, graphty]
+                project: [graph-io-fidelity, graphty, graphty-element]
         steps:
+            # `-[0-9]*`, not `-*`: graphty's pattern must not match graphty-element's parts (story-parts-graphty-element-1-1)
             - name: Download the parts
               id: parts
               continue-on-error: true
               uses: actions/download-artifact@v8
               with:
-                  pattern: story-parts-${{ matrix.project }}-*
+                  pattern: story-parts-${{ matrix.project }}-[0-9]*
                   path: ${{ runner.temp }}/parts
 
             # download-artifact@v8 extracts a single matching artifact straight into path, with no <artifact>/ folder
@@ -2718,6 +3307,8 @@ jobs:
             # every leg judged by the same quarantine list; their union is the one the merge judges by
             - name: Combine the capture
               if: steps.found.outputs.any != ''
+              env:
+                  VISUAL_REVIEW_BLOCKING: "1"
               run: |
                   jq -s '{ quarantine: (map(.quarantine // []) | add | unique) }' "$RUNNER_TEMP"/parts/*/quarantine.json > "$RUNNER_TEMP/quarantine.json" 2>/dev/null \
                       || echo '{ "quarantine": [] }' > "$RUNNER_TEMP/quarantine.json"
@@ -2760,10 +3351,16 @@ jobs:
     # skipped required check as passing, so a skip here could let a pull request merge with no CI at all.
     all-checks:
         name: All Checks Pass
-        needs: [packages, build, lint, checks, docs, test, links, cost-accuracy, stories]
+        # capture-impact is report-only; it is needed so the hold step below runs after it labels
+        needs: [packages, build, lint, checks, docs, test, test-2, links, cost-accuracy, stories, capture-impact]
         if: always()
         runs-on: ubuntu-24.04
         timeout-minutes: 70
+        # pull-requests: read for the hold step's label read; checks: write for the early verdicts' clear
+        permissions:
+            contents: read
+            checks: write
+            pull-requests: read
         steps:
             - name: Check all jobs passed
               env:
@@ -2776,6 +3373,7 @@ jobs:
                   R_CHECKS: ${{ needs.checks.result }}
                   R_DOCS: ${{ needs.docs.result }}
                   R_TEST: ${{ needs.test.result }}
+                  R_TEST_2: ${{ needs.test-2.result }}
                   R_LINKS: ${{ needs.links.result }}
                   R_COST: ${{ needs.cost-accuracy.result }}
                   R_STORIES: ${{ needs.stories.result }}
@@ -2789,6 +3387,8 @@ jobs:
                   STORIES_COUNT: ${{ needs.packages.outputs.stories-count }}
                   DOCS: ${{ needs.packages.outputs.docs }}
               run: |
+                  # A plan above GitHub's 256-job matrix cap runs as two Test jobs (test, test-2): Test passed only if both did.
+                  (( ${TEST_COUNT:-0} > 256 )) && [[ "$R_TEST" == "success" ]] && R_TEST=$R_TEST_2
                   # The tests set NEEDS themselves; in CI it is built from the results above.
                   [[ -n "${NEEDS:-}" ]] || NEEDS=$(jq -n --arg packages "$R_PACKAGES" --arg build "$R_BUILD" \
                       --arg lint "$R_LINT" --arg checks "$R_CHECKS" --arg docs "$R_DOCS" --arg test "$R_TEST" \
@@ -2838,6 +3438,20 @@ jobs:
                       exit 1
                   fi
                   echo "All checks passed!"
+
+            # A pull request the Capture impact job labeled capture-impact does not pass while the label is on,
+            # so auto-merge waits for someone to acknowledge the change by removing it (then: re-run failed jobs).
+            # The label is read now, not from the event, which predates the job that added it.
+            - name: Hold a capture-impact pull request until its label is removed
+              if: github.event_name == 'pull_request' && needs.capture-impact.outputs.held == 'true'
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR: ${{ github.event.pull_request.number }}
+              run: |
+                  if gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -qx capture-impact; then
+                      echo "::error::the Capture impact job found many changed pictures and labeled this pull request capture-impact; remove the label to accept the change, then re-run the failed jobs"
+                      exit 1
+                  fi
 
             # The early verdicts (.github/actions/early-verdict) live in another workflow's check suite, which
             # this job's success does not replace, so a re-run that passed stayed red to Mergify (#2639).
@@ -2977,6 +3591,78 @@ jobs:
                       echo "$msg" >> "$GITHUB_STEP_SUMMARY"
                   fi
 
+    # Many changed pictures (#5465): Capture impact above flags a change to the capture environment; this flags a
+    # pull request whose own story tests changed many pictures (over MANY_PICTURES_THRESHOLD), such as #5346's
+    # reframe of about 1,000, so a broad change is called out while it is a pull request rather than first seen on
+    # the nightly candidate. It reads the captures the Stories jobs uploaded (tools/many-pictures.sh), labels the
+    # pull request many-pictures with a per-project count (and takes the label off when a later push drops below
+    # the threshold), and writes the count to the job summary. Informative only: continue-on-error, not needed by
+    # All Checks Pass, so it never fails or holds a pull request.
+    many-pictures:
+        name: Many changed pictures
+        needs: [story-tests, story-tests-merge]
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.story-tests.result != 'skipped' }}
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 10
+        permissions:
+            contents: read
+            # the label and the comment
+            issues: write
+            pull-requests: write
+        env:
+            MANY_PICTURES_THRESHOLD: "100"
+            LABEL: many-pictures
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }}
+                  sparse-checkout: tools
+                  persist-credentials: false
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - name: Download visual captures
+              continue-on-error: true
+              uses: actions/download-artifact@v8
+              with:
+                  pattern: visual-*
+                  path: ${{ runner.temp }}/visual
+
+            - name: Count the changed pictures
+              id: count
+              run: tools/many-pictures.sh "$RUNNER_TEMP/visual" "$RUNNER_TEMP/many-pictures.md" | tee -a "$GITHUB_OUTPUT"
+
+            - name: Label a pull request that changes many pictures
+              env:
+                  GH_TOKEN: ${{ github.token }}
+                  PR: ${{ github.event.pull_request.number }}
+                  CHANGED: ${{ steps.count.outputs.changed }}
+              run: |
+                  cat "$RUNNER_TEMP/many-pictures.md" >> "$GITHUB_STEP_SUMMARY"
+                  labeled=$(gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" --jq '.[].name' | grep -cx "$LABEL" || true)
+                  if (( CHANGED <= MANY_PICTURES_THRESHOLD )); then
+                      echo "$CHANGED changed pictures, not over the threshold of $MANY_PICTURES_THRESHOLD"
+                      (( labeled == 0 )) || gh api -X DELETE "repos/$GITHUB_REPOSITORY/issues/$PR/labels/$LABEL" --silent
+                      exit 0
+                  fi
+                  echo "::notice title=Many changed pictures::$CHANGED pictures change in this pull request's story tests; labeled $LABEL"
+                  (( labeled == 0 )) || exit 0
+                  gh api "repos/$GITHUB_REPOSITORY/issues/$PR/labels" -f "labels[]=$LABEL" --silent
+                  {
+                      cat "$RUNNER_TEMP/many-pictures.md"
+                      echo ""
+                      echo "More than $MANY_PICTURES_THRESHOLD pictures change here. This does not block the pull request; the owner reviews them at the nightly gate, so a broad, intended change is worth naming in the description."
+                  } | gh api "repos/$GITHUB_REPOSITORY/issues/$PR/comments" -F body=@- --silent
+
     # The last job of a green master push run: whether release.yml should run now (tools/release-due.mjs).
     # release.yml has no workflow_run trigger, so this is how a merge that references an open "Full run red:"
     # issue restarts the full run at once (mode restart); every other merge waits for the next 6-hour slot
@@ -3019,7 +3705,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Dispatch release.yml when a restart or a promotion is due
@@ -3063,7 +3748,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Delete superseded and closed pull requests' cache keys
@@ -3073,6 +3757,69 @@ jobs:
                   gh api --paginate "repos/$GITHUB_REPOSITORY/actions/caches?per_page=100" --jq '.actions_caches[]' > "$RUNNER_TEMP/caches.ndjson"
                   gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number --jq '.[].number' > "$RUNNER_TEMP/open-prs.txt"
                   node tools/cache-hygiene.mjs "$RUNNER_TEMP/caches.ndjson" "$RUNNER_TEMP/open-prs.txt" --apply
+
+    # The recorded file durations a pull request's bins step packs by when the results store does not answer its
+    # plan read (#7851): master's push build reads them one family at a time, at most once an hour, merges them
+    # over the previous snapshot and saves it as a cache, which every pull request restores. Never gates.
+    durations-snapshot:
+        name: Durations snapshot
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        continue-on-error: true
+        runs-on: ubuntu-24.04
+        timeout-minutes: 15
+        # id-token: write is the results store's credential (tools/results/client.mjs)
+        permissions:
+            contents: read
+            id-token: write
+        steps:
+            - uses: actions/checkout@v7
+              with:
+                  ref: ${{ inputs.ref }} # every checkout names it; empty on this push, so the pushed commit
+                  # tools/ci-test-matrix.mjs reads the feature registry (tools/features-on.mjs)
+                  sparse-checkout: |
+                      tools
+                      graphty-element/src/features
+
+            # the workflow's tools/ and .github/actions/, not the checked-out commit's (tools/own-tools-overlay.test.mjs)
+            - name: Use the workflow's own tools and actions
+              env:
+                  OVERLAY: tools .github/actions
+              run: |
+                  [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
+                  depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
+                  git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
+                  git archive "$GITHUB_SHA" $OVERLAY | tar -x
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v7
+              with:
+                  node-version: 22.x
+
+            - name: Restore the durations snapshot
+              uses: actions/cache/restore@v6
+              with:
+                  path: ${{ runner.temp }}/durations-snapshot
+                  key: results-durations-${{ github.run_id }}-${{ github.run_attempt }}
+                  restore-keys: results-durations-
+
+            # exit 3: under an hour old, or no family answered; the previous snapshot stands
+            - name: Read the durations one family at a time
+              id: refresh
+              env:
+                  RESULTS_URL: ${{ vars.RESULTS_URL }}
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: |
+                  status=0
+                  node tools/results/plan-read.mjs --refresh-snapshot "$RUNNER_TEMP/durations-snapshot/durations.json" || status=$?
+                  [ "$status" = 0 ] && echo "refreshed=true" >> "$GITHUB_OUTPUT"
+                  [ "$status" = 0 ] || [ "$status" = 3 ]
+
+            - name: Save the durations snapshot
+              if: steps.refresh.outputs.refreshed == 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ${{ runner.temp }}/durations-snapshot
+                  key: results-durations-${{ github.run_id }}-${{ github.run_attempt }}
 
     # Flaky screenshots: an item whose first capture differed from its baseline and whose second matched
     # (`flaky: true` in results.json) passes the gate as unchanged, yet the story drew two different
@@ -3085,7 +3832,7 @@ jobs:
     # pattern and passes it to gh without a shell. Never gates: outside All Checks Pass.
     base-checks:
         name: Dispatch base checks
-        needs: [test, story-tests]
+        needs: [test, test-2, story-tests]
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         runs-on: ubuntu-24.04
         continue-on-error: true
@@ -3110,7 +3857,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Download the base checks
@@ -3151,7 +3897,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Setup Node.js
@@ -3199,7 +3944,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - name: Restore graphty-element's baseline images
@@ -3229,8 +3973,9 @@ jobs:
               id: playwright
               run: echo "version=$(node -p 'require("./visual-review/package.json").devDependencies.playwright')" >> "$GITHUB_OUTPUT"
 
-            - name: Cache Playwright browsers
-              uses: actions/cache@v6
+            - name: Restore Playwright browsers
+              id: playwright-cache
+              uses: actions/cache/restore@v6
               with:
                   path: ~/.cache/ms-playwright
                   key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
@@ -3245,6 +3990,13 @@ jobs:
             - name: Install Chromium
               working-directory: visual-review
               run: pnpm exec playwright install chromium
+
+            - name: Save Playwright browsers
+              if: steps.playwright-cache.outputs.cache-hit != 'true' && env.SAVE_CACHES == 'true'
+              uses: actions/cache/save@v6
+              with:
+                  path: ~/.cache/ms-playwright
+                  key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
 
             - name: Download Storybook build
               uses: actions/download-artifact@v4
@@ -3311,7 +4063,6 @@ jobs:
                   [ "$(git rev-parse HEAD)" = "$GITHUB_SHA" ] && exit 0
                   depth=$([ "$(git rev-parse --is-shallow-repository)" = true ] && echo --depth=1 || true)
                   git fetch --quiet --no-tags $depth origin "$GITHUB_SHA"
-                  rm -rf $OVERLAY
                   git archive "$GITHUB_SHA" $OVERLAY | tar -x
 
             - uses: ./.github/actions/timings

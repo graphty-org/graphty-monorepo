@@ -37,7 +37,7 @@ export type LocationRole = "latitude" | "longitude" | "location";
 export type LocationRoleSetting = "auto" | "coords" | PlaceRole | "none";
 
 /** What narrows a place name: a column of values by row, or a fixed country code. */
-export type PlaceWithinSource =
+type PlaceWithinSource =
     { readonly column: string; readonly values: readonly unknown[] } | { readonly code: string } | null;
 
 /** A column of place names, read through the gazetteer. */
@@ -228,7 +228,7 @@ export interface LocationRefusal {
 }
 
 /** The least share of a column's values that must read for the layout to pick it unasked. */
-export const MIN_DETECTED_SHARE = 0.5;
+const MIN_DETECTED_SHARE = 0.5;
 
 const LAT_NAMES = new Set(["lat", "latitude"]);
 const LON_NAMES = new Set(["lon", "lng", "long", "longitude"]);
@@ -254,7 +254,7 @@ function isBlank(value: unknown): boolean {
  * @param axis - Latitude or longitude.
  * @returns 0 to 1; 0 for a column with no values.
  */
-export function angleShare(values: readonly unknown[], axis: "lat" | "lon"): number {
+function angleShare(values: readonly unknown[], axis: "lat" | "lon"): number {
     let filled = 0;
     let read = 0;
     for (const value of values) {
@@ -274,7 +274,7 @@ export function angleShare(values: readonly unknown[], axis: "lat" | "lon"): num
  * @param values - The values.
  * @returns 0 to 1.
  */
-export function locationShare(values: readonly unknown[]): number {
+function locationShare(values: readonly unknown[]): number {
     const found = detectLocationFormat(values);
     return found.format === null ? 0 : found.share;
 }
@@ -394,6 +394,45 @@ function narrowingColumn(found: Partial<Record<PlaceRole, ColumnValues>>, kind: 
 }
 
 /**
+ * The latitude and longitude columns when at least one of them is named: the other is found by
+ * name, and a half that no node carries is refused.
+ * @param latitude - The named latitude column, or null.
+ * @param longitude - The named longitude column, or null.
+ * @param columns - The nodes' attributes.
+ * @param carried - The values of a column some node carries, or null.
+ * @param refuse - Builds the refusal naming the missing half.
+ * @returns The source, or the refusal.
+ */
+function resolveColumns(
+    latitude: string | null,
+    longitude: string | null,
+    columns: readonly ColumnValues[],
+    carried: (name: string) => readonly unknown[] | null,
+    refuse: (missing: LocationRole) => LocationRefusal,
+): ResolvedLocation | LocationRefusal {
+    const latName = latitude ?? columns.find((c) => LAT_NAMES.has(c.name.toLowerCase()))?.name;
+    const lonName = longitude ?? columns.find((c) => LON_NAMES.has(c.name.toLowerCase()))?.name;
+    const lat = latName === undefined ? null : carried(latName);
+    const lon = lonName === undefined ? null : carried(lonName);
+    if (lat === null || latName === undefined) {
+        return refuse("latitude");
+    }
+
+    if (lon === null || lonName === undefined) {
+        return refuse("longitude");
+    }
+
+    let filled: ResolvedLocation["filled"] = null;
+    if (latitude === null) {
+        filled = "latitude";
+    } else if (longitude === null) {
+        filled = "longitude";
+    }
+
+    return { source: { kind: "columns", latitude: latName, longitude: lonName, lat, lon }, filled };
+}
+
+/**
  * Where the layout reads the locations, from its options and the nodes' attributes.
  *
  * - Latitude and Longitude both set: those two columns.
@@ -431,26 +470,7 @@ export function resolveLocation(
 
     const { latitude, longitude, location } = choice;
     if (latitude !== null || longitude !== null) {
-        const latName = latitude ?? columns.find((c) => LAT_NAMES.has(c.name.toLowerCase()))?.name;
-        const lonName = longitude ?? columns.find((c) => LON_NAMES.has(c.name.toLowerCase()))?.name;
-        const lat = latName === undefined ? null : carried(latName);
-        const lon = lonName === undefined ? null : carried(lonName);
-        if (lat === null || latName === undefined) {
-            return refuse("latitude");
-        }
-
-        if (lon === null || lonName === undefined) {
-            return refuse("longitude");
-        }
-
-        let filled: ResolvedLocation["filled"] = null;
-        if (latitude === null) {
-            filled = "latitude";
-        } else if (longitude === null) {
-            filled = "longitude";
-        }
-
-        return { source: { kind: "columns", latitude: latName, longitude: lonName, lat, lon }, filled };
+        return resolveColumns(latitude, longitude, columns, carried, refuse);
     }
 
     const role = choice.role ?? "auto";
@@ -570,7 +590,7 @@ export function columnFits(columns: readonly ColumnValues[], role: LocationRole)
 }
 
 /** What a location is read from: a latitude and longitude pair, one column of coordinates, or place names of a kind. */
-export type LocationUsing = "pair" | "coordinates" | PlaceRole;
+type LocationUsing = "pair" | "coordinates" | PlaceRole;
 
 /** The kinds of location listed for the nodes, the one read, and the listed ones not read. */
 export interface LocationListing {

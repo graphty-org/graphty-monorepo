@@ -52,7 +52,7 @@ const CI_CLAIMS = {
 const event = (
     rawPath: string,
     body: unknown,
-    { claims = CI_CLAIMS as Record<string, string>, auth }: { claims?: Record<string, string>; auth?: string } = {},
+    { claims = CI_CLAIMS, auth }: { claims?: Record<string, string>; auth?: string } = {},
 ) =>
     ({
         rawPath,
@@ -140,6 +140,33 @@ describe("ingest: who may write", () => {
         expect(res.statusCode).toBe(200);
     });
 
+    it("records each verdict as red, green-clean and, for a green run, whether it met an unapproved picture", async () => {
+        const h = await ingest();
+        const release = {
+            ...CI_CLAIMS,
+            event_name: "workflow_dispatch",
+            ref: "refs/heads/master",
+            job_workflow_ref: "graphty-org/graphty-monorepo/.github/workflows/release.yml@refs/heads/master",
+        };
+        const values = () =>
+            Object.fromEntries(
+                [...mem.items.values()].filter((i) => i.kind === "obs").map((i) => [String(i.id), i.value]),
+            );
+        await h(event("/v1/verdicts", { sha: "a1", state: "green-images" }, { claims: release }));
+        await h(event("/v1/verdicts", { sha: "b2", state: "red" }, { claims: release }));
+        await h(event("/v1/verdicts", { sha: "c3", state: "green-clean" }, { claims: release }));
+        expect(values()).toEqual({
+            "master.full_run_failed#a1": 0,
+            "release.green_clean#a1": 0,
+            "release.slot_unreviewed#a1": 1,
+            "master.full_run_failed#b2": 1,
+            "release.green_clean#b2": 0,
+            "master.full_run_failed#c3": 0,
+            "release.green_clean#c3": 1,
+            "release.slot_unreviewed#c3": 0,
+        });
+    });
+
     it("checks the local token against its SHA-256 in SSM", async () => {
         const h = await ingest();
         const body = { rows: [{ id: "local.push.abc.1", at: NOW, exit: 0 }] };
@@ -149,14 +176,41 @@ describe("ingest: who may write", () => {
         expect(ssmSend).toHaveBeenCalledTimes(1);
     });
 
-    it("refuses local writes when the parameter is missing, and retries the lookup", async () => {
+    it("refuses local writes when the parameter is missing or blank, and retries the lookup", async () => {
+        const hash = { Parameter: { Value: createHash("sha256").update(TOKEN).digest("hex") } };
         ssmSend.mockReset();
-        ssmSend.mockRejectedValueOnce(new Error("ParameterNotFound"));
+        ssmSend.mockRejectedValueOnce(Object.assign(new Error("gone"), { name: "ParameterNotFound" }));
+        ssmSend.mockResolvedValueOnce({ Parameter: { Value: "  " } });
+        ssmSend.mockResolvedValueOnce(hash);
         const h = await ingest();
         const body = { rows: [] };
         expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(401);
-        ssmSend.mockResolvedValueOnce({ Parameter: { Value: createHash("sha256").update(TOKEN).digest("hex") } });
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(401);
         expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+        expect(ssmSend).toHaveBeenCalledTimes(3);
+    });
+
+    it("answers 500, not 401, when SSM fails, and reads SSM again next time", async () => {
+        ssmSend.mockRejectedValueOnce(Object.assign(new Error("slow down"), { name: "ThrottlingException" }));
+        const h = await ingest();
+        const body = { rows: [] };
+        const res = await h(event("/v1/local/waits", body, { auth: TOKEN }));
+        expect(res.statusCode).toBe(500);
+        expect(JSON.parse(String(res.body))).toEqual({ code: "internal" });
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+    });
+
+    it("re-reads the hash after five minutes, so a rotated token reaches a warm container", async () => {
+        const h = await ingest();
+        const body = { rows: [] };
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+        ssmSend.mockResolvedValue({ Parameter: { Value: createHash("sha256").update("rotated").digest("hex") } });
+        vi.setSystemTime(NOW + 5 * 60_000 - 1);
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(200);
+        vi.setSystemTime(NOW + 5 * 60_000);
+        expect((await h(event("/v1/local/waits", body, { auth: TOKEN }))).statusCode).toBe(401);
+        expect((await h(event("/v1/local/waits", body, { auth: "rotated" }))).statusCode).toBe(200);
+        expect(ssmSend).toHaveBeenCalledTimes(2);
     });
 
     it("refuses a local row whose id is not local", async () => {
@@ -180,6 +234,7 @@ describe("ingest: benchmarks", () => {
         source: "algorithms",
         unit: "ms",
         sha: "abc",
+        machine: "AMD EPYC 7763 64-Core Processor",
         rows: [{ name: "PageRank n=1000", value: ms }],
     });
 
@@ -192,8 +247,8 @@ describe("ingest: benchmarks", () => {
         expect((await h(event("/v1/benchmarks", body(6), { claims: full("601") }))).statusCode).toBe(200);
         const item = await mem.get({ pk: "BENCH", sk: "algorithms: PageRank n=1000" });
         expect(item?.points).toEqual([
-            { at: NOW, v: 4, run: 600, sha: "abc" },
-            { at: NOW, v: 6, run: 601, sha: "abc" },
+            { at: NOW, v: 4, run: 600, sha: "abc", machine: "AMD EPYC 7763 64-Core Processor" },
+            { at: NOW, v: 6, run: 601, sha: "abc", machine: "AMD EPYC 7763 64-Core Processor" },
         ]);
         expect(
             (
@@ -202,6 +257,11 @@ describe("ingest: benchmarks", () => {
                 )
             ).statusCode,
         ).toBe(400);
+        // a row may name its input, kept on its point
+        const seeded = { ...body(7), rows: [{ name: "PageRank n=1000", value: 7, input: "3fa2c1d0e9b8" }] };
+        expect((await h(event("/v1/benchmarks", seeded, { claims: full("603") }))).statusCode).toBe(200);
+        const after = await mem.get({ pk: "BENCH", sk: "algorithms: PageRank n=1000" });
+        expect((after?.points as { input?: string }[]).at(-1)?.input).toBe("3fa2c1d0e9b8");
     });
 });
 
@@ -294,7 +354,9 @@ describe("ingest: what it stores", () => {
         const rows = [{ workflow: "deploy.yml", job: "deploy", ms: 9000, runId: 700, attempt: 1 }];
         const res = await h(event("/v1/durations", { rows }, { claims: site }));
         expect(res.statusCode).toBe(200);
-        expect([...mem.items.values()].find((i) => i.kind === "step")?.repo).toBe("graphty-org/graphty-nightly");
+        // Taken and checked, but not stored: nothing reads a step row (#6813).
+        expect(JSON.parse(res.body as string)).toMatchObject({ stored: 0 });
+        expect([...mem.items.values()].some((i) => i.kind === "step")).toBe(false);
         // A site deploy's timings never make ci-results look fresh.
         const sources = [...mem.items.values()].map((i) => i.source).filter(Boolean);
         expect(sources).toContain("site");
@@ -417,12 +479,12 @@ describe("ingest: what it stores", () => {
             (m) =>
                 METRICS.find((d) => d.id === m)!.from.find((f) => f.kind === "test")!.fold as (i: unknown) => unknown,
         );
-        for (const [head_ref, n, bump] of [
+        for (const [headRef, n, bump] of [
             ["dependabot/npm_and_yarn/vite-8.1.6", "601", true],
             ["chore/deps-refresh-graphty-v1", "602", true],
             ["fix/1234-topic", "603", false],
         ] as const) {
-            const claims = { ...CI_CLAIMS, head_ref, run_id: n };
+            const claims = { ...CI_CLAIMS, head_ref: headRef, run_id: n };
             // try 1 failed, try 2 passed: flaky by the shard's own retry.
             await h(event("/v1/invocations", invocation({ id: `${n}.1.layout.1`, variant: "layout" }), { claims }));
             const passed = invocation({ id: `${n}.1.layout.2`, try: 2, variant: "layout", outcome: "passed" });
@@ -430,8 +492,10 @@ describe("ingest: what it stores", () => {
             await h(event("/v1/invocations", passed, { claims }));
             const test = mem.items.get(`R#test#${n}.1.layout.1#a.test.ts#draws\u0000A#1`);
             expect(test?.outcome).toBe("flaky");
-            expect(test?.bump, head_ref).toBe(bump ? true : undefined);
-            for (const fold of flakyFolds) expect(fold(test) === null, head_ref).toBe(bump);
+            expect(test?.bump, headRef).toBe(bump ? true : undefined);
+            for (const fold of flakyFolds) {
+                expect(fold(test) === null, headRef).toBe(bump);
+            }
         }
     });
 
@@ -518,7 +582,9 @@ describe("ingest: what it stores", () => {
             const try2 = invocation({ id: "500.1.test.layout.2", try: 2, variant: "layout", outcome: "passed" });
             (try2 as Record<string, unknown>).failures = [];
             const posts = [event("/v1/invocations", try1), event("/v1/invocations", try2)];
-            if (order) posts.reverse();
+            if (order) {
+                posts.reverse();
+            }
             await Promise.all(posts.map((e) => h(e)));
             // A late failures post for try 1 does not turn it back either.
             await h(event("/v1/failures", fail));
@@ -546,6 +612,32 @@ describe("ingest: what it stores", () => {
 });
 
 describe("recompute and read", () => {
+    it("serves a test slot's hold as a local run and local shard time, by what ran", async () => {
+        const h = await ingest();
+        const held = {
+            id: "local.held.test-slot-held.2026-10-29T16:05:38.542Z.1233520",
+            at: NOW - 60_000,
+            startedAt: NOW - 3 * 60_000,
+            exit: 1,
+            what: "graphty-element",
+        };
+        expect((await h(event("/v1/local/push-runs", { rows: [held] }, { auth: TOKEN }))).statusCode).toBe(200);
+        const bad = { ...held, id: "local.held.x", what: "a b/../c" };
+        expect((await h(event("/v1/local/push-runs", { rows: [bad] }, { auth: TOKEN }))).statusCode).toBe(400);
+
+        const { recomputeAll } = await import("../src/recompute.ts");
+        await setCursor(mem, "fold-version", FOLD_VERSION, NOW);
+        await recomputeAll(mem, NOW, { getSecret: vi.fn(() => Promise.resolve(undefined)), fetch: vi.fn() });
+        const { handler: read } = await import("../src/handlers/read.ts");
+        const page = JSON.parse((await read(event("/v1/page/local", "", {}))).body!);
+        const runs = page.sections.find((s: { id: string }) => s.id === "runs");
+        expect(runs.groups[0].items[0]).toMatchObject({ label: { t: "name", v: "graphty-element" }, n: 1 });
+        const time = page.sections.find((s: { id: string }) => s.id === "shard-time");
+        expect(time.groups[0].items[0]).toMatchObject({ label: { t: "name", v: "graphty-element" } });
+        expect(page.members.find((m: { id: string }) => m.id === "local-runs.shard_time").n).toBe(1);
+        expect(page.members.find((m: { id: string }) => m.id === "local-runs.local_vs_ci").n).toBe(1);
+    });
+
     it("serves a local post on /v1/page/local after the next recompute", async () => {
         const h = await ingest();
         const rows = [
@@ -570,7 +662,7 @@ describe("recompute and read", () => {
         const { recomputeAll } = await import("../src/recompute.ts");
         // A table already folded at this version: the cycle's only marks are the post's.
         await setCursor(mem, "fold-version", FOLD_VERSION, NOW);
-        const getSecret = vi.fn(async () => undefined);
+        const getSecret = vi.fn(() => Promise.resolve(undefined));
         const done = await recomputeAll(mem, NOW, { getSecret, fetch: vi.fn() });
         expect(done.pages).toBeGreaterThan(30);
         // sendAlerts ran on the cycle's evaluation: it asked for the Pushover secrets and found none.
@@ -579,7 +671,7 @@ describe("recompute and read", () => {
         expect([...mem.items.values()].some((i) => i.pk === "DIRTY")).toBe(false);
 
         const { handler: read } = await import("../src/handlers/read.ts");
-        const res = await read(event("/v1/page/local", "", {}) as never);
+        const res = await read(event("/v1/page/local", "", {}));
         expect(res.statusCode).toBe(200);
         expect(res.headers?.["cache-control"]).toBe("public, max-age=60");
         const page = JSON.parse(res.body!);
@@ -597,13 +689,13 @@ describe("recompute and read", () => {
         const canon = await read({
             ...event("/v1/page/local-runs", "", {}),
             queryStringParameters: { range: "1h" },
-        } as never);
+        });
         expect(canon.statusCode).toBe(200);
         expect(JSON.parse(canon.body!)).toEqual(page);
         const { readViewJson } = await import("../src/views/index.ts");
         expect(await readViewJson(mem, { kind: "page", page: "local-runs", range: "1h" })).toEqual(page);
 
-        const gz = await read({ ...event("/v1/status", "", {}), headers: { "accept-encoding": "gzip, br" } } as never);
+        const gz = await read({ ...event("/v1/status", "", {}), headers: { "accept-encoding": "gzip, br" } });
         expect(gz.headers?.["content-encoding"]).toBe("gzip");
         const status = JSON.parse(gunzipSync(Buffer.from(gz.body!, "base64")).toString("utf8"));
         expect(status.categories.map((c: { id: string }) => c.id)).toEqual([
@@ -617,27 +709,114 @@ describe("recompute and read", () => {
         ]);
     });
 
+    it("routes Issues at 28d by default, 1h to 7d or all, and refuses its page any other range", async () => {
+        const { routeOf } = await import("../src/handlers/read.ts");
+        expect(routeOf("/v1/page/issues", {})).toEqual({ kind: "page", page: "issues", range: "28d" });
+        expect(routeOf("/v1/page/issues", { range: "all" })).toEqual({ kind: "page", page: "issues", range: "all" });
+        expect(routeOf("/v1/page/issues", { range: "1h" })).toEqual({ kind: "page", page: "issues", range: "1h" });
+        expect(routeOf("/v1/page/issues", { range: "24h" })).toEqual({ status: 400, code: "bad_range" });
+        expect(routeOf("/v1/page/costs", {})).toEqual({ kind: "page", page: "costs", range: "7d" });
+        expect(routeOf("/v1/page/master", { range: "all" })).toEqual({ status: 400, code: "bad_range" });
+        expect(routeOf("/v1/page/overview", {})).toEqual({ kind: "page", page: "overview", range: "1h" });
+        expect(routeOf("/v1/page/overview/x", {})).toEqual({ status: 404, code: "unknown_section" });
+    });
+
     it("answers no_data before the first recompute, and 4xx for unknown routes", async () => {
         const { handler: read } = await import("../src/handlers/read.ts");
-        const none = await read(event("/v1/page/master", "", {}) as never);
+        const none = await read(event("/v1/page/master", "", {}));
         expect(none.statusCode).toBe(503);
         expect(JSON.parse(none.body!)).toEqual({ code: "no_data" });
         expect((await read(event("/v1/page/nope", "", {}) as never)).statusCode).toBe(404);
         expect(
-            (await read({ ...event("/v1/page/master", "", {}), queryStringParameters: { range: "9d" } } as never))
-                .statusCode,
+            (await read({ ...event("/v1/page/master", "", {}), queryStringParameters: { range: "9d" } })).statusCode,
         ).toBe(400);
         expect((await read(event("/v1/health", "", {}) as never)).statusCode).toBe(200);
     });
 });
 
 describe("drill-down routes", () => {
+    it("serves a hotspot's /flaky/test link at /v1/page/flaky/test, with each event's run, job, commit and pictures", async () => {
+        const h = await ingest();
+        const id = "500.1.stories.graphty-element-stories-2.1";
+        const first = "a".repeat(64);
+        const second = "b".repeat(64);
+        const post = {
+            invocation: id,
+            flaky: true,
+            family: "graphty-element-stories",
+            failures: [
+                {
+                    file: "s.stories.ts",
+                    name: "Zoomed",
+                    message: "visual-review: z.png is unstable",
+                    pictures: [first, second],
+                },
+            ],
+        };
+        expect((await h(event("/v1/failures", post))).statusCode).toBe(200);
+        const { putRaw } = await import("../src/model/raw.ts");
+        await putRaw(
+            mem,
+            [
+                {
+                    kind: "run",
+                    id: "graphty-org/graphty-monorepo/500",
+                    attempt: 1,
+                    repo: "graphty-org/graphty-monorepo",
+                    runId: 500,
+                    workflow: "ci.yml",
+                    event: "pull_request",
+                    branch: "b",
+                    sha: "abc",
+                    pr: 9,
+                    status: "completed",
+                    conclusion: "success",
+                    createdAt: NOW - 600_000,
+                },
+            ] as never,
+            NOW,
+        );
+        const { handler: read } = await import("../src/handlers/read.ts");
+        const get = async (q: Record<string, string>) =>
+            read({ ...event("/v1/page/flaky/test", "", {}), queryStringParameters: q });
+        const res = await get({ file: "s.stories.ts", test: "Zoomed" });
+        expect(res.statusCode).toBe(200);
+        expect(JSON.parse(res.body as string)).toMatchObject({
+            range: "7d",
+            file: "s.stories.ts",
+            test: "Zoomed",
+            family: "graphty-element-stories",
+            events: [
+                {
+                    kind: "pr",
+                    pr: 9,
+                    run: 500,
+                    attempt: 1,
+                    job: "stories",
+                    shard: "graphty-element-stories-2",
+                    sha: "abc",
+                    outcome: "flaky",
+                    signature: "visual-review: z.png is unstable",
+                    pictures: [first, second],
+                },
+            ],
+        });
+        // An unknown test is a clear empty result, not unknown_section.
+        const unknown = await get({ file: "s.stories.ts", test: "Nope" });
+        expect(unknown.statusCode).toBe(200);
+        expect(JSON.parse(unknown.body as string)).toMatchObject({ test: "Nope", family: null, events: [] });
+        expect((await get({})).statusCode).toBe(400);
+        // Picture hashes are two sha256 or refused.
+        const bad = { ...post, failures: [{ ...post.failures[0], pictures: ["x"] }] };
+        expect((await h(event("/v1/failures", bad))).statusCode).toBe(400);
+    });
+
     it("answers /v1/test-history from what ingest stored, and /v1/run/<id> from the run index", async () => {
         const h = await ingest();
         expect((await h(event("/v1/invocations", invocation()))).statusCode).toBe(200);
         const { handler: read } = await import("../src/handlers/read.ts");
         const get = async (rawPath: string, q: Record<string, string>) =>
-            read({ ...event(rawPath, "", {}), queryStringParameters: q } as never);
+            read({ ...event(rawPath, "", {}), queryStringParameters: q });
         const res = await get("/v1/test-history", { file: "a.test.ts", test: "draws", range: "7d" });
         expect(res.statusCode).toBe(200);
         expect(JSON.parse(res.body as string)).toMatchObject({
@@ -647,7 +826,13 @@ describe("drill-down routes", () => {
         });
         expect((await get("/v1/test-history", {})).statusCode).toBe(400);
         expect((await get("/v1/test-history", { file: "a.test.ts", range: "1h" })).statusCode).toBe(400);
-        expect((await get("/v1/test-history", { file: "none.test.ts" })).statusCode).toBe(503);
+        const long = await get("/v1/test-history", { file: "a.test.ts", test: "x".repeat(513) });
+        expect([long.statusCode, JSON.parse(long.body as string)]).toEqual([400, { code: "bad_field", field: "test" }]);
+        expect((await get("/v1/test-history", { file: "x".repeat(513) })).statusCode).toBe(400);
+        // An unknown test answers an empty history, never no_data or unknown_section.
+        const none = await get("/v1/test-history", { file: "none.test.ts" });
+        expect(none.statusCode).toBe(200);
+        expect(JSON.parse(none.body as string)).toMatchObject({ file: "none.test.ts", family: null, events: [] });
 
         expect((await get("/v1/run/123", {})).statusCode).toBe(503);
         const { putRaw } = await import("../src/model/raw.ts");

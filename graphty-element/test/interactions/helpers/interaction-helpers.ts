@@ -19,17 +19,13 @@ import type { CameraState, DragDelta, NodeData, ScreenPosition, TestGraphOptions
  * This ensures the camera, scene, and input handlers are all set up.
  *
  * @param graph - The graph instance to wait for
- * @param timeout - Maximum time to wait in milliseconds (default: 5000)
  */
-export async function waitForGraphReady(graph: Graph, timeout = 5000): Promise<void> {
-    await vi.waitFor(
-        () => {
-            if (!graph.initialized) {
-                throw new Error(`Graph did not initialize within ${timeout}ms`);
-            }
-        },
-        { timeout },
-    );
+export async function waitForGraphReady(graph: Graph): Promise<void> {
+    await vi.waitFor(() => {
+        if (!graph.initialized) {
+            throw new Error("Graph did not initialize");
+        }
+    });
 
     // The picture is final: queued work has run, the layout has converged and the camera has
     // finished framing it, so a test that reads positions or the camera reads where they stay
@@ -234,17 +230,17 @@ export function getSceneRotation(graph: Graph): Vector3D {
         return { x: 0, y: 0, z: 0 };
     }
 
-    // For 2D mode, rotation is stored on the parent TransformNode
+    // For 2D mode, rotation is the 2D camera's roll
     if (graph.getViewMode() === "2d") {
-        // Access the parent property which holds the rotation
+        // The camera holds the roll
         const twoDController = controller as unknown as {
-            parent?: { rotation?: { x?: number; y?: number; z?: number } };
+            camera?: { rotation?: { x?: number; y?: number; z?: number } };
         };
-        const parentRotation = twoDController.parent?.rotation;
+        const cameraRotation = twoDController.camera?.rotation;
         return {
-            x: parentRotation?.x ?? 0,
-            y: parentRotation?.y ?? 0,
-            z: parentRotation?.z ?? 0,
+            x: cameraRotation?.x ?? 0,
+            y: cameraRotation?.y ?? 0,
+            z: cameraRotation?.z ?? 0,
         };
     }
 

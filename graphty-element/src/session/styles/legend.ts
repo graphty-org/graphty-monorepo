@@ -42,6 +42,7 @@
 import type { AlgorithmKey, Binding, Channel, LayerId, PaletteId, Path, RunId } from "../../catalog/types";
 import { groupName, RESULT_ROOT } from "../results/types";
 import type { CodedFact } from "../shared";
+import { asColorValue } from "./channels";
 import type { EncodedValue, PreparedBinding } from "./encoding";
 import type { Layer } from "./Layer";
 import type { SelectorTarget } from "./predicate";
@@ -294,6 +295,13 @@ export interface LegendBlock {
         readonly count: number;
         /** How many elements of that kind the graph holds. */
         readonly of: number;
+        /**
+         * How many elements of that kind are drawn, those no filter step hides: the base `count` is
+         * read over, as a layer's `styles.counts(layerId).visible.of`. Equal to `of` with no filter
+         * on. Absent only on a block written by hand.
+         * @since 3.36.0
+         */
+        readonly visible?: number;
     };
     /** How many rows did not fit, when some did not. The `"other"` row is never counted here. */
     readonly overflow?: {
@@ -329,6 +337,8 @@ export interface LegendBlock {
  * - `legend.not-measured` -- elements in scope the run measured nothing for: `{ count }`.
  * - `legend.painted-over` -- a layer above paints the same channel over every element this one
  *   reaches, so none of this block is visible: `{ layerId, name }`, that layer's id and name.
+ * - `legend.no-spread` -- every value in the column is the same, so the scale has no spread and
+ *   paints the middle of its range: `{ value }`, that one value. (Since 3.40.0.)
  * @since 3.16.0
  */
 export type LegendFactCode =
@@ -340,7 +350,8 @@ export type LegendFactCode =
     | "legend.unreadable"
     | "legend.lumped"
     | "legend.not-measured"
-    | "legend.painted-over";
+    | "legend.painted-over"
+    | "legend.no-spread";
 
 /**
  * One departure of a legend block, as a code and the values it is about.
@@ -472,7 +483,11 @@ export interface LegendSources {
      * @param layerId - The layer.
      * @returns The two counts.
      */
-    readonly selects?: (layerId: LayerId) => { readonly count: number; readonly of: number };
+    readonly selects?: (layerId: LayerId) => {
+        readonly count: number;
+        readonly of: number;
+        readonly visible?: number;
+    };
     /**
      * For each category one layer's binding meets among the elements it selects, how many carry
      * it, how many of those show the layer's paint for the channel, and the layer shown instead on
@@ -484,6 +499,17 @@ export interface LegendSources {
      * @returns The reach by category, or undefined when the layer binds no category there.
      */
     readonly reach?: (layerId: LayerId, channel: Channel) => ReadonlyMap<string, ValueReach> | undefined;
+    /**
+     * The categories some element one layer selects carries among what is shown, spelled as the
+     * legend spells a category: the rows a categorical block keeps while the session reads the
+     * working graph.
+     *
+     * Absent, or undefined for a layer, every category keeps its row.
+     * @param layerId - The layer.
+     * @param channel - The channel.
+     * @returns The categories, or undefined to keep every row.
+     */
+    readonly shown?: (layerId: LayerId, channel: Channel) => ReadonlySet<string> | undefined;
 }
 
 /** What one category of a layer's binding reaches; see {@link LegendSources.reach}. */
@@ -545,7 +571,7 @@ const NO_BLOCKS: readonly LegendBlock[] = Object.freeze([]);
  * @param value - The number.
  * @returns The number in the words a reader sees.
  */
-function formatNumber(value: number): string {
+export function formatNumber(value: number): string {
     if (!Number.isFinite(value)) {
         return String(value);
     }
@@ -598,15 +624,6 @@ function fieldWords(path: Path, target: SelectorTarget, sources: LegendSources):
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Whether a painted value is a colour.
- * @param value - What the encoding painted.
- * @returns True when it carries a hex string, which every colour channel's value does.
- */
-function isColorValue(value: unknown): value is { hex: string } {
-    return typeof value === "object" && value !== null && "hex" in value && typeof value.hex === "string";
-}
-
-/**
  * Split a painted value into the fields a swatch carries it in.
  * @param painted - What the encoding painted, or undefined when it paints this value nothing.
  * @returns The colour, the size, or the finished value of a channel that carries neither.
@@ -616,8 +633,9 @@ function swatchPaint(painted: EncodedValue | undefined): Pick<LegendSwatch, "col
         return {};
     }
 
-    if (isColorValue(painted)) {
-        return { color: painted.hex };
+    const color = asColorValue(painted);
+    if (color !== null) {
+        return { color: color.hex };
     }
 
     if (typeof painted === "number") {
@@ -641,8 +659,9 @@ function paintKey(painted: EncodedValue | undefined): string | null {
         return null;
     }
 
-    if (isColorValue(painted)) {
-        return painted.hex;
+    const color = asColorValue(painted);
+    if (color !== null) {
+        return color.hex;
     }
 
     return typeof painted === "object" ? JSON.stringify(painted) : String(painted);
@@ -758,7 +777,11 @@ function categorySwatches(
             ...(prepared.hidden.has(category) ? { hidden: true as const } : {}),
         };
     };
-    const swatches: LegendSwatch[] = categories.map(row);
+    // A value the binding paints nothing for -- one a map leaves out, read as it is and no colour
+    // -- gets no row: the layer does not draw it, so a row would claim a paint the canvas never shows.
+    const swatches: LegendSwatch[] = categories
+        .map((category, index) => row(category, index))
+        .filter((swatch) => swatch.color !== undefined || swatch.size !== undefined || swatch.paints !== undefined);
     const folded = prepared.lumped.length > 0 ? prepared.paintIgnoringHidden(prepared.lumped[0]) : undefined;
 
     if (folded === undefined) {
@@ -858,7 +881,15 @@ function allSwatches(prepared: PreparedBinding, layer: Layer, sources: LegendSou
     if (prepared.categories.length > 0) {
         // ponytail: the order is the map's key order, which JavaScript puts integer-like keys
         // first in ascending order; a numeric ordinal declared high-to-low lists low-to-high.
-        return categorySwatches(prepared, Object.keys(authoredRule(layer, prepared.channel)?.map ?? {}), sources);
+        const swatches = categorySwatches(
+            prepared,
+            Object.keys(authoredRule(layer, prepared.channel)?.map ?? {}),
+            sources,
+        );
+        const shown = sources.shown?.(layer.id, prepared.channel);
+        return shown === undefined
+            ? swatches
+            : swatches.filter((swatch) => swatch.role === "other" || shown.has(String(swatch.value)));
     }
 
     if (prepared.domain === null) {
@@ -995,6 +1026,7 @@ const SENTENCES: Readonly<Record<LegendFactCode, (text: (name: string) => string
     "legend.lumped": (text) => `${text("count")} lumped into "other"`,
     "legend.not-measured": (text) => `not measured (${text("count")})`,
     "legend.painted-over": (text) => `painted over by "${text("name")}"`,
+    "legend.no-spread": () => "no spread",
 };
 
 /**
@@ -1140,7 +1172,15 @@ function buildBlock(
             : { palette: { name: prepared.palette.id, reversed: rule?.reverse === true } }),
         swatches: Object.freeze(capped.swatches),
         ...(painted === undefined ? {} : { painted: painted[channel] ?? 0 }),
-        ...(scoped ? { scope: { count: selects.count, of: selects.of } } : {}),
+        ...(scoped
+            ? {
+                  scope: {
+                      count: selects.count,
+                      of: selects.of,
+                      ...(selects.visible === undefined ? {} : { visible: selects.visible }),
+                  },
+              }
+            : {}),
         ...(capped.hidden === 0 ? {} : { overflow: { hidden: capped.hidden } }),
         facts: Object.freeze([...facts]),
         departures: Object.freeze(facts.map(departureSentence)),
@@ -1298,11 +1338,14 @@ function foldGroup(copies: readonly LegendBlock[], reached: LegendSources["reach
         : undefined;
     const { scope: _scope, ...keptRest } = kept;
     const of = kept.scope?.of ?? 0;
+    const visible = kept.scope?.visible;
     const folded = {
         ...keptRest,
         layers: Object.freeze(copies.map((copy) => copy.layerId)),
         ...painted,
-        ...(together !== undefined && together < of ? { scope: { count: together, of } } : {}),
+        ...(together !== undefined && together < of
+            ? { scope: { count: together, of, ...(visible === undefined ? {} : { visible }) } }
+            : {}),
     };
     // A ramp's rows are samples along the domain, not categories an element carries: kept whole,
     // or the ramp lost both its end values to the category filter below.

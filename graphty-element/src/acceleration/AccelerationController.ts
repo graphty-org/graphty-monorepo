@@ -164,6 +164,12 @@ interface AccelerationControllerOptions {
      * through {@link AccelerationController.beginWork}, never opens one: it needs the frames.
      */
     readonly whileRunning?: () => () => void;
+    /**
+     * Answers each build with the device to pass the factory, or undefined for a device of its
+     * own. It waits for the renderer: the first build for the engine to open, a build after a
+     * loss for the engine's new device, so recovery never starts on the old one.
+     */
+    readonly sharedDevice?: () => Promise<unknown>;
 }
 
 /** One attached accelerator, whether this controller built it, and whether it has finished with it. */
@@ -278,6 +284,7 @@ export class AccelerationController {
     readonly #recoverOnDeviceLoss: boolean;
     readonly #maxRecoveryAttempts: number;
     readonly #whileRunning: (() => () => void) | undefined;
+    readonly #sharedDevice: (() => Promise<unknown>) | undefined;
 
     #policy: AccelerationPolicy;
     #minNodes: number;
@@ -320,6 +327,7 @@ export class AccelerationController {
         this.#recoverOnDeviceLoss = options.recoverOnDeviceLoss ?? true;
         this.#maxRecoveryAttempts = options.maxRecoveryAttempts ?? 3;
         this.#whileRunning = options.whileRunning;
+        this.#sharedDevice = options.sharedDevice;
         this.#policy = options.policy ?? ACCELERATION_POLICY_DEFAULT;
         this.#minNodes = options.minNodes ?? ACCELERATION_MIN_NODES_DEFAULT;
         this.#explicitMinNodes = options.minNodes !== undefined;
@@ -497,6 +505,42 @@ export class AccelerationController {
     }
 
     /**
+     * Whether any accelerator could be built: acceleration is not off and a backend is registered.
+     * @returns True when one could.
+     * @internal
+     */
+    get offersAccelerator(): boolean {
+        return this.#policy !== "off" && this.#registry.list().length > 0;
+    }
+
+    /**
+     * Whether a registered backend would run on the device a renderer opens on this adapter.
+     * @param adapter - The `GPUAdapter`, opaque here.
+     * @returns True when the renderer should open a device fit for both. A registration that throws
+     * has said no: the renderer opens whatever the answer, and the backend then finds its own device.
+     */
+    async sharesDevice(adapter: unknown): Promise<boolean> {
+        if (this.#policy === "off") {
+            return false;
+        }
+
+        for (const entry of this.#registry.list()) {
+            try {
+                if ((await entry.sharesDevice?.(adapter)) === true) {
+                    return true;
+                }
+            } catch (error) {
+                logger.warn("A registered accelerator could not say whether it shares the device", {
+                    name: entry.name,
+                    reason: error instanceof Error ? error.message : String(error),
+                });
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Looks for an accelerator, once.
      *
      * Idempotent: the first call starts the probe and every later call awaits the same one. The
@@ -567,15 +611,7 @@ export class AccelerationController {
 
         const { accelerator } = this;
         if (accelerator === null) {
-            if (required) {
-                throw this.#noAcceleratorError(work);
-            }
-
-            return {
-                accelerated: false,
-                reason: this.#reason ?? this.#missingAcceleratorReason(),
-                ...(this.#code === undefined ? {} : { code: this.#code }),
-            };
+            return this.#withoutAccelerator(work, required);
         }
 
         if (work.nodeCount < this.#minNodes) {
@@ -601,11 +637,48 @@ export class AccelerationController {
 
         // Last, after the feature test: a floor is a statement about a capability the accelerator
         // has, and an accelerator without the member is reported as that, not as "too small".
+        if (!this.#explicitMinNodes && !required) {
+            const belowFloor = this.#belowMeasuredFloor(work);
+            if (belowFloor !== undefined) {
+                return belowFloor;
+            }
+        }
+
+        return { accelerated: true, accelerator, precision: accelerator.precision ?? DEFAULT_ACCELERATOR_PRECISION };
+    }
+
+    /**
+     * The decision when no accelerator is attached: thrown under `"required"`, the CPU otherwise.
+     * @param work - The capability the work needs and the size of the graph it is over.
+     * @param required - Whether the policy is `"required"`.
+     * @returns The CPU decision, with the reason and code the accelerator went missing for.
+     * @throws A `GraphtyError` with `E_NO_ACCELERATOR` when the policy is `"required"`.
+     */
+    #withoutAccelerator(work: AcceleratedWork, required: boolean): AccelerationDecision {
+        if (required) {
+            throw this.#noAcceleratorError(work);
+        }
+
+        return {
+            accelerated: false,
+            reason: this.#reason ?? this.#missingAcceleratorReason(),
+            ...(this.#code === undefined ? {} : { code: this.#code }),
+        };
+    }
+
+    /**
+     * The built-in measured floors, checked only while the consumer has not set a threshold and
+     * the policy is not `"required"`: the node floor, then edge density, then source-edges.
+     * @param work - The capability the work needs and the size of the graph it is over.
+     * @returns The CPU decision of the first floor the work is below, or undefined when it clears
+     * every floor.
+     */
+    #belowMeasuredFloor(work: AcceleratedWork): AccelerationDecision | undefined {
         const capability = work.capability as FlooredCapability;
         const floor =
             (work.weighted === false ? ACCELERATION_MIN_NODES_UNWEIGHTED_BY_CAPABILITY[capability] : undefined) ??
             ACCELERATION_MIN_NODES_BY_CAPABILITY[capability];
-        if (floor !== undefined && !this.#explicitMinNodes && !required && work.nodeCount < floor) {
+        if (floor !== undefined && work.nodeCount < floor) {
             return {
                 accelerated: false,
                 reason:
@@ -618,7 +691,7 @@ export class AccelerationController {
         const densityFloor = ACCELERATION_MIN_EDGES_TIMES_DENSITY_BY_CAPABILITY[work.capability as FlooredCapability];
         const edges = work.edgeCount ?? 0;
         const density = work.nodeCount > 0 ? (edges * edges) / work.nodeCount : 0;
-        if (densityFloor !== undefined && !this.#explicitMinNodes && !required && density < densityFloor) {
+        if (densityFloor !== undefined && density < densityFloor) {
             return {
                 accelerated: false,
                 reason:
@@ -630,13 +703,7 @@ export class AccelerationController {
         }
 
         const sourceFloor = ACCELERATION_MIN_SOURCE_EDGES_BY_CAPABILITY[work.capability as FlooredCapability];
-        if (
-            sourceFloor !== undefined &&
-            work.sourceEdges !== undefined &&
-            !this.#explicitMinNodes &&
-            !required &&
-            work.sourceEdges < sourceFloor
-        ) {
+        if (sourceFloor !== undefined && work.sourceEdges !== undefined && work.sourceEdges < sourceFloor) {
             return {
                 accelerated: false,
                 reason:
@@ -646,7 +713,7 @@ export class AccelerationController {
             };
         }
 
-        return { accelerated: true, accelerator, precision: accelerator.precision ?? DEFAULT_ACCELERATOR_PRECISION };
+        return undefined;
     }
 
     /**
@@ -878,17 +945,19 @@ export class AccelerationController {
      * @throws Whatever the factory or the self-check threw.
      */
     async #build(factory: AcceleratorFactory): Promise<{ accelerator: GraphAccelerator | null; software: boolean }> {
+        const device = this.#sharedDevice === undefined ? undefined : await this.#sharedDevice();
         const exactMaxNodes = this.#exactMaxNodes;
+        const asked = device === undefined ? { exactMaxNodes } : { exactMaxNodes, device };
         let built: { accelerator: GraphAccelerator | null; software: boolean };
 
         try {
-            built = { accelerator: await factory({ exactMaxNodes, acceptSoftware: false }), software: false };
+            built = { accelerator: await factory({ ...asked, acceptSoftware: false }), software: false };
         } catch (error) {
             if (this.#policy !== "required" || this.#disposed || !isSoftwareOnly(error)) {
                 throw error;
             }
 
-            built = { accelerator: await factory({ exactMaxNodes, acceptSoftware: true }), software: true };
+            built = { accelerator: await factory({ ...asked, acceptSoftware: true }), software: true };
         }
 
         if (built.accelerator !== null) {

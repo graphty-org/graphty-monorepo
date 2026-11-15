@@ -10,7 +10,7 @@ import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { focusLineNext } from "../style/useFocusLine";
 import type { Resolved } from "./inspected";
-import { hexOf } from "./reads";
+import { hidden, paintedHex } from "./reads";
 import { channelTokens } from "./words";
 
 /** One line: a row that wins at least one property on the element. */
@@ -72,11 +72,12 @@ function rowOf(
  * it paints are what the link was followed for. Focus lands on the line of the property the link
  * explains (its Color), on that kind's tab; with no property, or a tab that draws no such line,
  * on the title of the row it opened, as after a find pick.
+ * @param session - the element's session the row is in.
  * @param store - the chrome store.
  * @param opens - the row.
  * @param channel - the property the link explains, when it names one.
  */
-function openRow(store: WorkspaceStore, opens: Resolved, channel?: Channel): void {
+function openRow(session: GraphSession, store: WorkspaceStore, opens: Resolved, channel?: Channel): void {
     const tab = "style";
     const side = channel === undefined ? {} : ({ styleSide: channel.startsWith("edge.") ? "edge" : "node" } as const);
     if ("run" in opens) {
@@ -94,10 +95,10 @@ function openRow(store: WorkspaceStore, opens: Resolved, channel?: Channel): voi
     }
     // The Style tab hands focus to the line as it draws it; one that drew no such line withdraws
     // the ask, so it never takes focus later, and the title takes it instead.
-    focusLineNext(channel);
+    focusLineNext(session, channel);
     requestAnimationFrame(() => {
         if ((document.activeElement?.closest(`[data-line="${channel}"]`) ?? null) === null) {
-            focusLineNext(null);
+            focusLineNext(session, null);
             focusInspectorTitle();
         }
     });
@@ -131,7 +132,7 @@ export function LayerLink({
             style={{ verticalAlign: "baseline" }}
             aria-label={`Open ${opens.kind === "folder-row" ? "folder" : "layer"} ${row.name}`}
             onClick={() => {
-                openRow(store, opens);
+                openRow(session, store, opens);
             }}
         >
             {shown}
@@ -155,8 +156,9 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
     let explanation;
     try {
         explanation = session.styles.explain(target);
-    } catch {
+    } catch (error) {
         // E_BAD_COMMAND: the element is gone (removed between the selection and this read).
+        hidden("styles.explain", error, "E_BAD_COMMAND");
         return null;
     }
 
@@ -169,7 +171,7 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
         .filter((contribution) => won.has(contribution.layerId))
         .map((contribution) => {
             const channels = won.get(contribution.layerId) ?? [];
-            const color = hexOf(contribution.values["node.color"] ?? contribution.values["edge.color"]);
+            const color = paintedHex(contribution.values["node.color"] ?? contribution.values["edge.color"]);
             return {
                 layerId: contribution.layerId,
                 ...rowOf(session, contribution.layerId, contribution.name),
@@ -209,7 +211,7 @@ export function WhyThisLook({ target }: Readonly<{ target: ExplainTarget }>): Re
                                 aria-label={`Open ${line.opens.kind === "folder-row" ? "folder" : "layer"} ${line.name}`}
                                 onClick={() => {
                                     if (line.opens !== null) {
-                                        openRow(store, line.opens, line.channel);
+                                        openRow(session, store, line.opens, line.channel);
                                     }
                                 }}
                             >

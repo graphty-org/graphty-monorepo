@@ -16,8 +16,6 @@ import { lesMiserables } from "../helpers/les-miserables";
 /** The Les Miserables network, read once: the snapshot is frozen, so every test can share it. */
 const LES_MISERABLES = await lesMiserables();
 
-const TEST_TIMEOUT_MS = 60_000;
-
 const cleanups: (() => void)[] = [];
 
 afterEach(() => {
@@ -108,27 +106,22 @@ function edgeToPairRatio(session: GraphSession): number {
 }
 
 describe("force applied again with a longer spring length", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "moves the drawing and settles into groups",
-        async () => {
-            const graph = await loaded();
-            const session = graph.getSession();
-            settle(graph);
-            const before = positions(session);
+    it("moves the drawing and settles into groups", async () => {
+        const graph = await loaded();
+        const session = graph.getSession();
+        settle(graph);
+        const before = positions(session);
 
-            const force = session.catalog.layouts().find((layout) => layout.id === "force");
-            const declared = force?.options.find((option) => option.name === "springLength")?.default;
-            assert.isNumber(declared);
-            await session.layout.set("force", { options: { seed: 1, springLength: 2 * Number(declared) } });
-            await operationQueueOf(graph).waitForCompletion();
-            settle(graph);
-            const after = positions(session);
+        const force = session.catalog.layouts().find((layout) => layout.id === "force");
+        const declared = force?.options.find((option) => option.name === "springLength")?.default;
+        assert.isNumber(declared);
+        await session.layout.set("force", { options: { seed: 1, springLength: 2 * Number(declared) } });
+        await operationQueueOf(graph).waitForCompletion();
+        settle(graph);
+        const after = positions(session);
 
-            const moved = before.filter((p, row) => Math.hypot(p[0] - after[row][0], p[1] - after[row][1]) > 1);
-            assert.isAbove(moved.length, before.length / 2, "most nodes moved");
-            assert.isAtMost(edgeToPairRatio(session), 0.5, "the settled drawing is in groups, not a cloud");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        const moved = before.filter((p, row) => Math.hypot(p[0] - after[row][0], p[1] - after[row][1]) > 1);
+        assert.isAbove(moved.length, before.length / 2, "most nodes moved");
+        assert.isAtMost(edgeToPairRatio(session), 0.5, "the settled drawing is in groups, not a cloud");
+    });
 });

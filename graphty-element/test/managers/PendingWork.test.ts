@@ -21,6 +21,20 @@ describe("PendingWork", () => {
         assert.isTrue(work.idle);
     });
 
+    it("says whether work of one kind is pending, from a token or a watch", () => {
+        const work = new PendingWork();
+        let loading = false;
+        work.watch("basemap", "the map is loading", () => loading);
+        const release = work.begin("shader", "a node shader is still compiling");
+        assert.isTrue(work.isPending("shader"));
+        assert.isFalse(work.isPending("basemap"), "a watch that says nothing is on its way");
+
+        loading = true;
+        assert.isTrue(work.isPending("basemap"));
+        release();
+        assert.isFalse(work.isPending("shader"));
+    });
+
     it("moves the picture counter when work lands, once per token", () => {
         const work = new PendingWork();
         let heard = 0;
@@ -57,5 +71,66 @@ describe("PendingWork", () => {
         assert.isTrue(work.idle);
         assert.isNull(work.firstPending("picture"));
         assert.equal(work.firstPending("wait")?.kind, "operation");
+    });
+
+    it("holds a wait-only token while a promise runs (issue #4219)", async () => {
+        const work = new PendingWork();
+        let done!: () => void;
+        const tracked = work.track(
+            "style",
+            "suggested layers",
+            new Promise<void>((resolve) => (done = resolve)),
+            "wait",
+        );
+        assert.isTrue(work.idle, "a wait token does not hold the frame");
+        assert.equal(work.firstPending("wait")?.reason, "suggested layers");
+
+        done();
+        await tracked;
+        assert.isNull(work.firstPending("wait"));
+    });
+
+    it("settles once every wait token is released and every awaitable wait entry is done (issue #4219)", async () => {
+        const work = new PendingWork();
+        const order: string[] = [];
+        let queued = 2;
+        // An awaitable entry: the queue drains one operation per settle it is asked for.
+        work.watch(
+            "operation",
+            "queued operations",
+            () => queued > 0,
+            "wait",
+            () => {
+                queued--;
+                order.push(`drained to ${String(queued)}`);
+                return Promise.resolve();
+            },
+        );
+        // Entries settled() leaves to frames: picture work, and wait work with no promise.
+        work.watch("layout", "the layout is running", () => true);
+        work.watch("labels", "the label counts", () => true, "wait");
+        work.begin("picture", "a tile is loading");
+
+        let releaseLoad!: () => void;
+        void work.track(
+            "load",
+            "a held load",
+            new Promise<void>((resolve) => (releaseLoad = resolve)).then(() => {
+                order.push("load released");
+            }),
+            "wait",
+        );
+
+        let settled = false;
+        const wait = work.settled().then(() => {
+            settled = true;
+        });
+        await Promise.resolve();
+        assert.isFalse(settled, "an open wait token holds it");
+        assert.deepEqual(order, []);
+
+        releaseLoad();
+        await wait;
+        assert.deepEqual(order, ["load released", "drained to 1", "drained to 0"]);
     });
 });

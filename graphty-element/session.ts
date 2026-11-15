@@ -72,14 +72,19 @@ export type {
     CommandOutcomeMap,
     ComponentStatistics,
     CreateGraphSessionOptions,
+    DataChange,
+    DataChangeIds,
     DataSourceDescriptor,
     DataSourceInput,
+    DerivedColumn,
+    DeriveOptions,
     DraftColumn,
     DraftRow,
     DraftRowFilter,
     DraftRowOptions,
     DraftTable,
     EdgeEnd,
+    EdgeName,
     EdgePageOptions,
     EdgeRecord,
     EdgeRecordInput,
@@ -95,24 +100,39 @@ export type {
     FindOptions,
     FindResult,
     FindValueRow,
+    GraphFraming,
     GraphSession,
     GraphSettingKey,
     GraphStatistics,
     GroupOutlineClick,
+    GroupSummary,
+    GroupTable,
+    GroupTableOptions,
+    GroupTableRow,
     HistoryCause,
     HistoryClearOptions,
     HistoryCode,
     HistoryOutcome,
+    HistoryRestoreOptions,
     HistoryStep,
     HistoryStepId,
+    HoverDrawn,
+    ImportColumnsInput,
     ImportOptions,
     JoinChoices,
     JoinKey,
+    JoinLink,
+    JoinLookup,
+    JoinMapping,
     JoinRecord,
+    JoinReduce,
+    JoinRegion,
     JoinReport,
+    JoinRowFate,
     JoinShape,
     JoinSuggestion,
     JoinWarning,
+    LayoutMotion,
     LeftOutEdge,
     LoadChoices,
     LoadDraft,
@@ -125,14 +145,20 @@ export type {
     LocationKind,
     LocationUnused,
     LocationUsing,
+    MergeNodesOptions,
     ModelChange,
     ModelState,
+    MultipleTestingCorrection,
     Neighbor,
     NeighborOptions,
     NeighborPage,
     NeighborSort,
+    NodeName,
     NodeRecord,
     NodeRecordInput,
+    OverRepresentedGroup,
+    OverRepresentedValue,
+    OverRepresentedValues,
     PageColumn,
     PendingId,
     PendingStep,
@@ -143,6 +169,7 @@ export type {
     RecordPage,
     RecordPageOptions,
     RecordSort,
+    RemapOptions,
     RemoveSourceResult,
     ReplaceCounts,
     ReplaceReport,
@@ -151,15 +178,19 @@ export type {
     ResultColumn,
     ResultColumnDescriptor,
     ResultSort,
+    RowReason,
+    RowReasonCode,
     RowUpdate,
     RunPlacement,
     SessionAttributes,
+    SessionCapabilities,
     SessionCatalogApi,
     SessionConfig,
     SessionDataApi,
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHidden,
     SessionHistory,
     SessionLayout,
     SessionPositions,
@@ -171,6 +202,7 @@ export type {
     StyleProblem,
     TableMapping,
     TableMappingRead,
+    TimeFound,
     TransactionOptions,
     TransactionScope,
     TypeChangePreview,
@@ -190,7 +222,16 @@ export { createGraphSession } from "./src/session";
  */
 export type { ScreenshotPreset, ScreenshotPresetId } from "./src/catalog/screenshotPresets";
 export type { EndpointSpelling } from "./src/data/endpoints";
-export type { ImportReport, LoadError, LoadReport, RepeatedEdgeCounts, TooLargeDetails } from "./src/data/report";
+export type {
+    ImportReport,
+    LoadError,
+    LoadPath,
+    LoadPathReason,
+    LoadReport,
+    RepeatedEdgeCounts,
+    TooLargeDetails,
+} from "./src/data/report";
+export { IMPORT_ROWS_KEPT } from "./src/data/report";
 export type { DataIssue, FixCode, FixResult, IssueCode, IssueId } from "./src/session/issues";
 export type {
     RecipeColumn,
@@ -218,8 +259,14 @@ export type {
     AssetSource,
     AssetState,
     BuiltInModelFormat,
+    ModelCompression,
+    ModelEncoding,
     ModelFormat,
+    ModelGeometry,
     ModelLimits,
+    ModelPart,
+    ModelPartRole,
+    ModelPartState,
     ModelSummary,
     NamedBlob,
     PartAnswer,
@@ -231,6 +278,7 @@ export { DEFAULT_MODEL_LIMITS, isAssetId } from "./src/session";
  * the data, a reopened project's network-source loads -- waiting for the reader's answer
  * (`session.network`).
  */
+export type { CollapsedGroup, GroupRef, GroupsApi, GroupValue } from "./src/session";
 export type { NetworkApi, NetworkPolicy, NetworkRequest, NetworkRequestAsker, NetworkRequestKind } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -279,7 +327,7 @@ export type {
     FileStyleTranslationCode,
     LoadStyleReport,
 } from "./src/session";
-export { LOAD_ROLES } from "./src/session";
+export { COLUMN_ROLES, LOAD_ROLES } from "./src/session";
 export {
     EXPORT_LOSS_CODES,
     EXPORT_STYLE_LOSS_CODES,
@@ -289,6 +337,7 @@ export {
     FILE_STYLE_SHAPES,
     FILE_STYLE_TRANSLATION_ISSUE,
     fileStyleOf,
+    fileStyleWords,
 } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -298,6 +347,7 @@ export {
 export type {
     BatchResult,
     BatchStep,
+    BatchStepFailure,
     CaveatCode,
     Caveats,
     EngineVersions,
@@ -321,6 +371,7 @@ export type {
     RunPhase,
     RunProgressReport,
     RunQueue,
+    RunReader,
     RunRecord,
     RunRemoval,
     RunsApi,
@@ -333,6 +384,9 @@ export type {
     StaleReason,
     StartOptions,
     SuggestionOutcome,
+    SweepOptions,
+    SweepResult,
+    SweepRow,
     WeightMeaning,
     WeightSkip,
 } from "./src/session/runs";
@@ -358,15 +412,24 @@ export type { CodedFact, CodedFactParam, ColumnRef, ProgressChange, ResultRef } 
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    ComparedField,
+    CompareSide,
+    ComparisonBase,
+    GroupMove,
+    GroupOverlap,
     Histogram,
     HistogramBin,
     HistogramBinning,
     HistogramOptions,
     Normalization,
     NumericColumnView,
+    PartitionComparison,
+    RankChange,
+    RankingComparison,
     RankingEntry,
     ReadingCode,
     ReadingOptions,
+    ResultComparison,
     ResultsApi,
     ResultSummary,
     RunRef,
@@ -395,6 +458,22 @@ export function defaultReading(result: RunResult, options: ReadingOptions): stri
 
 export type { SavedScope, ScopeApi, ScopeCount, ScopeCountOptions } from "./src/session/scope";
 export { DEFAULT_SCOPE_SAMPLE } from "./src/session/scope";
+// A selection built from branches and ordered steps, read live (`scope.watchSteps`). @beta
+export type {
+    BranchReading,
+    BranchState,
+    ScopeEdit,
+    ScopeStepOptions,
+    StepCheckOptions,
+    StepReading,
+    StepReasonCode,
+    StepsReading,
+    StepState,
+    StepsWatch,
+    ValueHistogram,
+    ValueHistogramOptions,
+} from "./src/session/scope";
+export { DEFAULT_BRANCH_PALETTE } from "./src/session/scope";
 
 // ---------------------------------------------------------------------------------------------
 // Kept sets: named groups, kept selections, communities and paths, as `session.sets`
@@ -446,9 +525,13 @@ export type { JournalApi, JournalEntry, JournalId } from "./src/session/journal"
 // ---------------------------------------------------------------------------------------------
 
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./src/session";
+export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./src/session";
 export { browserProjects } from "./src/session";
+export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./src/session";
 export type {
+    AssetStorage,
     ProjectApi,
+    ProjectAssetChoice,
     ProjectOpenOptions,
     ProjectOpenReport,
     ProjectProblem,
@@ -468,14 +551,17 @@ export { listAutosaves, removeAutosave } from "./src/autosave/elementAutosave";
 // ---------------------------------------------------------------------------------------------
 
 export type {
+    NeighborhoodWindow,
     RuleCheck,
     SelectionApi,
+    SelectionApplyOptions,
     SelectionAttributeStatistics,
     SelectionCause,
     SelectionDelta,
     SelectionDirection,
     SelectionOp,
     SelectionStatistics,
+    SelectionStatisticsOptions,
     SelectionTarget,
     SelectionTextMode,
     UnknownRulePath,
@@ -486,16 +572,38 @@ export { DEFAULT_SELECTION_CAP, SET_OPS } from "./src/session/selection";
 // What is visible: the data scope, never the render set
 // ---------------------------------------------------------------------------------------------
 
-export type { RuleSide, SourceKey, TextMatchMode } from "./src/catalog/types";
+export type {
+    BySizeLeaf,
+    ElementState,
+    HopsLeaf,
+    MeasureLeaf,
+    MeasureTest,
+    MissingValues,
+    NonemptyLeaf,
+    RuleSide,
+    SameValueLeaf,
+    SourceKey,
+    StateLeaf,
+    StepReference,
+    TextMatchMode,
+    TouchingLeaf,
+    UnionBranch,
+    UnionLeaf,
+    UnionStep,
+    ValueKind,
+} from "./src/catalog/types";
 export type {
     AttributeLeafNodes,
     FilterCondition,
     FilterConditionCount,
     FilterConditionInput,
     FilterConditionMatches,
+    FilterDraft,
     FilterEffect,
     FilterResult,
+    FilterSelectWithin,
     FilterStep,
+    HiddenNotDrawn,
     RuleTree,
     StepCounts,
     TimePlayback,
@@ -521,11 +629,16 @@ export type {
     TimeCounts,
     TimeExtent,
     TimeField,
+    TimeFieldOptions,
     TimeFieldResult,
     TimeIds,
+    TimeMeasure,
     TimeNoticeCode,
     TimePlayMode,
     TimePlayOptions,
+    TimeSeries,
+    TimeSeriesOptions,
+    TimeSeriesRow,
     TimeSettings,
     TimeSource,
     TimeStepEvent,
@@ -540,11 +653,13 @@ export type {
 export type { AlgorithmRunCommand, Plan, PlanBlock, PlanEffect, SessionCommand } from "./src/session";
 export { isAlgorithmRunCommand } from "./src/session";
 export type {
+    CostBasis,
     CostConfidence,
     CostEstimate,
     CostGateDecision,
     CostGateLimits,
     CostMeasurement,
+    CostProvenanceCode,
     EstimateRefusalCode,
     MachineCalibration,
 } from "./src/session/cost";
@@ -637,6 +752,7 @@ export type {
     AgreementOptions,
     BindingPreview,
     BindingPreviewBin,
+    BranchesView,
     ChannelAgreement,
     ChannelCovers,
     ChannelExplanation,
@@ -644,6 +760,7 @@ export type {
     ChannelShare,
     ColorWrite,
     ColumnEncodingSpec,
+    DrawnValue,
     ElementLayerSpec,
     EncodingOptions,
     EncodingProposal,
@@ -692,6 +809,12 @@ export type {
     StyleCounts,
     StyleExplanation,
     StyleFileDocument,
+    StyleGrayCollision,
+    StyleGrayCollisionOptions,
+    StyleGrayColor,
+    StyleGrayUse,
+    StyleRepaintCause,
+    StyleRepaintFailure,
     StyleRow,
     StyleRowId,
     StyleRowPin,
@@ -713,13 +836,32 @@ export type {
     ValueEntryWrite,
     ValueGroup,
 } from "./src/session/styles";
+export type {
+    Condition,
+    ConditionField,
+    ConditionFieldKind,
+    ConditionTextMode,
+    ListedConditionField,
+} from "./src/session/styles";
 export {
+    CONDITION_SOURCE_PATH,
+    conditionFields,
+    conditionKey,
+    conditionLeaf,
+    conditionOf,
+    conditionSelector,
+    edgeConditions,
+    isConditionFinished,
+    newCondition,
+    nodeConditionLeaves,
+    nodeConditions,
     OVERFLOW_PATTERNS,
     OVERFLOW_SHAPES,
     quotePath,
     renamePaths,
     rulePath,
     selectorRule,
+    selectorStates,
 } from "./src/session/styles";
 
 // ---------------------------------------------------------------------------------------------
@@ -742,7 +884,7 @@ export type {
     XrUnavailableReason,
 } from "./src/acceleration";
 export { ACCELERATION_POLICIES, ACCELERATION_POLICY_DEFAULT, isAccelerationPolicy } from "./src/acceleration";
-export type { DefaultableLimits } from "./src/session";
+export type { DefaultableLimits, LimitsOption } from "./src/session";
 export { DEFAULT_LIMITS } from "./src/session";
 
 // ---------------------------------------------------------------------------------------------
@@ -752,6 +894,9 @@ export { DEFAULT_LIMITS } from "./src/session";
 export type {
     AccelerationErrorCode,
     GraphtyErrorCode,
+    GraphtyErrorDetails,
+    GraphtyErrorDetailsMap,
+    GraphtyErrorFor,
     GraphtyErrorInit,
     GraphtyErrorJson,
     GraphtyErrorSource,

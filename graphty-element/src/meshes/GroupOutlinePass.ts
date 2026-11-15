@@ -24,24 +24,21 @@
  * Loaded with the shader runtime, never by a graph that names no shader.
  */
 
-import {
-    Buffer,
-    Color4,
-    Constants,
-    EffectRenderer,
-    Layer,
-    type Matrix,
-    Mesh,
-    type Observer,
-    type RenderTargetTexture,
-    type Scene,
-    ShaderMaterial,
-    ShaderStore,
-    type TransformNode,
-    Vector3,
-    VertexData,
-    Viewport,
-} from "@babylonjs/core";
+import type { Observer } from "@babylonjs/core";
+import { Buffer } from "@babylonjs/core/Buffers/buffer.js";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Constants } from "@babylonjs/core/Engines/constants.js";
+import { Layer } from "@babylonjs/core/Layers/layer.js";
+import { EffectRenderer } from "@babylonjs/core/Materials/effectRenderer.js";
+import { ShaderMaterial } from "@babylonjs/core/Materials/shaderMaterial.js";
+import type { RenderTargetTexture } from "@babylonjs/core/Materials/Textures/renderTargetTexture.js";
+import { Color4 } from "@babylonjs/core/Maths/math.color.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Viewport } from "@babylonjs/core/Maths/math.viewport.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import { fixedParamsOf, motionOf, type ShaderDescriptor, type ShaderParams } from "../catalog/shaders";
 import type { NodeId } from "../catalog/types";
@@ -175,6 +172,7 @@ interface GroupTree {
 /** Scratch, so laying out a frame allocates no vectors. */
 const scratch = new Vector3();
 const projected = new Vector3();
+const viewProjection = new Matrix();
 
 /**
  * A group's box in the outline target's pixels, clamped to the target.
@@ -247,12 +245,11 @@ export class GroupOutlinePass {
         orderLayers(scene);
 
         const program = splatProgram();
-        ShaderStore.ShadersStore.graphtyOutlineSplatVertexShader = program.vertex;
-        ShaderStore.ShadersStore.graphtyOutlineSplatFragmentShader = program.fragment;
         this.splatMaterial = new ShaderMaterial(
             "graphty-outline-splat",
             scene,
-            { vertex: "graphtyOutlineSplat", fragment: "graphtyOutlineSplat" },
+            // Inline, as `sceneEffect` is: this module loads lazily (issue #5894).
+            { vertexSource: program.vertex, fragmentSource: program.fragment, spectorName: "graphtyOutlineSplat" },
             {
                 attributes: [...program.attributes],
                 uniforms: [...program.uniforms],
@@ -531,7 +528,7 @@ export class GroupOutlinePass {
         }
 
         const camera = this.scene.activeCamera;
-        const placed = camera === null ? [] : this.layOut();
+        const placed = camera === null ? [] : this.layOut(camera);
         this.placed = placed;
         this.follow();
         const drawsAny = placed.some((layer) => layer.groups.length > 0);
@@ -565,14 +562,18 @@ export class GroupOutlinePass {
     /**
      * Lay out every drawable outline for this frame: members' places on screen, each
      * group's box, sphere and field slot, and the splats of the field targets.
+     * @param camera - The camera this frame is drawn from.
      * @returns The layers, bottom first.
      */
-    private layOut(): PlacedLayer[] {
+    private layOut(camera: Camera): PlacedLayer[] {
         const engine = this.scene.getEngine();
         const width = engine.getRenderWidth();
         const height = engine.getRenderHeight();
-        const transform = this.scene.getTransformMatrix();
-        const scaleY = Math.abs(this.scene.activeCamera?.getProjectionMatrix().m[5] ?? 1);
+        // The camera's own matrices, not the scene's transform: Babylon sets that only when the
+        // camera draws, after this, so it still holds the last frame's view (issue #5562).
+        const projection = camera.getProjectionMatrix();
+        const transform = camera.getViewMatrix().multiplyToRef(projection, viewProjection);
+        const scaleY = Math.abs(projection.m[5]);
         const root = this.scene.getTransformNodeByName("graph-root") as TransformNode | null;
         const world = root?.getWorldMatrix();
         const rootScale = world === undefined ? 1 : Math.hypot(world.m[0], world.m[1], world.m[2]);

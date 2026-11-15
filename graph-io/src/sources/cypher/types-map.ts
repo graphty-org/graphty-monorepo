@@ -12,6 +12,7 @@
 
 import { PRECISION_CODE } from "../../common/codes.js";
 import { type ImportReportBuilder } from "../../common/report.js";
+import { itemAt } from "../../common/text.js";
 import { warnOn } from "../fail.js";
 
 /** A node a query returned. */
@@ -151,7 +152,9 @@ function wktPoint(text: string): unknown {
     if (match === null) {
         return text;
     }
-    const [x = 0, y = 0, z] = match[2].trim().split(/\s+/).map(Number);
+    const numbers = match[2].trim().split(/\s+/).map(Number);
+    const [x = 0, y = 0] = numbers;
+    const z = itemAt(numbers, 2);
     return z === undefined ? { srid: Number(match[1]), x, y } : { srid: Number(match[1]), x, y, z };
 }
 

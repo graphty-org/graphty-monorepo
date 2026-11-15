@@ -1,9 +1,10 @@
 /**
- * QuickActions layout in a real browser: a middle cut keeps the name's end on screen, and a
- * second line sits under the name.
+ * QuickActions in a real browser: a middle cut keeps the name's end on screen, a second line
+ * sits under the name, and with `tabTakes` Tab runs the row the typed letters highlight.
  */
 import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { QuickActions } from "../../../src";
 import { renderThemed, resetHarness } from "../../harness/measure";
@@ -64,5 +65,31 @@ describe("QuickActions layout", () => {
         const fact = screen.getByText("1 to 36").getBoundingClientRect();
         const degree = screen.getByRole("option", { name: /^degree/ }).querySelector(".cm-qa-row-label")!;
         expect(fact.top).toBeLessThan(degree.getBoundingClientRect().bottom);
+    });
+});
+
+describe("QuickActions Tab", () => {
+    const actions = [
+        { value: "hours", label: "hours" },
+        { value: "house", label: "house" },
+    ];
+
+    it("with tabTakes and letters typed, Tab runs the highlighted row", async () => {
+        const onRun = vi.fn();
+        await renderThemed(<QuickActions actions={actions} onRun={onRun} activeOnOpen="none" tabTakes />);
+        await userEvent.keyboard("ho{Tab}");
+        expect(onRun).toHaveBeenCalledWith("hours");
+    });
+
+    it("with nothing typed, or without tabTakes, Tab runs nothing", async () => {
+        const onRun = vi.fn();
+        const { unmount } = await renderThemed(
+            <QuickActions actions={actions} onRun={onRun} activeOnOpen="none" tabTakes />,
+        );
+        await userEvent.keyboard("{Tab}");
+        unmount();
+        await renderThemed(<QuickActions actions={actions} onRun={onRun} />);
+        await userEvent.keyboard("ho{Tab}");
+        expect(onRun).not.toHaveBeenCalled();
     });
 });

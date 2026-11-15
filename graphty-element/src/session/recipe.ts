@@ -97,6 +97,10 @@ export interface RecipeDocument {
     readonly filter: {
         readonly rule: RuleTree | null;
         readonly steps: readonly FilterStep[];
+        /**
+         * The filter conditions. Experimental: may change or be removed in a minor release.
+         * @beta
+         */
         readonly conditions?: readonly FilterCondition[];
     };
     /** The style layers, as `styles.toFile()` writes them. */

@@ -2,8 +2,14 @@ import "@testing-library/jest-dom";
 // Import Mantine CSS for browser tests that check computed styles
 import "@mantine/core/styles.css";
 
-import { cleanup } from "@testing-library/react";
-import { afterEach, beforeAll } from "vitest";
+import { cleanup, configure } from "@testing-library/react";
+import { afterEach, beforeAll, beforeEach } from "vitest";
+
+import { WAIT_GUARD_MS } from "../../../tools/test-wait-guard.mjs";
+
+// Every waitFor and findBy* waits until the monorepo's one hang guard, not Testing Library's 1000 ms:
+// a deadline on a wait fails a test whenever the machine is busy (tools/test-wait-guard.mjs).
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 
 // The element loader and the workspace are replaced by testStandIns() in vitest.config.ts, not by
 // vi.mock here: a module mock switches the browser's cache off for the whole file (issue #3350).
@@ -26,6 +32,16 @@ import { afterEach, beforeAll } from "vitest";
 // which sets the flag, so this runs second.
 beforeAll(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
+});
+
+// The usage data question is pinned over every page of a first visit; a test about it forgets this
+// answer in its own beforeEach, which runs after this one. Imported here, not at the top: the
+// module reaches graphty-element (through Sentry's privacy filters and siteConfig), and a static
+// import is evaluated before the strict state global above is set.
+beforeEach(async () => {
+    const { assumeUsageDeclinedForTests } = await import("../workspace/privacy/usageData");
+
+    assumeUsageDeclinedForTests();
 });
 
 // Cleanup after each test case

@@ -371,16 +371,24 @@ const ROWS: readonly Row[] = [
         optimismOnly: "an edge is a sequential scan and costs a fraction of the node visit n(n + m) prices it at",
     },
     // Eigenvector's model charges every pass of its 1,000-pass bound, so it is held to both bounds
-    // where the graph runs them all: a small grid (never converges, and throws) and a star (979).
+    // where the graph runs them all: a small grid and a sparse random graph, whose many small
+    // components keep it from converging (both throw). The grid stays in a core's cache and the
+    // random graph does not, so between them they hold both ends of the model's cache term.
     { key: "eigenvector", sizes: [10_000], shape: grid, shapeName: "grid", run: eigenvector },
-    { key: "eigenvector", sizes: [50_000], shape: star, shapeName: "star", run: eigenvector },
+    {
+        key: "eigenvector",
+        sizes: [100_000],
+        shape: random(1.2),
+        shapeName: "random, m = 1.2n",
+        run: eigenvector,
+    },
     // Shapes that converge early, which nothing the estimate can see predicts.
     ...(
         [
-            [random(5), "random, m = 5n", [50_000], "about 11"],
-            [random(1.2), "random, m = 1.2n", [100_000], "about 210"],
-            [scaleFree, "scale-free", [100_000], "about 63"],
-            [path, "path", [100_000], "1 or 2"],
+            [random(5), "random, m = 5n", [50_000], "about 25"],
+            [scaleFree, "scale-free", [100_000], "about 125"],
+            [path, "path", [100_000], "about 124"],
+            [star, "star", [50_000], "about 14"],
         ] as const
     ).map(([shape, shapeName, sizes, passes]): Row => ({
         key: "eigenvector",
@@ -714,7 +722,6 @@ describe.runIf(process.env.COST_GUARD === "1")(
         for (const row of ROWS) {
             const bounds =
                 row.optimismOnly === undefined ? `[${MAX_OPTIMISM}, ${MAX_PESSIMISM}]` : `at least ${MAX_OPTIMISM}`;
-            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, a row is timed runs on graphs of up to 800,000 nodes between calibration probes of about 2.3 s each; degree takes 6.4 s locally and about twice that on CI's 0.5x-speed runners, more than a third of the 30 s budget; tracked in #1636
             it(`${row.key} on ${row.shapeName ?? "random, m = 5n"}: estimate / measured stays ${bounds}`, async (context) => {
                 const descriptor = algorithmByKey(row.key);
                 const graphs = row.sizes.map((nodes) => measuredGraph(row.shape ?? random(5), nodes));
@@ -722,6 +729,8 @@ describe.runIf(process.env.COST_GUARD === "1")(
 
                 once(0); // warm-up, untimed
 
+                // A slow memory reading skips only its own size; the row is skipped when every size read slow.
+                const slowSizes: string[] = [];
                 for (const [index, nodes] of row.sizes.entries()) {
                     const { edges, maxDegree, transitivity } = graphs[index];
                     const memoryBefore = memorySpeed();
@@ -748,7 +757,8 @@ describe.runIf(process.env.COST_GUARD === "1")(
                     if (memory < MIN_MEMORY_SPEED) {
                         const note = `not timed: another tenant is loading this machine's memory (${memory.toFixed(2)}x the reference, under ${MIN_MEMORY_SPEED}). ${facts}`;
                         process.stdout.write(`::warning title=Cost Estimate Accuracy::${note}\n`);
-                        context.skip(note);
+                        slowSizes.push(note);
+                        continue;
                     }
 
                     assert.isAtLeast(ratio, MAX_OPTIMISM, `too optimistic. ${facts}`);
@@ -756,7 +766,11 @@ describe.runIf(process.env.COST_GUARD === "1")(
                         assert.isAtMost(ratio, MAX_PESSIMISM, `too pessimistic. ${facts}`);
                     }
                 }
-            }, 120_000);
+
+                if (slowSizes.length === row.sizes.length) {
+                    context.skip(slowSizes.join(" "));
+                }
+            });
         }
     },
 );

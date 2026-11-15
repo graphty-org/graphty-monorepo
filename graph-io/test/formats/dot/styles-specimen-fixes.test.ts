@@ -48,7 +48,7 @@ async function edges(doc: string, property: string): Promise<readonly unknown[]>
 
 describe("DOT styles: labels", () => {
     it("decodes entities in a plain label, as Graphviz draws them", async () => {
-        expect((await nodes(`digraph { a [label="a&#946;&amp;"]; b [label="x & y"] }`, "label")).a).toBe("aβ&");
+        expect((await nodes(`digraph { a [label="a&#946;&amp;"]; b [label="x & y"] }`, "label")).a).toBe("a\u03B2&");
         expect((await nodes(`digraph { b [label="x & y"] }`, "label")).b).toBe("x & y");
     });
 
@@ -71,8 +71,24 @@ describe("DOT styles: labels", () => {
 });
 
 describe("DOT styles: what Graphviz draws nothing of", () => {
-    it("hides a node styled invisible, Graphviz's other spelling of invis", async () => {
-        expect((await nodes(`digraph { a [style=invisible] }`, "visible")).a).toBe(false);
+    it("draws nothing of an invis node but keeps it, as Graphviz still draws the edges that end at it", async () => {
+        // dot-real-linux-kernel's HI -> HI_ ends at a `shape=point, style=invis` node, and dot-synth-nodes'
+        // n_lingrad2 -> n_invis at the invisible ellipse's rim: both edges are in Graphviz's SVG, the nodes are not
+        const doc = `digraph { a [style=invis, label="a"]; b [style="filled,invisible", shape=point]; c -> a; c -> b }`;
+        for (const id of ["a", "b"]) {
+            expect((await nodes(doc, "visible"))[id] ?? true).toBe(true);
+            expect((await nodes(doc, "fillOpacity"))[id]).toBe(0);
+            expect((await nodes(doc, "borderWidth"))[id]).toBe(0);
+            expect((await nodes(doc, "label"))[id]).toBe("");
+        }
+        // its shape and size stay, so an edge stops at its rim as Graphviz's does
+        expect((await nodes(doc, "shape")).a).toBe("ellipse");
+        expect((await nodes(doc, "width")).a).toBe(54);
+        expect(await edges(doc, "visible")).toEqual([null, null]);
+    });
+
+    it("hides an edge styled invis", async () => {
+        expect(await edges(`digraph { a -> b [style=invis] }`, "visible")).toEqual([false]);
     });
 
     it("hides a plain node with an empty label, filled or not", async () => {
@@ -112,10 +128,30 @@ describe("DOT styles: outlines and shapes", () => {
         expect(width.e ?? 0).toBe(0);
     });
 
+    it("draws every further outline as a ring of its own: peripheries=3 and tripleoctagon draw two", async () => {
+        const doc = `digraph {
+            a [shape=box, peripheries=3];
+            b [shape=tripleoctagon];
+            c [shape=doublecircle, peripheries=4];
+            d [shape=doublecircle];
+        }`;
+        const count = await nodes(doc, "outerBorderCount");
+        expect([count.a, count.b, count.c]).toEqual([2, 2, 3]);
+        expect(count.d ?? 1).toBe(1);
+    });
+
     it("draws a striped cluster's color list as stripes left to right, as on a box", async () => {
         const doc = `digraph { subgraph cluster_s { style=striped; fillcolor="red:green:blue"; a } }`;
         expect((await nodes(doc, "stripeColors")).cluster_s).toBe("#ff0000 #008000 #0000ff");
         expect((await nodes(doc, "stripeDirection")).cluster_s).toBe("right");
+    });
+
+    it("holds a cylinder's label as a box does, its width exactly the padded label", async () => {
+        const fit = await nodes(
+            `digraph { c [shape=cylinder, label="cylinder"]; h [shape=house, label="house"] }`,
+            "labelFit",
+        );
+        expect([fit.c, fit.h]).toEqual(["bounds", "inside"]);
     });
 
     it("turns a box by its orientation into the polygon Graphviz draws", async () => {
@@ -146,6 +182,24 @@ describe("DOT styles: edges", () => {
         expect((await edges(doc, "targetArrowSide"))[2]).toBe("left");
     });
 
+    it("keeps every shape of a stacked arrowhead, each with its own open and side, nearest the node first", async () => {
+        const doc = `digraph { a -> b [arrowhead=boxdotnormal]; b -> c [arrowhead=lteeoldiamond]; c -> d [arrowhead=normal]; d -> e [dir=both, arrowtail=invodot] }`;
+        expect(await edges(doc, "targetArrow")).toEqual(["square", "tee", "triangle", "triangle"]);
+        expect(await edges(doc, "targetArrowParts")).toEqual(["circle triangle", "diamond-open:left", null, null]);
+        expect((await edges(doc, "targetArrowSide"))[1]).toBe("left");
+        expect((await edges(doc, "sourceArrowParts"))[3]).toBe("circle-open");
+    });
+
+    it("reads at most four shapes of an arrow name, a none among them, as Graphviz does", async () => {
+        const doc = `digraph { a -> b [arrowhead=normalnormalnormalnormalnormal]; b -> c [arrowhead=boxboxboxboxbox]; c -> d [arrowhead=nonenormalnormalnormalnormal]; d -> e [arrowhead="${"dot".repeat(20000)}"] }`;
+        expect(await edges(doc, "targetArrowParts")).toEqual([
+            "triangle triangle triangle",
+            "square square square",
+            "triangle triangle",
+            "circle circle circle",
+        ]);
+    });
+
     it("draws a color list with fractions as segments along the line, each a band with a hard switch", async () => {
         const doc = `digraph { a -> b [color="red;0.2:green;0.3:blue"]; b -> c [color="red:blue"] }`;
         expect(await edges(doc, "gradientColors")).toEqual(["#ff0000 #ff0000 #008000 #008000 #0000ff #0000ff", null]);
@@ -165,5 +219,164 @@ describe("DOT styles: writing what these read", () => {
         expect(resolveStyles(back.styles, "edge", "targetArrowColor", back.snapshot)).toEqual(["#ffd700"]);
         expect(resolveStyles(back.styles, "edge", "targetArrow", back.snapshot)).toEqual(["other:open-square"]);
         expect(resolveStyles(back.styles, "node", "label", back.snapshot)[0]).toBe("x & y");
+    });
+});
+
+describe("DOT styles: an arrow's whole name written back (#5925, #5947)", () => {
+    const NAMES = [
+        "crowodot",
+        "dotodot",
+        "boxdotnormal",
+        "lteeoldiamond",
+        "normalnormal",
+        "dotcurve",
+        "doticurve",
+        "crowobox",
+        "normaloinv",
+        "boxboxboxbox",
+    ];
+
+    /**
+     * Each edge's written arrow attribute.
+     * @param doc - the document
+     * @param attribute - `arrowhead` or `arrowtail`
+     * @returns the names, and the text without its style block
+     */
+    async function written(doc: string, attribute: string): Promise<{ names: string[]; text: string }> {
+        const { snapshot, styles } = await load(doc);
+        const text = await registry.exportGraphToString(snapshot, "dot", { styles });
+        const names = [...text.matchAll(new RegExp(`\\b${attribute}="?([\\w-]+)`, "g"))].map((m) => m[1]);
+        return { names, text: text.replace(/"graphty\.styles"="(?:[^"\\]|\\.)*",?\s*/, "") };
+    }
+
+    it("writes each compound arrowhead's whole name, which reads back as the same arrow", async () => {
+        const doc = `digraph { ${NAMES.map((name, i) => `n${String(i)} -> n${String(i + 1)} [arrowhead=${name}];`).join(" ")} }`;
+        const { names, text } = await written(doc, "arrowhead");
+        expect(names).toEqual(NAMES);
+        const back = await load(text);
+        const before = await load(doc);
+        for (const property of ["targetArrow", "targetArrowParts"] as const) {
+            expect(resolveStyles(back.styles, "edge", property, back.snapshot)).toEqual(
+                resolveStyles(before.styles, "edge", property, before.snapshot),
+            );
+        }
+    });
+
+    it("writes a compound arrowtail's whole name", async () => {
+        const { names } = await written(`digraph { a -> b [dir=both, arrowtail=lteeoldiamond] }`, "arrowtail");
+        expect(names).toEqual(["lteeoldiamond"]);
+    });
+
+    it("writes a lone arrow's name, with no side as it always did", async () => {
+        const { names } = await written(
+            `digraph { a -> b [arrowhead=crow]; b -> c [arrowhead=odot]; c -> d [arrowhead=curve]; d -> e [arrowhead=normal] }`,
+            "arrowhead",
+        );
+        expect(names).toEqual(["crow", "odot", "curve"]);
+    });
+
+    it("writes a lone arrow's side and open form, which read back as the same arrow without the style block", async () => {
+        const LONE = [
+            ...["lbox", "rbox", "olbox", "orbox", "lnormal", "rnormal", "olnormal", "ornormal", "ldot", "rdot"],
+            ...["oldot", "ordot", "lcrow", "rcrow", "lvee", "rvee", "ltee", "rtee", "ldiamond", "rdiamond"],
+            ...["oldiamond", "ordiamond", "linv", "rinv", "olinv", "orinv", "lcurve", "rcurve", "licurve", "ricurve"],
+            "icurve",
+        ];
+        const doc = `digraph { ${LONE.map((name, i) => `n${String(i)} -> n${String(i + 1)} [arrowhead=${name}];`).join(" ")} }`;
+        const { names, text } = await written(doc, "arrowhead");
+        expect(names).toEqual(LONE);
+        const back = await load(text);
+        const before = await load(doc);
+        for (const property of ["targetArrow", "targetArrowSide"] as const) {
+            expect(resolveStyles(back.styles, "edge", property, back.snapshot)).toEqual(
+                resolveStyles(before.styles, "edge", property, before.snapshot),
+            );
+        }
+    });
+
+    it("writes a lone arrowtail's side", async () => {
+        const { names } = await written(`digraph { a -> b [dir=both, arrowtail=lbox] }`, "arrowtail");
+        expect(names).toEqual(["lbox"]);
+    });
+
+    /**
+     * A file's edge with its target arrow set by a rule.
+     * @param value - the neutral arrow
+     * @returns what is written, and the properties noted as approximated
+     */
+    async function withArrow(value: string): Promise<{ name: string | undefined; noted: unknown[] }> {
+        const { snapshot, styles } = await load(`digraph { a -> b [arrowhead=crow] }`);
+        const rule = {
+            id: "arrow",
+            target: "edge",
+            role: "group",
+            origin: "declared",
+            where: { all: true },
+            set: { targetArrow: value },
+        } as const;
+        const withRule = { ...styles, styles: { ...styles.styles, rules: [...styles.styles.rules, rule] } };
+        const text = await registry.exportGraphToString(snapshot, "dot", { styles: withRule });
+        return {
+            name: /arrowhead="?([\w-]+)/.exec(text)?.[1],
+            noted: registry
+                .checkExport(snapshot, "dot", { styles: withRule })
+                .filter((l) => l.code === "W_STYLE_APPROXIMATED" && l.style?.property === "targetArrow"),
+        };
+    }
+
+    it("writes a lone other: arrow Graphviz has a name for by that name", async () => {
+        for (const [value, name] of [
+            ["other:inv-curve", "icurve"],
+            ["other:open-half-circle", "icurve"],
+            ["other:curve", "curve"],
+        ]) {
+            expect((await withArrow(value)).name).toBe(name);
+        }
+    });
+
+    it("writes a lone other: arrow Graphviz has no name for as its plain arrow, with an approximation note", async () => {
+        for (const value of ["other:kite", "other:cross", "other:deltoid", "other:skewed-dash"]) {
+            const { name, noted } = await withArrow(value);
+            expect(name).toBe("normal");
+            expect(noted).toHaveLength(1);
+        }
+    });
+
+    it("keeps a lone other: name Graphviz reads as it was written", async () => {
+        const NAMES = ["empty", "ediamond", "open", "halfopen", "invempty", "lteeoldiamond", "lempty", "oempty"];
+        for (const name of NAMES) {
+            expect((await withArrow(`other:${name}`)).name).toBe(name);
+        }
+    });
+
+    it("keeps a name of Graphviz's deprecated modifiers a file holds", async () => {
+        const NAMES = ["ebox", "halfbox", "lempty", "oempty", "emptydot"];
+        const doc = `digraph { ${NAMES.map((name, i) => `n${String(i)} -> n${String(i + 1)} [arrowhead=${name}];`).join(" ")} }`;
+        expect((await written(doc, "arrowhead")).names).toEqual(NAMES);
+    });
+
+    it("leaves out of the name a shape Graphviz has no name for, and any past the fourth", async () => {
+        const { snapshot, styles } = await load(`digraph { a -> b [arrowhead=crow] }`);
+        const rule = (parts: string): ExtractedStyles => ({
+            ...styles,
+            styles: {
+                ...styles.styles,
+                rules: [
+                    ...styles.styles.rules,
+                    {
+                        id: "parts",
+                        target: "edge",
+                        role: "group",
+                        origin: "declared",
+                        where: { all: true },
+                        set: { targetArrowParts: parts },
+                    },
+                ],
+            },
+        });
+        const nameOf = async (parts: string): Promise<string | undefined> =>
+            /arrowhead=(\w+)/.exec(await registry.exportGraphToString(snapshot, "dot", { styles: rule(parts) }))?.[1];
+        expect(await nameOf("other:kite half circle")).toBe("crowdot");
+        expect(await nameOf("circle circle circle circle")).toBe("crowdotdotdot");
     });
 });

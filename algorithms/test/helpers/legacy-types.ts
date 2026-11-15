@@ -157,3 +157,132 @@ export interface TeraHACConfig {
     /** Custom warning handler (default: console.warn) */
     onWarning?: (message: string) => void;
 }
+
+// The 2.x result shapes the recorded results in test/golden/ hold, as each 2.x function returned them.
+
+export interface ShortestPathResult {
+    distance: number;
+    path: NodeId[];
+    predecessor: Map<NodeId, NodeId | null>;
+}
+
+export type CentralityResult = Record<string, number>;
+
+export interface TraversalResult {
+    visited: Set<NodeId>;
+    order: NodeId[];
+    tree?: Map<NodeId, NodeId | null>;
+}
+
+export interface CommunityResult {
+    communities: NodeId[][];
+    modularity: number;
+    iterations?: number;
+}
+
+export interface MSTResult {
+    edges: Edge[];
+    totalWeight: number;
+}
+
+export interface BellmanFordResult {
+    distances: Map<NodeId, number>;
+    predecessors: Map<NodeId, NodeId | null>;
+    hasNegativeCycle: boolean;
+    negativeCycleNodes: NodeId[];
+}
+
+export interface BFSResult<TNodeId> {
+    distances: Map<TNodeId, number>;
+    parents: Map<TNodeId, TNodeId | null>;
+    visitedCount: number;
+}
+
+interface ClusterExplanation {
+    clusterId: string;
+    reason: string;
+    modularityImprovement: number;
+    keyNodes: NodeId[];
+    spectralValues: number[];
+}
+
+export interface HierarchicalClusteringResult<T> {
+    root: ClusterNode<T>;
+    dendrogram: ClusterNode<T>[];
+    clusters: Map<number, Set<T>[]>;
+}
+
+export interface HITSResult {
+    hubs: Record<string, number>;
+    authorities: Record<string, number>;
+}
+
+export interface IsomorphismResult {
+    isIsomorphic: boolean;
+    mapping?: Map<NodeId, NodeId>;
+}
+
+export interface KCoreResult<T> {
+    cores: Map<number, Set<T>>;
+    coreness: Map<T, number>;
+    maxCore: number;
+}
+
+export interface LabelPropagationResult {
+    communities: Map<string, number>;
+    iterations: number;
+    converged: boolean;
+}
+
+export interface LeidenResult {
+    communities: Map<string, number>;
+    modularity: number;
+    iterations: number;
+}
+
+export interface MCLResult {
+    communities: NodeId[][];
+    attractors: Set<NodeId>;
+    iterations: number;
+    converged: boolean;
+}
+
+export interface LegacyMinCutResult {
+    cutValue: number;
+    partition1: Set<string>;
+    partition2: Set<string>;
+    cutEdges: { from: string; to: string; weight: number }[];
+}
+
+export interface LegacyBipartiteMatchingResult {
+    matching: Map<NodeId, NodeId>;
+    size: number;
+}
+
+export interface PageRankResult {
+    ranks: Record<string, number>;
+    iterations: number;
+    converged: boolean;
+}
+
+export interface SpectralClusteringResult {
+    communities: NodeId[][];
+    clusterAssignments: Map<NodeId, number>;
+    eigenvalues?: number[];
+    eigenvectors?: number[][];
+}
+
+export interface SynCResult {
+    clusters: Map<NodeId, number>;
+    loss: number;
+    iterations: number;
+    embeddings: Map<NodeId, number[]>;
+    converged: boolean;
+}
+
+export interface TeraHACResult {
+    dendrogram: TeraHACClusterNode;
+    clusters: Map<NodeId, number>;
+    distances: number[];
+    numClusters: number;
+}

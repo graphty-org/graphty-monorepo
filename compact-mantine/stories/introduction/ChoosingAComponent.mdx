@@ -77,15 +77,16 @@ this reason.
 
 [Overview](?path=/docs/components-overlays-overview--docs)
 
-| If you have                                                        | Use                                                    | Not                                                   |
-| ------------------------------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------- |
-| A panel that opens beside a control, can be dragged and can nest   | `Popout` (needs a `PopoutManager`)                     | Mantine `Popover`: one-off, not draggable, no nesting |
-| An icon button that opens a pop-out and stays lit while it is open | `PopoutButton`, inside `Popout.Trigger`                | `AdvancedButton`                                      |
-| An explanation the reader asks for, which stays open               | `InfoCircle`                                           | a `Tooltip`, which closes when the pointer leaves     |
-| A tooltip with a keyboard shortcut                                 | `TooltipShortcut` as the label of a Mantine `Tooltip`  | --                                                    |
-| A right-click menu                                                 | `ContextMenu` (also Shift+F10 and the ContextMenu key) | Mantine `Menu`, opened from a button                  |
-| A dialog's action buttons                                          | `ModalFooter` in a Mantine `Modal`                     | --                                                    |
-| A short confirmation that disappears on its own                    | `useToast()` under a `ToastProvider`                   | Mantine notifications                                 |
+| If you have                                                        | Use                                                    | Not                                                                 |
+| ------------------------------------------------------------------ | ------------------------------------------------------ | ------------------------------------------------------------------- |
+| A panel that opens beside a control, can be dragged and can nest   | `Popout` (needs a `PopoutManager`)                     | Mantine `Popover`: one-off, not draggable, no nesting               |
+| An icon button that opens a pop-out and stays lit while it is open | `PopoutButton`, inside `Popout.Trigger`                | `AdvancedButton`                                                    |
+| An explanation the reader asks for, which stays open               | `InfoCircle`                                           | a `Tooltip`, which closes when the pointer leaves                   |
+| A tooltip with a keyboard shortcut                                 | `TooltipShortcut` as the label of a Mantine `Tooltip`  | --                                                                  |
+| A tooltip on a button that opens a menu                            | `TargetTooltip` inside `Menu.Target`                   | a Mantine `Tooltip` there, which takes the button's `aria-expanded` |
+| A right-click menu                                                 | `ContextMenu` (also Shift+F10 and the ContextMenu key) | Mantine `Menu`, opened from a button                                |
+| A dialog's action buttons                                          | `ModalFooter` in a Mantine `Modal`                     | --                                                                  |
+| A short confirmation that disappears on its own                    | `useToast()` under a `ToastProvider`                   | Mantine notifications                                               |
 
 ## Lists and trees
 

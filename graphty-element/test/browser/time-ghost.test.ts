@@ -6,12 +6,18 @@
 
 import "../../src/graphty-element";
 
-import { afterEach, assert, describe, it } from "vitest";
+import { afterEach, assert, beforeAll, describe, it } from "vitest";
 
 import type { Graphty } from "../../index.js";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { operationQueueOf } from "../../src/Graph";
 import { readDrawn } from "../fidelity/drawn-scene";
 import { nextFrame } from "../helpers/real-input";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 const cleanups: (() => void)[] = [];
 
@@ -42,6 +48,8 @@ async function settle(element: Graphty): Promise<void> {
  */
 async function trace(): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    // Ghosts are drawn with the working graph off; on, nothing outside the window is drawn.
+    element.workingGraph = false;
     element.style.display = "block";
     element.style.width = "400px";
     element.style.height = "300px";

@@ -16,13 +16,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { FIND_ATTRIBUTE } from "../words";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * The workspace with the real element, and a graph in it.
@@ -33,14 +36,11 @@ async function open(load?: (session: GraphSession) => Promise<unknown>): Promise
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -64,10 +64,9 @@ async function openPicker(session: GraphSession): Promise<{ id: string; region: 
         set: { "node.color": "#d55e00" },
     });
     await session.styles.settled();
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
-    await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Mine, / }));
+    await selectWithTwin(session, "Mine");
     if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
     }
     return { id: layer.id, region: await screen.findByRole("group", { name: "Which nodes" }) };
 }
@@ -218,6 +217,27 @@ describe("the Add a condition list", () => {
                 .getAllByRole("option")
                 .map((each) => each.getAttribute("aria-label"));
             assert.deepEqual(names, ["Node id"]);
+        });
+    });
+
+    it("lists a column that arrives while the picker is open", async () => {
+        // The picker opened before the graph's data arrived (a fast reader, or a slow open).
+        const session = await open(async () => {});
+        const { region } = await openPicker(session);
+        await session.data.addNodes([
+            { id: "a", role: "x" },
+            { id: "b", role: "y" },
+        ]);
+        await openList(region);
+        const list = await screen.findByRole("listbox", { name: "Attributes" });
+        await waitFor(() => {
+            const names = within(list)
+                .getAllByRole("option")
+                .map((each) => each.getAttribute("aria-label"));
+            assert.isTrue(
+                names.some((name) => name?.startsWith("role, ")),
+                `role is listed: ${names.join("; ")}`,
+            );
         });
     });
 });

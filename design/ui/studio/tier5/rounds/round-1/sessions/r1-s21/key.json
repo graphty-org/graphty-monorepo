@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: Orgs off record 7 of 24 nodes",
+   "rows": [
+    {
+     "text": "Color: Orgs off record",
+     "color": "#ff8000"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#ff8000": 7,
+   "#6366f1": 17
+  },
+  "edges": {
+   "#a9a9a9": 59
+  }
+ }
+}

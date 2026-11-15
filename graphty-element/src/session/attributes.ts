@@ -190,7 +190,7 @@ function isCategorical(accumulator: Accumulator, total: number): boolean {
  * Never from how many distinct values there are: the same column must not change meaning when
  * next month's file has more rows. Numbers are amounts until someone declares them codes.
  * @param type - the settled type
- * @param accumulator - what the walk saw, for text that reads as dates
+ * @param accumulator - what the walk saw, for text that reads as dates; absent when dates are not read
  * @returns the measurement
  */
 function inferMeasurement(type: AttributeType, accumulator?: Accumulator): Measurement {
@@ -229,9 +229,16 @@ function isYearLike(type: AttributeType, accumulator: Accumulator): boolean {
  * @param kind - whether it was found on nodes or on edges
  * @param accumulator - what the walk saw
  * @param total - how many records of that kind there are
+ * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptor
  */
-function describe(name: string, kind: "node" | "edge", accumulator: Accumulator, total: number): AttributeDescriptor {
+function describe(
+    name: string,
+    kind: "node" | "edge",
+    accumulator: Accumulator,
+    total: number,
+    readDates: boolean,
+): AttributeDescriptor {
     const settled = settleType(accumulator.types);
     const numeric = settled === "number" || settled === "integer";
     const type = settled === "string" && isCategorical(accumulator, total) ? "category" : settled;
@@ -246,7 +253,10 @@ function describe(name: string, kind: "node" | "edge", accumulator: Accumulator,
         type,
         ...(accumulator.present === 0
             ? {}
-            : { measurement: inferMeasurement(settled, accumulator), measurementSource: "inferred" as const }),
+            : {
+                  measurement: inferMeasurement(settled, readDates ? accumulator : undefined),
+                  measurementSource: "inferred" as const,
+              }),
         origin: "imported",
         completeness: total === 0 ? 0 : accumulator.present / total,
         ...(accumulator.unique === null ? {} : { uniqueCount: accumulator.unique.size }),
@@ -284,16 +294,18 @@ function newAccumulator(): Accumulator {
  * @param rows - the rows
  * @param kind - whether they will be nodes or edges
  * @param order - column names to list first, in this order, even when no row carries a value
+ * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptors
  */
 export function describeRows(
     rows: readonly Readonly<Record<string, unknown>>[],
     kind: "node" | "edge",
     order: readonly string[] = [],
+    readDates = true,
 ): readonly AttributeDescriptor[] {
     const found = walk(rows.length, (index) => rows[index]);
     const names = new Set([...order, ...found.keys()]);
-    return [...names].map((name) => describe(name, kind, found.get(name) ?? newAccumulator(), rows.length));
+    return [...names].map((name) => describe(name, kind, found.get(name) ?? newAccumulator(), rows.length, readDates));
 }
 
 /**
@@ -339,11 +351,13 @@ function walk(
  * @param records - where to read the attributes a record arrived with; null means the element
  *     holds none, which is what a session with no view sees until the store carries attribute
  *     columns of its own
+ * @param readDates - whether a text column of plain dates measures time (the timeline experiment)
  * @returns the descriptors, node attributes first
  */
 export function describeAttributes(
     snapshot: GraphSnapshot,
     records: SessionRecordSource | null,
+    readDates = true,
 ): readonly AttributeDescriptor[] {
     if (records === null) {
         return Object.freeze([]);
@@ -358,11 +372,11 @@ export function describeAttributes(
 
     const described: AttributeDescriptor[] = [];
     for (const [name, accumulator] of nodes) {
-        described.push(describe(name, "node", accumulator, snapshot.nodeCount));
+        described.push(describe(name, "node", accumulator, snapshot.nodeCount, readDates));
     }
 
     for (const [name, accumulator] of edges) {
-        described.push(describe(name, "edge", accumulator, snapshot.edgeCount));
+        described.push(describe(name, "edge", accumulator, snapshot.edgeCount, readDates));
     }
 
     return Object.freeze(described);
@@ -432,6 +446,7 @@ export class InputTick {
 export class AttributeRevisions {
     readonly #revisions = new Map<string, number>();
     readonly #tick: InputTick;
+    #writes = 0;
 
     /**
      * Start every field at revision 0.
@@ -451,6 +466,14 @@ export class AttributeRevisions {
     }
 
     /**
+     * How many writes have touched any field of this kind.
+     * @returns the count, starting at 0 and only ever growing
+     */
+    get writes(): number {
+        return this.#writes;
+    }
+
+    /**
      * Record that one write touched these fields. A write that changed no value still counts:
      * comparing old and new values would cost a deep equality per field for no correctness gain.
      * @param fields - the top-level keys written
@@ -460,6 +483,7 @@ export class AttributeRevisions {
             this.#revisions.set(field, (this.#revisions.get(field) ?? 0) + 1);
         }
 
+        this.#writes += 1;
         this.#tick.advance();
     }
 }
@@ -472,6 +496,29 @@ export interface InputCounters {
     readonly nodes: AttributeRevisions;
     /** Edge attribute revisions. */
     readonly edges: AttributeRevisions;
+}
+
+/**
+ * The revision of the graph's data alone: one token that changes on a freeze (a new snapshot) or
+ * an attribute write, and NOT on a mask, selection or run, which move the input tick too. What a
+ * reader of columns, types and values keys its cache on, so moving a time window or a filter keeps
+ * it (issue #4386).
+ * @param snapshot - the graph now; freezes a pending write, so the token is read after it
+ * @param counters - the store owner's counters
+ * @returns reads the token now; the same object while the data has not moved
+ */
+export function dataRevisionOf(snapshot: () => GraphSnapshot, counters: InputCounters): () => object {
+    let held = { snapshot: null as GraphSnapshot | null, nodes: -1, edges: -1 };
+    return () => {
+        const now = snapshot();
+        const { writes: nodes } = counters.nodes;
+        const { writes: edges } = counters.edges;
+        if (held.snapshot !== now || held.nodes !== nodes || held.edges !== edges) {
+            held = { snapshot: now, nodes, edges };
+        }
+
+        return held;
+    };
 }
 
 const countersByOwner = new WeakMap<object, InputCounters>();

@@ -4,19 +4,19 @@
  * node's mesh so they move, hide and go with it. Each is a source mesh cached under the node's
  * style key, so every node of one style shares it and pays for one instance.
  */
-import {
-    type AbstractMesh,
-    Color3,
-    DynamicTexture,
-    type InstancedMesh,
-    Mesh,
-    type Scene,
-    StandardMaterial,
-    Texture,
-    VertexData,
-} from "@babylonjs/core";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { DynamicTexture } from "@babylonjs/core/Materials/Textures/dynamicTexture.js";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { NodeStyleConfig } from "../config";
+import { fontFamilies, noteLabelFont } from "./labelFonts";
+import type { LabelTableImage } from "./labelTable";
 import type { MeshCache } from "./MeshCache";
 import {
     boxOf,
@@ -24,12 +24,15 @@ import {
     clipToBox,
     type ColorPiece,
     databaseRim,
+    framedBand,
     imageBox,
     type PieceBox,
     pieSlices,
+    raisedStrips,
     shapeLinePieces,
     shapePartPieces,
     stripeBands,
+    tableFillPieces,
 } from "./nodeDecoration";
 import { NodeMesh } from "./NodeMesh";
 import { earClip, type Point2 } from "./shapeOutlines";
@@ -41,11 +44,28 @@ import { earClip, type Point2 } from "./shapeOutlines";
 export interface NodeDecorationPiece {
     readonly kind: "shape" | "image" | "body";
     readonly box: PieceBox;
+    /** A colored piece's fill: red, green and blue, 0..1, and its opacity. */
+    readonly fill?: Pick<ColorPiece, "rgb" | "opacity">;
 }
 
 /** The metadata a decoration's source mesh carries. */
 export interface NodeDecorationMetadata {
     readonly nodePieces: NodeDecorationPiece[];
+}
+
+/**
+ * What a node whose label is a table (`shape.labelTable`) draws over its face besides its lines and words, laid out
+ * with its mesh: its backgrounds, and its first picture with its cell's alignment. Each box is in fractions of the
+ * node's half width and half height from its center, y up.
+ */
+export interface TableDecoration {
+    readonly fills: readonly { readonly box: PieceBox; readonly color: string }[];
+    readonly image: {
+        readonly box: PieceBox;
+        readonly image: LabelTableImage;
+        readonly align?: string;
+        readonly valign?: string;
+    } | null;
 }
 
 /** What a node's decorations are built from. */
@@ -54,10 +74,12 @@ export interface NodeDecorationOptions {
     readonly border?: NodeStyleConfig["border"];
     readonly pie?: NodeStyleConfig["pie"];
     readonly stripes?: NodeStyleConfig["stripes"];
+    readonly raisedBorder?: NodeStyleConfig["raisedBorder"];
     readonly chart?: NodeStyleConfig["chart"];
     readonly image?: NodeStyleConfig["image"];
     readonly glyph?: NodeStyleConfig["glyph"];
     readonly texture?: NodeStyleConfig["texture"];
+    readonly table?: TableDecoration;
 }
 
 /**
@@ -72,16 +94,19 @@ const FRONT_STEP = 0.0005;
  * @param o - The style.
  * @returns True with a pie, stripes, an image, or a database's rim.
  */
-export function hasDecoration(o: NodeDecorationOptions): boolean {
+function hasDecoration(o: NodeDecorationOptions): boolean {
     return (
         o.pie?.colors !== undefined ||
         o.stripes?.colors !== undefined ||
+        (o.raisedBorder?.width ?? 0) > 0 ||
         o.chart?.values !== undefined ||
         (o.image?.src ?? "") !== "" ||
         (o.glyph?.text ?? "") !== "" ||
         (o.shape?.parts ?? "") !== "" ||
         (o.shape?.lines ?? "") !== "" ||
-        (o.shape?.type === "database" && (o.border?.width ?? 0) > 0)
+        (o.shape?.type === "database" && (o.border?.width ?? 0) > 0) ||
+        (o.table?.fills.length ?? 0) > 0 ||
+        (o.table?.image ?? null) !== null
     );
 }
 
@@ -95,6 +120,8 @@ export function hasDecoration(o: NodeDecorationOptions): boolean {
  * @param size - The node's size, when its shape gives none.
  * @param fill - The node's own mesh.
  * @param scene - The scene.
+ * @param onImageFailed - Told once per built picture when neither it nor its fallback loads, with the
+ * URL the style named and the one that failed last.
  * @returns The three instances.
  */
 export function createNodeDecorations(
@@ -104,6 +131,7 @@ export function createNodeDecorations(
     size: number,
     fill: AbstractMesh,
     scene: Scene,
+    onImageFailed?: (ref: string, failed: string) => void,
 ): { pieces: InstancedMesh | null; image: InstancedMesh | null; glyph: InstancedMesh | null } {
     if (!hasDecoration(o)) {
         return { pieces: null, image: null, glyph: null };
@@ -113,12 +141,16 @@ export function createNodeDecorations(
     const colored = coloredPieces(o, face);
     const pieces =
         colored.length === 0 ? null : cache.get(`node-decoration-${key}`, () => buildColored(colored, z, scene));
+    const scale = NodeMesh.extentPerSize(o.shape);
+    // a table's picture is drawn in its cell, in place of the node's own
+    const cellImage = o.table?.image ?? null;
+    const drawn = cellImage === null ? { image: o.image, face } : tableImage(cellImage, face, scale);
+    const picture = drawn.image;
     const image =
-        (o.image?.src ?? "") === ""
+        picture === undefined || (picture.src ?? "") === ""
             ? null
             : cache.get(`node-image-${key}`, () =>
-                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- checked just above
-                  buildImage(o.image!, face, NodeMesh.extentPerSize(o.shape), z - FRONT_STEP, scene),
+                  buildImage(picture, drawn.face, scale, z - FRONT_STEP, scene, onImageFailed),
               );
     const glyph =
         (o.glyph?.text ?? "") === ""
@@ -136,8 +168,78 @@ export function createNodeDecorations(
     return { pieces, image, glyph };
 }
 
+/** How a cell's `align` and `valign` place its picture in the room its padding leaves, 0 to 1. */
+const CELL_PLACE: Readonly<Record<string, number>> = { left: 0, top: 0, right: 1, bottom: 1 };
+
+/**
+ * A table's picture as a node image drawn in its cell: the cell's room inside its padding as the face it is fitted
+ * to, moved from the node's center to the room's, and scaled as `SCALE` says: at its own size (each pixel
+ * `pixelSize` long), its proportions kept inside the room (`true`), stretched over it (`both`), or one side stretched
+ * across it and the other at its own size (`width`, `height`), as Graphviz draws an `<IMG>` (`pos_html_img`).
+ * @param cell - The picture, its room and its cell's alignment.
+ * @param face - The node's face.
+ * @param face.width - Its width.
+ * @param face.height - Its height.
+ * @param scale - World units per unit of the style's lengths.
+ * @returns The image block and the face it is fitted to.
+ */
+function tableImage(
+    cell: NonNullable<TableDecoration["image"]>,
+    face: { width: number; height: number },
+    scale: number,
+): { image: NonNullable<NodeStyleConfig["image"]>; face: { outline: Point2[]; width: number; height: number } } {
+    const [hw, hh] = [face.width / 2, face.height / 2];
+    const [x0, x1, y0, y1] = [cell.box.x0 * hw, cell.box.x1 * hw, cell.box.y0 * hh, cell.box.y1 * hh];
+    const [width, height] = [x1 - x0, y1 - y0];
+    const { scale: how, pixelSize, src } = cell.image;
+    const fit = { true: "contain", both: "fill" } as const;
+    const s = scale > 0 ? scale : 1;
+    return {
+        image: {
+            src,
+            fit: how === "true" || how === "both" ? fit[how] : "none",
+            ...(pixelSize === undefined ? {} : { pixelSize }),
+            ...(how === "width" ? { width: width / s, autoSize: "natural" as const } : {}),
+            ...(how === "height" ? { height: height / s, autoSize: "natural" as const } : {}),
+            positionX: CELL_PLACE[cell.align ?? ""] ?? 0.5,
+            positionY: CELL_PLACE[cell.valign ?? ""] ?? 0.5,
+            offsetX: (x0 + x1) / 2 / s,
+            offsetY: -(y0 + y1) / 2 / s,
+            clip: "none",
+        },
+        face: {
+            outline: [
+                [-width / 2, -height / 2],
+                [width / 2, -height / 2],
+                [width / 2, height / 2],
+                [-width / 2, height / 2],
+            ],
+            width,
+            height,
+        },
+    };
+}
+
 /** How many texture pixels a glyph's font size is drawn at, whatever its size in the scene. */
 const GLYPH_TEXTURE_PX = 128;
+
+/** The font family list each cached glyph mesh was drawn in, so a font that lands can find its glyphs. */
+const glyphFonts = new WeakMap<Mesh, string>();
+
+/**
+ * Forget the cached glyphs drawn in a family that has just loaded (issue #5140): drawn while it
+ * loaded, they show the fallback face. Every instance of them is disposed, so each node drawing one
+ * builds it again; see `Node.refreshFonts`.
+ * @param cache - The mesh cache.
+ * @param families - The families that loaded, as `fontFamilies` gives them.
+ * @returns True when any glyph was forgotten.
+ */
+export function forgetGlyphs(cache: MeshCache, families: ReadonlySet<string>): boolean {
+    return cache.forget((mesh) => {
+        const font = glyphFonts.get(mesh);
+        return font !== undefined && fontFamilies(font).some((family) => families.has(family));
+    });
+}
 
 /**
  * The glyph as a mesh textured with its text: a box as wide as the text and a line and a half of the
@@ -160,7 +262,10 @@ function buildGlyph(
     scene: Scene,
 ): Mesh {
     const text = glyph.text ?? "";
-    const font = `${String(glyph.weight ?? 400)} ${String(GLYPH_TEXTURE_PX)}px ${glyph.font ?? "sans-serif"}`;
+    const family = glyph.font ?? "sans-serif";
+    const font = `${String(glyph.weight ?? 400)} ${String(GLYPH_TEXTURE_PX)}px ${family}`;
+    // A web font still loading draws in its fallback: load it, and the glyph is rebuilt when it lands.
+    noteLabelFont(scene, `normal ${String(glyph.weight ?? 400)}`, family);
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
     if (ctx !== null) {
@@ -208,6 +313,7 @@ function buildGlyph(
         nodePieces: [{ kind: "image", box: { x0: -ink / 2, y0: -em / 2, x1: ink / 2, y1: em / 2 } }],
     };
     mesh.metadata = metadata;
+    glyphFonts.set(mesh, family);
     return mesh;
 }
 
@@ -230,11 +336,13 @@ type Placed = ColorPiece & { readonly box?: PieceBox; readonly line?: boolean; r
  */
 function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; width: number; height: number }): Placed[] {
     // a band is the box it fills, cut to the node: its box for a reader is the band's own, as a clipped
-    // rectangle's is in an SVG
-    const bands = stripeBands(o.stripes, face.width, face.height).flatMap((b) => {
-        const outline = clipToBox(face.outline, b.box);
-        return outline.length < 3 ? [] : [{ outline, rgb: b.rgb, opacity: b.opacity, box: b.box }];
-    });
+    // rectangle's is in an SVG, and a framed band's strips each read as the whole band they make
+    const bands = stripeBands(o.stripes, face.width, face.height).flatMap((b) =>
+        framedBand(o.stripes?.frame, b.box).flatMap((part) => {
+            const outline = clipToBox(face.outline, part);
+            return outline.length < 3 ? [] : [{ outline, rgb: b.rgb, opacity: b.opacity, box: b.box }];
+        }),
+    );
     const rim =
         o.shape?.type === "database"
             ? databaseRim(o.border, face.width, face.height, NodeMesh.extentPerSize(o.shape))
@@ -243,6 +351,8 @@ function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; widt
     const [fill, fillOpacity] = solidFill(o.texture);
     const parts = shapePartPieces(o.shape, o.border, fill, face.width, face.height, scale, fillOpacity);
     return [
+        // a table's backgrounds are its body, under everything else drawn over the face
+        ...tableFillPieces(o.table?.fills ?? [], face.width, face.height).map((p) => ({ ...p, body: true })),
         ...parts.fills.map((p) => ({ ...p, body: true })),
         ...parts.lines.map((p) => ({ ...p, line: true })),
         ...bands,
@@ -250,6 +360,10 @@ function coloredPieces(o: NodeDecorationOptions, face: { outline: Point2[]; widt
         ...chartPieces(o.chart, face.width, face.height, scale),
         ...(rim === null ? [] : [{ ...rim, line: true }]),
         ...shapeLinePieces(o.shape, o.border, face.width, face.height, scale).map((p) => ({ ...p, line: true })),
+        ...raisedStrips(o.raisedBorder, face.width, face.height, scale).flatMap((s) => {
+            const outline = clipToBox(face.outline, s.box);
+            return outline.length < 3 ? [] : [{ ...s, outline }];
+        }),
     ];
 }
 
@@ -355,7 +469,11 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
     const metadata: NodeDecorationMetadata = {
         nodePieces: pieces
             .filter((p) => p.line !== true)
-            .map((p) => ({ kind: p.body === true ? "body" : "shape", box: p.box ?? boxOf(p.outline) })),
+            .map((p) => ({
+                kind: p.body === true ? "body" : "shape",
+                box: p.box ?? boxOf(p.outline),
+                fill: { rgb: p.rgb, opacity: p.opacity },
+            })),
     };
     mesh.metadata = metadata;
     return mesh;
@@ -374,6 +492,7 @@ function buildColored(pieces: readonly Placed[], z: number, scene: Scene): Mesh 
  * @param scale - World units per unit of the style's lengths.
  * @param z - The z it is drawn at.
  * @param scene - The scene.
+ * @param onFailed - Told when neither the picture nor its fallback loads.
  * @returns The mesh.
  */
 function buildImage(
@@ -382,6 +501,7 @@ function buildImage(
     scale: number,
     z: number,
     scene: Scene,
+    onFailed?: (ref: string, failed: string) => void,
 ): Mesh {
     const mesh = new Mesh("node-image", scene);
     const mat = flatMaterial("node-image", scene);
@@ -432,12 +552,16 @@ function buildImage(
      * Load a picture as the material's texture: its own size shapes the mesh once it arrives; one that cannot be
      * loaded gives way to the next in line, and with none left draws nothing and holds no frame back.
      * @param sources - The URLs still to try, in order.
+     * @param failed - The URL that failed last, if one did.
      */
-    const load = (sources: readonly string[]): void => {
+    const load = (sources: readonly string[], failed?: string): void => {
         const [src, ...rest] = sources;
         if (src === undefined) {
             mat.diffuseTexture = null;
             shape(null);
+            if (failed !== undefined) {
+                onFailed?.(image.src ?? failed, failed);
+            }
             return;
         }
         const texture: Texture = new Texture(
@@ -452,7 +576,7 @@ function buildImage(
             },
             () => {
                 texture.dispose();
-                load(rest);
+                load(rest, src);
             },
             // Babylon.js reads a `data:` URL itself only in base64; any other (an SVG written out as text) it loads
             // as an image only when handed the URL as the picture's buffer

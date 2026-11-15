@@ -10,7 +10,10 @@
  * places nobody tests -- JMESPath truthiness, a column default, an edge's endpoints.
  *
  * A path nothing answers matches nothing and is REPORTED through `unresolvedPathsOf`, never
- * swallowed: "0 matched" and "you misspelled the attribute" must not look the same.
+ * swallowed: "0 matched" and "you misspelled the attribute" must not look the same. The same holds
+ * per kind: `data.phone == \`null\`` is about nodes, so when no edge can carry the column no edge
+ * matches, though every edge lacks the value. A layer's own selector is compiled for one kind and
+ * does not pass through here.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -24,6 +27,7 @@ import { searchOf, type SelectionTarget } from "./selection/targets";
 import {
     columnsFor,
     compileExpressionPredicate,
+    compileExpressionValue,
     rulePath,
     type SelectorSource,
     type SelectorTarget,
@@ -148,10 +152,18 @@ export interface QueryEngine {
      * @param text - What was typed, its mode prefix already read.
      * @param mode - How to match it.
      * @param target - Nodes or edges.
+     * @param only - The value paths to look in besides the ids, in place of every searchable path.
+     *   When none of them names a column the graph holds (a graph file's `label` on a file with no
+     *   label column), every searchable path is read, as without them.
      * @returns The test.
      * @throws A `GraphtyError` coded `E_BAD_COMMAND` for a regular expression that does not parse.
      */
-    textTest(text: string, mode: SelectionTextMode, target: SelectorTarget): (index: number) => boolean;
+    textTest(
+        text: string,
+        mode: SelectionTextMode,
+        target: SelectorTarget,
+        only?: readonly Path[],
+    ): (index: number) => boolean;
     /**
      * What a find box lists: nodes and edges whose id or values contain the text, ranked, and the
      * matched values with their counts. Reads only; selects nothing.
@@ -160,6 +172,17 @@ export interface QueryEngine {
      * @returns The hits, the value rows and the total.
      */
     search(text: string, request: SearchRequest): SearchAnswer;
+    /**
+     * What an expression reads for every element of one kind, by dense index: a computed column's
+     * values (`session.data.derive`). A path nothing answers reads null.
+     * @param where - The expression.
+     * @param target - Nodes or edges.
+     * @param overlay - Values to read in place of the session's, by path and dense index: the
+     *   computed columns worked out earlier in the same pass.
+     * @returns One value per element, null for nothing.
+     * @throws A `GraphtyError` coded `E_BAD_SELECTOR` for an expression that does not parse.
+     */
+    values(where: Query, target: SelectorTarget, overlay?: ReadonlyMap<Path, readonly unknown[]>): unknown[];
 }
 
 /**
@@ -188,6 +211,30 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         return hits;
     };
 
+    // Answered by the directory, or carried by some element: a run's field need not be declared,
+    // and a rule may read a file column by its bare name ("minutes").
+    const halfTest = ({ paths, test }: ReturnType<typeof compile>, target: SelectorTarget): typeof test => {
+        const { answers } = parts;
+        if (answers === undefined) {
+            return test;
+        }
+
+        const graph = parts.snapshot();
+        const count = target === "node" ? graph.nodeCount : graph.edgeCount;
+        const { has } = columnsFor(elements, target);
+        const carried = (path: Path): boolean => {
+            for (let index = 0; index < count; index++) {
+                if (has(index, path)) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        return paths.some((path) => answers(path, target) || carried(path)) ? test : () => false;
+    };
+
     const nodesOf = (test: (index: number) => boolean): NodeId[] =>
         matching(test, "node").map((index) => elements.nodeIdOf(index));
     const edgesOf = (test: (index: number) => boolean): EdgeId[] =>
@@ -203,9 +250,19 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         return Object.freeze([...new Set(paths)].filter((path) => !answers(path, "node") && !answers(path, "edge")));
     };
 
-    const textTest = (text: string, mode: SelectionTextMode, target: SelectorTarget): ((index: number) => boolean) => {
+    const textTest = (
+        text: string,
+        mode: SelectionTextMode,
+        target: SelectorTarget,
+        only?: readonly Path[],
+    ): ((index: number) => boolean) => {
         const graph = parts.snapshot();
-        const searched = target === "node" ? parts.searchPaths() : (parts.edgeSearchPaths?.() ?? []);
+        // A label path is a bare column name ("label") or a value path ("data.label").
+        const answers = (path: Path): boolean =>
+            parts.answers === undefined || parts.answers(path, target) || parts.answers(`data.${path}`, target);
+        const held = only?.length === 0 || only?.some(answers) === true;
+        const every = target === "node" ? parts.searchPaths : (): readonly Path[] => parts.edgeSearchPaths?.() ?? [];
+        const searched = held && only !== undefined ? only : every();
         let accepts: (value: string) => boolean;
         let paths: readonly Path[] = searched;
         let readsId = true;
@@ -260,16 +317,41 @@ export function createQueryEngine(parts: QueryEngineParts): QueryEngine {
         return hits;
     };
 
+    const values = (
+        where: Query,
+        target: SelectorTarget,
+        overlay?: ReadonlyMap<Path, readonly unknown[]>,
+    ): unknown[] => {
+        const columns = columnsFor(elements, target);
+        const read =
+            overlay === undefined || overlay.size === 0
+                ? columns
+                : {
+                      ...columns,
+                      value: (index: number, path: Path): unknown =>
+                          overlay.has(path) ? overlay.get(path)?.[index] : columns.value(index, path),
+                      has: (index: number, path: Path): boolean => {
+                          const held = overlay.get(path);
+                          return held === undefined ? columns.has(index, path) : (held[index] ?? null) !== null;
+                      },
+                  };
+        const { value } = compileExpressionValue(where, read);
+        const graph = parts.snapshot();
+        const count = target === "node" ? graph.nodeCount : graph.edgeCount;
+        return Array.from({ length: count }, (_unused, index) => value(index) ?? null);
+    };
+
     return {
-        nodes: (where) => nodesOf(compile(where, "node").test),
-        edges: (where) => edgesOf(compile(where, "edge").test),
+        values,
+        nodes: (where) => nodesOf(halfTest(compile(where, "node"), "node")),
+        edges: (where) => edgesOf(halfTest(compile(where, "edge"), "edge")),
         // One compile per target: the node compile's paths are the expression's paths.
         select: (where) => {
             const node = compile(where, "node");
 
             return {
-                nodes: nodesOf(node.test),
-                edges: edgesOf(compile(where, "edge").test),
+                nodes: nodesOf(halfTest(node, "node")),
+                edges: edgesOf(halfTest(compile(where, "edge"), "edge")),
                 unresolvedPaths: unresolvedOf(node.paths),
             };
         },

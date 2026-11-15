@@ -207,6 +207,21 @@ const LABEL_RESIDUE: Readonly<Record<string, string>> = {
         "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
         "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
         "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.centerX":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.centerY":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
+    "backgroundColor.radius":
+        "The panel behind a label takes a plain colour from the vocabulary's `background`. A " +
+        "gradient panel is reached through `gradient`, `gradientType`, `gradientColors` and " +
+        "`gradientDirection`, which is the pair of fields the renderer actually draws a gradient " +
+        "from; this object form of the colour is the older of two ways to say it.",
     "backgroundColor.opacity":
         "The panel behind a label takes a plain colour from the vocabulary's `background`, which " +
         "carries its own alpha when it is written as `#rrggbbaa`.",
@@ -231,6 +246,17 @@ function namedBlockOf(
         reason,
     }));
 }
+
+/**
+ * A label block's table (`table`), published only for an edge's own label (`edge.labelTable`), where it is waived for
+ * every other block.
+ */
+const TABLE_RESIDUE: Readonly<Record<string, string>> = {
+    table:
+        "A label laid out as a table of cells is published for an edge's own label (`edge.labelTable`), as a " +
+        "node's is through `node.labelTable` on its shape. A table for a node's label block, a tooltip, an " +
+        "external label or an arrow's caption has no file format behind it that draws one.",
+};
 
 /**
  * Every declared style field no style channel can change, with the reason for each and whether
@@ -272,11 +298,16 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     // label leaves, for the same reasons. The whole block used to be waived here as a defect: the
     // renderer read every field of it and only the words had a door.
     ...namedBlockOf("node", "tooltip", LABEL_RESIDUE),
+    // A node's external label: its words, its place and its appearance are channels, so what is left is the same
+    // leaves a label leaves, for the same reasons.
+    ...namedBlockOf("node", "xlabel", LABEL_RESIDUE),
 
     // ------------------------------------------------------------------------------------------
     // Edges
     // ------------------------------------------------------------------------------------------
     ...namedBlockOf("edge", "label", LABEL_RESIDUE),
+    // An edge's external label: its words, its place and its appearance are channels, as the node's.
+    ...namedBlockOf("edge", "xlabel", LABEL_RESIDUE),
 
     // A caption at each end of an edge, published as four channels -- the words and the
     // appearance at each end -- so what is left is the same sixteen leaves a label leaves, for
@@ -284,6 +315,14 @@ export const UNREACHABLE_STYLE_FIELDS: readonly UnreachableStyleField[] = [
     // caption and no channel could ask for one.
     ...namedBlockOf("edge", "arrowHead.text", LABEL_RESIDUE),
     ...namedBlockOf("edge", "arrowTail.text", LABEL_RESIDUE),
+    ...[
+        ["node", "label"],
+        ["node", "tooltip"],
+        ["node", "xlabel"],
+        ["edge", "xlabel"],
+        ["edge", "arrowHead.text"],
+        ["edge", "arrowTail.text"],
+    ].flatMap(([target, prefix]) => namedBlockOf(target as "node" | "edge", prefix, TABLE_RESIDUE)),
 ];
 
 /**
@@ -358,6 +397,19 @@ export const UNPAINTED_CHANNELS: readonly UnpaintedChannel[] = [
             "requires the typeface, the panel colour and the size a layer asked for to be the " +
             "ones drawn.",
     },
+    ...(["node.modelAnimationSpeed", "node.modelAnimationOffset"] as const).map((channel): UnpaintedChannel => ({
+        kind: "by-design",
+        channel,
+        reason:
+            "A MODEL'S CLIP IS PLAYED AT THIS SPEED AND FROM THIS START TIME, so this waiver is about " +
+            "the reading and not about the capability. Both set where a playing clip is on its own " +
+            "clock: they change nothing on a node without a model that has clips, which is what this " +
+            "gate's resting scene draws, and on one that plays, two frames of the same layer already " +
+            "differ because time moved, so before and after cannot tell the write apart. " +
+            "`test/browser/models/model-animation.test.ts` is where they are proved: speed 0 holds " +
+            "the pose at its start time, another start time draws another pose, and a playing clip " +
+            "draws new pictures.",
+    })),
     ...GROUP_SIZING_CHANNELS.map((channel): UnpaintedChannel => ({
         kind: "by-design",
         channel,

@@ -38,6 +38,7 @@ import { DATASETS, GENERATOR_CATALOG } from "@graphty/graph-samples";
 import { BUILT_IN_ALGORITHMS } from "../catalog/algorithms";
 import { registeredCameraDescriptors } from "../catalog/cameraRegistry";
 import { CAMERA_DESCRIPTORS } from "../catalog/cameras";
+import { channelValuesOf } from "../catalog/channelValues";
 import { FORMAT_DESCRIPTORS } from "../catalog/formats";
 import { registeredLayoutDescriptors } from "../catalog/layoutRegistry";
 import { LAYOUT_DESCRIPTORS } from "../catalog/layouts";
@@ -51,11 +52,22 @@ import { SCALE_DESCRIPTORS } from "../catalog/scales";
 import { SCREENSHOT_PRESET_DESCRIPTORS } from "../catalog/screenshotPresets";
 import { shaderDescriptors } from "../catalog/shaderRegistry";
 import type { ShaderDescriptor } from "../catalog/shaders";
-import type { AlgorithmDescriptor } from "../catalog/types";
+import type {
+    AlgorithmDescriptor,
+    AttributeDescriptor,
+    FormatDescriptor,
+    LayoutDescriptor,
+    Path,
+    Query,
+    QueryValidation,
+} from "../catalog/types";
 import { catalogFormatDescriptors } from "../catalog/writerRegistry";
+import { isGraphtyError } from "../errors";
 import { transitionDescriptors } from "../transitions/registry";
 import { describeMetrics, type MetricsSource } from "./metrics";
 import { optionsFor, type OptionsForSource } from "./optionsFor";
+import { nearestNames } from "./results/ResultsApi";
+import { channelDescriptor, sessionChannels } from "./styles/channels";
 import type { SessionCatalogApi } from "./types";
 
 /**
@@ -145,11 +157,8 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
      * @returns the preset descriptors
      */
     screenshotPresets: () => SCREENSHOT_PRESET_DESCRIPTORS,
-    /**
-     * Every shader a layer can name: the element's presets, then the registered ones.
-     * @returns the shader descriptors, the element's own first
-     */
-    shaders: () => shaderDescriptors(),
+    // No `shaders` table here: a shader id names one of the project's own shaders, so the list
+    // is built per session (`createSessionCatalog`), never read from the catalog by id.
     /**
      * Every layout transition `layoutTransition` can name: the element's presets, then the
      * registered ones.
@@ -174,6 +183,143 @@ export const SESSION_CATALOG_TABLES = Object.freeze({
 });
 
 /**
+ * Derive a table from a composed one, cached on the composed table's identity, so the derived
+ * array is the same object until something registers.
+ * @param derive - Builds the derived list.
+ * @returns A function from the composed table to the derived one.
+ */
+function deriver<T>(derive: (list: readonly T[]) => readonly T[]): (list: readonly T[]) => readonly T[] {
+    let cached: { readonly from: readonly T[]; readonly list: readonly T[] } | null = null;
+    return (list) => {
+        if (cached?.from !== list) {
+            cached = { from: list, list: Object.freeze(derive(list)) };
+        }
+
+        return cached.list;
+    };
+}
+
+/**
+ * The formats with the file styles experiment off: no `styles` field and no `styles` writer option.
+ */
+const formatsWithoutStyles = deriver<FormatDescriptor>((list) =>
+    list.map((descriptor) => {
+        const { styles: _styles, writerOptions, ...rest } = descriptor;
+        return Object.freeze({
+            ...rest,
+            ...(writerOptions === undefined
+                ? {}
+                : { writerOptions: Object.freeze(writerOptions.filter((option) => option.name !== "styles")) }),
+        });
+    }),
+);
+
+/**
+ * The fixed layout's options the file styles experiment adds: Graphviz routing the edges of a
+ * placed file, as Graphviz draws it.
+ */
+const FILE_STYLE_LAYOUT_OPTIONS: Readonly<Record<string, readonly string[]>> = Object.freeze({
+    fixed: Object.freeze(["edgeRoutes", "graphvizAttributes"]),
+});
+
+/** The layouts with the file styles experiment off: without the options it adds. */
+const layoutsWithoutStyles = deriver<LayoutDescriptor>((list) =>
+    list.map((descriptor) => {
+        const gated = FILE_STYLE_LAYOUT_OPTIONS[descriptor.id];
+        return gated === undefined
+            ? descriptor
+            : Object.freeze({
+                  ...descriptor,
+                  options: Object.freeze(descriptor.options.filter((option) => !gated.includes(option.name))),
+              });
+    }),
+);
+
+/** What `validate` reads: the session's one query engine and the paths it answers. */
+export interface CatalogQuerySource {
+    /**
+     * The paths an expression reads that nothing in the session answers.
+     * @param where - The expression.
+     * @returns The unresolved paths.
+     * @throws A `GraphtyError` coded `E_BAD_SELECTOR` when the expression does not parse.
+     */
+    readonly unresolvedPathsOf: (where: Query) => readonly Path[];
+    /**
+     * Every path the session answers, on nodes or edges, for the nearest candidates.
+     * @returns The paths.
+     */
+    readonly answerablePaths: () => readonly Path[];
+}
+
+/**
+ * The attributes that hold time: the declared time columns, then the timeline's candidates (the
+ * columns whose values read as time), best first.
+ * @param attributes - The session's attributes.
+ * @param candidates - `session.time.candidates()`: the columns that read as time, best first.
+ * @returns The time attributes.
+ */
+function timeAttributesOf(
+    attributes: readonly AttributeDescriptor[],
+    candidates: readonly { readonly kind: "node" | "edge"; readonly column: string }[],
+): readonly AttributeDescriptor[] {
+    const declared = attributes.filter((each) => each.roles?.includes("time") === true);
+    const read = candidates.flatMap(
+        ({ kind, column }) =>
+            attributes.find(
+                (each) => each.kind === kind && each.name === column && each.roles?.includes("time") !== true,
+            ) ?? [],
+    );
+    return Object.freeze([...declared, ...read]);
+}
+
+/**
+ * Check an expression without running it.
+ * @param source - The query engine and the answered paths; absent, nothing is reported unresolved.
+ * @param query - The expression.
+ * @param kind - Which kind of expression it is.
+ * @returns The check.
+ */
+function validateQuery(
+    source: CatalogQuerySource | undefined,
+    query: Query,
+    kind: "selector" | "filter" | "formula" = "selector",
+): QueryValidation {
+    if (kind === "formula") {
+        return Object.freeze({
+            ok: false,
+            error: Object.freeze({ code: "E_UNSUPPORTED", position: 0, params: Object.freeze({ kind }) }),
+            unresolvedPaths: Object.freeze([]),
+        });
+    }
+
+    let unresolved: readonly Path[];
+    try {
+        unresolved = source?.unresolvedPathsOf(query) ?? [];
+    } catch (error) {
+        if (!isGraphtyError(error)) {
+            throw error;
+        }
+
+        const params = Object.freeze({ ...error.details });
+        const position = typeof params.position === "number" ? params.position : 0;
+        return Object.freeze({
+            ok: false,
+            error: Object.freeze({ code: error.code, position, params }),
+            unresolvedPaths: Object.freeze([]),
+        });
+    }
+
+    const answerable = unresolved.length === 0 ? [] : [...new Set(source?.answerablePaths() ?? [])];
+    const runs = new Set(answerable.filter((path) => path.startsWith("results.")).map((path) => path.split(".")[1]));
+    const unresolvedPaths = unresolved.map((path) => {
+        const [root, run] = path.split(".");
+        const reason = root === "results" && !runs.has(run) ? "unknown-run" : "unknown-attribute";
+        return Object.freeze({ path, reason, candidates: nearestNames(path, answerable) } as const);
+    });
+    return Object.freeze({ ok: unresolvedPaths.length === 0, unresolvedPaths: Object.freeze(unresolvedPaths) });
+}
+
+/**
  * One session's catalogue: the shared tables, plus the metric listing and the option resolver for
  * its own graph.
  * @param source - Where the metric listing reads the cost model and the run history, and where
@@ -185,18 +331,66 @@ export function createSessionCatalog(
         Pick<OptionsForSource, "resolve" | "attributes" | "results" | "nodeValues"> & {
             /** The project's own shaders, listed after the presets and registered ones. */
             readonly projectShaders?: () => readonly ShaderDescriptor[];
+            /** Whether the file styles experiment is on; absent reads on. */
+            readonly fileStyles?: () => boolean;
+            /** `session.time.candidates()`, for `timeAttributes`; absent, only declared time columns are listed. */
+            readonly timeCandidates?: () => readonly { readonly kind: "node" | "edge"; readonly column: string }[];
+            /** What `validate` checks expressions against; absent, no path is reported unresolved. */
+            readonly query?: CatalogQuerySource;
         },
 ): SessionCatalogApi {
+    const fileStyles = (): boolean => source.fileStyles?.() !== false;
+    const layouts = (): readonly LayoutDescriptor[] =>
+        fileStyles() ? SESSION_CATALOG_TABLES.layouts() : layoutsWithoutStyles(SESSION_CATALOG_TABLES.layouts());
     return Object.freeze({
         ...SESSION_CATALOG_TABLES,
         /**
-         * Every shader a layer can name: the element's presets, the registered ones, then the
-         * project's own (pasted, or carried in by a file).
+         * Every file format, without what the file styles experiment adds while it is off.
+         * @returns the format descriptors, the element's own first
+         */
+        formats: () =>
+            fileStyles() ? SESSION_CATALOG_TABLES.formats() : formatsWithoutStyles(SESSION_CATALOG_TABLES.formats()),
+        /**
+         * Every layout, without the options the file styles experiment adds while it is off.
+         * @returns the layout descriptors, the element's own first
+         */
+        layouts,
+        /**
+         * The style channels this session offers for a target.
+         * @param target - Nodes or edges.
+         * @returns The channels, in table order.
+         */
+        channels: (target) => sessionChannels(target, fileStyles()),
+        /**
+         * Every value of one enum channel this session offers, named, with its picture.
+         * @param channel - The channel.
+         * @returns The values; empty for a channel that is not an enum or that the session does not offer.
+         */
+        channelValues: (channel) => {
+            const target = channelDescriptor(channel)?.target;
+            return channelValuesOf(
+                target === undefined
+                    ? undefined
+                    : sessionChannels(target, fileStyles()).find((each) => each.channel === channel),
+            );
+        },
+        /**
+         * Every shader, one entry per id: the element's presets, the registered ones, then the
+         * project's own (pasted, or carried in by a file). A project shader replaces a catalog entry
+         * with its id, since a use of that id draws the project's text; `copyOf` says which catalog
+         * entry a project shader's content equals.
          * @returns the shader descriptors, the element's own first
          */
         shaders: () => {
             const pasted = source.projectShaders?.() ?? [];
-            return pasted.length === 0 ? shaderDescriptors() : Object.freeze([...shaderDescriptors(), ...pasted]);
+            if (pasted.length === 0) {
+                return shaderDescriptors();
+            }
+
+            const own = new Map(pasted.map((descriptor) => [descriptor.id, descriptor]));
+            const listed = shaderDescriptors().map((descriptor) => own.get(descriptor.id) ?? descriptor);
+            const catalog = new Set(listed.map((descriptor) => descriptor.id));
+            return Object.freeze([...listed, ...pasted.filter((descriptor) => !catalog.has(descriptor.id))]);
         },
         /**
          * Every metric the element could compute on this graph, with what it would cost and
@@ -204,6 +398,18 @@ export function createSessionCatalog(
          * @returns one entry per algorithm, in catalogue order
          */
         metrics: () => describeMetrics(source),
+        /**
+         * The attributes that hold points in time.
+         * @returns The time attributes, declared ones first.
+         */
+        timeAttributes: () => timeAttributesOf(source.attributes?.() ?? [], source.timeCandidates?.() ?? []),
+        /**
+         * Check an expression against this session without running it.
+         * @param query - The expression.
+         * @param o - Which kind of expression it is.
+         * @returns The check.
+         */
+        validate: (query, o) => validateQuery(source.query, query, o?.kind),
         /**
          * One algorithm's or layout's options, with data-dependent bounds and node choices
          * resolved over a scope of this graph.
@@ -216,7 +422,7 @@ export function createSessionCatalog(
                 optionsFor(
                     {
                         algorithms: SESSION_CATALOG_TABLES.algorithms,
-                        layouts: SESSION_CATALOG_TABLES.layouts,
+                        layouts,
                         resolve: source.resolve,
                         attributes: source.attributes,
                         results: source.results,

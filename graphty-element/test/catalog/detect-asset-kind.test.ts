@@ -5,7 +5,7 @@
 
 import { assert, describe, it } from "vitest";
 
-import { detectAssetKind } from "../../catalog";
+import { assetFileExtensions, detectAssetKind } from "../../catalog";
 import {
     ASCII_PLY,
     ASCII_STL,
@@ -59,5 +59,50 @@ describe("detectAssetKind", () => {
         assert.equal(detectAssetKind({ filename: "police.glb" }), "model");
         assert.isUndefined(detectAssetKind({ filename: "graph.csv", head: utf8("id,label\n1,a\n") }));
         assert.isUndefined(detectAssetKind({ filename: "notes.txt" }));
+    });
+});
+
+describe("assetFileExtensions", () => {
+    it("offers a picture's formats, and a model's with its parts and a .zip", () => {
+        for (const ext of assetFileExtensions("image")) {
+            assert.equal(detectAssetKind({ filename: `file${ext}` }), "image", ext);
+        }
+        assert.deepEqual([...assetFileExtensions("image")], [".png", ".jpg", ".jpeg", ".webp"]);
+        assert.deepEqual(
+            [...assetFileExtensions("model")],
+            [
+                ".glb",
+                ".gltf",
+                ".obj",
+                ".stl",
+                ".ply",
+                ".splat",
+                ".spz",
+                ".sog",
+                ".babylon",
+                ".bin",
+                ".mtl",
+                ".json",
+                ".zip",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+                ".tga",
+                ".bmp",
+                ".gif",
+                ".dds",
+                ".ktx2",
+                ".avif",
+            ],
+        );
+    });
+
+    it("offers a model's own files and a .zip only with parts: false", () => {
+        assert.deepEqual(
+            [...assetFileExtensions("model", { parts: false })],
+            [".glb", ".gltf", ".obj", ".stl", ".ply", ".splat", ".spz", ".sog", ".babylon", ".zip"],
+        );
+        assert.deepEqual(assetFileExtensions("image", { parts: false }), assetFileExtensions("image"));
     });
 });

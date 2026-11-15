@@ -11,10 +11,10 @@
  * does not.
  */
 
-import type { Material } from "@babylonjs/core/Materials/material";
-import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
-import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh";
-import type { Mesh } from "@babylonjs/core/Meshes/mesh";
+import type { Material } from "@babylonjs/core/Materials/material.js";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { InstancedMesh } from "@babylonjs/core/Meshes/instancedMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { assert, describe, it } from "vitest";
 
 import { operationQueueOf } from "../../../src/Graph";
@@ -79,7 +79,7 @@ describe("node.texture and the stable frame", () => {
         // Force the race: the first frame that would be called final with the picture on draws
         // while the textured material's shader is "not ready", and is ready again before the
         // frame ends. Inserted first, so it runs before the update manager samples readiness.
-        const settlement = (element.graph as unknown as { updateManager: Settlement }).updateManager;
+        const settlement = element.graph.getUpdateManager() as unknown as Settlement;
         const wrapped = new Set<Material>();
         let blockedFrames = 0;
         let blocking = false;

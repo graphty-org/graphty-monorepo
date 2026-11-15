@@ -16,14 +16,16 @@ interface Source {
 }
 interface HostedSources {
     SOURCES: Record<string, Source>;
-    SOURCES_RELEASE_URL: string;
+    sourceRelease: (source: Source) => string;
+    sourceReleaseUrl: (source: Source) => string;
     publishedCopy: (url: string, sha256: string | undefined, fetchImpl: typeof fetch) => Promise<Buffer | null>;
-    sourceUrl: (source: Source, options?: { fromOriginalHost?: boolean }) => string;
+    sourceUrls: (source: Source, options?: { fromOriginalHost?: boolean }) => string[];
     fetchSource: (
         source: Source,
         cacheDir: string,
         options?: { fromOriginalHost?: boolean; fetchImpl?: typeof fetch },
     ) => Promise<string>;
+    hostedDrift: (built: object[], recorded: readonly object[]) => string[];
 }
 
 /** scripts/hosted-sources.mjs, which build-hosted.mjs and refresh-sources.mjs use. */
@@ -85,7 +87,8 @@ describe("publishedCopy", () => {
     });
 });
 
-// A rebuild reads its sources from this repository's release; only the refresh contacts the original hosts.
+// A rebuild reads its sources from this repository's release, and an original host only when the release
+// has no good copy (#3362: the release did not exist, so a changed dataset could not be deployed).
 describe("sources", () => {
     let cache: string | undefined;
     afterEach(() => {
@@ -94,14 +97,50 @@ describe("sources", () => {
         }
     });
 
-    it("come from the release unless the original host is asked for", async () => {
-        const { sourceUrl, SOURCES_RELEASE_URL } = await hostedSources();
-        expect(SOURCES_RELEASE_URL).toBe(
-            "https://github.com/graphty-org/graphty-monorepo/releases/download/graph-samples-sources-v1/",
+    it("come from the release first, then the original host", async () => {
+        const { sourceUrls, sourceRelease, sourceReleaseUrl } = await hostedSources();
+        // one immutable release per source copy, named by its checksum
+        expect(sourceRelease(source)).toBe(`graph-samples-source-${sha256.slice(0, 16)}`);
+        expect(sourceReleaseUrl(source)).toBe(
+            `https://github.com/graphty-org/graphty-monorepo/releases/download/graph-samples-source-${sha256.slice(0, 16)}/a.gz`,
         );
-        expect(sourceUrl(source)).toBe(`${SOURCES_RELEASE_URL}a.gz`);
-        expect(sourceUrl(source, { fromOriginalHost: true })).toBe(source.url);
-        expect(() => sourceUrl({ ...source, redistribute: false })).toThrow(/not redistributable/);
+        expect(sourceUrls(source)).toEqual([sourceReleaseUrl(source), source.url]);
+        expect(sourceUrls(source, { fromOriginalHost: true })).toEqual([source.url]);
+        expect(sourceUrls({ ...source, redistribute: false })).toEqual([source.url]);
+    });
+
+    it("fall through to the original host when the release has no good copy", async () => {
+        const { fetchSource, sourceReleaseUrl } = await hostedSources();
+        const releaseA = sourceReleaseUrl(source);
+        const releaseC = sourceReleaseUrl({ ...source, file: "c.gz" });
+        cache = mkdtempSync(path.join(tmpdir(), "hosted-sources-"));
+        const answers: Record<string, () => Promise<Response>> = {
+            [releaseA]: () => Promise.resolve(new Response("Not Found", { status: 404 })),
+            [releaseC]: () => Promise.resolve(new Response("an older copy")),
+            [source.url]: () => Promise.resolve(new Response(bytes)),
+        };
+        const asked: string[] = [];
+        const host: typeof fetch = (input) => {
+            asked.push(input as string);
+            return answers[input as string]();
+        };
+        expect(readFileSync(await fetchSource(source, cache, { fetchImpl: host })).equals(bytes)).toBe(true);
+        expect(
+            readFileSync(await fetchSource({ ...source, file: "c.gz" }, cache, { fetchImpl: host })).equals(bytes),
+        ).toBe(true);
+        expect(asked).toEqual([releaseA, source.url, releaseC, source.url]);
+    });
+
+    it("fail naming what to do when no copy can be fetched", async () => {
+        const { fetchSource } = await hostedSources();
+        cache = mkdtempSync(path.join(tmpdir(), "hosted-sources-"));
+        const down = serving(() => Promise.reject(new TypeError("fetch failed")));
+        await expect(fetchSource(source, cache, { fetchImpl: down })).rejects.toThrow(
+            /dispatch graph-samples-sources\.yml/,
+        );
+        await expect(fetchSource({ ...source, redistribute: false }, cache, { fetchImpl: down })).rejects.toThrow(
+            /not redistributable.*original host answers again/,
+        );
     });
 
     it("keep only those whose terms allow it in the release", async () => {
@@ -114,7 +153,7 @@ describe("sources", () => {
     });
 
     it("are verified against their recorded sha256", async () => {
-        const { fetchSource } = await hostedSources();
+        const { fetchSource, sourceReleaseUrl } = await hostedSources();
         cache = mkdtempSync(path.join(tmpdir(), "hosted-sources-"));
         const asked: string[] = [];
         const good: typeof fetch = (input) => {
@@ -123,12 +162,46 @@ describe("sources", () => {
         };
         const file = await fetchSource(source, cache, { fetchImpl: good });
         expect(readFileSync(file).equals(bytes)).toBe(true);
-        expect(asked).toEqual([
-            "https://github.com/graphty-org/graphty-monorepo/releases/download/graph-samples-sources-v1/a.gz",
-        ]);
+        expect(asked).toEqual([sourceReleaseUrl(source)]);
+        // a cached file with the recorded sha256 is not fetched again
+        await fetchSource(source, cache, { fetchImpl: good });
+        expect(asked).toHaveLength(1);
         const bad = serving(() => Promise.resolve(new Response("other bytes")));
         await expect(fetchSource({ ...source, file: "b.gz" }, cache, { fetchImpl: bad })).rejects.toThrow(
             /source changed/,
         );
+    });
+});
+
+// The deploy fails rather than publish files that differ from the committed hosted.ts (#6884)
+describe("hostedDrift", () => {
+    const recorded: {
+        name: string;
+        nodes: number;
+        bytes: number;
+        sha256: string;
+        attributes: Record<string, string>;
+    }[] = [
+        { name: "road-ny", nodes: 3, bytes: 10, sha256, attributes: { longitude: "f64" } },
+        { name: "com-dblp", nodes: 5, bytes: 20, sha256, attributes: {} },
+    ];
+
+    it("finds nothing when the built metadata is the recorded metadata", async () => {
+        const { hostedDrift } = await hostedSources();
+        expect(hostedDrift(structuredClone(recorded), recorded)).toEqual([]);
+    });
+
+    it("names a dataset rebuilt with other bytes or other metadata", async () => {
+        const { hostedDrift } = await hostedSources();
+        const built = structuredClone(recorded);
+        built[0].sha256 = "0".repeat(64);
+        built[1].attributes = { label: "string" };
+        expect(hostedDrift(built, recorded)).toEqual(["road-ny", "com-dblp"]);
+    });
+
+    it("names a dataset built but not recorded, and one recorded but not built", async () => {
+        const { hostedDrift } = await hostedSources();
+        const built = [structuredClone(recorded[0]), { ...recorded[1], name: "ogbn-arxiv" }];
+        expect(hostedDrift(built, recorded)).toEqual(["ogbn-arxiv", "com-dblp"]);
     });
 });

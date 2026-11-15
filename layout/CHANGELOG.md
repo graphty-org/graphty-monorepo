@@ -1,3 +1,86 @@
+## 2.7.1 (2026-11-12)
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.47
+- Updated visual-review to 0.2.43
+- Updated graph-format to 1.5.2
+- Updated algorithms to 3.4.22
+
+## 2.7.0 (2026-11-10)
+
+### 🚀 Features
+
+- **layout:** add a cluster force that pulls communities together ([#3257](https://github.com/graphty-org/graphty-monorepo/issues/3257))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.46
+- Updated visual-review to 0.2.42
+- Updated graph-format to 1.5.1
+- Updated algorithms to 3.4.21
+
+## 2.6.0 (2026-11-09)
+
+### 🚀 Features
+
+- **layout:** add a collision force to the force simulations ([#3256](https://github.com/graphty-org/graphty-monorepo/issues/3256))
+
+### 🩹 Fixes
+
+- **layout:** clamp an ARF tick only once the run proves unstable ([#3255](https://github.com/graphty-org/graphty-monorepo/issues/3255))
+- **layout:** keep the ForceAtlas2 integrate step within the complexity limit ([#3255](https://github.com/graphty-org/graphty-monorepo/issues/3255))
+- **layout:** stop force layouts throwing nodes away after a pin and leaving ARF nodes stuck ([#3255](https://github.com/graphty-org/graphty-monorepo/issues/3255))
+- **workspace:** type-check the algorithms and layout test files in lint ([#5689](https://github.com/graphty-org/graphty-monorepo/issues/5689))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.45
+- Updated visual-review to 0.2.41
+- Updated graph-format to 1.5.0
+- Updated algorithms to 3.4.20
+
+## 2.5.15 (2026-11-02)
+
+### 🩹 Fixes
+
+- **graphty-element:** keep lint type checks inside the worktree ([#5296](https://github.com/graphty-org/graphty-monorepo/issues/5296))
+- **workspace:** bundle storybook test dependencies afresh every run ([#5240](https://github.com/graphty-org/graphty-monorepo/issues/5240))
+- **layout:** make a group held at its members' box inert in the simulation layouts ([#3075](https://github.com/graphty-org/graphty-monorepo/issues/3075))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.44
+- Updated visual-review to 0.2.40
+- Updated graph-format to 1.4.12
+- Updated algorithms to 3.4.19
+
+## 2.5.14 (2026-11-01)
+
+### 🩹 Fixes
+
+- **workspace:** shrink CLAUDE.md files and move area rules to where they apply ([#3304](https://github.com/graphty-org/graphty-monorepo/issues/3304), [#1607](https://github.com/graphty-org/graphty-monorepo/issues/1607), [#1591](https://github.com/graphty-org/graphty-monorepo/issues/1591), [#1595](https://github.com/graphty-org/graphty-monorepo/issues/1595), [#1741](https://github.com/graphty-org/graphty-monorepo/issues/1741))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.43
+- Updated visual-review to 0.2.39
+- Updated graph-format to 1.4.11
+- Updated algorithms to 3.4.18
+
+## 2.5.13 (2026-10-31)
+
+### 🩹 Fixes
+
+- **layout:** add a Barnes-Hut repulsion to ForceAtlas2 and use it for the large dataset stories ([#5001](https://github.com/graphty-org/graphty-monorepo/issues/5001), [#3849](https://github.com/graphty-org/graphty-monorepo/issues/3849), [#3848](https://github.com/graphty-org/graphty-monorepo/issues/3848))
+
+### 🧱 Updated Dependencies
+
+- Updated graph-samples to 0.1.42
+- Updated visual-review to 0.2.38
+- Updated graph-format to 1.4.10
+- Updated algorithms to 3.4.17
+
 ## 2.5.12 (2026-10-29)
 
 ### 🧱 Updated Dependencies

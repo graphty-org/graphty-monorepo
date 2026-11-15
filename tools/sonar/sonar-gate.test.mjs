@@ -79,7 +79,9 @@ const work = process.argv.find((a) => a.startsWith("-Dsonar.working.directory=")
 mkdirSync(work, { recursive: true });
 const isBase = process.argv.some((a) => a.startsWith("-Dsonar.projectBaseDir="));
 writeFileSync(work + "/report-task.txt", isBase ? "ceTaskId=task-base\\n" : "ceTaskId=task-1\\n");
-writeFileSync(work + "/ps.txt", execFileSync("ps", ["-eo", "args"], { encoding: "utf8" }));
+// Every process's arguments, to check the token never shows there. The list is the machine's, and one
+// command line can pass 1 MB (a Java classpath), so the buffer must not be execFileSync's 1 MB default.
+writeFileSync(work + "/ps.txt", execFileSync("ps", ["-eo", "args"], { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 }));
 writeFileSync(work + "/args.json", JSON.stringify({ args: process.argv.slice(2), hasToken: Boolean(process.env.SONAR_TOKEN) }));
 console.log("INFO: fake scan done");
 `,

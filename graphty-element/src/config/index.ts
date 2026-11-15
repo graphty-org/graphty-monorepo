@@ -1,4 +1,11 @@
-export type { BasemapConfig, BasemapSourceId, BasemapStatus, LocationSourceFact, MapFrameFact } from "./Basemap";
+export type {
+    BasemapConfig,
+    BasemapSourceId,
+    BasemapStatus,
+    GlobeLook,
+    LocationSourceFact,
+    MapFrameFact,
+} from "./Basemap";
 export { Basemap } from "./Basemap";
 export type { AdHocData, ImageData } from "./common";
 export { colorToHex } from "./common";
@@ -18,26 +25,26 @@ export {
     DEFAULT_SELECTION_STYLE,
     GraphBackground,
     GraphSelectionStyleOpts,
-    LayoutTransition,
 } from "./GraphStyle";
 export type { Lighting } from "./Lighting";
 export { DEFAULT_LIGHTING, isLighting, LIGHTING_VALUES } from "./Lighting";
 export type { NodeStyleConfig } from "./NodeStyle";
-export {
-    defaultNodeStyle,
-    FLAT_NODE_SHAPES,
-    NodeBorderPositions,
-    NodeBorderStyles,
-    NodeShapes,
-    NodeStyle,
-} from "./NodeStyle";
+export { defaultNodeStyle, FLAT_NODE_SHAPES, NodeBorderStyles, NodeShapes, NodeStyle } from "./NodeStyle";
 export type { RichTextStyleType } from "./RichTextStyle";
 export { defaultRichTextLabelStyle, RichTextStyle } from "./RichTextStyle";
 export type { StyleSchemaV1 } from "./StyleTemplate";
 export { StyleTemplate } from "./StyleTemplate";
 export type { ViewMode } from "./ViewMode";
 export { DEFAULT_VIEW_MODE, isViewMode, VIEW_MODE_VALUES } from "./ViewMode";
-export type { XRConfig, XRInputConfig, XRModeConfig, XRTeleportationConfig, XRUIConfig } from "./XRConfig";
+export type {
+    XRAiConfig,
+    XRAiControlCode,
+    XRConfig,
+    XRControllerButton,
+    XRInputConfig,
+    XRModeConfig,
+    XRUIConfig,
+} from "./XRConfig";
 export { defaultXRConfig } from "./XRConfig";
 // Unified options schema system (Zod-based)
 export type { InferOptions, OptionsSchema } from "./OptionsSchema";

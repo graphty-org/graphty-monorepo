@@ -148,8 +148,8 @@ running selected files instead of whole shards, and the build by caching.
 
 Critical path for a change inside one package: checkout and `pnpm install` 1.5 min, plan about 1
 (graphs from cache), Build 3 min (most packages cache hits; `graphty:build` never hits, because it
-hashes the commit), then the selected tests' bins and stories in parallel, each under 8 min: about
-10 to 15 minutes, plus queue time while a full run holds runners (recorded separately).
+hashes the commit), then the selected tests' bins and stories in parallel, each under 4 min: about
+10 minutes, plus queue time while a full run holds runners (recorded separately).
 
 A graphty-element `src/` change (59 of the last 200 merges) or a global input is different, and
 nothing measured supports a few minutes of tests for it: it selects nearly every test file of
@@ -244,7 +244,7 @@ master:
   integrity and the breaking-change rule.
 - **What its runs get.** A `pull_request` run that Dependabot triggers has a read-only `GITHUB_TOKEN`,
   only Dependabot secrets, and no OIDC token. So it reads no remote cache (builds without it), and
-  posts no store record (spooled; the backfill job, which runs on master's ref, posts it as kind `pr`).
+  posts no store record.
   Both fail open: longer, never looser. A read-only cache token may be added as a Dependabot secret
   later if those runs are too slow.
 - **GitHub Actions updates** touch `.github/workflows/`, so each waits for the owner's review, by

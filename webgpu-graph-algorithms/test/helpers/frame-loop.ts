@@ -33,6 +33,14 @@
  * software rasterizer it does continuously. Closing the window on the observed flush() rather than on a tick
  * count is the same rule at the other end: a machine that stalls gets a longer pause, not a failed assertion.
  *
+ * A write "during flight" is reached the same way, by construction: with `submitBeforeWrites` a tick that issues
+ * writes first lets the flight drain (flush()), calls step() once and waits on the queue until that batch is
+ * SUBMITTED (lastSubmittedBatchId moved), then issues the writes. Its readback cannot land before the microtask that
+ * follows the submit (mapAsync settles in a later task), so every write meets a batch on the GPU that was computed
+ * from the old row, whatever the batch length or the tick rate. That batch counts as issued before the writes: its
+ * landing must find them intact. Sizing iterationsPerStep from measured tick and batch times instead made the
+ * premise a race the machine's load decides (issue #7211).
+ *
  * Model-agnostic (PD-18): the two generic parameters take any GpuLayoutSimulation, and the body reads only the
  * simulation's shared surface (iterationsDone, inFlight, settled and the @internal counters), never a stats field.
  *
@@ -63,6 +71,12 @@ export interface FrameLoopOptions {
           }[]
         | undefined;
     readonly onTick?: ((tick: number) => void) | undefined;
+    /**
+     * The simulation's device queue: a tick with scheduled writes first drains the flight, steps once and waits for
+     * that batch's submit on this queue, so every write is issued with a submitted batch in flight (absent: the
+     * writes go out with whatever happens to be in flight).
+     */
+    readonly submitBeforeWrites?: GPUQueue | undefined;
 }
 
 /** What one run reports (contract 5.2). */
@@ -118,6 +132,33 @@ function countersOf<O extends CommonLayoutOptions & SimulationOptions, S extends
         );
     }
     return candidate as SimulationCounters;
+}
+
+/**
+ * Runs `act` (which must create one new batch) and resolves once the simulation's lastSubmittedBatchId moved: the
+ * batch is on the GPU and, since this continues in the microtask after the submit, its readback has not landed.
+ * @param queue - the simulation's device queue (its submit is wrapped for the wait and restored after)
+ * @param counters - the simulation's counters
+ * @param act - creates the batch
+ */
+async function untilSubmitted(queue: GPUQueue, counters: SimulationCounters, act: () => void): Promise<void> {
+    const before = counters.lastSubmittedBatchId;
+    const submit = queue.submit.bind(queue);
+    let submitted: () => void = (): void => undefined;
+    queue.submit = (buffers: Iterable<GPUCommandBuffer>): undefined => {
+        submit(buffers);
+        submitted();
+    };
+    try {
+        act();
+        while (counters.lastSubmittedBatchId === before) {
+            await new Promise<void>((resolve) => {
+                submitted = resolve;
+            });
+        }
+    } finally {
+        queue.submit = submit;
+    }
 }
 
 /**
@@ -180,7 +221,8 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
     /** Ticks the pause spent past its `pauseTicks` floor waiting for flush(): added to the run, not taken from it. */
     let extraTicks = 0;
     let pausing = false;
-    let flushResolved = false;
+    /** Set by flush()'s handler; an object, so the reads below see the handler's write. */
+    const flush = { resolved: false };
 
     const checkHolds = (): void => {
         for (const write of writes) {
@@ -249,7 +291,7 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
             flightCeiling = inFlightAtStart;
         }
         // (b) the pause window
-        if (pausing && pauseStart !== null && tick >= pauseStart + pauseTicks && flushResolved) {
+        if (pausing && pauseStart !== null && tick >= pauseStart + pauseTicks && flush.resolved) {
             pausing = false;
             pauseEnd = tick;
             extraTicks = tick - (pauseStart + pauseTicks);
@@ -264,12 +306,22 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
             pauseStart = tick;
             sim.flush().then(
                 () => {
-                    flushResolved = true;
+                    flush.resolved = true;
                 },
                 (err: unknown) => {
                     errors.push(err);
                 },
             );
+        }
+        // (b') a write tick under submitBeforeWrites: a submitted batch in flight by construction (see the header);
+        // stepped "at tick - 1" so its landing counts as older than the writes
+        const writing = scheduledWrites.some((scheduled) => scheduled.tick === tick);
+        if (options.submitBeforeWrites !== undefined && writing && !pausing && !sim.settled) {
+            await sim.flush();
+            await untilSubmitted(options.submitBeforeWrites, counters, () => {
+                stepOnce(tick - 1);
+            });
+            maxObservedInFlight = Math.max(maxObservedInFlight, sim.inFlight);
         }
         // (c) the caller's hook: sees the state the report recorded for this tick, runs before the writes and the step
         options.onTick?.(tick);
@@ -303,7 +355,7 @@ export async function runFrameLoop<O extends CommonLayoutOptions & SimulationOpt
     if (pausing) {
         errors.push(
             new Error(
-                flushResolved
+                flush.resolved
                     ? `the ${pauseTicks}-tick pause that started at tick ${pauseStart} ran past the last tick`
                     : `flush() did not resolve before the loop ended (the pause started at tick ${pauseStart})`,
             ),

@@ -43,9 +43,6 @@ const LOCATIONS = [
     "center",
 ] as const;
 
-/** How long to wait for a framing before giving up. */
-const FRAMING_TIMEOUT_MS = 5000;
-
 /** A box, as the element reports one. */
 interface Box {
     min: Vector3;
@@ -107,12 +104,8 @@ describe("zoom-to-fit framing", () => {
     async function frame(): Promise<Box> {
         await operationQueueOf(graph).waitForCompletion();
 
-        const box = await new Promise<Box>((done, fail) => {
-            const timer = setTimeout(() => {
-                off();
-                fail(new Error("the element never framed the graph"));
-            }, FRAMING_TIMEOUT_MS);
-
+        // No deadline of its own: the one hang guard (tools/test-wait-guard.mjs) ends a framing that never comes.
+        const box = await new Promise<Box>((done) => {
             const off = graph.on("zoom-to-fit-complete", (event) => {
                 if (
                     !("boundingBoxMin" in event) ||
@@ -122,7 +115,6 @@ describe("zoom-to-fit framing", () => {
                     return;
                 }
 
-                clearTimeout(timer);
                 off();
                 done({ min: event.boundingBoxMin.clone(), max: event.boundingBoxMax.clone() });
             });
@@ -130,8 +122,9 @@ describe("zoom-to-fit framing", () => {
             graph.zoomToFit();
         });
 
-        // Let the frame that applied the framing finish, then let the camera come to rest.
-        await draw();
+        // Let the frame that applied the framing finish and the camera come to rest: the element
+        // says when its picture is final, where a count of frames only guesses.
+        await graph.waitForStableFrame();
 
         return box;
     }
@@ -248,9 +241,11 @@ describe("zoom-to-fit framing", () => {
             await build(NODES);
         });
 
-        it("is the nodes out to their size when nothing is labelled", async () => {
+        it("is the nodes out to the size they are drawn when nothing is labelled", async () => {
             const box = await frame();
-            const half = (graph.getNode("a")?.size ?? 0) / 2;
+            // a node's drawn box, not its style size: a default sphere of size 1 is drawn 1.5 across (#3087)
+            const half = graph.getNode("a")?.drawnHalfExtents.x ?? 0;
+            assert.isAbove(half, 0);
 
             assert.closeTo(box.min.x, -4 - half, 1e-4);
             assert.closeTo(box.max.x, 4 + half, 1e-4);

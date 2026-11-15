@@ -294,3 +294,51 @@ function contrast(x: [number, number, number, number], y: [number, number, numbe
     const [hi, lo] = [lum(x), lum(y)].sort((p, q) => q - p);
     return (hi + 0.05) / (lo + 0.05);
 }
+
+describe("RampEditor for a screen reader", () => {
+    it("reads no row of the bins' table before its first control, and the table after them", async () => {
+        // Twenty bins, as a size ramp over degree has: their table once stood before every handle.
+        const bins = Array.from({ length: 20 }, (_, i) => ({
+            from: i,
+            to: i + 1,
+            count: i + 1,
+            label: `${String(i)} to ${String(i + 1)}`,
+        }));
+        render(
+            <MantineProvider theme={compactTheme}>
+                <div style={{ width: 240 }}>
+                    <RampEditor
+                        label="Node size by degree"
+                        bins={bins}
+                        domain={[2, 18]}
+                        onDomainChange={vi.fn()}
+                        describe={describeHandle}
+                    />
+                </div>
+            </MantineProvider>,
+        );
+        // A screen reader reads in document order: the table comes after every control.
+        const controls = [...document.querySelectorAll('[role="slider"], input')];
+        const table = screen.getByTestId("histogram-values");
+        expect(controls.length).toBeGreaterThan(0);
+        expect(table.querySelectorAll("tr")).toHaveLength(20);
+        for (const control of controls) {
+            expect(control.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        }
+        // The drawing is still one named picture, before the first control.
+        const picture = screen.getByRole("img", { name: "Node size by degree" });
+        expect(picture.compareDocumentPosition(controls[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("says what Escape discarded in a typed end, and keeps focus there", async () => {
+        render(<Harness onDomainChange={vi.fn()} />);
+        const field = screen.getByRole("textbox", { name: "Starts at" });
+        await userEvent.click(field);
+        await userEvent.keyboard("{Control>}a{/Control}55{Escape}");
+
+        expect((field as HTMLInputElement).value).toBe("20");
+        expect(document.activeElement).toBe(field);
+        const notes = screen.getAllByRole("status").map((note) => note.textContent);
+        expect(notes).toContain("Edit discarded; this stays 20.");
+    });
+});

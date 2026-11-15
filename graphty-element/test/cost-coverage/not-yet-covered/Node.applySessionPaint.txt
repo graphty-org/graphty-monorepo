@@ -1,1 +1,1 @@
-No counted-work test yet (issue #1643).
+Counted as an expected failure in test/browser/element-update-scaling.test.ts: one call still searches every scene mesh inside Babylon's InstancedMesh.dispose; covered when issue #2938 is fixed.

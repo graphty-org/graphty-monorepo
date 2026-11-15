@@ -24,6 +24,7 @@ export const NodeModelCenters = z.enum(["bounds", "origin"]);
  * How a node grows to hold its label, when `shape.labelFit` is set: "inside" fits the label's
  * padded box inside the node's outline, so an ellipse or a diamond reaches past the box's corners;
  * "bounds" makes the padded box the node's width and height, whatever its shape.
+ * @experimental file-styles
  */
 export const NodeLabelFits = z.enum(["inside", "bounds"]);
 
@@ -103,6 +104,11 @@ export const NodeShapes = z.enum([
     // The flat shapes of 2D tools (Cytoscape, yEd, Graphviz, Gephi). See FLAT_NODE_SHAPES.
     "rectangle",
     "round-rectangle",
+    // A rectangle with only its top two or bottom two corners rounded, the other two square
+    // (yFiles' `corners`, Cytoscape.js bottom-round-rectangle); `shape.cornerRadius` and its kin
+    // round them as they round a round-rectangle's.
+    "top-round-rectangle",
+    "bottom-round-rectangle",
     "ellipse",
     "diamond",
     "triangle",
@@ -145,6 +151,8 @@ export const NodeShapes = z.enum([
 export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
     "rectangle",
     "round-rectangle",
+    "top-round-rectangle",
+    "bottom-round-rectangle",
     "ellipse",
     "diamond",
     "triangle",
@@ -176,6 +184,7 @@ export const FLAT_NODE_SHAPES: readonly z.infer<typeof NodeShapes>[] = [
  * running round the node, short strokes across the ring (leaning either way or straight), a ring of small
  * arrows chasing each other round it, or a bar of arrows joined head to tail (Cytoscape desktop's border line
  * types). @public
+ * @experimental file-styles
  */
 export const NodeBorderStyles = z.enum([
     "solid",
@@ -196,6 +205,7 @@ export const NodeBorderStyles = z.enum([
  * Where a node border sits against the node's size: wholly outside it (the default), centered on
  * it, half in and half out (an SVG or canvas stroke), or wholly inside it, so the node is no larger
  * than its size (Cytoscape desktop). @public
+ * @experimental file-styles
  */
 export const NodeBorderPositions = z.enum(["outside", "center", "inside"]);
 
@@ -239,6 +249,10 @@ export const NodeStyle = z.strictObject({
             width: z.number().nonnegative().optional(),
             height: z.number().nonnegative().optional(),
             depth: z.number().nonnegative().optional(),
+            // Read `width`, `height` and `depth` as multiples of `size`, so changing the size keeps
+            // the stretch: width 2 at size 3 is drawn 6 wide. Unset or false reads them as extents.
+            // A painted style carries the extents already multiplied, with this flag beside them.
+            relativeExtents: z.boolean().optional(),
             // Draw the node thin along z, as a flat shape facing a 2D camera, even in a 3D view.
             planar: z.boolean().optional(),
             // Drawing order in a 2D view: below 0 draws the node behind every edge and every node
@@ -255,11 +269,18 @@ export const NodeStyle = z.strictObject({
             // than capped at a quarter of it (round-rectangle) or a tenth (the round-* polygons),
             // as Cytoscape.js and vis-network draw a radius a file sets. Unset or false keeps the caps.
             exactCornerRadius: z.boolean().optional(),
+            // The share of the shorter side a round-rectangle's corners are rounded by when
+            // `exactCornerRadius` is not set, never more than `cornerRadius`: unset, a quarter, as
+            // Cytoscape.js rounds; Cytoscape desktop rounds an eighth, Graphviz a third. At most a half.
+            cornerFraction: z.number().min(0).max(0.5).optional(),
             // A "polygon" node's corners, as `x,y` pairs separated by spaces: each relative to the
             // node's center as fractions of its half width and half height, y up ("0,1 1,-1 -1,-1"
             // is a triangle). The outline is stretched so its farthest corners reach the node's
             // sides. A node that grows to hold its label (`labelFit`) grows by as far as its corners
-            // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it.
+            // reach past 1, as Graphviz grows a distorted polygon. Other shapes ignore it. A coordinate may
+            // add a length in the units of `size` after its fraction, so a piece keeps its size whatever the
+            // node's: "-1+24" is 24 in from the left side, "0+6" 6 above the middle (here, in `parts` and in
+            // `lines`).
             points: z.string().optional(),
             // Whether a "polygon" node's corners are stretched about its center until the farthest
             // on each axis reach its sides (unset or true), or drawn exactly where they say, as
@@ -267,6 +288,11 @@ export const NodeStyle = z.strictObject({
             // lie on the ellipse inside the node's box stays that size, as OGDF draws its
             // triangles, pentagons, hexagons and octagons. Other shapes ignore it.
             stretchPoints: z.boolean().optional(),
+            // Turns a flat shape's outline this many degrees clockwise about the node's center, after
+            // it is drawn at its width and height (Pajek's `phi` turns an ellipse 20 x 30 into a
+            // tilted one). Its fill, border and the edges that end at it turn with it; its label does
+            // not. Unset or 0, unturned. Solids ignore it.
+            rotation: z.number().optional(),
             // Further closed pieces of a flat node's body, beside its outline: polygons as `x,y` pairs
             // separated by spaces, one polygon after another separated by ";", each point relative to
             // the node's center as fractions of its half width and half height, y up, drawn where they
@@ -278,6 +304,10 @@ export const NodeStyle = z.strictObject({
             // wide (unset, the border's width): a Graphviz `promoter`'s baseline, a `box3d`'s edges.
             lines: z.string().optional(),
             lineWidth: z.number().nonnegative().optional(),
+            // A wider line drawn under each of `lines`, down the same path, in its own color: `lineHaloWidth` wide
+            // (unset or 0, none), as yFiles draws a bevel's line of 1 over a lighter one of 2.
+            lineHaloColor: ColorStyle.optional(),
+            lineHaloWidth: z.number().nonnegative().optional(),
             // Further texts drawn over a flat node in its label's font, size and color, each one line centered on its
             // point: a JSON list of `[x, y, text]`, the point relative to the node's center as fractions of its half
             // width and half height, y up, as `parts` places its corners (Graphviz's record fields:
@@ -285,15 +315,27 @@ export const NodeStyle = z.strictObject({
             // (`{ "size": 0.2, "color": "#404040", "font": "Arial", "rotation": 45 }`, the size a share of the node's
             // height: a chart's item labels). Drawn whatever the label says, beside it.
             texts: z.string().optional(),
+            // The label laid out as a table of cells, as JSON (see the `node.labelTable` channel): drawn in place of
+            // the label's own words, each cell's outline a line over the node and each line of its text centered in
+            // its place; with `labelFit` the table is the label's box the node grows round.
+            labelTable: z.string().optional(),
             // Grow the node to hold its label (see NodeLabelFits): `width` and `height` (or `size`)
             // become its least size, and its label's box -- as wide as its widest line, as tall as
             // its lines at one font size each -- plus `labelPaddingX` on the left and right and
             // `labelPaddingY` above and below, in the units of `size`, decides the rest. With
-            // `labelFitSquare` it stays as wide as it is tall. Unset, the node is the size it states.
+            // `labelFitSquare` it stays as wide as it is tall. `labelFitQuantum` rounds the padded box up to a
+            // multiple of it each way before the outline is fitted. Unset, the node is the size it states.
             labelFit: NodeLabelFits.optional(),
             labelPaddingX: z.number().nonnegative().optional(),
             labelPaddingY: z.number().nonnegative().optional(),
             labelFitSquare: z.boolean().optional(),
+            labelFitQuantum: z.number().nonnegative().optional(),
+            // With `labelFit`, the node holds its picture (`image.src`) too: the picture's own pixels, each this
+            // long in the units of `size`, padded by `labelFitImagePadding` on each side; the larger of the padded
+            // label and the padded picture decides each way. The node is fitted again once the picture's size is
+            // read. Unset, the picture does not size the node.
+            labelFitImage: z.number().nonnegative().optional(),
+            labelFitImagePadding: z.number().nonnegative().optional(),
             // Draw the node as a loaded 3D model instead of `type`: an asset id ("asset:...") or a
             // URL. `type` stays the placeholder while it loads and the fallback when it fails
             // (design/rendering/node-models.md).
@@ -302,8 +344,18 @@ export const NodeStyle = z.strictObject({
             modelSourceUp: NodeModelUpAxes.optional(),
             // A turn about the up axis after `modelSourceUp`, in degrees.
             modelTurn: z.number().min(-360).max(360).optional(),
-            // true multiplies the model's base color by the node color; "replace" paints it flat.
-            modelTint: z.union([z.boolean(), z.literal("replace")]).optional(),
+            // true multiplies the model's base color by the node color; "replace" paints it flat;
+            // "untextured" paints flat only the parts with no picture and no vertex colors. A part
+            // the file gives no material takes the node color whatever this says.
+            modelTint: z.union([z.boolean(), z.literal("replace"), z.literal("untextured")]).optional(),
+            // The clip the model plays, by its name in the file; "" (or unset) draws it still.
+            modelAnimation: z.string().optional(),
+            // How fast the clip plays: 1 is the file's speed, 0 holds the frame at modelAnimationOffset.
+            modelAnimationSpeed: z.number().min(0).max(16).optional(),
+            // Seconds into the clip the node starts at (with speed 0, the pose it holds).
+            modelAnimationOffset: z.number().min(0).optional(),
+            // Draw both faces of every triangle (true), only the front (false), or as the file says ("file").
+            modelDoubleSided: z.union([z.boolean(), z.literal("file")]).optional(),
             // "contain" keeps proportions; "stretch" fills width, height and depth separately.
             modelFit: NodeModelFits.optional(),
             // "bounds" centers the bounding box on the node; "origin" keeps the file's pivot.
@@ -338,10 +390,12 @@ export const NodeStyle = z.strictObject({
                 .optional(),
             outline: z
                 .strictObject({
-                    // COLOUR ONLY. The outline is a ring around the node whose width is a fixed
-                    // share of the node's size (NodeEffects.applyOutlineEffect), so a declared
-                    // `width` would be accepted and ignored.
+                    // The ring around the node (NodeEffects.applyOutlineEffect). A width alone,
+                    // with no colour, draws nothing, as a glow strength alone draws nothing.
                     color: ColorStyle.optional(),
+                    // How wide the ring's band is drawn, as a multiple of its own width (1).
+                    // Unset, the graph's `layoutBehavior.node.outlineWidth`, else 1.
+                    width: z.number().nonnegative().max(10).optional(),
                 })
                 .optional(),
             // The halo the selection is drawn with (`selectionStyle`), in the node's own shape, for any
@@ -394,7 +448,8 @@ export const NodeStyle = z.strictObject({
     /**
      * A second ring drawn outside the border, `offset` beyond its outer edge (Cytoscape.js
      * `outline-*`): its color, its width and offset in the units of the border's width, its
-     * opacity and its line style. No width, or an opacity of 0, draws none. Unlike
+     * opacity and its line style. `count` (default 1, a fraction rounded down) draws that many rings, each `offset` beyond
+     * the one before (Graphviz's `peripheries`). No width, or an opacity of 0, draws none. Unlike
      * `effect.outline`, a highlight drawn over the node's rim, this is a ring of its own.
      */
     outerBorder: z
@@ -404,6 +459,33 @@ export const NodeStyle = z.strictObject({
             opacity: z.number().min(0).max(1).optional(),
             style: NodeBorderStyles.optional(),
             offset: z.number().optional(),
+            count: z.number().min(1).optional(),
+        })
+        .optional(),
+    /**
+     * Strips `width` wide along the inside of the node's edge, in the units of the border's width: `lightColor` on its
+     * left and top and `darkColor` on its bottom and right, so the node looks raised (yEd's 3D rectangle). They are cut
+     * to the node's outline. No width draws none.
+     */
+    raisedBorder: z
+        .strictObject({
+            width: z.number().nonnegative().optional(),
+            lightColor: ColorStyle.optional(),
+            darkColor: ColorStyle.optional(),
+        })
+        .optional(),
+    /**
+     * A shadow drawn behind the node (yEd's drop shadow): the node's own shape in `color` at `opacity`, moved
+     * `offsetX` right and `offsetY` down, its edge fading over `blur` on each side; lengths in the units of
+     * `shape.size`. No opacity, or 0, draws none.
+     */
+    shadow: z
+        .strictObject({
+            color: ColorStyle.optional(),
+            opacity: z.number().min(0).max(1).optional(),
+            blur: z.number().nonnegative().optional(),
+            offsetX: z.number().optional(),
+            offsetY: z.number().optional(),
         })
         .optional(),
     /**
@@ -493,7 +575,9 @@ export const NodeStyle = z.strictObject({
      * Bands of color drawn over the node's face, inside its outline (Cytoscape.js `stripe-*`,
      * Graphviz `style=striped`): `colors`, `sizes` and `opacities` as a pie's, the bands following
      * one another top to bottom (`direction` "down", the default) or left to right ("right"),
-     * over a box `size` (default 1) times the node's, centred on it.
+     * over a box `size` (default 1) times the node's, centred on it. `frame`, four fractions
+     * "top right bottom left" (of the box's height and width), keeps only the rim that deep inside
+     * the box's edges, so the bands frame what the node shows in the middle.
      */
     stripes: z
         .strictObject({
@@ -502,6 +586,7 @@ export const NodeStyle = z.strictObject({
             opacities: z.string().optional(),
             direction: z.enum(["down", "right"]).optional(),
             size: z.number().nonnegative().optional(),
+            frame: z.string().optional(),
         })
         .optional(),
     /**
@@ -512,13 +597,16 @@ export const NodeStyle = z.strictObject({
      * row of colored cells, one per value. `values` are numbers separated by spaces; `colors` CSS
      * colors separated by spaces, item i drawn in color i and the last color for the rest (a box's
      * whiskers in the first, its median in the second, else black). The plot is a box `size`
-     * (default 1) times the node's, centred on it; the values run along it from `min` (default the
+     * (default 1) times the node's (`width` and `height`, shares of the node's, give its sides
+     * apart), centred on it or moved by `offsetX` / `offsetY` (in the units of `shape.size`, y
+     * down); the values run along it from `min` (default the
      * smaller of 0 and the least value) to `max` (default the greatest), bottom to top, or left to
      * right with `horizontal`; the categories run along the other side, left to right or top to
      * bottom, each an equal share after `margin` (a share of the side, default 0) at each end and
      * `gap` (a share of the side, default 0) split between them. A bar runs from 0 (or the nearer
      * end of the range) to its value. `lineWidth` is a line's and a whisker's width, `borderWidth` /
-     * `borderColor` a bar's and a box's outline, in the units of `shape.size`.
+     * `borderColor` a bar's and a box's outline, in the units of `shape.size`. `backgroundColor` at
+     * `backgroundOpacity` (default 1) fills the plot box under the chart; unset, the plot has no fill.
      */
     chart: z
         .strictObject({
@@ -529,11 +617,17 @@ export const NodeStyle = z.strictObject({
             max: z.number().optional(),
             horizontal: z.boolean().optional(),
             size: z.number().nonnegative().optional(),
+            width: z.number().nonnegative().optional(),
+            height: z.number().nonnegative().optional(),
+            offsetX: z.number().optional(),
+            offsetY: z.number().optional(),
             margin: z.number().optional(),
             gap: z.number().min(0).max(1).optional(),
             lineWidth: z.number().nonnegative().optional(),
             borderColor: ColorStyle.optional(),
             borderWidth: z.number().nonnegative().optional(),
+            backgroundColor: ColorStyle.optional(),
+            backgroundOpacity: z.number().min(0).max(1).optional(),
         })
         .optional(),
     /**
@@ -575,6 +669,13 @@ export const NodeStyle = z.strictObject({
         })
         .optional(),
     label: RichTextStyle.prefault({ location: "top", textColor: "#000000" }).optional(),
+    /**
+     * A second label drawn outside the node, beside it (Graphviz's `xlabel`), switched on by its words. It is drawn
+     * in the label's look -- font, size, color, outline -- and any field set here wins over the label's. Unset
+     * `location`, it sits against the node's top left corner outside it (its own lower right corner on the node's
+     * box's upper left), or where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
+     */
+    xlabel: RichTextStyle.optional(),
     tooltip: RichTextStyle.prefault({
         location: "top-right",
         textColor: "#000000",

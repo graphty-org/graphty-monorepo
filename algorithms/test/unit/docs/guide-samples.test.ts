@@ -221,7 +221,7 @@ describe("documentation code samples", () => {
     // beside it, alternating runs: 2.4 to 5.2 s here (median 3.5 s, 7 runs) against 4.5 to 26.4 s in the test worker
     // (median 5.4 s), where it timed out in two pre-push gates. The slowest of 17 runs here, 18.7 s, came in a run whose
     // whole shard took 75 s instead of its usual 10 s; the 30 s limit leaves room for that.
-    it("type-checks every checked sample", { timeout: 30_000 }, async () => {
+    it("type-checks every checked sample", async () => {
         const files = docs.flatMap((d) => d.run.map((r) => r.file));
         const { stdout } = await execFileAsync(process.execPath, [CHECKER, join(PKG, "tsconfig.json"), OUT, ...files]);
         assert.deepEqual(JSON.parse(stdout), []);

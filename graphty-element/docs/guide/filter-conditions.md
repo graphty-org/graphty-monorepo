@@ -47,10 +47,18 @@ A condition that is off keeps its rule and does nothing.
 ## Select conditions
 
 A **select** condition hides nothing. Whenever the select conditions change (one is added,
-edited, switched on or off, removed, or a condition's effect becomes or stops being `select`), the
-selection becomes what every select condition that is on matches, over the whole graph, hidden
-elements included. That replaces a selection the reader made; with none on, nothing is selected.
-Edits to keep and exclude conditions, data loads and time-window moves never touch the selection.
+edited, switched on or off, removed, or a condition's effect becomes or stops being `select`), or a
+keep or exclude condition changes while a select condition is on, the selection becomes what every
+select condition that is on matches among the visible elements. A hidden element is never selected
+by a condition, so what is drawn as selected and what is reported as selected never differ. The
+result depends only on which conditions there are, never on their order. That replaces a selection
+the reader made; with none on, nothing is selected. Data loads and time-window moves never touch
+the selection.
+
+When the reader changes the selection by hand (a click on the canvas), every select condition that
+is on is switched off in one undoable step, and the reader's selection stays. Undo switches them
+back on and selects their matches again. A selection set through `session.selection.apply` leaves
+the conditions as they are.
 
 The change fires `selection:changed` and no `visibility:changed`. Undo puts back the selection the
 change replaced. Opening a project never applies select conditions: the selection saved with it
@@ -69,6 +77,37 @@ A `range`, `categories` or `text` rule on an edge value (such as `data.weight`) 
 
 A `nodes` reading written in the rule (`"all"`, `"ends"` or `"none"`) wins. Changing a condition's
 effect never needs a rule rewrite.
+
+## One load's conditions
+
+When several files or samples are loaded into one graph, a condition can belong to one of them.
+Give it `source`, a key from `session.data.sources()`, and it judges only the nodes and edges that
+load supplied; every other load's elements are left as they are.
+
+```ts
+const [teams] = session.data.sources();
+await session.visibility.addCondition({
+    effect: "keep",
+    source: teams.key,
+    rule: { kind: "range", attribute: "data.score", min: 0.8 },
+});
+// teams' low scorers are hidden; nothing from any other load is.
+```
+
+| Effect  | With `source`                               |
+| ------- | ------------------------------------------- |
+| keep    | hides that load's elements its rule misses  |
+| exclude | hides that load's elements its rule matches |
+| select  | selects among that load's elements only     |
+
+A node or edge two loads supplied belongs to both (`session.data.sourcesOf(id)`). Its counts are
+over that load's elements: `{ matched, total }` with `total` that load's count. Moving a condition to
+another load is `updateCondition(id, { source })`, one undo step. A condition whose load was
+removed does nothing. The `steps` view shows such a condition's rule without its load.
+
+A selection built for one load can start from that load too: a `union` leaf with
+`sources: [key]` starts its `"all"` branches with that load's elements only, so
+`scope.watchSteps` totals read "N of that load's count".
 
 ## Counts
 

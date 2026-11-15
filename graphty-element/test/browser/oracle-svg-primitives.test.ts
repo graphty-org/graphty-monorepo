@@ -3,13 +3,16 @@
  * programs write: a label outline Cytoscape.js strokes as its own unfilled text before the filled
  * label is not a label of its own, so the label's color is the filled text's; a gradient's direction
  * on screen through its own transform and its element's; a stroke painted with a gradient; a dash
- * array under a round cap; a band drawn as a fill read subpath by subpath.
+ * array under a round cap; a band drawn as a fill read subpath by subpath; yEd's and yEd Live's markup: what a `<use>`
+ * draws, base64 broken by `&#10;`, a fill with nothing inside, a group's inner panel.
  */
 import { assert, describe, it } from "vitest";
 
-import { associate, shapeOf } from "../fidelity/oracle/associate";
-import type { PScene } from "../fidelity/oracle/primitives";
-import { readSvgPrimitives } from "../fidelity/oracle/svg-primitives";
+import { associate, mergeTexts, shapeOf } from "../fidelity/oracle/associate";
+import { compareOracle } from "../fidelity/oracle/compare-oracle";
+import type { Pixels } from "../fidelity/oracle/picture-gradient";
+import type { PScene, PText } from "../fidelity/oracle/primitives";
+import { embeddedPngs, readSvgPrimitives } from "../fidelity/oracle/svg-primitives";
 
 describe("the oracle SVG reader", () => {
     it("reads an outlined label as its filled text, not its unfilled outline", () => {
@@ -41,6 +44,113 @@ describe("the oracle SVG reader", () => {
         const small = read(0.0885);
         assert.closeTo(small.height, large.height, 0.1);
         assert.closeTo(small.middle, large.middle, 0.1);
+    });
+
+    it("says how far under its font's line the browser's rounded box of a text stands", () => {
+        // yed-graphml-specimen-labels two-labels: DejaVu Sans is 0.928 em up and 0.236 down, and at 10 px the browser
+        // reads 8 up and 3 down
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <text x="50" y="50" font-family="DejaVu Sans" font-size="10px">Top</text>
+        </svg>`;
+        const t = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : []))[0];
+        assert.closeTo((t.box.y0 + t.box.y1) / 2 - (t.lineDrop ?? 0), 50 - (9.28 - 2.36) / 2, 0.02);
+    });
+
+    it("reads the lines of a label drawn under a few pixels high where they stand, not where rounding left them", () => {
+        // json-cyjs-winecheese 107: two lines centered at one x, 1.9 px on screen, read 0.4 px apart and so right-aligned
+        const label = (anchor: string): string => `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400">
+            <g transform="matrix(0.2146 0 0 0.2146 0 0)">
+                <text x="900" y="900" text-anchor="${anchor}" font-family="Helvetica,sans-Serif" font-size="9px" font-weight="bold">L'Edel de</text>
+                <text x="900" y="909" text-anchor="${anchor}" font-family="Helvetica,sans-Serif" font-size="9px" font-weight="bold">Cleron</text>
+            </g></svg>`;
+        const boxes = (anchor: string): { x0: number; x1: number }[] =>
+            readSvgPrimitives(label(anchor)).prims.flatMap((p) => (p.text ? [p.text.box] : []));
+        const [a, b] = boxes("middle");
+        assert.closeTo((a.x0 + a.x1) / 2, (b.x0 + b.x1) / 2, 0.02);
+        assert.isAbove(a.x1 - a.x0 - (b.x1 - b.x0), 1);
+        // lines started at one x still read so
+        const [c, d] = boxes("start");
+        assert.closeTo(c.x0, d.x0, 0.02);
+        assert.isAbove(Math.abs((c.x0 + c.x1) / 2 - (d.x0 + d.x1) / 2), 0.5);
+    });
+
+    describe("still fails a small label drawn wrong, with its lines read off the unrounded layout", () => {
+        const K = 0.2146;
+        /** The program's two lines, 1.9 px on screen, anchored at the middle of an 8 px node at (100, 100). */
+        const program = (anchor: string): PText => {
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400">
+                <g transform="matrix(${String(K)} 0 0 ${String(K)} 0 0)">
+                    <text x="${String(100 / K)}" y="${String(99 / K)}" text-anchor="${anchor}" font-family="Helvetica,sans-Serif" font-size="9px" font-weight="bold">L'Edel de</text>
+                    <text x="${String(100 / K)}" y="${String(101 / K)}" text-anchor="${anchor}" font-family="Helvetica,sans-Serif" font-size="9px" font-weight="bold">Cleron</text>
+                </g></svg>`;
+            const label = mergeTexts(readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : [])));
+            assert.isNotNull(label);
+            return label;
+        };
+        const drawing = (side: PScene["side"], label: PText): PScene => ({
+            side,
+            width: 600,
+            height: 400,
+            background: "#ffffff",
+            nodes: [
+                [100, 100],
+                [300, 100],
+                [500, 100],
+                [100, 300],
+                [300, 300],
+                [500, 300],
+            ].map(([cx, cy], i) => ({
+                id: "abcdef"[i],
+                cx,
+                cy,
+                w: 8,
+                h: 8,
+                shape: "ellipse",
+                fill: { color: "#cccccc", opacity: 1, gradient: null },
+                stroke: null,
+                label: i === 0 ? label : null,
+            })),
+            edges: [],
+            groups: [],
+            texts: [],
+            strays: [],
+        });
+        const failing = (o: PText, g: PText): string[] =>
+            Object.keys(compareOracle("t", drawing("oracle", o), drawing("graphty", g)).failures)
+                .filter((p) => p.startsWith("label."))
+                .sort();
+
+        it("and passes one drawn right", () => {
+            assert.deepEqual(failing(program("middle"), { ...program("middle"), align: "middle" }), []);
+            assert.deepEqual(failing(program("start"), { ...program("start"), align: "start" }), []);
+            assert.deepEqual(failing(program("end"), { ...program("end"), align: "end" }), []);
+        });
+
+        it("in the wrong alignment", () => {
+            for (const [wanted, drawn] of [
+                ["middle", "start"],
+                ["middle", "end"],
+                ["start", "middle"],
+                ["end", "middle"],
+                ["start", "end"],
+            ] as const) {
+                assert.include(failing(program(wanted), { ...program(wanted), align: drawn }), "label.align");
+            }
+        });
+
+        it("on the wrong side of its node", () => {
+            const o = program("middle");
+            const moved = (b: PText["box"]): PText["box"] => ({ ...b, x0: b.x0 + 14, x1: b.x1 + 14 });
+            const g = { ...o, align: "middle" as const, box: moved(o.box), lines: o.lines?.map(moved) };
+            assert.includeMembers(failing(o, g), ["label.anchor", "label.offset"]);
+        });
+
+        it("at the wrong width", () => {
+            const o = program("middle");
+            const wider = (b: PText["box"]): PText["box"] => ({ ...b, x1: b.x1 + (b.x1 - b.x0) });
+            const g = { ...o, align: "start" as const, box: wider(o.box), lines: o.lines?.map(wider) };
+            assert.includeMembers(failing(o, g), ["label.align", "label.anchor", "label.offset"]);
+        });
     });
 
     it("reads the open outline vis-network writes over a filled shape as that shape's outline", () => {
@@ -222,6 +332,30 @@ describe("the oracle SVG reader", () => {
         assert.closeTo(prims[2].stroke?.gradient?.angle ?? Number.NaN, 45, 0.01);
     });
 
+    it("reads a fill's linear gradient along the direction its color changes, not its stretched vector", () => {
+        // yEd Live's corner-to-corner ramp (graphml-yfiles-html-stag-flowchart) on a 220 x 94 box: its vector runs
+        // along 23.1 degrees on screen, its lines of one color are stretched with it, and its color changes along 66.9
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">
+            <defs>
+                <linearGradient id="corner" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#ff0000"/><stop offset="1" stop-color="#0000ff"/>
+                </linearGradient>
+                <linearGradient id="user" gradientUnits="userSpaceOnUse" x1="10" y1="150" x2="230" y2="244">
+                    <stop offset="0" stop-color="#ff0000"/><stop offset="1" stop-color="#0000ff"/>
+                </linearGradient>
+            </defs>
+            <rect x="10" y="10" width="220" height="94" fill="url(#corner)"/>
+            <rect x="10" y="150" width="220" height="94" fill="url(#user)"/>
+            <path d="M 10 280 L 230 290" stroke="url(#corner)" stroke-width="4" fill="none"/>
+        </svg>`;
+        const { prims } = readSvgPrimitives(svg);
+        assert.closeTo(prims[0].fill?.gradient?.angle ?? Number.NaN, 66.87, 0.01);
+        // in user space a vector is drawn as it is: its color changes along it
+        assert.closeTo(prims[1].fill?.gradient?.angle ?? Number.NaN, 23.13, 0.01);
+        // a stroke's is its vector on screen, which an edge's chord judges
+        assert.closeTo(prims[2].stroke?.gradient?.angle ?? Number.NaN, 2.6, 0.01);
+    });
+
     it("reads a dash array under a round cap, and samples an open path densely enough for its route", () => {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
             <path d="M 10 10 L 190 10" stroke="#000" stroke-width="2" stroke-dasharray="0 6" stroke-linecap="round" fill="none"/>
@@ -308,6 +442,205 @@ describe("the oracle SVG reader", () => {
                 ["b", "Dialog.bold"],
                 ["c", "DejaVu Sans"],
             ],
+        );
+    });
+
+    it("reads only the branch of a switch the browser draws, keeping a fallback beside an HTML label", () => {
+        // draw.io ends every export with a switch whose drawn branch is an empty group and whose fallback, the warning
+        // "Text is not SVG - cannot display", is never on the canvas; a label is a switch of a foreignObject (drawn,
+        // HTML this reader cannot read) and a text standing for it
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <switch>
+                <foreignObject x="10" y="10" width="80" height="20"><div xmlns="http://www.w3.org/1999/xhtml">Label</div></foreignObject>
+                <text x="50" y="25" font-size="12">Label</text>
+            </switch>
+            <switch>
+                <g requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"/>
+                <a transform="translate(0,-5)" href="https://www.drawio.com/doc/faq/svg-export-text-problems"><text x="50%" y="100%" font-size="10" text-anchor="middle">Text is not SVG - cannot display</text></a>
+            </switch>
+        </svg>`;
+        const texts = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text.content] : []));
+        assert.deepEqual(texts, ["Label"]);
+    });
+
+    it("reads what a <use> draws through its transform, once, and not its definition", () => {
+        // yEd Live's arrowhead: one path in <defs>, pointing at 0, 0, turned and placed by each <use>
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="100">
+            <g transform="translate(10 10)">
+                <use transform="matrix(-1 0 0 -1 100 50)" xlink:href="#head"/>
+            </g>
+            <defs><path id="head" fill="rgb(80,80,80)" stroke="rgb(80,80,80)" d="M 8,-3 L 0,0 L 8,3 Z"/></defs>
+        </svg>`;
+        const { prims } = readSvgPrimitives(svg);
+        assert.deepEqual(
+            prims.map((p) => [p.kind, p.box, p.fill?.color]),
+            [["shape", { x0: 102, y0: 57, x1: 110, y1: 63 }, "#505050"]],
+        );
+    });
+
+    it("reads an open stroke a <use> stamps as a shape that encloses nothing, not a line", () => {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <defs><path id="open" fill="none" stroke="rgb(80,80,80)" d="M 8,-3 L 0,0 L 8,3"/></defs>
+            <use transform="translate(50 50)" href="#open"/>
+        </svg>`;
+        const [p] = readSvgPrimitives(svg).prims;
+        assert.strictEqual(p.kind, "shape");
+        assert.deepEqual(p.points, [
+            [58, 47],
+            [50, 50],
+            [58, 53],
+            [50, 50],
+            [58, 47],
+        ]);
+    });
+
+    it("reads a <use> of a <symbol> at its own size, a <use> of a <use>, and leaves one naming nothing out", () => {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <defs>
+                <symbol id="s" viewBox="0 0 10 10"><rect width="10" height="10" fill="rgb(1,2,3)"/></symbol>
+                <rect id="r" width="4" height="4" fill="rgb(4,5,6)"/>
+                <use id="u" href="#r" x="1" y="1"/>
+            </defs>
+            <use href="#s" x="20" y="30" width="40" height="40"/>
+            <use href="#u" x="100" y="50"/>
+            <use href="#none"/>
+        </svg>`;
+        assert.deepEqual(
+            readSvgPrimitives(svg).prims.map((p) => [p.fill?.color, p.box]),
+            [
+                ["#010203", { x0: 20, y0: 30, x1: 60, y1: 70 }],
+                ["#040506", { x0: 101, y0: 51, x1: 105, y1: 55 }],
+            ],
+        );
+    });
+
+    it("finds a picture written across lines with &#10; under the address the page reads back", () => {
+        // yEd breaks its base64 every 76 characters with the entity
+        const href = "data:image/png;base64,iVBOR&#10;w0KGgo=";
+        const unbroken = "data:image/png;base64,iVBORw0KGgo=";
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20"><image width="20" height="20" href="${href}"/></svg>`;
+        assert.deepEqual([...embeddedPngs(svg)], [unbroken]);
+        const white: Pixels = { width: 1, height: 1, data: new Uint8ClampedArray([255, 255, 255, 255]) };
+        const seen: string[] = [];
+        const pictures = new Map([[unbroken, white]]);
+        const get = pictures.get.bind(pictures);
+        pictures.get = (key) => {
+            seen.push(key);
+            return get(key);
+        };
+        readSvgPrimitives(svg, pictures);
+        assert.deepEqual(seen, [unbroken]);
+    });
+
+    it("drops a fill with nothing inside, and keeps the stroke after it next to its line", () => {
+        // yEd's dash arrowhead: a line there and back, filled and then stroked; Z closes each subpath
+        const bar = "M60 40 L60 49 Z";
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <path fill="none" stroke="black" d="M10 45 L60 45"/>
+            <path fill="black" stroke="none" d="${bar}"/>
+            <path fill="none" stroke="red" d="${bar}"/>
+            <path fill="black" stroke="none" d="M80 40 L90 40 L90 50 Z"/>
+        </svg>`;
+        const { prims } = readSvgPrimitives(svg);
+        assert.deepEqual(
+            prims.map((p) => [p.index, p.stroke?.color ?? null, p.fill?.color ?? null]),
+            [
+                [0, "#000000", null],
+                [1, "#ff0000", null],
+                [2, null, "#000000"],
+            ],
+        );
+    });
+
+    it("reads a yFiles group's inner panel as part of its frame, and as the group where it has no frame", () => {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <g class="y-group-node">
+                <path class="yfiles-group-node-tab" fill="rgb(200,200,200)" d="M 0 0H 80V 60H 0z"/>
+                <path class="yfiles-group-node-content" fill="rgb(255,255,255)" d="M 4 20H 76V 56H 4z"/>
+                <path class="yfiles-group-node-stroke" fill="none" stroke="rgb(80,80,80)" d="M 0 0H 80V 60H 0z"/>
+            </g>
+            <g class="y-group-node">
+                <path class="yfiles-group-node-content" fill="rgb(255,255,255)" d="M 104 20H 176V 56H 104z"/>
+            </g>
+        </svg>`;
+        assert.deepEqual(
+            readSvgPrimitives(svg).prims.map((p) => [p.fill?.color, p.panel?.color, p.box.x0, p.box.x1]),
+            [
+                ["#c8c8c8", "#ffffff", 0, 80],
+                [undefined, "#ffffff", 0, 80],
+                ["#ffffff", undefined, 104, 176],
+            ],
+        );
+    });
+
+    it("reads a text whose every word is in one styled tspan in the tspan's font (yEd Live's markup labels)", () => {
+        // yed-live-graphml-specimen-labels-p5.svg: a MarkupLabelStyle's <b>, <h2> and colored <span>
+        const label = (run: string, x: number): string =>
+            `<text font-family="'DejaVu Sans'" font-size="12px" font-weight="normal" font-style="normal" fill="rgb(0,0,0)" x="${String(x)}" y="50">${run}</text>`;
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="100">
+            ${label('<tspan dy="11px" x="0" style="font-weight: bold;">Bold</tspan>', 20)}
+            ${label('<tspan dy="16.5px" x="0" style="font-size: 1.5em; font-weight: bold;">H2</tspan>', 120)}
+            ${label('<tspan dy="11px" x="0" style="color: rgb(255, 0, 0); fill: rgb(255, 0, 0);">Red</tspan>', 220)}
+            ${label('<tspan dy="11px" x="0" style="font-weight: bold;">A long</tspan>...', 320)}
+            ${label('<tspan dy="27px" x="0"><tspan style="font-weight: bold;">Red arrows</tspan></tspan><tspan dy="45px" x="0"><tspan style="font-weight: bold;">rather</tspan></tspan>', 20)}
+        </svg>`;
+        const texts = readSvgPrimitives(svg).prims.flatMap((p) => (p.text ? [p.text] : []));
+        assert.deepEqual(
+            texts.map((t) => [t.content, t.weight, t.sizePx, t.color]),
+            [
+                ["Bold", 700, 12, "#000000"],
+                ["H2", 700, 18, "#000000"],
+                ["Red", 400, 12, "#ff0000"],
+                // a word outside the tspan: the text's own font
+                ["A long...", 400, 12, "#000000"],
+                // graphml-yfiles-html-ss13-tree.svg: paragraphs of <strong>, a tspan in a tspan
+                ["Red arrows\nrather", 700, 12, "#000000"],
+            ],
+        );
+    });
+
+    it("reads yEd's framed edge as its line, outlined, and its arrowheads, not as one shape", () => {
+        // graphml-galaxy-lcms-workflow: the edge with delta arrowheads at both ends, a band 3 wide, and a node's
+        // outline drawn the same way, 150 x 30, which stays a shape
+        const band =
+            "M-387.2928 642.0977 L-394.4788 657.2507 L-388.4801 657.1257 L-388.4801 657.1257 L-388.2516 668.0958 L-388.2516 668.0958 L-394.2503 668.2208 L-386.4395 683.0613 L-379.2535 667.9083 L-379.2535 667.9083 L-385.2522 668.0333 L-385.2522 668.0333 L-385.4808 657.0632 L-385.4808 657.0632 L-379.4821 656.9382 L-387.2928 642.0977 Z";
+        const box = "M105 83.5 L105 113.5 L255 113.5 L255 83.5 Z";
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" stroke="black" fill="black">
+            <!--Generated by ySVG 2.6-->
+            <g transform="translate(400,-560)" fill="white" stroke="white" stroke-width="3">
+                <path d="${band}" stroke="none"/>
+                <path fill="none" d="${band}" stroke-width="1" stroke="rgb(95,128,157)"/>
+            </g>
+            <g fill="rgb(255,204,0)" stroke="black">
+                <path d="${box}" stroke="none"/>
+                <path fill="none" d="${box}"/>
+            </g>
+        </svg>`;
+        const { prims } = readSvgPrimitives(svg);
+        const lines = prims.filter((p) => p.kind === "path");
+        assert.strictEqual(lines.length, 1);
+        assert.strictEqual(lines[0].stroke?.color, "#ffffff");
+        assert.closeTo(lines[0].stroke?.width ?? 0, 2, 0.01);
+        assert.deepEqual(lines[0].lineOutline, { color: "#5f809d", opacity: 1, width: 4 });
+        const heads = prims.filter((p) => p.kind === "shape" && p.box.x1 < 50);
+        assert.strictEqual(heads.length, 2);
+        assert.isTrue(heads.every((h) => h.fill?.color === "#ffffff" && h.stroke?.color === "#5f809d"));
+        // the node's outline is no band
+        assert.strictEqual(prims.filter((p) => p.kind === "shape" && p.box.x0 >= 104).length, 2);
+    });
+    it("reads an SVG embedded in the drawing as one picture, not as the shapes inside it", () => {
+        // yEd's SVGNode (yed-graphml-specimen-images-charts): the node's own SVG, scaled into the node's 36 px box
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">
+            <g transform="matrix(0.9,0,0,0.9,62,14)">
+                <svg viewBox="0 0 40 40" width="40" height="40">
+                    <rect fill="#dc2828" x="0" width="20" y="0" height="20"/>
+                    <rect fill="#f0c800" x="20" width="20" y="20" height="20"/>
+                </svg>
+            </g>
+        </svg>`;
+        assert.deepEqual(
+            readSvgPrimitives(svg).prims.map((p) => [p.kind, p.box.x0, p.box.y0, p.box.x1, p.box.y1]),
+            [["image", 62, 14, 98, 50]],
         );
     });
 });

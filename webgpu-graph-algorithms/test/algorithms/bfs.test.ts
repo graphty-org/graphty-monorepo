@@ -302,7 +302,6 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
     for (const fixture of FIXTURES) {
         for (const directed of [false, true]) {
             const kind = directed ? "directed" : "undirected";
-            // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 38 s on CI's lavapipe, 23 s on lavapipe on the dev box under load, 15 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
             it(`${fixture.name} (${kind}): depth exact, parent by the smallest-predecessor rule, order grouped and sorted, counts, run twice`, async (t) => {
                 const ctx = await context(t);
                 const s = snapshotOf(fixture.edges, {
@@ -315,7 +314,7 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
                     await checkRun(ctx, `${fixture.name} ${kind} from ${source}`, s, source);
                 }
                 ctx.release(s);
-            }, 300_000);
+            });
         }
     }
 
@@ -832,8 +831,7 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         ctx.release(isolated);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 20 s on CI's lavapipe, 11 s on lavapipe on the dev box under load, more than a third of the 30 s budget; tracked in #1636
-    it("windowed (P8-T12, DEP-P8-E lifted): at a FAKED 1 MiB binding limit (>= 8 windows, the hub row straddling two) the traversal from the hub and from a leaf gives depth, parent, order and the counts bitwise equal to the unwindowed run's and the oracle's -- at the default cadence, at cadence 1 and with bottom-up forced -- with no ring overrun; a directed snapshot whose reverse adjacency exceeds the binding limit is E_TOO_LARGE before any device work", async (t) => {
+    it("windowed (P8-T12, DEP-P8-E lifted): at a FAKED 1 MiB binding limit (>= 8 windows, the hub row straddling two) the traversal from the hub and from a leaf gives depth, parent, order and the counts bitwise equal to the unwindowed run's and the oracle's -- at the default cadence, at cadence 1 and with bottom-up forced -- with no ring overrun; a directed snapshot whose reverse adjacency exceeds the binding limit runs over a windowed reverse core (issue #471), bitwise the unwindowed run's", async (t) => {
         const ctx = await context(t);
         const scale = gpuScale();
         const limit = Math.max(256, 256 * Math.round((2 ** 20 * scale) / 256));
@@ -910,29 +908,57 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
             residency.destroyAll();
         }
         ctx.release(s);
-        // the reverse view of a directed snapshot is never windowed (spec 4.3): refused up front, no device work
-        const directed = snapshotOf(KARATE_EDGES, { directed: true, label: "karate-directed-tiny-limit" });
-        const tiny = withCaps(ctx, fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 }));
-        const err = await expectRejection(breadthFirstSearch(tiny, directed, 0), "E_TOO_LARGE");
-        expect(err.details).toMatchObject({
-            needed: 4 * directed.arcCount,
-            limit: 256,
-            path: "windowed",
-            algorithm: "breadthFirstSearch",
-        });
-        expect(ctx.residency.stats().snapshots).toBe(1);
-        ctx.release(directed);
-    }, 600_000);
+        // a directed snapshot whose reverse adjacency exceeds the binding limit (issue #471): the reverse is windowed
+        // like the forward core (64 arcs a window at 256 bytes), and the sweep runs once per reverse window
+        for (const [label, directed] of [
+            ["karate", snapshotOf(KARATE_EDGES, { directed: true, label: "karate-directed-tiny-limit" })],
+            ["random", snapshotOf(randomEdges(60, 400, 7), { directed: true, label: "random-directed-tiny-limit" })],
+        ] as const) {
+            const tinyCaps = fakeCaps(ctx.caps, { maxStorageBufferBindingSize: 256 });
+            const tinyResidency = new GraphResidency(ctx.device, tinyCaps, ctx.allocator, {
+                warnUnreleasedSnapshots: 2,
+            });
+            try {
+                const tiny = withCaps(withResidency(ctx, tinyResidency), tinyCaps);
+                const reverse = tinyResidency.reverseWindowed(directed);
+                expect(reverse?.windows?.length, `${label}: reverse windows`).toBeGreaterThanOrEqual(2);
+                expect(ctx.residency.reverseWindowed(directed), `${label}: unwindowed at the real limit`).toBeNull();
+                for (const source of [0, directed.nodeCount - 1]) {
+                    const want = bfsOracle(directed, source);
+                    for (const tuning of [{}, { direction: "bottom-up" }, { levelsPerSubmit: 1 }] as const) {
+                        const name = `${label} directed windowed from ${source} ${JSON.stringify(tuning)}`;
+                        let scope: AlgorithmScope | null = null;
+                        const whole = await bfsWithTuning(ctx, directed, source, undefined, tuning);
+                        const windowed = await bfsWithTuning(tiny, directed, source, undefined, {
+                            ...tuning,
+                            onScope: (held) => {
+                                scope = held;
+                            },
+                        });
+                        expect((scope as AlgorithmScope | null)?.ringOverruns(), `${name}: ring overruns`).toBe(0);
+                        expectBitwiseEqual(windowed.depth, want.depth, `${name}: depth vs the oracle`);
+                        expectBitwiseEqual(windowed.parent, whole.parent, `${name}: parent vs the unwindowed run`);
+                        expectBitwiseEqual(windowed.order, whole.order, `${name}: order vs the unwindowed run`);
+                        expect(windowed.switches, `${name}: switches`).toBe(whole.switches);
+                        if (source === 0 && "direction" in tuning) {
+                            expect(windowed.switches, `${name}: the sweep ran`).toBeGreaterThanOrEqual(1);
+                        }
+                    }
+                }
+            } finally {
+                tinyResidency.destroyAll();
+            }
+            ctx.release(directed);
+        }
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 14 s on CI's lavapipe, more than a third of the 30 s budget; tracked in #1636
     it("the sabotage check passes on the real kernels (factor 0)", async (t) => {
         const ctx = await context(t);
         const report = await bfsReport(ctx);
         expect(report.worst).toBe(0);
         assertCheckPasses(report);
-    }, 120_000);
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 10 s on the dev box's RTX 4070 SUPER under load, more than a third of the 30 s budget; tracked in #1636
     it("gate (PD-7): the scaled 1,000 x 1,000 grid and the 10,000-degree star from the hub map exactly ceil(levels / 32) + 1 staging buffers each, on an adopted device after the self-check", async (t) => {
         requireGpu(t);
         const { device } = await acquireRaw();
@@ -973,5 +999,5 @@ describe("breadthFirstSearch (design 8.4 / 9.7; P8-T6)", () => {
         }
         expect(counter.live, "live buffers after release + dispose").toBe(0);
         counter.restore();
-    }, 600_000);
+    });
 });

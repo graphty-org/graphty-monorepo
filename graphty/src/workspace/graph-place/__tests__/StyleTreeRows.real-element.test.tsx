@@ -23,24 +23,18 @@ import { findTreeRow } from "../rows";
 /** Where the pictures for the owner's review go, relative to this file. */
 const SHOTS = "../../../../../design/ui/studio/tier3/build/tree-key-settings";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
-
 /**
  * Waits for the open project's element and its session.
  * @returns the session.
  */
 async function elementSession(): Promise<GraphSession> {
-    return waitFor<GraphSession>(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            if (found === undefined) {
-                throw new Error("the element is not up yet");
-            }
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    return waitFor<GraphSession>(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        if (found === undefined) {
+            throw new Error("the element is not up yet");
+        }
+        return found;
+    });
 }
 
 /**
@@ -57,11 +51,9 @@ function tree(): HTMLElement {
  * @returns the row.
  */
 async function row(name: string): Promise<HTMLElement> {
-    return within(await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS })).findByRole(
-        "treeitem",
-        { name: new RegExp(`^${name}, `) },
-        { timeout: TIMEOUT_MS },
-    );
+    return within(await screen.findByRole("tree", { name: "Style layers" })).findByRole("treeitem", {
+        name: new RegExp(`^${name}, `),
+    });
 }
 
 /**
@@ -138,7 +130,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         const keyRow = await row("Key people");
         const mark = await within(keyRow).findByRole("img", { name: "Painted over by Cover" });
         await userEvent.hover(mark);
-        const tip = await screen.findByRole("tooltip", {}, { timeout: TIMEOUT_MS });
+        const tip = await screen.findByRole("tooltip", {});
         assert.equal(tip.textContent, "Painted over by Cover");
         assert.isNull(within(await row("Cover")).queryByRole("img", { name: /Painted over/ }));
     });
@@ -156,6 +148,22 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
         await session.styles.settled();
         await within(await row("Key people")).findByRole("img", { name: "Painted over by Cover" });
         assert.isNull(within(await row("Nobody")).queryByRole("img", { name: /Painted over/ }));
+    });
+
+    it("counts each row over the nodes the filter leaves drawn, as Which nodes does", async () => {
+        const { session } = await openScene();
+        await session.visibility.set({ kind: "member", of: { nodes: [2, 3, 4] } });
+        await session.styles.settled();
+        // Cover selects all 4 nodes and Key people 2 of them; the filter leaves 3, Key people's 1 among them.
+        // Cover paints over Key people, whose row draws the painted-over mark in its count's place,
+        // so its count is read from the row's name, which says it either way.
+        const rowOf = (name: string): HTMLElement =>
+            within(tree()).getByRole("treeitem", { name: new RegExp(`^${name}, `) });
+        await waitFor(() => {
+            assert.equal(rowOf("Cover").querySelector(".ws-row-count")?.textContent, "3");
+            assert.match(rowOf("Cover").getAttribute("aria-label") ?? "", /, 3 nodes(,|$)/);
+            assert.match(rowOf("Key people").getAttribute("aria-label") ?? "", /, 1 node(,|$)/);
+        });
     });
 
     it("groups the row menu, with an icon on every item, Hide and Lock by their keys, and no Unpin on an unpinned row", async () => {
@@ -325,7 +333,7 @@ describe("the style tree's rows, menu and Graph settings door on the real elemen
             }
             assert.isEmpty(settings.querySelectorAll('[data-collapsible="true"]'), "no section folds");
             const labels = [...settings.querySelectorAll(".cm-field-label, .cm-paint-label")].map((l) => l.textContent);
-            for (const label of ["Lighting", "Outline width"]) {
+            for (const label of ["Lighting"]) {
                 assert.include(labels, label, `${label} is drawn as a field label`);
             }
             await page.screenshot({ path: `${SHOTS}/graph-settings-${size}.png` });

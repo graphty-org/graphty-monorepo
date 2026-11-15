@@ -8,6 +8,12 @@
         "build": {
             "executor": "nx:run-commands",
             "outputs": ["{projectRoot}/dist"],
+            "inputs": [
+                "buildSources",
+                "^buildSources",
+                { "runtime": "node --version" },
+                "{workspaceRoot}/tools/build-bundle.mjs"
+            ],
             "options": { "command": "npm run build:all", "cwd": "webgpu-graph-algorithms" },
             "dependsOn": ["^build"]
         },

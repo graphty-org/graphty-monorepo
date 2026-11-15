@@ -127,7 +127,6 @@ export const TEST_CONFIG = {
     // Test settings
     WARMUP_FRAMES: 10,
     MEASURE_FRAMES: 100,
-    PHYSICS_SETTLE_TIMEOUT_MS: 5000,
 };
 
 /**
@@ -389,33 +388,12 @@ export function generateEdges(nodes: { id: string }[], edgeCount: number): { sou
 }
 
 /**
- * Type for accessing private layoutManager in tests
+ * Waits for the layout to settle and its final frame to be drawn. No deadline of its own: the one
+ * hang guard (tools/test-wait-guard.mjs) ends a layout that never settles.
+ * @param graph - The graph whose layout is awaited
  */
-interface GraphWithLayout extends Omit<Graph, "layoutManager"> {
-    layoutManager?: { isSettled: boolean };
-}
-
-/**
- * Waits for physics layout to settle
- */
-export async function waitForLayoutSettle(graph: Graph, timeoutMs: number): Promise<void> {
-    return new Promise((resolve) => {
-        const startTime = Date.now();
-
-        const checkSettle = (): void => {
-            // Check if graph is settled via layoutManager
-            const graphWithLayout = graph as unknown as GraphWithLayout;
-            const isSettled = graphWithLayout.layoutManager?.isSettled ?? false;
-
-            if (isSettled || Date.now() - startTime > timeoutMs) {
-                resolve();
-            } else {
-                setTimeout(checkSettle, 16);
-            }
-        };
-
-        checkSettle();
-    });
+export async function waitForLayoutSettle(graph: Graph): Promise<void> {
+    await graph.waitForStableFrame();
 }
 
 /**

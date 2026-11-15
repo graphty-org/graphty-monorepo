@@ -61,8 +61,6 @@ const MIN_CHROMA = 0.04;
 /** How far in from the silhouette a pixel must be to count as surface. */
 const INTERIOR_RADIUS = 2;
 
-const CASE_TIMEOUT_MS = 30000;
-
 interface Lch {
     l: number;
     c: number;
@@ -223,7 +221,7 @@ async function mount(color: string): Promise<{ container: HTMLElement; graph: Gr
         },
     });
     await operationQueueOf(graph).waitForCompletion();
-    await graph.waitForStableFrame({ timeoutMs: CASE_TIMEOUT_MS });
+    await graph.waitForStableFrame();
 
     const state = graph.getCameraState();
     const target = state.target ?? { x: 0, y: 0, z: 0 };
@@ -259,7 +257,6 @@ for (const [name, color] of [
         let graph: Graph;
         const readings = new Map<Lighting | "default", Reading>();
 
-        // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
         beforeAll(async () => {
             let frame: Frame;
             ({ container, graph, frame } = await mount(color));
@@ -271,7 +268,7 @@ for (const [name, color] of [
                 await nextFrameDrawn(graph);
                 readings.set(lighting, readAgainst(await readFrame(graph), style));
             }
-        }, CASE_TIMEOUT_MS * 4);
+        });
 
         afterAll(() => {
             graph.dispose();

@@ -13,9 +13,6 @@ import { laneOf } from "../../src/session/GraphSession";
 import type { GraphSession } from "../../src/session/types";
 import lesMiserablesGexf from "../helpers/corpus/gexf/lesmiserables.gexf?raw";
 
-/** Per-test budget: each builds a real Babylon scene. */
-const TEST_TIMEOUT_MS = 30_000;
-
 const cleanups: (() => void)[] = [];
 
 afterEach(() => {
@@ -92,70 +89,60 @@ function assertOneValueEach(
 }
 
 describe("grouping nodes by an attribute", () => {
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "puts each Louvain community of Les Miserables on its own ring and in its own column",
-        async () => {
-            const graph = await makeGraph();
-            const session = graph.getSession();
-            await graph.addDataFromSource("gexf", { data: lesMiserablesGexf });
-            await operationQueueOf(graph).waitForCompletion();
+    it("puts each Louvain community of Les Miserables on its own ring and in its own column", async () => {
+        const graph = await makeGraph();
+        const session = graph.getSession();
+        await graph.addDataFromSource("gexf", { data: lesMiserablesGexf });
+        await operationQueueOf(graph).waitForCompletion();
 
-            const result = await session.runs.start("louvain", {}, { as: "louvain", style: false });
-            const groups = new Map<unknown, (string | number)[]>();
-            for (const id of session.snapshot().ids) {
-                const group = result.node(id)?.group;
-                groups.set(group, [...(groups.get(group) ?? []), id]);
-            }
-            assert.isAbove(groups.size, 2, "Louvain finds several communities");
+        const result = await session.runs.start("louvain", {}, { as: "louvain", style: false });
+        const groups = new Map<unknown, (string | number)[]>();
+        for (const id of session.snapshot().ids) {
+            const group = result.node(id)?.group;
+            groups.set(group, [...(groups.get(group) ?? []), id]);
+        }
+        assert.isAbove(groups.size, 2, "Louvain finds several communities");
 
-            await session.layout.set("shell", { options: { groupBy: "results.louvain.group" } });
-            await graph.waitForSettled();
-            let at = coordinates(session);
-            assertOneValueEach(groups, (id) => Math.hypot(...(at.get(id) ?? [Number.NaN, Number.NaN])), "radius");
+        await session.layout.set("shell", { options: { groupBy: "results.louvain.group" } });
+        await graph.waitForSettled();
+        let at = coordinates(session);
+        assertOneValueEach(groups, (id) => Math.hypot(...(at.get(id) ?? [Number.NaN, Number.NaN])), "radius");
 
-            await session.layout.set("layers", { options: { groupBy: "results.louvain.group" } });
-            await graph.waitForSettled();
-            at = coordinates(session);
-            assertOneValueEach(groups, (id) => at.get(id)?.[0] ?? Number.NaN, "column");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        await session.layout.set("layers", { options: { groupBy: "results.louvain.group" } });
+        await graph.waitForSettled();
+        at = coordinates(session);
+        assertOneValueEach(groups, (id) => at.get(id)?.[0] ?? Number.NaN, "column");
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- per-test timeout, to go once the slow step is found, tracked in #1636
-    it(
-        "splits a two-valued attribute into two columns, and refuses three without changing anything",
-        async () => {
-            const graph = await makeGraph();
-            const session = graph.getSession();
-            const sides = ["a", "b", "a", "b", "a", "b"];
-            await graph.addNodes(sides.map((side, i) => ({ id: `n${String(i)}`, side, tri: i % 3 })));
-            await graph.addEdges(sides.slice(1).map((_, i) => ({ src: `n${String(i)}`, dst: `n${String(i + 1)}` })));
-            await operationQueueOf(graph).waitForCompletion();
+    it("splits a two-valued attribute into two columns, and refuses three without changing anything", async () => {
+        const graph = await makeGraph();
+        const session = graph.getSession();
+        const sides = ["a", "b", "a", "b", "a", "b"];
+        await graph.addNodes(sides.map((side, i) => ({ id: `n${String(i)}`, side, tri: i % 3 })));
+        await graph.addEdges(sides.slice(1).map((_, i) => ({ src: `n${String(i)}`, dst: `n${String(i + 1)}` })));
+        await operationQueueOf(graph).waitForCompletion();
 
-            await session.layout.set("bipartite", { options: { groupBy: "data.side" } });
-            await graph.waitForSettled();
-            const at = coordinates(session);
-            const groups = new Map<unknown, (string | number)[]>([
-                ["a", ["n0", "n2", "n4"]],
-                ["b", ["n1", "n3", "n5"]],
-            ]);
-            assertOneValueEach(groups, (id) => at.get(id)?.[0] ?? Number.NaN, "column");
+        await session.layout.set("bipartite", { options: { groupBy: "data.side" } });
+        await graph.waitForSettled();
+        const at = coordinates(session);
+        const groups = new Map<unknown, (string | number)[]>([
+            ["a", ["n0", "n2", "n4"]],
+            ["b", ["n1", "n3", "n5"]],
+        ]);
+        assertOneValueEach(groups, (id) => at.get(id)?.[0] ?? Number.NaN, "column");
 
-            let refusal: unknown;
-            try {
-                await session.layout.set("bipartite", { options: { groupBy: "tri" } });
-            } catch (error) {
-                refusal = error;
-            }
+        let refusal: unknown;
+        try {
+            await session.layout.set("bipartite", { options: { groupBy: "tri" } });
+        } catch (error) {
+            refusal = error;
+        }
 
-            assert.isTrue(isGraphtyError(refusal), "three groups are refused");
-            assert.strictEqual((refusal as { code?: string }).code, "E_OPTION_RANGE");
-            assert.deepStrictEqual(session.layout.options, { groupBy: "data.side" }, "the layout is unchanged");
-            assert.deepStrictEqual([...coordinates(session)], [...at], "no node moved");
-        },
-        TEST_TIMEOUT_MS,
-    );
+        assert.isTrue(isGraphtyError(refusal), "three groups are refused");
+        assert.strictEqual((refusal as { code?: string }).code, "E_OPTION_RANGE");
+        assert.deepStrictEqual(session.layout.options, { groupBy: "data.side" }, "the layout is unchanged");
+        assert.deepStrictEqual([...coordinates(session)], [...at], "no node moved");
+    });
 
     it("publishes groupBy as a partition of nodes on all three layouts", () => {
         const graph = new Graph(document.createElement("div"));

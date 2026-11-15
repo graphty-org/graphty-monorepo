@@ -35,7 +35,7 @@
  * reader can check by eye, because what is under test is the element's treatment of them.
  */
 
-import { afterAll, afterEach, assert, beforeEach, describe, it } from "vitest";
+import { afterAll, afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
 import { setCameraPosition, zoomToNodes } from "../../../ai";
 import { CAMERA_DESCRIPTORS, cameraDescriptor, camerasForMode } from "../../../catalog";
@@ -48,9 +48,7 @@ import {
     registerCameraView,
 } from "../../../extend";
 import { Graph } from "../../../index.js";
-import { operationQueueOf } from "../../../src/Graph";
 import { assertPlaced } from "../../helpers/placed-position";
-import { nextFrame } from "../../helpers/real-input";
 
 /** Three nodes at known coordinates, so every box in this file can be checked by eye. */
 const NODES = [
@@ -67,9 +65,6 @@ const EDGES = [
 
 /** How far a reported camera position may sit from the computed one and still be the same place. */
 const PLACE_TOLERANCE = 0.5;
-
-/** How long any wait here is allowed to take before it is called a failure. */
-const PATIENCE_MS = 5000;
 
 /** Where the view registered after a snapshot already held its name puts the viewer. */
 const LATECOMER_PLACE = { x: 321, y: 123, z: 213 };
@@ -218,22 +213,15 @@ function boxAround(points: readonly Coords[]): { center: Coords; maxDimension: n
 }
 
 /**
- * Poll until something becomes true, or give up loudly.
+ * Poll until something becomes true. No deadline of its own: the one hang guard
+ * (tools/test-wait-guard.mjs) ends a wait that never comes true, naming what it waited for.
  * @param condition - What is being waited for.
  * @param what - How to describe it if the wait fails.
  */
 async function waitFor(condition: () => boolean, what: string): Promise<void> {
-    const deadline = Date.now() + PATIENCE_MS;
-
-    while (Date.now() < deadline) {
-        if (condition()) {
-            return;
-        }
-
-        await nextFrame();
-    }
-
-    throw new Error(`timed out waiting for ${what}`);
+    await vi.waitFor(() => {
+        assert.isTrue(condition(), `waiting for ${what}`);
+    });
 }
 
 describe("a third party's camera view", () => {
@@ -262,11 +250,18 @@ describe("a third party's camera view", () => {
     }
 
     /**
-     * Where the element currently has every node, which is the box a view frames by default.
+     * The box every node is drawn in, which is what a view framing the whole graph is handed by
+     * default (issue #6804): each node out to its drawn box, not only its centre.
      * @returns The centre of the graph and its longest side.
      */
     function graphBox(): { center: Coords; maxDimension: number } {
-        return boxAround(graph.getNodes().map((node) => placedPosition(node)));
+        return boxAround(
+            graph.getNodes().flatMap((node) => {
+                placedPosition(node);
+                const { min, max } = node.framingBounds();
+                return [min, max];
+            }),
+        );
     }
 
     /**
@@ -669,9 +664,7 @@ describe("a third party's camera view", () => {
             const travelling = graph.applyCameraView("acme-corner", { animate: true, duration: 4000 });
             await waitFor(() => cameraHasLeft({ x: 1, y: 1, z: 1 }), "the camera animation to take its first step");
 
-            for (const id of operationQueueOf(graph).getActiveOperations()) {
-                operationQueueOf(graph).cancelOperation(id);
-            }
+            assert.isTrue(graph.cancelCameraAnimation(), "a camera move was under way to cancel");
 
             // Cancelling a camera move is not a failure: the element stops the animation where it
             // is and the caller's await finishes. Rejecting would make every cancelled move an

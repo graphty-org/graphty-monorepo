@@ -60,7 +60,8 @@ function anchorBoxes(state: ListState): { anchor: DOMRect; reference: DOMRect } 
  * macOS does: its height is capped to the part that fits 8px inside the visual viewport and its
  * content scrolled, so the selected option still lands on the field. A list that fits whole is
  * pushed back inside instead (floating-ui's shift), moving the selected option off the field by
- * the overflow, so every option shows. The visual viewport, so an on-screen keyboard shrinks it.
+ * the overflow, so every option shows. The visual viewport, so an on-screen keyboard shrinks it,
+ * cut by any scrolling or clipping ancestor of a list that is not portalled.
  *
  * ponytail: a long list on a field near the edge is still cut to whatever fits beside the field,
  * which can be a few rows; open it toward the room when that shows.
@@ -76,6 +77,12 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
         return { mainAxis: LISTBOX_BELOW_GAP, alignmentAxis: 0 };
     }
     const { anchor, reference } = boxes;
+    // A field's own list scrolls its role="listbox", which the dropdown frames (cm-listbox-frame);
+    // a list built on Combobox directly scrolls the dropdown.
+    const scroller =
+        (floating.classList.contains("cm-listbox-frame")
+            ? floating.querySelector<HTMLElement>('[role="listbox"]')
+            : null) ?? floating;
     // floating-ui mirrors the alignment offset of a -start placement under rtl.
     const align = (edge: number): number =>
         rtl ? reference.right - anchor.right - edge : anchor.left - edge - reference.left;
@@ -85,7 +92,7 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     }
     // Where the list's content would start, unscrolled, for the selected option to sit on the field.
     const contentTop =
-        anchor.top - (selected.getBoundingClientRect().top - floating.getBoundingClientRect().top + floating.scrollTop);
+        anchor.top - (selected.getBoundingClientRect().top - floating.getBoundingClientRect().top + scroller.scrollTop);
     // The list is the part of that content inside the visual viewport less half the cap's margin
     // each side. A field outside that band cannot have its option both on it and inside it, and a
     // list that fits the band whole is never cut (cut, a short list on a field at the window's
@@ -93,17 +100,44 @@ function overTriggerOffset(state: ListState): { mainAxis: number; alignmentAxis:
     // tall, and shift pulls it in.
     const edge = VIEWPORT_CAP_MARGIN / 2;
     const view = visualBand();
-    const viewportTop = view.top + edge;
-    const viewportBottom = Math.min(floating.ownerDocument.documentElement.clientHeight, view.bottom) - edge;
+    const band = clippedBand(
+        floating,
+        view.top,
+        Math.min(floating.ownerDocument.documentElement.clientHeight, view.bottom),
+    );
+    const viewportTop = band.top + edge;
+    const viewportBottom = band.bottom - edge;
     const inside =
         anchor.top >= viewportTop &&
         anchor.bottom <= viewportBottom &&
-        floating.scrollHeight > viewportBottom - viewportTop;
+        scroller.scrollHeight > viewportBottom - viewportTop;
     const top = inside ? Math.max(contentTop, viewportTop) : contentTop;
-    const bottom = Math.min(contentTop + floating.scrollHeight, viewportBottom);
+    const bottom = Math.min(contentTop + scroller.scrollHeight, viewportBottom);
     floating.style.maxHeight = inside ? capped(`${String(bottom - top)}px`) : "";
-    floating.scrollTop = top - contentTop;
+    scroller.scrollTop = top - contentTop;
     return { mainAxis: top - reference.bottom, alignmentAxis: align(LISTBOX_EDGE) };
+}
+
+/**
+ * The part of a vertical band the list's clipping ancestors leave visible. A list that is not
+ * portalled (`withinPortal: false`) inside a scrolling panel is cut by the panel, not only by the
+ * viewport, so it fits inside the panel's visible part: otherwise it runs past it, and reaching its
+ * last options scrolls the panel, which moves the list under the pointer (#4484).
+ * @param floating - the list
+ * @param top - the band's top edge
+ * @param bottom - the band's bottom edge
+ * @returns the band, cut by every ancestor whose overflow clips
+ */
+function clippedBand(floating: HTMLElement, top: number, bottom: number): { top: number; bottom: number } {
+    const { body } = floating.ownerDocument;
+    for (let el = floating.parentElement; el && el !== body; el = el.parentElement) {
+        if (getComputedStyle(el).overflowY !== "visible") {
+            const clipTop = el.getBoundingClientRect().top + el.clientTop;
+            top = Math.max(top, clipTop);
+            bottom = Math.min(bottom, clipTop + el.clientHeight);
+        }
+    }
+    return { top, bottom };
 }
 
 /**
@@ -527,10 +561,9 @@ export function ensureListboxKeyboard(): void {
                 return;
             }
             // The walk may scroll a row into view; the list was placed around its scroll position.
-            const scroller = list.closest<HTMLElement>(".cm-listbox") ?? list;
-            const top = scroller.scrollTop;
+            const top = list.scrollTop;
             walkHighlight(input, list, checked);
-            scroller.scrollTop = top;
+            list.scrollTop = top;
         }, 0);
     };
     // Mantine's store marks the keyboard's highlight aria-selected and strips it from the option it

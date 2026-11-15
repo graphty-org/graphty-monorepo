@@ -80,6 +80,22 @@ describe("an algorithm's CPU port", () => {
         assert.strictEqual(off.modularity, page.modularity, "and the same modularity");
     });
 
+    it("runs Girvan-Newman in a Worker, so the page stays live through its rounds of betweenness", async () => {
+        const snapshot = ringWithChords(4000, 37);
+        const posted = vi.spyOn(Worker.prototype, "postMessage");
+        const options = { maxIterations: 1 };
+
+        const off = await cpuDispatcher(snapshot).girvanNewman(snapshot, options);
+        const page = await accelerated(null).girvanNewman(snapshot, options);
+
+        assert.strictEqual(posted.mock.calls.length, 1, "the call was handed to a Worker");
+        assert.deepStrictEqual(
+            off.levels.map((level) => [...level]),
+            page.levels.map((level) => [...level]),
+            "the same cuts",
+        );
+    });
+
     it("keeps a small graph on the page", async () => {
         const snapshot = ringWithChords(100, 7);
         const posted = vi.spyOn(Worker.prototype, "postMessage");

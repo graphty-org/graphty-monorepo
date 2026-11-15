@@ -176,6 +176,8 @@ export class DerivationLane {
     private readonly onError: (error: unknown) => void;
     private readonly hooks = new Map<DerivedSlice, DeriveHook[]>();
     private dirty = new Map<DerivedSlice, Set<string>>();
+    /** Keys touched with {@link DerivationLane.touchLater}, read when the next pass starts. */
+    private later: { readonly slice: DerivedSlice; readonly key: () => string }[] = [];
     /** How many writes each slice has had, whoever wrote it. */
     private readonly counts = new Map<DerivedSlice, number>();
     private shown: ProjectState;
@@ -300,10 +302,36 @@ export class DerivationLane {
     }
 
     /**
+     * Mark a key of a slice changed whose text is known only once the writes behind it stop: a
+     * forward batched add's edge range, which grows with every edge until a pass starts. `key` is
+     * called once, when the next pass takes the dirty set (or the dirty set is dropped), and a
+     * writer still adding afterwards touches a new key.
+     * @param slice - The slice.
+     * @param key - Gives the key.
+     */
+    touchLater(slice: DerivedSlice, key: () => string): void {
+        this.counts.set(slice, this.writes(slice) + 1);
+        this.later.push({ slice, key });
+        this.schedule();
+    }
+
+    /** Turn every key touched later into a dirty key. */
+    private settleLater(): void {
+        const { later } = this;
+        this.later = [];
+        for (const { slice, key } of later) {
+            const keys = this.dirty.get(slice) ?? new Set();
+            keys.add(key());
+            this.dirty.set(slice, keys);
+        }
+    }
+
+    /**
      * Take live state as what the picture shows, with nothing left to derive: the baseline is
      * drawn by the renderer's first draw, not by a pass.
      */
     adoptBaseline(): void {
+        this.settleLater();
         this.dirty.clear();
         this.shownCopies = copyAll(this.state);
         this.spare = copyAll(this.state);
@@ -358,12 +386,21 @@ export class DerivationLane {
     }
 
     /**
+     * Whether the lane is closed: its session is gone, and nothing it settles is told any more.
+     * @returns True once closed.
+     */
+    get isClosed(): boolean {
+        return this.closed;
+    }
+
+    /**
      * Stop deriving, for a session's `dispose()`: no pass starts after this, the pass running
      * calls no further hook, and whatever awaits a pass is released. A hook run after its
      * session was disposed would read a store that is already gone.
      */
     close(): void {
         this.closed = true;
+        this.settleLater();
         this.dirty.clear();
         const pending = this.next;
         this.next = null;
@@ -394,6 +431,7 @@ export class DerivationLane {
             const pass = this.next;
             this.current = pass;
             this.next = null;
+            this.settleLater();
             const { dirty } = this;
             this.dirty = new Map();
             const { restores } = this;
@@ -404,28 +442,18 @@ export class DerivationLane {
 
             for (const slice of HOOK_ORDER) {
                 const keys = dirty.get(slice);
-                for (const hook of keys === undefined ? [] : [...(this.hooks.get(slice) ?? [])]) {
+                for (const hook of this.hooksFor(slice, keys)) {
                     if (this.closed) {
                         break;
                     }
                     await this.call(hook, target, keys ?? new Set());
                 }
 
-                if (slice === "arrangement" && this.restores === restores) {
-                    this.restoringFlag = false;
-                }
+                this.endSlice(slice, restores);
             }
 
             this.show(target, copies, before, dirty);
-            // Checked once the picture has caught up with live state: a pass that another will
-            // follow draws a target that writes made since have already moved past.
-            if (this.afterPass !== null && this.next === null) {
-                try {
-                    this.afterPass(this.state);
-                } catch (error) {
-                    this.onError(error);
-                }
-            }
+            this.checkAfterPass();
 
             this.current = null;
             try {
@@ -438,6 +466,43 @@ export class DerivationLane {
         }
 
         this.idle();
+    }
+
+    /**
+     * The hooks a pass calls for one slice, copied so a hook that registers another does not
+     * change this pass: none when the slice is not dirty.
+     * @param slice - The slice.
+     * @param keys - The slice's dirty keys, undefined when it is clean.
+     * @returns The hooks.
+     */
+    private hooksFor(slice: DerivedSlice, keys: ReadonlySet<string> | undefined): DeriveHook[] {
+        return keys === undefined ? [] : [...(this.hooks.get(slice) ?? [])];
+    }
+
+    /**
+     * After a slice's hooks: the arrangement ends the restore this pass began with, unless another
+     * restore began since.
+     * @param slice - The slice whose hooks ran.
+     * @param restores - The restore count when the pass began.
+     */
+    private endSlice(slice: DerivedSlice, restores: number): void {
+        if (slice === "arrangement" && this.restores === restores) {
+            this.restoringFlag = false;
+        }
+    }
+
+    /**
+     * Checked once the picture has caught up with live state: a pass that another will follow
+     * draws a target that writes made since have already moved past.
+     */
+    private checkAfterPass(): void {
+        if (this.afterPass !== null && this.next === null) {
+            try {
+                this.afterPass(this.state);
+            } catch (error) {
+                this.onError(error);
+            }
+        }
     }
 
     /** Tell `drained` the slices derived since the lane last went idle. */

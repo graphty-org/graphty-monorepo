@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { DAILY_ROW_LIMIT, homeKey, HOUR, type RawItem, rollKey, skTime } from "../../src/model/items.js";
+import {
+    DAILY_ROW_LIMIT,
+    DAY,
+    floorTo,
+    homeKey,
+    HOUR,
+    type IssueItem,
+    ISSUES_PK,
+    type RawItem,
+    rollKey,
+    skTime,
+} from "../../src/model/items.js";
 import { getCursor, oldestAt, putRaw, quotaUsed, recordSource, setCursor, takeQuota } from "../../src/model/raw.js";
 import { recompute, windowValue } from "../../src/model/rollup.js";
 import { MemoryStore } from "../../src/model/store.js";
@@ -19,6 +30,24 @@ describe("raw writes", () => {
         expect(w.total.sum).toBe(1);
         const fa = await windowValue(store, "ci.first_attempt", "1h", T0 + MIN);
         expect(fa.total).toMatchObject({ n: 1, sum: 1 });
+    });
+
+    it("leaves the full run's designed same-commit re-run out of ci.reruns, but counts any other re-run", async () => {
+        const store = new MemoryStore();
+        const full = { workflow: "release.yml", event: "workflow_dispatch", branch: "master", conclusion: "failure" };
+        await putRaw(
+            store,
+            [
+                run(1, full),
+                run(1, { ...full, attempt: 2 }), // release-rerun.yml's one re-run: by design
+                run(1, { ...full, attempt: 3 }), // a further re-run of the full run: counted
+                run(2, { attempt: 2 }), // a pull request re-run: counted
+            ],
+            T0,
+        );
+        await recompute(store, T0);
+        const w = await windowValue(store, "ci.reruns", "1h", T0);
+        expect(w.total).toMatchObject({ n: 3, sum: 2 });
     });
 
     it("moves an item whose time changed, emptying its old bucket", async () => {
@@ -43,17 +72,49 @@ describe("raw writes", () => {
 
     it("a merging write keeps only the live collector's fields, never a field the new record unsets", async () => {
         const store = new MemoryStore();
-        await putRaw(
-            store,
-            [{ ...run(1), conclusion: "failure", cause: "infrastructure", tested: true } as RawItem],
-            T0,
-        );
+        await putRaw(store, [{ ...run(1), conclusion: "failure", cause: "infrastructure", tested: true }], T0);
         const fresh = { ...run(1), conclusion: undefined } as RawItem;
         await putRaw(store, [fresh], T0 + MIN, { merge: true });
         const stored = (await store.get(homeKey(fresh))) as Record<string, unknown>;
         expect(stored.cause).toBe("infrastructure");
         expect(stored.tested).toBe(true);
         expect(stored.conclusion).toBeUndefined();
+    });
+
+    it("keeps a copy of every issue in the ISSUES partition, replaced when the issue is written again", async () => {
+        const store = new MemoryStore();
+        const issue: IssueItem = {
+            kind: "issue",
+            id: "o/r#42",
+            attempt: 1,
+            repo: "o/r",
+            number: 42,
+            labels: ["bug"],
+            createdAt: T0 - HOUR,
+        };
+        await putRaw(store, [issue], T0);
+        await putRaw(store, [{ ...issue, closedAt: T0, stateReason: "completed" }], T0 + MIN);
+        const index = await store.query(ISSUES_PK);
+        expect(index.map((i) => i.sk)).toEqual(["o/r#0000042"]);
+        expect(index[0]).toMatchObject({ number: 42, closedAt: T0, stateReason: "completed" });
+    });
+
+    it("marks no bucket older than markSince dirty, and still writes the item's time copies", async () => {
+        const store = new MemoryStore();
+        const old = T0 - 200 * DAY;
+        const issue: IssueItem = {
+            kind: "issue",
+            id: "o/r#7",
+            attempt: 1,
+            repo: "o/r",
+            number: 7,
+            labels: [],
+            createdAt: old,
+            closedAt: T0 - HOUR,
+        };
+        await putRaw(store, [issue], T0, { markSince: T0 - 28 * DAY });
+        expect((await store.query("DIRTY")).map((m) => m.sk)).toEqual([skTime(floorTo(T0 - HOUR, "5m"))]);
+        expect(await store.query(`T#${skTime(floorTo(old, "5m"))}`)).toHaveLength(1);
     });
 
     it("refuses an item without an id", async () => {

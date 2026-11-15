@@ -12,12 +12,10 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and a layout finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /** A ring of twelve nodes. */
 const IDS = Array.from({ length: 12 }, (_, i) => `n${String(i)}`);
@@ -31,14 +29,11 @@ type Element = HTMLElementTagNameMap["graphty-element"];
  */
 async function openRing(): Promise<{ element: Element; session: GraphSession }> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Ring", id: 1 } })} />);
-    const element = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const element = await waitFor(() => {
+        const found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+        return found;
+    });
     if (element === null) {
         throw new Error("the element never came up");
     }
@@ -77,6 +72,11 @@ function trackDrawn(element: Element, id: string): () => { x: number; y: number 
     };
 }
 
+// TEMPORARY (#6125): with the selection workspace on, the layout popover is short and the
+// Transition list is cut to a strip whose scroll chevrons cover Glide, so the click never lands.
+// Remove this pin when compact-mantine opens such a list toward the room.
+withFeatures([]);
+
 describe("the layout form's Transition", () => {
     beforeAll(async () => {
         await page.viewport(1024, 768);
@@ -99,9 +99,10 @@ describe("the layout form's Transition", () => {
             assert.deepEqual(session.config.layoutTransition, { transition: "glide" });
         });
 
-        // Its settings: the easing, written with it.
-        await userEvent.click(within(popover).getByRole("button", { name: "Glide settings" }));
-        const easing = await screen.findByRole("combobox", { name: "Easing" });
+        // Its settings are drawn under the row, in the Layout popover: the easing, written with it.
+        assert.isNull(within(popover).queryByRole("button", { name: "Glide settings" }));
+        assert.isNotNull(within(popover).getByRole("textbox", { name: /^Seconds/ }));
+        const easing = await within(popover).findByRole("combobox", { name: "Easing" });
         await userEvent.click(easing);
         await userEvent.click(await screen.findByRole("option", { name: "Linear" }));
         await waitFor(() => {
@@ -111,12 +112,9 @@ describe("the layout form's Transition", () => {
 
         const stop = trackDrawn(element, "n3");
         await userEvent.click(within(popover).getByRole("button", { name: "Apply" }));
-        await waitFor(
-            () => {
-                assert.strictEqual(session.layout.id, "circular");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(session.layout.id, "circular");
+        });
         await element.waitForSettled();
         await element.waitForStableFrame();
         const seen = stop();
@@ -129,11 +127,8 @@ describe("the layout form's Transition", () => {
         assert.isAbove(between.length, 1, "the node is drawn on its way, over several frames");
 
         await session.undo();
-        await waitFor(
-            () => {
-                assert.strictEqual(session.layout.id, before, "Undo returns the layout");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(session.layout.id, before, "Undo returns the layout");
+        });
     });
 });

@@ -75,9 +75,9 @@ type FixedLayoutOpts = Partial<FixedLayoutConfigType>;
  * way, and a `layout-warning` with code `W_ROUTES_NOT_LAID` says why.
  */
 export class FixedLayout extends SnapshotLayoutEngine {
-    static type = "fixed";
-    static maxDimensions = 3;
-    static zodOptionsSchema: OptionsSchema = fixedLayoutOptionsSchema;
+    static readonly type: string = "fixed";
+    static readonly maxDimensions: number = 3;
+    static readonly zodOptionsSchema: OptionsSchema = fixedLayoutOptionsSchema;
     config: FixedLayoutConfigType;
     /** The route Graphviz laid each edge along, when `edgeRoutes` is `"graphviz"`. */
     private routes = new Map<Edge, readonly number[]>();

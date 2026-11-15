@@ -41,10 +41,10 @@ const DEGREE_FIELDS: readonly FieldDescriptor[] = [
  * total throws away.
  */
 export class DegreeAlgorithm extends MetricAlgorithm {
-    static namespace = "graphty";
-    static type = "degree";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "degree";
     /** Counts over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * The fields a degree result publishes.
@@ -79,7 +79,7 @@ export class DegreeAlgorithm extends MetricAlgorithm {
         const inDegree = new Float64Array(nodeIds.length);
         const outDegree = new Float64Array(nodeIds.length);
 
-        await walkInChunks(nodeIds, context, "counting connections", (nodeId) => {
+        await walkInChunks(nodeIds, context, "counting-connections", (nodeId) => {
             const index = ids.indexOf(nodeId);
 
             // A node the snapshot does not hold is left out, so it reads as unmeasured.

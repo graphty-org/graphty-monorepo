@@ -1,81 +1,93 @@
 import "./data-place.css";
 
 import type { SourceKey } from "@graphty/graphty-element/session";
-import React, { useState } from "react";
+import { Tabs } from "@mantine/core";
+import React from "react";
 
-import { GLYPHS, SOURCE_GLYPHS } from "../glyphs";
+import { selectionWorkspaceOn } from "../features";
 import { useSessionVersion } from "../inspector/hooks";
 import { ServerPlace } from "../server/ServerForm";
+import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { Fields } from "./Fields";
 import { FiltersSection } from "./Filters";
+import { ResultsList } from "./Runs";
 import { Sources } from "./Sources";
-import type { SourceKind, TypeGlyph } from "./words";
-
-const TYPE_GLYPHS: Record<TypeGlyph, React.ReactNode> = {
-    category: <GLYPHS.category size={14} aria-hidden />,
-    text: <GLYPHS.text size={14} aria-hidden />,
-    number: <GLYPHS.number size={14} aria-hidden />,
-    ordinal: <GLYPHS.ordinal size={14} aria-hidden />,
-    time: <GLYPHS.time size={14} aria-hidden />,
-    "yes-no": <GLYPHS.yesNo size={14} aria-hidden />,
-    unknown: <GLYPHS.unknown size={14} aria-hidden />,
-    result: <GLYPHS.measure size={14} aria-hidden />,
-};
-
-/**
- * A source's icon, which the source inspector's header draws.
- * @param props - Component props
- * @param props.kind - The source's kind
- * @returns The icon
- */
-export function SourceGlyph({ kind }: Readonly<{ kind: SourceKind }>): React.JSX.Element {
-    const { icon: Icon, color } = SOURCE_GLYPHS[kind];
-    return <Icon size={14} color={color} aria-hidden />;
-}
-
-/**
- * An attribute's type icon, which the attribute inspector's header draws.
- * @param props - Component props
- * @param props.glyph - The attribute's type glyph
- * @returns The icon
- */
-export function TypeGlyphIcon({ glyph }: Readonly<{ glyph: TypeGlyph }>): React.JSX.Element {
-    return <>{TYPE_GLYPHS[glyph]}</>;
-}
 
 /**
  * The Data place, the left sidebar's data (data prototype spec sections 3.2 to 3.4): the graph's
- * name, then Sources, the selected source's Fields, and Filters (tier2-design.md section 1). Every
+ * name, then Sources, the selected source's Fields, and Filters (tier2-design.md section 1). In the
+ * `selection-workspace` experiment the panel's first row is two tabs, Sources and Calculated (the
+ * results), as Figma's panel tabs are (the owner, 2026-11-07); only the chosen tab's body scrolls.
+ * Sources holds Data sources, then each load as a section of its own: its node and edge rows, the
+ * columns its rows carry, and its own Filters, which judge only that load's elements. The filters
+ * of no load (made before a second load came, or from the toolbar with several loads) sit under
+ * Data sources. The tab is the reader's, kept per project. Every
  * fact is the element's (`data.sources()`, `data.attributes()`, `visibility.steps`); this only
- * arranges them. The selected source is the reader's pick, the newest load until they pick one;
- * picking one also opens it in the inspector.
+ * arranges them. The selected source is the reader's pick, kept in the workspace store so a visit to
+ * another place keeps it, and the newest load until they pick one; picking one also opens it in the
+ * inspector.
  * @returns The Data place
  */
 export function DataPlace(): React.JSX.Element {
     const { session, store } = useWorkspace();
     useSessionVersion(session);
+    // The reader's Number format respells the counts.
+    useNumberFormats();
     const graphName = useWorkspaceState((state) => state.project?.name ?? "");
-    const [picked, setPicked] = useState<SourceKey | undefined>(undefined);
+    const picked = useWorkspaceState((state) => state.pickedSource);
     const sources = session?.data.sources() ?? [];
     const selected = sources.find((each) => each.key === picked) ?? sources.at(-1);
     // A press picks the load for Fields and opens it in the inspector: what it added and what it
     // left out, with Edit source and Replace in its "...".
     const select = (key: SourceKey): void => {
-        setPicked(key);
-        const at = sources.findIndex((each) => each.key === key);
-        if (at !== -1) {
-            store.set({ inspected: { kind: "source", id: `source:${String(at)}` } });
-        }
+        store.set({ pickedSource: key, inspected: { kind: "source", id: `source:${key}` } });
     };
 
+    const tab = useWorkspaceState((state) => state.dataTab);
+    const sourcesSection = <Sources sources={sources} selected={selected?.key} onSelect={select} />;
+    if (session === null || !selectionWorkspaceOn(session)) {
+        return (
+            <section className="dp" aria-label="Data place">
+                <h2 className="dp-title">{graphName}</h2>
+                {sourcesSection}
+                <ServerPlace />
+                <Fields sources={sources} selected={selected} />
+                <FiltersSection />
+            </section>
+        );
+    }
     return (
-        <section className="dp" aria-label="Data place">
+        <section className="dp" data-tabs="" aria-label="Data place">
             <h2 className="dp-title">{graphName}</h2>
-            <Sources sources={sources} selected={selected?.key} onSelect={select} />
-            <ServerPlace />
-            <Fields source={selected} />
-            <FiltersSection />
+            <Tabs
+                variant="default"
+                keepMounted={false}
+                className="dp-tabs"
+                value={tab}
+                onChange={(next) => {
+                    if (next === "loaded" || next === "calculated") {
+                        store.set({ dataTab: next });
+                    }
+                }}
+            >
+                <Tabs.List aria-label="Data">
+                    {/* The stored value stays "loaded": it is saved per project. */}
+                    <Tabs.Tab value="loaded">Sources</Tabs.Tab>
+                    <Tabs.Tab value="calculated">Calculated</Tabs.Tab>
+                </Tabs.List>
+                <Tabs.Panel value="loaded" className="dp-tab-body">
+                    {sourcesSection}
+                    {/* Each load's filters sit in its own section; with no load, or several, the
+                        filters of every load sit here, under Data sources. */}
+                    {sources.length === 1 ? null : <FiltersSection unscoped={sources.length > 1} />}
+                    <ServerPlace />
+                    <Fields sources={sources} selected={selected} filters />
+                </Tabs.Panel>
+                <Tabs.Panel value="calculated" className="dp-tab-body">
+                    <ResultsList />
+                </Tabs.Panel>
+            </Tabs>
         </section>
     );
 }

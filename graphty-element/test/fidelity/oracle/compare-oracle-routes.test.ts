@@ -91,6 +91,44 @@ describe("routes at nodes that cut a line badly", () => {
         assert.strictEqual(passRate(o, g, "edge.route"), 1);
     });
 
+    it("judges a line between nodes wider than the room between them by its whole route", () => {
+        // two figures 50 across, 55 apart: 5 px of the oracle's line shows between them, 9 px of graphty's between its
+        // figures drawn 46 across, both lines center to center (pajek-synth-vertices 41 -> 42)
+        const pair = (side: PScene["side"], size: number, points: Pt[]): PScene =>
+            scene(
+                side,
+                [node("p", 300, 200, { w: size, h: size }), node("q", 355, 200, { w: size, h: size })],
+                [edge("p", "q", points)],
+            );
+        const o = pair("oracle", 50, [
+            [300, 200],
+            [355, 200],
+        ]);
+        const straight = pair("graphty", 46, [
+            [300, 200],
+            [355, 200],
+        ]);
+        assert.strictEqual(passRate(o, straight, "edge.route"), 1);
+        // a line that bends out between them still fails
+        const bent = pair("graphty", 46, [
+            [300, 200],
+            [327, 230],
+            [355, 200],
+        ]);
+        assert.strictEqual(passRate(o, bent, "edge.route"), 0);
+        // a route one side starts or ends off its node's center (an arc to its arrowhead's back) keeps its sliver
+        // (pajek-synth-lines: each arc's line ends 3 px short of where graphty's does, under the arrowhead)
+        const short = pair("oracle", 40, [
+            [303, 200],
+            [352, 200],
+        ]);
+        const whole = pair("graphty", 40, [
+            [300, 200],
+            [355, 200],
+        ]);
+        assert.strictEqual(passRate(short, whole, "edge.route"), 1);
+    });
+
     it("cuts a line at neither side's node where one side draws no body for it", () => {
         // the oracle finds the bodiless node only by its 3 x 1 label; graphty's faceless node is 40 across
         const o = scene(
@@ -114,6 +152,43 @@ describe("routes at nodes that cut a line badly", () => {
             ],
         );
         assert.strictEqual(passRate(o, g, "edge.route"), 1);
+    });
+
+    it("cuts a line to the middle of a node the oracle drew no body for at the box the program says it drew", () => {
+        // vis-network runs a line to its text node's middle (json-vis-synth 3 -> 4); graphty stops at its own node's
+        // box.
+        const o = (drawnBox: boolean): PScene =>
+            scene(
+                "oracle",
+                [
+                    node("q", 300, 200, {
+                        w: 40,
+                        h: 20,
+                        shape: null,
+                        fill: null,
+                        faceless: [],
+                        ...(drawnBox ? { drawnBox: true as const } : {}),
+                    }),
+                ],
+                [
+                    edge("e", "q", [
+                        [300, 300],
+                        [300, 200],
+                    ]),
+                ],
+            );
+        const g = scene(
+            "graphty",
+            [node("q", 300, 200, { w: 40, h: 20, shape: "other", fill: null, faceless: [] })],
+            [
+                edge("e", "q", [
+                    [300, 280],
+                    [300, 210],
+                ]),
+            ],
+        );
+        assert.strictEqual(passRate(o(true), g, "edge.route"), 1);
+        assert.strictEqual(passRate(o(false), g, "edge.route"), 0);
     });
 
     it("pairs an edge at a node the oracle draws nothing of, its end named after graphty's node", () => {

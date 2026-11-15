@@ -1,6 +1,6 @@
 /**
  * @file The `features` attribute reaches the element's session, and the element says what it
- * honored. This build declares no experiment, so every id is reported as unknown.
+ * honored. These ids are not this build's, so every one is reported as unknown.
  */
 
 import "../../src/graphty-element";
@@ -31,7 +31,7 @@ describe("the features attribute", () => {
 
         const detail = await heard;
         assert.deepEqual(element.features, ["later-idea", "other"]);
-        assert.deepEqual(detail, { enabled: [], unknown: ["later-idea", "other"] });
+        assert.deepEqual({ ...detail }, { enabled: [], unknown: ["later-idea", "other"] });
         assert.strictEqual(element.enabledFeatures, detail);
     });
 

@@ -19,16 +19,16 @@
 import type { ShaderCost, ShaderDrawing, ShaderInput, ShaderProblem, ShaderProblemCode, ShaderTarget } from "./shaders";
 
 /** The most text a body may hold, in bytes. */
-export const SHADER_BODY_LIMIT = 16_384;
+const SHADER_BODY_LIMIT = 16_384;
 
 /** The most iterations one loop may run. */
-export const SHADER_LOOP_LIMIT = 128;
+const SHADER_LOOP_LIMIT = 128;
 
 /** The most elements an array may hold. */
-export const SHADER_ARRAY_LIMIT = 256;
+const SHADER_ARRAY_LIMIT = 256;
 
 /** How deep brackets and expressions may nest. */
-export const SHADER_NESTING_LIMIT = 64;
+const SHADER_NESTING_LIMIT = 64;
 
 /**
  * The cost budget per drawing: operations per pixel, loops and calls multiplied out. A background
@@ -49,7 +49,7 @@ const COST_BUDGET: Readonly<Record<ShaderDrawing, number>> = {
  * The most iterations along any one path of loops, through calls: two 128-step loops nested
  * through a helper run 16,384 times per pixel whatever their bodies hold.
  */
-export const SHADER_ITERATION_LIMIT = 4_096;
+const SHADER_ITERATION_LIMIT = 4_096;
 
 /** The most a compiler may unroll one function into: iterations times the tokens under them. */
 const UNROLL_BUDGET = 65_536;
@@ -140,19 +140,9 @@ export const SHADER_STRUCT_NAMES: readonly string[] = Object.freeze([
     "GroupInput",
 ]);
 
-/**
- * The GLSL ES 3.00 keywords, reserved words and built-in functions a parameter may not be named,
- * since every parameter becomes a global name in the body.
- */
-export const GLSL_RESERVED: ReadonlySet<string> = new Set(
+/** The GLSL ES 3.00 built-in functions a parameter may not be named. */
+export const GLSL_FUNCTIONS: ReadonlySet<string> = new Set(
     (
-        "attribute const uniform varying layout centroid flat smooth break continue do for while switch case " +
-        "default if else in out inout float int void bool true false invariant discard return mat2 mat3 mat4 " +
-        "mat2x2 mat2x3 mat2x4 mat3x2 mat3x3 mat3x4 mat4x2 mat4x3 mat4x4 vec2 vec3 vec4 ivec2 ivec3 ivec4 bvec2 " +
-        "bvec3 bvec4 uint uvec2 uvec3 uvec4 lowp mediump highp precision sampler2D sampler3D samplerCube struct " +
-        "asm class union enum typedef template this goto inline noinline volatile public static extern external " +
-        "interface long short double half fixed unsigned superp input output hvec2 hvec3 hvec4 dvec2 dvec3 " +
-        "dvec4 fvec2 fvec3 fvec4 sizeof cast namespace using buffer shared main " +
         "radians degrees sin cos tan asin acos atan sinh cosh tanh asinh acosh atanh pow exp log exp2 log2 " +
         "sqrt inversesqrt abs sign floor trunc round roundEven ceil fract mod min max clamp mix step " +
         "smoothstep isnan isinf floatBitsToInt floatBitsToUint intBitsToFloat uintBitsToFloat packSnorm2x16 " +
@@ -161,6 +151,23 @@ export const GLSL_RESERVED: ReadonlySet<string> = new Set(
         "lessThan lessThanEqual greaterThan greaterThanEqual equal notEqual any all not dFdx dFdy fwidth texture"
     ).split(" "),
 );
+
+/**
+ * The GLSL ES 3.00 keywords, reserved words and built-in functions a parameter may not be named,
+ * since every parameter becomes a global name in the body.
+ */
+export const GLSL_RESERVED: ReadonlySet<string> = new Set([
+    ...(
+        "attribute const uniform varying layout centroid flat smooth break continue do for while switch case " +
+        "default if else in out inout float int void bool true false invariant discard return mat2 mat3 mat4 " +
+        "mat2x2 mat2x3 mat2x4 mat3x2 mat3x3 mat3x4 mat4x2 mat4x3 mat4x4 vec2 vec3 vec4 ivec2 ivec3 ivec4 bvec2 " +
+        "bvec3 bvec4 uint uvec2 uvec3 uvec4 lowp mediump highp precision sampler2D sampler3D samplerCube struct " +
+        "asm class union enum typedef template this goto inline noinline volatile public static extern external " +
+        "interface long short double half fixed unsigned superp input output hvec2 hvec3 hvec4 dvec2 dvec3 " +
+        "dvec4 fvec2 fvec3 fvec4 sizeof cast namespace using buffer shared main"
+    ).split(" "),
+    ...GLSL_FUNCTIONS,
+]);
 
 /** Declarations the element writes itself, refused anywhere in a body. */
 const FORBIDDEN_QUALIFIERS: ReadonlySet<string> = new Set([
@@ -605,7 +612,7 @@ class ConstantReader {
  * @param constants - The global constants known so far.
  * @returns The value, or null when it is not constant.
  */
-export function evaluateConstant(tokens: readonly Token[], constants: ReadonlyMap<string, number>): number | null {
+function evaluateConstant(tokens: readonly Token[], constants: ReadonlyMap<string, number>): number | null {
     return new ConstantReader(tokens, constants).read();
 }
 
@@ -1187,7 +1194,7 @@ function orderedTripCount(span: number, by: number, relation: string, upward: bo
  * @param relation - The test.
  * @returns The trip count, or null when the loop never ends.
  */
-export function tripCount(from: number, to: number, by: number, relation: string): number | null {
+function tripCount(from: number, to: number, by: number, relation: string): number | null {
     const span = to - from;
     const upward = relation === "<" || relation === "<=";
     if (upward || relation === ">" || relation === ">=") {
@@ -1485,4 +1492,15 @@ export function entryTargetOf(body: string): ShaderTarget | undefined {
     const entry = /\bvec4\s+shade\s*\(\s*(?:in\s+)?(\w+)/.exec(withoutComments(body));
 
     return entry === null || !Object.hasOwn(TARGET_OF_INPUT, entry[1]) ? undefined : TARGET_OF_INPUT[entry[1]];
+}
+
+/**
+ * The built-in helpers every shader body may call, for the saved-name scan: a save file that names one by id depends on this
+ * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.
+ * @returns The kind and its ids.
+ * @public
+ */
+export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
+    return { kind: "shaderLibrary", ids: SHADER_HELPERS };
 }

@@ -4,9 +4,10 @@ import { type GraphSnapshot, INVALID_INDEX, type U32 } from "@graphty/graph-form
 import { forwardsAlgorithm, narrowAlgorithms } from "../acceleration/narrow";
 import { type AccelerationPrecision, CPU_PRECISION } from "../acceleration/types";
 import { type RegisterOptions, SharedImplementationMap } from "../catalog/pluginRegistry";
-import { publishAlgorithmDescriptor } from "../catalog/registry";
+import { noteDescribedAlgorithm, noteUndescribedAlgorithm, publishAlgorithmDescriptor } from "../catalog/registry";
 import type { AlgorithmDescriptor, FieldDescriptor, NodeId, SuggestedName } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
+import { writableLane } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
@@ -341,6 +342,15 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      */
     static readonly weightMeaning: WeightReads | null = null;
 
+    /**
+     * Whether a run whose `weight` option is absent reads the weight the graph was loaded with
+     * (true, the default) or no weight at all (false). False is for a class whose weighted form
+     * came after its unweighted one, so a run that names no weight computes exactly as it always
+     * did. The catalogue publishes false as the `weight` option's `default: null`.
+     * @internal
+     */
+    static readonly loadedWeightByDefault: boolean = true;
+
     protected graph: Graph;
 
     /** The `weight` option as passed, before any schema dropped it. */
@@ -393,12 +403,30 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @internal
      */
     protected weightReading(): WeightReading {
+        const cls = this.constructor as typeof Algorithm;
+        if (this.#weightAsked === undefined && !cls.loadedWeightByDefault) {
+            // Reads no weight, over the same input as before the class had a weighted form.
+            this.#weightReading ??= { weight: null, input: undefined };
+        }
+
         this.#weightReading ??= resolveRunWeight(
-            (this.constructor as typeof Algorithm).weightMeaning,
+            cls.weightMeaning,
             this.#weightAsked,
             loadedWeightOf(this.graph),
+            this.graph.getDataManager().lastImport?.weights.attribute ?? null,
         );
         return this.#weightReading;
+    }
+
+    /**
+     * How this run's input merges a group of parallel edges: the class's
+     * {@link Algorithm.parallelEdges} unless a subclass reads a repeat differently per run (a
+     * weighted distance takes the cheapest edge of the group, an unweighted run the class's own).
+     * @returns The policy, or undefined for `"sum"`.
+     * @internal
+     */
+    parallelEdgePolicy(): SimplifyPolicy | undefined {
+        return (this.constructor as typeof Algorithm).parallelEdges;
     }
 
     /**
@@ -436,7 +464,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @internal
      */
     protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput {
-        const simplify = options?.simplify ?? (this.constructor as typeof Algorithm).parallelEdges;
+        const simplify = options?.simplify ?? this.parallelEdgePolicy();
         // The weight this run reads, unless the caller asked its input for one itself.
         const weight = options?.weight === undefined ? this.weightReading().input : options.weight;
         const merged = {
@@ -445,7 +473,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             ...(weight === undefined ? {} : { weight }),
         };
 
-        return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this), this.columns());
+        const data = this.graph.getDataManager();
+        // The store's snapshot lends the lane by reference, so a layout's owed publish
+        // (design/rendering/row-renderer.md 4.5) is written before the run reads its positions.
+        writableLane(data)?.settle();
+        return createScopedInput(data, orientation, merged, runInputOf(this), this.columns());
     }
 
     /**
@@ -744,6 +776,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
         }
 
         algorithmRegistry.set(`${ns}:${t}`, cls);
+        if (descriptor === undefined) {
+            noteUndescribedAlgorithm(`${ns}:${t}`);
+        } else {
+            noteDescribedAlgorithm(`${ns}:${t}`);
+        }
 
         return cls;
     }
@@ -845,12 +882,18 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
 }
 
 /**
- * The weight a graph was loaded with: the column the last load read weights from, and the meaning
- * chosen for it at load. A graph with no load report (a bare test graph) has none.
+ * The weight runs read: the session's `data.loadedWeight()` -- the column given the weight role,
+ * else the one the last load read -- and its meaning. A bare test graph with no session reads the
+ * last load's report. A graph with no load report has none.
  * @param graph - The graph.
  * @returns The weight, or null.
  */
 function loadedWeightOf(graph: Graph): LoadedWeightFact | null {
+    const session = (graph as Partial<Pick<Graph, "getSession">>).getSession?.();
+    if (session !== undefined) {
+        return session.data.loadedWeight();
+    }
+
     const attribute = graph.getDataManager().lastImport?.weights.attribute ?? null;
     return attribute === null
         ? null

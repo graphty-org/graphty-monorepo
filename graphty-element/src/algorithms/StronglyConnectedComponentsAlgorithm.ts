@@ -18,10 +18,10 @@ import { declarationArcOrder } from "./utils/graphUtils";
  * Strongly connected components: the pieces a directed path can cross both ways.
  */
 export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
-    static namespace = "graphty";
-    static type = "scc";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "scc";
     /** Groups over the run's scope: the node list and the graph both come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
     /**
      * Find the pieces of the graph that a directed path can cross both ways.
@@ -50,7 +50,7 @@ export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
            computes strong components, so this is the CPU port's decision. */
         const { snapshot, run } = this.accelerated("stronglyConnectedComponents", "directed");
 
-        context.report({ phase: "Finding pieces", total: null });
+        context.report({ phase: "finding-pieces", total: null });
         const { value, precision } = await run((dispatch, s) =>
             s.directed
                 ? dispatch.stronglyConnectedComponents(s, { arcOrder: declarationArcOrder(s) })
@@ -58,7 +58,7 @@ export class StronglyConnectedComponentsAlgorithm extends DeclaredAlgorithm {
         );
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             const index = snapshot.ids.indexOf(nodeId);
             nodes.push({ id: nodeId, values: { group: index === INVALID_INDEX ? 0 : value.labels[index] } });
         });

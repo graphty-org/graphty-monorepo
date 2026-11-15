@@ -9,6 +9,7 @@ const EVENTS = [
     "style:changed",
     "visibility:changed",
     "note:changed",
+    "source:refreshed",
 ] as const;
 
 /**

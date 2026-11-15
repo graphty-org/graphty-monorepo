@@ -11,7 +11,6 @@ import { userEvent } from "vitest/browser";
 
 import { compactTheme } from "../../../src";
 import { DataTable, type DataTableColumn } from "../../../src/components/DataTable";
-import { TOOLTIP_WAIT } from "../../waits";
 
 interface Person {
     id: string;
@@ -91,7 +90,7 @@ describe("DataTable reading", () => {
         await userEvent.hover(textOf("Mademoiselle Baptistine"));
         await waitFor(() => {
             expect(screen.getByRole("tooltip")).toHaveTextContent("Mademoiselle Baptistine");
-        }, TOOLTIP_WAIT);
+        });
         // A value the column shows whole has no tooltip.
         await userEvent.hover(textOf("p2"));
         await waitFor(() => {

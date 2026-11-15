@@ -44,6 +44,6 @@ export async function reapGroupsUsing(dir) {
             // Gone.
         }
     }
-    await vi.waitFor(() => expect(groupsUsing(dir)).toEqual([]), { timeout: 15_000, interval: 20 });
+    await vi.waitFor(() => expect(groupsUsing(dir)).toEqual([]));
     return groups;
 }

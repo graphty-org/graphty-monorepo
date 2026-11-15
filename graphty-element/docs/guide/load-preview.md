@@ -98,11 +98,12 @@ tables is refused. Only CSV tables have `fixed: false`. A graph file's `label` f
 column (`suggested: "label"`), and a load from the draft labels the nodes with it, unless
 `data.knownFields.nodeLabelPath` names another column already.
 
-For a graph file, `draft.load()` loads what `session.data.import` of the same source loads -- the
-same nodes, edges, columns and graph values -- except that the draft also sets
-`data.knownFields.nodeLabelPath` to the file's `label` field, as above, where `import` leaves it
-unset. A CSV table is read from its cells as written, so the reader can map them, and its ids
-keep the type the cells hold, where `import` reads them as text.
+`draft.load()` with the draft's own mapping loads what `session.data.import` of the same source
+loads -- the same nodes, edges, columns, labels and graph values. A CSV table's cells are typed
+for the mapping (`1` is a number), but the cells that name nodes -- the key and the two ends --
+load as text, as `import` reads them. What differs is how the load is recorded: the draft keeps
+the mapping it loaded with in `session.data.sources()`, and its import report names the end
+columns the mapping declared.
 
 Each column is described the way `session.data.attributes()` will describe it after the load:
 `name`, `type`, `completeness` (the fraction of rows with a value), `uniqueCount` and
@@ -209,8 +210,8 @@ Other choices `report`, `load` and `import` take:
 ## Styles in the file
 
 `draft.styles` says, before anything loads, whether the file carries styles a load with
-`styles: "file"` would draw. It is null when the format cannot carry styles or the file holds none,
-and otherwise `{ declared, summary }`:
+`styles: "file"` would draw. It is null when the format cannot carry styles, the file holds none or
+the `file-styles` experiment is off, and otherwise `{ declared, summary }`:
 
 - `declared`: true when reading the file's styles found rules to draw;
 - `summary.nodeRules` and `summary.edgeRules`: how many rules there are for nodes and for edges;
@@ -287,6 +288,35 @@ const unmatched = await draft.rows("edges", { only: "unmatched", choices, limit:
 A rejected row here is one the mapping cannot turn into a node or an edge; a row the format's own
 reader refused is not one, and is in `errors` instead.
 
+### Why a row was rejected or unmatched
+
+Each row `only: "rejected"` or `only: "unmatched"` reads carries a `reason`, `{ code, params }`,
+with no words in it, so you can word it for your reader. The same rows stay readable after the
+load, in `session.data.lastImport().rows`:
+
+```ts
+await draft.load();
+const report = element.session.data.lastImport();
+for (const row of report?.rows?.rejected ?? []) {
+    console.log(row.line, row.reason?.code, row.reason?.params); // 3 "refused-row" { rowsAre: "nodes" }
+}
+for (const row of report?.rows?.unmatched ?? []) {
+    console.log(row.line, row.reason?.params); // 4 { ends: ["target"], ids: ["z"] }
+}
+const more = (report?.counts.rejected ?? 0) - (report?.rows?.rejected.length ?? 0);
+```
+
+| `reason.code`   | The row                                                                   | `params`                                                    |
+| --------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `"refused-row"` | Its id, or an edge row's end, is absent, blank, or not a string or number | `rowsAre` (`"nodes"` or `"edges"`); for an edge row, `ends` |
+| `"unknown-end"` | An edge row names a node no node row holds (nor the graph, for a merge)   | `ends` (`"source"`, `"target"`) and the `ids` they name     |
+
+`report.rows` keeps the first `IMPORT_ROWS_KEPT` (100) rows of each kind; `counts.rejected` and
+`unmatched.rows` count them all, so the difference is how many more there were. To page through
+every one, read them from the draft before the load. A row's `line` is the line `draft.rows`
+gives it for a load from a draft, and its position among the load's node (or edge) records
+otherwise. `rows` is absent when the load rejected nothing and every edge end matched.
+
 ## Joining onto the graph
 
 A second file often describes the graph already loaded: an expression table with one row per
@@ -318,6 +348,20 @@ reader changes the key or the options:
 | `clash`        | Per column the graph already has: `"keep"`, `"overwrite"` or `"both"` (default)       |
 | `repeated`     | Several rows with one key: `"first"` (default) or `"both"` (a list, or one edge each) |
 | `via`          | A joined mapping table whose columns translate the incoming keys to the graph's       |
+| `lookup`       | A mapping table held apart from the graph (`draft.lookup()`), read as `via` reads one |
+
+Every shape, choice and count, with linking by a shared value, merging and comparing two lists,
+is in [Joining Data](./joins).
+
+A table whose two columns name edges the graph already holds (at least 80% of its rows) reads as
+values for those edges: its keys are `{ file: "from", graph: "source" }` and
+`{ file: "to", graph: "target" }`, and on an undirected graph a pair matches either way round.
+
+A row of a `"node-values"` join that matches no node is left out. Pass `unmatchedRows: "add"` (on one
+key, with no `via`) to make it a new node; the report's `newNodes` counts them, and undoing, editing
+or removing the join takes them back.
+
+A node table can give every row one kind with `mapping: { rowsAre: "nodes", key: "id", kindName: "people" }`.
 
 `load({ join })` is one undoable step. The table stays a source: `data.sources()` lists it with
 `kind: "join"` and `joinedOnto`, and `data.joins()` lists the join with its choices and counts. The
@@ -327,6 +371,41 @@ again, with new choices or, after the graph changed, with its own (`join.choices
 A plain merge can update the nodes it names too: `import(source, { mode: "merge", existing:
 "update" })` writes the incoming values onto nodes the graph already holds, where the default,
 `"keep"`, leaves them as they are.
+
+## Changing the columns after a load
+
+A reader who picked the wrong id or weight column can change it without picking the file again.
+`session.data.remap({ mapping })` takes the same mapping `report` and `load` take and reads the
+rows the load already holds again under it, as one undoable step:
+
+```ts
+import "@graphty/graphty-element";
+
+const element = document.querySelector("graphty-element")!;
+const { session } = element;
+
+// The people were keyed by their row number; the links name them by email.
+await session.data.import(
+    { config: { nodeFile: peopleFile, edgeFile: linksFile } },
+    { mapping: { tables: { nodes: { key: "row" } } } },
+);
+
+await session.data.remap({ mapping: { tables: { nodes: { key: "email" }, edges: { weight: "trips" } } } });
+
+await session.undo(); // the old columns and the old graph, exactly
+```
+
+A role you leave out keeps the column it had. A new id column makes the nodes anew, and the edges
+find their ends among them. Style layers, filters and finished analyses stay; an analysis whose
+numbers came from the old graph reads as stale (`run.stale.reason === "data-changed"`) and is not
+run again by itself.
+
+When the graph holds more than one load, name the one to change with `source`, a key from
+`session.data.sources()`. A load in a project opened from a saved file cannot be re-mapped (its
+`reloadable` is absent), since the file itself is never saved. `remap` refuses with the codes in the
+table below, and with `E_BAD_COMMAND` whose `details.reason` is `"which-source"` (several loads,
+none named; `details.known` lists them) or `"no-mapping"`, `E_SOURCE_UNKNOWN` for a key
+`sources()` does not list, and `E_UNSUPPORTED` with `details.reason: "not-reloadable"`.
 
 ## Errors
 
@@ -356,8 +435,9 @@ try {
 | `E_DUPLICATE_ID`              | `load` with `duplicateIds: "refuse"` meets a repeated node id; `details.id` |
 | `E_DISPOSED`                  | The draft was loaded or disposed                                            |
 
-`details` is typed `Readonly<Record<string, unknown>>` for every code, so check a value's type
-before using it (`Array.isArray(error.details.candidates)`).
+Checking `code` narrows `details` to that code's facts (`GraphtyErrorDetailsMap`): after
+`error.code === "E_UNKNOWN_ATTRIBUTE"`, `error.details.candidates` is a `readonly string[]` or
+`undefined`. Every documented fact is optional, so check it before using it.
 
 Only one draft is held at a time. A new `prepare`, and any `import`, disposes the one before it,
 and a successful `load` disposes its own. Disposing lets go of the rows only: `draft.type`,

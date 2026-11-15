@@ -25,6 +25,7 @@ import { FLASH_GRID, FlashCounter } from "../../../../src/managers/ShaderGuard";
 import { shadersControllerOf } from "../../../../src/session/shaders";
 import type { LazyShaderHost } from "../../../../src/shaders/chunk";
 import { presetId, SCENE_PRESETS } from "../../../../stories/shaders/scenePresets";
+import { magentaPixels } from "../../../helpers/canvas-pixels";
 import { drawnFrames } from "../../../helpers/drawn-frames";
 import { canvasPixels, pngOf } from "./lit-surface-scene";
 
@@ -85,6 +86,10 @@ async function mounted(
         element.remove();
     });
     await element.updateComplete;
+    // About what the presets draw, not the frame guard: on a software GPU on a loaded machine one long
+    // frame turns the heavy nebula and soap bubble off ("guard.long-frame"), mid-test. frame-guard.test.ts
+    // keeps it on.
+    element.shaderSettings = { ...element.shaderSettings, guard: false };
     await operationQueueOf(element.graph).waitForCompletion();
     await element.session.data.addNodes(
         (options.nodes ?? NODES).map(({ id, x, y, ...data }) => ({ id, ...data, position: { x, y, z: 0 } })),
@@ -264,22 +269,6 @@ function rangeEnds(descriptor: ShaderDescriptor): [string, ShaderParams][] {
         ["all-min", end("min")],
         ["all-max", end("max")],
     ];
-}
-
-/**
- * How many pixels of a canvas are the probe's magenta.
- * @param rgba - The pixels.
- * @returns The count.
- */
-function magentaPixels(rgba: Uint8Array): number {
-    let count = 0;
-    for (let i = 0; i < rgba.length; i += 4) {
-        if (rgba[i] >= 250 && rgba[i + 1] <= 5 && rgba[i + 2] >= 250) {
-            count++;
-        }
-    }
-
-    return count;
 }
 
 /**
@@ -517,6 +506,10 @@ describe("the scene presets on a real element", () => {
             color: "#000000",
             shader: { id: nebula, params: { drift: 0, tintBy: "groups" } },
         };
+        // The new parameters reach the pass after the shader's chunks load (tracked pending work),
+        // which can take more than a few frames: wait for the picture to be final, as setParams does.
+        await element.updateComplete;
+        await element.graph.waitForStableFrame();
         await drawnFrames(element.graph.getScene(), 3);
         const tinted = await canvasPixels(element);
         await commands.writeFile("tmp/scene-presets/nebula-tinted.png", await pngOf(tinted), "base64");

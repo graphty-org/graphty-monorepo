@@ -47,6 +47,26 @@ export const EdgeArrowTypes = z.enum([
     "open-cross-delta",
     // the inverted triangle's outline (Graphviz oinv, invempty)
     "open-inverted",
+    // half-open's arm drawn as one thin stroke, the line running on under it to where it meets the line
+    // (Cytoscape HALF_TOP), and that barb on the line's other side (HALF_BOTTOM)
+    "half-barb",
+    "half-barb-flipped",
+    // a vee turned round: its point on the line, its two corners toward the node and its notch empty, with no tine
+    // along the line (vis-network crow)
+    "inverted-vee",
+    // two strokes crossing on the line, the line stopping where they cross (yEd and yEd Live cross)
+    "cross",
+    // a dart widest near its back, whose back comes to a point on the line (yEd Live kite)
+    "kite",
+    // a dart wider than it is long, its sides bowed in and its back notched (yEd Live deltoid)
+    "deltoid",
+    // a vee's two arms as strokes, nothing between them (yEd plain, concave and convex)
+    "open-vee",
+    // one slanted stroke across the line, which runs on under it to the cap's tip (yEd skewed_dash)
+    "slash",
+    // a length of the line itself, as thick as the line whatever the cap's `width`: first in a row (`stack`), it stands
+    // the caps behind it back from the line's end with the line running on to the end (yEd's crow's foot bars, circles)
+    "stem",
 ]);
 
 const ArrowStyle = z.strictObject({
@@ -67,6 +87,13 @@ const ArrowStyle = z.strictObject({
      */
     side: z.enum(["left", "right"]).optional(),
     /**
+     * How thick an open cap's outline is drawn (open-normal, open-diamond, open-dot, open-inverted, open-box), in the
+     * line's own width units (`line.width`): set it to the line's width to stroke the cap with the line's pen, as
+     * Graphviz and Cytoscape.js do. Unset or 0, the cap keeps its own thin frame. Other cap types ignore it. The
+     * outline is never drawn more than half way to the shape's middle, so the cap always reads as open.
+     */
+    outlineWidth: z.number().nonnegative().optional(),
+    /**
      * Where along the line the cap is drawn, as a fraction of the line measured from the cap's own
      * end: unset or 0 at the end, 0.5 at the middle. Above 0 the line runs on to its node and the
      * cap sits on it, pointing the way the line goes at that end.
@@ -79,6 +106,17 @@ const ArrowStyle = z.strictObject({
      */
     gap: z.number().nonnegative().optional(),
     /**
+     * More caps drawn in a row behind this one, as Graphviz draws `boxdotnormal` and `lteeoldiamond`: cap types
+     * separated by spaces, nearest this one first, each drawn from where the one before it ends, pointing the same way,
+     * in this cap's colour and opacity; the line stops at the last. A type may be followed by `:left` or `:right` for
+     * the half it keeps (as `side`), then `*` and its size (as `size`; unset, this cap's), then `x` and its width (as
+     * `width`), then `o` and its outline width (as `outlineWidth`; unset, this cap's): `"dot normal"`,
+     * `"open-diamond:left*1.2x0.7"`, `"tee open-diamond:lefto2"`. A word that is not a cap type draws nothing. Unset,
+     * this cap alone. At most 8 are drawn; later ones are left out. A cap drawn part-way along (`position`) draws its
+     * row there too.
+     */
+    stack: z.string().optional(),
+    /**
      * The colour to draw the cap in, or unset to follow the line it caps.
      *
      * NO DEFAULT, DELIBERATELY, and the absence is load-bearing. `Edge` draws a cap with
@@ -89,6 +127,12 @@ const ArrowStyle = z.strictObject({
      * with caps at both ends was drawn with a magenta tail and a grey head.
      */
     color: ColorStyle.optional(),
+    /**
+     * The colour an open cap's inside is filled with (open-normal, open-diamond, open-dot, open-inverted, open-box),
+     * inside its outline, which stays in `color`: yEd's framed edges fill their arrowheads so. Unset, the inside is left
+     * empty. Other cap types ignore it.
+     */
+    fillColor: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).default(1).optional(),
     /**
      * The picture an `image` cap draws, a URL or a data URL: stretched over the cap with its top
@@ -107,7 +151,7 @@ const ArrowStyle = z.strictObject({
 });
 
 /** A cap drawn part-way along the line: an end cap's settings, with no caption. */
-const MidArrowStyle = ArrowStyle.omit({ text: true, textDistance: true, gap: true });
+const MidArrowStyle = ArrowStyle.omit({ text: true, textDistance: true, gap: true, stack: true });
 
 /**
  * Every line pattern the edge renderer can draw, in schema order.
@@ -132,7 +176,10 @@ export const EdgeLineTypes = z.enum([
     "contiguous-arrow", // A line with chevrons along it, pointing to the target (Cytoscape CONTIGUOUS_ARROW)
 ]);
 
-/** The patterns an edge's outline band (`line.outline.type`) can be drawn in. */
+/**
+ * The patterns an edge's outline band (`line.outline.type`) can be drawn in.
+ * @experimental file-styles
+ */
 export const EdgeOutlineTypes = z.enum(["solid", "dash", "dot", "dash-dot"]);
 
 const LineStyle = z.strictObject({
@@ -180,8 +227,45 @@ const LineStyle = z.strictObject({
      * half period. Cytoscape desktop repeats every 20 px.
      */
     wavePeriod: z.number().nonnegative().optional(),
+    /**
+     * How long each dash of a "dash" line is, in the line's own width units. Unset, 3. On a "dot" line with a
+     * `dashGap`, the length of each dot in a program's pattern: the dot is still drawn round, one width across, and
+     * the dots repeat every `dashLength + dashGap` widths, as the program's do. Unset there, 1.
+     * @experimental file-styles
+     */
+    dashLength: z.number().nonnegative().optional(),
+    /**
+     * The clear space between two dashes of a "dash" line, or two dots of a "dot" line, in the line's own width units.
+     * Set, the pattern repeats from the line's start, as a dash pattern does, and the last dash is cut where the line
+     * ends (unless `patternCount` is set). Unset, the first and last element touch the line's ends and the rest
+     * spread between them at least half an element apart.
+     * @experimental file-styles
+     */
+    dashGap: z.number().nonnegative().optional(),
     color: ColorStyle.optional(),
     opacity: z.number().min(0).max(1).optional(),
+    /**
+     * Fade the line with its length on screen, in CSS pixels (cosmos.gl's
+     * `linkVisibilityDistanceRange`): a line of `start` pixels or fewer draws at its `opacity`, one of
+     * `end` or more at that times `fade.opacity`, and one between at a value between. No `end` draws
+     * no fade; `start` defaults to 0 and `opacity` to 0.25. A faded line does not animate. The line
+     * alone fades, not its arrowheads or bands, and a line drawn as separate pattern elements or as
+     * a gradient does not fade.
+     */
+    fade: z
+        .strictObject({
+            start: z.number().nonnegative().optional(),
+            end: z.number().nonnegative().optional(),
+            opacity: z.number().min(0).max(1).optional(),
+        })
+        .optional(),
+    /**
+     * `false` draws the line without alpha blending (cosmos.gl's `linkBlending`), which costs less
+     * on a dense graph and keeps overlapping lines from muddying: every pixel it covers is its
+     * color at full strength, so `opacity` and `fade` have no effect and a line under a pixel wide is
+     * drawn at full strength. Unset or `true`, the line blends.
+     */
+    blending: z.boolean().optional(),
     /**
      * A band drawn under the line along its whole length (Cytoscape.js `line-outline-*`,
      * vis-network `edges.background`): `width` is how much wider than the line it is, in the
@@ -312,6 +396,13 @@ const LineStyle = z.strictObject({
      */
     supportUnit: z.number().nonnegative().optional(),
     /**
+     * What unit the support's lengths and forces are in: `"unit"` (when unset), `supportUnit`'s;
+     * `"drawing"`, the drawing's own, the size at which the forces hold the drawn nodes in balance,
+     * so a curve bows among nodes any layout placed as among nodes those forces placed themselves
+     * (a file whose program lays its nodes out under the same forces, drawn by another layout).
+     */
+    supportScale: z.enum(["unit", "drawing"]).optional(),
+    /**
      * The path the line takes between its nodes, whether or not it is curved: unset, the active
      * layout's choice (the `location-map` layout raises arcs over a flat map in 3D and draws
      * great-circle arcs on its globe; every other layout, and the 2D view, a straight line);
@@ -322,8 +413,9 @@ const LineStyle = z.strictObject({
     route: z.enum(["straight", "arc", "great-circle"]).optional(),
     /**
      * How high a raised route (`route` "arc" or "great-circle") rises at its middle, as a share of
-     * the distance between its ends along the map or the globe. Unset, 0.25 for an arc and 0.1 for a
-     * great circle; 0 draws it flat.
+     * the straight distance between its ends (across the map for an arc). Unset, 0.25 for an arc
+     * and 0.1 for a great circle, which then rises at most a fifth of the globe's radius; 0 draws it
+     * flat.
      */
     arcHeight: z.number().nonnegative().optional(),
     /**
@@ -384,6 +476,13 @@ export const EdgeStyle = z.strictObject({
     arrowMiddleTail: MidArrowStyle.optional(),
     line: LineStyle.optional(),
     label: RichTextStyle.prefault({ location: "top" }).optional(),
+    /**
+     * A second label drawn beside the line's middle (Graphviz's `xlabel` on an edge that also has a label), switched
+     * on by its words. It is drawn in the label's look -- font, size, color, outline -- and any field set here wins
+     * over the label's. Unset `location`, it sits up and left of the line's middle, its lower right corner on it, or
+     * centered where the layout placed it when the layout places one (a Graphviz layout's `xlp`).
+     */
+    xlabel: RichTextStyle.optional(),
     /**
      * A wider line drawn behind the edge's own, as a casing: the selection look, as a style.
      * Drawn only when it names a colour. `scale` is a multiple of twice the line's width; the

@@ -1,7 +1,8 @@
 /**
  * Kamada-Kawai Layout Algorithm Story
  *
- * Demonstrates Kamada-Kawai layout using path-length cost-function optimization.
+ * Demonstrates Kamada-Kawai layout using path-length cost-function optimization, on a 10 x 10 grid: drawn
+ * distances match hop distances, so the grid unfolds into a square mesh.
  * Shows animation from random initial positions to final optimized positions.
  *
  * IMPORTANT: This story uses the actual kamadaKawai implementation
@@ -12,7 +13,7 @@ import { kamadaKawai, toPositionMap } from "@graphty/layout";
 import type { Meta, StoryObj } from "@storybook/html-vite";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
 
-import { generateGraph, generateRandomPositions, type GraphType, toSnapshot } from "../utils/graph-generators.js";
+import { generateRandomPositions, grid, toSnapshot } from "../utils/graph-generators.js";
 import {
     createAnimationControls,
     createInfoPanel,
@@ -23,14 +24,11 @@ import {
     updatePositions,
     updateStatus,
 } from "../utils/visualization.js";
-import { storyWaitOptions } from "../utils/wait.js";
 
 /**
  * Story arguments interface.
  */
 interface KamadaKawaiArgs {
-    nodeCount: number;
-    graphType: GraphType;
     scale: number;
     seed: number;
 }
@@ -39,28 +37,31 @@ interface KamadaKawaiArgs {
  * Create the Kamada-Kawai layout visualization story.
  */
 function createKamadaKawaiStory(args: KamadaKawaiArgs): HTMLElement {
-    const { nodeCount, graphType, scale, seed } = args;
+    const { scale, seed } = args;
 
     // Generate graph
-    const generatedGraph = generateGraph(graphType, nodeCount, seed);
+    const generatedGraph = grid(10, 10);
     const snapshot = toSnapshot(generatedGraph);
 
     // Generate initial random positions
     const randomPositions = generateRandomPositions(generatedGraph, 500, 500, seed);
 
     // Compute final Kamada-Kawai layout using actual algorithm
-    const finalPositions = toPositionMap(kamadaKawai(snapshot, { scale, center: [0, 0], dim: 2 }), snapshot.ids);
+    const finalPositions = toPositionMap(kamadaKawai(snapshot, { scale, center: [0, 0], dim: 2, seed }), snapshot.ids);
 
     // Create container
     const { container, svg } = createStoryContainer();
 
     // Render graph with random initial positions
-    renderGraph(svg, generatedGraph, randomPositions, 20, 1, 0, 0);
+    renderGraph(svg, generatedGraph, randomPositions, 6, 1, 0, 0);
 
     // Create info panel
     const infoPanel = createInfoPanel("Kamada-Kawai Layout");
     container.appendChild(infoPanel);
-    updateInfoPanel(infoPanel, `Path-length cost-function optimization with scale ${scale}.`);
+    updateInfoPanel(
+        infoPanel,
+        "A 10 x 10 grid. Look for: it unfolds into a square mesh, since drawn distances match hop distances.",
+    );
 
     // Create status panel
     const statusPanel = createStatusPanel();
@@ -92,7 +93,7 @@ function createKamadaKawaiStory(args: KamadaKawaiArgs): HTMLElement {
         isApplied = false;
 
         // Reset to random positions
-        renderGraph(svg, generatedGraph, randomPositions, 20, 1, 0, 0);
+        renderGraph(svg, generatedGraph, randomPositions, 6, 1, 0, 0);
         updateStatus(statusPanel, "Reset to random positions. Click 'Apply Layout' to see optimized arrangement.");
     }
 
@@ -106,27 +107,16 @@ function createKamadaKawaiStory(args: KamadaKawaiArgs): HTMLElement {
 const meta: Meta<KamadaKawaiArgs> = {
     title: "Layout2D",
     argTypes: {
-        nodeCount: {
-            control: { type: "range", min: 4, max: 20, step: 1 },
-            description: "Number of nodes in the graph",
-        },
-        graphType: {
-            control: { type: "select" },
-            options: ["tree", "random", "grid", "cycle", "complete", "star", "path"] as GraphType[],
-            description: "Type of graph to generate",
-        },
         scale: {
             control: { type: "range", min: 0.5, max: 2, step: 0.1 },
             description: "Scale factor for the layout",
         },
         seed: {
             control: { type: "number" },
-            description: "Random seed for reproducible graphs",
+            description: "Random seed for the starting positions",
         },
     },
     args: {
-        nodeCount: 10,
-        graphType: "random",
         scale: 1,
         seed: 42,
     },
@@ -155,6 +145,6 @@ export const KamadaKawai: Story = {
         await waitFor(async () => {
             const statusText = canvasElement.querySelector("[data-status]")?.textContent ?? "";
             await expect(statusText).toContain("applied");
-        }, storyWaitOptions(5000));
+        });
     },
 };

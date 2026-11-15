@@ -926,7 +926,7 @@ function aspects(snapshot: GraphSnapshot, p: Plan, ids: WrittenIds, styled: Cyto
     const nodeCore = (key: "n" | "r"): Column | null => p.nodeCore.find((c) => c.key === key)?.column ?? null;
     const n = nodeCore("n");
     const r = nodeCore("r");
-    const i = p.edgeCore[0]?.column ?? null;
+    const i = p.edgeCore.at(0)?.column ?? null;
     const kept =
         snapshot.meta.sourceFormat === CX_FORMAT && isRecord(snapshot.meta.extra.cx) ? snapshot.meta.extra.cx : {};
 
@@ -1063,11 +1063,9 @@ function aspects(snapshot: GraphSnapshot, p: Plan, ids: WrittenIds, styled: Cyto
  * @yields the entries
  */
 function* tableColumns(p: Plan, ids: WrittenIds): Generator<unknown, void, undefined> {
-    for (const { key, column } of [...p.nodeCore, ...p.edgeCore]) {
+    for (const { key } of [...p.nodeCore, ...p.edgeCore]) {
         const n = { n: "name", r: "represents", i: "interaction" }[key];
-        if (n !== undefined && column !== null) {
-            yield { applies_to: key === "i" ? "edge_table" : "node_table", n, d: "string" };
-        }
+        yield { applies_to: key === "i" ? "edge_table" : "node_table", n, d: "string" };
     }
     for (const a of p.nodeAttrs) {
         yield { applies_to: "node_table", n: a.name, d: a.d };

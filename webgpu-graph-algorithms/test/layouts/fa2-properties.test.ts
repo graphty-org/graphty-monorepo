@@ -37,7 +37,6 @@ import { assertCheckPasses } from "../helpers/sabotage.js";
 import { acquire, gpuScale, requireGpu } from "../setup/gpu.js";
 
 const NUM_RUNS = 200;
-const CASE_TIMEOUT = 300_000;
 /** Upper bound of the before / after step generators of the fixed-node property (gpuScale() sizing, file header). */
 const stepBound = (): number => (gpuScale() < 1 ? 2 : 4);
 /**
@@ -86,46 +85,41 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         ctx.release(s);
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 24 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "fixed nodes never move: a random mask set between steps keeps every pinned row bitwise where it was",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.array(fc.boolean(), { minLength: n, maxLength: n }),
-                    fc.integer({ min: 1, max: stepBound() }),
-                    fc.integer({ min: 1, max: stepBound() }),
-                    async (bits, before, after) => {
-                        const mask = makeMask(n);
-                        bits.forEach((b, i) => {
-                            maskSet(mask, i, b);
-                        });
-                        await withSim(ctx, BASE_OPTIONS, PAPER, async (sim) => {
-                            const positions = Float32Array.from(start);
-                            sim.load(s, positions);
-                            await sim.step(before);
-                            const pinnedAt = Float32Array.from(positions);
-                            sim.setFixed(mask);
-                            await sim.step(after);
-                            for (let i = 0; i < n; i++) {
-                                if (!bits[i]) {
-                                    continue;
-                                }
-                                for (let k = 0; k < 3; k++) {
-                                    if (!Object.is(positions[3 * i + k], pinnedAt[3 * i + k])) {
-                                        throw new Error(`pinned node ${i} moved on component ${k}`);
-                                    }
+    it("fixed nodes never move: a random mask set between steps keeps every pinned row bitwise where it was", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.array(fc.boolean(), { minLength: n, maxLength: n }),
+                fc.integer({ min: 1, max: stepBound() }),
+                fc.integer({ min: 1, max: stepBound() }),
+                async (bits, before, after) => {
+                    const mask = makeMask(n);
+                    bits.forEach((b, i) => {
+                        maskSet(mask, i, b);
+                    });
+                    await withSim(ctx, BASE_OPTIONS, PAPER, async (sim) => {
+                        const positions = Float32Array.from(start);
+                        sim.load(s, positions);
+                        await sim.step(before);
+                        const pinnedAt = Float32Array.from(positions);
+                        sim.setFixed(mask);
+                        await sim.step(after);
+                        for (let i = 0; i < n; i++) {
+                            if (!bits[i]) {
+                                continue;
+                            }
+                            for (let k = 0; k < 3; k++) {
+                                if (!Object.is(positions[3 * i + k], pinnedAt[3 * i + k])) {
+                                    throw new Error(`pinned node ${i} moved on component ${k}`);
                                 }
                             }
-                        });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+                        }
+                    });
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 
     it("the all-fixed mask: nothing moves and settled is reported within settleWindow + 1 single-iteration steps (PLAN DECISION 12)", async (t) => {
         requireGpu(t);
@@ -153,79 +147,66 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         });
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 32 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "setPosition is visible in the next readback and never clobbered by an older batch (the override list, spec 7.12)",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 0, max: n - 1 }),
-                    // the post-batch reads below are bitwise (toBe is Object.is): -0 and subnormals are excluded
-                    // because a correct kernel returns +0 for both (bitwiseStableFloat)
-                    bitwiseStableFloat(-2, 2),
-                    bitwiseStableFloat(-2, 2),
-                    async (i, x, y) => {
-                        await withSim(ctx, { ...BASE_OPTIONS, maxInFlight: 2 }, PAPER, async (sim) => {
-                            const positions = Float32Array.from(start);
-                            sim.load(s, positions);
-                            sim.setFixed(pinMask(n, i));
-                            await sim.step(1);
-                            const submittedBefore = sim.lastSubmittedBatchId;
-                            const older = sim.step(2);
-                            while (sim.lastSubmittedBatchId === submittedBefore) {
-                                await tick();
-                            }
-                            sim.setPosition(i, x, y, 0);
-                            expect(sim.overrides.get(i), "the override records the last submitted batch").toBe(
-                                sim.lastSubmittedBatchId,
-                            );
-                            const newer = sim.step(2);
-                            await older;
-                            expect(positions[3 * i], "x after the older batch landed").toBe(x);
-                            expect(positions[3 * i + 1], "y after the older batch landed").toBe(y);
-                            await newer;
-                            expect(positions[3 * i], "x after the newer batch (pinned, computed from the write)").toBe(
-                                x,
-                            );
-                            expect(positions[3 * i + 1], "y after the newer batch").toBe(y);
-                            expect(positions[3 * i + 2]).toBe(0);
-                            expect(
-                                sim.overrides.has(i),
-                                "the override is cleared by a batch newer than the write",
-                            ).toBe(false);
-                        });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
-
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 160 s on the Windows WARP host lane, 27 s on lavapipe on the dev box under load, 11 s on CI's lavapipe, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "settled within maxIter: run({ batch: 1 }) stops at maxIter exactly and stats.iteration agrees",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(fc.integer({ min: 1, max: runBound() }), async (maxIter) => {
-                    const options: ForceAtlas2Options = { ...BASE_OPTIONS, maxIter };
-                    await withSim(ctx, options, PAPER, async (sim) => {
+    it("setPosition is visible in the next readback and never clobbered by an older batch (the override list, spec 7.12)", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 0, max: n - 1 }),
+                // the post-batch reads below are bitwise (toBe is Object.is): -0 and subnormals are excluded
+                // because a correct kernel returns +0 for both (bitwiseStableFloat)
+                bitwiseStableFloat(-2, 2),
+                bitwiseStableFloat(-2, 2),
+                async (i, x, y) => {
+                    await withSim(ctx, { ...BASE_OPTIONS, maxInFlight: 2 }, PAPER, async (sim) => {
                         const positions = Float32Array.from(start);
                         sim.load(s, positions);
-                        const stats = await sim.run({ batch: 1 });
-                        expect(sim.settled).toBe(true);
-                        expect(sim.iterationsDone).toBe(maxIter);
-                        expect(stats.iteration).toBe(maxIter);
-                        expect(stats.trace).toHaveLength(1);
+                        sim.setFixed(pinMask(n, i));
+                        await sim.step(1);
+                        const submittedBefore = sim.lastSubmittedBatchId;
+                        const older = sim.step(2);
+                        while (sim.lastSubmittedBatchId === submittedBefore) {
+                            await tick();
+                        }
+                        sim.setPosition(i, x, y, 0);
+                        expect(sim.overrides.get(i), "the override records the last submitted batch").toBe(
+                            sim.lastSubmittedBatchId,
+                        );
+                        const newer = sim.step(2);
+                        await older;
+                        expect(positions[3 * i], "x after the older batch landed").toBe(x);
+                        expect(positions[3 * i + 1], "y after the older batch landed").toBe(y);
+                        await newer;
+                        expect(positions[3 * i], "x after the newer batch (pinned, computed from the write)").toBe(x);
+                        expect(positions[3 * i + 1], "y after the newer batch").toBe(y);
+                        expect(positions[3 * i + 2]).toBe(0);
+                        expect(sim.overrides.has(i), "the override is cleared by a batch newer than the write").toBe(
+                            false,
+                        );
                     });
-                }),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
+
+    it("settled within maxIter: run({ batch: 1 }) stops at maxIter exactly and stats.iteration agrees", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(fc.integer({ min: 1, max: runBound() }), async (maxIter) => {
+                const options: ForceAtlas2Options = { ...BASE_OPTIONS, maxIter };
+                await withSim(ctx, options, PAPER, async (sim) => {
+                    const positions = Float32Array.from(start);
+                    sim.load(s, positions);
+                    const stats = await sim.run({ batch: 1 });
+                    expect(sim.settled).toBe(true);
+                    expect(sim.iterationsDone).toBe(maxIter);
+                    expect(stats.iteration).toBe(maxIter);
+                    expect(stats.trace).toHaveLength(1);
+                });
+            }),
+            { numRuns: NUM_RUNS },
+        );
+    });
 
     it("reheat on unpin, setPosition and load, not on pin (D8)", async (t) => {
         requireGpu(t);
@@ -249,119 +230,109 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         });
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 71 s on the Windows WARP host lane, 14 s on lavapipe on the dev box under load, 13 s on the T4 lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "speed is NOT reset by setPosition (D8): speed / speedEfficiency untouched at the call, and the next iteration continues from them (re-synchronised, PLAN DECISIONS 13 / 17)",
-        async (t) => {
-            requireGpu(t);
-            // D8: setPosition() reheats (iterationsDone = 0, settledCount = 0) and NOTHING else -- the controller
-            // keeps its state at the moment of the call, and the next iteration's K4 continues from it. The second
-            // half is proved through the re-synchronised oracle (resyncTrace): before every iteration a fresh oracle
-            // is seeded with the GPU's own iteration-start state, so at the iteration after the drag the oracle
-            // starts from the moved position AND the speed the GPU reported before the call; a controller reset on
-            // the device would show as that iteration's speed disagreeing by O(1). The earlier form of this property
-            // compared a free-running 10-iteration trace at the f32 trace tolerance and was red on NVIDIA for a few
-            // of the 200 drags (a drag that lands a node next to another creates a near-coincident pair whose forces
-            // amplify f32 rounding chaotically: G3-F4); the re-synchronised form compares one iteration at a time,
-            // free of that amplification, at the measured re-synchronised floors.
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 0, max: n - 1 }),
-                    bitwiseStableFloat(-3, 3),
-                    bitwiseStableFloat(-3, 3),
-                    async (i, x, y) => {
-                        let before: { readonly speed: number; readonly speedEfficiency: number } | null = null;
-                        let after: { readonly speed: number; readonly speedEfficiency: number } | null = null;
-                        const run = await resyncTrace(ctx, s, start, BASE_OPTIONS, PAPER, 2 * halfSpan(), {
-                            beforeStep: (sim, k) => {
-                                if (k !== halfSpan()) {
-                                    return;
-                                }
-                                before = { speed: sim.stats.speed, speedEfficiency: sim.stats.speedEfficiency };
-                                sim.setPosition(i, x, y, 0);
-                                after = { speed: sim.stats.speed, speedEfficiency: sim.stats.speedEfficiency };
-                                expect(sim.iterationsDone, "setPosition reheats").toBe(0);
-                            },
-                        });
-                        expect(before, "the hook ran").not.toBeNull();
-                        expect(after, "stats.speed / speedEfficiency untouched by setPosition").toEqual(before);
-                        const reports = resyncReports(run, `node ${i} -> (${x}, ${y})`);
-                        assertCheckPasses(reports.f32);
-                        assertCheckPasses(reports.f64);
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+    it("speed is NOT reset by setPosition (D8): speed / speedEfficiency untouched at the call, and the next iteration continues from them (re-synchronised, PLAN DECISIONS 13 / 17)", async (t) => {
+        requireGpu(t);
+        // D8: setPosition() reheats (iterationsDone = 0, settledCount = 0) and NOTHING else -- the controller
+        // keeps its state at the moment of the call, and the next iteration's K4 continues from it. The second
+        // half is proved through the re-synchronised oracle (resyncTrace): before every iteration a fresh oracle
+        // is seeded with the GPU's own iteration-start state, so at the iteration after the drag the oracle
+        // starts from the moved position AND the speed the GPU reported before the call; a controller reset on
+        // the device would show as that iteration's speed disagreeing by O(1). The earlier form of this property
+        // compared a free-running 10-iteration trace at the f32 trace tolerance and was red on NVIDIA for a few
+        // of the 200 drags (a drag that lands a node next to another creates a near-coincident pair whose forces
+        // amplify f32 rounding chaotically: G3-F4); the re-synchronised form compares one iteration at a time,
+        // free of that amplification, at the measured re-synchronised floors.
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 0, max: n - 1 }),
+                bitwiseStableFloat(-3, 3),
+                bitwiseStableFloat(-3, 3),
+                async (i, x, y) => {
+                    let before: { readonly speed: number; readonly speedEfficiency: number } | null = null;
+                    let after: { readonly speed: number; readonly speedEfficiency: number } | null = null;
+                    const run = await resyncTrace(ctx, s, start, BASE_OPTIONS, PAPER, 2 * halfSpan(), {
+                        beforeStep: (sim, k) => {
+                            if (k !== halfSpan()) {
+                                return;
+                            }
+                            before = { speed: sim.stats.speed, speedEfficiency: sim.stats.speedEfficiency };
+                            sim.setPosition(i, x, y, 0);
+                            after = { speed: sim.stats.speed, speedEfficiency: sim.stats.speedEfficiency };
+                            expect(sim.iterationsDone, "setPosition reheats").toBe(0);
+                        },
+                    });
+                    expect(before, "the hook ran").not.toBeNull();
+                    expect(after, "stats.speed / speedEfficiency untouched by setPosition").toEqual(before);
+                    const reports = resyncReports(run, `node ${i} -> (${x}, ${y})`);
+                    assertCheckPasses(reports.f32);
+                    assertCheckPasses(reports.f64);
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 27 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(
-                    fc.integer({ min: 1, max: n - 1 }),
-                    fc.integer({ min: 0, max: n - 2 }),
-                    async (a, bRaw) => {
-                        const b = Math.min(bRaw, a - 1);
-                        const keep = Uint32Array.from(Array.from({ length: n }, (_, i) => i).filter((i) => i !== b));
-                        const derived = s.inducedSubgraph(keep);
-                        const next = derived.snapshot;
-                        const remap = derived.nodeRemap;
-                        if (remap === null) {
-                            throw new Error("inducedSubgraph without a node remap");
-                        }
-                        try {
-                            await withSim(ctx, BASE_OPTIONS, PAPER, async (sim) => {
-                                const positions = Float32Array.from(start);
-                                sim.load(s, positions);
-                                sim.setFixed(pinMask(n, a));
-                                await sim.step(2);
-                                const nextPositions = new Float32Array(3 * next.nodeCount);
-                                for (let i = 0; i < n; i++) {
-                                    const j = remap[i];
-                                    if (j === INVALID_INDEX) {
-                                        continue;
-                                    }
-                                    nextPositions[3 * j] = positions[3 * i];
-                                    nextPositions[3 * j + 1] = positions[3 * i + 1];
-                                    nextPositions[3 * j + 2] = positions[3 * i + 2];
+    it("pin A, remove B < A, load(next) with the remapped array and a re-issued mask -> A is still fixed", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(
+                fc.integer({ min: 1, max: n - 1 }),
+                fc.integer({ min: 0, max: n - 2 }),
+                async (a, bRaw) => {
+                    const b = Math.min(bRaw, a - 1);
+                    const keep = Uint32Array.from(Array.from({ length: n }, (_, i) => i).filter((i) => i !== b));
+                    const derived = s.inducedSubgraph(keep);
+                    const next = derived.snapshot;
+                    const remap = derived.nodeRemap;
+                    if (remap === null) {
+                        throw new Error("inducedSubgraph without a node remap");
+                    }
+                    try {
+                        await withSim(ctx, BASE_OPTIONS, PAPER, async (sim) => {
+                            const positions = Float32Array.from(start);
+                            sim.load(s, positions);
+                            sim.setFixed(pinMask(n, a));
+                            await sim.step(2);
+                            const nextPositions = new Float32Array(3 * next.nodeCount);
+                            for (let i = 0; i < n; i++) {
+                                const j = remap[i];
+                                if (j === INVALID_INDEX) {
+                                    continue;
                                 }
-                                const aNew = remap[a];
-                                expect(aNew).toBe(a - 1);
-                                sim.load(next, nextPositions);
-                                sim.setFixed(pinMask(next.nodeCount, aNew));
-                                const held = [
-                                    nextPositions[3 * aNew],
-                                    nextPositions[3 * aNew + 1],
-                                    nextPositions[3 * aNew + 2],
-                                ];
-                                await sim.step(3);
-                                expect(nextPositions[3 * aNew]).toBe(held[0]);
-                                expect(nextPositions[3 * aNew + 1]).toBe(held[1]);
-                                expect(nextPositions[3 * aNew + 2]).toBe(held[2]);
-                                // the node that took B's old index is NOT fixed (the mask was re-issued for the new index space)
-                                if (b !== aNew) {
-                                    const moved = [nextPositions[3 * b], nextPositions[3 * b + 1]];
-                                    expect(
-                                        moved[0] !== positions[3 * (b + 1)] || moved[1] !== positions[3 * (b + 1) + 1],
-                                        "the remapped neighbour moves",
-                                    ).toBe(true);
-                                }
-                            });
-                        } finally {
-                            ctx.release(next);
-                        }
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+                                nextPositions[3 * j] = positions[3 * i];
+                                nextPositions[3 * j + 1] = positions[3 * i + 1];
+                                nextPositions[3 * j + 2] = positions[3 * i + 2];
+                            }
+                            const aNew = remap[a];
+                            expect(aNew).toBe(a - 1);
+                            sim.load(next, nextPositions);
+                            sim.setFixed(pinMask(next.nodeCount, aNew));
+                            const held = [
+                                nextPositions[3 * aNew],
+                                nextPositions[3 * aNew + 1],
+                                nextPositions[3 * aNew + 2],
+                            ];
+                            await sim.step(3);
+                            expect(nextPositions[3 * aNew]).toBe(held[0]);
+                            expect(nextPositions[3 * aNew + 1]).toBe(held[1]);
+                            expect(nextPositions[3 * aNew + 2]).toBe(held[2]);
+                            // the node that took B's old index is NOT fixed (the mask was re-issued for the new index space)
+                            if (b !== aNew) {
+                                const moved = [nextPositions[3 * b], nextPositions[3 * b + 1]];
+                                expect(
+                                    moved[0] !== positions[3 * (b + 1)] || moved[1] !== positions[3 * (b + 1) + 1],
+                                    "the remapped neighbour moves",
+                                ).toBe(true);
+                            }
+                        });
+                    } finally {
+                        ctx.release(next);
+                    }
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 
     it("results are ArrayBuffer-typed of exact length: the owner's array is the one written, stats.trace has k records", async (t) => {
         requireGpu(t);
@@ -376,75 +347,65 @@ describe("FA2 properties (spec 11.3; fast-check numRuns 200)", () => {
         });
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 13 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "2D writes z === center.z whatever z was uploaded, for random z and random center.z",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                // -0 is excluded from cz: toScene's z is 0 * scale + center.z = +0 for cz = -0 (IEEE), and the
-                // read below is bitwise (toBe is Object.is)
-                fc.asyncProperty(
-                    fc.float({ min: -10, max: 10, noNaN: true }).filter((v) => !Object.is(v, -0)),
-                    fc.integer({ min: 0, max: 1000 }),
-                    async (cz, zSeed) => {
-                        const options: ForceAtlas2Options = { ...BASE_OPTIONS, center: [0, 0, cz] };
-                        await withSim(ctx, options, PAPER, async (sim) => {
-                            const positions = startPositions(s, options, false);
-                            for (let i = 0; i < n; i++) {
-                                positions[3 * i + 2] = ((zSeed + 7 * i) % 13) - 6;
-                            }
-                            sim.load(s, positions);
-                            await sim.step(2);
-                            for (let i = 0; i < n; i++) {
-                                expect(positions[3 * i + 2]).toBe(Math.fround(cz));
-                            }
-                        });
-                    },
-                ),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+    it("2D writes z === center.z whatever z was uploaded, for random z and random center.z", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            // -0 is excluded from cz: toScene's z is 0 * scale + center.z = +0 for cz = -0 (IEEE), and the
+            // read below is bitwise (toBe is Object.is)
+            fc.asyncProperty(
+                fc.float({ min: -10, max: 10, noNaN: true }).filter((v) => !Object.is(v, -0)),
+                fc.integer({ min: 0, max: 1000 }),
+                async (cz, zSeed) => {
+                    const options: ForceAtlas2Options = { ...BASE_OPTIONS, center: [0, 0, cz] };
+                    await withSim(ctx, options, PAPER, async (sim) => {
+                        const positions = startPositions(s, options, false);
+                        for (let i = 0; i < n; i++) {
+                            positions[3 * i + 2] = ((zSeed + 7 * i) % 13) - 6;
+                        }
+                        sim.load(s, positions);
+                        await sim.step(2);
+                        for (let i = 0; i < n; i++) {
+                            expect(positions[3 * i + 2]).toBe(Math.fround(cz));
+                        }
+                    });
+                },
+            ),
+            { numRuns: NUM_RUNS },
+        );
+    });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 60 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "per-node displacement never exceeds speed |F| / (1 + sqrt(speed swing_i)) (equality up to f32 rounding in the first iteration)",
-        async (t) => {
-            requireGpu(t);
-            await fc.assert(
-                fc.asyncProperty(fc.integer({ min: 1, max: 100_000 }), async (seed) => {
-                    const options: ForceAtlas2Options = { ...BASE_OPTIONS, seed };
-                    const positions = startPositions(s, options, false);
-                    const once = (): Promise<{ force: F32; after: F32; speed: number }> =>
-                        withSim(ctx, options, PAPER, async (sim) => {
-                            sim.load(s, Float32Array.from(positions));
-                            const st = debugStages(sim);
-                            await st.run("K5");
-                            const force = asF32(await st.read("force"));
-                            const after = xyzOf(asF32(await st.read("positions")), n);
-                            const { speed } = readState(await st.read("state"));
-                            return { force, after, speed };
-                        });
-                    const first = await once();
-                    const { force, after, speed } = await once();
-                    expectBitwiseEqual(first.force, force, "force, run 1 vs run 2");
-                    expectBitwiseEqual(first.after, after, "positions after K5, run 1 vs run 2");
-                    expect(Object.is(first.speed, speed), "speed, run 1 vs run 2").toBe(true);
-                    const mass = s.outDegree();
-                    for (let i = 0; i < n; i++) {
-                        const f = Math.hypot(force[3 * i], force[3 * i + 1], force[3 * i + 2]);
-                        const swing = (mass[i] + 1) * f; // paper mode, iteration 1: oldForce is 0
-                        const bound = (speed * f) / (1 + Math.sqrt(speed * swing));
-                        const dp = Math.hypot(after[3 * i] - positions[3 * i], after[3 * i + 1] - positions[3 * i + 1]);
-                        expect(dp, `node ${i}`).toBeLessThanOrEqual(bound * (1 + 1e-5) + 1e-7);
-                        expect(after[3 * i + 2], `2D never integrates z (node ${i})`).toBe(0);
-                    }
-                }),
-                { numRuns: NUM_RUNS },
-            );
-        },
-        CASE_TIMEOUT,
-    );
+    it("per-node displacement never exceeds speed |F| / (1 + sqrt(speed swing_i)) (equality up to f32 rounding in the first iteration)", async (t) => {
+        requireGpu(t);
+        await fc.assert(
+            fc.asyncProperty(fc.integer({ min: 1, max: 100_000 }), async (seed) => {
+                const options: ForceAtlas2Options = { ...BASE_OPTIONS, seed };
+                const positions = startPositions(s, options, false);
+                const once = (): Promise<{ force: F32; after: F32; speed: number }> =>
+                    withSim(ctx, options, PAPER, async (sim) => {
+                        sim.load(s, Float32Array.from(positions));
+                        const st = debugStages(sim);
+                        await st.run("K5");
+                        const force = asF32(await st.read("force"));
+                        const after = xyzOf(asF32(await st.read("positions")), n);
+                        const { speed } = readState(await st.read("state"));
+                        return { force, after, speed };
+                    });
+                const first = await once();
+                const { force, after, speed } = await once();
+                expectBitwiseEqual(first.force, force, "force, run 1 vs run 2");
+                expectBitwiseEqual(first.after, after, "positions after K5, run 1 vs run 2");
+                expect(Object.is(first.speed, speed), "speed, run 1 vs run 2").toBe(true);
+                const mass = s.outDegree();
+                for (let i = 0; i < n; i++) {
+                    const f = Math.hypot(force[3 * i], force[3 * i + 1], force[3 * i + 2]);
+                    const swing = (mass[i] + 1) * f; // paper mode, iteration 1: oldForce is 0
+                    const bound = (speed * f) / (1 + Math.sqrt(speed * swing));
+                    const dp = Math.hypot(after[3 * i] - positions[3 * i], after[3 * i + 1] - positions[3 * i + 1]);
+                    expect(dp, `node ${i}`).toBeLessThanOrEqual(bound * (1 + 1e-5) + 1e-7);
+                    expect(after[3 * i + 2], `2D never integrates z (node ${i})`).toBe(0);
+                }
+            }),
+            { numRuns: NUM_RUNS },
+        );
+    });
 });

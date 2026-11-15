@@ -45,7 +45,7 @@ import { fileURLToPath } from "node:url";
 
 import { referencesHold } from "./channel/candidate-fix.mjs";
 import { acceptsIn, resumeDecision } from "./channel/resume.mjs";
-import { listRedIssues, RED_TITLE } from "./full-run.mjs";
+import { listRedIssues, RED_TITLE, runsOnTitleCommit } from "./full-run.mjs";
 import { LABEL } from "./release-status.mjs";
 import { call, config } from "./results/client.mjs";
 
@@ -119,14 +119,16 @@ export function due(redIssues, messages, now = Date.now(), closedSince = now - C
 
 /**
  * The release.yml runs a restart cancels: full and restart runs (run-name `Release (full)`, `Release (restart)`)
- * that the red issue names (its body and comments link each run that filed or updated it), never a shadow or legacy
- * release and never a run testing another commit.
+ * that the red issue names as testing the commit its title is on (runsOnTitleCommit: each filing pairs a run with
+ * the commit it tested), never a shadow or legacy release and never a run testing another commit. A run's headSha is
+ * master's tip when it was dispatched, not the commit its pick tested, so the issue's own pairing is the check.
  * @param runs `gh run list --json databaseId,displayTitle` of the in-progress runs
+ * @param title the red issue's title
  * @param issueText the red issue's body and comments, joined
  * @returns their ids
  */
-export function toCancel(runs, issueText) {
-    const named = new Set([...issueText.matchAll(/\/actions\/runs\/(\d+)/g)].map((m) => Number(m[1])));
+export function toCancel(runs, title, issueText) {
+    const named = runsOnTitleCommit(title, issueText);
     return runs
         .filter((r) => /^Release \((full|restart)\)$/.test(r.displayTitle) && named.has(r.databaseId))
         .map((r) => r.databaseId);
@@ -254,21 +256,13 @@ function cancelRedRun(issue, dryRun) {
             "databaseId,displayTitle,url",
         ]),
     );
-    const issueText = run("gh", [
-        "issue",
-        "view",
-        String(issue),
-        "--json",
-        "body,comments",
-        "-q",
-        '[.body, .comments[].body] | join("\\n")',
-    ]);
-    for (const id of toCancel(inProgress, issueText)) {
+    const red = JSON.parse(run("gh", ["issue", "view", String(issue), "--json", "title,body,comments"]));
+    const issueText = [red.body, ...(red.comments ?? []).map((c) => c.body)].join("\n");
+    for (const id of toCancel(inProgress, red.title, issueText)) {
         const r = inProgress.find((x) => x.databaseId === id);
         console.log(`release-due: cancelling release.yml run ${id}, the red run #${issue} names`);
         if (dryRun) continue;
-        // the note first, so release-watch finds it when the cancelled run completes; its failure never skips the cancel
-        try {
+        cancelWithNote(id, () => {
             const status = run("gh", [
                 "issue",
                 "list",
@@ -281,15 +275,39 @@ function cancelRedRun(issue, dryRun) {
                 "-q",
                 ".[0].number",
             ]);
-            if (status) run("gh", ["issue", "comment", status, "--body", cancelNote(issue, r.url, runAttempt(id))]);
-        } catch (error) {
-            console.log(`::warning::the note on the Release status issue failed: ${cause(error)}`);
-        }
+            return status
+                ? run("gh", ["issue", "comment", status, "--body", cancelNote(issue, r.url, runAttempt(id))])
+                : "";
+        });
+    }
+}
+
+/**
+ * Cancels one run, posting the cancel note first so release-watch finds it when the cancelled run completes. The
+ * note's failure never skips the cancel; a failed cancel deletes the note, since the run goes on and may end badly
+ * for a real reason the note would hide.
+ * @param id the run
+ * @param postNote () => the note comment's URL (gh issue comment prints it), or empty when none was posted
+ * @param [gh] (args) => gh's output
+ */
+export function cancelWithNote(id, postNote, gh = (args) => run("gh", args)) {
+    let note = "";
+    try {
+        note = postNote();
+    } catch (error) {
+        console.log(`::warning::the note on the Release status issue failed: ${cause(error)}`);
+    }
+    try {
+        gh(["run", "cancel", String(id)]);
+    } catch (error) {
+        // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
+        console.log(`::warning::cancelling run ${id} failed: ${cause(error)}`);
+        const comment = /#issuecomment-(\d+)/.exec(note ?? "")?.[1];
+        if (!comment) return;
         try {
-            run("gh", ["run", "cancel", String(id)]);
-        } catch (error) {
-            // a run that ended meanwhile cannot be cancelled; the restart still goes ahead
-            console.log(`::warning::cancelling run ${id} failed: ${cause(error)}`);
+            gh(["api", "-X", "DELETE", `repos/{owner}/{repo}/issues/comments/${comment}`]);
+        } catch (deleteError) {
+            console.log(`::warning::deleting the cancel note ${note} failed: ${cause(deleteError)}`);
         }
     }
 }

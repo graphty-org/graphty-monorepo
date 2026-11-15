@@ -11,6 +11,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { dragAcross } from "../../../test/real-pointer";
 import { pickSample } from "../../../test/samples-dialog";
@@ -18,8 +19,9 @@ import { render, waitFor } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and painting, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** The ring a new project gives a pinned node. */
 const RING = "#868e96";
@@ -49,32 +51,23 @@ describe("the Pinned look of a new project", () => {
         }
         const element: HTMLElementTagNameMap["graphty-element"] = found;
         const { session } = element;
-        await waitFor(
-            () => {
-                assert.isDefined(session.config.pinnedStyle, "a new project sets the pinned look");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.isDefined(session.config.pinnedStyle, "a new project sets the pinned look");
+        });
         // The picture is still once the layout has converged, so the node stays where it is read.
         await element.waitForStableFrame();
         const [dragged, alone] = session.data.nodes().map((node) => node.id);
         // Pressed where the element says the node is drawn now, and again until the drag pins it.
-        await waitFor(
-            async () => {
-                const at = element.nodeScreenPosition(String(dragged));
-                assert.isTrue(at?.visible, "the node is on screen");
-                assert.equal(element.elementAt({ x: at?.x ?? 0, y: at?.y ?? 0 })?.id, dragged);
-                await dragAcross(element, 60, { x: at?.x ?? 0, y: at?.y ?? 0 });
-                assert.isTrue(session.positions.pinned.has(dragged), "the drag pinned the node");
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        await waitFor(
-            () => {
-                assert.strictEqual(halo(session, dragged), RING, "the pinned node wears the ring");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(async () => {
+            const at = element.nodeScreenPosition(String(dragged));
+            assert.isTrue(at?.visible, "the node is on screen");
+            assert.equal(element.elementAt({ x: at?.x ?? 0, y: at?.y ?? 0 })?.id, dragged);
+            await dragAcross(element, 60, { x: at?.x ?? 0, y: at?.y ?? 0 });
+            assert.isTrue(session.positions.pinned.has(dragged), "the drag pinned the node");
+        });
+        await waitFor(() => {
+            assert.strictEqual(halo(session, dragged), RING, "the pinned node wears the ring");
+        });
         assert.notStrictEqual(halo(session, alone), RING, "a node left alone wears no ring");
 
         // A click on the pinned node selects it.

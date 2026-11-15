@@ -35,6 +35,7 @@ import { compareIds } from "../../catalog/sets/canonical";
 import { parseScope } from "../../catalog/sets/parse";
 import type { AlgorithmKey, NodeId, OptionDescriptor, RunId, Scope, SetDefinition } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
+import { isPlainObject } from "../../utils/isPlainObject";
 import { RUN_ID_PATTERN } from "./types";
 
 // ---------------------------------------------------------------------------------------------
@@ -92,17 +93,6 @@ export function stableDigest(text: string): string {
 // ---------------------------------------------------------------------------------------------
 // Canonical form
 // ---------------------------------------------------------------------------------------------
-
-/**
- * Tell whether a value is an object literal rather than an instance of something.
- * @param value - The object to test.
- * @returns True when its prototype is `Object.prototype` or null.
- */
-function isPlainObject(value: object): boolean {
-    const prototype: unknown = Object.getPrototypeOf(value);
-
-    return prototype === null || prototype === Object.prototype;
-}
 
 /**
  * The canonical spelling of a number, with the two values that have two spellings folded.

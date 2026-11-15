@@ -12,6 +12,9 @@ import type { SimulationType } from "@graphty/layout";
 import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
+import { clusterByOption, clusterStrengthOption } from "./clusterForce";
+import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
+import { seedSchema } from "./seedOption";
 import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
 
 /**
@@ -19,6 +22,8 @@ import { SimulationLayoutEngine } from "./SimulationLayoutEngine";
  * who has tuned an ngraph force layout before already knows.
  */
 const springElectricalLayoutOptionsSchema = defineOptions({
+    clusterBy: clusterByOption,
+    clusterStrength: clusterStrengthOption,
     maxIter: {
         schema: z.number().int().positive().nullable().default(null),
         meta: {
@@ -84,8 +89,10 @@ const springElectricalLayoutOptionsSchema = defineOptions({
             description: "Layout dimensionality (2D or 3D)",
         },
     },
+    nodeGap: nodeGapOption,
+    nodeGapFront: nodeGapFrontOption,
     seed: {
-        schema: z.number().nullable().default(null),
+        schema: seedSchema,
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible layout",
@@ -103,10 +110,10 @@ const springElectricalLayoutOptionsSchema = defineOptions({
  * under `force` beside ngraph, d3, ForceAtlas2, Spring and Kamada-Kawai.
  */
 export class SpringElectricalLayout extends SimulationLayoutEngine {
-    static type = "spring-electrical";
-    static simulationType: SimulationType = "spring-electrical";
-    static maxDimensions = 3;
-    static zodOptionsSchema: OptionsSchema = springElectricalLayoutOptionsSchema;
+    static readonly type: string = "spring-electrical";
+    static readonly simulationType: SimulationType = "spring-electrical";
+    static readonly maxDimensions: number = 3;
+    static readonly zodOptionsSchema: OptionsSchema = springElectricalLayoutOptionsSchema;
 
     /**
      * Get dimension-specific options for the spring-electrical layout.

@@ -1,20 +1,20 @@
 import { ContextMenu, Popout, PopoutButton } from "@graphty/compact-mantine";
-import { formatShaderText, parseShaderText } from "@graphty/graphty-element/catalog";
 import type { Channel } from "@graphty/graphty-element/schema";
 import { ActionIcon, Button, Menu, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
-import type { PasteInit } from "./PasteShaderDialog";
 import type { RowContext } from "./PropertyRow";
 import { type DataChoice, sourceName } from "./row";
+import type { PasteInit } from "./ShaderEditorDialog";
 import { PlaceDiagram } from "./ShaderGallery";
 import { ShaderParams } from "./ShaderParams";
 import {
     bindingsOf,
     copyShaderText,
     fixedParams,
+    namedCopy,
     paramsOf,
     placeOf,
     removeShader,
@@ -28,7 +28,6 @@ import {
 import { focusSectionNext } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
 import {
-    copyNameWords,
     effectOffWords,
     failureWords,
     GROUP_BY_WORDS,
@@ -46,7 +45,7 @@ const POPOUT_WIDTH = 240;
  * @param props.src - the picture's address, or undefined.
  * @returns The picture
  */
-export function ShaderThumb({ src }: Readonly<{ src: string | undefined }>): React.JSX.Element {
+function ShaderThumb({ src }: Readonly<{ src: string | undefined }>): React.JSX.Element {
     return src === undefined ? (
         <span className="ws-shader-thumb" aria-hidden />
     ) : (
@@ -71,8 +70,8 @@ interface ShaderRowProps {
 
 /**
  * Duplicate and edit: opens the code dialog on a copy of the row's shader, named apart from it
- * ("Pearl copy"), at the row's place. None for a project shader, an unknown one, or with no
- * dialog to open.
+ * ("Pearl copy"), at the row's place, for every shader the row names. None for an unknown one,
+ * or with no dialog to open.
  * @param ctx - the row
  * @param entry - the row's use
  * @param name - the row's name
@@ -88,21 +87,14 @@ function duplicateAction(
     fail: Fail,
 ): (() => void) | undefined {
     const { descriptor } = entry;
-    if (onCode === undefined || descriptor === undefined || descriptor.origin === "pasted") {
+    if (onCode === undefined || descriptor === undefined) {
         return undefined;
     }
     return (): void => {
         ctx.session.shaders
-            .source(entry.use.shader, { duplicate: true, params: fixedParams(entry) })
+            .source(entry.use.shader, { duplicate: true, params: fixedParams(entry), derived: "omit" })
             .then((text) => {
-                const read = parseShaderText(text);
-                const named = read.ok
-                    ? formatShaderText({
-                          ...read.registration,
-                          descriptor: { ...read.registration.descriptor, plainName: copyNameWords(name) },
-                      })
-                    : text;
-                onCode({ text: named, duplicateOf: entry.use.shader, place: placeOf(entry) });
+                onCode({ text: namedCopy(text, name), duplicateOf: entry.use.shader, place: placeOf(entry) });
             })
             .catch(fail("copied"));
     };
@@ -175,6 +167,7 @@ function SettingsPopout({
                 placement="left"
                 alignment="start"
                 header={{ variant: "title", title: `${name} settings` }}
+                closeLabel={`Close ${name} settings`}
             >
                 <Popout.Content>
                     <ShaderParams
@@ -250,6 +243,7 @@ function GroupByLine({
                             placement="left"
                             alignment="start"
                             header={{ variant: "title", title: GROUP_BY_WORDS.title }}
+                            closeLabel={`Close ${GROUP_BY_WORDS.title}`}
                         >
                             <ValuePicker
                                 title={GROUP_BY_WORDS.title}
@@ -360,7 +354,7 @@ export function ShaderRow({ ctx, entry, count, onMove, onCode }: Readonly<Shader
     });
     const remove = (): void => {
         if (box.current?.contains(document.activeElement) === true) {
-            focusSectionNext(box.current, entry.key as Channel);
+            focusSectionNext(ctx.session, box.current, entry.key as Channel);
         }
         store.set({ announcement: `${name} removed` });
         removeShader(ctx, entry).catch(fail("removed"));

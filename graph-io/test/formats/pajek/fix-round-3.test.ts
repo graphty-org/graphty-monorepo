@@ -52,8 +52,19 @@ describe("Pajek outlines (diamond q, phi)", () => {
         expect(points[1]).toBe("1,1 -1,0 1,-1");
         // 40 wide and 20 tall, turned upright: 20 wide and 40 tall in a box 40 by 20
         expect(points[2]).toBe("-0.5,-2 -0.5,2 0.5,2 0.5,-2");
-        // a turned ellipse stays an ellipse, drawn unturned
+        // a turned ellipse stays an ellipse, turned whole: phi counterclockwise is shapeRotation clockwise
         expect(points[3]).toBeNull();
+        expect(get("node", "shapeRotation")).toEqual([null, null, null, -30]);
+    });
+
+    it("turns a cross, a man and a woman whole by phi", async () => {
+        // pajek-synth-vertices v5 `cross x_fact 1 y_fact 1.5 phi 60` is drawn 27.8 x 22.9; woman 41 `phi 60` on her side
+        const { get } = await load(
+            "*Vertices 4\n1 a 0.1 0.1 0.5 cross phi 60\n2 b 0.2 0.2 0.5 man phi 15\n" +
+                "3 c 0.3 0.3 0.5 woman phi 60\n4 d 0.4 0.4 0.5 man\n",
+        );
+        expect(get("node", "shapeRotation")).toEqual([-60, -15, -60, null]);
+        expect(get("node", "shapePoints")).toEqual([null, null, null, null]);
     });
 
     it("writes Pajek's diamond back as the diamond keyword with its q", async () => {
@@ -94,6 +105,67 @@ describe("Pajek Bezier arcs", () => {
         expect(y).toBeCloseTo(0.97 / 6, 2);
         // the tip stops there, with no gap of its own
         expect(resolveStyles(result.styles, "edge", "targetArrowGap", result.snapshot)[0]).toBeNull();
+    });
+});
+
+describe("Pajek undirected Bezier lines", () => {
+    it("starts the curve at the lower-numbered vertex, whichever way *Edges writes the line", async () => {
+        // Pajek 6.02 draws `2 1 1 a1 45 k1 1 a2 75 k2 1` from 1 (100, 100) to 2 (400, 100):
+        // M 100 100 C 206.07 206.07 361.18 244.89 400 100, the same curve as `1 2`; graphty's line runs from 2 to 1
+        const result = await registry.importGraph(
+            "*Vertices 4\n1 a 0.2 0.2\n2 b 0.8 0.2\n3 c 0.2 0.4\n4 d 0.8 0.4\n" +
+                "*Edges\n2 1 1 a1 45 k1 1 a2 75 k2 1\n3 4 1 a1 45 k1 1 a2 75 k2 1\n",
+            { format: "pajek", styles: true },
+        );
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        const bends = resolveStyles(result.styles, "edge", "bends", result.snapshot) as string[];
+        const points = (b: string): number[][] => b.split(" ").map((p) => p.split(",").map(Number));
+        // from 2, along the line to 1 and to its left (down on screen): (361.18, 244.89) then (206.07, 206.07)
+        const [c1, c2] = points(bends[0]);
+        expect(c1[0]).toBeCloseTo(38.82 / 300, 3);
+        expect(c1[1]).toBeCloseTo(144.89 / 300, 3);
+        expect(c2[0]).toBeCloseTo(193.93 / 300, 3);
+        expect(c2[1]).toBeCloseTo(106.07 / 300, 3);
+        // written low to high, from its source as before: (206.07, 306.07) then (361.18, 344.89), left of it is up
+        const [d1, d2] = points(bends[1]);
+        expect(d1[0]).toBeCloseTo(106.07 / 300, 3);
+        expect(d1[1]).toBeCloseTo(-106.07 / 300, 3);
+        expect(d2[0]).toBeCloseTo(261.18 / 300, 3);
+        expect(d2[1]).toBeCloseTo(-144.89 / 300, 3);
+    });
+});
+
+describe("Pajek Bezier arcs under Lines finished at Vertex Border", () => {
+    it("starts the curve where the straight line leaves the source's outline (pajek-specimen-arrows-p3)", async () => {
+        // `arrow-bezier`: M 64 709.33 C 99.92 735.39 87.10 679.10 123.02 705.16, the source's center at (58, 709.33)
+        // 12 across; on the default page the same arc starts at its center, M 58 709.33
+        const result = await registry.importGraph(
+            "*Vertices 2\n1 a 0.048333 0.788148 0.5 ellipse x_fact 0.6 y_fact 0.6\n" +
+                "2 b 0.111667 0.788148 0.5 ellipse x_fact 0.6 y_fact 0.6\n" +
+                "*Arcs\n1 2 1 s 1 a A ap 0 a1 40 k1 1.5 a2 -40 k2 1.5\n",
+            {
+                format: "pajek",
+                styles: true,
+                pajekDraw: { width: 1200, height: 900, ini: { "Form10.LinesFinishedatBorder": "" } },
+            },
+        );
+        const { styles } = result;
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const at = (property: "sourcePort" | "bends"): string =>
+            resolveStyles(styles, "edge", property, result.snapshot)[0] as string;
+        expect(at("sourcePort")).toBe("1,0");
+        const [c1, c2] = at("bends")
+            .split(" ")
+            .map((p) => p.split(",").map(Number));
+        // (41.92, 26.06) and (29.10, -30.23) from the source's center, y down, along and to the left of the line 76 long
+        expect(c1[0]).toBeCloseTo(41.92 / 76, 2);
+        expect(c1[1]).toBeCloseTo(-26.06 / 76, 2);
+        expect(c2[0]).toBeCloseTo(29.1 / 76, 2);
+        expect(c2[1]).toBeCloseTo(30.23 / 76, 2);
     });
 });
 
@@ -152,6 +224,23 @@ describe("Pajek arcs between the same two vertices", () => {
 });
 
 describe("Pajek arrowhead places", () => {
+    it("places the tip on the line between the outlines, where graphty measures arrowPosition", async () => {
+        // pajek-graphstream-b arc 73 2 `ap 0.5`: Pajek draws the head about the middle of the line between the centers
+        // (translate(304.70 384.38), the tip at 5), 8.15 from the target's center: 2.15 past where the line leaves
+        // the target's box (6.00 out), 0.150 of the 14.29 between the two boxes. Arc 28 17 runs from a diamond, which
+        // the line leaves 3.73 out, to an ellipse, 5 out: the tip 5.48 from the center, 0.039 of the 12.22 between
+        const result = await registry.importGraph(
+            "*Vertices 4\n1 a 0.5875 0.7542 box x_fact 0.5 y_fact 0.5\n2 b 0.6313 0.7833 box x_fact 0.5 y_fact 0.5\n" +
+                "3 c 0.5292 0.6688 diamond x_fact 0.5 y_fact 0.5\n4 d 0.5479 0.7063 ellipse x_fact 0.5 y_fact 0.5\n" +
+                "*Arcs\n1 2 1 ap 0.5\n3 4 1 ap 0.5\n",
+            { format: "pajek", styles: true },
+        );
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.150031, 0.0389469]);
+    });
+
     it("moves only the arrowhead of the line that sets ap, not the lines after it", async () => {
         // pajek-synth-lines: arc 11 12 after `10 11 ... ap 0.5` has its arrowhead at its target
         const result = await registry.importGraph(
@@ -161,12 +250,31 @@ describe("Pajek arrowhead places", () => {
         if (result.styles === null || result.styles === undefined) {
             throw new Error("no styles");
         }
-        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.5, null, 0.25]);
+        // Pajek draws the tip 5 px past the point ap names, measured here between the outlines 10 px from each center:
+        // (100 - 5 - 10) / 180 and (0.25 * 282.84 - 5 - 10) / 262.84
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([
+            0.472222,
+            null,
+            0.211954,
+        ]);
+    });
+
+    it("places the tip 5 s px past the point ap names, as Pajek 6.02 draws it, at the node when that is past it", async () => {
+        // pajek-specimen-arrows arc 27 28 `ap 0.5`: the point at the middle, x 432, the tip at 437; s 2 puts it 10 on
+        const result = await registry.importGraph(
+            "*Vertices 3\n1 a 0.1 0.1\n2 b 0.5 0.1\n3 c 0.51 0.1\n*Arcs\n1 2 1 s 2 ap 0.5\n2 3 1 ap 0.5\n",
+            { format: "pajek", styles: true },
+        );
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        // the second line is 5 px long: its tip would be past the target's center, so it is drawn at the node, part-way
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.444444, 1e-6]);
     });
 
     it("reads ap above 1 as a distance from the target's center, a share of a placed line", async () => {
-        // pajek-synth-lines arc 3 4 ap 20: the arrowhead's back 20 px from the target's center; here on a line 200 px
-        // long (0.4 of Pajek's 500 px square)
+        // pajek-synth-lines arc 3 4 ap 20: the point 20 px from the target's center, the tip 5 px nearer; here on a line 200 px
+        // long (0.4 of Pajek's 500 px square), 180 between the outlines: (15 - 10) / 180
         const result = await registry.importGraph("*Vertices 2\n1 a 0.1 0.1\n2 b 0.5 0.1\n*Arcs\n1 2 1 ap 20\n", {
             format: "pajek",
             styles: true,
@@ -174,7 +282,24 @@ describe("Pajek arrowhead places", () => {
         if (result.styles === null || result.styles === undefined) {
             throw new Error("no styles");
         }
-        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.1]);
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.0277778]);
+    });
+
+    it("measures ap on the line between the outlines under Lines finished at Vertex Border", async () => {
+        // pajek-specimen-arrows-p3: `ap 10` puts the tip 5 from the target's outline (x 795 against 800), `ap 0.5` the
+        // point at the middle of the line between the outlines; here 180 between them: 5 / 180 and (45 - 5) / 180
+        const result = await registry.importGraph(
+            "*Vertices 4\n1 a 0.1 0.1\n2 b 0.5 0.1\n3 c 0.1 0.5\n4 d 0.5 0.5\n*Arcs\n1 2 1 ap 10\n3 4 1 ap 0.25\n",
+            {
+                format: "pajek",
+                styles: true,
+                pajekDraw: { width: 500, height: 500, ini: { "Form10.LinesFinishedatBorder": "" } },
+            },
+        );
+        if (result.styles === null || result.styles === undefined) {
+            throw new Error("no styles");
+        }
+        expect(resolveStyles(result.styles, "edge", "arrowPosition", result.snapshot)).toEqual([0.0277778, 0.222222]);
     });
 });
 

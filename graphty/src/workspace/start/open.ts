@@ -6,25 +6,35 @@
 
 import { pickFiles as pickFromBrowser, useFileDrop } from "@graphty/compact-mantine";
 import {
+    DATASET_DESCRIPTORS,
     type DatasetMeta,
     DEFAULT_DATASET_BASE_URL,
+    GENERATOR_DESCRIPTORS,
     type GeneratorDescriptor,
     type GeneratorParams,
 } from "@graphty/graphty-element/catalog";
-import type { AssetSource, DataSourceInput, GraphSession } from "@graphty/graphty-element/session";
+import {
+    createGraphSession,
+    type DataSourceInput,
+    type GraphSession,
+    type LoadDraft,
+} from "@graphty/graphty-element/session";
 import { useCallback, useRef } from "react";
 
 import type { StartSample } from "../../data/sampleManifest";
 import { siteConfig } from "../../siteConfig";
-import { putModelOnNodes } from "../canvas/models";
 import type { CommandContext } from "../commands/registry";
 import { refusalFor } from "../data-page/words";
+import { fileStylesOn } from "../features";
 import { focusOpenedGraphLater } from "../frame/focus";
 import { openProjectFile } from "../project/actions";
-import { routeToReplace } from "../replace/commands";
-import { fileStylesChoice } from "../settings/preferences";
-import { newProjectId, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
+import { notReadWords } from "../project/words";
+import { replaceWith } from "../replace/commands";
+import { FILE_STYLE_OPTIONS, fileStylesChoice } from "../settings/preferences";
+import { newProjectId, type Opener, startOpening, useStoreValue, type WorkspaceStore } from "../state/store";
+import { labelRow } from "../style/row";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
+import { panelsInView } from "../time/timeActions";
 
 /**
  * Opens a new project and hands its load to the workspace, which runs it once the project's
@@ -46,6 +56,8 @@ export function openProject(
         place: "graph",
         inspected: null,
         dialog: null,
+        // A failure of an earlier try says nothing about this one.
+        notice: null,
         // The name is the project's in graphty-element too, so its autosave entry carries it. Set
         // before the load, which starts the history, so Undo never takes the name back.
         ...startOpening({
@@ -56,7 +68,63 @@ export function openProject(
             },
         }),
         ends: null,
+        pickedSource: null,
+        dataTab: "loaded",
+        timeWindowCard: false,
     }));
+}
+
+/**
+ * Opens a new project and, once its load is in, the Style panel on the row that paints the whole
+ * graph. Where a network sample lands. Inside the load because opening clears what is inspected
+ * and the row exists only once the project's element is up.
+ * @param workspace - the workspace store.
+ * @param name - the project's name.
+ * @param load - what to load into the new element.
+ */
+function openWithStylePanel(
+    workspace: WorkspaceStore,
+    name: string,
+    load: (session: GraphSession) => Promise<void>,
+): void {
+    openProject(workspace, name, async (session) => {
+        await load(session);
+        workspace.set({ inspected: { ...labelRow(session, null).inspected, tab: "style" } });
+    });
+}
+
+/**
+ * Reads one of a network source's examples with no project open, and only then opens the app on
+ * it with the Style panel up. A refused read leaves the reader on the start page with a notice.
+ * @param workspace - the workspace store.
+ * @param name - the project's name.
+ * @param source - the source id.
+ * @param example - the example's id within that source.
+ * @param signal - stops the read; a stopped read opens nothing and says nothing.
+ * @returns settles once the read has opened the app or failed.
+ */
+export async function openNetworkSample(
+    workspace: WorkspaceStore,
+    name: string,
+    source: string,
+    example: string,
+    signal: AbortSignal,
+): Promise<void> {
+    workspace.set({ notice: null });
+    const scratch = createGraphSession({ features: [...siteConfig().features] });
+    try {
+        const read = await scratch.data.readExample(source, example, { signal });
+        openWithStylePanel(workspace, name, async (session) => {
+            await session.data.import(read, { history: "start" });
+        });
+        remember(workspace, { kind: "network", name, source, example });
+    } catch (error) {
+        if (!signal.aborted) {
+            workspace.set({ notice: { message: notReadWords(name, error, "opened"), error: true } });
+        }
+    } finally {
+        scratch.dispose();
+    }
 }
 
 /**
@@ -67,15 +135,26 @@ const LOCAL_DATASETS =
     import.meta.env.DEV || import.meta.env.VITE_LOCAL_SAMPLE_DATA === "true"
         ? new URL(`${import.meta.env.BASE_URL}data/graph-samples/v1/`, globalThis.location.href).href
         : undefined;
+/** The copy datasets are read from; none reads the site's own. */
+let localDatasets = LOCAL_DATASETS;
+
+/**
+ * Reads the site's own datasets, as a deployed site does, even where this machine has a copy; or
+ * this machine's copy again. For tests of how the site's configuration moves the datasets.
+ * @param prefer - whether to read this machine's copy.
+ */
+export function preferLocalDatasets(prefer: boolean): void {
+    localDatasets = prefer ? LOCAL_DATASETS : undefined;
+}
 
 /**
  * Where the datasets are read from: this machine's copy where there is one, else the site's own
- * (its site.json's `datasets`), else graph-samples' default.
- * @returns the options naming it, or none for graph-samples' default.
+ * (its site.json's `datasets`), else graph-samples' default. graphty-element has no default of
+ * its own, so every load names one.
+ * @returns the options naming it.
  */
-export function datasetBase(): { readonly baseUrl?: string } {
-    const baseUrl = LOCAL_DATASETS ?? siteConfig().datasets;
-    return baseUrl === undefined ? {} : { baseUrl };
+export function datasetBase(): { readonly baseUrl: string } {
+    return { baseUrl: localDatasets ?? siteConfig().datasets ?? DEFAULT_DATASET_BASE_URL };
 }
 
 /**
@@ -86,9 +165,36 @@ export function datasetBase(): { readonly baseUrl?: string } {
  * @returns the address, or undefined when it has no picture.
  */
 export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
-    return entry.thumbnail === undefined
-        ? undefined
-        : new URL(entry.thumbnail, datasetBase().baseUrl ?? DEFAULT_DATASET_BASE_URL).href;
+    return entry.thumbnail === undefined ? undefined : new URL(entry.thumbnail, datasetBase().baseUrl).href;
+}
+
+/** The graph-samples dataset each of the app's own four sample files is a copy of, by sample id. */
+export const OWN_COPIES: Readonly<Record<string, string>> = {
+    "les-miserables": "les-miserables",
+    karate: "karate",
+    "college-football": "football",
+    florentine: "florentine-families",
+};
+
+/**
+ * The graph-samples dataset one of the app's own samples is a copy of.
+ * @param sample - the app's sample.
+ * @returns the dataset's metadata, or undefined when it is not a copy of one.
+ */
+export function copyOf(sample: Pick<StartSample, "id">): DatasetMeta | undefined {
+    return DATASET_DESCRIPTORS.find((dataset) => dataset.name === OWN_COPIES[sample.id]);
+}
+
+/**
+ * The address of the picture of one of the app's own samples: graph-samples' picture of the dataset
+ * it is a copy of, else the app's own picture of it. The start page's tile and the Samples dialog
+ * both show this one.
+ * @param sample - the app's sample.
+ * @returns the address, or undefined when it has no picture.
+ */
+export function samplePicture(sample: Pick<StartSample, "id" | "picture">): string | undefined {
+    const copy = copyOf(sample);
+    return copy === undefined ? sample.picture : pictureOf(copy);
 }
 
 /**
@@ -101,6 +207,7 @@ export function openDataset(workspace: WorkspaceStore, dataset: DatasetMeta): vo
     openProject(workspace, dataset.title, (session) =>
         session.data.loadDataset(dataset.name, { history: "start", ...datasetBase() }),
     );
+    remember(workspace, { kind: "dataset", dataset: dataset.name });
 }
 
 /**
@@ -117,12 +224,52 @@ export function openGenerated(
     openProject(workspace, generator.plainName, (session) =>
         session.data.generate(generator.name, params, { history: "start" }),
     );
+    remember(workspace, { kind: "generator", generator: generator.name, params });
+}
+
+/**
+ * Notes on the project just opened how to open it again, for a reload that finds nothing kept.
+ * @param workspace - the workspace store.
+ * @param opened - how it was opened.
+ */
+function remember(workspace: WorkspaceStore, opened: Opener): void {
+    workspace.set((state) => (state.project === null ? {} : { project: { ...state.project, opened } }));
+}
+
+/**
+ * Opens again the project this tab had open, the way it was opened: for a reload that came before
+ * graphty-element's autosave wrote anything, when the project held nothing but what was opened.
+ * @param workspace - the workspace store.
+ * @param opened - how it was opened.
+ */
+export function openAgain(workspace: WorkspaceStore, opened: Opener): void {
+    if (opened.kind === "sample") {
+        openSample(workspace, opened.sample);
+        return;
+    }
+    if (opened.kind === "network") {
+        void openNetworkSample(workspace, opened.name, opened.source, opened.example, new AbortController().signal);
+        return;
+    }
+    if (opened.kind === "dataset") {
+        const dataset = DATASET_DESCRIPTORS.find((each) => each.name === opened.dataset);
+        if (dataset !== undefined) {
+            openDataset(workspace, dataset);
+        }
+        return;
+    }
+    const generator = GENERATOR_DESCRIPTORS.find((each) => each.name === opened.generator);
+    if (generator !== undefined) {
+        openGenerated(workspace, generator, opened.params);
+    }
 }
 
 /** A file, a node file and an edge file, pasted text or an address, and the name the reader knows it by. */
 export interface Incoming {
     readonly name: string;
     readonly source: DataSourceInput;
+    /** One of the app's own samples, read from its web address. */
+    readonly origin?: "sample";
 }
 
 /**
@@ -153,31 +300,39 @@ export function incomingFiles(files: readonly File[]): Incoming {
  * @param session - the project's session.
  * @param source - what to load.
  * @param fresh - whether it is a new project's first load, which starts its history.
+ * @param read - the source already read into a draft (by `project.open`), else it is read here.
+ * @param origin - "sample" for one of the app's own samples.
  */
 async function drawFirst(
     workspace: WorkspaceStore,
     session: GraphSession,
     source: DataSourceInput,
     fresh = false,
+    read?: LoadDraft,
+    origin?: "sample",
 ): Promise<void> {
-    const draft = await session.data.prepare(source, { guess: "values" });
+    const draft = read ?? (await session.data.prepare(source, { guess: "values" }));
     const fixed = draft.tables.every((table) => table.fixed);
     const ready = Object.values(draft.missing()).every((roles) => roles.length === 0);
     const lone = draft.tables.length === 1 && !ready;
     const mapping = lone ? { rowsAre: "nodes" as const } : draft.mapping;
     // A graph file keeps the roles its format sets.
+    const styled = fileStylesOn(session);
     await draft.load({
-        styles: fileStylesChoice(),
+        ...(styled ? { styles: fileStylesChoice(), styleOptions: FILE_STYLE_OPTIONS } : {}),
         ...(fixed ? {} : { mapping }),
         ...(fresh ? { history: "start" as const } : {}),
+        ...(origin === undefined ? {} : { origin }),
     });
-    noticeFileStyles(workspace, session);
+    if (styled) {
+        noticeFileStyles(workspace, session);
+    }
     const load = session.data.sources().at(-1);
     if (lone && load !== undefined) {
         workspace.set({ ends: { load: load.key, source: null, target: null } });
     }
     if (!ready) {
-        workspace.set({ dockOpen: true, dockMaximized: true, place: "data" });
+        workspace.set({ dockOpen: true, dockMaximized: true, place: "data", ...panelsInView() });
     } else if (session.data.issues().length > 0) {
         workspace.set({ dockOpen: true });
     }
@@ -189,13 +344,33 @@ async function drawFirst(
  * @param workspace - the workspace store.
  * @param session - the project's session.
  * @param incoming - the source.
+ * @param read - the source already read into a draft onto the graph (by `project.open`).
  */
-async function takeIn(workspace: WorkspaceStore, session: GraphSession, incoming: Incoming): Promise<void> {
-    if (await routeToReplace(workspace, session, incoming)) {
+async function takeIn(
+    workspace: WorkspaceStore,
+    session: GraphSession,
+    incoming: Incoming,
+    read?: LoadDraft,
+): Promise<void> {
+    // The same columns: the same file again replaces at once; another file (next month's) opens
+    // the join screen on Replace, with Add as rows beside it.
+    const matches = await session.data.matchesSource(incoming.source);
+    const held = session.data.sources().find((each) => each.key === matches);
+    if (held !== undefined && (held.fileName ?? held.name) === incoming.name) {
+        await replaceWith(workspace, session, held.key, incoming);
+        read?.dispose();
         return;
     }
-    const draft = await session.data.prepare(incoming.source, { onto: "graph", guess: "values" });
-    workspace.set({ joining: { name: incoming.name, draft, source: incoming.source } });
+    const draft = read ?? (await session.data.prepare(incoming.source, { onto: "graph", guess: "values" }));
+    workspace.set({
+        joining: {
+            name: incoming.name,
+            draft,
+            source: incoming.source,
+            ...(incoming.origin === undefined ? {} : { origin: incoming.origin }),
+            ...(held === undefined ? {} : { matches: held.key }),
+        },
+    });
 }
 
 /**
@@ -206,7 +381,7 @@ async function takeIn(workspace: WorkspaceStore, session: GraphSession, incoming
  */
 export function openSeparate(workspace: WorkspaceStore, incoming: Incoming): void {
     openProject(workspace, incoming.name.replace(/\.[^.]*$/, "") || incoming.name, (next) =>
-        drawFirst(workspace, next, incoming.source, true),
+        drawFirst(workspace, next, incoming.source, true, undefined, incoming.origin),
     );
 }
 
@@ -216,7 +391,12 @@ export function openSeparate(workspace: WorkspaceStore, incoming: Incoming): voi
  * @param sample - the sample.
  */
 export function openSample(workspace: WorkspaceStore, sample: StartSample): void {
-    openSeparate(workspace, { name: sample.name, source: { config: { url: sample.url }, name: sample.name } });
+    openSeparate(workspace, {
+        name: sample.name,
+        source: { config: { url: sample.url }, name: sample.name },
+        origin: "sample",
+    });
+    remember(workspace, { kind: "sample", sample });
 }
 
 /**
@@ -241,6 +421,16 @@ export function openUrl(workspace: WorkspaceStore, url: string): void {
 }
 
 /**
+ * The graph file at a web address, added as any source is (Paste of an address, the Web address
+ * box): on the start screen it opens as a new project; in a project it is added to it.
+ * @param ctx - the command context.
+ * @param url - the address.
+ */
+export function addUrl(ctx: CommandContext, url: string): void {
+    addSource(ctx, urlSource(url));
+}
+
+/**
  * Loads a source the reader brought by any door (drop, File..., Paste, Samples): from the start
  * screen as a new project named after it; into an empty project as its first source; into a graph
  * that holds data as a replacement or a join.
@@ -248,14 +438,19 @@ export function openUrl(workspace: WorkspaceStore, url: string): void {
  * @param ctx.workspace - the workspace store.
  * @param ctx.session - the open project's session, or null.
  * @param incoming - the source.
+ * @param read - the source already read into a draft by the project's session (`project.open`):
+ *     onto the graph when the graph holds data.
  */
-export function addSource({ workspace, session }: CommandContext, incoming: Incoming): void {
+export function addSource({ workspace, session }: CommandContext, incoming: Incoming, read?: LoadDraft): void {
     if (workspace.get().project === null || session === null) {
+        read?.dispose();
         openSeparate(workspace, incoming);
         return;
     }
     const first = session.data.sources().length === 0;
-    const work = first ? drawFirst(workspace, session, incoming.source) : takeIn(workspace, session, incoming);
+    const work = first
+        ? drawFirst(workspace, session, incoming.source, false, read, incoming.origin)
+        : takeIn(workspace, session, incoming, read);
     if (first) {
         // The project's first graph: an open, which `opened` follows as a new project's.
         workspace.set({ opened: work });
@@ -274,14 +469,15 @@ export function addSource({ workspace, session }: CommandContext, incoming: Inco
  * @param ctx.workspace - the workspace store.
  * @param ctx.session - the new project's session.
  * @param incoming - the source.
+ * @param read - the source already read into a draft by the new project's session (`project.open`).
  */
-async function openFirst({ workspace, session }: CommandContext, incoming: Incoming): Promise<void> {
+async function openFirst({ workspace, session }: CommandContext, incoming: Incoming, read?: LoadDraft): Promise<void> {
     if (session === null) {
         return;
     }
     const focusLater = focusOpenedGraphLater();
     try {
-        await drawFirst(workspace, session, incoming.source, true);
+        await drawFirst(workspace, session, incoming.source, true, read, incoming.origin);
         focusLater();
     } catch (error) {
         focusLater(false);
@@ -344,11 +540,11 @@ export function openFiles(ctx: CommandContext, files: readonly File[]): void {
     if (files.length === 1 && incoming !== undefined) {
         void openProjectFile(ctx, files[0], {
             name: incoming.name.replace(/\.[^.]*$/, "") || incoming.name,
-            onData: (next, fresh) => {
+            onData: (next, fresh, draft) => {
                 if (fresh) {
-                    return openFirst(next, incoming);
+                    return openFirst(next, incoming, draft);
                 }
-                addSource(next, incoming);
+                addSource(next, incoming, draft);
                 return Promise.resolve();
             },
         });
@@ -360,15 +556,6 @@ export function openFiles(ctx: CommandContext, files: readonly File[]): void {
         const rest = files.slice(2).map((file) => file.name);
         ctx.workspace.set({ notice: { message: `Not added: ${rest.join(", ")}` } });
     }
-}
-
-/**
- * Opens one file (see {@link addSource}).
- * @param ctx - the command context.
- * @param file - the file.
- */
-export function openFile(ctx: CommandContext, file: File): void {
-    openFiles(ctx, [file]);
 }
 
 /**
@@ -442,12 +629,11 @@ export async function pasteSource(ctx: CommandContext): Promise<void> {
         ctx.workspace.set({ notice: { message: "Clipboard empty" } });
         return;
     }
-    addSource(
-        ctx,
-        pasted.kind === "url"
-            ? urlSource(pasted.url)
-            : { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } },
-    );
+    if (pasted.kind === "url") {
+        addUrl(ctx, pasted.url);
+        return;
+    }
+    addSource(ctx, { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } });
 }
 
 /**
@@ -463,18 +649,4 @@ export function useDropToOpen(ctx: CommandContext): void {
         openFiles(latest.current, files);
     }, []);
     useFileDrop("window", open, { disabled: !inProject });
-}
-
-/**
- * Opens a new project, named after a model file dropped on the start screen, that draws every node
- * as that model: the model is added to the project and one undoable layer names it, so the graph
- * data the reader adds next is drawn with it.
- * @param workspace - the workspace store.
- * @param fileName - the model's main file name.
- * @param source - the model's files.
- */
-export function openModel(workspace: WorkspaceStore, fileName: string, source: AssetSource): void {
-    openProject(workspace, fileName.replace(/\.[^.]*$/, "") || fileName, async (session) => {
-        await putModelOnNodes(session, workspace, source);
-    });
 }

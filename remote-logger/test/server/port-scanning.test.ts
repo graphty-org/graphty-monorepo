@@ -438,10 +438,55 @@ describe("Port scanning", () => {
                 httpEnabled: true,
                 mcpEnabled: false,
                 quiet: true,
-                // maxPortNumber not specified - should use default 9099
+                // maxPortNumber not specified - scans up to 65535
             });
 
             expect(dualServer.httpPort).toBe(testPort);
+        });
+    });
+
+    describe("ports above 9099 and explicit ports (issue #3226)", () => {
+        it("binds port 9500 when it is free", async () => {
+            dualServer = await createDualServer({
+                httpPort: 9500,
+                httpHost: "127.0.0.1",
+                httpEnabled: true,
+                mcpEnabled: false,
+                quiet: true,
+            });
+
+            expect(dualServer.httpPort).toBe(9500);
+            expect(dualServer.httpServer?.listening).toBe(true);
+        });
+
+        it("scans past 9099 by default", async () => {
+            await createBlockingServer(9500);
+
+            dualServer = await createDualServer({
+                httpPort: 9500,
+                httpHost: "127.0.0.1",
+                httpEnabled: true,
+                mcpEnabled: false,
+                quiet: true,
+            });
+
+            expect(dualServer.httpPort).toBe(9501);
+        });
+
+        it("fails with a clear error, never another port, when the given port only is busy", async () => {
+            const busyPort = basePort + 330;
+            await createBlockingServer(busyPort);
+
+            await expect(
+                createDualServer({
+                    httpPort: busyPort,
+                    httpHost: "127.0.0.1",
+                    httpEnabled: true,
+                    mcpEnabled: false,
+                    quiet: true,
+                    maxPortNumber: busyPort,
+                }),
+            ).rejects.toThrow(`Port ${busyPort} on 127.0.0.1 is already in use`);
         });
     });
 
@@ -499,5 +544,25 @@ describe("Port scanning", () => {
             // or "localhost" - but NOT an arbitrary hostname like "mycomputer.local"
             expect(host).toMatch(/^(\d{1,3}\.){3}\d{1,3}$/);
         });
+    });
+});
+
+describe("an exact port that is taken", () => {
+    it("reports the taken port on the terminal when not quiet", async () => {
+        const holder = net.createServer();
+        await new Promise<void>((resolve) => holder.listen(0, "127.0.0.1", resolve));
+        const taken = (holder.address() as net.AddressInfo).port;
+        const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+        try {
+            await expect(findAvailablePort(taken, "127.0.0.1", false, taken)).rejects.toThrow(
+                `Port ${taken} on 127.0.0.1 is already in use`,
+            );
+            expect(
+                err.mock.calls.some((c) => String(c[0]).includes(`Port ${taken} on 127.0.0.1 is already in use`)),
+            ).toBe(true);
+        } finally {
+            err.mockRestore();
+            await new Promise<void>((resolve) => holder.close(() => resolve()));
+        }
     });
 });

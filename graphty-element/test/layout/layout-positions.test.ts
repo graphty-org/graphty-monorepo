@@ -25,13 +25,13 @@
  * `Node` builds a Babylon mesh in its constructor, and none of this has anything to do with a mesh.
  */
 import { INVALID_INDEX } from "@graphty/graph-format";
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { ElementPositions } from "../../src/data/positions";
 import type { Edge } from "../../src/Edge";
 import { CircularLayout } from "../../src/layout/CircularLayoutEngine";
 import { D3GraphEngine } from "../../src/layout/D3GraphLayoutEngine";
-import { layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
+import { LayoutEngine, layoutEngineInternals, SimpleLayoutEngine } from "../../src/layout/LayoutEngine";
 import { NGraphEngine } from "../../src/layout/NGraphLayoutEngine";
 import type { Node } from "../../src/Node";
 
@@ -52,7 +52,8 @@ function node(id: string, index: number): Node {
  * @returns the stand-in
  */
 function edge(src: Node, dst: Node): Edge {
-    return { srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst } as unknown as Edge;
+    // both ends drawn by their Nodes, as every end is on "objects" (`Edge.columnEnd`)
+    return { srcId: src.id, dstId: dst.id, srcNode: src, dstNode: dst, columnEnd: () => undefined } as unknown as Edge;
 }
 
 /** A layout whose answer is written by the test, including coordinates that cannot be stored. */
@@ -85,6 +86,60 @@ describe("layout engines and the element-owned position array", () => {
         assert.isTrue(positions.isPlaced(0));
         assert.isTrue(positions.isPlaced(1));
         assert.isTrue(positions.isPlaced(2));
+    });
+
+    it("publishes a built-in engine as one column, to the floats the per-node loop writes", () => {
+        // The base class's loop is still there for a third party's engine, and it is the oracle.
+        const layout = new NGraphEngine({ seed: 7 });
+        const nodes = [node("a", 0), node("b", 2), node("no-row", INVALID_INDEX), node("c", 1)];
+        layoutEngineInternals.addNodes(layout, nodes);
+        const column = new ElementPositions(0);
+        const oracle = new ElementPositions(0);
+
+        layoutEngineInternals.attachPositions(layout, column);
+        const write = vi.spyOn(layout as unknown as { writeNodePosition: () => boolean }, "writeNodePosition");
+        layout.publishPositions();
+        assert.strictEqual(write.mock.calls.length, 0, "no row went through the per-node write");
+        write.mockRestore();
+
+        layoutEngineInternals.attachPositions(layout, oracle);
+        LayoutEngine.prototype.publishPositions.call(layout);
+        assert.deepEqual(column.view(3), oracle.view(3));
+        assert.strictEqual(column.generation, oracle.generation, "one move per row written, as the loop counted");
+        assert.strictEqual(column.changes, oracle.changes);
+    });
+
+    it("publishes a computed layout as one column and leaves an unplaced answer unplaced", () => {
+        const positions = new ElementPositions(0);
+        const layout = new ScriptedLayout({});
+        layout.scalingFactor = 3;
+        layoutEngineInternals.attachPositions(layout, positions);
+        layoutEngineInternals.addNodes(layout, [node("a", 0), node("gap", 1), node("b", 2), node("nan", 3)]);
+        layout.scripted = { a: [1.1, 2.2], b: [0.1, 0.2, 0.3], nan: [Number.NaN, 0, 0] };
+
+        const write = vi.spyOn(layout as unknown as { writeNodePosition: () => boolean }, "writeNodePosition");
+        layout.publishPositions();
+        assert.strictEqual(write.mock.calls.length, 0, "no row went through the per-node write");
+
+        assert.deepEqual([...positions.view(3).subarray(0, 3)], [1.1 * 3, 2.2 * 3, 0].map(Math.fround));
+        assert.deepEqual([...positions.view(3).subarray(6, 9)], [0.1 * 3, 0.2 * 3, 0.3 * 3].map(Math.fround));
+        assert.isFalse(positions.isPlaced(1), "no answer leaves the row unplaced");
+        assert.strictEqual(positions.count, 3, "a row with nothing to store is not grown to");
+    });
+
+    it("counts a column publish that moves nothing as no change, for the undo history", () => {
+        const positions = new ElementPositions(0);
+        const layout = new ScriptedLayout({});
+        layoutEngineInternals.attachPositions(layout, positions);
+        layoutEngineInternals.addNodes(layout, [node("a", 0), node("b", 1)]);
+        layout.scripted = { a: [1, 2, 3], b: [4, 5, 6] };
+        layout.publishPositions();
+        const { changes, generation } = positions;
+
+        layout.publishPositions();
+
+        assert.strictEqual(positions.changes, changes);
+        assert.strictEqual(positions.generation, generation + 2);
     });
 
     it("keeps the layout in the array the host attached, not in one of its own", () => {

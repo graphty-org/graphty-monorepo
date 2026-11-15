@@ -14,13 +14,16 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
+import { siteFeatures } from "../../../test/siteFeatures";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { HeroTurns } from "../../start/heroTurns";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
+// The timeline is an experiment: this file's workspaces switch it on.
+beforeAll(async () => {
+    await siteFeatures(["timeline"]);
+});
 
 type ElementUnderTest = HTMLElementTagNameMap["graphty-element"];
 
@@ -61,13 +64,10 @@ function mountWorkspace(store: WorkspaceStore): ReturnType<typeof render> {
  */
 async function openElement(): Promise<ElementUnderTest> {
     let found: ElementUnderTest | null = null;
-    await waitFor(
-        () => {
-            found = document.querySelector<ElementUnderTest>("graphty-element:not([data-start-page])");
-            assert.isDefined(found?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        found = document.querySelector<ElementUnderTest>("graphty-element:not([data-start-page])");
+        assert.isDefined(found?.session);
+    });
     if (found === null) {
         throw new Error("the element never came up");
     }
@@ -83,9 +83,9 @@ async function openElement(): Promise<ElementUnderTest> {
  */
 async function loadSample(store: WorkspaceStore, name: string): Promise<ElementUnderTest> {
     const element = await openElement();
-    await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+    await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
     await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
-    const samples = await screen.findByRole("dialog", { name: "Samples" }, { timeout: TIMEOUT_MS });
+    const samples = await screen.findByRole("dialog", { name: "Samples" });
     await openBy(store, () => userEvent.click(within(samples).getByRole("button", { name: new RegExp(`^${name}`) })));
     // A real click waits behind every frame drawn while the layout moves: start clicking once the
     // picture is at rest, as a reader would.
@@ -102,8 +102,8 @@ async function loadSample(store: WorkspaceStore, name: string): Promise<ElementU
 async function fields(): Promise<ReturnType<typeof within>> {
     // Exact, so "Data place" (the region) does not also match.
     await userEvent.click(page.getByRole("button", { name: "Data", exact: true }));
-    const place = await screen.findByRole("region", { name: "Data place" }, { timeout: TIMEOUT_MS });
-    return within(within(place).getByRole("group", { name: "Fields" }));
+    const place = await screen.findByRole("region", { name: "Data place" });
+    return within(within(place).getByRole("group", { name: "Attributes" }));
 }
 
 /**
@@ -114,7 +114,7 @@ async function fields(): Promise<ReturnType<typeof within>> {
  */
 function entries(section: ReturnType<typeof within>, side: "nodes" | "edges"): string[] {
     const plus: HTMLElement = section.getByRole("button", {
-        name: `Add to ${side === "nodes" ? "node" : "edge"} fields`,
+        name: `Add to ${side === "nodes" ? "node" : "edge"} attributes`,
     });
     const list = plus.closest("[data-fields-side]");
     return [...(list?.querySelectorAll<HTMLElement>("[data-entry]") ?? [])].map((each) => each.dataset.entry ?? "");
@@ -178,20 +178,17 @@ describe("Data > Fields as a + list on the real element", () => {
         render(<Workspace store={store} />);
         const element = await openElement();
         const section = await fields();
-        await userEvent.click(await screen.findByRole("button", { name: "Add source" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add source" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Samples..." }));
-        const samples = await screen.findByRole("dialog", { name: "Samples" }, { timeout: TIMEOUT_MS });
+        const samples = await screen.findByRole("dialog", { name: "Samples" });
         await openBy(store, () =>
             userEvent.click(within(samples).getByRole("button", { name: /^OpenFlights airline routes/ })),
         );
         assert.equal(element.session.data.statistics().nodeCount, 3214);
-        await waitFor(
-            () => {
-                assert.includeMembers(entries(section, "nodes"), ["label", "latitude", "longitude"]);
-                assert.include(entries(section, "edges"), "weight");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.includeMembers(entries(section, "nodes"), ["label", "latitude", "longitude"]);
+            assert.include(entries(section, "edges"), "weight");
+        });
         assert.equal(shown(section, "Node label"), "label");
         assert.equal(shown(section, "Node latitude column"), "latitude");
         assert.equal(shown(section, "Node longitude column"), "longitude");
@@ -201,10 +198,49 @@ describe("Data > Fields as a + list on the real element", () => {
         await dropCsv("code,colour\nA,red\nB,blue\nC,green\n");
         const section = await fields();
         await waitFor(() => {
-            section.getByRole("button", { name: "Add to node fields" });
+            section.getByRole("button", { name: "Add to node attributes" });
             assert.deepEqual(entries(section, "nodes"), []);
         });
         assert.isNull(section.queryByRole("option", { name: "none" }));
+    });
+
+    it("lists the columns that fit a field first, each with its kind's glyph, and says how many of the rest will not convert", async () => {
+        await dropCsv("code,count,size\nA,1,10\nB,2,x\nC,3,30\n");
+        const section = await fields();
+        await userEvent.click(await section.findByRole("button", { name: "Add to node attributes" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
+        await screen.findByRole("option", { name: /^count/ });
+        const options = screen.getAllByRole("option");
+        assert.deepEqual(
+            options.map((each) => each.textContent),
+            ["count", "size1 will not convert", "code3 will not convert"],
+        );
+        for (const each of options) {
+            // The list's check, then the column's type glyph.
+            assert.lengthOf(each.querySelectorAll("svg"), 2, `${each.textContent ?? ""} has a glyph`);
+        }
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("checks a found location as the column's role in its header's Role menu, as Fields lists it", async () => {
+        await dropCsv("name,lat,lon\nA,42.1,-71.1\nB,42.2,-71.2\nC,42.3,-71.3\n");
+        const section = await fields();
+        await waitFor(() => {
+            assert.equal(shown(section, "Node latitude column"), "lat");
+        });
+        await userEvent.keyboard("{Shift>}T{/Shift}");
+        // The header marks the role too, as it marks a designated one.
+        const grid = await screen.findByRole("grid", { name: "Nodes" });
+        await waitFor(() => {
+            const pills = [...grid.querySelectorAll<HTMLElement>(".ws-th-role")].map((each) => each.textContent);
+            assert.includeMembers(pills, ["Latitude", "Longitude"]);
+        });
+        await userEvent.click(await screen.findByRole("button", { name: "Options for lat" }));
+        await userEvent.hover(await screen.findByRole("menuitem", { name: "Role" }));
+        const latitude = await screen.findByRole("menuitemradio", { name: "Latitude" });
+        assert.equal(latitude.getAttribute("aria-checked"), "true");
+        assert.equal(screen.getByRole("menuitemradio", { name: "None" }).getAttribute("aria-checked"), "false");
+        await userEvent.keyboard("{Escape}");
     });
 
     it("adds Time from +, removes it with the minus, and it stays gone after a reload", async () => {
@@ -216,11 +252,11 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.equal(element.session.data.statistics().nodeCount, 159);
         let section = await fields();
         await waitFor(() => {
-            section.getByRole("button", { name: "Add to node fields" });
+            section.getByRole("button", { name: "Add to node attributes" });
         });
         assert.notInclude(entries(section, "nodes"), "time");
 
-        await userEvent.click(section.getByRole("button", { name: "Add to node fields" }));
+        await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
         // Picking the kind opens its column list.
         await userEvent.click(await screen.findByRole("option", { name: "year" }));
@@ -234,16 +270,13 @@ describe("Data > Fields as a + list on the real element", () => {
             assert.isNull(element.session.time.field);
             assert.notInclude(entries(section, "nodes"), "time");
             // Focus goes to "+".
-            assert.strictEqual(document.activeElement, section.getByRole("button", { name: "Add to node fields" }));
+            assert.strictEqual(document.activeElement, section.getByRole("button", { name: "Add to node attributes" }));
         });
 
         // The work is saved, then the page goes away and comes back: a reload.
-        await waitFor(
-            () => {
-                assert.strictEqual(element.autosaver.status.state, "saved");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.autosaver.status.state, "saved");
+        });
         first.unmount();
         // This tab's own work reopens straight into the workspace, with no offer to answer.
         const kept = createWorkspaceStore({ autosave: true });
@@ -254,22 +287,35 @@ describe("Data > Fields as a + list on the real element", () => {
         await restored.waitForStableFrame();
         section = await fields();
         await waitFor(() => {
-            section.getByRole("button", { name: "Add to node fields" });
+            section.getByRole("button", { name: "Add to node attributes" });
         });
         assert.notInclude(entries(section, "nodes"), "time");
         assert.isNull(restored.session.time.field);
         second.unmount();
     });
 
+    it("makes a text column of dates a date column when it is set as the time", async () => {
+        const session = await dropCsv("id,opened\nA,2015-03-02\nB,2017-06-14\nC,2016-09-01\n");
+        const typeOf = (): string | undefined =>
+            session.data.attributes().find((each) => each.kind === "node" && each.name === "opened")?.type;
+        assert.equal(typeOf(), "string", "the days load as text");
+        const section = await fields();
+        await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: "Time" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^opened/ }));
+        await waitFor(() => {
+            assert.equal(session.time.field?.nodes?.start, "opened");
+            // The column's kind and the timeline say the same thing: dates.
+            assert.equal(typeOf(), "time");
+        });
+    });
+
     it("lists a detected city and the country narrowing it as two entries, and their minuses stop the search", async () => {
         const session = await dropCsv("id,city,country\na,Paris,France\nb,Lyon,France\nc,Berlin,Germany\n");
         const section = await fields();
-        await waitFor(
-            () => {
-                assert.includeMembers(entries(section, "nodes"), ["country", "city"]);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.includeMembers(entries(section, "nodes"), ["country", "city"]);
+        });
         assert.equal(shown(section, "Node city column"), "city");
         assert.equal(shown(section, "Node country column"), "country");
 
@@ -292,7 +338,7 @@ describe("Data > Fields as a + list on the real element", () => {
         // Column names the element does not find a location by, so the list starts empty.
         const session = await dropCsv("id,place,land,north\na,Paris,France,48.85\nb,Lyon,France,45.76\n");
         const section = await fields();
-        const plus = await section.findByRole("button", { name: "Add to node fields" });
+        const plus = await section.findByRole("button", { name: "Add to node attributes" });
         await waitFor(() => {
             assert.deepEqual(entries(section, "nodes"), []);
         });

@@ -42,7 +42,6 @@ import {
     COLUMN_RENAMED_CODE,
     DUPLICATE_NODE_CODE as SHARED_DUPLICATE_NODE_CODE,
     MISSING_ENDPOINT_CODE as SHARED_MISSING_ENDPOINT_CODE,
-    MISSING_ID_CODE as SHARED_MISSING_ID_CODE,
     MULTIPLE_GRAPHS_CODE,
     NO_GRAPH_CODE as SHARED_NO_GRAPH_CODE,
     PRECISION_CODE as SHARED_PRECISION_CODE,
@@ -128,10 +127,11 @@ export const NO_GRAPH_CODE = SHARED_NO_GRAPH_CODE;
  */
 export const SECOND_GRAPH_CODE = MULTIPLE_GRAPHS_CODE;
 /**
- * A node block has no `id` key.
+ * A node block has no `id` key: it is given the next integer above every integer id, source and target of the graph,
+ * as igraph does. Reported once per file.
  * @category Issue and loss codes
  */
-export const MISSING_ID_CODE = SHARED_MISSING_ID_CODE;
+export const GENERATED_ID_CODE = "W_GML_GENERATED_ID";
 /**
  * A node block has no `label` key under `nodeIdFrom: "label"`.
  * @category Issue and loss codes
@@ -298,6 +298,22 @@ interface KeySchema {
     rest: boolean;
 }
 
+/**
+ * Record an integer value: an integer outside the i32 range makes the key wide, beyond 2^53 unsafe.
+ * @param entry - the key's schema entry
+ * @param text - the integer's text
+ */
+function observeInt(entry: KeySchema, text: string): void {
+    entry.kinds |= KIND_INT;
+    const n = Number(text);
+    if (n < I32_MIN || n > I32_MAX) {
+        entry.wide = true;
+        if (!Number.isSafeInteger(n)) {
+            entry.unsafe = true;
+        }
+    }
+}
+
 /** The column a key maps to in the second walk. */
 interface ColumnPlan {
     /** The key as written. */
@@ -446,6 +462,9 @@ class GmlImport {
     private seq = 0;
 
     private nodeOrdinal = 0;
+
+    /** The largest integer id, source or target of the graph block, which the ids generated for nodes without one follow. */
+    private largestId = -1;
 
     private elementsSinceCheck = 0;
 
@@ -659,9 +678,17 @@ class GmlImport {
                 this.hasOriginalId = true;
                 return true;
             }
-            return key === "id";
+            if (key === "id") {
+                this.noteIntegerId(v);
+                return true;
+            }
+            return false;
         }
-        if (key === "source" || key === "target" || key === "directed") {
+        if (key === "source" || key === "target") {
+            this.noteIntegerId(v);
+            return true;
+        }
+        if (key === "directed") {
             return true;
         }
         if (key === weightFrom) {
@@ -669,6 +696,20 @@ class GmlImport {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Note an integer id, source or target, so a generated id never names a node of the file.
+     * @param v - the value token
+     */
+    private noteIntegerId(v: number): void {
+        const t = this.requireTokens();
+        if (t.kind[v] === TOKEN_INT) {
+            const n = Number(t.textOf(v));
+            if (Number.isSafeInteger(n) && n > this.largestId) {
+                this.largestId = n;
+            }
+        }
     }
 
     /**
@@ -688,10 +729,50 @@ class GmlImport {
     ): void {
         const t = this.requireTokens();
         this.noteStructure(domain, key, v);
-        let entry = schema.get(key);
         const graphics = domain === "node" && key === "graphics" && this.positions;
+        const entry = this.schemaEntry(schema, domain, key, seq, graphics);
+        if (graphics && t.kind[v] !== TOKEN_OPEN) {
+            entry.rest = true;
+        }
+        switch (t.kind[v]) {
+            case TOKEN_STRING:
+                this.observeString(entry, domain, key, t.textOf(v));
+                return;
+            case TOKEN_INT:
+                observeInt(entry, t.textOf(v));
+                return;
+            case TOKEN_OPEN:
+                entry.kinds |= KIND_RECORD;
+                if (graphics) {
+                    this.inspectGraphics(entry, v);
+                }
+                return;
+            default:
+                entry.kinds |= KIND_REAL;
+                this.observeReal(domain, key, v);
+        }
+    }
+
+    /**
+     * The schema entry of a key, created on its first value; a key seen again in the same element
+     * becomes a list.
+     * @param schema - the table's schema
+     * @param domain - the table
+     * @param key - the key
+     * @param seq - the element sequence number
+     * @param graphics - whether the key is the node graphics record read for positions
+     * @returns the entry
+     */
+    private schemaEntry(
+        schema: Map<string, KeySchema>,
+        domain: "node" | "edge" | "graph",
+        key: string,
+        seq: number,
+        graphics: boolean,
+    ): KeySchema {
+        const entry = schema.get(key);
         if (entry === undefined) {
-            entry = {
+            const created: KeySchema = {
                 key,
                 kinds: 0,
                 list: false,
@@ -702,64 +783,59 @@ class GmlImport {
                 position: false,
                 rest: false,
             };
-            schema.set(key, entry);
-        } else if (entry.lastSeq === seq) {
+            schema.set(key, created);
+            return created;
+        }
+        if (entry.lastSeq === seq) {
             entry.list = true;
             // a repeated graphics record: the extra records go to the json column
             entry.rest ||= graphics;
         } else {
             entry.lastSeq = seq;
         }
-        if (graphics && t.kind[v] !== TOKEN_OPEN) {
-            entry.rest = true;
+        return entry;
+    }
+
+    /**
+     * Record a string value: a list marker makes the key a list, other text feeds the dictionary
+     * heuristic.
+     * @param entry - the key's schema entry
+     * @param domain - the table
+     * @param key - the key
+     * @param raw - the string's text
+     */
+    private observeString(entry: KeySchema, domain: "node" | "edge" | "graph", key: string, raw: string): void {
+        // a label is text: "[]" there is a label, never NetworkX's empty list
+        if (
+            raw === LIST_START_MARKER ||
+            (!isLabel(domain, key) && (raw === EMPTY_LIST_TEXT || raw === EMPTY_TUPLE_TEXT))
+        ) {
+            entry.list = true;
+            return;
         }
-        switch (t.kind[v]) {
-            case TOKEN_STRING: {
-                const raw = t.textOf(v);
-                // a label is text: "[]" there is a label, never NetworkX's empty list
-                if (
-                    raw === LIST_START_MARKER ||
-                    (!isLabel(domain, key) && (raw === EMPTY_LIST_TEXT || raw === EMPTY_TUPLE_TEXT))
-                ) {
-                    entry.list = true;
-                    return;
-                }
-                entry.kinds |= KIND_STRING;
-                if (entry.dict !== null && !entry.dict.decided) {
-                    entry.dict.observe(raw);
-                }
-                return;
-            }
-            case TOKEN_INT: {
-                entry.kinds |= KIND_INT;
-                const n = Number(t.textOf(v));
-                if (n < I32_MIN || n > I32_MAX) {
-                    entry.wide = true;
-                    if (!Number.isSafeInteger(n)) {
-                        entry.unsafe = true;
-                    }
-                }
-                return;
-            }
-            case TOKEN_OPEN:
-                entry.kinds |= KIND_RECORD;
-                if (domain === "node" && key === "graphics" && this.positions) {
-                    this.inspectGraphics(entry, v);
-                }
-                return;
-            default: {
-                entry.kinds |= KIND_REAL;
-                const text = t.textOf(v);
-                if (/\d/.test(text) && !Number.isFinite(Number(text))) {
-                    this.report.warnOnce(
-                        "precision",
-                        PRECISION_CODE,
-                        `${domain} key "${key}" holds the real ${text}, beyond the f64 range; it is stored as ${numberOfText(text) > 0 ? "" : "-"}Infinity`,
-                        { line: t.line[v], element: key },
-                        `${PRECISION_CODE}:overflow:${domain}:${key}`,
-                    );
-                }
-            }
+        entry.kinds |= KIND_STRING;
+        if (entry.dict !== null && !entry.dict.decided) {
+            entry.dict.observe(raw);
+        }
+    }
+
+    /**
+     * Warn once about a real beyond the f64 range.
+     * @param domain - the table
+     * @param key - the key
+     * @param v - the value token
+     */
+    private observeReal(domain: "node" | "edge" | "graph", key: string, v: number): void {
+        const t = this.requireTokens();
+        const text = t.textOf(v);
+        if (/\d/.test(text) && !Number.isFinite(Number(text))) {
+            this.report.warnOnce(
+                "precision",
+                PRECISION_CODE,
+                `${domain} key "${key}" holds the real ${text}, beyond the f64 range; it is stored as ${numberOfText(text) > 0 ? "" : "-"}Infinity`,
+                { line: t.line[v], element: key },
+                `${PRECISION_CODE}:overflow:${domain}:${key}`,
+            );
         }
     }
 
@@ -983,9 +1059,14 @@ class GmlImport {
         }
         // GraphIO::drawSVG draws a cluster's outline solid whatever its stipple: it is kept under a name of its own
         const { x, y, width, height, color, style, stipple, ...rest } = g;
-        if (typeof x === "number" && typeof y === "number" && typeof width === "number" && typeof height === "number") {
+        if (isFiniteNumber(x) && isFiniteNumber(y) && isFiniteNumber(width) && isFiniteNumber(height)) {
             this.sink.setNodeValue(this.handleOf(graphics.position, "node"), index, [x + width / 2, y + height / 2, 0]);
             Object.assign(rest, { w: width, h: height });
+        } else if (x !== undefined || y !== undefined || width !== undefined || height !== undefined) {
+            const box = Object.entries({ x, y, width, height }).filter(([, v]) => v !== undefined);
+            Object.assign(rest, Object.fromEntries(box));
+            const what = `cluster ${id}'s graphics x / y / width / height is not one number each`;
+            this.graphicsWarning("cluster box", what, { line: t.line[open], element: id });
         }
         Object.assign(
             rest,
@@ -1350,6 +1431,23 @@ class GmlImport {
     }
 
     /**
+     * The id of a node block without one, as igraph gives it: the next integer above every integer id, source and
+     * target of the graph block. Warned once per file.
+     * @param line - the node block's line
+     * @returns the id, under the ids rule
+     */
+    private generatedId(line: number): NodeId {
+        const n = ++this.largestId;
+        this.report.warnOnce(
+            "missing-value",
+            GENERATED_ID_CODE,
+            `node has no id; it is given ${String(n)}, the next integer above the file's ids`,
+            { line, element: "node" },
+        );
+        return this.coercer.mode === "string" ? this.coercer.text(String(n)) : this.coercer.value(n);
+    }
+
+    /**
      * Note which sink id a file id resolves to, warning when a file id is declared twice.
      * @param fileId - the file id
      * @param sinkId - the sink id it now resolves to
@@ -1387,12 +1485,9 @@ class GmlImport {
         let fileId: NodeId | undefined;
         try {
             const { idTok, labelTok, originalTok } = this.nodeKeyTokens(open, close);
-            if (idTok < 0) {
-                throw new GraphFormatError("E_INVALID_ID", "node has no id", { reason: "missing id" });
-            }
             // the file id under the ids rule, so `id 1` and `source "1"` meet in idMap (except under
             // "keep", where the integer 1 and the string "1" are different ids by design)
-            fileId = this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
+            fileId = idTok < 0 ? this.generatedId(line) : this.coerceFileId(idTok, this.fileIdOf(idTok, "id"));
             sinkId = this.nodeSinkId(fileId, labelTok, originalTok, ordinal);
             index = sink.addNode(sinkId);
             this.mapFileId(fileId, sinkId, line);
@@ -1467,49 +1562,13 @@ class GmlImport {
      */
     private importEdge(open: number, ordinal: number): void {
         const t = this.requireTokens();
-        const { sink, report, options } = this;
-        const close = t.match[open];
+        const { report } = this;
         const line = t.line[open];
         const element = `edge #${ordinal}`;
         this.checkAbort();
         let edge: number;
         try {
-            let sourceTok = -1;
-            let targetTok = -1;
-            let weightTok = -1;
-            let directedTok = -1;
-            for (let p = open + 1; p < close; p = t.nextPair(p)) {
-                const key = t.textOf(p);
-                if (key === "source") {
-                    sourceTok = this.structuralToken(sourceTok, p, "source");
-                } else if (key === "target") {
-                    targetTok = this.structuralToken(targetTok, p, "target");
-                } else if (key === "directed") {
-                    directedTok = this.structuralToken(directedTok, p, "directed");
-                } else if (key === options.weightFrom) {
-                    weightTok = p + 1;
-                }
-            }
-            if (sourceTok < 0 || targetTok < 0) {
-                throw new GraphFormatError("E_UNKNOWN_NODE", `edge has no ${sourceTok < 0 ? "source" : "target"}`, {
-                    reason: "missing endpoint",
-                });
-            }
-            const source = this.endpoint(sourceTok, "source");
-            const target = this.endpoint(targetTok, "target");
-            const weight = weightTok >= 0 ? this.weightOf(weightTok) : undefined;
-            const before = sink.edgeCount;
-            const sourceNew = sink.indexOf(source) === INVALID_INDEX;
-            const targetNew = source !== target && sink.indexOf(target) === INVALID_INDEX;
-            // an edge-level `directed` key overrides the graph's flag for that edge (mixed graphs)
-            const directed = this.readFlag(directedTok, "directed") ?? this.headerDirected;
-            edge = this.requireResolver().addEdge(source, target, directed ? "directed" : "undirected", weight, {
-                line,
-                element,
-            });
-            report.counts.edges += sink.edgeCount - before;
-            // endpoints the file never declares (addMissingNodes) are nodes of the sink too
-            report.counts.nodes += (sourceNew ? 1 : 0) + (targetNew ? 1 : 0);
+            edge = this.addEdgeBlock(open, line, element);
         } catch (err) {
             this.recordEdgeError(err, line, element);
             report.counts.skippedEdges++;
@@ -1517,20 +1576,94 @@ class GmlImport {
         }
         this.beginElement(this.seq++);
         try {
-            for (let p = open + 1; p < close; p = t.nextPair(p)) {
-                const key = t.textOf(p);
-                if (key === "source" || key === "target" || key === "directed" || key === options.weightFrom) {
-                    continue;
-                }
-                const plan = this.edgePlans.get(key);
-                if (plan !== undefined) {
-                    this.writeEdge(plan, edge, p + 1);
-                }
-            }
+            this.writeEdgeColumns(open, edge);
             this.flushLists("edge", edge);
         } catch (err) {
             this.touched.length = 0;
             report.recordError(err, { line, element });
+        }
+    }
+
+    /**
+     * Add the edge of one edge block to the sink from its structural keys, counting it and the
+     * endpoints it adds.
+     * @param open - the block's `[`
+     * @param line - the block's line
+     * @param element - the block's name, for messages
+     * @returns the edge index
+     */
+    private addEdgeBlock(open: number, line: number, element: string): number {
+        const { sink, report } = this;
+        const { sourceTok, targetTok, weightTok, directedTok } = this.edgeTokens(open);
+        if (sourceTok < 0 || targetTok < 0) {
+            throw new GraphFormatError("E_UNKNOWN_NODE", `edge has no ${sourceTok < 0 ? "source" : "target"}`, {
+                reason: "missing endpoint",
+            });
+        }
+        const source = this.endpoint(sourceTok, "source");
+        const target = this.endpoint(targetTok, "target");
+        const weight = weightTok >= 0 ? this.weightOf(weightTok) : undefined;
+        const before = sink.edgeCount;
+        const sourceNew = sink.indexOf(source) === INVALID_INDEX;
+        const targetNew = source !== target && sink.indexOf(target) === INVALID_INDEX;
+        // an edge-level `directed` key overrides the graph's flag for that edge (mixed graphs)
+        const directed = this.readFlag(directedTok, "directed") ?? this.headerDirected;
+        const edge = this.requireResolver().addEdge(source, target, directed ? "directed" : "undirected", weight, {
+            line,
+            element,
+        });
+        report.counts.edges += sink.edgeCount - before;
+        // endpoints the file never declares (addMissingNodes) are nodes of the sink too
+        report.counts.nodes += (sourceNew ? 1 : 0) + (targetNew ? 1 : 0);
+        return edge;
+    }
+
+    /**
+     * The value tokens of an edge block's structural keys, refusing a repeated endpoint or
+     * directed key.
+     * @param open - the block's `[`
+     * @returns the tokens, -1 for a key the block lacks
+     */
+    private edgeTokens(open: number): { sourceTok: number; targetTok: number; weightTok: number; directedTok: number } {
+        const t = this.requireTokens();
+        const close = t.match[open];
+        let sourceTok = -1;
+        let targetTok = -1;
+        let weightTok = -1;
+        let directedTok = -1;
+        for (let p = open + 1; p < close; p = t.nextPair(p)) {
+            const key = t.textOf(p);
+            if (key === "source") {
+                sourceTok = this.structuralToken(sourceTok, p, "source");
+            } else if (key === "target") {
+                targetTok = this.structuralToken(targetTok, p, "target");
+            } else if (key === "directed") {
+                directedTok = this.structuralToken(directedTok, p, "directed");
+            } else if (key === this.options.weightFrom) {
+                weightTok = p + 1;
+            }
+        }
+        return { sourceTok, targetTok, weightTok, directedTok };
+    }
+
+    /**
+     * Write the column cells of one edge block.
+     * @param open - the block's `[`
+     * @param edge - the edge index
+     */
+    private writeEdgeColumns(open: number, edge: number): void {
+        const t = this.requireTokens();
+        const close = t.match[open];
+        const { weightFrom } = this.options;
+        for (let p = open + 1; p < close; p = t.nextPair(p)) {
+            const key = t.textOf(p);
+            if (key === "source" || key === "target" || key === "directed" || key === weightFrom) {
+                continue;
+            }
+            const plan = this.edgePlans.get(key);
+            if (plan !== undefined) {
+                this.writeEdge(plan, edge, p + 1);
+            }
         }
     }
 
@@ -1708,9 +1841,6 @@ class GmlImport {
         if (err instanceof GraphFormatError && err.code === "E_INVALID_ID") {
             const { reason } = err.details;
             switch (reason) {
-                case "missing id":
-                    report.error("missing-value", MISSING_ID_CODE, err.message, { line, element: "node" });
-                    return;
                 case "missing label":
                     report.error("missing-value", MISSING_LABEL_CODE, err.message, { line, element: "node" });
                     return;
@@ -1853,14 +1983,12 @@ class GmlImport {
     ): unknown {
         const { x, y, z } = record;
         let rest: unknown = record;
-        if (typeof x === "number" && typeof y === "number") {
-            const depth = typeof z === "number" ? z : 0;
+        if (isFiniteNumber(x) && isFiniteNumber(y) && (z === undefined || isFiniteNumber(z))) {
+            const depth = z ?? 0;
             this.sink.setNodeValue(this.handleOf(positionPlan, "node"), index, [x, y, depth]);
             delete record.x;
             delete record.y;
-            if (typeof z === "number") {
-                delete record.z;
-            }
+            delete record.z;
             rest = Object.keys(record).length > 0 ? record : undefined;
         }
         if ("x" in record || "y" in record || "z" in record) {
@@ -2184,10 +2312,8 @@ const SNIFF_KEY_START = /^(?:\s|#[^\n]*\n)*[A-Za-z_]\w*\s+(?:"|[+-]?[0-9.]|\[)/;
  * @returns 0.95 for a leading `graph [`, 0.85 for key-value text containing one, 0.4 for key-value text, 0 otherwise
  */
 function sniffGml(head: Uint8Array): number {
-    let text = new TextDecoder("utf-8", { fatal: false }).decode(head);
-    if (text.charCodeAt(0) === 0xfeff) {
-        text = text.slice(1);
-    }
+    // the decoder removes a leading byte order mark
+    const text = new TextDecoder("utf-8", { fatal: false }).decode(head);
     if (SNIFF_GRAPH_START.test(text)) {
         return 0.95;
     }
@@ -2294,4 +2420,13 @@ function tokenize(text: string, report: ImportReportBuilder): GmlTokens {
         }
         throw err;
     }
+}
+
+/**
+ * Whether a graphics value is a finite number: GML spells NAN and INF, which no coordinate or size can be.
+ * @param value - the value
+ * @returns true for a finite number
+ */
+function isFiniteNumber(value: unknown): value is number {
+    return typeof value === "number" && Number.isFinite(value);
 }

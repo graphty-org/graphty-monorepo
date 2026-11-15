@@ -1,7 +1,8 @@
 /**
  * @file The `graph` hook of a session with no renderer: a change to the rows repaints every layer,
  * except rows appended to a picture nothing has renumbered under a stack whose layers paint each
- * element from that element alone, which paint only themselves;
+ * element from that element alone, or from it and a column that settles as it did, which paint
+ * only themselves and the ends of an added edge a layer reads the degree of;
  * a change to records' attributes alone repaints only the layers that read a field it changed,
  * forward and on undo and redo, and paints nothing when no layer reads one. Counted in passes and
  * in what each pass painted, never timed.
@@ -9,11 +10,11 @@
 
 import { assert, describe, it } from "vitest";
 
-import type { NodeId } from "../../../src/catalog/types";
+import type { LayerSpec, NodeId } from "../../../src/catalog/types";
 import { dispatcherOf } from "../../../src/session/GraphSession";
 import type { ElementSession } from "../../../src/session/types";
 import { makeSession } from "../helpers";
-import { paintBaseline } from "./fixture-session";
+import { blankSession, paintBaseline } from "./fixture-session";
 
 const RED = "#ff0000";
 
@@ -212,6 +213,54 @@ describe("the headless graph hook", () => {
         session.dispose();
     });
 
+    /**
+     * A session over a measured graph whose only layer of its own paints what the run measured.
+     * @returns The session, the run's id, and the opacity each node shows.
+     */
+    async function measured(): Promise<{ session: ElementSession; runId: string; opacities: () => unknown[] }> {
+        const session = blankSession();
+        await session.data.addNodes(["a", "b", "c", "d"].map((id) => ({ id })));
+        await session.data.addEdges([{ src: "a", dst: "b" }]);
+        const run = session.runs.start("degree", {}, { as: "deg" });
+        await run;
+        for (const layer of session.styles.list().filter((entry) => entry.source.by !== "element")) {
+            await session.styles.remove(layer.id);
+        }
+
+        await session.styles.add({
+            name: "Measured",
+            selector: { match: "has", path: "results.deg.value" },
+            set: { "node.opacity": 0.5 },
+        });
+        await session.data.addNodes([{ id: "e" }]);
+        await dispatcherOf(session).lane.settled();
+        const opacities = (): unknown[] =>
+            session
+                .snapshot()
+                .ids.toArray()
+                .map((_, row) => session.paint.styleOf("node", row)["node.opacity"]);
+        assert.deepEqual(opacities(), [0.5, 0.5, 0.5, 0.5, undefined]);
+        return { session, runId: run.id, opacities };
+    }
+
+    it("a pass that follows a removal leaves a layer able to take its paint back (issue #5897)", async () => {
+        const { session, runId, opacities } = await measured();
+        await session.data.removeNodes(["b"]);
+        const painted = paintedPerPass(session);
+
+        await session.data.addNodes([{ id: "f" }]);
+        await dispatcherOf(session).lane.settled();
+
+        assert.deepEqual(painted, [{ nodes: 1, edges: 0 }], "the pass followed the rows and painted only f");
+        assert.deepEqual(opacities(), [0.5, 0.5, 0.5, undefined, undefined], "a, c and d kept what the layer painted");
+
+        session.runs.remove(runId);
+        await dispatcherOf(session).lane.settled();
+
+        assert.deepEqual(opacities(), [undefined, undefined, undefined, undefined, undefined]);
+        session.dispose();
+    });
+
     it("an add repaints every row when a layer's paint depends on the other rows", async () => {
         const session = await chained(50);
         await session.styles.add({
@@ -226,6 +275,265 @@ describe("the headless graph hook", () => {
         await dispatcherOf(session).lane.settled();
 
         assert.deepEqual(painted, [{ nodes: 51, edges: 49 }], "the domain moved, so every row is painted again");
+        session.dispose();
+    });
+
+    it("an added edge repaints its ends under a label built from their degree (issue #5893)", async () => {
+        const session = await chained(5);
+        await session.styles.add({
+            name: "Degree label",
+            selector: { match: "everything" },
+            encode: { "node.label": { template: ["{graphty.degree}"] } },
+        });
+        await session.styles.settled();
+        const label = (id: string): unknown =>
+            session.paint.styleOf("node", session.snapshot().ids.indexOf(id))["node.label"];
+        assert.strictEqual(label("v0"), "1");
+
+        await session.data.addEdges([{ src: "v0", dst: "v2" }]);
+        await dispatcherOf(session).lane.settled();
+
+        assert.strictEqual(label("v0"), "2");
+        assert.strictEqual(label("v2"), "3");
+        session.dispose();
+    });
+
+    it("an add that lands with an edit repaints an edge whose presence test reads the edited end", async () => {
+        const session = await chained(5);
+        await session.styles.add({
+            name: "Flagged source",
+            target: "edge",
+            selector: { match: "has", path: "graphty.source.data.flag" },
+            set: { "edge.color": RED },
+        });
+        await session.styles.settled();
+
+        const edit = session.data.updateNodes([{ id: "v0", values: { flag: 1 } }]);
+        await session.data.addEdges([{ src: "v3", dst: "v0" }]);
+        await edit;
+        await dispatcherOf(session).lane.settled();
+
+        assert.strictEqual(session.paint.styleOf("edge", 0)["edge.color"]?.hex, RED);
+        session.dispose();
+    });
+});
+
+/** Layers of every kind an add can leave narrowed, or has to paint whole, by what they read. */
+const ENCODED_LAYERS: Record<string, readonly LayerSpec[]> = {
+    "a continuous domain": [
+        {
+            name: "Size",
+            selector: { match: "everything" },
+            encode: { "node.size": { by: "data.weight", scale: "linear", range: [1, 3] } },
+        },
+    ],
+    "a percentile clamp": [
+        {
+            name: "Clamped",
+            selector: { match: "everything" },
+            encode: { "node.size": { by: "data.weight", scale: "linear", clamp: [10, 90], range: [1, 3] } },
+        },
+    ],
+    "cut points": [
+        {
+            name: "Quartiles",
+            selector: { match: "everything" },
+            encode: { "node.size": { by: "data.weight", scale: "quantile", range: [1, 3] } },
+        },
+    ],
+    "a palette over categories": [
+        {
+            name: "Kinds",
+            selector: { match: "has", path: "data.kind" },
+            encode: { "node.color": { by: "data.kind", scale: "ordinal", palette: "okabe-ito" } },
+        },
+    ],
+    "stops, which read no domain": [
+        {
+            name: "Stops",
+            selector: { match: "everything" },
+            encode: {
+                "node.size": {
+                    by: "data.weight",
+                    stops: [
+                        { at: 0, value: 1 },
+                        { at: 50, value: 3 },
+                    ],
+                },
+            },
+        },
+    ],
+    "a degree": [
+        {
+            name: "By degree",
+            selector: { match: "everything" },
+            encode: { "node.size": { by: "graphty.degree", scale: "linear", range: [1, 3] } },
+        },
+    ],
+    "an expression over a value": [
+        { name: "Heavy", selector: { match: "expression", where: "data.weight > `5`" }, set: { "node.color": RED } },
+    ],
+    "an expression over a degree": [
+        { name: "Hubs", selector: { match: "expression", where: "graphty.degree >= `3`" }, set: { "node.color": RED } },
+    ],
+    "a template of values": [
+        {
+            name: "Label",
+            selector: { match: "everything" },
+            encode: { "node.label": { template: ["{data.kind}: {graphty.degree}"] } },
+        },
+    ],
+    "a template's rank": [
+        {
+            name: "Rank",
+            selector: { match: "everything" },
+            encode: { "node.label": { template: ["{data.weight|rank} of {data.weight|count}"] } },
+        },
+    ],
+    "an edge's own value": [
+        {
+            name: "Width",
+            target: "edge",
+            selector: { match: "everything" },
+            encode: { "edge.width": { by: "data.strength", scale: "linear", range: [1, 3] } },
+        },
+    ],
+    "a value at an edge's end": [
+        {
+            name: "From heavy",
+            target: "edge",
+            selector: { match: "expression", where: "graphty.source.graphty.degree >= `3`" },
+            set: { "edge.color": RED },
+        },
+    ],
+};
+
+/**
+ * What each step adds, chosen so that some leave every domain alone and some move it: a value
+ * inside the range, one past its end, a new category, a text where numbers stood, an edge between
+ * two old nodes, one to a node it creates, and a repeat of an edge.
+ */
+const ADDS: readonly ((session: ElementSession) => Promise<void>)[] = [
+    (session) => session.data.addNodes([{ id: "p", weight: 3, kind: "a" }]),
+    (session) => session.data.addEdges([{ src: "v0", dst: "v5", strength: 2 }]),
+    (session) => session.data.addEdges([{ src: "v1", dst: "v5", strength: 4 }]),
+    (session) => session.data.addNodes([{ id: "q", weight: 500, kind: "b" }]),
+    (session) => session.data.addEdges([{ src: "q", dst: "fresh", strength: 900 }]),
+    (session) => session.data.addEdges([{ src: "v1", dst: "v5", strength: 4 }]),
+    (session) => session.data.addNodes([{ id: "r", weight: -9, kind: "new" }]),
+    (session) => session.data.addNodes([{ id: "v3", weight: 7, kind: "a" }]),
+    (session) => session.data.addNodes([{ id: "s", weight: "heavy", kind: 4 }]),
+];
+
+describe("an add under layers that encode or select by expression (issue #5897)", () => {
+    /**
+     * A chain carrying every value the layers read.
+     * @returns The session.
+     */
+    async function styled(): Promise<ElementSession> {
+        const { session } = makeSession();
+        const ids = Array.from({ length: 12 }, (_, at) => `v${String(at)}`);
+        await session.data.addNodes(ids.map((id, at) => ({ id, weight: at, kind: at % 2 === 0 ? "a" : "b" })));
+        await session.data.addEdges(ids.slice(1).map((id, at) => ({ src: ids[at], dst: id, strength: at })));
+        return session as ElementSession;
+    }
+
+    for (const [kind, layers] of Object.entries(ENCODED_LAYERS)) {
+        it(`leaves the picture a full repaint gives, under ${kind}`, async () => {
+            const session = await styled();
+            for (const layer of layers) {
+                await session.styles.add(layer);
+            }
+
+            await session.styles.settled();
+            await session.data.addNodes([{ id: "start", weight: 1, kind: "a" }]);
+            await dispatcherOf(session).lane.settled();
+            for (const [step, add] of ADDS.entries()) {
+                await add(session);
+                await dispatcherOf(session).lane.settled();
+                const incremental = pictureOf(session);
+                await paintBaseline(session);
+                assert.deepEqual(incremental, pictureOf(session), `add ${String(step)}`);
+            }
+
+            session.dispose();
+        });
+    }
+
+    it("paints only what an add reached while no binding settles differently", async () => {
+        const session = await styled();
+        for (const kind of ["a continuous domain", "a palette over categories", "an expression over a value"]) {
+            await session.styles.add(ENCODED_LAYERS[kind][0]);
+        }
+
+        await session.data.addNodes([{ id: "start", weight: 1, kind: "a" }]);
+        await dispatcherOf(session).lane.settled();
+        const painted = paintedPerPass(session);
+
+        await session.data.addEdges([{ src: "v0", dst: "v5" }]);
+        await dispatcherOf(session).lane.settled();
+
+        assert.deepEqual(painted, [{ nodes: 0, edges: 1 }]);
+        session.dispose();
+    });
+
+    it("paints the ends of an added edge under a degree, and every row once the extent moves", async () => {
+        const session = await styled();
+        await session.styles.add(ENCODED_LAYERS["a degree"][0]);
+        await session.data.addEdges([{ src: "v0", dst: "v5" }]);
+        await dispatcherOf(session).lane.settled();
+        const painted = paintedPerPass(session);
+
+        // v1 goes from two edges to three, which v5 already has.
+        await session.data.addEdges([{ src: "v1", dst: "v8" }]);
+        await dispatcherOf(session).lane.settled();
+        assert.deepEqual(painted, [{ nodes: 2, edges: 1 }]);
+
+        // v5 goes past the extent.
+        await session.data.addEdges([{ src: "v5", dst: "v8" }]);
+        await dispatcherOf(session).lane.settled();
+        const { nodeCount, edgeCount } = session.snapshot();
+        assert.deepEqual(painted[1], { nodes: nodeCount, edges: edgeCount });
+        session.dispose();
+    });
+
+    it("paints an add of 100,000 edges under a degree, more ends than a call takes arguments", async () => {
+        const session = await chained(2000);
+        await session.styles.add(ENCODED_LAYERS["a degree"][0]);
+        await session.data.addNodes([{ id: "start" }]);
+        await dispatcherOf(session).lane.settled();
+        const painted = paintedPerPass(session);
+
+        await session.data.addEdges(
+            Array.from({ length: 100_000 }, (_, at) => ({
+                src: `v${String(at % 2000)}`,
+                dst: `v${String((at + 1 + Math.floor(at / 2000)) % 2000)}`,
+            })),
+        );
+        await dispatcherOf(session).lane.settled();
+
+        const { nodeCount, edgeCount } = session.snapshot();
+        assert.isAtLeast(edgeCount, 100_000);
+        assert.deepEqual(
+            painted,
+            [{ nodes: nodeCount, edges: edgeCount }],
+            "the extent moved, so every row is painted",
+        );
+        session.dispose();
+    });
+
+    it("paints every row under a template's rank, which no settled fact describes", async () => {
+        const session = await styled();
+        await session.styles.add(ENCODED_LAYERS["a template's rank"][0]);
+        await session.data.addNodes([{ id: "start", weight: 1 }]);
+        await dispatcherOf(session).lane.settled();
+        const painted = paintedPerPass(session);
+
+        await session.data.addNodes([{ id: "mid", weight: 2.5 }]);
+        await dispatcherOf(session).lane.settled();
+
+        const { nodeCount, edgeCount } = session.snapshot();
+        assert.deepEqual(painted, [{ nodes: nodeCount, edges: edgeCount }]);
         session.dispose();
     });
 });

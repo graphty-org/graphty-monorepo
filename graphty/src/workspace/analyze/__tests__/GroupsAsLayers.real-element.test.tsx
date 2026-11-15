@@ -14,12 +14,10 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
 
 /**
  * The workspace on Les Miserables.
@@ -31,14 +29,11 @@ async function openScene(
 ): Promise<GraphSession> {
     await page.viewport(1440, 900);
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -57,6 +52,10 @@ function groupOf(layer: Layer | undefined): { path: string; value: string } | un
     return where?.kind === "categories" ? { path: where.attribute, value: where.values[0] } : undefined;
 }
 
+// Analyze's algorithm form, which the `selection-workspace` experiment replaces with its calm list
+// (covered by its own tests): the experiment stays off here.
+withFeatures([]);
+
 describe("a grouping run from Analyze", () => {
     it("makes a folder of group layers; a recolored group keeps its members through a re-run", async () => {
         const session = await openScene();
@@ -65,14 +64,11 @@ describe("a grouping run from Analyze", () => {
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
         await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
         await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
-        const runId = await waitFor(
-            () => {
-                const run = session.runs.list().find((r) => r.algorithm === "louvain");
-                assert.equal(run?.status, "succeeded");
-                return run?.id ?? "";
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const runId = await waitFor(() => {
+            const run = session.runs.list().find((r) => r.algorithm === "louvain");
+            assert.equal(run?.status, "succeeded");
+            return run?.id ?? "";
+        });
         await session.styles.settled();
 
         const tree = await screen.findByRole("tree", { name: "Style layers" });
@@ -129,6 +125,19 @@ describe("a grouping run from Analyze", () => {
         assert.lengthOf(new Set(names), names.length, `a re-run names its new groups apart: ${names.join(", ")}`);
     });
 
+    it("draws every Leiden setting in the Analyze popover, with nothing further to open", async () => {
+        await openScene();
+        const toolbar = screen.getByRole("toolbar", { name: "Canvas tools" });
+        await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
+        await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Leiden");
+        await userEvent.click(await screen.findByRole("option", { name: /^Leiden/ }));
+        // Leiden is unseeded by default, so its seed is an empty box (a text box until it holds a number).
+        const seed = await screen.findByRole<HTMLInputElement>("textbox", { name: /^Random seed/ });
+        assert.strictEqual(seed.value, "");
+        assert.isNotNull(screen.getByRole("spinbutton", { name: /^Threshold/ }));
+        assert.isNull(screen.queryByRole("button", { name: /^Advanced/ }));
+    });
+
     it("runs on Enter in a setting, says what it made, and drops no tooltip on Analyze", async () => {
         const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
         const session = await openScene(store);
@@ -141,28 +150,22 @@ describe("a grouping run from Analyze", () => {
         await userEvent.tripleClick(resolution);
         await userEvent.keyboard("1.2{Enter}");
 
-        const runId = await waitFor(
-            () => {
-                const found = session.runs.list().find((r) => r.algorithm === "louvain");
-                assert.equal(found?.status, "succeeded");
-                return found?.id ?? "";
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        const runId = await waitFor(() => {
+            const found = session.runs.list().find((r) => r.algorithm === "louvain");
+            assert.equal(found?.status, "succeeded");
+            return found?.id ?? "";
+        });
         const run = session.runs.get(runId);
         assert.equal(run?.params.resolution, 1.2, "the run used the value typed before Enter");
         const groups = run?.result?.summary().groups?.length ?? 0;
         assert.isAbove(groups, 1);
-        await waitFor(
-            () => {
-                // The run's name carries the setting that differs from the default.
-                assert.equal(
-                    store.get().announcement,
-                    `Louvain (resolution 1.2) finished: ${String(groups)} groups, each a layer in the Louvain folder of Style layers`,
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            // The run's name carries the setting that differs from the default.
+            assert.equal(
+                store.get().announcement,
+                `Louvain (resolution 1.2) finished: ${String(groups)} groups, each a layer in the Louvain folder of Style layers`,
+            );
+        });
 
         // Focus came back to Analyze by the popover closing, not by the reader: no tooltip shows.
         assert.equal(document.activeElement, analyze);

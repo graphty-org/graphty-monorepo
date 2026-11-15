@@ -49,8 +49,8 @@ export const BODY = `// Gemstone: flat facets, rainbow fire from per-channel ref
 ${FACETS}
 // One color channel's path through the stone (unit sphere, object rotation ra, rb): refract in,
 // bounce off two back facets, refract out.
-vec3 fire(vec3 p, vec3 iw, vec3 fn, float eta, float ra, float rb, float count) {
-    vec3 t = refract(iw, fn, 1.0 / eta);
+vec3 fire(vec3 p, vec3 iw, vec3 facetN, float eta, float ra, float rb, float count) {
+    vec3 t = refract(iw, facetN, 1.0 / eta);
     for (int k = 0; k < 2; k++) {
         p = normalize(p + t * max(-2.0 * dot(p, t), 0.0));
         vec3 back = fromObj(facetOf(toObj(p, ra, rb), count).xyz, ra, rb);
@@ -68,32 +68,32 @@ vec4 shade(NodeInput n) {
     float ra = n.seed * 40.0 + n.time * turn;
     float rb = n.seed * 17.0;
     vec4 fo = facetOf(toObj(nv, ra, rb), count);
-    vec3 fn = fromObj(fo.xyz, ra, rb);
+    vec3 facetN = fromObj(fo.xyz, ra, rb);
     vec3 iorC = ior + dispersion * vec3(-1.0, 0.0, 1.0);
     // One ray per color channel is the expensive part: medium traces red and blue and blends
     // green, low traces one ray for all three.
     int level = Q(0, 1, 2);
     vec3 inside;
     if (level == 0) {
-        inside = fire(nv, iw, fn, iorC.y, ra, rb, count);
+        inside = fire(nv, iw, facetN, iorC.y, ra, rb, count);
     } else if (level == 1) {
-        vec3 fr = fire(nv, iw, fn, iorC.x, ra, rb, count);
-        vec3 fb = fire(nv, iw, fn, iorC.z, ra, rb, count);
+        vec3 fr = fire(nv, iw, facetN, iorC.x, ra, rb, count);
+        vec3 fb = fire(nv, iw, facetN, iorC.z, ra, rb, count);
         inside = vec3(fr.r, 0.5 * (fr.g + fb.g), fb.b);
     } else {
         inside = vec3(
-            fire(nv, iw, fn, iorC.x, ra, rb, count).r,
-            fire(nv, iw, fn, iorC.y, ra, rb, count).g,
-            fire(nv, iw, fn, iorC.z, ra, rb, count).b
+            fire(nv, iw, facetN, iorC.x, ra, rb, count).r,
+            fire(nv, iw, facetN, iorC.y, ra, rb, count).g,
+            fire(nv, iw, facetN, iorC.z, ra, rb, count).b
         );
     }
 
     vec3 body = pow(n.color.rgb, vec3(2.2)) * 2.2;
-    float ndv = max(dot(fn, -iw), 0.0);
+    float ndv = max(dot(facetN, -iw), 0.0);
     float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
     float fres = f0 + (1.0 - f0) * pow(1.0 - ndv, 5.0);
-    vec3 c = inside * body * (1.0 - fres) + env(reflect(iw, fn)) * fres;
-    float glint = pow(max(dot(reflect(iw, fn), lightDir), 0.0), 200.0);
+    vec3 c = inside * body * (1.0 - fres) + env(reflect(iw, facetN)) * fres;
+    float glint = pow(max(dot(reflect(iw, facetN), lightDir), 0.0), 200.0);
     float twinkle = 0.5 + 0.5 * sin(n.time * 7.0 + hash13(fo.xyz * 91.0 + n.seed) * 60.0);
     c += sparkle * glint * twinkle * vec3(6.0);
     // Facet edges catch a little light.
@@ -110,13 +110,13 @@ vec4 shade(NodeInput n) {
     vec3 iw = n.viewDir;
     float ra = n.seed * 40.0 + n.time * turn;
     float rb = n.seed * 17.0;
-    vec3 fn = fromObj(facetOf(toObj(nv, ra, rb), 8.0).xyz, ra, rb);
+    vec3 facetN = fromObj(facetOf(toObj(nv, ra, rb), 8.0).xyz, ra, rb);
     vec3 body = pow(n.color.rgb, vec3(2.2)) * 2.2;
-    float ndv = max(dot(fn, -iw), 0.0);
+    float ndv = max(dot(facetN, -iw), 0.0);
     float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
     float fres = f0 + (1.0 - f0) * pow(1.0 - ndv, 5.0);
-    vec3 c = env(refract(iw, fn, 1.0 / ior)) * 0.6 * body * (1.0 - fres) + env(reflect(iw, fn)) * fres;
-    c += sparkle * pow(max(dot(reflect(iw, fn), lightDir), 0.0), 60.0) * vec3(2.0);
+    vec3 c = env(refract(iw, facetN, 1.0 / ior)) * 0.6 * body * (1.0 - fres) + env(reflect(iw, facetN)) * fres;
+    c += sparkle * pow(max(dot(reflect(iw, facetN), lightDir), 0.0), 60.0) * vec3(2.0);
     return vec4(studioTone(c), 1.0);
 }
 `;

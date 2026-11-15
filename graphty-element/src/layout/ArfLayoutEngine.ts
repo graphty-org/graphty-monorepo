@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { SimpleLayoutConfig } from "./LayoutEngine";
+import { seedSchema } from "./seedOption";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput, startFrom } from "./SnapshotLayoutEngine";
 
 /**
@@ -51,7 +52,7 @@ const arfLayoutOptionsSchema = defineOptions({
         },
     },
     seed: {
-        schema: z.number().positive().nullable().default(null),
+        schema: seedSchema,
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible layout",
@@ -68,7 +69,7 @@ const ArfLayoutConfig = z.strictObject({
     scale: z.number().positive().default(1),
     a: z.number().positive().default(1.1),
     maxIter: z.number().positive().default(1000),
-    seed: z.number().positive().or(z.null()).default(null),
+    seed: seedSchema,
 });
 type ArfLayoutConfigType = z.infer<typeof ArfLayoutConfig>;
 type ArfLayoutOpts = Partial<ArfLayoutConfigType>;
@@ -77,9 +78,9 @@ type ArfLayoutOpts = Partial<ArfLayoutConfigType>;
  * ARF (Attractive-Repulsive Force) layout engine for 2D graph visualization
  */
 export class ArfLayout extends SnapshotLayoutEngine {
-    static type = "arf";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = arfLayoutOptionsSchema;
+    static readonly type: string = "arf";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = arfLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: ArfLayoutConfigType;
 

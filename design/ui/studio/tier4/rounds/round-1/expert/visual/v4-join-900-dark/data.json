@@ -1,0 +1,165 @@
+{
+ "counts": {
+  "totalEdges": 14,
+  "totalNodes": 12,
+  "visibleEdges": 14,
+  "visibleNodes": 12,
+  "selectedNodes": 0,
+  "selectedEdges": 0
+ },
+ "sources": [
+  {
+   "key": "s1",
+   "name": "gauges.csv",
+   "kind": "file",
+   "counts": {
+    "nodes": 11,
+    "edges": 0
+   },
+   "recount": {
+    "nodes": 11,
+    "edges": 0
+   },
+   "chips": {
+    "nodes": 11,
+    "edges": 0
+   },
+   "join": null,
+   "leftOut": null,
+   "mapping": {
+    "tables": {
+     "rows": {
+      "rowsAre": "nodes",
+      "key": "id",
+      "label": null,
+      "time": null
+     }
+    }
+   }
+  },
+  {
+   "key": "s2",
+   "name": "flows.csv",
+   "kind": "join",
+   "counts": {
+    "nodes": 12,
+    "edges": 14
+   },
+   "recount": {
+    "nodes": 12,
+    "edges": 14
+   },
+   "chips": {
+    "nodes": 12,
+    "edges": 14
+   },
+   "join": {
+    "matched": 13,
+    "rows": 15,
+    "onto": "s1"
+   },
+   "leftOut": null,
+   "mapping": null
+  }
+ ],
+ "knownFields": {
+  "nodeIdPath": "id",
+  "nodeLabelPath": null,
+  "nodeWeightPath": null,
+  "nodeTimePath": null,
+  "edgeSrcIdPath": null,
+  "edgeDstIdPath": null,
+  "edgeIdPath": null,
+  "repeatedEdges": "keep",
+  "edgeWeightPath": "km",
+  "edgeWeightMeaning": null,
+  "edgeTimePath": null,
+  "positionScale": 1,
+  "idCoercion": "canonical"
+ },
+ "weight": {
+  "attribute": "km",
+  "meaning": null
+ },
+ "columns": [
+  {
+   "kind": "node",
+   "path": "data.lat",
+   "name": "lat",
+   "type": "number",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.lon",
+   "name": "lon",
+   "type": "number",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.depth_cm",
+   "name": "depth_cm",
+   "type": "mixed",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.id",
+   "name": "id",
+   "type": "string",
+   "roles": [
+    "key"
+   ],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.station",
+   "name": "station",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.code",
+   "name": "code",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.installed",
+   "name": "installed",
+   "type": "string",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "node",
+   "path": "data.telemetry",
+   "name": "telemetry",
+   "type": "category",
+   "roles": [],
+   "hidden": false
+  },
+  {
+   "kind": "edge",
+   "path": "data.km",
+   "name": "km",
+   "type": "number",
+   "roles": [
+    "weight"
+   ],
+   "hidden": false
+  }
+ ],
+ "filters": [],
+ "filter": null,
+ "window": null
+}

@@ -261,13 +261,15 @@ describe("Arrowhead Golden Masters", () => {
             // thin instance of one shared mesh per shape, drawn in one call (issues #25, #419).
             // They were per-material uniforms while each head was its own mesh and material. The
             // clip is per instance too: the same shader draws pattern segments, and the last
-            // segment of a zigzag is cut to its line's end (issue #444).
+            // segment of a zigzag is cut to its line's end (issue #444). So is the hidden flag the
+            // visibility mask sets, which hides a head without zeroing its matrix (issue #6025).
             assert.deepEqual(options.attributes, [
                 "position",
                 "arrowDirection",
                 "arrowSize",
                 "arrowColor",
                 "arrowClip",
+                "arrowHidden",
             ]);
             // `world` is the batch mesh's own transform. Babylon's instancing include multiplies
             // a thin instance's slot matrix by it, and without it in this list nothing writes it,

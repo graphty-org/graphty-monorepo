@@ -59,3 +59,32 @@ describe("a stroke clipped to one side of its outline", () => {
         assert.closeTo(ring(sheet(BOX))[0], 11.6, 0.01);
     });
 });
+
+describe("a fill clipped to part of its box", () => {
+    const fill = (clip: string): string =>
+        `<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><defs><clipPath id="c"><path d="${clip}"/></clipPath></defs>` +
+        `<g transform="translate(10,0)"><rect x="50" y="50" width="100" height="60" fill="rgb(168,175,198)" clip-path="url(#c)"/></g></svg>`;
+
+    it("reads what the clip keeps, in the shape's own space, and keeps the whole box beside it", () => {
+        const p = readSvgPrimitives(fill("M0 0 L200 0 L200 76 L0 76 Z")).prims[0];
+        assert.deepEqual(p.box, { x0: 60, y0: 50, x1: 160, y1: 76 });
+        assert.deepEqual(p.uncut, { x0: 60, y0: 50, x1: 160, y1: 110 });
+    });
+
+    it("leaves out a cut fill a solid fill paints over, and keeps one a thin fill does not hide", () => {
+        const over = (opacity: string): string =>
+            fill("M0 0 L200 0 L200 76 L0 76 Z").replace(
+                "</g></svg>",
+                `<rect x="50" y="50" width="100" height="26" fill="rgb(235,235,235)" fill-opacity="${opacity}"/></g></svg>`,
+            );
+        assert.lengthOf(readSvgPrimitives(over("1")).prims, 1);
+        assert.lengthOf(readSvgPrimitives(over("0.5")).prims, 2);
+    });
+
+    it("reads a shape whole under a clip it lies inside, or one that is no box", () => {
+        const whole = readSvgPrimitives(fill("M0 0 L200 0 L200 200 L0 200 Z")).prims[0];
+        assert.isUndefined(whole.uncut);
+        const round = readSvgPrimitives(fill("M0 0 L200 0 L100 76 Z")).prims[0];
+        assert.isUndefined(round.uncut);
+    });
+});

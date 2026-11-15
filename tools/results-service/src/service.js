@@ -7,8 +7,9 @@
 // - A GitHub Actions OIDC token (audience graphty-results) from this repository: a pull_request run writes `pr`
 //   for its own merge commit; master's own release.yml, ci.yml or a lane it calls (gpu.yml, hosts.yml,
 //   work-protection-macos.yml) writes `full`, bisect.yml `bisect`,
-//   base-check.yml `base`, restricted-cpu-stress.yml `stress`, deploy-pages.yml `site` (the site-<sha> it
-//   kept), each only on refs/heads/master.
+//   base-check.yml `base`, restricted-cpu-stress.yml `stress`, story-slices.yml `slice` (story captures),
+//   deploy-pages.yml `site` (the site-<sha> it kept), promote.yml `promote` (reads only), each only on
+//   refs/heads/master.
 // - An OIDC token from a site repository (DEPLOY_REPOSITORY_IDS) writes only `deploy` durations.
 // - A local token whose SHA-256 is in LOCAL_TOKEN_HASHES writes only `local` records.
 import {
@@ -17,7 +18,10 @@ import {
     getFailures,
     getMedians,
     getPlan,
+    getQuarantine,
     getReleaseState,
+    lastSeenFor,
+    summariesReady,
     trackedIssues,
     trendFor,
 } from "./queries.js";
@@ -40,18 +44,32 @@ const MASTER_KINDS = {
     "base-check.yml": "base",
     "restricted-cpu-stress.yml": "stress",
     "deploy-pages.yml": "site",
+    // the nightly site job release.yml calls (and a hand-dispatched redeploy): its channel move only (#5135)
+    "nightly-site.yml": "nightly-site",
+    // the rolling screenshot slices (design/visual-testing/early-capture.md): story captures only
+    "story-slices.yml": "slice",
+    // the production promotion: reads a nightly's record (GET /v1/site) and writes nothing
+    "promote.yml": "promote",
 };
 // Kinds that write no test records, and why.
 const NO_TESTS = {
     deploy: "a site repository writes only durations",
     site: "deploy-pages.yml writes only its site and durations",
+    "nightly-site": "nightly-site.yml writes only its channel move and durations",
     master: "a push to master runs ci.yml as a build only, with no tests",
+    slice: "story-slices.yml writes only story captures",
+    promote: "promote.yml only reads",
 };
 const MASTER = "refs/heads/master";
 const MASTER_EVIDENCE = new Set(["full", "bisect", "base"]);
 const ISSUE_KINDS = new Set(["flaky", "failing-on-master"]);
 const OUTCOMES = new Set(["passed", "failed", "error", "infra", "cancelled"]);
 const MAX_PARAMS = 100; // D1 binds at most 100 parameters per statement
+// What one write may hold, checked where every batch write binds (inserts()), so a malformed or oversized body is a
+// 400 before D1 sees it, never a bind error answered 500. ponytail: one cap per insert, not per request; a record's
+// files and failures at the cap stay under D1's 1,000 statements a Worker invocation.
+export const ROWS_MAX = 5000;
+const VALUE_MAX = 2000; // characters one stored string holds: a failure message's cut
 
 class Refused extends Error {
     constructor(status, message) {
@@ -76,18 +94,42 @@ const list = (value) =>
         .map((s) => s.trim())
         .filter(Boolean);
 
-// GitHub's OIDC signing keys by kid, for the isolate's life; an unknown kid refetches the set once.
-const signingKeys = new Map();
-async function signingKey(kid, doFetch) {
-    if (!signingKeys.has(kid)) {
-        const res = await doFetch(`${ISSUER}/.well-known/jwks`);
-        if (!res.ok) refuse(503, `GitHub's OIDC key set answered HTTP ${res.status}`);
-        for (const jwk of (await res.json()).keys) {
-            const algorithm = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" };
-            signingKeys.set(jwk.kid, await crypto.subtle.importKey("jwk", jwk, algorithm, false, ["verify"]));
-        }
+// GitHub's OIDC signing keys by kid. A token reaches the key lookup before its signature is checked, so a bogus kid
+// must not buy a fetch: the set is fetched at most once a minute, and in between an unknown kid is refused with 401
+// (or the last fetch's 503, so a real token's job spools its record and re-posts it). Keys are trusted for an hour
+// after the fetch that read them, so a key GitHub rotated out stops verifying.
+const KEYS_TTL_MS = 60 * 60 * 1000;
+const REFETCH_MS = 60 * 1000;
+/**
+ * An empty signing key cache: the isolate has one, and a test makes its own.
+ * @returns the cache
+ */
+export const keyCache = () => ({ load: null, triedAt: -Infinity });
+const isolateKeys = keyCache();
+async function fetchKeys(doFetch, nowMs) {
+    const res = await doFetch(`${ISSUER}/.well-known/jwks`);
+    if (!res.ok) refuse(503, `GitHub's OIDC key set answered HTTP ${res.status}`);
+    const keys = new Map();
+    for (const jwk of (await res.json()).keys) {
+        const algorithm = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" };
+        keys.set(jwk.kid, await crypto.subtle.importKey("jwk", jwk, algorithm, false, ["verify"]));
     }
-    return signingKeys.get(kid) ?? refuse(401, `unknown OIDC signing key ${kid}`);
+    return { keys, at: nowMs };
+}
+async function signingKey(kid, doFetch, nowMs, cache) {
+    const settled = async () => cache.load?.catch((e) => e);
+    const usable = (set) => set?.keys?.has(kid) && nowMs - set.at < KEYS_TTL_MS;
+    let set = await settled();
+    if (!usable(set)) {
+        // a request that finds a fetch under way (or one in the last minute) waits for that one instead
+        if (nowMs - cache.triedAt >= REFETCH_MS) {
+            cache.triedAt = nowMs;
+            cache.load = fetchKeys(doFetch, nowMs);
+        }
+        set = await settled();
+    }
+    if (set instanceof Error) throw set;
+    return usable(set) ? set.keys.get(kid) : refuse(401, `unknown OIDC signing key ${kid}`);
 }
 
 // A JWT's parts, or a 401 (not a 500) when they are not base64url JSON objects.
@@ -108,12 +150,13 @@ function decodeJwt(token) {
  * @param token the JWT
  * @param doFetch the fetch that reads GitHub's key set
  * @param nowMs the current time in milliseconds
+ * @param cache the signing keys, from keyCache()
  * @returns its claims
  */
-async function verifyOidc(token, doFetch, nowMs) {
+async function verifyOidc(token, doFetch, nowMs, cache) {
     const { alg, kid, claims, signature, signed } = decodeJwt(token);
     if (alg !== "RS256") refuse(401, `OIDC token signed with ${alg}, not RS256`);
-    const key = await signingKey(kid, doFetch);
+    const key = await signingKey(kid, doFetch, nowMs, cache);
     if (!(await crypto.subtle.verify("RSASSA-PKCS1-v1_5", key, signature, new TextEncoder().encode(signed)))) {
         refuse(401, "OIDC token signature does not verify");
     }
@@ -151,14 +194,14 @@ function kindOf(claims, env) {
     );
 }
 
-async function authenticate(request, env, doFetch, nowMs) {
+async function authenticate(request, env, doFetch, nowMs, cache) {
     const token =
         /^Bearer (\S+)$/.exec(request.headers.get("Authorization") ?? "")?.[1] ?? refuse(401, "no credential");
     if (token.split(".").length !== 3) {
         if (!list(env.LOCAL_TOKEN_HASHES).includes(await sha256(token))) refuse(401, "unknown local token");
         return { kind: "local" };
     }
-    const claims = await verifyOidc(token, doFetch, nowMs);
+    const claims = await verifyOidc(token, doFetch, nowMs, cache);
     return { kind: kindOf(claims, env), claims };
 }
 
@@ -174,8 +217,21 @@ function need(body, fields) {
     }
 }
 
+// Fields that may be left out, or null, but are of their type when given.
+function mayHave(body, fields) {
+    for (const [name, type] of Object.entries(fields)) {
+        if (body?.[name] != null && typeof body[name] !== type) refuse(400, `${name} must be a ${type} when given`);
+    }
+}
+
+const bindable = (v) =>
+    v == null || (typeof v === "number" && Number.isFinite(v)) || (typeof v === "string" && v.length <= VALUE_MAX);
+
 // INSERT OR IGNORE of many rows, as few statements as D1's parameter limit allows.
 function inserts(db, table, columns, rows, verb = "INSERT OR IGNORE") {
+    if (rows.length > ROWS_MAX) refuse(400, `a write holds at most ${ROWS_MAX} ${table} rows`);
+    if (!rows.every((r) => r.every(bindable)))
+        refuse(400, `${table} values must be numbers, or strings of at most ${VALUE_MAX} characters`);
     const per = Math.floor(MAX_PARAMS / columns.length);
     const one = `(${columns.map(() => "?").join(",")})`;
     const out = [];
@@ -188,12 +244,15 @@ function inserts(db, table, columns, rows, verb = "INSERT OR IGNORE") {
 }
 
 function failureRows(invocation, failures, root, nowMs) {
-    if (!Array.isArray(failures)) refuse(400, "failures must be a list");
+    if (!Array.isArray(failures) || failures.length > ROWS_MAX)
+        refuse(400, `failures must be a list of at most ${ROWS_MAX}`);
     if (root !== undefined && typeof root !== "string") refuse(400, "root must be a string");
     return failures.map((f) => {
         need(f, { file: "string", name: "string", message: "string" });
-        const { line, key, signature, status } = failureHashes(f.message, f.file, root);
-        return [invocation, f.file, f.name, status, signature, key, line, f.message.slice(0, 2000), nowMs];
+        // cut before hashing, as the clients cut what they send, so a longer message costs no CPU and signs the same
+        const message = f.message.slice(0, VALUE_MAX);
+        const { line, key, signature, status } = failureHashes(message, f.file, root);
+        return [invocation, f.file, f.name, status, signature, key, line, message, nowMs];
     });
 }
 const FAILURE_COLUMNS = [
@@ -213,11 +272,16 @@ async function postInvocation(body, who, db, nowMs) {
     ownId(body?.id, who);
     need(body, { sha: "string", tree: "string", variant: "string", inputs: "string", env: "string" });
     need(body, { try: "number", startedAt: "number", secs: "number" });
+    mayHave(body, { baseSha: "string", pr: "number", reusedFrom: "string", note: "string", runUrl: "string" });
     if (!OUTCOMES.has(body.outcome)) refuse(400, `outcome must be one of ${[...OUTCOMES].join(", ")}`);
     if (who.kind === "pr" && body.sha !== who.claims.sha)
         refuse(403, "a pull request writes only its own merge commit");
     const files = body.files ?? [];
-    if (!Array.isArray(files) || !files.every((f) => Array.isArray(f) && f.length === 5)) {
+    const counts = (f) => f.slice(1).every((n) => n == null || typeof n === "number");
+    if (
+        !Array.isArray(files) ||
+        !files.every((f) => Array.isArray(f) && f.length === 5 && typeof f[0] === "string" && counts(f))
+    ) {
         refuse(400, "files must be [file, passed, failed, skipped, ms] rows");
     }
     const [first] = await db.batch([
@@ -284,15 +348,22 @@ async function postInvocation(body, who, db, nowMs) {
         ),
     ]);
     const stored = first.meta.changes === 1;
-    const judged = stored && MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
+    // a re-post is judged too (#7265): an id names its run, so it is the client re-sending a record whose answer was
+    // lost, and that answer (the flaky tests to file) must not be lost with it. concludeFlaky names a test again
+    // until its issue is posted back, so judging twice files nothing twice.
+    const judged = MASTER_EVIDENCE.has(who.kind) && ["passed", "failed"].includes(body.outcome);
     if (!judged) return { stored, kind: who.kind, flaky: [] };
     const flaky = await concludeFlakySafely(db, body.id, nowMs);
-    const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch(() => []);
-    return { stored, kind: who.kind, flaky, tracked };
+    // a failed lookup leaves `tracked` out, so the client reads "unknown", not "none"; the next judged run retries it
+    const tracked = await trackedIssues(db, body.variant.split("|")[0], nowMs).catch((e) => {
+        console.log(`trackedIssues ${body.id}: ${e.message}`);
+        return undefined;
+    });
+    return { stored, kind: who.kind, flaky, ...(tracked && { tracked }) };
 }
 
 // The record is stored by now: a verdict that cannot be computed costs the verdict, never the answer (a 5xx would
-// make the client spool and re-post a record the store already has, whose re-post is never judged).
+// make the client re-post a record the store already has).
 async function concludeFlakySafely(db, id, nowMs) {
     try {
         return await concludeFlaky(db, id, nowMs);
@@ -307,8 +378,10 @@ async function concludeFlakySafely(db, id, nowMs) {
 // kind's marker). ponytail: one row per signature, key tracked_issue on (signature, kind) if both must be read.
 async function postIssue(body, who, db, nowMs) {
     if (!MASTER_EVIDENCE.has(who.kind)) refuse(403, "only master's full, bisect and base runs file issues");
-    if (body.state === "closed") return closeIssue(body, db, nowMs);
-    need(body, { signature: "string", number: "number" });
+    if (body?.state === "closed") return closeIssue(body, db, nowMs);
+    need(body, { signature: "string" });
+    if (!Number.isInteger(body.number)) refuse(400, "number must be an issue number");
+    mayHave(body, { family: "string", file: "string", name: "string" });
     if (!ISSUE_KINDS.has(body.kind)) refuse(400, `kind must be one of ${[...ISSUE_KINDS].join(", ")}`);
     await db.batch([
         db
@@ -331,7 +404,7 @@ async function postIssue(body, who, db, nowMs) {
 // test enters it again and files or reopens an issue. ponytail: a proof stored in the same record as the close is
 // not re-judged; the next flip is. Re-run concludeFlaky over the entry's last proof if that gap matters.
 async function closeIssue(body, db, nowMs) {
-    need(body, { number: "number" });
+    if (!Number.isInteger(body.number)) refuse(400, "number must be an issue number");
     await db.batch([
         db
             .prepare("UPDATE tracked_issue SET state = 'closed', last_seen = ? WHERE number = ?")
@@ -354,10 +427,12 @@ async function postFailures(body, who, db, nowMs) {
 
 async function postDurations(body, who, db, nowMs) {
     if (who.kind === "local") refuse(403, "durations come only from Actions runs");
+    if (who.kind === "promote") refuse(403, NO_TESTS.promote);
     const rows = body?.rows;
     if (!Array.isArray(rows)) refuse(400, "rows must be a list");
     for (const r of rows) {
         need(r, { workflow: "string", job: "string", ms: "number" });
+        mayHave(r, { step: "string", task: "string", sha: "string", startedAt: "number", conclusion: "string" });
         if (String(r.runId) !== who.claims.run_id || String(r.attempt) !== who.claims.run_attempt) {
             refuse(403, "a run writes only its own durations");
         }
@@ -388,9 +463,17 @@ async function postDurations(body, who, db, nowMs) {
         r.ms,
         r.conclusion,
     ]);
-    if (!values.length) return { stored: 0, kind: who.kind, trend: [] };
+    if (!values.length) return { stored: 0, kind: who.kind, trend: [], lastSeen: {} };
     await db.batch(inserts(db, "duration", columns, values));
-    return { stored: values.length, kind: who.kind, trend: await trendFor(db, who.kind, rows, body.budgets, nowMs) };
+    // absent, never a guess, until the summary tables are whole (summariesReady)
+    if (!(await summariesReady(db))) return { stored: values.length, kind: who.kind };
+    const workflows = [...new Set(rows.map((r) => r.workflow))];
+    return {
+        stored: values.length,
+        kind: who.kind,
+        trend: await trendFor(db, who.kind, rows, body.budgets, nowMs),
+        lastSeen: await lastSeenFor(db, who.kind, workflows, nowMs),
+    };
 }
 
 // A test shard's duration history (tools/vitest-time-budget.mjs). Any credential reads; only master's own runs
@@ -416,9 +499,19 @@ async function putTestDurations(body, who, db, nowMs, name) {
     return { stored: true };
 }
 
-// approved and rejected: release.yml's promotion after the owner's screenshot approval (tools/channel/resume.mjs)
+// approved and refused: release.yml's promotion after the owner's screenshot approval (tools/channel/resume.mjs);
+// refused is its screenshot gate's refusal, which a later promotion may retry (#6783); rejected is an abandon
 // deferred: an attempt-1 red waiting for its same-commit re-run, which the pick does not take as judged
-const VERDICTS = new Set(["green-clean", "green-images", "red", "owner-item", "approved", "rejected", "deferred"]);
+const VERDICTS = new Set([
+    "green-clean",
+    "green-images",
+    "red",
+    "owner-item",
+    "approved",
+    "rejected",
+    "refused",
+    "deferred",
+]);
 
 // The full run's verdict on its candidate (channels 5): only master's release.yml writes it, under its own run.
 async function postVerdict(body, who, db, nowMs) {
@@ -459,9 +552,7 @@ async function postSite(body, who, db, nowMs) {
     return { stored: meta.changes === 1, sha: body.sha };
 }
 
-// A pull request's base check (#3925, 6.3): the first ask for a base, file and variant answers `dispatch: true`;
-// every later ask (another pull request, a re-run) answers false, so base-check.yml runs once per test per base.
-async function postBaseCheck(body, who, db, nowMs) {
+function baseCheckOf(body, who) {
     if (who.kind !== "pr") refuse(403, "only a pull request's ci.yml asks for a base check");
     if (!/^[0-9a-f]{7,40}$/.test(body?.base ?? "")) refuse(400, "base must be a commit id");
     for (const field of ["file", "variant"]) {
@@ -469,12 +560,36 @@ async function postBaseCheck(body, who, db, nowMs) {
             refuse(400, `${field} must be a string of 1 to 300 characters`);
         }
     }
+    return [body.base, body.file, body.variant, Number(who.claims.run_id), Number(who.claims.run_attempt)];
+}
+
+// A pull request's base check (#3925, 6.3): the first ask for a base, file and variant answers `dispatch: true`;
+// a later ask by another run (another pull request, a re-run) answers false, so base-check.yml runs once per test
+// per base. The run holding the claim is answered true again (#7265): the client re-sends an ask whose answer was
+// lost, and that re-send must not cost the check. The no-op update counts as a change only for the holder.
+async function postBaseCheck(body, who, db, nowMs) {
+    const [base, file, variant, runId, attempt] = baseCheckOf(body, who);
     const pr = Number.isInteger(body.pr) ? body.pr : null;
     const { meta } = await db
-        .prepare("INSERT OR IGNORE INTO base_check (base, file, variant, pr, asked_at) VALUES (?, ?, ?, ?, ?)")
-        .bind(body.base, body.file, body.variant, pr, nowMs)
+        .prepare(
+            "INSERT INTO base_check (base, file, variant, pr, asked_at, run_id, attempt) VALUES (?, ?, ?, ?, ?, ?, ?) " +
+                "ON CONFLICT (base, file, variant) DO UPDATE SET asked_at = asked_at " +
+                "WHERE run_id = excluded.run_id AND attempt = excluded.attempt",
+        )
+        .bind(base, file, variant, pr, nowMs, runId, attempt)
         .run();
     return { dispatch: meta.changes === 1 };
+}
+
+// The run holding a base check's claim gives it back when it could not dispatch the check (#7265), so the next pull
+// request that asks dispatches it. Another run's claim is left alone.
+async function deleteBaseCheck(body, who, db) {
+    const [base, file, variant, runId, attempt] = baseCheckOf(body, who);
+    const { meta } = await db
+        .prepare("DELETE FROM base_check WHERE base = ? AND file = ? AND variant = ? AND run_id = ? AND attempt = ?")
+        .bind(base, file, variant, runId, attempt)
+        .run();
+    return { released: meta.changes === 1 };
 }
 
 const SHA = /^[0-9a-f]{40}$/;
@@ -484,9 +599,11 @@ const SHA256 = /^[0-9a-f]{64}$/;
 // of the site asset and channel.json, one row per run: a re-run of the site job (which re-packs channel.json, so
 // its sha256 changes) replaces that run's hashes, so promote.yml compares against what is hung now. It keeps the
 // row's time: a re-run never makes an older promotion the newest nightly.
-// Only master's own release.yml writes it; age:nightly (GET /v1/release-state) counts from the newest row.
+// Only master's own release.yml writes it, through the nightly-site.yml it calls (whose token names that file: #5135,
+// every record was refused until then); age:nightly (GET /v1/release-state) counts from the newest row.
 async function postChannelMove(body, who, db, nowMs) {
-    if (who.kind !== "full" || !String(who.claims.job_workflow_ref).includes("/release.yml@")) {
+    const release = who.kind === "full" && String(who.claims.job_workflow_ref).includes("/release.yml@");
+    if (!release && who.kind !== "nightly-site") {
         refuse(403, "only master's own release.yml records a channel move");
     }
     if (body?.channel !== "nightly") refuse(400, "channel must be nightly");
@@ -517,6 +634,26 @@ async function postChannelMove(body, who, db, nowMs) {
         .bind(body.channel, body.sha, nowMs, body.versionCommit ?? null, body.siteSha256, body.channelSha256, runId)
         .run();
     return { stored: true };
+}
+
+// What promote.yml checks a nightly's assets and verdict against (`?sha=<sha>`, the tested commit of a site-<sha>
+// release): the newest nightly channel move of that commit, with the sha256 of site.tar.zst and channel.json its
+// site job hung, and the commit's latest verdict. No move recorded: 404, and the promotion refuses.
+async function getSite(query, _who, db) {
+    const sha = query.get("sha") ?? "";
+    if (!SHA.test(sha)) refuse(400, "sha must be a full commit id");
+    const move = await db
+        .prepare(
+            "SELECT version_commit AS versionCommit, site_sha256 AS siteSha256, channel_sha256 AS channelSha256, at AS movedAt FROM channel_move WHERE channel = 'nightly' AND sha = ? ORDER BY at DESC LIMIT 1",
+        )
+        .bind(sha)
+        .first();
+    if (!move) refuse(404, `no nightly channel move of ${sha}`);
+    const verdict = await db
+        .prepare("SELECT state FROM verdict WHERE sha = ? ORDER BY at DESC LIMIT 1")
+        .bind(sha)
+        .first();
+    return { sha, ...move, verdict: verdict?.state ?? null };
 }
 
 // The held nightly candidate (channels-pipeline.md section 3): release.yml's verdict sets it on a deciding run that
@@ -556,6 +693,188 @@ async function postHold(body, who, db, nowMs) {
     return { held: true };
 }
 
+// The rolling screenshot slices (design/visual-testing/early-capture.md, 4c). Only master's story-slices.yml writes
+// captures, each row under its own run; only ci.yml's push build of a master commit writes that commit's reach.
+// Every read answers only a story's newest capture, newest by run id then attempt, never by write time: a late re-run
+// of an older slice must not hide a newer slice's render. Rows older than 7 days that are not a story's newest are
+// pruned on each write (no cron here).
+const CAPTURE_STATUSES = new Set(["unchanged", "changed", "new", "unseeded", "unstable", "failed"]);
+// what the owner's rolling queue can hold, before the tree and reach checks its consumers apply (4d)
+const QUEUE_STATUSES = new Set(["changed", "new", "unseeded"]);
+const NOTIFY_KINDS = new Set(["queue", "slot"]);
+const STORY_ROWS_MAX = 2000;
+const STORY_KEEP_MS = 7 * 86_400_000;
+
+function text(value, name, { optional = false } = {}) {
+    if (optional && value == null) return null;
+    if (typeof value !== "string" || !value || value.length > 300)
+        refuse(400, `${name} must be a string of 1 to 300 characters`);
+    return value;
+}
+
+function storyRows(captures) {
+    if (!Array.isArray(captures) || captures.length > STORY_ROWS_MAX)
+        refuse(400, `captures must be a list of at most ${STORY_ROWS_MAX}`);
+    return captures.map((c) => {
+        if (!CAPTURE_STATUSES.has(c?.status)) refuse(400, `status must be one of ${[...CAPTURE_STATUSES].join(", ")}`);
+        return [
+            text(c.project, "project"),
+            text(c.story, "story"),
+            c.mode == null ? "" : text(c.mode, "mode"),
+            c.status,
+            text(c.hash, "hash", { optional: true }),
+            text(c.baselineHash, "baselineHash", { optional: true }),
+        ];
+    });
+}
+
+async function postStoryCaptures(body, who, db, nowMs) {
+    if (who.kind !== "slice") refuse(403, "only master's own story-slices.yml records story captures");
+    if (!SHA.test(body?.sha ?? "")) refuse(400, "sha must be a full commit id");
+    if (!SHA.test(body.baselinesTree ?? "")) refuse(400, "baselinesTree must be a full tree id");
+    const artifact = text(body.artifact, "artifact");
+    const notified = body.notified ?? [];
+    if (!Array.isArray(notified) || !notified.every((k) => NOTIFY_KINDS.has(k)))
+        refuse(400, `notified must list some of ${[...NOTIFY_KINDS].join(", ")}`);
+    const run = [Number(who.claims.run_id), Number(who.claims.run_attempt)];
+    const rows = storyRows(body.captures).map(([project, story, mode, status, hash, baselineHash]) => [
+        project,
+        story,
+        mode,
+        body.sha,
+        body.baselinesTree,
+        ...run,
+        artifact,
+        status,
+        hash,
+        baselineHash,
+        nowMs,
+    ]);
+    const units = body.units ?? [];
+    if (!Array.isArray(units) || units.length > STORY_ROWS_MAX)
+        refuse(400, `units must be a list of at most ${STORY_ROWS_MAX}`);
+    const unitRows = units.map((u) => [text(u?.project, "project"), text(u?.unit, "unit"), body.sha, ...run, nowMs]);
+    const columns = ["project", "story", "mode", "sha", "baselines_tree", "run_id", "attempt", "artifact"];
+    const captureInserts = inserts(db, "story_capture", [...columns, "status", "hash", "baseline_hash", "at"], rows);
+    const results = await db.batch([
+        ...captureInserts,
+        ...inserts(db, "story_unit", ["project", "unit", "sha", "run_id", "attempt", "at"], unitRows),
+        ...notified.map((kind) =>
+            db.prepare("INSERT OR REPLACE INTO story_notify (kind, at) VALUES (?, ?)").bind(kind, nowMs),
+        ),
+        db
+            .prepare(
+                `DELETE FROM story_capture WHERE at < ? AND EXISTS (SELECT 1 FROM story_capture n WHERE n.project = story_capture.project
+                 AND n.story = story_capture.story AND n.mode = story_capture.mode
+                 AND (n.run_id > story_capture.run_id OR (n.run_id = story_capture.run_id AND n.attempt > story_capture.attempt)))`,
+            )
+            .bind(nowMs - STORY_KEEP_MS),
+        db
+            .prepare(
+                `DELETE FROM story_unit WHERE at < ? AND EXISTS (SELECT 1 FROM story_unit n WHERE n.project = story_unit.project
+                 AND n.unit = story_unit.unit
+                 AND (n.run_id > story_unit.run_id OR (n.run_id = story_unit.run_id AND n.attempt > story_unit.attempt)))`,
+            )
+            .bind(nowMs - STORY_KEEP_MS),
+        db.prepare("DELETE FROM story_reach WHERE at < ?").bind(nowMs - STORY_KEEP_MS),
+    ]);
+    const stored = results.slice(0, captureInserts.length).reduce((n, r) => n + r.meta.changes, 0);
+    return { stored };
+}
+
+async function postStoryReach(body, who, db, nowMs) {
+    if (who.kind !== "master") refuse(403, "only ci.yml's own push build of master records story reach");
+    if (body?.sha !== who.claims.sha) refuse(403, "a master build records only its own commit's reach");
+    const units = body.units;
+    if (!Array.isArray(units) || units.length > STORY_ROWS_MAX)
+        refuse(400, `units must be a list of at most ${STORY_ROWS_MAX}`);
+    const rows = units.map((u) => [body.sha, text(u, "unit"), nowMs]);
+    if (!rows.length) return { stored: 0 };
+    const results = await db.batch(inserts(db, "story_reach", ["sha", "unit", "at"], rows));
+    return { stored: results.reduce((n, r) => n + r.meta.changes, 0) };
+}
+
+// Each story's unapproved renders since its last unchanged one, under its newest row's baselines tree, newest first:
+// the first of them bounds tools/full-run.mjs's ordering pick rule (early-capture.md 4e)
+const UNAPPROVED_SINCE_CLEAR = `WITH n AS (SELECT project, story, mode, baselines_tree FROM (SELECT project, story, mode, baselines_tree,
+     ROW_NUMBER() OVER (PARTITION BY project, story, mode ORDER BY run_id DESC, attempt DESC) AS rn FROM story_capture) WHERE rn = 1),
+ t AS (SELECT c.project, c.story, c.mode, c.sha, c.status,
+     ROW_NUMBER() OVER (PARTITION BY c.project, c.story, c.mode ORDER BY c.run_id, c.attempt) AS k
+     FROM story_capture c JOIN n ON n.project = c.project AND n.story = c.story AND n.mode = c.mode
+     AND n.baselines_tree = c.baselines_tree),
+ m AS (SELECT project, story, mode, MAX(CASE WHEN status = 'unchanged' THEN k ELSE 0 END) AS clear FROM t GROUP BY project, story, mode)
+ SELECT t.project, t.story, t.mode, t.sha FROM t JOIN m ON m.project = t.project AND m.story = t.story AND m.mode = t.mode
+ WHERE t.k > m.clear AND t.status IN ('changed', 'new', 'unseeded') ORDER BY t.k DESC`; // QUEUE_STATUSES
+
+async function getStoryCaptures(_query, _who, db) {
+    const [{ results: newest }, last, { results: notified }, { results: units }, { results: since }] =
+        await Promise.all([
+            db
+                .prepare(
+                    `SELECT project, story, mode, sha, baselines_tree, run_id, attempt, artifact, status, hash, baseline_hash, at
+                 FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY project, story, mode ORDER BY run_id DESC, attempt DESC) AS rn
+                 FROM story_capture) WHERE rn = 1 ORDER BY project, story, mode`,
+                )
+                .all(),
+            db.prepare("SELECT sha, at FROM story_capture ORDER BY run_id DESC, attempt DESC, at DESC LIMIT 1").first(),
+            db.prepare("SELECT kind, at FROM story_notify").all(),
+            db
+                .prepare(
+                    `SELECT project, unit, sha, at FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY project, unit ORDER BY run_id DESC, attempt DESC)
+                 AS rn FROM story_unit) WHERE rn = 1 ORDER BY project, unit`,
+                )
+                .all(),
+            db.prepare(UNAPPROVED_SINCE_CLEAR).all(),
+        ]);
+    // newest first, so the last write per story is its first unapproved render
+    const first = new Map(since.map((r) => [`${r.project}\n${r.story}\n${r.mode}`, r.sha]));
+    const statuses = {};
+    for (const c of newest) statuses[c.status] = (statuses[c.status] ?? 0) + 1;
+    const when = Object.fromEntries(notified.map((n) => [n.kind, n.at]));
+    return {
+        captures: newest.map((c) => ({
+            project: c.project,
+            story: c.story,
+            mode: c.mode,
+            sha: c.sha,
+            baselinesTree: c.baselines_tree,
+            runId: c.run_id,
+            attempt: c.attempt,
+            artifact: c.artifact,
+            status: c.status,
+            hash: c.hash,
+            baselineHash: c.baseline_hash,
+            at: c.at,
+            ...(QUEUE_STATUSES.has(c.status) && {
+                firstUnapprovedSha: first.get(`${c.project}\n${c.story}\n${c.mode}`) ?? c.sha,
+            }),
+        })),
+        summary: {
+            stories: newest.length,
+            lastSliced: last ? { sha: last.sha, at: last.at } : null,
+            oldestNewestAt: newest.length ? Math.min(...newest.map((c) => c.at)) : null,
+            statuses,
+            queue: newest.filter((c) => QUEUE_STATUSES.has(c.status)).length,
+        },
+        notified: Object.fromEntries([...NOTIFY_KINDS].map((k) => [k, when[k] ?? null])),
+        // when each slice unit was last captured whole: the slice planner's rotation (tools/channel/story-slices.mjs)
+        units: units.map((u) => ({ project: u.project, unit: u.unit, sha: u.sha, at: u.at })),
+    };
+}
+
+// The story units the listed master commits reach (`?shas=<sha>,<sha>`, at most MAX_PARAMS, which D1 binds): the slice planner renders them
+// first. Ordering only, never a reason to skip a render (early-capture.md, 2d).
+async function getStoryReach(query, _who, db) {
+    const shas = (query.get("shas") ?? "").split(",").filter(Boolean);
+    if (!shas.length || shas.length > MAX_PARAMS || !shas.every((s) => SHA.test(s)))
+        refuse(400, `shas lists 1 to ${MAX_PARAMS} full commit ids`);
+    const { results } = await db
+        .prepare(`SELECT sha, unit FROM story_reach WHERE sha IN (${shas.map(() => "?").join(",")}) ORDER BY sha, unit`)
+        .bind(...shas)
+        .all();
+    return { reach: results.map((r) => ({ sha: r.sha, unit: r.unit })) };
+}
+
 const ROUTES = {
     "POST /v1/hold": postHold,
     "POST /v1/verdicts": postVerdict,
@@ -565,13 +884,20 @@ const ROUTES = {
     "POST /v1/issues": postIssue,
     "POST /v1/sites": postSite,
     "POST /v1/base-checks": postBaseCheck,
+    "DELETE /v1/base-checks": deleteBaseCheck,
     "POST /v1/channel-moves": postChannelMove,
+    "POST /v1/story-captures": postStoryCaptures,
+    "POST /v1/story-reach": postStoryReach,
     // Reads take any credential (5.4) and answer from the stored records only.
     "GET /v1/plan": getPlan,
+    "GET /v1/quarantine": getQuarantine,
     "GET /v1/candidate": getCandidate,
     "GET /v1/release-state": getReleaseState,
+    "GET /v1/site": getSite,
     "GET /v1/failures": getFailures,
     "GET /v1/durations/medians": getMedians,
+    "GET /v1/story-captures": getStoryCaptures,
+    "GET /v1/story-reach": getStoryReach,
     [`GET ${TESTS_PATH}:name`]: getTestDurations,
     [`PUT ${TESTS_PATH}:name`]: putTestDurations,
 };
@@ -592,9 +918,10 @@ function routeOf(method, pathname) {
  * @param [deps] what tests inject
  * @param [deps.fetch] the fetch that reads GitHub's OIDC key set
  * @param [deps.now] the current time in milliseconds
+ * @param [deps.keys] the OIDC signing key cache (keyCache()); the isolate's own by default
  * @returns the response
  */
-export async function handle(request, env, { fetch: doFetch = fetch, now = Date.now() } = {}) {
+export async function handle(request, env, { fetch: doFetch = fetch, now = Date.now(), keys = isolateKeys } = {}) {
     const { pathname, searchParams } = new URL(request.url);
     try {
         if (request.method === "GET" && pathname === "/v1/health") {
@@ -603,7 +930,7 @@ export async function handle(request, env, { fetch: doFetch = fetch, now = Date.
         }
         const [key, name] = routeOf(request.method, pathname);
         const route = ROUTES[key] ?? refuse(404, `no ${request.method} ${pathname}`);
-        const who = await authenticate(request, env, doFetch, now);
+        const who = await authenticate(request, env, doFetch, now, keys);
         const body =
             request.method === "GET"
                 ? searchParams

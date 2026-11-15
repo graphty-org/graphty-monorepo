@@ -1,15 +1,21 @@
-import { ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
-import type { GraphSession, StaleNote, StyleRow } from "@graphty/graphty-element/session";
+import { TargetTooltip, ToggleIconButton, Tree, type TreeNodeData } from "@graphty/compact-mantine";
+import type { GraphSession, StaleNote, StyleRow, UnionLeaf } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Group, Menu, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
+import { selectionWorkspaceOn } from "../features";
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { resolveInspected } from "../inspector/inspected";
-import { staleWords } from "../inspector/words";
+import { count, staleWords } from "../inspector/words";
 import { isPanelEscape, matchesKey } from "../keys/keys";
+import { errorWords } from "../project/words";
+import { useSteps } from "../selection/useSteps";
+import { reasonWords } from "../selection/words";
+import { formatCount } from "../settings/numberFormat";
 import type { WorkspaceState, WorkspaceStore } from "../state/store";
 import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { selectedLayerRow } from "../style/row";
 import { StylePanel } from "../style/StylePanel";
 import { colorName, hexOf } from "../style/words";
 import { unitOf } from "../time/timeActions";
@@ -19,69 +25,20 @@ import { ROW_COMMANDS } from "./commands";
 import { KindGlyph } from "./KindGlyph";
 import { RowMenuItems } from "./RowMenu";
 import {
-    builtParts,
-    count,
     findTreeRow,
     groupRowOf,
-    isBaseRow,
     isHidden,
     layerCount,
     layerKindWords,
+    type Paints,
+    paintsOf,
+    paintsWords,
     placeOf,
     rowName,
 } from "./rows";
 
 /** Longer than a closing menu takes to hand focus back to its opener. */
 const MENU_FOCUS_RETURN_MS = 50;
-
-/** What one layer row paints, read from the element's counts. */
-interface Paints {
-    readonly nodes: number | undefined;
-    readonly edges: number | undefined;
-    /** Every property it writes is painted over by rows above (and it is shown). */
-    readonly paintedOver: boolean;
-    /** The names of the layers the picture shows instead, the most elements first. */
-    readonly paintedBy: readonly string[];
-}
-
-/**
- * What a layer row paints: how many nodes and edges its parts match, and whether every property
- * it writes is painted over above it (`styles.counts`).
- * @param session - the element's session.
- * @param row - the layer row.
- * @returns the facts.
- */
-function paintsOf(session: GraphSession, row: StyleRow): Paints {
-    // Only the halves the reader is building count: those that write, else those with a condition.
-    const parts = builtParts(session, row.id);
-    const read = (layer: string | undefined): ReturnType<GraphSession["styles"]["counts"]> | undefined =>
-        layer === undefined ? undefined : session.styles.counts(layer);
-    const node = read(parts?.node);
-    const edge = read(parts?.edge);
-    const painted = [node, edge].flatMap((c) => (c === undefined ? [] : Object.values(c.painted)));
-    // A row that matches nothing paints nothing, so nothing of it is painted over.
-    const matched = (node?.matched ?? 0) + (edge?.matched ?? 0);
-    const by = [node, edge].flatMap((c) => c?.paintedBy ?? []).map((id) => session.styles.get(id)?.name ?? id);
-    return {
-        nodes: node?.matched,
-        edges: edge?.matched,
-        paintedOver: matched > 0 && painted.length > 0 && painted.every((n) => n === 0),
-        paintedBy: [...new Set(by)],
-    };
-}
-
-/**
- * The words for what a layer paints: "5 nodes, 4 edges".
- * @param paints - the facts.
- * @returns the words.
- */
-function paintsWords(paints: Paints): string {
-    const words = [
-        ...(paints.nodes === undefined ? [] : [count(paints.nodes, "node")]),
-        ...(paints.edges === undefined ? [] : [count(paints.edges, "edge")]),
-    ];
-    return words.length === 0 ? "paints nothing" : words.join(", ");
-}
 
 /**
  * The words for who paints over a layer: "Painted over by Degree".
@@ -117,11 +74,11 @@ function rowStates(row: StyleRow): string[] {
  * @returns The count
  */
 function RowCount({ paints }: Readonly<{ paints: Paints }>): React.JSX.Element {
+    const shown =
+        paints.nodes === undefined || (paints.nodes === 0 && paints.edges !== undefined) ? paints.edges : paints.nodes;
     return (
         <span className="ws-row-count" aria-hidden>
-            {paints.nodes === undefined || (paints.nodes === 0 && paints.edges !== undefined)
-                ? (paints.edges ?? "")
-                : paints.nodes}
+            {shown === undefined ? "" : formatCount(shown)}
         </span>
     );
 }
@@ -145,6 +102,58 @@ function PaintedOverMark({ words }: Readonly<{ words: string }>): React.JSX.Elem
             </span>
         </Tooltip>
     );
+}
+
+/**
+ * The wait mark of a layer whose Which nodes reads a run that was removed (the
+ * `selection-workspace` experiment): the step waits for the reader's Run, which the layer's Which
+ * nodes offers beside Edit. Read live from graphty-element (`scope.watchSteps`).
+ * @param props - Component props
+ * @param props.session - the element's session
+ * @param props.rule - the layer's selection
+ * @param props.children - the row's count, drawn after the mark
+ * @returns the mark and the count
+ */
+function WaitMark({
+    session,
+    rule,
+    children,
+}: Readonly<{ session: GraphSession; rule: UnionLeaf; children: React.ReactNode }>): React.JSX.Element {
+    const reading = useSteps(session, rule);
+    const waits = reading.branches.some((branch) => branch.steps.some((step) => step.reason?.code === "run-needed"));
+    const words = reasonWords({ code: "run-needed", params: {} }).long;
+    return (
+        <>
+            {waits && (
+                <Tooltip label={words}>
+                    <span // NOSONAR(S6819): a span holding an SVG glyph, named as one image; an img needs a source
+                        role="img"
+                        aria-label={words}
+                        className="ws-row-over"
+                        data-waiting=""
+                    >
+                        <GLYPHS.waiting size={12} aria-hidden />
+                    </span>
+                </Tooltip>
+            )}
+            {children}
+        </>
+    );
+}
+
+/**
+ * The selection a layer reads when one of its steps measures a run, or null.
+ * @param session - the element's session.
+ * @param id - the layer.
+ * @returns the selection.
+ */
+function measuredSelection(session: GraphSession, id: string): UnionLeaf | null {
+    const selector = session.styles.get(id)?.selector;
+    const where = selector?.match === "rule" ? selector.where : undefined;
+    return where?.kind === "union" &&
+        where.branches.some((branch) => branch.steps.some((step) => step.rule.kind === "measure"))
+        ? where
+        : null;
 }
 
 /**
@@ -212,13 +221,19 @@ function groupMarks(
 
 /**
  * The tree's selection, read from what the inspector shows: a row, rows, or a run's group, which
- * marks the layer that paints it.
- * @param inspected - the store's `inspected`.
+ * marks the layer that paints it; with no row open (a node or the graph shown), the selected layer,
+ * which a selection's Style tab edits.
+ * @param state - the store's `inspected` and `styleRow`.
  * @param session - the element's session.
  * @returns the selected item ids.
  */
-function selectedIds(inspected: WorkspaceState["inspected"], session: GraphSession): string[] {
+function selectedIds(state: Pick<WorkspaceState, "inspected" | "styleRow">, session: GraphSession): string[] {
+    const { inspected } = state;
     switch (inspected?.kind) {
+        case undefined: {
+            const row = selectedLayerRow(session, state.styleRow);
+            return row === undefined ? [] : [row];
+        }
         case "group-row": {
             const resolved = resolveInspected(inspected, null);
             const row = resolved.kind === "group-row" ? groupRowOf(session, resolved.run, resolved.group) : undefined;
@@ -280,6 +295,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     const workspace = useWorkspace();
     const { store } = workspace;
     const inspected = useWorkspaceState((state) => state.inspected);
+    const styleRow = useWorkspaceState((state) => state.styleRow);
     const renamingRow = useWorkspaceState((state) => state.renamingRow);
     // The row menu's "Select more": a checkbox on every row, and a tap adds a row or takes it out
     // (touch).
@@ -287,7 +303,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
     // Done or Escape leaves the mode, keeps the selection and says once how many it holds.
     const leaveSelecting = useCallback((): void => {
         setSelecting(false);
-        const picked = selectedIds(store.get().inspected, session).length;
+        const picked = selectedIds(store.get(), session).length;
         store.set({ announcement: `${count(picked, "layer")} selected` });
     }, [store, session]);
     // Escape leaves the mode first, wherever focus is, before it clears a selection: the window's
@@ -317,10 +333,22 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
             }),
         [session],
     );
+    // A layer's counts follow the data under it (a filter's change, its undo or redo), which no
+    // style event reports: read them again once the element says the picture has caught up.
+    const [, setDerived] = useState(0);
+    useEffect(
+        () =>
+            session.on("project:derived", () => {
+                setDerived((n) => n + 1);
+            }),
+        [session],
+    );
+    const covered = useWorkspaceState((state) => state.selectionWorkspace?.host === "selector");
+    const lastPaints = useRef(new Map<string, Paints>());
     const tree = session.styles.tree();
-    // With no row open, Tab into the tree lands on Everything (else the first row no pin holds),
-    // never on a pinned built-in row such as Hovered that paints nothing until a pointer moves.
-    const restingId = (tree.find((row) => isBaseRow(session, row.id)) ?? tree.find((row) => row.pin === "none"))?.id;
+    // With no row open, Tab into the tree lands on the bottom row no top pin holds, never on a row
+    // pinned on top such as Hovered that paints nothing until a pointer moves.
+    const restingId = tree.find((row) => row.pin !== "top")?.id;
 
     const toItem = (row: StyleRow, folders: readonly StyleRow[]): TreeNodeData => {
         const hidden = isHidden({ row, folders });
@@ -342,8 +370,8 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 variant="swap"
                 // Drawn at rest on every row, and named for what it does now.
                 data-at-rest=""
+                // Its tooltip is its name, as every icon button's is (decided.md, Names and looks).
                 label={row.hidden ? `Show ${row.name}` : `Hide ${row.name}`}
-                tooltip={`Turn this ${row.kind === "folder" ? "folder" : "layer"} ${row.hidden ? "on" : "off"}`}
                 checked={row.hidden}
                 icon={<GLYPHS.show size={14} />}
                 checkedIcon={<GLYPHS.hide size={14} />}
@@ -376,7 +404,12 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 description: states.length === 0 ? undefined : states.join(", "),
             };
         }
-        const paints = paintsOf(session, row);
+        // Under the selection workspace the tree is covered and takes no input: each edit there
+        // keeps the counts it had, read again when the workspace closes (a count over 50,000
+        // nodes took a second per edit, ws-polish 2).
+        const kept = covered ? lastPaints.current.get(row.id) : undefined;
+        const paints = kept ?? paintsOf(session, row);
+        lastPaints.current.set(row.id, paints);
         const over = paints.paintedOver && !hidden;
         // What it paints is its glyph: a dot for nodes, a line for edges, a dot on a line for both.
         const marks = (
@@ -395,19 +428,26 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
         ];
         const name = rowName(session, row.id);
         const plainCount = group?.count ?? <RowCount paints={paints} />;
-        const counted =
+        const marked =
             stale === null ? (
                 plainCount
             ) : (
                 <OutOfDateMark words={staleWords(stale, unitOf(session))}>{plainCount}</OutOfDateMark>
+            );
+        const measured = selectionWorkspaceOn(session) ? measuredSelection(session, row.id) : null;
+        const counted =
+            measured === null ? (
+                marked
+            ) : (
+                <WaitMark session={session} rule={measured}>
+                    {marked}
+                </WaitMark>
             );
         return {
             id: row.id,
             name,
             label: `${name}, ${(layerKindWords(session, row.id) ?? "Layer").toLowerCase()}, ${paintsWords(paints)}`,
             icon: marks,
-            // Everything holding the base look stays at the bottom.
-            movable: !isBaseRow(session, row.id),
             dimmed: hidden,
             // Every layer row says how many it matches: its nodes, or with none its edges.
             count: over ? <PaintedOverMark words={overWords} /> : counted,
@@ -435,7 +475,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                     shortcut={undefined}
                     reason={null}
                     onRun={() => {
-                        const picked = selectedIds(inspected, session);
+                        const picked = selectedIds({ inspected, styleRow }, session);
                         openRows(store, tree, picked.includes(found.row.id) ? picked : [...picked, found.row.id]);
                         setSelecting(true);
                     }}
@@ -447,7 +487,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                     parent={found.folders.at(-1)}
                     onMoveTo={(folderId) => {
                         // The row's menu acts on every selected row when the row is one of them.
-                        const picked = selectedIds(inspected, session);
+                        const picked = selectedIds({ inspected, styleRow }, session);
                         const ids = picked.includes(found.row.id) ? picked : [found.row.id];
                         void orNotice(store, `move ${found.row.name}`, moveRows(session, ids, folderId));
                     }}
@@ -481,11 +521,11 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 <Text span className="ws-style-tree-title">
                     Style layers
                 </Text>
-                <AddMenu session={session} store={store} selected={selectedIds(inspected, session)} />
+                <AddMenu session={session} store={store} selected={selectedIds({ inspected, styleRow }, session)} />
             </div>
             {selecting && (
                 <Group className="ws-style-tree-selecting" gap={4} wrap="nowrap" px={8} justify="space-between">
-                    <Text size="xs">{selectedIds(inspected, session).length} selected</Text>
+                    <Text size="xs">{selectedIds({ inspected, styleRow }, session).length} selected</Text>
                     <Button size="compact-xs" variant="subtle" onClick={leaveSelecting}>
                         Done
                     </Button>
@@ -497,7 +537,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                 checkboxes={selecting}
                 childBand={false}
                 height="100%"
-                selected={selectedIds(inspected, session)}
+                selected={selectedIds({ inspected, styleRow }, session)}
                 // A row opened from elsewhere ("Why this look", a membership) is shown: its
                 // folders open and it scrolls into view.
                 revealSelected
@@ -529,7 +569,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                     void orNotice(store, `rename ${name}`, session.styles.renameRow(id, name));
                 }}
             />
-            <Footer session={session} store={store} />
+            <Footer store={store} />
         </>
     );
 }
@@ -558,11 +598,11 @@ function AddMenu({
     return (
         <Menu position="bottom-end">
             <Menu.Target>
-                <Tooltip label={ADD_ROW_LABEL}>
+                <TargetTooltip label={ADD_ROW_LABEL}>
                     <ActionIcon ref={button} variant="subtle" size="sm" aria-label={ADD_ROW_LABEL}>
                         <GLYPHS.add size={14} />
                     </ActionIcon>
-                </Tooltip>
+                </TargetTooltip>
             </Menu.Target>
             <Menu.Dropdown>
                 <Menu.Item
@@ -579,11 +619,9 @@ function AddMenu({
                         void (async () => {
                             try {
                                 // Several selected rows go into it, as Figma groups a selection;
-                                // the starting rows and pinned rows stay where they are.
+                                // pinned rows stay where they are.
                                 const tree = session.styles.tree();
-                                const rows = selected.filter(
-                                    (id) => !isBaseRow(session, id) && findTreeRow(tree, id)?.row.pin === "none",
-                                );
+                                const rows = selected.filter((id) => findTreeRow(tree, id)?.row.pin === "none");
                                 const folder = await addFolderOf(session, "New folder", rows.length > 1 ? rows : []);
                                 store.set({ inspected: { kind: "folder-row", id: folder } });
                                 setTimeout(() => {
@@ -593,8 +631,9 @@ function AddMenu({
                                     store.set({ renamingRow: folder });
                                 }, MENU_FOCUS_RETURN_MS);
                             } catch (error) {
-                                const why = error instanceof Error ? ` ${error.message}` : "";
-                                store.set({ notice: { message: `Could not add a folder.${why}`, error: true } });
+                                store.set({
+                                    notice: { message: errorWords("Could not add a folder", error), error: true },
+                                });
                             }
                         })();
                     }}
@@ -639,29 +678,6 @@ function staleOf(session: GraphSession, row: StyleRow): StaleNote | null {
 }
 
 /**
- * Whether the tree lacks one of the starting rows (Everything, Selected, Hovered) while the
- * project draws them. TEMPORARY: it reads the element's template ids, which graphty-element does
- * not publish as a fact; owed there as a read of which starting rows are missing.
- * @param session - the element's session.
- * @returns true when Restore starting layers has something to restore.
- */
-function lacksStartingRows(session: GraphSession): boolean {
-    if (!session.config.startingRows) {
-        return false;
-    }
-    const present = new Set(
-        session.styles
-            .list()
-            .flatMap((layer) =>
-                layer.source.by === "template" && layer.source.templateId.startsWith("graphty:starting-")
-                    ? [layer.source.templateId]
-                    : [],
-            ),
-    );
-    return present.size < 3;
-}
-
-/**
  * Puts focus on a row of the style tree.
  * @param id - the row's id.
  */
@@ -692,13 +708,12 @@ function openGraphSettings(store: WorkspaceStore): void {
 }
 
 /**
- * The tree's footer: Graph settings, and Restore starting layers while a starting row is gone.
+ * The tree's footer: Graph settings.
  * @param props - Component props
- * @param props.session - the element's session
  * @param props.store - the chrome store
  * @returns The footer
  */
-function Footer({ session, store }: Readonly<{ session: GraphSession; store: WorkspaceStore }>): React.JSX.Element {
+function Footer({ store }: Readonly<{ store: WorkspaceStore }>): React.JSX.Element {
     return (
         <Stack gap={0} className="ws-style-tree-foot">
             <UnstyledButton
@@ -709,16 +724,6 @@ function Footer({ session, store }: Readonly<{ session: GraphSession; store: Wor
             >
                 <GLYPHS.settings size={14} aria-hidden /> Graph settings
             </UnstyledButton>
-            {lacksStartingRows(session) && (
-                <UnstyledButton
-                    className="ws-style-tree-foot-row cm-focus-inside"
-                    onClick={() => {
-                        void orNotice(store, "restore the starting layers", session.styles.restoreStartingRows());
-                    }}
-                >
-                    <GLYPHS.undo size={14} aria-hidden /> Restore starting layers
-                </UnstyledButton>
-            )}
         </Stack>
     );
 }

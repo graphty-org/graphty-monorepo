@@ -12,6 +12,7 @@ import { GraphBuilder } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
 import { GRAPHML_ISSUE } from "../../../src/formats/graphml/index.js";
+import { configurationOutline, putOutline } from "../../../src/formats/graphml/styles-yed.js";
 import { extractPositions } from "../../../src/positions/index.js";
 import { createRegistry } from "../../../src/registry.js";
 import {
@@ -22,7 +23,9 @@ import {
     styleFingerprint,
     type StyleRule,
 } from "../../../src/styles/internal.js";
+import type { StyleProperty } from "../../../src/styles/types.js";
 import { editGraphmlNodeFill, replaceGraphmlBlock } from "../../styles/formats/graphml.js";
+import { checkOutsideEdit, importForStyles } from "../../styles/harness.js";
 
 const registry = createRegistry();
 const CORPUS = resolve(import.meta.dirname, "../../corpus/styles/graphml");
@@ -85,6 +88,24 @@ describe("GraphML styles: yEd", () => {
         // a font Java may not have is drawn in Dialog's face
         expect(resolveStyles(styles, "node", "labelFont", snapshot)[n5]).toBe("Comic Sans MS, DejaVu Sans, sans-serif");
         expect(resolveStyles(styles, "node", "labelPosition", snapshot)[n5]).toBe("bottom");
+    });
+
+    it("keeps a preserved label's leading line break, which yEd draws as a blank first line", async () => {
+        // graphml-stm32-func n30: "\nCS" is stored two Times New Roman lines tall (35.0 = 2 x 15.5 + 4), and yEd
+        // draws "CS" on the second line; a trailing break adds no line (crocs-muni scrutiny "User's\nprofile\n" is
+        // stored two lines tall), and text without xml:space is trimmed as before
+        const node = (id: string, attrs: string, text: string): string =>
+            `<node id="${id}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
+            `<y:NodeLabel ${attrs}>${text}</y:NodeLabel></y:ShapeNode></data></node>`;
+        const doc = [
+            YED_HEAD,
+            node("lead", 'xml:space="preserve"', "\nCS"),
+            node("trail", 'xml:space="preserve"', "User's\nprofile\n"),
+            node("plain", "", "\n  padded  "),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "label", snapshot)).toEqual(["\nCS", "User's\nprofile", "padded"]);
     });
 
     it("draws Java's logical fonts in the faces Java draws them in, and writes them back as yEd names them", async () => {
@@ -195,6 +216,40 @@ describe("GraphML styles: yEd", () => {
             null,
         ]);
         expect(resolveStyles(styles, "node", "labelOffsetY", snapshot)).toEqual([null, null, 4, null, null, -2, null]);
+    });
+
+    it("reads yEd's inside places (t, b, l, r, tl, ...) as inside and n, s, e, w, nw, ... as outside, with no model named", async () => {
+        // a NodeLabel with no modelName is in yEd's internal model, whose places are inside the node; the exterior
+        // places are the compass names (yFiles InteriorLabelModel and ExteriorLabelModel)
+        const places = ["t", "b", "l", "r", "tl", "tr", "bl", "br", "n", "s", "e", "w", "nw", "ne", "sw", "se"];
+        const doc = [
+            YED_HEAD,
+            ...places.map(
+                (p) =>
+                    `<node id="${p}"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="50" x="0" y="0"/>` +
+                    `<y:NodeLabel modelPosition="${p}">${p}</y:NodeLabel></y:ShapeNode></data></node>`,
+            ),
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc);
+        expect(resolveStyles(styles, "node", "labelPosition", snapshot)).toEqual([
+            "inside-top",
+            "inside-bottom",
+            "inside-left",
+            "inside-right",
+            "inside-top-left",
+            "inside-top-right",
+            "inside-bottom-left",
+            "inside-bottom-right",
+            "top",
+            "bottom",
+            "right",
+            "left",
+            "top-left",
+            "top-right",
+            "bottom-left",
+            "bottom-right",
+        ]);
     });
 
     it("keeps an outside label's distance from its node and a free label's offset, from the stored box", async () => {
@@ -362,10 +417,10 @@ describe("GraphML styles: yEd", () => {
             "0.333333 0.333333 0.333333",
         ]);
         // a color the table leaves unset is the node's fill; one lane color unset is the other
-        expect(colors[at("plain")]).toBe("#ecf5ff #c0c0c0 #c0c0c0");
+        expect(colors[at("plain")]).toBe("#ecf5ff #c0c0c0");
         expect([colors[at("cols")], sizes[at("cols")], direction[at("cols")]]).toEqual([
-            "#ecf5ff #c0c0c0 #c0c0c0",
-            "0.133333 0.333333 0.533333",
+            "#ecf5ff #c0c0c0",
+            "0.133333 0.866667",
             "right",
         ]);
         expect(direction[at("rows")]).toBeNull();
@@ -379,9 +434,12 @@ describe("GraphML styles: yEd", () => {
         const at = (id: string): number => snapshot.ids.indexOf(id);
         expect([fill[at("n0")], opacity[at("n0")]]).toEqual(["#ff0000", 0.501961]);
         expect(fill[at("n1")]).toBe("#ff0000");
-        // yEd runs a gradient from the fill color at the top-left corner into color2 at the bottom-right one
+        // a shape node's gradient runs left to right
         expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n1")]).toBe("#0000ff");
-        expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[at("n1")]).toBe(45);
+        expect(resolveStyles(styles, "node", "fillGradientAngle", snapshot)[at("n1")]).toBe(0);
+        // from a third of the way across, mirrored back over the left third: the left side halfway between
+        expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)[at("n1")]).toBe("#800080 #ff0000 #0000ff");
+        expect(resolveStyles(styles, "node", "fillGradientStops", snapshot)[at("n1")]).toBe("0 0.333333 1");
         expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at("n0")]).toBeNull();
         expect(opacity[at("n2")]).toBe(0);
         expect(opacity[at("n3")]).toBe(0);
@@ -412,10 +470,54 @@ describe("GraphML styles: yEd", () => {
         expect(resolveStyles(styles, "edge", "targetArrow", snapshot)).toEqual(["vee", "none", "triangle"]);
     });
 
+    it("reads a framed edge as yEd draws it: a band of the line's width outlined 1 wide, filled or hollow", async () => {
+        const framed = (line: string, fill: string): string =>
+            `<edge source="a" target="b"><data key="d10"><y:GenericEdge configuration="com.yworks.edge.framed"><y:LineStyle ${line}/><y:Arrows source="none" target="none"/>${fill}</y:GenericEdge></data></edge>`;
+        const fillOf = (c: string): string =>
+            `<y:StyleProperties><y:Property class="java.awt.Color" name="FramedEdgePainter.fillColor" value="${c}"/></y:StyleProperties>`;
+        const { snapshot, styles } = await load(
+            `${YED_HEAD}<node id="a"/><node id="b"/>
+            ${framed('color="#5F809D" type="line" width="3.0"', fillOf("#ffffff"))}
+            ${framed('color="#00CC99" type="line" width="2.0"', "")}
+            ${framed('color="#000000" type="line" width="1.0"', fillOf("#ffffff"))}
+            </graph></graphml>`,
+        );
+        const get = (p: StyleProperty): readonly unknown[] => resolveStyles(styles, "edge", p, snapshot);
+        // graphml-galaxy-lcms-workflow: a band 3 wide stroked 1 wide in #5F809D over a fill of #ffffff, so the white
+        // inside is 2 wide and the outline reaches 2 past it; graphml-synthetic-edges: no fill color, the outline alone
+        expect(get("color")).toEqual(["#ffffff", "#00cc99", "#000000"]);
+        expect(get("width")).toEqual([2, 3, 2]);
+        expect(get("outlineColor")).toEqual(["#5f809d", null, null]);
+        expect(get("outlineWidth")).toEqual([2, null, null]);
+        // its arrowheads are outlined in the line's color, not the fill's
+        expect(get("targetArrowColor")).toEqual(["#5f809d", null, null]);
+    });
+
+    it("reads a generic node's gradient corner to corner and draws none on a table", async () => {
+        const fill = '<y:Fill color="#FF0000" color2="#0000FF" transparent="false"/>';
+        const { snapshot, styles } = await load(
+            [
+                '<?xml version="1.0" encoding="UTF-8"?>',
+                '<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">',
+                '<key for="node" id="d6" yfiles.type="nodegraphics"/>',
+                '<graph edgedefault="directed" id="G">',
+                `<node id="g"><data key="d6"><y:GenericNode configuration="com.yworks.flowchart.process"><y:Geometry height="40" width="80" x="0" y="0"/>${fill}</y:GenericNode></data></node>`,
+                `<node id="t"><data key="d6"><y:TableNode configuration="YED_TABLE_NODE"><y:Geometry height="90" width="150" x="0" y="0"/>${fill}</y:TableNode></data></node>`,
+                "</graph></graphml>",
+            ].join("\n"),
+        );
+        const at = (id: string): number => snapshot.ids.indexOf(id);
+        const angle = resolveStyles(styles, "node", "fillGradientAngle", snapshot);
+        const gradient = resolveStyles(styles, "node", "fillGradient", snapshot);
+        // stretched over the 80 x 40 box, a ramp at atan2(40^2, 80^2) changes color along the box's diagonal
+        expect([gradient[at("g")], angle[at("g")]]).toEqual(["#0000ff", 14.036]);
+        expect(gradient[at("t")]).toBeNull();
+    });
+
     it("adds yEd's defaults beneath the file's own values, and none with toolDefaults: false", async () => {
         const doc = `${YED_HEAD}<node id="a"><data key="d6"><y:ShapeNode><y:Geometry height="30" width="30" x="0" y="0"/></y:ShapeNode></data></node></graph></graphml>`;
         const { snapshot, styles } = await load(doc);
-        expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ffcc00"]);
+        expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual(["#ccccff"]);
         const bare = await load(doc, false);
         expect(bare.styles.styles.rules.filter((r) => r.origin === "tool")).toEqual([]);
         expect(bare.styles.styles.graph.background).toBeUndefined();
@@ -481,6 +583,20 @@ describe("GraphML styles: yEd", () => {
         ]);
     });
 
+    it("draws yEd's BPMN data object as a page with a folded corner and its data store as a cylinder, by their type", async () => {
+        const artifact = (id: string, type: string): string =>
+            `<node id="${id}"><data key="d6"><y:GenericNode configuration="com.yworks.bpmn.Artifact.withShadow"><y:Geometry height="50" width="35" x="0" y="0"/><y:StyleProperties><y:Property class="com.yworks.yfiles.bpmn.view.BPMNTypeEnum" name="com.yworks.bpmn.type" value="${type}"/></y:StyleProperties></y:GenericNode></data></node>`;
+        const doc = `${YED_HEAD}${artifact("a", "ARTIFACT_TYPE_DATA_OBJECT")}${artifact("b", "ARTIFACT_TYPE_DATA_STORE")}${artifact("c", "ARTIFACT_TYPE_REQUEST_MESSAGE")}</graph></graphml>`;
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["polygon", "other:database", "rectangle"]);
+        // the top right corner (y up) is cut
+        expect(resolveStyles(styles, "node", "shapePoints", snapshot)).toEqual([
+            "-1,-1 1,-1 1,0.4 0.2,1 -1,1",
+            null,
+            null,
+        ]);
+    });
+
     it("draws yEd's image and SVG nodes as their pictures from the graph's resources, stretched over the node", async () => {
         const head = YED_HEAD.replace(
             '<graph edgedefault="directed" id="G">',
@@ -505,6 +621,384 @@ describe("GraphML styles: yEd", () => {
             null,
         ]);
         expect(resolveStyles(styles, "node", "imageFit", snapshot)).toEqual(["fill", "fill", null]);
+    });
+
+    it("paints neither the fill nor the border of yEd's image and SVG nodes, only their pictures", async () => {
+        // yEd's own SVG of graphml-stm32-func draws its 15 ImageNodes, each with <y:Fill color="#CCCCFF"> and a black
+        // <y:BorderStyle>, as an <image> alone: #CCCCFF appears nowhere in it (graphml-synthetic-nodes likewise).
+        const paint = '<y:Fill color="#CCCCFF" transparent="false"/><y:BorderStyle color="#000000" width="1.0"/>';
+        const geometry = '<y:Geometry height="30" width="50" x="0" y="0"/>';
+        const doc = [
+            YED_HEAD,
+            `<node id="a"><data key="d6"><y:ImageNode>${geometry}${paint}<y:Image refid="2"/></y:ImageNode></data></node>`,
+            `<node id="b"><data key="d6"><y:SVGNode>${geometry}${paint}<y:SVGModel svgBoundsPolicy="0"><y:SVGContent refid="1"/></y:SVGModel></y:SVGNode></data></node>`,
+            `<node id="c"><data key="d6"><y:ImageNode>${geometry}</y:ImageNode></data></node>`,
+            `<node id="d"><data key="d6"><y:ShapeNode>${geometry}${paint}</y:ShapeNode></data></node>`,
+            "</graph></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["none", "none", "none", null]);
+        expect(resolveStyles(styles, "node", "fill", snapshot)).toEqual([null, null, null, "#ccccff"]);
+        expect(resolveStyles(styles, "node", "borderWidth", snapshot)).toEqual([null, null, null, 1]);
+    });
+
+    it("draws a yEd image or SVG node as its picture alone, without the realizer's fill or border", async () => {
+        // yEd's own drawing of yed-graphml-specimen-images-charts and graphml-synthetic-nodes paints neither
+        const head = YED_HEAD.replace(
+            '<graph edgedefault="directed" id="G">',
+            '<key for="graphml" id="d7" yfiles.type="resources"/><graph edgedefault="directed" id="G">',
+        );
+        const geometry = '<y:Geometry height="36" width="36" x="0" y="0"/>';
+        const paint =
+            '<y:Fill color="#C8C8C8" transparent="false"/><y:BorderStyle color="#505050" type="line" width="1.0"/>';
+        const doc = [
+            head,
+            `<node id="a"><data key="d6"><y:SVGNode>${geometry}${paint}<y:SVGModel svgBoundsPolicy="0"><y:SVGContent refid="1"/></y:SVGModel></y:SVGNode></data></node>`,
+            "</graph>",
+            '<data key="d7"><y:Resources>',
+            '<y:Resource id="1" type="java.lang.String">&lt;svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/&gt;</y:Resource>',
+            "</y:Resources></data></graphml>",
+        ].join("\n");
+        const { snapshot, styles } = await load(doc, false);
+        expect(resolveStyles(styles, "node", "shape", snapshot)).toEqual(["none"]);
+    });
+
+    describe("as yEd's own drawings show them", () => {
+        const values = async (nodes: string, property: StyleProperty): Promise<readonly unknown[]> => {
+            const { snapshot, styles } = await load(`${YED_HEAD}${nodes}</graph></graphml>`, false);
+            return resolveStyles(styles, "node", property, snapshot);
+        };
+        const box = '<y:Geometry height="36" width="56" x="0" y="0"/>';
+        const border = '<y:Fill color="#C8C8C8"/><y:BorderStyle color="#505050" type="line" width="1.0"/>';
+        const realizer = (id: string, type: string, attrs: string, body: string, geometry = box): string =>
+            `<node id="${id}"><data key="d6"><y:${type}${attrs}>${geometry}${border}${body}</y:${type}></data></node>`;
+        const generic = (id: string, conf: string, props = "", geometry = box): string =>
+            realizer(
+                id,
+                "GenericNode",
+                ` configuration="com.yworks.${conf}"`,
+                `<y:StyleProperties>${props}</y:StyleProperties>`,
+                geometry,
+            );
+        const prop = (name: string, value: string): string =>
+            `<y:Property class="java.lang.String" name="com.yworks.bpmn.${name}" value="${value}"/>`;
+        const shapeNode = (id: string, type: string): string =>
+            realizer(id, "ShapeNode", "", `<y:Shape type="${type}"/>`);
+
+        it("draws an entity relationship big entity as a box with corners of 4", async () => {
+            const nodes =
+                generic("a", "entityRelationship.big_entity") + generic("b", "entityRelationship.small_entity");
+            expect((await values(nodes, "shape"))[0]).toBe("round-rectangle");
+            expect((await values(nodes, "cornerRadius"))[0]).toBe(4);
+        });
+
+        it("draws a raised UML class and a 3D rectangle with no outline, and a flat UML class with one", async () => {
+            const uml = (id: string, raised: string): string =>
+                realizer(id, "UMLClassNode", "", `<y:UML use3DEffect="${raised}"/>`);
+            const nodes = uml("a", "true") + uml("b", "false") + shapeNode("c", "rectangle3d");
+            expect(await values(nodes, "borderWidth")).toEqual([0, 1, 0]);
+        });
+
+        it("draws the soft shadow yEd paints under a node whose configuration or SHADOW_PAINTING asks for one", async () => {
+            const painting = (value: string): string =>
+                `<y:Property class="java.lang.Boolean" name="y.view.ShadowNodePainter.SHADOW_PAINTING" value="${value}"/>`;
+            const legacy = (id: string, conf: string): string =>
+                realizer(id, "GenericNode", ` configuration="${conf}"`, "");
+            const nodes =
+                generic("a", "bpmn.Activity.withShadow") +
+                generic("b", "entityRelationship.big_entity") +
+                generic("c", "entityRelationship.big_entity", painting("false")) +
+                generic("d", "flowchart.process") +
+                generic("e", "flowchart.process", painting("true")) +
+                legacy("f", "BevelNode3") +
+                legacy("g", "BevelNodeWithShadow") +
+                legacy("h", "BevelNode2");
+            const soft = 2.5;
+            expect(await values(nodes, "shadowOpacity")).toEqual([
+                ...[0.294, 0.294, null, null, 0.294, 0.294, 0.294],
+                null,
+            ]);
+            expect(await values(nodes, "shadowColor")).toEqual([
+                ...["#000000", "#000000", null, null, "#000000", "#000000", "#000000"],
+                null,
+            ]);
+            expect(await values(nodes, "shadowOffsetX")).toEqual([soft, soft, null, null, soft, 3, 3, null]);
+            expect(await values(nodes, "shadowOffsetY")).toEqual([soft, soft, null, null, soft, 3, 3, null]);
+            expect(await values(nodes, "shadowBlur")).toEqual([4, 4, null, null, 4, 3.5, 3.5, null]);
+        });
+
+        it("draws a y:DropShadow as a hard shadow in its color, moved by its offsets", async () => {
+            const nodes = realizer(
+                "a",
+                "ShapeNode",
+                "",
+                '<y:DropShadow color="#B3A691" offsetX="4" offsetY="8"/><y:Shape type="rectangle"/>',
+            );
+            expect(await values(nodes, "shadowColor")).toEqual(["#b3a691"]);
+            expect(await values(nodes, "shadowOpacity")).toEqual([1]);
+            expect(await values(nodes, "shadowBlur")).toEqual([0]);
+            expect(await values(nodes, "shadowOffsetX")).toEqual([4]);
+            expect(await values(nodes, "shadowOffsetY")).toEqual([8]);
+        });
+
+        it("reads the strips of a raised node from its fill, as Java's brighter() and darker() paint them", async () => {
+            const uml = (id: string, fill: string): string =>
+                `<node id="${id}"><data key="d6"><y:UMLClassNode>${box}${fill}<y:UML use3DEffect="true"/></y:UMLClassNode></data></node>`;
+            const nodes =
+                uml("a", '<y:Fill color="#FFCC00" transparent="false"/>') +
+                uml("b", '<y:Fill color="#000000" transparent="false"/>') +
+                uml("c", '<y:Fill hasColor="false" transparent="false"/>') +
+                uml("d", '<y:Fill color="#FFCC00" transparent="true"/>');
+            expect(await values(nodes, "raisedBorderWidth")).toEqual([1, 1, null, null]);
+            expect(await values(nodes, "raisedBorderLightColor")).toEqual(["#ffff00", "#030303", null, null]);
+            expect(await values(nodes, "raisedBorderDarkColor")).toEqual(["#b28e00", "#000000", null, null]);
+        });
+
+        it("draws a UML note as a box with a notch of 15 out of its top right corner", async () => {
+            const nodes = realizer("a", "UMLNoteNode", "", "", '<y:Geometry height="50" width="100" x="0" y="0"/>');
+            expect(await values(nodes, "shape")).toEqual(["polygon"]);
+            expect(await values(nodes, "shapePoints")).toEqual(["-1,1 0.7,1 0.7,0.4 1,0.4 1,-1 -1,-1"]);
+            const [picture] = await values(nodes, "image");
+            // the fold: a white triangle in the cut corner, outlined, so its two creases show
+            expect(decodeURIComponent(String(picture))).toContain(
+                'stroke="#505050" stroke-width="1" d="M85,0 L85,15 L100,15 Z"',
+            );
+            expect(await values(nodes, "imageFit")).toEqual(["fill"]);
+        });
+
+        it("draws a UML class's stereotype, constraint, attributes and methods as yEd 3.25 does", async () => {
+            // the numbers are yed-graphml-specimen-node-shapes-p3's: a 76 x 56 class named in 10px DejaVu Sans
+            const label =
+                '<y:NodeLabel fontFamily="DejaVu Sans" fontSize="10" height="17.0" modelName="internal" modelPosition="t" width="22.6" x="26.7" y="4.0">Cls</y:NodeLabel>';
+            const uml = (id: string, attrs: string, attributes = "-a: int", methods = "+m()"): string =>
+                realizer(
+                    id,
+                    "UMLClassNode",
+                    "",
+                    `${label}<y:UML use3DEffect="true"${attrs}><y:AttributeLabel>${attributes}</y:AttributeLabel><y:MethodLabel>${methods}</y:MethodLabel></y:UML>`,
+                    '<y:Geometry height="56" width="76" x="0" y="0"/>',
+                );
+            const nodes =
+                uml("plain", "") +
+                uml("stereotype", ' stereotype="entity"') +
+                uml("constraint", ' constraint="abstract"') +
+                uml("omit", ' omitDetails="true"') +
+                uml("empty", "", "", "");
+            const pictures = (await values(nodes, "image")).map((p) =>
+                typeof p === "string" ? decodeURIComponent(p) : null,
+            );
+            const [plain, stereotype, constraint, omit, empty] = pictures;
+            // a rule in the border's color under the name and under the attributes, 1 in from each side
+            expect(plain).toContain('<path fill="none" stroke="#505050" d="M1,20.641H75M1,44.609H75"/>');
+            // each row 5 in from the left in 12px type of the label's family, its baseline as yEd's
+            expect(plain).toMatch(
+                /<text x="5" y="37.779" font-size="12" font-family="DejaVu Sans[^"]*" fill="#000000">-a: int<\/text>/,
+            );
+            expect(plain).toContain('y="61.748"');
+            expect(plain).toContain(">+m()</text>");
+            // the stereotype above the name in the middle; the name, the rules and the rows drop under it
+            expect(stereotype).toMatch(
+                /<text x="38" y="16.139" text-anchor="middle"[^>]*>&lt;&lt;entity&gt;&gt;<\/text>/,
+            );
+            expect(stereotype).toContain('y="60.748"');
+            // the constraint under the name in the middle
+            expect(constraint).toMatch(/<text x="38" y="34.779" text-anchor="middle"[^>]*>\{abstract\}<\/text>/);
+            expect(constraint).toContain('y="60.748"');
+            expect([omit, empty]).toEqual([null, null]);
+            expect(await values(nodes, "labelOffsetY")).toEqual([4, 26.969, 4, 4, 4]);
+        });
+
+        it("draws the part of an SBGN multimer's copy 6 down and right of it that shows", async () => {
+            const mcount = '<y:Property class="java.lang.Integer" name="com.yworks.sbgn.style.mcount" value="2"/>';
+            const nodes = generic("a", "sbgn.Macromolecule", mcount) + generic("b", "sbgn.Macromolecule");
+            const [picture, none] = await values(nodes, "image");
+            expect(none).toBeNull();
+            const svg = decodeURIComponent(String(picture));
+            expect(svg).toContain('<path fill="none" stroke="#505050" stroke-width="1" d="M');
+            // from the copy's top right corner, round its bottom right one, to its bottom left one
+            expect(svg).toContain("L62,18");
+            expect(svg).toContain("L50,42");
+            expect(await values(nodes, "imageWidth")).toEqual([61, null]);
+            expect(await values(nodes, "imageOffsetX")).toEqual([3, null]);
+        });
+
+        it("draws the symbols inside BPMN nodes, in the icon colors where the node sets them", async () => {
+            const square = '<y:Geometry height="36" width="36" x="0" y="0"/>';
+            const nodes =
+                generic("a", "bpmn.Event", prop("type", "EVENT_TYPE_MESSAGE"), square) +
+                generic(
+                    "b",
+                    "bpmn.Event",
+                    prop("type", "EVENT_TYPE_MESSAGE") +
+                        prop("icon.fill", "#ff0000") +
+                        prop("icon.line.color", '"/><script/>'),
+                    square,
+                ) +
+                generic("c", "bpmn.Event", prop("type", "EVENT_TYPE_PLAIN"), square) +
+                generic("d", "bpmn.Activity", prop("taskType", "TASK_TYPE_BUSINESS_RULE"));
+            const [message, red, plain, rule] = (await values(nodes, "image")).map((url) =>
+                typeof url === "string" ? decodeURIComponent(url) : null,
+            );
+            // the envelope in the node's fill and line, where yEd draws it on an event 36 across
+            expect(message).toContain('fill="#c8c8c8" stroke="#505050"');
+            expect(message).toContain("translate(8.22 11.48)");
+            // an icon color that is no color is not read
+            expect(red).toContain('fill="#ff0000" stroke="#505050"');
+            expect(red).not.toContain("script");
+            expect(plain).toBeNull();
+            // the header of the rule's table in the darker fill
+            expect(rule).toContain('fill="#8c8c8c"');
+            expect(await values(nodes, "imageFit")).toEqual(["fill", "fill", null, "fill"]);
+        });
+
+        it("draws an activity's markers side by side along its bottom, past its sides where they do not fit", async () => {
+            const marker = (i: number, name: string): string => prop(`marker${String(i)}`, `BPMN_MARKER_${name}`);
+            const nodes =
+                generic("a", "bpmn.Activity", prop("type", "ACTIVITY_TYPE_SUBPROCESS_LOOP")) +
+                generic(
+                    "b",
+                    "bpmn.Activity",
+                    [marker(1, "LOOP"), marker(2, "PARALLEL"), marker(3, "AD_HOC")].join(""),
+                ) +
+                generic(
+                    "c",
+                    "bpmn.Activity",
+                    [marker(1, "LOOP"), marker(2, "PARALLEL"), marker(3, "COMPENSATION"), marker(4, "AD_HOC")].join(""),
+                );
+            const [loop, three, four] = (await values(nodes, "image")).map((url) =>
+                typeof url === "string" ? decodeURIComponent(url) : "",
+            );
+            // a loop, then a subprocess's plus, each 15 across, 5 apart, about the middle, 4 above the bottom
+            expect(loop).toContain("translate(10.5 17) scale(0.15 0.15)");
+            expect(loop).toContain("translate(30.5 17) scale(0.15 0.15)");
+            expect(three).toContain("translate(0.5 17)");
+            // four are 75 across: 9.5 past each side of a node 56 across
+            expect(four).toContain("translate(-9.5 17)");
+            expect(await values(nodes, "imageFit")).toEqual(["fill", "fill", "none"]);
+            expect(await values(nodes, "imageWidth")).toEqual([null, null, 74]);
+            expect(await values(nodes, "imageOffsetX")).toEqual([null, null, 0]);
+        });
+
+        it("draws an event, a gateway and the round flowchart and SBGN nodes in the largest square of their box", async () => {
+            const confs = [
+                "bpmn.Event",
+                "bpmn.Event.withShadow",
+                "bpmn.Gateway",
+                "flowchart.start2",
+                "flowchart.onPageReference",
+                "flowchart.sequentialData",
+                "flowchart.offPageReference",
+                "sbgn.emptySet",
+                "sbgn.operator",
+            ];
+            const nodes = confs.map((conf, i) => generic(`n${String(i)}`, conf)).join("");
+            expect(await values(nodes, "width")).toEqual(confs.map(() => 36));
+            expect(await values(nodes, "height")).toEqual(confs.map(() => 36));
+        });
+
+        it("draws a conversation as a regular hexagon and keeps the other nodes' boxes", async () => {
+            const nodes =
+                generic("a", "bpmn.Conversation") + generic("b", "flowchart.start1") + generic("c", "bpmn.Activity");
+            expect(await values(nodes, "width")).toEqual([41.569, 56, 56]);
+            expect(await values(nodes, "height")).toEqual([36, 36, 36]);
+        });
+
+        it("draws an end event and a call activity with a line of 3 and rounds an activity's corners by 4", async () => {
+            const nodes =
+                generic("a", "bpmn.Event", prop("characteristic", "EVENT_CHARACTERISTIC_END")) +
+                generic("b", "bpmn.Activity", prop("activityType", "ACTIVITY_TYPE_CALL_ACTIVITY")) +
+                generic("c", "bpmn.Event", prop("characteristic", "EVENT_CHARACTERISTIC_START")) +
+                generic("d", "bpmn.Activity", prop("activityType", "ACTIVITY_TYPE_TRANSACTION"));
+            expect(await values(nodes, "borderWidth")).toEqual([3, 3, 1, 1]);
+            expect((await values(nodes, "cornerRadius"))[1]).toBe(4);
+        });
+
+        it("draws the second line of an intermediate event and a transaction, and a message's flap", async () => {
+            const nodes =
+                generic("a", "bpmn.Event", prop("characteristic", "EVENT_CHARACTERISTIC_INTERMEDIATE_CATCHING")) +
+                generic("b", "bpmn.Activity", prop("activityType", "ACTIVITY_TYPE_TRANSACTION")) +
+                generic("c", "bpmn.Event", prop("characteristic", "EVENT_CHARACTERISTIC_START")) +
+                generic("d", "bpmn.Artifact", prop("type", "ARTIFACT_TYPE_REPLY_MESSAGE"));
+            const [event, transaction, start, message] = await values(nodes, "shapeLines");
+            // 2.5 inside the outline, at the circle's right and round the box's corner of 4
+            expect(String(event).split(" ")[0]).toBe("1-2.5,0+0");
+            expect(String(transaction).split(" ")[0]).toBe("1-2.5,1-6.5");
+            expect(String(transaction).split(" ").at(-1)).toBe("1-2.5,1-6.5");
+            expect(start).toBeNull();
+            expect(message).toBe("-1,1 0,0 1,1");
+        });
+
+        it("draws the lines inside a flowchart predefined process", async () => {
+            const picture = (src: unknown): string =>
+                typeof src === "string" ? decodeURIComponent(src.slice(src.indexOf(",") + 1)) : "";
+            const [process] = (await values(generic("b", "flowchart.predefinedProcess"), "image")).map(picture);
+            expect(process).toContain("M10,0L10,36M46,0L46,36");
+        });
+
+        it("draws BPMN group, annotation and message artifacts as yEd does", async () => {
+            const tall = '<y:Geometry height="44" width="36" x="0" y="0"/>';
+            const nodes = ["GROUP", "ANNOTATION", "REQUEST_MESSAGE", "REPLY_MESSAGE"]
+                .map((t) => generic(t, "bpmn.Artifact", prop("type", `ARTIFACT_TYPE_${t}`), tall))
+                .join("");
+            expect(await values(nodes, "shape")).toEqual(["round-rectangle", "rectangle", "rectangle", "rectangle"]);
+            expect((await values(nodes, "cornerRadius"))[0]).toBe(4);
+            expect((await values(nodes, "fillOpacity"))[0]).toBe(0);
+            expect((await values(nodes, "borderWidth")).slice(0, 2)).toEqual([1, 0]);
+            // a message is an envelope 3 wide by 2 high, a reply's a darker one
+            expect(await values(nodes, "height")).toEqual([44, 44, 24, 24]);
+            expect((await values(nodes, "fill")).slice(2)).toEqual(["#c8c8c8", "#8c8c8c"]);
+        });
+
+        it("keeps a node's center when it is written at its drawn size", async () => {
+            const box = '<y:Geometry height="44" width="36" x="10" y="20"/>';
+            const message = generic("a", "bpmn.Artifact", prop("type", "ARTIFACT_TYPE_REQUEST_MESSAGE"), box);
+            const { snapshot, styles } = await load(`${YED_HEAD}${message}</graph></graphml>`);
+            const text = await registry.exportGraphToString(snapshot, "graphml", { styles });
+            expect(text).toContain('height="24" width="36" x="10" y="30"');
+        });
+
+        it("draws a flowchart annotation with no outline round its box", async () => {
+            expect(await values(generic("a", "flowchart.annotation"), "borderWidth")).toEqual([0]);
+            expect(await values(generic("a", "flowchart.annotation"), "shape")).toEqual(["rectangle"]);
+        });
+
+        it("draws the SBGN nodes as yEd draws them", async () => {
+            const nodes =
+                generic("a", "sbgn.simpleChemical") +
+                generic("b", "sbgn.stateVariable") +
+                generic("c", "sbgn.perturbingAgent") +
+                generic("d", "sbgn.nucleicAcidFeature");
+            expect(await values(nodes, "shape")).toEqual(["round-rectangle", "round-rectangle", "polygon", "polygon"]);
+            expect((await values(nodes, "cornerRadius")).slice(0, 2)).toEqual([18, 18]);
+            const points = await values(nodes, "shapePoints");
+            expect(points[2]).toBe("-1,1 1,1 0.679,0 1,-1 -1,-1 -0.679,0");
+            // a flat top and rounded bottom corners, y up
+            expect(String(points[3]).startsWith("-1,1 1,1 1,-0.333")).toBe(true);
+            expect(String(points[3]).endsWith("-1,-0.333")).toBe(true);
+        });
+
+        it("draws the old bevel nodes as boxes with corners of 3, the second and third of 10", async () => {
+            const nodes =
+                generic("a", "bevelNode") +
+                generic("b", "bevelNode2") +
+                generic("c", "bevelNode3") +
+                generic("d", "bevelNodeWithShadow");
+            expect(await values(nodes, "shape")).toEqual(Array.from({ length: 4 }, () => "round-rectangle"));
+            expect(await values(nodes, "cornerRadius")).toEqual([3, 10, 10, 3]);
+        });
+
+        it("draws the ShapeNode types yEd draws differently from their names", async () => {
+            const types = ["fatarrow", "fatarrow2", "triangle2", "hexagon2", "octagon2"];
+            const nodes = types.map((t) => shapeNode(t, t)).join("");
+            expect(await values(nodes, "shape")).toEqual(["polygon", "polygon", "polygon", "rectangle", "rectangle"]);
+            expect(await values(nodes, "shapePoints")).toEqual([
+                "-1,1 0.8,1 1,0 0.8,-1 -1,-1 -0.8,0",
+                "-0.8,1 1,1 0.8,0 1,-1 -0.8,-1 -1,0",
+                "-1,1 1,1 0,-1",
+                null,
+                null,
+            ]);
+        });
     });
 
     it("leaves the yfiles columns as they were", async () => {
@@ -538,6 +1032,89 @@ describe("GraphML styles: yFiles 3", () => {
         expect(resolveStyles(styles, "node", "width", snapshot)[i]).toBe(145);
         expect(resolveStyles(styles, "node", "label", snapshot)[i]).toBe("Order");
         expect(resolveStyles(styles, "node", "labelFont", snapshot)[i]).toBe("Arial");
+    });
+
+    it("reads a RectangleNodeStyle's corners=TOP as a box rounded along its top", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(
+                join(import.meta.dirname, "../../fidelity/specimens/yed-live-graphml/specimen-node-shapes.graphml"),
+            ),
+        );
+        const shape = resolveStyles(styles, "node", "shape", snapshot);
+        expect(shape[snapshot.ids.indexOf("corners-top")]).toBe("other:top-round-rectangle");
+        expect(shape[snapshot.ids.indexOf("scale-corner-size")]).toBe("round-rectangle");
+    });
+
+    it("paints yEd's BevelNode family as a ramp over the upper half with a line 2 in, in the border's color", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(
+                join(import.meta.dirname, "../../fidelity/specimens/yed-graphml/specimen-node-shapes-p2.graphml"),
+            ),
+        );
+        const at = snapshot.ids.indexOf("generic-legacy-bevelnode");
+        const read = (property: StyleProperty): unknown => resolveStyles(styles, "node", property, snapshot)[at];
+        expect(read("fillGradientColors")).toBe("#f1f1f1 #d3d3d3 #c8c8c8 #c8c8c8");
+        expect(read("borderWidth")).toBe(0);
+        expect(read("borderColor")).toBe("#505050");
+        expect(String(read("shapeLines")).split(" ")[0]).toBe("-1+2.000,1-3.000");
+    });
+
+    it("draws com.yjava bevels and shiny plates as yEd's default: a box in the fill, a solid line of 1", async () => {
+        const { snapshot, styles } = await load(corpusBytes(join(CORPUS, "fidelity/synthetic-nodes.graphml")));
+        const read = (id: string, property: StyleProperty): unknown =>
+            resolveStyles(styles, "node", property, snapshot)[snapshot.ids.indexOf(id)];
+        // BevelNode: color2 #3366FF and a dashed border of 0.5; ShinyPlateNode3: color2 #FFFFFF and a border of 2
+        for (const [id, fill] of [
+            ["generic-12", "#99ccff"],
+            ["generic-15", "#c0c0c0"],
+        ]) {
+            expect(read(id, "shape")).toBe("rectangle");
+            expect(read(id, "fill")).toBe(fill);
+            expect(read(id, "fillGradient") ?? null).toBeNull();
+            expect(read(id, "fillGradientColors") ?? null).toBeNull();
+            expect(read(id, "borderColor")).toBe(fill);
+            expect(read(id, "borderWidth")).toBe(1);
+            expect(read(id, "borderStyle")).toBe("solid");
+        }
+        // BevelNode2's dotted border of 5 and ShinyPlateNode's dash-dot one
+        expect(read("generic-13", "borderWidth")).toBe(1);
+        expect(read("generic-14", "borderStyle")).toBe("solid");
+    });
+
+    it("draws no line in a bevel whose border has no color", async () => {
+        const { snapshot, styles } = await load(
+            corpusBytes(join(CORPUS, "yed-genericnode/awslabs__aws-c-io__slots.graphml")),
+        );
+        const lines = resolveStyles(styles, "node", "shapeLines", snapshot);
+        const paint = resolveStyles(styles, "node", "fillGradientColors", snapshot);
+        expect(paint.filter((p) => p !== null).length).toBeGreaterThan(0);
+        expect(lines.filter((l) => l !== null)).toEqual([]);
+    });
+
+    it("keeps a display's curves their length at any width", () => {
+        const points = (width: number): string => {
+            const put: Record<string, unknown> = {};
+            const outline = configurationOutline("com.yworks.flowchart.display");
+            if (outline === null) {
+                throw new Error("no outline");
+            }
+            putOutline(outline, width, 36, (property, value) => {
+                put[property] = value;
+            });
+            return String(put.shapePoints);
+        };
+        // 18 in from the left side at the curve's end: a fraction of the half width
+        expect(points(48).split(" ")[8]).toBe("-0.25,-1");
+        expect(points(56).split(" ")[8]).toBe("-0.357,-1");
+    });
+
+    it("draws a line in a color with no alpha as no line", async () => {
+        const border = '<y:BorderStyle color="#FFFFFF00" type="line" width="1.0"/>';
+        const graph = `<graphml xmlns="http://graphml.graphdrawing.org/xmlns" xmlns:y="http://www.yworks.com/xml/graphml">
+            <key for="node" id="d0" yfiles.type="nodegraphics"/><graph edgedefault="directed"><node id="n"><data key="d0">
+            <y:ShapeNode><y:Geometry height="10" width="1" x="0" y="0"/>${border}</y:ShapeNode></data></node></graph></graphml>`;
+        const { snapshot, styles } = await load(new TextEncoder().encode(graph));
+        expect(resolveStyles(styles, "node", "borderWidth", snapshot)[0]).toBe(0);
     });
 
     it("notes shared references that refer to each other and finishes", async () => {
@@ -739,7 +1316,7 @@ describe("GraphML styles: writing", () => {
                     values: {
                         fill: ["#e8eef7", "#e8eef7"],
                         fillGradient: ["#b7c9e3", "#b7c9e3"],
-                        fillGradientAngle: [45, 90],
+                        fillGradientAngle: [0, 90],
                         label: ["A", "B"],
                         labelPosition: ["inside-top-right", "top"],
                     },
@@ -753,11 +1330,91 @@ describe("GraphML styles: writing", () => {
             losses
                 .filter((l) => l.code === "W_STYLE_APPROXIMATED")
                 .map((l) => [l.style?.target, l.style?.property, l.count]),
-        ).toEqual([["node", "fillGradientAngle", 1]]);
+        ).toEqual([
+            // yEd paints a shape node's ramp mirrored over its left third, not as its two colors
+            ["node", "fillGradientColors", 2],
+            ["node", "fillGradientStops", 2],
+            ["node", "fillGradientAngle", 1],
+        ]);
         const text = await registry.exportGraphToString(snapshot, "graphml", { styles });
         expect(text).toContain('<y:Fill color="#E8EEF7" transparent="false" color2="#B7C9E3"/>');
         expect(text).toContain('modelName="internal" modelPosition="tr"');
         expect(text).toContain('modelName="eight_pos" modelPosition="n"');
+    });
+
+    it("notes a gradient on a node with no fill color, which a y:Fill cannot hold", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        const snapshot = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: {
+                    values: {
+                        fillGradient: ["#b7c9e3"],
+                        fillGradientColors: ["#ffffff #0000ff #ffffff"],
+                        fillGradientStops: ["0 0.5 1"],
+                    },
+                },
+                fingerprint: styleFingerprint(snapshot),
+            },
+            { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+        );
+        const losses = registry.checkExport(snapshot, "graphml", { styles });
+        expect(
+            losses
+                .filter((l) => l.code === "W_STYLE_APPROXIMATED")
+                .map((l) => [l.style?.target, l.style?.property, l.count]),
+        ).toEqual([
+            ["node", "fillGradient", 1],
+            ["node", "fillGradientColors", 1],
+            ["node", "fillGradientStops", 1],
+        ]);
+    });
+
+    it("an outside edit of a yEd color comes back as its fill and ramp only; any other new exception fails", async () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        b.addNode("b");
+        const snapshot = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: {
+                    values: {
+                        fill: ["#e8eef7", "#e8eef7"],
+                        fillGradient: ["#b7c9e3", "#b7c9e3"],
+                        fillGradientAngle: [0, 0],
+                        borderColor: ["#505050", "#505050"],
+                    },
+                },
+                fingerprint: styleFingerprint(snapshot),
+            },
+            { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+        );
+        const written = await registry.exportGraphToBytes(snapshot, "graphml", { styles });
+        const back = (await importForStyles(registry, "graphml", written)).imported;
+        if (back === null || back === undefined) {
+            throw new Error("no styles");
+        }
+        const derives = { fill: { fillGradientColors: "fillGradient" } };
+        const fillEdited = editGraphmlNodeFill(written);
+        if (fillEdited === null) {
+            throw new Error("no fill to edit");
+        }
+        // the edited color is node a's fill and the ramp yEd paints through it
+        expect(await checkOutsideEdit(registry, "graphml", fillEdited, back, derives)).toEqual([]);
+        expect(await checkOutsideEdit(registry, "graphml", fillEdited, back)).toEqual([
+            "an outside edit gave new exceptions fill, fillGradientColors on one element, not one edited value",
+        ]);
+        // the same edit and node a's border color too: an unrelated exception on the edited element fails
+        const text = new TextDecoder().decode(fillEdited);
+        const border = text.indexOf('<y:BorderStyle color="#505050"');
+        expect(border).toBeGreaterThan(0);
+        const both = text.slice(0, border) + text.slice(border).replace('color="#505050"', 'color="#FF0000"');
+        expect(await checkOutsideEdit(registry, "graphml", new TextEncoder().encode(both), back, derives)).toEqual([
+            "an outside edit gave new exceptions borderColor, fill, fillGradientColors on one element, not one edited value",
+        ]);
     });
 
     it("replaces a yFiles 3 file's drawing state by yEd graphics in yEd's namespace", async () => {

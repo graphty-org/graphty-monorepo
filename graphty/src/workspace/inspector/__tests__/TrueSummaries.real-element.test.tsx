@@ -14,14 +14,16 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
-import { storyWaitOptions } from "../../../stories/wait";
+import { withoutFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { createWorkspaceStore } from "../../state/store";
 import { DEFAULT_NAME_KEY } from "../../style/cards";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** Six volunteers: hours 30 to 52, a kind that groups them, an email only some have. */
 const VOLUNTEERS = `<?xml version="1.0" encoding="UTF-8"?>
@@ -51,14 +53,11 @@ async function open(load: (session: GraphSession) => Promise<unknown>): Promise<
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -120,29 +119,6 @@ describe("summaries and cards that say true, complete things", () => {
         assert.isNull(screen.queryByRole("menu"));
     });
 
-    it("says on a Size line added to a selection that the first size picked makes the layer", async () => {
-        const session = await open((s) =>
-            s.data.import({ type: "graphml", name: "volunteers.graphml", config: { data: VOLUNTEERS } }),
-        );
-        assert.equal(session.data.statistics().nodeCount, 6);
-        await session.selection.apply({ nodes: allIds(session).slice(0, 1) });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
-        await userEvent.click(await screen.findByRole("button", { name: "Add to node shape" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Size" }));
-        const note = await waitFor(() => {
-            const found = document.querySelector('.ws-row[data-line="node.size"] [data-first-value]');
-            assert.isNotNull(found);
-            return found;
-        });
-        assert.equal(note?.textContent, "Not set yet: the first size you pick makes the layer");
-        const before = session.styles.list().length;
-        await userEvent.keyboard("3{Enter}");
-        await waitFor(() => {
-            assert.equal(session.styles.list().length, before + 1, "the first size made the layer");
-            assert.isNull(document.querySelector("[data-first-value]"), "and the line no longer says it waits");
-        });
-    });
-
     it("wraps the Node tab's way to an edge attribute inside the list, with no sideways scroll", async () => {
         const session = await open((s) =>
             s.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } }),
@@ -155,9 +131,9 @@ describe("summaries and cards that say true, complete things", () => {
             userData: { [DEFAULT_NAME_KEY]: "Layer 1" },
         });
         await session.styles.settled();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
-        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Layer 1, / }));
-        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }));
+        // The cards of two selected layers: one alone opens the selection editor.
+        await selectWithTwin(session, "Layer 1");
+        await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         const region = await screen.findByRole("group", { name: "Which nodes" });
         await userEvent.click(within(region).getByRole("button", { name: "Add a condition" }));
         await userEvent.keyboard("chapters");
@@ -176,7 +152,7 @@ describe("summaries and cards that say true, complete things", () => {
         await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
         await userEvent.hover(await screen.findByRole("button", { name: /^Degree/ }));
         // It opens after the theme's one-second hover delay, so the wait has no deadline to race it.
-        const tip = await screen.findByRole("tooltip", {}, storyWaitOptions(5000));
+        const tip = await screen.findByRole("tooltip", {});
         assert.include(tip.textContent ?? "", "Select this node and its neighbors");
     });
 

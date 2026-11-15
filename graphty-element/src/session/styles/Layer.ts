@@ -47,7 +47,7 @@
 
 import { LABEL_LOOKS, labelLook } from "../../catalog/label-looks";
 import { knownPaletteIds, paletteDescriptor } from "../../catalog/palettes";
-import { shaderDescriptor, shaderIdsFor } from "../../catalog/shaderRegistry";
+import { projectShaderDescriptor, shaderIdsFor } from "../../catalog/shaderRegistry";
 import {
     isClockBinding,
     isShaderId,
@@ -79,6 +79,7 @@ import type {
 import { MIN_DRAWN_FONT_SIZE } from "../../config/RichTextStyle";
 import { isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
+import { isPlainObject } from "../../utils/isPlainObject";
 import { deepFreeze } from "../project/draft";
 import type { RunProgressReport } from "../runs";
 import { trimTrailingSeparators } from "../runs/runId";
@@ -177,6 +178,7 @@ export interface Layer {
      * Where a layer made from a file's styles came from, read with `fileStyleOf(layer)`; absent
      * on every other layer. The element's own facts, kept apart from `userData` so a consumer's
      * bag is never shared with them. Never used to paint.
+     * @experimental file-styles
      */
     readonly fileStyle?: FileStyleOrigin;
 }
@@ -218,7 +220,9 @@ export interface LayerProblem {
     readonly candidates?: readonly string[];
     /**
      * A refused shader use, as a code and its values: `shader.place-unsupported`
-     * `{ shader, place, allowed }` or `shader.target-mismatch` `{ expected, found }`.
+     * `{ shader, place, allowed }`, `shader.target-mismatch` `{ expected, found }`, or
+     * `shader.uses-not-a-list` `{ channel, found }` for a shader list written as something else
+     * (`found` is the `typeof` it was written as, or `"null"`).
      * @since 3.36.0
      */
     readonly fact?: ShaderProblem;
@@ -318,9 +322,13 @@ export interface LayerCheckOptions {
      */
     readonly admitScope?: (scope: unknown) => unknown;
     /**
-     * Whether the layer may write no channel: an edit asked to keep a layer whose last value it
-     * takes away, which then stays in place painting nothing, as a starting row that writes
-     * nothing does.
+     * A `{ match: "rule" }` selector's rule as the layer stores it: every union leaf given its
+     * branch and step ids and branch colors. Absent, the rule is stored as given.
+     */
+    readonly admitRule?: (rule: unknown) => unknown;
+    /**
+     * No longer read: every layer may write no channel (issue #5905). Kept until its callers in
+     * StylesApi.ts stop passing it.
      */
     readonly mayBeEmpty?: boolean;
     /**
@@ -416,6 +424,11 @@ export interface RepaintContext {
      * @param progress - What changed.
      */
     report(progress: RunProgressReport): void;
+    /**
+     * True when the elements named are all that changed, so the renderer places what is painted
+     * and visits nothing else: a time window's slide.
+     */
+    readonly rowsOnly?: boolean;
 }
 
 /** How much a repaint actually painted, which is what the change announcement carries. */
@@ -1231,13 +1244,12 @@ function resolveTarget(spec: LayerSpec, channels: readonly string[], log: Proble
 }
 
 /**
- * Check the parts of a specification that are neither channels nor a selector.
+ * Check the parts of a specification that are neither channels nor a selector. Any layer may write
+ * no channel: it paints nothing until a value is written into it, whoever made it.
  * @param spec - The specification.
- * @param channels - The channels it writes.
  * @param log - Where problems are collected.
- * @param mayBeEmpty - Whether it may write no channel.
  */
-function checkShape(spec: LayerSpec, channels: readonly string[], log: ProblemLog, mayBeEmpty = false): void {
+function checkShape(spec: LayerSpec, log: ProblemLog): void {
     if (typeof spec.name !== "string" || spec.name.trim() === "") {
         report(log, {
             code: "E_BAD_LAYER",
@@ -1252,17 +1264,6 @@ function checkShape(spec: LayerSpec, channels: readonly string[], log: ProblemLo
             message: `"${spec.kind}" is not a layer kind.`,
             path: "kind",
             candidates: ["base", "encoding", "highlight", "custom"],
-        });
-    }
-
-    // A starting row (Everything, Hovered) is there to be written into, so it may start empty, and
-    // so may a part of a row, which a row write adds empty when it changes what the row paints.
-    const starting = spec.source?.by === "template" && spec.source.templateId.startsWith("graphty:starting-");
-    if (channels.length === 0 && !starting && spec.row === undefined && !mayBeEmpty) {
-        report(log, {
-            code: "E_BAD_LAYER",
-            message: "A layer with neither a set nor an encode writes no channel and would paint nothing.",
-            path: "set",
         });
     }
 
@@ -1318,7 +1319,18 @@ function checkSelector(
  * @returns The specification to check and build from.
  */
 function admitSelectorScope(spec: LayerSpec, options: LayerCheckOptions, log: ProblemLog): LayerSpec {
-    const selector = spec.selector as { match?: unknown; of?: unknown } | undefined;
+    const selector = spec.selector as { match?: unknown; of?: unknown; where?: unknown } | undefined;
+    if (options.admitRule !== undefined && typeof selector === "object" && selector?.match === "rule") {
+        try {
+            const where = options.admitRule(selector.where);
+            return where === selector.where ? spec : ({ ...spec, selector: { ...selector, where } } as LayerSpec);
+        } catch (error) {
+            report(log, problemFrom(error, "selector"));
+
+            return spec;
+        }
+    }
+
     if (options.admitScope === undefined || typeof selector !== "object" || selector?.match !== "member") {
         return spec;
     }
@@ -1423,21 +1435,6 @@ function checkChannels(
 // ---------------------------------------------------------------------------------------------
 
 /**
- * Whether a value is a map a layer may write: a plain object, or one with no prototype.
- * @param value - Anything.
- * @returns True for a plain map.
- */
-function isPlainMap(value: unknown): value is Record<string, unknown> {
-    if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        return false;
-    }
-
-    const prototype = Object.getPrototypeOf(value) as unknown;
-
-    return prototype === Object.prototype || prototype === null;
-}
-
-/**
  * Check one shader id against the catalog: it must be listed, drawn on the list's target (a node
  * list also takes group outlines), and allowed at the place the use asks for.
  * @param id - The id.
@@ -1454,7 +1451,7 @@ function checkShaderRef(
     path: string,
     log: ProblemLog,
 ): ShaderDescriptor | null {
-    const descriptor = shaderDescriptor(id);
+    const descriptor = projectShaderDescriptor(id);
     if (descriptor === undefined) {
         report(log, {
             code: "E_UNKNOWN_SHADER",
@@ -1619,7 +1616,7 @@ function paramValueFits(param: ShaderDescriptor["params"][number], value: unknow
  * @param log - Where problems are collected.
  */
 function checkParamSet(shader: ShaderDescriptor | null, params: unknown, path: string, log: ProblemLog): void {
-    if (!isPlainMap(params)) {
+    if (!isPlainObject(params)) {
         report(log, { code: "E_BAD_LAYER", message: "A shader's parameters are a map, such as { speed: 2 }.", path });
 
         return;
@@ -1643,7 +1640,7 @@ const USE_KEYS: ReadonlySet<string> = new Set(["shader", "place", "params", "gro
  * @param log - Where problems and paths are collected.
  */
 function checkShaderUse(use: unknown, target: "node" | "edge", path: string, catalog: boolean, log: ProblemLog): void {
-    if (!isPlainMap(use) || !isShaderId(use.shader) || Object.keys(use).some((key) => !USE_KEYS.has(key))) {
+    if (!isPlainObject(use) || !isShaderId(use.shader) || Object.keys(use).some((key) => !USE_KEYS.has(key))) {
         report(log, {
             code: "E_BAD_LAYER",
             message: 'A shader use is { shader: "<id>", place?, params?, groupBy?, off? }.',
@@ -1700,6 +1697,10 @@ function checkShaderValue(
             code: "E_BAD_LAYER",
             message: `${descriptor.plainName} takes a list of shader uses, such as [{ shader: "lock-on-reticle" }].`,
             path,
+            fact: {
+                code: "shader.uses-not-a-list",
+                params: { channel: descriptor.channel, found: value === null ? "null" : typeof value },
+            },
         });
 
         return;
@@ -1780,7 +1781,7 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
     const channels = channelsWritten(spec);
     const target = resolveTarget(spec, channels, log);
 
-    checkShape(spec, channels, log, options.mayBeEmpty === true);
+    checkShape(spec, log);
 
     const universal =
         typeof spec.selector === "object" && spec.selector !== null && spec.selector.match === "everything";

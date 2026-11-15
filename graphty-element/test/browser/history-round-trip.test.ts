@@ -17,15 +17,21 @@
 import "../helpers/legacyPlugins";
 
 import { PhotoDome } from "@babylonjs/core";
-import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
-import { afterEach, assert, describe, it } from "vitest";
+import type { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import { afterEach, assert, beforeAll, describe, it } from "vitest";
 
 import type { Edge } from "../../src/Edge";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
 import { nextFrame } from "../helpers/real-input";
 import { FIXTURES } from "../session/history/fixtures";
 import { roundTrip } from "../session/history/round-trip-harness";
+
+// The timeline is an experiment: this file's sessions switch it on.
+beforeAll(() => {
+    setDefaultFeatures(["timeline"]);
+});
 
 const cleanups: (() => void)[] = [];
 
@@ -42,7 +48,7 @@ afterEach(() => {
  */
 async function atRest(graph: Graph): Promise<void> {
     await graph.waitForSettled();
-    for (let wait = 0; wait < 600 && graph.getLayoutManager().running; wait++) {
+    while (graph.getLayoutManager().running) {
         await nextFrame();
     }
 
@@ -61,6 +67,10 @@ async function loadedGraph(): Promise<Graph> {
     document.body.appendChild(container);
     const graph = new Graph(container);
     await graph.init();
+    // The working graph off: with it on, a filter change lays out what is shown outside any history
+    // step, so an undo brings the filter back but not the places the layout gave the nodes it then
+    // hides (design/working-graph/design.md, section 7), and the digests could not match.
+    graph.getSession().workingGraph = false;
     await graph.setLayout("circular");
     await graph.addNodes([{ id: "n1" }, { id: "n2" }, { id: "n3" }]);
     await graph.addEdges([

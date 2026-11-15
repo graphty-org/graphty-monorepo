@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { CI_GROUPS, groupMemberDim, groupTimes } from "../../src/model/groups.js";
 import {
+    type Agg,
     type CostItem,
     DAILY_ROW_LIMIT,
     DAY,
@@ -15,7 +17,7 @@ import { type MemberConfig, type SlaConfig, SLAS } from "../../src/sla/config.js
 import { evaluate, projectMonth } from "../../src/sla/engine.js";
 import { HOUR, job, MIN, obs, pr, run, T0 } from "../model/helpers.js";
 
-const LIVE = ["collector", "ci-results", "release", "npm", "billing", "coverage"];
+const LIVE = ["collector", "views", "ci-results", "release", "npm", "billing", "coverage"];
 
 /** A store whose sources have written for hours and just now, holding `items`, recomputed. */
 async function world(items: RawItem[], now = T0, fresh = LIVE) {
@@ -144,16 +146,17 @@ describe("thresholds", () => {
             attempt: 1,
             line: "t4",
             day: monthStart + d * DAY,
-            usd: 10,
+            usd: 11,
         }));
         const store = await world(lines);
         const t4 = await member(store, "cost.t4");
-        expect(t4.value).toBeCloseTo(310);
-        expect(t4.state).toBe("FAILING");
+        expect(t4.value).toBeCloseTo(341);
+        expect(t4.facts?.month_to_date).toBeCloseTo(264);
+        expect(t4.state).toBe("FAILING"); // $264 already spent, past the $240 limit
         expect((await member(store, "cost.llm")).value).toBe(0);
     });
 
-    it("T4: the 200 USD budget is red past 200, amber from 180", async () => {
+    it("T4: a projection past the 240 USD limit is yellow; red only once spend so far passes it", async () => {
         const monthStart = Date.UTC(2026, 9, 1);
         const days = (floorTo(T0, "1d") - monthStart) / DAY;
         // A flat daily spend projected over 31 days.
@@ -168,11 +171,12 @@ describe("thresholds", () => {
             }));
             return member(await world(lines), "cost.t4");
         };
-        expect((await t4At(5.5)).state).toBe("OK"); // about 170
-        expect((await t4At(6.2)).state).toBe("WARNING"); // about 192
-        const red = await t4At(7);
-        expect(red.value).toBeGreaterThan(200);
-        expect(red.value).toBeLessThan(240);
+        expect((await t4At(7)).state).toBe("OK"); // $168 spent, about $217 projected
+        const yellow = await t4At(8); // $192 spent, about $248 projected
+        expect(yellow.value).toBeGreaterThan(240);
+        expect(yellow.state).toBe("WARNING");
+        const red = await t4At(10.5); // $252 spent
+        expect(red.facts?.month_to_date).toBeGreaterThan(240);
         expect(red.state).toBe("FAILING");
     });
 
@@ -224,6 +228,84 @@ describe("thresholds", () => {
         const m = await member(await world([...under, ...over]), "ci.full_shards_over_budget");
         expect(m.value).toBe(1);
     });
+
+    describe("test groups near their deadline (#7855)", () => {
+        // A full run's small-browser members, as tools/results/run-group.mjs posts them: one shard run per try.
+        const member = (run: number, shard: string, secs: number, attempt = 1): ShardRunItem => ({
+            kind: "shard_run",
+            id: `${run}.1.test.${shard}.${attempt}`,
+            attempt,
+            source: "ci",
+            variant: `${shard}|flags=off|whole`,
+            family: shard,
+            bin: false,
+            full: true,
+            sha: "abc",
+            outcome: "passed",
+            startedAt: T0 - 2 * HOUR - secs * 1000,
+            endedAt: T0 - 2 * HOUR,
+            secs,
+            files: [],
+        });
+        const deadline = (store: MemoryStore) => member0(store, "ci.full_group_deadline");
+        const member0 = async (store: MemoryStore, id: string) => (await evaluate(store, T0, only(id))).members[0];
+        // Every member inside its own 900 s shard budget, 1,270 s together with the 10 s gaps: 81.4% of 1,560 s.
+        const near = (run: number) => [
+            member(run, "compact-mantine", 463),
+            member(run, "visual-review", 286),
+            member(run, "algorithms-storybook", 135),
+            member(run, "webgpu-graph-algorithms-browser", 76),
+            member(run, "cytoscape-extensions-storybook", 54),
+            member(run, "layout-storybook", 32),
+            member(run, "graph-io-browser", 100),
+            member(run, "graph-io-browser", 54, 2), // its retry runs in the same step
+        ];
+
+        it("adds up a group's members per full run and is not OK past 80% of the test step's deadline", async () => {
+            const m = await deadline(await world(near(43547830976)));
+            // 463 + 286 + 135 + 76 + 54 + 32 + 154 = 1,200 s, plus 10 s for each of the 7 members
+            expect(m.facts).toMatchObject({ group_total_ms: 1_270_000, limit_ms: 1_560_000 });
+            expect(m.value).toBeCloseTo(1270 / 1560);
+            expect(m.state).toBe("WARNING");
+        });
+
+        it("judges the newest full run, not the slowest, so moving a member out clears it", async () => {
+            const later = [member(43600000000, "compact-mantine", 463), member(43600000000, "layout-storybook", 32)];
+            const m = await deadline(await world([...near(43547830976), ...later]));
+            expect(m.facts?.group_total_ms).toBe(515_000);
+            expect(m.state).toBe("OK");
+        });
+
+        it("is FAILING past 90%, and leaves out runs that are not a group member's", async () => {
+            const over = [...near(1), member(1, "remote-logger", 160)];
+            const outside = { ...member(1, "graphty-1", 900), variant: "graphty-1|flags=off|whole" };
+            const m = await deadline(await world([...over, outside]));
+            expect(m.facts?.group_total_ms).toBe(1_440_000);
+            expect(m.state).toBe("FAILING");
+        });
+
+        it("flags a member slower than its GROUP_MEMBER_SECONDS entry by more than 10 s", async () => {
+            const table = {
+                ...CI_GROUPS.memberSeconds,
+                "compact-mantine": 342,
+                "visual-review": 280,
+                "graph-io-browser": 150,
+            };
+            const dims = new Map<string, Agg>();
+            for (const s of near(7)) {
+                const key = groupMemberDim(s)!;
+                dims.set(key, { n: 1, sum: (dims.get(key)?.sum ?? 0) + s.secs * 1000 });
+            }
+            const [g] = groupTimes(dims, { ...CI_GROUPS, memberSeconds: table });
+            const stale = g.members.filter((x) => x.stale).map((x) => x.member);
+            // compact-mantine is 121 s over its entry; visual-review only 6 s, inside the 10 s a command adds
+            expect(stale).toEqual(["compact-mantine"]);
+            expect(g.members.find((x) => x.member === "graph-io-browser")?.maxMs).toBe(154_000);
+            const m = await deadline(await world(near(7)));
+            // against today's table only graph-io-browser (154 s with its retry, entry 20 s) is flagged
+            expect(m.facts?.stale_members).toBe(1);
+        });
+    });
 });
 
 describe("data states", () => {
@@ -239,6 +321,19 @@ describe("data states", () => {
         });
         expect(e.members.find((m) => m.id === "data.collector")).toMatchObject({ state: "FAILING", value: 30 * MIN });
         expect(e.categories.find((c) => c.id === "ci")).toMatchObject({ state: "NO DATA", setBy: "ci.hangs" });
+    });
+
+    it("pages that stop being written age the collector though it still reads GitHub", async () => {
+        const store = new MemoryStore();
+        await recordSource(store, "collector", T0, { ok: true });
+        await recordSource(store, "views", T0 - 30 * MIN, { ok: true });
+        await recordSource(store, "views", T0 - 5 * MIN, { ok: false, error: "Error: view too big" });
+        const e = await evaluate(store, T0, only("data.collector"));
+        expect(e.members.find((m) => m.id === "data.collector")).toMatchObject({
+            state: "FAILING",
+            value: 30 * MIN,
+            cause: { code: "error", params: { source: "views", error: "Error: view too big" } },
+        });
     });
 
     it("a rejected token is NO DATA with its error once its last good write is past the age limit", async () => {
@@ -328,6 +423,18 @@ describe("data states", () => {
         });
     });
 
+    it("a 7-day window carries its also metrics as facts: net new flaky's new and resolved counts", async () => {
+        const store = await world([
+            obs("flaky.net_change", -1, T0 - 10 * MIN),
+            obs("flaky.net_added", 2, T0 - 10 * MIN),
+            obs("flaky.net_resolved", 3, T0 - 10 * MIN),
+        ]);
+        expect(await member(store, "flaky.net_new")).toMatchObject({
+            value: -1,
+            facts: { "flaky.net_added": 2, "flaky.net_resolved": 3 },
+        });
+    });
+
     it("a 7-day window the history covers has no coverage label", async () => {
         const store = new MemoryStore();
         await recordSource(store, "ci-results", T0 - 10 * DAY, { ok: true });
@@ -354,6 +461,72 @@ describe("data states", () => {
         expect(await member(store, "data.sources_age")).toMatchObject({ state: "WARNING", value: 1 });
         await recordSource(store, "stress", T0 - 20 * DAY, { ok: true }); // 8 d limit: past 2x
         expect(await member(store, "data.sources_age")).toMatchObject({ state: "FAILING", value: 2 });
+    });
+});
+
+describe("credential errors (alerts, section 13)", () => {
+    it("a credential error an hour old turns data.sources_age red and names the source and error", async () => {
+        const store = await world([]);
+        await recordSource(store, "billing", T0 - 70 * MIN, {
+            ok: false,
+            error: "ExpiredTokenException: token expired",
+        });
+        await recordSource(store, "billing", T0, { ok: false, error: "ExpiredTokenException: token expired" });
+        expect(await member(store, "data.sources_age")).toMatchObject({
+            state: "FAILING",
+            facts: { credential_error_ms: 70 * MIN },
+            cause: { params: { source: "billing", error: "ExpiredTokenException: token expired" } },
+        });
+    });
+
+    it("an owner's credential is the cause ahead of an older one agents can fix", async () => {
+        const store = await world([]);
+        await recordSource(store, "billing", T0 - 3 * HOUR, { ok: false, error: "ExpiredTokenException" });
+        await recordSource(store, "billing", T0, { ok: false, error: "ExpiredTokenException" });
+        await recordSource(store, "cloudflare-token", T0 - 70 * MIN, { ok: false, error: "HTTP 403" });
+        await recordSource(store, "cloudflare-token", T0, { ok: false, error: "HTTP 403" });
+        expect(await member(store, "data.sources_age")).toMatchObject({
+            facts: { credential_error_ms: 70 * MIN },
+            cause: { params: { source: "cloudflare-token" } },
+        });
+    });
+
+    it("an ordinary error, a credential error the collector reports, or a public feed's 403 gives no credential error", async () => {
+        const store = await world([]);
+        await recordSource(store, "billing", T0 - 70 * MIN, { ok: false, error: "Cost Explorer: HTTP 500" });
+        await recordSource(store, "npm", T0 - 70 * MIN, { ok: false, error: "HTTP 401" });
+        await recordSource(store, "coverage", T0 - 70 * MIN, { ok: false, error: "coveralls: HTTP 403" }); // public
+        const m = await member(store, "data.sources_age");
+        // Zero, not absent: an absent fact is a gap to the alerts, which would keep a credential page's episode open.
+        expect(m.facts?.credential_error_ms).toBe(0);
+        expect(m.cause).toBeUndefined();
+    });
+
+    it("a projected cost line also gives its month-to-date spend", async () => {
+        const store = await world([]);
+        expect((await member(store, "cost.t4")).facts).toEqual({ month_to_date: 0 });
+    });
+
+    it("a cost line of spend so far also gives its month-end projection, the one the Costs page shows", async () => {
+        // A flat $0.3207 a day of AWS through yesterday; billing has nothing for today yet.
+        const now = Date.UTC(2026, 9, 30, 19);
+        const today = floorTo(now, "1d");
+        const days = Array.from({ length: 29 }, (_, i): CostItem => ({
+            kind: "cost",
+            id: `aws-${i}`,
+            attempt: 1,
+            line: "aws",
+            workflow: "aws",
+            day: today - (i + 1) * DAY,
+            usd: 0.3207,
+        }));
+        const m = await member(await world(days, now), "cost.aws", now);
+        expect(m.value).toBeCloseTo(9.3, 2);
+        expect(m.facts?.projected).toBeCloseTo(
+            projectMonth((t) => (t < today ? 0.3207 : 0), now),
+            6,
+        );
+        expect(m.facts?.projected).toBeCloseTo(9.94, 2);
     });
 });
 
@@ -442,6 +615,23 @@ describe("episodes", () => {
                 peak: 35,
             },
         ]);
+    });
+
+    it("an episode ends after an hour its member cannot be judged, so a stale incident does not stay ongoing", async () => {
+        // 35 open pull requests 3 h ago, then nothing: from an hour later the member has no value to judge.
+        const e = await evaluate(await world([obs("pr.open", 35, T0 - 3 * HOUR)]), T0, only("pr.open"));
+        expect(e.episodes).toHaveLength(1);
+        expect(e.episodes[0]).toMatchObject({ worst: "FAILING", start: T0 - 3 * HOUR });
+        expect(e.episodes[0].endedAt).toBeGreaterThan(T0 - 3 * HOUR);
+        expect(e.episodes[0].endedAt).toBeLessThanOrEqual(T0 - HOUR);
+    });
+
+    it("a 7- or 28-day member has no episodes: its start would be now on every cycle", async () => {
+        const cfg = only("flaky.net_new");
+        const store = await world([obs("flaky.net_change", 9, T0 - HOUR)]);
+        const e = await evaluate(store, T0, cfg);
+        expect(e.members[0].state).toBe("FAILING");
+        expect(e.episodes).toEqual([]);
     });
 
     it("evaluates the whole configuration on an empty store without throwing", async () => {

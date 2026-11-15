@@ -1,4 +1,11 @@
+import { createRequire } from "node:module";
+import { dirname } from "node:path";
 import type { StorybookConfig } from "@storybook/web-components-vite";
+
+// The framework by its install directory, not its bare name: Storybook loads the framework's preset from
+// its own install directory, where a bare name resolves only through the root node_modules link pnpm
+// hoists, and an incremental `pnpm install` can drop that link (issue #7754).
+const framework = dirname(createRequire(import.meta.url).resolve("@storybook/web-components-vite/package.json"));
 
 const config: StorybookConfig = {
     stories: ["../stories/**/*.stories.@(js|jsx|mjs|ts|tsx)", "../stories/**/*.mdx"],
@@ -14,7 +21,7 @@ const config: StorybookConfig = {
         { from: "../stories/fixtures/models/served", to: "/served-models" },
     ],
     framework: {
-        name: "@storybook/web-components-vite",
+        name: framework,
         options: {},
     },
     core: {
@@ -39,15 +46,10 @@ const config: StorybookConfig = {
                 // makes Vite reload the page under the test that is running.
                 include: [
                     "lit/directives/ref.js",
-                    // The element's Babylon side-effect imports (test/packaging/babylon-side-effects.test.ts).
-                    "@babylonjs/core/Meshes/instancedMesh",
-                    "@babylonjs/core/Culling/ray",
-                    "@babylonjs/core/Animations/animatable",
-                    // The shaders src/meshes/bundledStandardShaders.ts loads with the element.
-                    "@babylonjs/core/Shaders/default.vertex",
-                    "@babylonjs/core/Shaders/default.fragment",
-                    "@babylonjs/core/ShadersWGSL/default.vertex",
-                    "@babylonjs/core/ShadersWGSL/default.fragment",
+                    // No @babylonjs/core subpath here: vite.config.ts excludes @babylonjs/core, so
+                    // Vite never discovers its subpaths mid-run, and pre-bundling one gives it a
+                    // second copy of Babylon -- an InstancedMesh the element's deep imports fail
+                    // `instanceof` against, so every node reads as uncoloured.
                     // Imported only by the Graphviz layouts' Worker, which a Layout/Graphviz story
                     // starts after the page has loaded.
                     "@hpcc-js/wasm-graphviz",

@@ -225,6 +225,22 @@ describe("CompactColorInput refusals and Escape", () => {
         expect(chosen).toEqual(["#FF0000"]);
     });
 
+    it("Escape names the kept color in the words the box's name uses, not the hex alone", async () => {
+        renderField(
+            <CompactColorInput label="Node" defaultColor="#006400" valueText="dark green" showOpacity={false} />,
+        );
+        const hex = page.getByTestId("compact-color-input-hex");
+        await userEvent.click(hex);
+        await userEvent.keyboard("{Control>}a{/Control}123456{Escape}");
+        await expect
+            .element(page.getByRole("status"))
+            .toHaveTextContent("Edit discarded; this stays 006400 dark green.");
+        await userEvent.keyboard("{Control>}a{/Control}dark greer{Enter}");
+        await expect
+            .element(page.getByRole("status"))
+            .toHaveTextContent('"dark greer" is not a color, so this stays 006400 dark green');
+    });
+
     it("Enter on words that name no color goes back to the value, as Figma does, and says why aloud", async () => {
         renderField(<CompactColorInput label="Node" defaultColor="#2E8B57" showOpacity={false} />);
         const hex = page.getByTestId("compact-color-input-hex");

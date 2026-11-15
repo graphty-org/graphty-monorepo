@@ -5,11 +5,18 @@
  */
 
 import { setProjectAnnotations } from "@storybook/react-vite";
-import { onTestFinished } from "vitest";
+import { onTestFinished, vi } from "vitest";
 import { cdp, server, userEvent } from "vitest/browser";
 
 import type { RealInput } from "../src/stories/real-input";
 import * as projectAnnotations from "./preview";
+
+// Real input for every play function's `userEvent` (vitest.real-user-event.mjs at the root): Playwright drives
+// the browser, as a reader's mouse and keyboard do. Storybook's own UI and a capture keep its replay.
+vi.mock("storybook/test", async (importOriginal) => {
+    const { withRealUserEvent } = await import("../../vitest.real-user-event.mjs");
+    return withRealUserEvent(await importOriginal(), (await import("vitest/browser")).userEvent);
+});
 
 /** A protocol command and its parameters; the session's own type is too narrow to name them. */
 type Send = (method: string, params?: Record<string, unknown>) => Promise<unknown>;
@@ -50,6 +57,10 @@ const realInput: RealInput = {
         // As a hand does: the drag enters the window, then moves over it.
         await send("Input.dispatchDragEvent", { type: "dragEnter", ...at, data });
         await send("Input.dispatchDragEvent", { type: "dragOver", ...at, data });
+    },
+    async wheel(element, deltaY) {
+        const send = (cdp() as unknown as { send: Send }).send.bind(cdp());
+        await send("Input.dispatchMouseEvent", { type: "mouseWheel", ...middleOnPage(element), deltaX: 0, deltaY });
     },
 };
 

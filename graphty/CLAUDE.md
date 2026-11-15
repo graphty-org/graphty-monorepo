@@ -128,6 +128,7 @@ The element records each change and owns the history; the app never keeps its ow
 
 - `browser` - Browser-based tests (Playwright)
 - `real-element` - `*.real-element.test.tsx`: the app with the real graphty-element, unmocked
+- `large-graph` - `LargeGraph.*.real-element.test.tsx` alone, as `real-element` runs the others: each file has its own CI shard, `graphty-large-graph-N`, because it takes up to half the per-file guard on CI; a new file adds a part (`LARGE_GRAPH_PARTS` in tools/ci-test-matrix.mjs)
 - `storybook` - every story's play function as a test (its own CI shard, `graphty-storybook`); in CI each story's screenshot is also taken and compared with its baseline inside its test (`VISUAL_REVIEW_STORY_OUT`, `@graphty/visual-review/vitest`): that is the project's screenshot capture
 - `eslint-rules` - Node tests of the app's own lint rules (`graphty/eslint-rules/`)
 
@@ -148,3 +149,16 @@ If you encounter bugs or API difficulties with graphty-element while working on 
 - Document the issue clearly
 - Report it so the graphty-element package can be improved
 - The graphty-element API should be intuitive and easy to use
+
+## UI Components
+
+- Use the default components. Never write a bespoke control to work around one
+- If a shared component is wrong, fix the shared component, so every caller gets the fix
+- Example (2026-09-13): the app shell's lock button grew a custom contrast ring because
+  Mantine's `light` active state measured 1.21:1 against the panel header where WCAG 1.4.11
+  asks 3:1. The ring left one control in the app behaving unlike every other toggle. The fix
+  belonged in `compact-mantine`'s ActionIcon theme, and once it was there the local ring was
+  deleted
+- compact-mantine is locked to Figma (owner, 2026-10-23): never change its look or behavior away from
+  Figma, a Figma test's expected value, its token values or `compact-mantine/design/figma-spec.md`
+  section 14 without the owner's `Figma-Approved: <reason>` commit trailer. See `compact-mantine/CLAUDE.md`

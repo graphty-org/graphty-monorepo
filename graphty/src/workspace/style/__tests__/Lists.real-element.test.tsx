@@ -16,14 +16,12 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withFeatures } from "../../../test/features";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { FIND_ATTRIBUTE } from "../words";
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
 
 /** Volunteers: an id column kept as data, a yes-or-no, a number, and edges that carry a kind. */
 const NODES = ["Ana", "Bo", "Cy", "Di", "Ed", "Flo"].map((name, i) => ({
@@ -53,14 +51,11 @@ async function open(
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Lists", id: 1 }, ...initial });
     render(<Workspace store={store} registrations={REGISTRATIONS} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -105,9 +100,9 @@ describe("the app's lists", () => {
             set: { "node.color": "#cccccc" },
         });
         await session.styles.settled();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Plain, / }));
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        const tab = await screen.findByTestId("style-tab", {});
         const fill = await waitFor(() => {
             const found = tab.querySelector<HTMLElement>('.ws-row[data-line="node.color"]');
             assert.isNotNull(found);
@@ -158,13 +153,22 @@ describe("the app's lists", () => {
             selector: { match: "everything" },
             set: { "node.color": "#d55e00" },
         });
+        // One layer alone edits its rule in the selection editor; the cards' Add a condition list
+        // is what two selected layers share.
+        await session.styles.add({
+            name: "Mine too",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.color": "#d55e00" },
+        });
         await session.styles.settled();
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
         await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Mine, / }));
+        await userEvent.keyboard("{Control>}");
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: /^Mine too, / }));
+        await userEvent.keyboard("{/Control}");
         if (screen.queryByRole("group", { name: "Which nodes" }) === null) {
-            await userEvent.click(
-                await screen.findByRole("button", { name: /^Which nodes, / }, { timeout: TIMEOUT_MS }),
-            );
+            await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         }
         const region = await screen.findByRole("group", { name: "Which nodes" });
         // A layer with no condition opens its Add a condition list with the picker.
@@ -195,7 +199,7 @@ describe("the app's lists", () => {
         await open({}, (session) =>
             session.data.import({ type: "gml", name: "les-miserables.gml", config: { data: lesMiserables } }),
         );
-        const tools = await screen.findByRole("toolbar", { name: "Canvas tools" }, { timeout: TIMEOUT_MS });
+        const tools = await screen.findByRole("toolbar", { name: "Canvas tools" });
         await userEvent.click(within(tools).getByRole("button", { name: /^Analyze/ }));
         const filter = await screen.findByRole("combobox", { name: "Filter analyses" });
         await waitFor(() => {
@@ -226,6 +230,12 @@ describe("the app's lists", () => {
         });
         assert.closeTo(filter.getBoundingClientRect().top, top, 1, "the filter box stays where it opened");
     });
+});
+
+describe("a filter card's list", () => {
+    // The filter card's own text box; the selection workspace edits a filter card in its modal
+    // instead, as Filters.real-element.test.tsx pins.
+    withFeatures([]);
 
     it("a filter card's text box lists every value that holds the typed text", async () => {
         const names = [
@@ -235,8 +245,8 @@ describe("the app's lists", () => {
         await open({ place: "data" }, (session) =>
             session.data.addNodes(names.map((name, i) => ({ id: `n${String(i)}`, name }))),
         );
-        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }, { timeout: TIMEOUT_MS }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "name" }));
+        await userEvent.click(await screen.findByRole("button", { name: "Add filter" }));
+        await userEvent.click(await screen.findByRole("option", { name: /^name(,|$)/ }));
         const is = await screen.findByRole("combobox", { name: "name: text to match" });
         await userEvent.type(is, "Mme");
         await waitFor(() => {

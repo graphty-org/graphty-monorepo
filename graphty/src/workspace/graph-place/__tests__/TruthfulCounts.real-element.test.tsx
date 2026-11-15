@@ -16,12 +16,10 @@ import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { selectionWorkspaceOn } from "../../features";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
 
 /**
  * The workspace with the element up.
@@ -29,14 +27,11 @@ const TIMEOUT_MS = 90_000;
  */
 async function openWorkspace(): Promise<GraphSession> {
     render(<Workspace store={createWorkspaceStore({ project: { name: "Untitled", id: 1 } })} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -80,13 +75,7 @@ describe("counts that say only what a layer paints", () => {
         await session.styles.settled();
 
         // The row's name counts its nodes and never the edges it does not style.
-        const row = await within(tree()).findByRole(
-            "treeitem",
-            { name: /^Painted, / },
-            {
-                timeout: TIMEOUT_MS,
-            },
-        );
+        const row = await within(tree()).findByRole("treeitem", { name: /^Painted, / });
         assert.equal(row.getAttribute("aria-label"), "Painted, node layer, 4 nodes");
 
         // Its Values tab lists the nodes it matches, not the edges.
@@ -106,7 +95,12 @@ describe("counts that say only what a layer paints", () => {
         // A row that matches nothing selects nothing, says so, and keeps the selection.
         await userEvent.click(within(tree()).getByRole("treeitem", { name: /^Nobody, / }));
         await userEvent.click(await screen.findByRole("button", { name: "Select what it paints" }));
-        await screen.findAllByText("Nobody paints nothing, so nothing was selected");
+        // The selection workspace words the notice shorter (graph-place/commands.ts).
+        await screen.findAllByText(
+            selectionWorkspaceOn(session)
+                ? "Nobody: nothing painted"
+                : "Nobody paints nothing, so nothing was selected",
+        );
         assert.lengthOf(session.selection.nodes, 4);
     });
 
@@ -119,12 +113,9 @@ describe("counts that say only what a layer paints", () => {
         await userEvent.type(await screen.findByRole("combobox", { name: "Filter analyses" }), "Louvain");
         await userEvent.click(await screen.findByRole("option", { name: /^Louvain/ }));
         await userEvent.click(await screen.findByRole("button", { name: /^Run\b/ }));
-        await waitFor(
-            () => {
-                assert.equal(session.runs.list().find((r) => r.algorithm === "louvain")?.status, "succeeded");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(session.runs.list().find((r) => r.algorithm === "louvain")?.status, "succeeded");
+        });
         await session.styles.settled();
 
         // Every group's condition removed: each layer matches every node, and the top one wins.

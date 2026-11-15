@@ -162,12 +162,3 @@ export function locationFieldWords(code: string, params: Readonly<Record<string,
 export function columnFitWords(refusal: { readonly code: string } | undefined): string | null {
     return refusal === undefined ? null : "Not a location";
 }
-
-/**
- * Why a layout option is disabled in this view, from the element's coded answer.
- * @param code - the element's code.
- * @returns the reason, or null when the option is in effect.
- */
-export function optionEffectWords(code: string): string | null {
-    return code === "setting.notIn2d" ? "Not in 2D" : null;
-}

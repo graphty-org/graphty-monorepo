@@ -1,0 +1,23 @@
+{
+ "key": [
+  {
+   "title": null,
+   "text": "Color: Staff 4 of 14 nodes",
+   "rows": [
+    {
+     "text": "Color: Staff",
+     "color": "#e4572e"
+    }
+   ]
+  }
+ ],
+ "drawn": {
+  "nodes": {
+   "#6366f1": 20,
+   "#e4572e": 4
+  },
+  "edges": {
+   "#a9a9a9": 63
+  }
+ }
+}

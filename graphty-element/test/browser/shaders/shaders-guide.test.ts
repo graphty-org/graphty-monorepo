@@ -8,7 +8,6 @@
 import "../../../src/graphty-element";
 
 import { Vector3 } from "@babylonjs/core";
-import type { Graphty as PublishedGraphty } from "@graphty/graphty-element";
 import { afterAll, afterEach, assert, describe, it } from "vitest";
 
 import { flow } from "../../../docs/examples/shaders/flow";
@@ -20,6 +19,7 @@ import { operationQueueOf } from "../../../src/Graph";
 import { EdgeShaderDrawing } from "../../../src/meshes/EdgeShaderDrawing";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import { defineShader } from "../../../src/simple/defineShader";
+import { pixelAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 
 const WIDTH = 400;
@@ -97,30 +97,10 @@ function nodeSlots(element: Graphty, role: "impostor" | "replace"): number {
     return [...slots].filter(([key]) => key.startsWith(`${role}|`)).reduce((sum, [, count]) => sum + count, 0);
 }
 
-/**
- * Read one pixel of the canvas at a point in CSS pixels, after the next frames.
- * @param element - The element.
- * @param x - CSS pixels from the left.
- * @param y - CSS pixels from the top.
- * @returns r, g, b, a.
- */
-async function pixelAt(element: Graphty, x: number, y: number): Promise<number[]> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 2);
-    const scale = engine.getRenderWidth() / WIDTH;
-    const read = (await engine.readPixels(
-        Math.round(x * scale),
-        Math.round(engine.getRenderHeight() - y * scale),
-        1,
-        1,
-    )) as unknown as Uint8Array;
-    return [read[0], read[1], read[2], read[3]];
-}
-
 describe("the shader guide's examples", () => {
     it("draws the heat look with the layer's hot color", async () => {
         const element = await mounted();
-        await heat(element as unknown as PublishedGraphty);
+        await heat(element);
         await operationQueueOf(element.graph).waitForCompletion();
         await until(element, "the node is drawn by the heat look", () => nodeSlots(element, "impostor") === 1);
 
@@ -131,14 +111,14 @@ describe("the shader guide's examples", () => {
         // Halfway up the node, where the look is three quarters hot: red, with little green, so
         // the layer's #ff0000 replaced the default #ff5500.
         const up = element.worldToScreen(world.add(new Vector3(0, radius * 0.5, 0)));
-        const [r, g] = await pixelAt(element, up.x, up.y);
+        const [r, g] = await pixelAt(element, up);
         assert.isAbove(r, 60, `red leads, read ${String(r)},${String(g)}`);
         assert.isBelow(g, r / 3, `the hot color is the layer's, read ${String(r)},${String(g)}`);
     });
 
     it("draws the flow look on the edge's line", async () => {
         const element = await mounted(true);
-        await flow(element as unknown as PublishedGraphty);
+        await flow(element);
         await operationQueueOf(element.graph).waitForCompletion();
         await until(element, "the edge is drawn by the flow look", () =>
             [...(EdgeShaderDrawing.peek(element.graph.getScene())?.stats().slots.values() ?? [])].some(

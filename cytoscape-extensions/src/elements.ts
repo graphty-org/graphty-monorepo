@@ -377,7 +377,8 @@ export function elementsToSnapshot(
     const parents = nodes.map((n) => index.get(n.parent().first().id()) ?? null);
     const edgeColumns = columns(edges.map((e) => e.data() as Record<string, unknown>));
     let weights: Float64Array<ArrayBuffer> | undefined;
-    const w = edgeColumns.weight;
+    // a record lookup can miss: no edge may carry a weight
+    const w = "weight" in edgeColumns ? edgeColumns.weight : undefined;
     if (w?.decl.dtype === "f64" && (w.data as unknown[]).every((v) => v !== null)) {
         weights = Float64Array.from(w.data as number[]);
         delete edgeColumns.weight;

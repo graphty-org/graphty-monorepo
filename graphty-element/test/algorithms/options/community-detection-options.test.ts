@@ -7,7 +7,7 @@ import { LeidenAlgorithm } from "../../../src/algorithms/LeidenAlgorithm";
 import { LouvainAlgorithm } from "../../../src/algorithms/LouvainAlgorithm";
 import { PageRankAlgorithm } from "../../../src/algorithms/PageRankAlgorithm";
 import { OptionValidationError } from "../../../src/algorithms/types/OptionSchema";
-import { createMockGraph, getNodeResult } from "../../helpers/mockGraph";
+import { createMockGraph, partitionOf } from "../../helpers/mockGraph";
 
 describe("Community Detection Algorithm Options", () => {
     describe("PageRankAlgorithm", () => {
@@ -191,13 +191,15 @@ describe("Community Detection Algorithm Options", () => {
                         { srcId: "B", dstId: "C" },
                     ],
                 });
-                // Just verify it runs without error with custom options
+                // At resolution 2 no merge pays for itself, so each node is its own community; at
+                // 0.1 the whole path is one.
                 const algo = new LouvainAlgorithm(graph, { resolution: 2.0 });
                 await algo.run();
+                assert.deepStrictEqual(partitionOf(algo, ["A", "B", "C"], "louvain"), [["A"], ["B"], ["C"]]);
 
-                // Verify community assignments were made
-                const communityId = getNodeResult(algo, "A", "graphty", "louvain", "communityId");
-                assert.isDefined(communityId);
+                const coarse = new LouvainAlgorithm(graph, { resolution: 0.1 });
+                await coarse.run();
+                assert.deepStrictEqual(partitionOf(coarse, ["A", "B", "C"], "louvain"), [["A", "B", "C"]]);
             });
         });
     });
@@ -219,7 +221,7 @@ describe("Community Detection Algorithm Options", () => {
                 const schema = LeidenAlgorithm.getOptionsSchema();
                 assert.isDefined(schema.randomSeed);
                 assert.strictEqual(schema.randomSeed.type, "integer");
-                assert.strictEqual(schema.randomSeed.default, 42);
+                assert.strictEqual(schema.randomSeed.default, null);
                 assert.isTrue(schema.randomSeed.advanced);
             });
 
@@ -245,6 +247,11 @@ describe("Community Detection Algorithm Options", () => {
                 assert.doesNotThrow(() => new LeidenAlgorithm(graph, { randomSeed: 123 }));
             });
 
+            it("accepts a randomSeed of 0", async () => {
+                const graph = await createMockGraph();
+                assert.doesNotThrow(() => new LeidenAlgorithm(graph, { randomSeed: 0 }));
+            });
+
             it("rejects negative randomSeed", async () => {
                 const graph = await createMockGraph();
                 assert.throws(
@@ -264,12 +271,14 @@ describe("Community Detection Algorithm Options", () => {
                         { srcId: "B", dstId: "C" },
                     ],
                 });
-                const algo = new LeidenAlgorithm(graph, { resolution: 1.5, maxIterations: 50 });
+                const algo = new LeidenAlgorithm(graph, { resolution: 1.5, maxIterations: 50, randomSeed: 42 });
                 await algo.run();
+                assert.deepStrictEqual(partitionOf(algo, ["A", "B", "C"], "leiden"), [["A"], ["B", "C"]]);
 
-                // Verify community assignments were made
-                const communityId = getNodeResult(algo, "A", "graphty", "leiden", "communityId");
-                assert.isDefined(communityId);
+                // At resolution 0.1 the whole path is one community.
+                const coarse = new LeidenAlgorithm(graph, { resolution: 0.1, maxIterations: 50, randomSeed: 42 });
+                await coarse.run();
+                assert.deepStrictEqual(partitionOf(coarse, ["A", "B", "C"], "leiden"), [["A", "B", "C"]]);
             });
         });
     });
@@ -333,12 +342,16 @@ describe("Community Detection Algorithm Options", () => {
                         { srcId: "B", dstId: "C" },
                     ],
                 });
+                // The path needs three passes to see its labels stay put twice; a cap of one stops
+                // after the first.
                 const algo = new LabelPropagationAlgorithm(graph, { maxIterations: 50 });
                 await algo.run();
+                assert.strictEqual(algo.result?.summary().caveats.iterations, 3);
+                assert.deepStrictEqual(partitionOf(algo, ["A", "B", "C"], "label-propagation"), [["A", "B", "C"]]);
 
-                // Verify community assignments were made
-                const communityId = getNodeResult(algo, "A", "graphty", "label-propagation", "communityId");
-                assert.isDefined(communityId);
+                const capped = new LabelPropagationAlgorithm(graph, { maxIterations: 1 });
+                await capped.run();
+                assert.strictEqual(capped.result?.summary().caveats.iterations, 1);
             });
         });
     });
@@ -400,19 +413,28 @@ describe("Community Detection Algorithm Options", () => {
 
         describe("custom options in run()", () => {
             it("uses custom options", async () => {
+                // A -- B -- C -- D: B-C carries the most shortest paths, so the first cut splits
+                // the path in half.
                 const graph = await createMockGraph({
-                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }],
+                    nodes: [{ id: "A" }, { id: "B" }, { id: "C" }, { id: "D" }],
                     edges: [
                         { srcId: "A", dstId: "B" },
                         { srcId: "B", dstId: "C" },
+                        { srcId: "C", dstId: "D" },
                     ],
                 });
+                const ids = ["A", "B", "C", "D"];
                 const algo = new GirvanNewmanAlgorithm(graph, { maxCommunities: 2 });
                 await algo.run();
+                assert.deepStrictEqual(partitionOf(algo, ids, "girvan-newman"), [
+                    ["A", "B"],
+                    ["C", "D"],
+                ]);
 
-                // Verify community assignments were made
-                const communityId = getNodeResult(algo, "A", "graphty", "girvan-newman", "communityId");
-                assert.isDefined(communityId);
+                // A cap of one keeps the path whole.
+                const whole = new GirvanNewmanAlgorithm(graph, { maxCommunities: 1 });
+                await whole.run();
+                assert.deepStrictEqual(partitionOf(whole, ids, "girvan-newman"), [["A", "B", "C", "D"]]);
             });
         });
     });

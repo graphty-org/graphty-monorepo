@@ -1,6 +1,6 @@
 /**
- * The time window's condition card, drawn by the filter step editor (Keep: a time window) and
- * opened from the Filters section's Time row: the time field, its unit, and the step, mode,
+ * The Time window's settings, opened in the inspector from the Filters section's Time window
+ * card: the time field, its unit, and the step, mode, zone,
  * untimed rule and algorithm-results setting. Every value is graphty-element's (`session.time`),
  * which keeps the settings with the field (`time.settings`), so turning the window off leaves
  * them as they are. The window itself moves in the timeline dock under the canvas.
@@ -13,7 +13,7 @@ import React from "react";
 
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
-import { designate, reportTimeError, unitOf } from "../time/timeActions";
+import { designate, reportTimeError, timelineOn, unitOf } from "../time/timeActions";
 import {
     autoLabel,
     CALENDAR_STEPS,
@@ -23,6 +23,7 @@ import {
     stepLabel,
     UNIT_CHOICES,
     UNTIMED_CHOICES,
+    zoneChoices,
 } from "../time/timeWords";
 import { useTimeFieldVersion } from "../time/useTimeVersion";
 
@@ -62,13 +63,13 @@ function sourceOf(picked: string, unit?: TimeUnit): TimeField | null {
 }
 
 /**
- * The time card: Time field (and its unit for a number column), Step, Mode, Untimed and Results.
+ * The time card: Time field (and its unit for a number column), Step, Mode, Zone, Untimed and Results.
  * @returns the card.
  */
 export function TimeCard(): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     useTimeFieldVersion(session);
-    if (session === null) {
+    if (session === null || !timelineOn(session)) {
         return null;
     }
     const { time } = session;
@@ -180,6 +181,20 @@ export function TimeCard(): React.JSX.Element | null {
                                     }}
                                 />
                             </FieldRow>
+                            {unit === "ordinal" || unit === "year" ? null : (
+                                <FieldRow>
+                                    <SegmentedControl
+                                        label="Zone"
+                                        fullWidth
+                                        size="xs"
+                                        value={settings.timeZone}
+                                        data={[...zoneChoices(settings.timeZone)]}
+                                        onChange={(picked) => {
+                                            retune(session, store, { timeZone: picked });
+                                        }}
+                                    />
+                                </FieldRow>
+                            )}
                             <FieldRow>
                                 <SegmentedControl
                                     label="Outside"

@@ -18,9 +18,6 @@ import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { HeroTurns } from "../heroTurns";
 
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 type ElementUnderTest = HTMLElementTagNameMap["graphty-element"];
 
 /**
@@ -61,16 +58,13 @@ describe("the start page's graph, starting still", () => {
         );
         try {
             // As soon as the element has placed every node of the sample.
-            const hero = await waitFor(
-                () => {
-                    const found = document.querySelector<ElementUnderTest>("graphty-element[data-start-page]");
-                    const positions = found?.session?.positions;
-                    assert.isAbove(positions?.count ?? 0, 0);
-                    assert.equal(positions?.placedCount, positions?.count);
-                    return found as ElementUnderTest;
-                },
-                { timeout: TIMEOUT_MS },
-            );
+            const hero = await waitFor(() => {
+                const found = document.querySelector<ElementUnderTest>("graphty-element[data-start-page]");
+                const positions = found?.session?.positions;
+                assert.isAbove(positions?.count ?? 0, 0);
+                assert.equal(positions?.placedCount, positions?.count);
+                return found as ElementUnderTest;
+            });
             const first = positionsOf(hero);
             await hero.waitForStableFrame();
             const final = positionsOf(hero);
@@ -78,6 +72,33 @@ describe("the start page's graph, starting still", () => {
             // Drawn one step a frame, the nodes fly for seconds after they are first placed.
             const moved = Math.max(...final.map((v, i) => Math.abs(v - first[i])));
             assert.isBelow(moved, 1e-6, "a node moved after the graph was first drawn");
+        } finally {
+            unmount();
+        }
+    });
+
+    it("covers the graph's box with a loading placeholder until the element has drawn the nodes", async () => {
+        const { unmount } = render(
+            <HeroTurns.Provider value={false}>
+                <Workspace store={createWorkspaceStore()} />
+            </HeroTurns.Provider>,
+        );
+        try {
+            const placeholder = await waitFor(() => {
+                const found = document.querySelector<HTMLElement>(".ws-land-live output.ws-land-loading");
+                assert.isNotNull(found);
+                return found;
+            });
+            assert.equal(placeholder.getAttribute("aria-label"), "Loading graph");
+            const hero = await waitFor(() => {
+                const found = document.querySelector<ElementUnderTest>("graphty-element[data-start-page]");
+                assert.isTrue(found?.isGraphDrawn);
+                return found;
+            });
+            await waitFor(() => {
+                assert.isTrue(placeholder.hasAttribute("data-done"), "the placeholder goes once the nodes are drawn");
+            });
+            assert.isTrue(hero.isGraphDrawn);
         } finally {
             unmount();
         }

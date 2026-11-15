@@ -4,13 +4,14 @@
  * assertion counts writes or reads the store back; none measures time.
  */
 
-import { assert, describe, it, vi } from "vitest";
+import { afterAll, assert, beforeAll, describe, it, vi } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
 import { Autosaver, type AutosaverOptions, lockName } from "../../src/autosave/Autosaver";
 import { memoryAutosaveStore } from "../../src/autosave/memoryStore";
 import { reassemble, stashOf } from "../../src/autosave/parts";
 import type { AutosaveEntryMeta, AutosaveStore, AutosaveWrite } from "../../src/autosave/types";
+import { setDefaultFeatures } from "../../src/features/resolve";
 import { dispatcherOf, laneOf } from "../../src/session/GraphSession";
 import { type FaultAutosaveStore, faultAutosaveStore } from "../../src/testing/faultAutosaveStore";
 import { baseSession } from "../helpers/project-session";
@@ -816,6 +817,13 @@ describe("status", () => {
 });
 
 describe("timeline playback", () => {
+    beforeAll(() => {
+        setDefaultFeatures(["timeline"]);
+    });
+    afterAll(() => {
+        setDefaultFeatures([]);
+    });
+
     it("writes nothing while time plays, and once after the pause", async () => {
         const session = createGraphSession();
         await session.data.import({
@@ -848,5 +856,21 @@ describe("timeline playback", () => {
             assert.strictEqual(store.log.length, before + 1, "one write after the pause");
         });
         session.dispose();
+    });
+});
+
+describe("unsaved changes", () => {
+    it("are outstanding while a change waits for its write, and never for a write of positions alone", async () => {
+        const { session, saver } = await written();
+        assert.isFalse(saver.unsavedChanges);
+        await session.config.set({ name: "Renamed" });
+        assert.isTrue(saver.unsavedChanges, "a change waits");
+        await saver.flush();
+        assert.isFalse(saver.unsavedChanges);
+
+        const positions = saver.flush(true);
+        assert.strictEqual(saver.status.state, "pending", "the positions are being written");
+        assert.isFalse(saver.unsavedChanges, "positions alone hold no change");
+        await positions;
     });
 });

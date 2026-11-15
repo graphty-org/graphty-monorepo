@@ -15,7 +15,12 @@ export const DEFAULT_BACKGROUND_COLOR = "#F5F5F5";
 
 /** A background shader drawn over the colour and the image: its id and its parameters. */
 const GraphBackgroundShaderLook = z.strictObject({
-    /** A background shader id: a preset (`"nebula"`), a registered or a pasted shader. */
+    /**
+     * The id of one of the project's own background shaders (`session.shaders.list()`). Writing a
+     * catalog id (a preset such as `"nebula"`, or a registered shader) copies that shader's text
+     * into the project first, so a saved file carries it; opening a file resolves the id against
+     * the file's own shaders only, never the reading build's catalog.
+     */
     id: z.string().min(1).max(81),
     /** Its parameters, by the names its catalog entry declares. */
     params: z
@@ -71,8 +76,16 @@ export type GraphBackgroundConfig = z.infer<typeof GraphBackground>;
  * `E_PROTECTED`, a consumer could not reach it by adding a layer either. This is the door.
  */
 const GraphSelectionStyle = z.strictObject({
-    /** The halo's colour. Any colour the element understands; normalised to hex on parse. */
-    color: ColorStyle.default("#FFD700"),
+    /**
+     * The halo's colour. Any colour the element understands; normalised to hex on parse.
+     *
+     * The default is the selected edge's blue, so one colour marks the selection on nodes and
+     * edges alike. Drawn solid, it stands 4.4:1 off the light default background and 3.9:1 off a
+     * near-black one (#121212), past the 3:1 WCAG 1.4.11 asks of a state indicator
+     * (`test/catalog/default-palette-quality.test.ts`). It replaced a gold halo at 0.4 opacity,
+     * which stood 1.3:1 off the default background.
+     */
+    color: ColorStyle.default("#0077BB"),
     /**
      * How much of the node's own size the halo is drawn at.
      *
@@ -81,8 +94,11 @@ const GraphSelectionStyle = z.strictObject({
      * number and the default stands a little clear of the node.
      */
     scale: z.number().positive().default(1.45),
-    /** How solid the halo is, in `[0, 1]`. Low enough to read as a highlight rather than a node. */
-    opacity: z.number().min(0).max(1).default(0.4),
+    /**
+     * How solid the halo is, in `[0, 1]`. Solid by default: a see-through halo takes on the
+     * background's colour and loses the contrast its own colour has. 0 draws no halo.
+     */
+    opacity: z.number().min(0).max(1).default(1),
     /**
      * The colour of the band a selected EDGE is drawn with. Any colour the element understands;
      * normalised to hex on parse.
@@ -202,5 +218,7 @@ export const GraphStyle = z.strictObject({
     /**
      * @deprecated Use viewMode instead. twoD: true is equivalent to viewMode: "2d"
      */
+    // The tag above is this field's own declaration, which typescript-eslint reads as a use of it.
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     twoD: z.boolean().default(false),
 });

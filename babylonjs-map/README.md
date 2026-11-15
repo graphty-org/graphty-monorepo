@@ -8,8 +8,13 @@ and parsers for the common ways of writing a location.
 npm install babylonjs-map @babylonjs/core
 ```
 
-`@babylonjs/core` 8 is a peer dependency. `babylonjs-map/location` and `babylonjs-map/projection`
-never load Babylon.js, so they work in Node, a Web Worker or a page without a 3D scene.
+`@babylonjs/core` 8 is an optional peer dependency: the main `babylonjs-map` entry needs it, and you
+install it yourself. `babylonjs-map/location` and `babylonjs-map/projection` never load Babylon.js,
+so they work in Node, a Web Worker or a page without a 3D scene, with only:
+
+```bash
+npm install babylonjs-map
+```
 
 ## A globe
 
@@ -30,6 +35,21 @@ The globe sits at the origin with the north pole up and longitude 0 facing a cam
 default side. Left- and right-handed scenes (`scene.useRightHandedSystem`) both work. The map is
 wrapped onto the sphere and needs no light: it is drawn at full brightness where the globe faces the
 camera and darker toward its rim, so it reads as a ball.
+
+Two looks are off by default and switch on with an option, or later with the property of the same
+name:
+
+```ts
+const globe = new Globe(scene, {
+    radius: 100,
+    atmosphere: true, // a thin blue glow of air around the rim, added onto the background
+    sun: { lat: 23.4, lon: -30 }, // where the sun is overhead: the far side is dark, with a soft twilight
+});
+globe.sun = null; // every side lit alike again
+```
+
+The glow is added onto what is behind the globe, so it shows on a dark background and fades into a
+light one.
 
 ## A flat map
 
@@ -54,21 +74,22 @@ units across its longer side, so a city map uses the same small numbers as a wor
 same under a perspective camera and an orthographic 2D one. Leave `frame` out for the whole world.
 
 The picture ends at the box (`beyond: "clip"`, the default). With `beyond: "continue"` every source
-is drawn whole, a world to the east and west too, so panning or zooming out past the box still
-shows map. A box whose east edge is past 180 degrees (data across the date line, which `boundsOf`
+is drawn on past the box, one world wide and centered on it, so panning or zooming out past the box
+still shows map; the world is drawn once, never repeated to the east or west. A box whose east edge is past 180 degrees (data across the date line, which `boundsOf`
 gives) is drawn from both sides of the line.
 
 ## Map sources
 
-| Source                        | What it shows                                       | Deepest zoom |
-| ----------------------------- | --------------------------------------------------- | ------------ |
-| `natural-earth` (the default) | A 2048 x 1024 world picture shipped in the package  | one picture  |
-| `natural-earth-gray`          | The same picture as a plain light gray backdrop     | one picture  |
-| `openstreetmap`               | Streets                                             | 19           |
-| `opentopomap`                 | Topographic                                         | 17           |
-| `nasa-gibs-blue-marble`       | Satellite mosaic of the whole earth, poles included | 7            |
-| `usgs-topo`, `usgs-imagery`   | US topographic maps and imagery                     | 16           |
-| `eox-s2cloudless-2016`        | Cloudless satellite imagery                         | 15           |
+| Source                             | What it shows                                       | Deepest zoom |
+| ---------------------------------- | --------------------------------------------------- | ------------ |
+| `natural-earth` (the default)      | A 4096 x 2048 world picture shipped in the package  | one picture  |
+| `natural-earth-gray`               | The same picture as a plain light gray backdrop     | one picture  |
+| `openstreetmap`                    | Streets                                             | 19           |
+| `opentopomap`                      | Topographic                                         | 17           |
+| `nasa-gibs-blue-marble`            | Satellite mosaic of the whole earth, poles included | 7            |
+| `nasa-gibs-blue-marble-bathymetry` | The same mosaic with the sea floor's relief         | 7            |
+| `usgs-topo`, `usgs-imagery`        | US topographic maps and imagery                     | 16           |
+| `eox-s2cloudless-2016`             | Cloudless satellite imagery                         | 15           |
 
 None needs a key. `natural-earth` contacts no one; the others are public services that ask for light
 use, and this package only ever requests the tiles in view. Sources are layered bottom first:
@@ -78,7 +99,9 @@ new Globe(scene, { sources: [mapSources["natural-earth"], mapSources.openstreetm
 ```
 
 Street tiles stop at 85 degrees north and south; on a globe the poles past that are filled from the
-source's own coarsest tile. A picture can be drawn as a light gray backdrop with `tone: "gray"`.
+source's own coarsest tile. A picture can be drawn as a light gray backdrop with `tone: "gray"`;
+the gray picture is made on a DOM canvas, so without one (Node, a worker) its tiles fail with the
+code `no-canvas` instead of drawing in color.
 
 Your own tile server or picture:
 
@@ -102,23 +125,26 @@ for tiles and `equirectangular` for pictures. A picture in the other projection 
 
 ## Credits
 
-Every tile service requires its credit to be visible while its tiles are. `map.attribution` lists
-the credits of the sources that drew a tile; `map.credits` gives each with the page it links to
-(`attributionUrl` on a source of your own). Show them over the canvas.
+The map draws nothing but the map. `map.attribution` lists the credits of the sources that drew a
+tile; `map.credits` gives each with the page it links to (`attributionUrl` on a source of your
+own). Show them wherever your page chooses, for example in an About dialog.
 
 ```ts
-creditElement.textContent = map.attribution.join(" | ");
+aboutCredits.textContent = map.attribution.join(" | ");
 ```
 
 ## Loading and level of detail
 
-- `map.status` counts tiles `loading`, `ready` and `failed` (a failed tile is a CORS, 403, 404 or
-  429 answer), in all and per source (`status.layers`).
+- `map.status` counts tiles `loading`, `ready` and `failed`, in all and per source
+  (`status.layers`). `status.errors` says why each failed tile failed: its source's index, URL, a
+  `code` (`load`: the loader rejected or threw, `cause` is what it gave -- a browser reports a CORS,
+  403, 404 or 429 answer alike; `no-canvas`: a gray source with no DOM canvas) and the `cause`.
 - The level is chosen from the size of a texel on screen. A failed tile is asked for again after 1 s,
   doubling to a minute, and at once when the browser comes back online; meanwhile its parent is drawn
   in place of it and its siblings, so an area is never drawn from two levels once loading settles.
 - `setSources` keeps the pictures of a source that stays (the base under a changed tile service).
-- `map.onChangedObservable` fires when a tile arrives or fails. If your scene renders only on demand,
+- `map.onChangedObservable` fires when a tile arrives or fails, and when `setSources`, `frame`,
+  `beyond`, `radius`, `sun` or `atmosphere` change the map. If your scene renders only on demand,
   render a frame then.
 - Options: `lodScale` (default 1: a finer tile once a tile covers more than its own pixel size on
   screen), `maxTiles` (256 per source), `maxCachedTiles` (256), `maxConcurrentLoads` (6),

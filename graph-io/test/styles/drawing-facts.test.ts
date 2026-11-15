@@ -85,11 +85,42 @@ describe("isStyleSlotColumn", () => {
 });
 
 describe("TOOL_DEFAULTS roundedCornerRadius", () => {
-    it("is Cytoscape.js's stated 8 for every program, each citing where it comes from", () => {
-        for (const [tool, d] of TOOL_DEFAULTS) {
-            expect(d.roundedCornerRadius?.value, tool).toBe(8);
-            expect(d.roundedCornerRadius?.source, tool).toMatch(/^cytoscape\.js 3\.34\.3 .* line 4386/);
+    // the programs whose own cap is read from their source or their drawing
+    const MEASURED: Readonly<Record<string, number>> = { "cytoscape-js": 8, graphviz: 12, "vis-network": 6 };
+
+    it("is each program's own cap where it is known: Cytoscape.js 8, Graphviz 12 points, vis-network 6", () => {
+        for (const [tool, cap] of Object.entries(MEASURED)) {
+            expect(TOOL_DEFAULTS.get(tool)?.roundedCornerRadius?.value, tool).toBe(cap);
         }
+        expect(TOOL_DEFAULTS.get("cytoscape-js")?.roundedCornerRadius?.source).toMatch(
+            /^cytoscape\.js 3\.34\.3 .* line 4386/,
+        );
+        expect(TOOL_DEFAULTS.get("graphviz")?.roundedCornerRadius?.source).toContain("RBCONST 12");
+        expect(TOOL_DEFAULTS.get("vis-network")?.roundedCornerRadius?.source).toContain("borderRadius 6");
+    });
+
+    it("is Cytoscape.js's 8 elsewhere, its source saying it is unverified for that program and why", () => {
+        for (const [tool, d] of TOOL_DEFAULTS) {
+            if (d.roundedCornerRadius === undefined || tool in MEASURED) {
+                continue;
+            }
+            expect(d.roundedCornerRadius.value, tool).toBe(8);
+            expect(d.roundedCornerRadius.source, tool).toMatch(/^cytoscape\.js 3\.34\.3 .* line 4386/);
+            expect(d.roundedCornerRadius.source, tool).toContain(`unverified for ${tool}`);
+        }
+    });
+});
+
+describe("TOOL_DEFAULTS roundedCornerFraction", () => {
+    it("is each program's own share of the shorter side: Cytoscape desktop an eighth with no cap", () => {
+        for (const tool of ["cytoscape", "cytoscape-fallbacks"]) {
+            expect(TOOL_DEFAULTS.get(tool)?.roundedCornerFraction?.value, tool).toBe(1 / 8);
+            expect(TOOL_DEFAULTS.get(tool)?.roundedCornerRadius, tool).toBeUndefined();
+        }
+        expect(TOOL_DEFAULTS.get("cytoscape-js")?.roundedCornerFraction?.value).toBe(1 / 4);
+        expect(TOOL_DEFAULTS.get("graphviz")?.roundedCornerFraction?.value).toBe(1 / 3);
+        expect(TOOL_DEFAULTS.get("graphviz")?.roundedCornerFraction?.source).toContain("7.33 on 36 x 22");
+        expect(TOOL_DEFAULTS.get("vis-network")?.roundedCornerFraction?.value).toBe(1 / 2);
     });
 });
 
@@ -118,8 +149,8 @@ describe("TOOL_DEFAULTS arrowhead", () => {
         expect(length("gephi", 1, 4)).toBe(13);
         // vis-network: 15 times scaleFactor plus 3 widths
         expect(length("vis-network", 1, 1)).toBe(18);
-        // yEd, as draw.io draws its files: endSize 6 plus the width
-        expect(length("yed", 1, 1)).toBe(7);
+        // yEd: 12 long on a line 1 wide, an eighth of that more for each further unit of width
+        expect(length("yed", 1, 1)).toBe(12);
     });
 
     it("reads Cytoscape's EDGE_TARGET_ARROW_SIZE as the factor of its normal 6", async () => {
@@ -177,5 +208,13 @@ describe("TOOL_DEFAULTS nodeBorderOnScreen", () => {
         const onScreen = [...TOOL_DEFAULTS].filter(([, d]) => d.nodeBorderOnScreen?.value === true).map(([t]) => t);
         expect(onScreen).toEqual(["vis-network"]);
         expect(TOOL_DEFAULTS.get("vis-network")?.nodeBorderOnScreen?.source).toMatch(/view\.scale/);
+    });
+});
+
+describe("TOOL_DEFAULTS labelSizeOnScreen", () => {
+    it("is set for sigma alone, which draws every label at its size in screen pixels whatever the zoom", () => {
+        const onScreen = [...TOOL_DEFAULTS].filter(([, d]) => d.labelSizeOnScreen?.value === true).map(([t]) => t);
+        expect(onScreen).toEqual(["sigma"]);
+        expect(TOOL_DEFAULTS.get("sigma")?.labelSizeOnScreen?.source).toMatch(/zoomToLabelSizeRatioFunction/);
     });
 });

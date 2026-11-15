@@ -17,7 +17,7 @@ import { depthFirstSearch, hasCycle, topologicalSort } from "../../../src/indexe
 import { condensation, stronglyConnectedComponents } from "../../../src/indexed/scc.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
-import type { NodeId } from "../../helpers/legacy-types.js";
+import type { BFSResult, NodeId, TraversalResult } from "../../helpers/legacy-types.js";
 import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { legacyArcOrder } from "../../helpers/to-snapshot.js";
 import {
@@ -87,7 +87,7 @@ describe("indexed.depthFirstSearch against legacy depthFirstSearch", () => {
             for (const start of starts(s)) {
                 const at = `${name} from ${String(s.ids.idOf(start))}`;
                 const { legacy, legacyDepths } = legacyResult() as {
-                    legacy: TraversalResult;
+                    legacy: Required<TraversalResult>;
                     legacyDepths: Map<NodeId, number>;
                 };
                 const port = depthFirstSearch(s, start, { arcOrder });
@@ -106,7 +106,7 @@ describe("indexed.depthFirstSearch against legacy depthFirstSearch", () => {
     it("gives the post-order on every fixture", () => {
         for (const { name, s, arcOrder } of cases(all)) {
             for (const start of starts(s)) {
-                const legacy = legacyResult() as TraversalResult;
+                const legacy = legacyResult() as Required<TraversalResult>;
                 const port = depthFirstSearch(s, start, { order: "post", arcOrder });
                 s.validate({ checksum: true });
                 expect(ids(s, port.order), name).toEqual(legacy.order);
@@ -122,7 +122,7 @@ describe("indexed.depthFirstSearch against legacy depthFirstSearch", () => {
             }
             const full = depthFirstSearch(s, 0, { arcOrder });
             const target = full.order[full.visitedCount >> 1];
-            const legacy = legacyResult() as TraversalResult;
+            const legacy = legacyResult() as Required<TraversalResult>;
             const port = depthFirstSearch(s, 0, { target, arcOrder });
             s.validate({ checksum: true });
             expect(ids(s, port.order), name).toEqual(legacy.order);
@@ -331,7 +331,7 @@ describe("indexed.breadthFirstSearch target option against legacy breadthFirstSe
             }
             const full = breadthFirstSearch(s, 0, { arcOrder });
             for (const target of [full.order[full.visitedCount - 1], full.order[full.visitedCount >> 1]]) {
-                const legacy = legacyResult() as TraversalResult;
+                const legacy = legacyResult() as Required<TraversalResult>;
                 const port = breadthFirstSearch(s, 0, { target, arcOrder });
                 s.validate({ checksum: true });
                 const visited = ids(s, port.order);

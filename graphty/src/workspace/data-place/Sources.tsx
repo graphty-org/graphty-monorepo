@@ -42,12 +42,12 @@ export function Sources({
         list.current?.querySelector<HTMLElement>(`[data-source="${CSS.escape(added.key)}"] .dp-source-main`)?.focus();
     }, [sources]);
     return (
-        <ControlSection label="Sources" actions={<AddSourceMenu />} empty={sources.length === 0}>
+        <ControlSection label="Data sources" actions={<AddSourceMenu />} empty={sources.length === 0}>
             {sources.length === 0 ? null : (
                 <div // NOSONAR(S6819): a <ul>/<li> would bring list styling and spacing the compact rows do not use; the role gives the same semantics
                     ref={list}
                     role="list"
-                    aria-label="Sources"
+                    aria-label="Data sources"
                     className="dp-sources"
                 >
                     {sources.map((source) => (

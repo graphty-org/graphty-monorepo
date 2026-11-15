@@ -12,6 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { commands, page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { openBy } from "../../../test/open";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { forgetUsageAnswer } from "../../privacy/usageData";
@@ -19,15 +20,16 @@ import { clearRecent, rememberRecent } from "../../project/recent";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
+
 declare module "vitest/browser" {
     interface BrowserCommands {
         /** Answers the next file picker with this file (graphty/vitest.config.ts). */
         chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
     }
 }
-
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 type Element = HTMLElementTagNameMap["graphty-element"];
 
@@ -44,16 +46,11 @@ async function startPage(): Promise<{
     const store = createWorkspaceStore();
     const { unmount } = render(<Workspace store={store} />);
     let element: Element | null = null;
-    await waitFor(
-        () => {
-            element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                "graphty-element[data-start-page]",
-            );
-            assert.equal(element?.session.data.statistics().nodeCount, 77);
-            assert.isDefined(element?.session.runs.get("louvain")?.result);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        element = document.querySelector<HTMLElementTagNameMap["graphty-element"]>("graphty-element[data-start-page]");
+        assert.equal(element?.session.data.statistics().nodeCount, 77);
+        assert.isDefined(element?.session.runs.get("louvain")?.result);
+    });
     if (element === null) {
         throw new Error("the start page's graph never came up");
     }
@@ -335,14 +332,11 @@ describe("the start page's graph", () => {
         const store = createWorkspaceStore();
         const { unmount } = render(<Workspace store={store} />);
         let element: Element | null = null;
-        await waitFor(
-            () => {
-                element = document.querySelector<Element>("graphty-element[data-start-page]");
-                assert.isDefined(element?.session.runs.get("louvain")?.result);
-                assert.isNotNull(screen.queryByText(/^Colored by community/));
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            element = document.querySelector<Element>("graphty-element[data-start-page]");
+            assert.isDefined(element?.session.runs.get("louvain")?.result);
+            assert.isNotNull(screen.queryByText(/^Colored by community/));
+        });
         const hero = element as unknown as Element;
         await hero.waitForStableFrame();
         const framing = (): string => {
@@ -440,15 +434,12 @@ describe("the start page's ways in", () => {
         // A saved project to resume: the start page's own graph, saved as soon as it has loaded.
         const first = render(<Workspace store={createWorkspaceStore()} />);
         let hero: GraphSession | undefined;
-        await waitFor(
-            () => {
-                hero = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
-                    "graphty-element[data-start-page]",
-                )?.session;
-                assert.equal(hero?.data.statistics().nodeCount, 77);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            hero = document.querySelector<HTMLElementTagNameMap["graphty-element"]>(
+                "graphty-element[data-start-page]",
+            )?.session;
+            assert.equal(hero?.data.statistics().nodeCount, 77);
+        });
         if (hero === undefined) {
             throw new Error("the start page's graph never came up");
         }

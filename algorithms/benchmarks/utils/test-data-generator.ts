@@ -1,45 +1,35 @@
+import { erdosRenyiGnmGraph } from "@graphty/graph-samples/generators";
+
 import type { GraphImpl as BenchmarkGraphImpl, GraphMetadata as BenchmarkGraphMetadata } from "../benchmark-graph";
-import { generateRMATBenchmark } from "../datasets/generators/rmat-generator";
-import { generateSmallWorldBenchmark } from "../datasets/generators/small-world";
 
-// Erdős–Rényi random graph generator with fixed number of edges
+/**
+ * The seed of every random benchmark graph: a fixed seed builds the same graph on every run, so a change in a
+ * benchmark's time means the code changed, not the graph.
+ */
+export const BENCHMARK_SEED = 1;
+
+/**
+ * Erdos-Renyi G(n, m): `edges` distinct undirected edges (at most every pair) among `vertices` vertices, drawn by
+ * graph-samples' seeded generator.
+ * @param vertices - The number of vertices
+ * @param edges - The number of edges
+ * @returns The graph
+ */
 function generateRandomGraphFixed(vertices: number, edges: number): BenchmarkGraphImpl {
+    // a graph with fewer vertex pairs than `edges` is the complete graph
+    const m = Math.min(edges, (vertices * (vertices - 1)) / 2);
+    const sample = erdosRenyiGnmGraph({ n: vertices, m, seed: BENCHMARK_SEED });
     const adjacencyList: Map<number, Set<number>> = new Map();
-
-    // Initialize vertices
     for (let i = 0; i < vertices; i++) {
         adjacencyList.set(i, new Set());
     }
-
-    // Generate random edges
-    let edgeCount = 0;
-    const maxAttempts = edges * 10;
-    let attempts = 0;
-
-    while (edgeCount < edges && attempts < maxAttempts) {
-        const from = Math.floor(Math.random() * vertices);
-        const to = Math.floor(Math.random() * vertices);
-
-        if (from !== to && !adjacencyList.get(from)?.has(to)) {
-            adjacencyList.get(from)?.add(to);
-            adjacencyList.get(to)?.add(from);
-            edgeCount++;
-        }
-        attempts++;
-    }
-
-    // Convert to edge list format
     const edgeList: Array<[number, number]> = [];
-    const visited = new Set<string>();
-
-    for (const [from, neighbors] of adjacencyList) {
-        for (const to of neighbors) {
-            const edgeKey = from < to ? `${from}-${to}` : `${to}-${from}`;
-            if (!visited.has(edgeKey)) {
-                edgeList.push([from, to]);
-                visited.add(edgeKey);
-            }
-        }
+    for (let e = 0; e < sample.src.length; e++) {
+        const from = sample.src[e];
+        const to = sample.dst[e];
+        adjacencyList.get(from)?.add(to);
+        adjacencyList.get(to)?.add(from);
+        edgeList.push([from, to]);
     }
 
     const metadata: BenchmarkGraphMetadata = {
@@ -49,6 +39,7 @@ function generateRandomGraphFixed(vertices: number, edges: number): BenchmarkGra
             edges: edgeList.length,
             targetEdges: edges,
             actualEdges: edgeList.length,
+            seed: BENCHMARK_SEED,
         },
     };
 
@@ -145,16 +136,6 @@ export const generateTestGraphs = {
             directed: false,
             weighted: false,
         };
-    },
-
-    // RMAT graph: Power-law degree distribution (scale-free)
-    rmat(vertices: number): BenchmarkGraphImpl {
-        return generateRMATBenchmark(vertices);
-    },
-
-    // Small-world graph: High clustering + short paths
-    smallWorld(vertices: number): BenchmarkGraphImpl {
-        return generateSmallWorldBenchmark(vertices);
     },
 
     // Complete graph: All vertices connected (for small tests)

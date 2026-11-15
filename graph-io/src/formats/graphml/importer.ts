@@ -38,10 +38,11 @@ import {
     takenIn,
     uniqueColumnName,
 } from "../../common/attributes.js";
-import { type DeclaredTypeSpec, overflowsToInfinity } from "../../common/declared-types.js";
-import { DirectionResolver, type EdgeKind } from "../../common/direction.js";
+import { type DeclaredTypeSpec, overflowsToInfinity, parseBooleanText } from "../../common/declared-types.js";
+import { DirectionResolver, type EdgeKind, type EdgeLocation } from "../../common/direction.js";
 import { IdCoercer } from "../../common/ids.js";
 import { textChunks, throwIfAborted } from "../../common/input.js";
+import { setOwn } from "../../common/json-elements.js";
 import { type ListSyntax } from "../../common/lists.js";
 import {
     type ImportFormatDefaults,
@@ -51,11 +52,12 @@ import {
     resolveImportOptions,
 } from "../../common/options.js";
 import { agree, plural } from "../../common/plural.js";
-import { ImportReportBuilder } from "../../common/report.js";
+import { ImportReportBuilder, SKIPPED_VALUE } from "../../common/report.js";
 import { isWeightField, parseWeightText } from "../../common/weights.js";
 import {
     isWhitespace,
     localName,
+    MAX_HINT_RESERVE,
     sniffXmlText,
     tokenizeXml,
     xmlDeclaredEncoding,
@@ -80,6 +82,8 @@ import {
     ORIGINAL_ID_ATTRIBUTE,
     ORIGINAL_ID_COLUMN,
     PARENT_COLUMN,
+    PORT_KEYS_EXTRA,
+    PORTS_COLUMN,
     RESERVED_EDGE_NAMES,
     RESERVED_NODE_NAMES,
     SOURCE_PORT_COLUMN,
@@ -287,6 +291,8 @@ interface PendingKey {
     readonly attrType: string | null;
     readonly yfilesType: string | null;
     readonly domains: readonly Domain[];
+    /** Declared for `<port>` elements. */
+    readonly port: boolean;
     readonly line: number;
     desc: string;
     defaultText: string | null;
@@ -311,6 +317,8 @@ interface NodeState {
     readonly line: number;
     /** The keys of the `<data>` read so far, for the duplicate check; null before the first. */
     keys: Set<string> | null;
+    /** The yFiles data of its ports, by port, for the ports column; null before the first. */
+    ports: Record<string, unknown>[] | null;
 }
 
 /** The `<edge>` being read. */
@@ -356,6 +364,8 @@ interface ContentState {
     text: string;
     tree: XmlTreeBuilder | null;
     line: number;
+    /** The port whose `<data>` this is (its entry in the node's ports), or null. */
+    port: Record<string, unknown> | null;
 }
 
 /** Where an issue was found. */
@@ -442,7 +452,7 @@ class GraphmlReader implements XmlHandler {
     private readonly declared = new IndexFlags();
 
     private readonly edgeIds = new Set<string>();
-    /** The keys `<data>` referenced before any `<key>` declared them (E_GRAPHML_UNKNOWN_KEY). */
+    /** The keys `<data>` referenced before any `<key>` declared them, declared as untyped (W_GRAPHML_UNKNOWN_KEY). */
     private readonly unknownKeyIds = new Set<string>();
     /** The ids of the edges waiting in {@link deferred}. */
     private readonly deferredEdgeIds = new Set<string>();
@@ -460,6 +470,14 @@ class GraphmlReader implements XmlHandler {
 
     private hyperedge: HyperedgeState | null = null;
 
+    /** The open `<port>` elements' entries, innermost last. */
+    private readonly portEntries: Record<string, unknown>[] = [];
+
+    /** The node ports column, once a port's yFiles data declared it. */
+    private portsColumn: ColumnHandle | null = null;
+    /** The yFiles type (`yfiles.type` or `y:attr.uri`) of each yFiles port key, by its name, for a save. */
+    private readonly portKeyTypes: Record<string, string> = {};
+
     private readonly content: ContentState = {
         key: null,
         pendingKey: null,
@@ -467,6 +485,7 @@ class GraphmlReader implements XmlHandler {
         text: "",
         tree: null,
         line: 0,
+        port: null,
     };
 
     private descTarget: "graph" | "key" | null = null;
@@ -486,7 +505,7 @@ class GraphmlReader implements XmlHandler {
 
     private edgedefault: "directed" | "undirected" | null = null;
 
-    private namespaces: Record<string, string> = {};
+    private readonly namespaces: Record<string, string> = {};
 
     private weightOrigin: { id: string; title: string | null; type: string | null } | null = null;
 
@@ -648,9 +667,11 @@ class GraphmlReader implements XmlHandler {
             case Ctx.Capture:
                 this.captureEnd();
                 return;
+            case Ctx.Port:
+                this.portEntries.pop();
+                return;
             case Ctx.Skip:
             case Ctx.Graphml:
-            case Ctx.Port:
             case Ctx.Dropped:
             case undefined:
                 return;
@@ -774,7 +795,7 @@ class GraphmlReader implements XmlHandler {
     private readRoot(attrs: ReadonlyMap<string, string>): void {
         for (const [key, value] of attrs) {
             if (key.startsWith("xmlns:") && value !== GRAPHML_NAMESPACE && value !== XSI_NAMESPACE) {
-                this.namespaces[key.slice(6)] = value;
+                setOwn(this.namespaces, key.slice(6), value);
             }
         }
     }
@@ -881,6 +902,16 @@ class GraphmlReader implements XmlHandler {
                     this.ctx.push(Ctx.Skip);
                 }
                 return;
+            case "key":
+                // Gephi and others write keys inside <graph>; the schema puts them in <graphml>, but a key id is global
+                this.report.warnOnce(
+                    "validation-error",
+                    GRAPHML_ISSUE.KEY_IN_GRAPH,
+                    "<key> declared inside <graph>; read as if it were declared in <graphml>",
+                    { line, element: attrs.get("id") },
+                );
+                this.beginKey(attrs, line);
+                return;
             case "node":
                 this.beginNode(attrs, line);
                 return;
@@ -931,7 +962,7 @@ class GraphmlReader implements XmlHandler {
                 this.report.warnOnce(
                     "unsupported",
                     GRAPHML_ISSUE.PORT_DECLARATION,
-                    "<port> declarations are not kept; sourceport / targetport edge attributes are",
+                    "<port> declarations are not kept as ports; sourceport / targetport edge attributes are, and a port's yFiles data is kept in its node's ports column",
                     { line },
                 );
                 this.beginPort(attrs, line);
@@ -1023,6 +1054,7 @@ class GraphmlReader implements XmlHandler {
         this.reportUnreadAttributes("port", attrs, PORT_ATTRIBUTES, line);
         const node = this.nodes[this.nodes.length - 1];
         const name = attrs.get("name");
+        this.portEntries.push({ name: name ?? null });
         if (node.id !== null && name !== undefined) {
             const id = node.restoredId ?? node.id;
             let names = this.ports.get(id);
@@ -1036,7 +1068,8 @@ class GraphmlReader implements XmlHandler {
     }
 
     /**
-     * A child of `<port>`: a nested port declares a name too; data and desc are skipped.
+     * A child of `<port>`: a nested port declares a name too; the data of a yFiles port key is kept (beginPortData),
+     * other data and desc are skipped.
      * @param name - the element name
      * @param local - its local name
      * @param attrs - its attributes
@@ -1048,12 +1081,64 @@ class GraphmlReader implements XmlHandler {
                 this.beginPort(attrs, line);
                 return;
             case "data":
+                this.beginPortData(attrs, line);
+                return;
             case "desc":
                 this.ctx.push(Ctx.Skip);
                 return;
             default:
                 this.unknownElement(name, line);
         }
+    }
+
+    /**
+     * Open a `<data>` of a `<port>`: a yFiles key's is read as a tree for the node's ports column, any other skipped
+     * (its key was reported as not kept when it was declared).
+     * @param attrs - its attributes
+     * @param line - the line
+     */
+    private beginPortData(attrs: ReadonlyMap<string, string>, line: number): void {
+        const key = this.keys.get(attrs.get("key") ?? "")?.find((entry) => entry.yfiles && !entry.skipped);
+        const port = this.portEntries.at(-1);
+        if (key === undefined || port === undefined) {
+            this.ctx.push(Ctx.Skip);
+            return;
+        }
+        Object.assign(this.content, { key, pendingKey: null, domain: "node", text: "", tree: null, line, port });
+        this.ctx.push(Ctx.Data);
+    }
+
+    /**
+     * Close a port's `<data>`: its tree joins the port's entry, and the node's ports column holds every entry so far.
+     * @param key - the yFiles key
+     * @param port - the port's entry
+     * @param value - the tree
+     */
+    private finishPortData(key: KeyEntry, port: Record<string, unknown>, value: unknown): void {
+        const node = this.nodes.at(-1);
+        if (node === undefined) {
+            return;
+        }
+        setOwn(port, key.name, value);
+        node.ports ??= [];
+        if (!node.ports.includes(port)) {
+            node.ports.push(port);
+        }
+        if (this.portsColumn === null) {
+            const decl: ColumnDecl = {
+                name: uniqueColumnName(PORTS_COLUMN, "ports", this.takenIn("node")),
+                dtype: "json",
+                nullable: true,
+                origin: { format: FORMAT, id: null, title: null, type: "port", namespace: "yfiles" },
+                extra: { [PORT_KEYS_EXTRA]: { ...this.portKeyTypes } },
+            };
+            this.portsColumn = this.declareTarget("node", decl, null, "comma").handle;
+        }
+        this.setNodeData(
+            node,
+            this.portsColumn,
+            node.ports.map((entry) => ({ ...entry })),
+        );
     }
 
     /**
@@ -1235,14 +1320,33 @@ class GraphmlReader implements XmlHandler {
         if (graphId !== undefined && graphId.length > 0) {
             this.graphIds.add(graphId);
         }
-        const edgedefault = attrs.get("edgedefault");
-        let directed: boolean;
+        const directed = this.graphDirection(attrs.get("edgedefault"), top, line);
+        let hints: GraphState["hints"] = null;
+        if (top && this.graphSeen) {
+            this.reportSecondGraph(attrs, line);
+        } else if (top) {
+            hints = this.beginTopGraph(attrs, line, directed);
+        }
+        this.graphs.push({ directed, parent, hints, nodes: 0, edges: 0, line });
+        this.ctx.push(Ctx.Graph);
+    }
+
+    /**
+     * The direction of a `<graph>` from its edgedefault; a missing or invalid one is reported and
+     * read as the default (top level) or its container's (nested).
+     * @param edgedefault - the edgedefault attribute, or undefined
+     * @param top - whether the graph is top-level
+     * @param line - the line
+     * @returns true when directed
+     */
+    private graphDirection(edgedefault: string | undefined, top: boolean, line: number): boolean {
         if (edgedefault === "directed" || edgedefault === "undirected") {
-            directed = edgedefault === "directed";
-        } else if (edgedefault === undefined) {
-            directed = top ? this.options.defaultDirected : this.graphs[this.graphs.length - 1].directed;
+            return edgedefault === "directed";
+        }
+        const directed = top ? this.options.defaultDirected : this.graphs.at(-1)?.directed === true;
+        const direction = directed ? "directed" : "undirected";
+        if (edgedefault === undefined) {
             // once per kind: a file of thousands of nested graphs without edgedefault is one finding
-            const direction = directed ? "directed" : "undirected";
             this.report.warnOnce(
                 "validation-error",
                 GRAPHML_ISSUE.EDGEDEFAULT_MISSING,
@@ -1253,61 +1357,70 @@ class GraphmlReader implements XmlHandler {
                 `${GRAPHML_ISSUE.EDGEDEFAULT_MISSING}:${top ? "top" : "nested"}`,
             );
         } else {
-            directed = top ? this.options.defaultDirected : this.graphs[this.graphs.length - 1].directed;
             this.report.error(
                 "validation-error",
                 GRAPHML_ISSUE.INVALID_EDGEDEFAULT,
-                `edgedefault "${edgedefault}" is neither directed nor undirected; read as ${directed ? "directed" : "undirected"}`,
+                `edgedefault "${edgedefault}" is neither directed nor undirected; read as ${direction}`,
                 { line },
             );
         }
-        let hints: GraphState["hints"] = null;
-        if (top && this.graphSeen) {
-            this.report.warnOnce(
-                "unsupported",
-                GRAPHML_ISSUE.MULTIPLE_GRAPHS,
-                "the document holds more than one top-level <graph>; their nodes and edges are merged into one graph",
-                { line, element: attrs.get("id") ?? null },
-            );
-            for (const name of ["parse.nodes", "parse.edges"]) {
-                if (attrs.has(name)) {
-                    this.report.warnOnce(
-                        "unsupported",
-                        GRAPHML_ISSUE.PARSE_HINT_IGNORED,
-                        `the ${name} hint of a second top-level <graph> is ignored`,
-                        { line, element: name },
-                        `${GRAPHML_ISSUE.PARSE_HINT_IGNORED}:second:${name}`,
-                    );
-                }
-            }
-        } else if (top) {
-            this.graphSeen = true;
-            this.graphId = attrs.get("id") ?? null;
-            this.edgedefault = directed ? "directed" : "undirected";
-            this.direction.setHeader(directed, { line });
-            const nodes = this.hint(attrs.get("parse.nodes"), "parse.nodes", line);
-            const edges = this.hint(attrs.get("parse.edges"), "parse.edges", line);
-            hints = nodes === null && edges === null ? null : { nodes, edges };
-            if (nodes !== null || edges !== null) {
-                try {
-                    this.sink.reserve(nodes ?? undefined, edges ?? undefined);
-                } catch (err) {
-                    if (!(err instanceof GraphFormatError)) {
-                        throw err;
-                    }
-                    this.report.warning(
-                        "validation-error",
-                        GRAPHML_ISSUE.COUNT_HINT,
-                        `count hint refused: ${err.message}`,
-                        {
-                            line,
-                        },
-                    );
-                }
+        return directed;
+    }
+
+    /**
+     * Report a second top-level `<graph>`: it is merged into the first and its count hints are ignored.
+     * @param attrs - the graph attributes
+     * @param line - the line
+     */
+    private reportSecondGraph(attrs: ReadonlyMap<string, string>, line: number): void {
+        this.report.warnOnce(
+            "unsupported",
+            GRAPHML_ISSUE.MULTIPLE_GRAPHS,
+            "the document holds more than one top-level <graph>; their nodes and edges are merged into one graph",
+            { line, element: attrs.get("id") ?? null },
+        );
+        for (const name of ["parse.nodes", "parse.edges"]) {
+            if (attrs.has(name)) {
+                this.report.warnOnce(
+                    "unsupported",
+                    GRAPHML_ISSUE.PARSE_HINT_IGNORED,
+                    `the ${name} hint of a second top-level <graph> is ignored`,
+                    { line, element: name },
+                    `${GRAPHML_ISSUE.PARSE_HINT_IGNORED}:second:${name}`,
+                );
             }
         }
-        this.graphs.push({ directed, parent, hints, nodes: 0, edges: 0, line });
-        this.ctx.push(Ctx.Graph);
+    }
+
+    /**
+     * Open the first top-level `<graph>`: it sets the sink's direction, and its count hints are
+     * reserved in the sink.
+     * @param attrs - the graph attributes
+     * @param line - the line
+     * @param directed - the graph's direction
+     * @returns the count hints, or null when it has none
+     */
+    private beginTopGraph(attrs: ReadonlyMap<string, string>, line: number, directed: boolean): GraphState["hints"] {
+        this.graphSeen = true;
+        this.graphId = attrs.get("id") ?? null;
+        this.edgedefault = directed ? "directed" : "undirected";
+        this.direction.setHeader(directed, { line });
+        const nodes = this.hint(attrs.get("parse.nodes"), "parse.nodes", line);
+        const edges = this.hint(attrs.get("parse.edges"), "parse.edges", line);
+        if (nodes === null && edges === null) {
+            return null;
+        }
+        try {
+            this.sink.reserve(capHint(nodes), capHint(edges));
+        } catch (err) {
+            if (!(err instanceof GraphFormatError)) {
+                throw err;
+            }
+            this.report.warning("validation-error", GRAPHML_ISSUE.COUNT_HINT, `count hint refused: ${err.message}`, {
+                line,
+            });
+        }
+        return { nodes, edges };
     }
 
     /** Close a `<graph>`: a top-level graph's count hints are checked against what it held. */
@@ -1366,15 +1479,22 @@ class GraphmlReader implements XmlHandler {
         // attr.list (a list extension of some writers) and yEd's yfiles.foldertype are reported here
         this.reportUnreadAttributes("key", attrs, KEY_ATTRIBUTES, line);
         const id = attrs.get("id") ?? null;
-        if (id !== null && this.unknownKeyIds.delete(id)) {
+        if (id !== null && this.unknownKeyIds.has(id)) {
             this.report.warning(
-                "missing-value",
+                "validation-error",
                 GRAPHML_ISSUE.KEY_DECLARED_LATE,
-                `key "${id}" is declared after data that uses it; those values were dropped (declare <key> before <graph>)`,
+                `key "${id}" is declared after data that uses it; that data was already read as text and this declaration is ignored (declare <key> before <graph>)`,
                 { line, element: id },
             );
+            this.pendingKey = null;
+            this.ctx.push(Ctx.Key);
+            return;
         }
         const forText = attrs.get("for") ?? "all";
+        // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
+        const attrType = attrs.get("attr.type") ?? attrs.get("type") ?? null;
+        // yFiles 3 declares its untyped keys with `y:attr.uri` instead of `yfiles.type`: their data is nested XML
+        const yfilesType = attrs.get("yfiles.type") ?? (attrType === null ? attributeUri(attrs) : null);
         let domains: readonly Domain[];
         switch (forText) {
             case "all":
@@ -1389,9 +1509,14 @@ class GraphmlReader implements XmlHandler {
             case "edge":
                 domains = [forText];
                 break;
-            case "hyperedge":
             case "port":
+            case "hyperedge":
             case "endpoint":
+                // a yFiles port key's data is kept in its node's ports column
+                if (forText === "port" && yfilesType !== null) {
+                    domains = [];
+                    break;
+                }
                 this.report.warning(
                     "unsupported",
                     GRAPHML_ISSUE.KEY_DOMAIN_UNSUPPORTED,
@@ -1409,15 +1534,13 @@ class GraphmlReader implements XmlHandler {
                 );
                 domains = [];
         }
-        // `name` / `type` without the `attr.` prefix are written by some tools; the spec's spelling wins
-        const attrType = attrs.get("attr.type") ?? attrs.get("type") ?? null;
         this.pendingKey = {
             id,
             attrName: attrs.get("attr.name") ?? attrs.get("name") ?? null,
             attrType,
-            // yFiles 3 declares its untyped keys with `y:attr.uri` instead of `yfiles.type`: their data is nested XML
-            yfilesType: attrs.get("yfiles.type") ?? (attrType === null ? attributeUri(attrs) : null),
+            yfilesType,
             domains,
+            port: forText === "port",
             line,
             desc: "",
             defaultText: null,
@@ -1430,9 +1553,16 @@ class GraphmlReader implements XmlHandler {
     private finishKey(): void {
         const key = this.pendingKey;
         this.pendingKey = null;
-        if (key === null) {
-            return;
+        if (key !== null) {
+            this.registerKey(key);
         }
+    }
+
+    /**
+     * Declare the columns of a key and record it by id.
+     * @param key - the key
+     */
+    private registerKey(key: PendingKey): void {
         const where = { line: key.line, element: key.id };
         if (key.id === null || key.id.length === 0) {
             this.report.error("validation-error", GRAPHML_ISSUE.KEY_MISSING_ID, "<key> without an id", where);
@@ -1451,28 +1581,61 @@ class GraphmlReader implements XmlHandler {
         const yfiles = key.yfilesType !== null;
         const name = key.attrName !== null && key.attrName.length > 0 ? key.attrName : key.id;
         const skipped = yfiles && this.yfilesMode === "skip";
+        if (key.port && key.yfilesType !== null && !skipped) {
+            setOwn(this.portKeyTypes, name, key.yfilesType);
+        }
         if (skipped) {
             this.report.warning(
                 "unsupported",
                 GRAPHML_ISSUE.YFILES_SKIPPED,
-                `yFiles key "${key.id}" (${key.yfilesType ?? ""}) skipped per the yfiles option`,
+                `yFiles key "${key.id}" (${key.yfilesType}) skipped per the yfiles option`,
                 where,
             );
         }
+        const columns = this.declareKeyColumns(key, key.id, name, skipped ? [] : key.domains);
+        this.keys.set(key.id, [
+            ...declared,
+            {
+                id: key.id,
+                name,
+                node: columns.node,
+                edge: columns.edge,
+                graph: columns.graph,
+                weight: columns.weight,
+                originalId: columns.originalId,
+                yfiles,
+                skipped,
+                domains: key.domains,
+            },
+        ]);
+    }
+
+    /**
+     * Declare the columns of a `<key>` in each of its domains: an edge key titled like the weight
+     * is THE weight, a node key titled like the original-id attribute restores mangled ids.
+     * @param key - the key
+     * @param id - the key id
+     * @param name - the resolved attribute name
+     * @param domains - the domains to declare (none for a skipped key)
+     * @returns the column targets and the weight and original-id flags
+     */
+    private declareKeyColumns(
+        key: PendingKey,
+        id: string,
+        name: string,
+        domains: readonly Domain[],
+    ): Pick<KeyEntry, "node" | "edge" | "graph" | "weight" | "originalId"> {
+        const yfiles = key.yfilesType !== null;
+        const where = { line: key.line, element: key.id };
         let weight = false;
         let originalId = false;
-        let node: ColumnTarget | null = null;
-        let edge: ColumnTarget | null = null;
-        let graph: ColumnTarget | null = null;
-        for (const domain of key.domains) {
-            if (skipped) {
-                continue;
-            }
+        const targets: Record<Domain, ColumnTarget | null> = { node: null, edge: null, graph: null };
+        for (const domain of domains) {
             if (domain === "edge" && !yfiles && isWeightField(name, this.options.weightFrom)) {
                 // networkx writes one weight key per value type (long and double): every key of
                 // that name is the weight; two of them on one edge are reported in finishData
                 weight = true;
-                this.weightOrigin ??= { id: key.id, title: key.attrName, type: key.attrType };
+                this.weightOrigin ??= { id, title: key.attrName, type: key.attrType };
                 continue;
             }
             if (domain === "node" && !yfiles && name === ORIGINAL_ID_ATTRIBUTE) {
@@ -1480,37 +1643,16 @@ class GraphmlReader implements XmlHandler {
                     originalId = true;
                     continue;
                 }
-                node = this.declareOriginalIdColumn(key);
+                targets.node = this.declareOriginalIdColumn(key);
                 continue;
             }
             try {
-                const target = yfiles ? this.declareYfiles(key, name, domain) : this.declareTyped(key, name, domain);
-                if (domain === "node") {
-                    node = target;
-                } else if (domain === "edge") {
-                    edge = target;
-                } else {
-                    graph = target;
-                }
+                targets[domain] = yfiles ? this.declareYfiles(key, name, domain) : this.declareTyped(key, name, domain);
             } catch (err) {
                 this.report.recordError(err, where);
             }
         }
-        this.keys.set(key.id, [
-            ...declared,
-            {
-                id: key.id,
-                name,
-                node,
-                edge,
-                graph,
-                weight,
-                originalId,
-                yfiles,
-                skipped,
-                domains: key.domains,
-            },
-        ]);
+        return { node: targets.node, edge: targets.edge, graph: targets.graph, weight, originalId };
     }
 
     /**
@@ -1661,21 +1803,20 @@ class GraphmlReader implements XmlHandler {
         content.text = "";
         content.tree = null;
         content.line = line;
+        content.port = null;
         if (keyId === undefined) {
             this.report.error("validation-error", GRAPHML_ISSUE.DATA_MISSING_KEY, "<data> without a key attribute", {
                 line,
             });
         } else {
             const entries = this.keys.get(keyId);
-            const key = entries?.find((entry) => entry.domains.includes(domain)) ?? entries?.[0];
+            const key =
+                entries?.find((entry) => entry.domains.includes(domain)) ??
+                (entries === undefined || this.unknownKeyIds.has(keyId)
+                    ? this.declareUndeclaredKey(keyId, domain, line)
+                    : entries[0]);
             if (key === undefined) {
-                this.unknownKeyIds.add(keyId);
-                this.report.error(
-                    "validation-error",
-                    GRAPHML_ISSUE.UNKNOWN_KEY,
-                    `<data> references undeclared key "${keyId}"`,
-                    { line, element: keyId },
-                );
+                // the key id is empty, already reported by registerKey
             } else if (!key.skipped && !key.domains.includes(domain)) {
                 this.report.warnOnce(
                     "validation-error",
@@ -1688,6 +1829,37 @@ class GraphmlReader implements XmlHandler {
             }
         }
         this.ctx.push(Ctx.Data);
+    }
+
+    /**
+     * Declare an untyped key for a `<data>` whose key was never declared, so its values are kept as text
+     * (APOC and graphology write such files).
+     * @param id - the key id
+     * @param domain - the domain of the element holding the data
+     * @param line - the line
+     * @returns the key, or undefined when it could not be declared
+     */
+    private declareUndeclaredKey(id: string, domain: Domain, line: number): KeyEntry | undefined {
+        this.unknownKeyIds.add(id);
+        this.report.warning(
+            "validation-error",
+            GRAPHML_ISSUE.UNKNOWN_KEY,
+            `<data> references undeclared key "${id}"; its ${domain} values are read as text`,
+            { line, element: id },
+        );
+        this.registerKey({
+            id,
+            attrName: null,
+            attrType: null,
+            yfilesType: null,
+            domains: [domain],
+            port: false,
+            line,
+            desc: "",
+            defaultText: null,
+            defaultTree: undefined,
+        });
+        return this.keys.get(id)?.find((entry) => entry.domains.includes(domain));
     }
 
     /**
@@ -1763,112 +1935,161 @@ class GraphmlReader implements XmlHandler {
     /** Close a `<data>`: parse the value and route it to its element. */
     private finishData(): void {
         const { content } = this;
-        const { key } = content;
+        const { key, port } = content;
         const value: unknown = content.tree === null ? content.text : content.tree.finish();
         content.tree = null;
         content.text = "";
         content.key = null;
+        content.port = null;
         if (key === null || key.skipped) {
+            return;
+        }
+        if (port !== null) {
+            this.finishPortData(key, port, value);
             return;
         }
         const where = { line: content.line, element: key.id };
         switch (content.domain) {
-            case "node": {
-                const node = this.nodes[this.nodes.length - 1];
-                if (key.originalId) {
-                    if (typeof value !== "string" || node.index !== INVALID_INDEX) {
-                        this.report.warning(
-                            "validation-error",
-                            GRAPHML_ISSUE.ORIGINAL_ID_IGNORED,
-                            typeof value === "string"
-                                ? `the ${ORIGINAL_ID_ATTRIBUTE} value comes after the node's nested <graph>, which added the node under its written id; it is not restored`
-                                : `the ${ORIGINAL_ID_ATTRIBUTE} value holds elements, not text; it is not restored`,
-                            where,
-                        );
-                        return;
-                    }
-                    node.restoredId = value;
-                    return;
-                }
-                if (key.yfiles) {
-                    for (const [handle, mapped] of this.graphics("node", key, value, where)) {
-                        this.setNodeData(node, handle, mapped);
-                    }
-                }
-                if (key.node === null) {
-                    return;
-                }
-                const parsed = this.parseValue(key.node, value, where);
-                if (parsed !== undefined) {
-                    this.setNodeData(node, key.node.handle, parsed);
-                }
+            case "node":
+                this.finishNodeData(key, value, where);
                 return;
-            }
-            case "edge": {
-                const { edge } = this;
-                if (edge === null) {
-                    return;
-                }
-                if (key.weight) {
-                    if (typeof value !== "string") {
-                        this.report.error(
-                            "validation-error",
-                            GRAPHML_ISSUE.DATA_NESTED,
-                            "a weight value must be text",
-                            where,
-                        );
-                        return;
-                    }
-                    if (edge.weightKey !== null && edge.weightKey !== key.id) {
-                        this.report.warning(
-                            "validation-error",
-                            GRAPHML_ISSUE.DUPLICATE_ATTRIBUTE,
-                            `the edge has values of two weight keys ("${edge.weightKey}" and "${key.id}"); the later one is kept`,
-                            where,
-                        );
-                    }
-                    edge.weightKey = key.id;
-                    try {
-                        edge.weight = parseWeightText(value, this.report);
-                        this.checkOverflow(value, edge.weight, key.name, where);
-                    } catch (err) {
-                        this.skipEdge(edge);
-                        this.report.recordError(err, where);
-                    }
-                    return;
-                }
-                if (key.yfiles) {
-                    for (const [handle, mapped] of this.graphics("edge", key, value, where)) {
-                        edge.pending.push(handle, mapped);
-                    }
-                }
-                if (key.edge === null) {
-                    return;
-                }
-                const parsed = this.parseValue(key.edge, value, where);
-                if (parsed !== undefined) {
-                    edge.pending.push(key.edge.handle, parsed);
-                }
+            case "edge":
+                this.finishEdgeData(key, value, where);
                 return;
-            }
-            case "graph": {
-                if (key.graph === null) {
-                    return;
-                }
-                const parsed = this.parseValue(key.graph, value, where);
-                if (parsed !== undefined) {
-                    try {
-                        this.sink.setGraphValue(key.graph.name, parsed, key.graph.decl);
-                    } catch (err) {
-                        this.report.recordError(err, where);
-                    }
-                }
+            case "graph":
+                this.finishGraphData(key, value, where);
                 return;
-            }
             default: {
                 const { domain } = content;
                 throw new GraphFormatError("E_UNSUPPORTED", `unknown data domain ${String(domain)}`, {});
             }
+        }
+    }
+
+    /**
+     * Route a `<data>` value of the current node.
+     * @param key - the value's key
+     * @param value - the text or tree
+     * @param where - the location for issues
+     */
+    private finishNodeData(key: KeyEntry, value: unknown, where: Where): void {
+        const node = this.nodes[this.nodes.length - 1];
+        if (key.originalId) {
+            this.restoreOriginalId(node, value, where);
+            return;
+        }
+        if (key.yfiles) {
+            for (const [handle, mapped] of this.graphics("node", key, value, where)) {
+                this.setNodeData(node, handle, mapped);
+            }
+        }
+        if (key.node === null) {
+            return;
+        }
+        const parsed = this.parseValue(key.node, value, where);
+        if (parsed !== undefined) {
+            this.setNodeData(node, key.node.handle, parsed);
+        }
+    }
+
+    /**
+     * Keep a node's original-id value as its id, unless it holds elements or comes too late.
+     * @param node - the node state
+     * @param value - the text or tree
+     * @param where - the location for issues
+     */
+    private restoreOriginalId(node: NodeState, value: unknown, where: Where): void {
+        if (typeof value === "string" && node.index === INVALID_INDEX) {
+            node.restoredId = value;
+            return;
+        }
+        this.report.warning(
+            "validation-error",
+            GRAPHML_ISSUE.ORIGINAL_ID_IGNORED,
+            typeof value === "string"
+                ? `the ${ORIGINAL_ID_ATTRIBUTE} value comes after the node's nested <graph>, which added the node under its written id; it is not restored`
+                : `the ${ORIGINAL_ID_ATTRIBUTE} value holds elements, not text; it is not restored`,
+            where,
+        );
+    }
+
+    /**
+     * Route a `<data>` value of the current edge.
+     * @param key - the value's key
+     * @param value - the text or tree
+     * @param where - the location for issues
+     */
+    private finishEdgeData(key: KeyEntry, value: unknown, where: Where): void {
+        const { edge } = this;
+        if (edge === null) {
+            return;
+        }
+        if (key.weight) {
+            this.setEdgeWeight(edge, key, value, where);
+            return;
+        }
+        if (key.yfiles) {
+            for (const [handle, mapped] of this.graphics("edge", key, value, where)) {
+                edge.pending.push(handle, mapped);
+            }
+        }
+        if (key.edge === null) {
+            return;
+        }
+        const parsed = this.parseValue(key.edge, value, where);
+        if (parsed !== undefined) {
+            edge.pending.push(key.edge.handle, parsed);
+        }
+    }
+
+    /**
+     * Set an edge's weight from a weight key's value; a bad weight skips the edge.
+     * @param edge - the edge state
+     * @param key - the weight key
+     * @param value - the text or tree
+     * @param where - the location for issues
+     */
+    private setEdgeWeight(edge: EdgeState, key: KeyEntry, value: unknown, where: Where): void {
+        if (typeof value !== "string") {
+            this.report.error("validation-error", GRAPHML_ISSUE.DATA_NESTED, "a weight value must be text", where);
+            return;
+        }
+        if (edge.weightKey !== null && edge.weightKey !== key.id) {
+            this.report.warning(
+                "validation-error",
+                GRAPHML_ISSUE.DUPLICATE_ATTRIBUTE,
+                `the edge has values of two weight keys ("${edge.weightKey}" and "${key.id}"); the later one is kept`,
+                where,
+            );
+        }
+        edge.weightKey = key.id;
+        try {
+            edge.weight = parseWeightText(value, this.report);
+            this.checkOverflow(value, edge.weight, key.name, where);
+        } catch (err) {
+            this.skipEdge(edge);
+            this.report.recordError(err, where);
+        }
+    }
+
+    /**
+     * Route a `<data>` value of the graph.
+     * @param key - the value's key
+     * @param value - the text or tree
+     * @param where - the location for issues
+     */
+    private finishGraphData(key: KeyEntry, value: unknown, where: Where): void {
+        if (key.graph === null) {
+            return;
+        }
+        const parsed = this.parseValue(key.graph, value, where);
+        if (parsed === undefined) {
+            return;
+        }
+        try {
+            this.sink.setGraphValue(key.graph.name, parsed, key.graph.decl);
+        } catch (err) {
+            this.report.recordError(err, where);
         }
     }
 
@@ -1989,7 +2210,8 @@ class GraphmlReader implements XmlHandler {
             this.checkOverflow(value, parsed, target.name, where);
             return parsed;
         } catch (err) {
-            this.report.recordError(err, where);
+            // only the value is dropped: its node or edge is kept
+            this.report.recordError(err, where, SKIPPED_VALUE);
             return undefined;
         }
     }
@@ -2035,6 +2257,7 @@ class GraphmlReader implements XmlHandler {
             failed: false,
             line,
             keys: null,
+            ports: null,
         };
         const idText = attrs.get("id");
         if (idText === undefined || idText.length === 0) {
@@ -2194,25 +2417,42 @@ class GraphmlReader implements XmlHandler {
                 this.report.recordError(err, where);
             }
         }
-        const directedText = attrs.get("directed");
-        if (directedText !== undefined) {
-            // the schema types directed as xs:boolean: true, false, 1 or 0
-            if (directedText === "true" || directedText === "1") {
-                edge.kind = "directed";
-            } else if (directedText === "false" || directedText === "0") {
-                edge.kind = "undirected";
-            } else {
-                this.skipEdge(edge);
-                this.report.error(
-                    "validation-error",
-                    GRAPHML_ISSUE.INVALID_DIRECTED,
-                    `directed="${directedText}" is neither true nor false (nor 1 or 0)`,
-                    where,
-                );
-            }
-        }
+        edge.kind = this.edgeKind(attrs.get("directed"), edge.kind, where);
         this.edge = edge;
         this.ctx.push(Ctx.Edge);
+    }
+
+    /**
+     * The direction of an edge from its `directed` attribute.
+     * @param directedText - the attribute, or undefined
+     * @param kind - the graph's direction, kept when the attribute is missing or not a boolean
+     * @param where - the edge's location
+     * @returns the edge's direction
+     */
+    private edgeKind(directedText: string | undefined, kind: EdgeKind, where: EdgeLocation): EdgeKind {
+        if (directedText === undefined) {
+            return kind;
+        }
+        // the schema types directed as xs:boolean: true, false, 1 or 0; networkx also reads True / FALSE
+        const directed = parseBooleanText(directedText);
+        if (directed === null) {
+            this.report.error(
+                "validation-error",
+                GRAPHML_ISSUE.INVALID_DIRECTED,
+                `directed="${directedText}" is neither true nor false (nor 1 or 0); the edge takes its graph's direction`,
+                where,
+            );
+            return kind;
+        }
+        if (!/^(true|false|1|0)$/.test(directedText)) {
+            this.report.warnOnce(
+                "validation-error",
+                GRAPHML_ISSUE.DIRECTED_SPELLING,
+                `directed="${directedText}" is not an xs:boolean spelling; read as ${String(directed)}`,
+                where,
+            );
+        }
+        return directed ? "directed" : "undirected";
     }
 
     /**
@@ -2539,8 +2779,10 @@ class GraphmlReader implements XmlHandler {
         this.hyperedgeCount++;
         const baseId = hyperedge.id ?? `hyperedge${this.hyperedgeCount}`;
         let hubId = baseId;
-        for (let n = 2; this.sink.indexOf(hubId) !== INVALID_INDEX; n++) {
+        let n = 2;
+        while (this.sink.indexOf(hubId) !== INVALID_INDEX) {
             hubId = `${baseId}#${n}`;
+            n++;
         }
         const hub = this.sink.addNode(hubId);
         this.declared.add(hub);
@@ -2674,6 +2916,15 @@ class GraphmlReader implements XmlHandler {
 }
 
 /**
+ * A count hint as the amount to reserve: at most MAX_HINT_RESERVE, since the file's word is untrusted.
+ * @param count - the hint, or null
+ * @returns the amount to reserve, or undefined for none
+ */
+function capHint(count: number | null): number | undefined {
+    return count === null ? undefined : Math.min(count, MAX_HINT_RESERVE);
+}
+
+/**
  * A `parse.nodes` / `parse.edges` hint as a count.
  * @param text - the attribute text
  * @returns the count, or null when absent or not a non-negative integer
@@ -2804,7 +3055,7 @@ const GRAPHML_ELEMENTS = new Set([
  */
 function unknownElementMessage(name: string): string {
     if (name === "key") {
-        return "element <key> is only allowed as a child of <graphml>, before the first <graph>; it was skipped";
+        return "element <key> is only allowed as a child of <graphml> or <graph>; it was skipped";
     }
     return GRAPHML_ELEMENTS.has(name)
         ? `element <${name}> is not allowed at this place in a GraphML file and was skipped`

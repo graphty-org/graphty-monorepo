@@ -11,7 +11,6 @@ import tseslint from "typescript-eslint";
 
 import { MANTINE_REPLACEMENTS } from "./compact-mantine/eslint/mantine-replacements.js";
 import noTestTiming from "./tools/eslint-rules/no-test-timing.mjs";
-import storyWaitOptions from "./tools/eslint-rules/story-wait-options.mjs";
 
 export default tseslint.config(
     // ============================================
@@ -81,8 +80,10 @@ export default tseslint.config(
             "jsdoc/check-tag-names": [
                 "error",
                 {
-                    // category and defaultValue are TypeDoc tags: the API reference groups and fills in defaults from them
-                    definedTags: ["since", "internal", "remarks", "category", "defaultValue"],
+                    // category and defaultValue are TypeDoc tags: the API reference groups and fills in defaults from them;
+                    // beta marks an API that may change or be removed in a minor release (api-extractor prints `// @beta`),
+                    // as experimental does for an API behind an experiment's switch (@experimental <feature id>)
+                    definedTags: ["since", "internal", "remarks", "category", "defaultValue", "beta", "experimental"],
                 },
             ],
             "jsdoc/require-jsdoc": [
@@ -218,13 +219,17 @@ export default tseslint.config(
     // switch type information off (stories, scripts, configs), so those files stay exempt.
     ...Object.entries({
         "graph-format": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
             "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-member-access": "error",
             "@typescript-eslint/no-unsafe-return": "error",
         },
         "graph-io": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
             "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-member-access": "error",
             "@typescript-eslint/no-unsafe-return": "error",
@@ -246,16 +251,35 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-return": "error",
         },
         "cytoscape-extensions": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
+            "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
+        },
+        algorithms: {
+            "@typescript-eslint/no-unnecessary-condition": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
             "@typescript-eslint/no-unsafe-member-access": "error",
             "@typescript-eslint/no-unsafe-return": "error",
         },
         layout: {
+            "@typescript-eslint/no-unnecessary-condition": "error",
+            "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
+            "@typescript-eslint/no-unsafe-return": "error",
         },
         "remote-logger": {
+            "@typescript-eslint/no-unnecessary-condition": "error",
             "@typescript-eslint/no-unsafe-argument": "error",
+            "@typescript-eslint/no-unsafe-assignment": "error",
             "@typescript-eslint/no-unsafe-call": "error",
+            "@typescript-eslint/no-unsafe-member-access": "error",
             "@typescript-eslint/no-unsafe-return": "error",
         },
         "compact-mantine": {
@@ -266,6 +290,13 @@ export default tseslint.config(
             "@typescript-eslint/no-unsafe-return": "error",
         },
     }).map(([pkg, rules]) => ({ files: [`${pkg}/**/*.ts`, `${pkg}/**/*.tsx`], rules })),
+    // graph-format's type tests are written for, and type-checked under, tsconfig.strict-consumer.json
+    // (noUncheckedIndexedAccess), where their undefined checks are needed. ESLint reads them through
+    // tsconfig.json, which lacks that flag, so it would call every such check unnecessary.
+    {
+        files: ["graph-format/test/types/**/*.test-d.ts"],
+        rules: { "@typescript-eslint/no-unnecessary-condition": "off" },
+    },
 
     // ============================================
     // ACCESSIBILITY RULES FOR compact-mantine JSX
@@ -303,7 +334,19 @@ export default tseslint.config(
         rules: {
             "no-restricted-imports": [
                 "error",
-                { patterns: [{ regex: "^zod/v[34]", message: 'Import zod as "zod" (core types are z.core.*).' }] },
+                {
+                    patterns: [
+                        { regex: "^zod/v[34]", message: 'Import zod as "zod" (core types are z.core.*).' },
+                        // Tests assert with vitest's own assert, never a separate chai import (issue #7003).
+                        { regex: "^chai(/|$)", message: "import assert from vitest" },
+                        // @babylonjs/* is "type": "module", so webpack 5 requires a fully specified
+                        // deep import and refuses one without its extension (issue #3219).
+                        {
+                            regex: String.raw`^@babylonjs/[^/]+/.+(?<!\.js)$`,
+                            message: "Name the file in a Babylon.js deep import, with its .js extension.",
+                        },
+                    ],
+                },
             ],
         },
     },
@@ -328,7 +371,6 @@ export default tseslint.config(
             "**/__tests__/**/*.tsx",
         ],
         rules: {
-            "@typescript-eslint/no-explicit-any": "off",
             "@typescript-eslint/explicit-function-return-type": "off",
             "@typescript-eslint/no-non-null-assertion": "off",
             "@typescript-eslint/unbound-method": "off",
@@ -359,13 +401,26 @@ export default tseslint.config(
     // ============================================
     // TESTS WAIT ON CONDITIONS, NOT ON THE CLOCK
     // ============================================
-    // A wall-clock assertion, a fixed sleep or a hand-set timeout passes on an idle machine and
-    // fails when several test runs share it. The rule and its reasons: tools/eslint-rules/no-test-timing.mjs.
+    // A wall-clock assertion, a fixed sleep, a hand-set timeout or any other local deadline passes on
+    // an idle machine and fails when several test runs share it. There is one hang guard, set in
+    // tools/test-wait-guard.mjs; nothing else may end a test on the clock. The rule and its reasons:
+    // tools/eslint-rules/no-test-timing.mjs. Story play functions, their helpers, setup files and
+    // the vitest configs (a per-project testTimeout) and the graphty app's acceptance harnesses are covered too.
     // Benchmarks are where a timing check that must exist belongs, so they are left out, and so are
-    // the scripts that drive the source programs to draw the fidelity oracles: they are no tests,
-    // and a desktop program that offers no event to wait on is polled.
+    // the scripts that drive the source programs to draw the fidelity oracles and reference scenes: they
+    // are no tests, and a desktop program that offers no event to wait on is polled.
     {
-        files: ["**/*.test.{ts,tsx,js,mjs}", "**/*.spec.{ts,tsx,js,mjs}", "**/test/**/*.{ts,tsx,js,mjs}"],
+        files: [
+            "**/*.test.{ts,tsx,js,mjs}",
+            "**/*.spec.{ts,tsx,js,mjs}",
+            "**/test/**/*.{ts,tsx,js,mjs}",
+            "**/tests/**/*.{ts,tsx,js,mjs}",
+            "**/*.stories.{ts,tsx}",
+            "**/stories/**/*.{ts,tsx}",
+            "**/.storybook/**/*.{ts,tsx}",
+            "**/vitest*.config.{ts,mts,mjs,js}",
+            "**/acceptance/**/*.mjs",
+        ],
         ignores: [
             "**/*.bench.test.ts",
             "**/*.bench-browser.ts",
@@ -373,12 +428,17 @@ export default tseslint.config(
             "**/bench/**",
             "graph-io/test/fidelity/oracles/tools/**",
             "graph-io/test/fidelity/generators/specimens/**",
+            "graph-io/test/fidelity/references/*.mjs",
+            // Temporary: the dry run's check deadlines decide route outcomes, so tools/dry-run-check-guard.mjs
+            // lets them change only on a branch of their own. Remove this line when that change lands (#7622).
+            "**/acceptance/run.mjs",
         ],
         plugins: { local: { rules: { "no-test-timing": noTestTiming } } },
         rules: { "local/no-test-timing": "error" },
     },
     // Tests that still wait a counted number of animation frames, exempt from that one check until
-    // each is rewritten to wait on what it needs (#2535). graphty-element's are in its own config.
+    // each is rewritten to wait on what it needs (#2535): compact-mantine's Figma tests, which need the owner's
+    // Figma-Approved trailer to change (#2616).
     // Remove a file once it is fixed; never add one.
     {
         files: [
@@ -387,12 +447,11 @@ export default tseslint.config(
         ],
         rules: { "local/no-test-timing": ["error", { frameWaits: false }] },
     },
-    // A story play function's waitFor / findBy* passes storyWaitOptions(...), so it has no deadline
-    // of its own under a test runner (#2930). graphty's stories are in its own config.
+    // The global hang guard's own test hands withTestGuards configs that set local timeouts, to check it
+    // overrides them: they are the data under test, not waits.
     {
-        files: ["compact-mantine/stories/**/*.stories.{ts,tsx}"],
-        plugins: { "local-stories": { rules: { "story-wait-options": storyWaitOptions } } },
-        rules: { "local-stories/story-wait-options": "error" },
+        files: ["tools/test-wait-guard.test.mjs"],
+        rules: { "local/no-test-timing": "off" },
     },
 
     // ============================================
@@ -411,10 +470,28 @@ export default tseslint.config(
     // holds_over_chain), CX properties (applies_to, properties_of), XGMML att names -- and Prettier
     // removes the quotes that used to keep them out of this rule. Names graph-io declares itself
     // are still checked.
+    // tools/pipeline-health reads GitHub's REST and GraphQL payloads (created_at, head_sha, workflow_runs)
+    // and stores metric ids that the page, ci-budgets.json and DynamoDB rows already use
+    // (credential_error_ms, month_to_date), so its property names are those formats' vocabulary too.
     {
-        files: ["graph-io/**/*.ts"],
+        files: ["graph-io/**/*.ts", "tools/pipeline-health/**/*.ts"],
         rules: {
             camelcase: ["error", { properties: "never" }],
+        },
+    },
+    // graph-io's sources and tests are plain ASCII (graph-io/CLAUDE.md). A raw non-ASCII
+    // character in a literal can be changed silently by an editor -- a stripped BOM turns the
+    // BOM test into a no-BOM test with no visible diff -- so literals spell it as a \uXXXX escape.
+    {
+        files: ["graph-io/src/**/*.ts", "graph-io/test/**/*.ts"],
+        rules: {
+            "no-restricted-syntax": [
+                "error",
+                {
+                    selector: "Literal[raw=/[^\\x00-\\x7F]/], TemplateElement[value.raw=/[^\\x00-\\x7F]/]",
+                    message: "Write non-ASCII characters as \\uXXXX escapes (graph-io/CLAUDE.md: plain ASCII).",
+                },
+            ],
         },
     },
     {
@@ -568,6 +645,37 @@ export default tseslint.config(
             },
         },
     })),
+    // layout's tests use `assert`, never `expect` (CLAUDE.md, "Testing"). The typed rule is used so
+    // this does not replace the plain no-restricted-imports patterns (zod, Babylon.js) set above.
+    {
+        files: ["layout/test/**/*.ts"],
+        rules: {
+            "@typescript-eslint/no-restricted-imports": [
+                "error",
+                {
+                    paths: [
+                        {
+                            name: "vitest",
+                            importNames: ["expect"],
+                            message: "layout tests use assert from vitest, not expect.",
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    // tools/pipeline-health's page tests are type-checked with the page (web/tsconfig.json, DOM lib),
+    // not with the package's Node project, which excludes them.
+    {
+        files: ["tools/pipeline-health/test/web/**/*.ts"],
+        languageOptions: {
+            parserOptions: {
+                projectService: false,
+                project: "./tools/pipeline-health/web/tsconfig.json",
+                tsconfigRootDir: import.meta.dirname,
+            },
+        },
+    },
 
     // ============================================
     // RELAXED RULES FOR JAVASCRIPT FILES

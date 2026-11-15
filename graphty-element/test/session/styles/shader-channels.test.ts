@@ -5,8 +5,9 @@
  * (design/rendering/shader-styles.md sections 2 and 3.2, package E1).
  */
 
-import { afterAll, assert, beforeAll, describe, it } from "vitest";
+import { afterAll, assert, beforeAll, describe, it, onTestFinished } from "vitest";
 
+import { addPastedShaderSource, shaderDescriptor } from "../../../src/catalog/shaderRegistry";
 import type { ShaderUse } from "../../../src/catalog/shaders";
 import type { LayerSpec, ShaderParamAddress } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
@@ -141,6 +142,8 @@ describe("styles.add refuses a use the catalog does not draw", () => {
 
     it("refuses a list entry that is not a use, and groupBy away from the place group", async () => {
         const session = await sessionOf();
+        // A use names a project shader and validate writes nothing: a write copies it in first.
+        await session.styles.add(everything("Aura", { "node.shaders": [{ shader: "acme/aura" }] }));
         const verdict = session.styles.validate(
             everything("Odd", {
                 "node.shaders": [
@@ -159,6 +162,28 @@ describe("styles.add refuses a use the catalog does not draw", () => {
         session.dispose();
     });
 
+    it("refuses a list written as an object, and publishes the code for a run nobody awaits", async () => {
+        const session = await sessionOf();
+        const told: unknown[] = [];
+        session.on("style:refused", (refusal) => told.push(refusal));
+        const run = session.styles.add({
+            name: "Old shape",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.shaders": { gemstone: {} } as unknown as ShaderUse[] },
+        });
+        const problem = await run.then(
+            () => null,
+            (error: unknown) => error,
+        );
+
+        assert.isTrue(isGraphtyError(problem) && problem.code === "E_BAD_LAYER");
+        assert.deepStrictEqual(told, [
+            { problems: [{ code: "shader.uses-not-a-list", params: { channel: "node.shaders", found: "object" } }] },
+        ]);
+        session.dispose();
+    });
+
     it("accepts an empty list, which adds nothing to what lies beneath", async () => {
         const session = await sessionOf();
         await session.styles.add(everything("Marbles", { "node.shaders": [{ shader: "acme/marble" }] }));
@@ -171,17 +196,20 @@ describe("styles.add refuses a use the catalog does not draw", () => {
         session.dispose();
     });
 
-    it("does not refuse a loaded document's unknown shader: it is counted as drawing nothing", async () => {
+    it("does not refuse a loaded document's unknown shader: only that use is dropped, and reported", async () => {
         const session = await sessionOf();
-        await session.styles.applyTemplate({
+        const report = await session.styles.applyTemplate({
             version: 1,
             layers: [everything("Pasted", { "node.shaders": [{ shader: "user/never-registered" }] })],
         });
         const [layer] = session.styles.list().filter((entry) => entry.name === "Pasted");
-        assert.deepInclude(session.styles.counts(layer.id).undrawn, {
-            code: "shader.unknown",
-            params: { channel: "node.shaders", shader: "user/never-registered", count: 6 },
-        });
+        assert.deepEqual(report.shaders, [
+            {
+                code: "shader.unknown",
+                params: { layer: layer.id, channel: "node.shaders", shader: "user/never-registered" },
+            },
+        ]);
+        assert.deepEqual(layer.set, { "node.shaders": [] });
         session.dispose();
     });
 });
@@ -200,12 +228,13 @@ describe("a style document's shader list", () => {
         };
 
         assert.isUndefined(await apply([{ id: "user/ring", text: "vec4 shade(NodeInput n) { return n.color; }" }]));
-        assert.strictEqual(await apply([{ id: "ring", text: "" }]), "shader.id-invalid");
+        assert.strictEqual(await apply([{ id: "Ring!", text: "" }]), "shader.id-invalid");
         assert.strictEqual(
             await apply(Array.from({ length: 65 }, (_, at) => ({ id: `user/s${String(at)}`, text: "" }))),
             "shader.too-many",
         );
-        assert.strictEqual(await apply([{ id: "user/big", text: "x".repeat(262_145) }]), "shader.too-large");
+        assert.isUndefined(await apply([{ id: "user/big", text: "x".repeat(262_145) }]));
+        assert.strictEqual(await apply([{ id: "user/big", text: "x".repeat(1_048_577) }]), "shader.too-large");
         session.dispose();
     });
 });
@@ -498,6 +527,12 @@ describe("a parameter bound per element", () => {
         };
         const engine = createLayerRepaint({ nodeCount: () => rows.length, edgeCount: () => 0, elements });
         const styles = createStylesApi({ elements, repaint: engine.repaint, encoding: engine.encoding });
+        // A stack with no session holds no project shaders: stand one in that holds the shader.
+        const stop = addPastedShaderSource({
+            descriptor: (id) => (id === "acme/marble" ? shaderDescriptor(id) : undefined),
+            ids: () => ["acme/marble"],
+        });
+        onTestFinished(stop);
         await styles.add({
             name: "Spin by activity",
             target: "node",

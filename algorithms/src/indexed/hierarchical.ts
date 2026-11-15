@@ -112,6 +112,251 @@ function legacyIdRanks(n: number): Uint32Array {
 }
 
 /**
+ * Per ordered pair of cluster SLOTS, the min, max, sum and count of the member hop distances from
+ * the first to the second, and per cluster its slot, size and legacy id rank. A merge reuses its
+ * first child's slot.
+ */
+interface Aggregates {
+    readonly n: number;
+    readonly linkage: Linkage;
+    readonly min: Uint32Array;
+    readonly max: Uint32Array;
+    readonly sum: Float64Array;
+    readonly count: Float64Array;
+    readonly slot: Uint32Array;
+    readonly size: Float64Array;
+    readonly rank: Uint32Array;
+}
+
+/**
+ * The linkage distance from one cluster to another, as the legacy clusterDistance(x, y).
+ * @param g - The aggregates
+ * @param x - The cluster the member distances start from
+ * @param y - The cluster they end at
+ * @returns The distance, Infinity when no member of y is reachable from x
+ */
+function link(g: Aggregates, x: number, y: number): number {
+    const at = g.slot[x] * g.n + g.slot[y];
+    const c = g.count[at];
+    if (c === 0) {
+        return Infinity;
+    }
+    switch (g.linkage) {
+        case "single":
+            return g.min[at];
+        case "complete":
+            return g.max[at];
+        case "average":
+            return g.sum[at] / c;
+        default:
+            return (g.sum[at] / c) * ((g.size[x] * g.size[y]) / (g.size[x] + g.size[y]));
+    }
+}
+
+/**
+ * The distance the legacy function stores for a pair: a leaf pair's from the lower node to the
+ * higher, a pair involving a merge from the later-created cluster to the earlier one.
+ * @param g - The aggregates
+ * @param x - One cluster
+ * @param y - The other
+ * @returns The stored distance
+ */
+function pairDistance(g: Aggregates, x: number, y: number): number {
+    const early = Math.min(x, y);
+    const late = Math.max(x, y);
+    return late < g.n ? link(g, early, late) : link(g, late, early);
+}
+
+/**
+ * The closest linked pair of active clusters, ties broken by the legacy id ranks.
+ * @param g - The aggregates
+ * @param active - The active clusters in the legacy Set's order
+ * @returns The pair and its distance; `a` is -1 when no pair is linked
+ */
+function closestPair(g: Aggregates, active: readonly number[]): { best: number; a: number; b: number } {
+    let best = Infinity;
+    let a = -1;
+    let b = -1;
+    for (const x of active) {
+        for (const y of active) {
+            if (g.rank[x] >= g.rank[y]) {
+                continue;
+            }
+            const d = pairDistance(g, x, y);
+            if (d < best) {
+                best = d;
+                a = x;
+                b = y;
+            }
+        }
+    }
+    return { best, a, b };
+}
+
+/**
+ * Combine two pair aggregates into a third.
+ * @param g - The aggregates
+ * @param to - The entry to write
+ * @param from1 - One source entry
+ * @param from2 - The other source entry
+ */
+function combine(g: Aggregates, to: number, from1: number, from2: number): void {
+    const { min, max, sum, count } = g;
+    const c1 = count[from1];
+    const c2 = count[from2];
+    // An empty aggregate's min and max are meaningless: take the other side's.
+    if (c1 === 0 || c2 === 0) {
+        const from = c1 === 0 ? from2 : from1;
+        min[to] = min[from];
+        max[to] = max[from];
+    } else {
+        min[to] = Math.min(min[from1], min[from2]);
+        max[to] = Math.max(max[from1], max[from2]);
+    }
+    sum[to] = sum[from1] + sum[from2];
+    count[to] = c1 + c2;
+}
+
+/**
+ * Fold cluster b's aggregates against every other active cluster into a's slot, both directions.
+ * @param g - The aggregates
+ * @param active - The active clusters
+ * @param a - The first merged cluster, whose slot the merge keeps
+ * @param b - The second merged cluster
+ */
+function mergeAggregates(g: Aggregates, active: readonly number[], a: number, b: number): void {
+    const { n } = g;
+    const sa = g.slot[a];
+    const sb = g.slot[b];
+    for (const x of active) {
+        if (x === a || x === b) {
+            continue;
+        }
+        const sx = g.slot[x];
+        combine(g, sa * n + sx, sa * n + sx, sb * n + sx);
+        combine(g, sx * n + sa, sx * n + sa, sx * n + sb);
+    }
+}
+
+/**
+ * The node indices of a cluster, left subtree first.
+ * @param n - Node count
+ * @param left - First cluster of every merge
+ * @param right - Second cluster of every merge
+ * @param cluster - A cluster index
+ * @returns The members
+ */
+function clusterMembers(n: number, left: Uint32Array, right: Uint32Array, cluster: number): Uint32Array {
+    if (!(cluster >= 0 && cluster < n + left.length)) {
+        throw withCode(new RangeError(`cluster ${cluster} is not in [0, ${n + left.length})`), "E_BAD_OPTION");
+    }
+    const out: number[] = [];
+    const stack = [cluster];
+    while (stack.length > 0) {
+        const c = stack.pop() as number;
+        if (c < n) {
+            out.push(c);
+        } else {
+            stack.push(right[c - n], left[c - n]);
+        }
+    }
+    return Uint32Array.from(out);
+}
+
+/**
+ * How many merges `cutAt` applies.
+ * @param by - The cluster count or the largest merge distance
+ * @param n - Node count
+ * @param rootCount - Number of roots
+ * @param distances - Distance of every merge
+ * @returns The merge count
+ */
+function mergesToTake(
+    by: { readonly clusters: number } | { readonly distance: number },
+    n: number,
+    rootCount: number,
+    distances: Float64Array,
+): number {
+    if ("clusters" in by) {
+        const k = by.clusters;
+        if (!Number.isInteger(k) || k < rootCount || k > n) {
+            throw withCode(
+                new RangeError(`clusters must be an integer in [${rootCount}, ${n}], got ${k}`),
+                "E_BAD_OPTION",
+            );
+        }
+        return n - k;
+    }
+    if (Number.isNaN(by.distance)) {
+        throw withCode(new RangeError("distance must not be NaN"), "E_BAD_OPTION");
+    }
+    let take = 0;
+    while (take < distances.length && distances[take] <= by.distance) {
+        take++;
+    }
+    return take;
+}
+
+/**
+ * Wrap the merges in the result object with its member, cut and flat-partition queries.
+ * @param n - Node count
+ * @param leftArr - First cluster of every merge
+ * @param rightArr - Second cluster of every merge
+ * @param distances - Distance of every merge
+ * @param height - Height of every possible cluster
+ * @param roots - The clusters left unmerged
+ * @returns The dendrogram
+ */
+function dendrogram(
+    n: number,
+    leftArr: Uint32Array,
+    rightArr: Uint32Array,
+    distances: Float64Array,
+    height: Uint32Array,
+    roots: Uint32Array,
+): HierarchicalResult {
+    const merges = leftArr.length;
+    const members = (cluster: number): Uint32Array => clusterMembers(n, leftArr, rightArr, cluster);
+    // a node of every merged cluster, to union the merges over nodes
+    const leaf = new Uint32Array(merges);
+    for (let k = 0; k < merges; k++) {
+        leaf[k] = leftArr[k] < n ? leftArr[k] : leaf[leftArr[k] - n];
+    }
+    const leafOf = (c: number): number => (c < n ? c : leaf[c - n]);
+    return {
+        nodeCount: n,
+        left: leftArr,
+        right: rightArr,
+        distance: distances,
+        height: height.slice(0, n + merges),
+        roots,
+        members,
+        cut(h: number): Uint32Array[] {
+            const out: Uint32Array[] = [];
+            const visit = (c: number): void => {
+                if (c < n || height[c] <= h) {
+                    out.push(members(c));
+                } else {
+                    visit(leftArr[c - n]);
+                    visit(rightArr[c - n]);
+                }
+            };
+            roots.forEach(visit);
+            return out;
+        },
+        cutAt(by): LabelResult {
+            const take = mergesToTake(by, n, roots.length, distances);
+            const uf = new IntUnionFind(n);
+            for (let k = 0; k < take; k++) {
+                uf.union(leafOf(leftArr[k]), leafOf(rightArr[k]));
+            }
+            const { labels, count } = uf.toLabels();
+            return withGroups(labels, count);
+        },
+    };
+}
+
+/**
  * Agglomerative hierarchical clustering over hop distances, the index-based port of the legacy
  * `hierarchicalClustering`: every node starts as its own cluster and the closest pair is merged
  * until one cluster remains or no remaining pair is linked by a path.
@@ -141,8 +386,6 @@ export function hierarchicalClustering(s: AdjacencyView, options: HierarchicalOp
         throw withCode(new RangeError(`unknown linkage "${linkage}"`), "E_BAD_OPTION");
     }
     const n = s.nodeCount;
-    // Per ordered pair of cluster SLOTS: the min, max, sum and count of the member hop distances
-    // from the first to the second. A merge reuses its first child's slot.
     const { hops, min, max, sum, count } = allocDense(
         "hierarchicalClustering",
         n,
@@ -168,72 +411,30 @@ export function hierarchicalClustering(s: AdjacencyView, options: HierarchicalOp
     }
 
     const total = Math.max(0, 2 * n - 1);
-    const rank = legacyIdRanks(n);
-    const slot = new Uint32Array(total);
-    const size = new Float64Array(total);
+    const g: Aggregates = {
+        n,
+        linkage,
+        min,
+        max,
+        sum,
+        count,
+        slot: new Uint32Array(total),
+        size: new Float64Array(total),
+        rank: legacyIdRanks(n),
+    };
     const height = new Uint32Array(total);
     for (let i = 0; i < n; i++) {
-        slot[i] = i;
-        size[i] = 1;
+        g.slot[i] = i;
+        g.size[i] = 1;
     }
     const left: number[] = [];
     const right: number[] = [];
     const distance: number[] = [];
 
-    /**
-     * The linkage distance from one cluster to another, as the legacy clusterDistance(x, y).
-     * @param x - The cluster the member distances start from
-     * @param y - The cluster they end at
-     * @returns The distance, Infinity when no member of y is reachable from x
-     */
-    const link = (x: number, y: number): number => {
-        const at = slot[x] * n + slot[y];
-        const c = count[at];
-        if (c === 0) {
-            return Infinity;
-        }
-        switch (linkage) {
-            case "single":
-                return min[at];
-            case "complete":
-                return max[at];
-            case "average":
-                return sum[at] / c;
-            default:
-                return (sum[at] / c) * ((size[x] * size[y]) / (size[x] + size[y]));
-        }
-    };
-    /**
-     * The distance the legacy function stores for a pair: a leaf pair's from the lower node to the
-     * higher, a pair involving a merge from the later-created cluster to the earlier one.
-     * @param x - One cluster
-     * @param y - The other
-     * @returns The stored distance
-     */
-    const pairDistance = (x: number, y: number): number => {
-        const [early, late] = x < y ? [x, y] : [y, x];
-        return late < n ? link(early, late) : link(late, early);
-    };
-
     // Active clusters in the legacy Set's insertion order: the nodes, then each merge appended.
     let active: number[] = Array.from({ length: n }, (_, i) => i);
     while (active.length > 1) {
-        let best = Infinity;
-        let a = -1;
-        let b = -1;
-        for (const x of active) {
-            for (const y of active) {
-                if (rank[x] >= rank[y]) {
-                    continue;
-                }
-                const d = pairDistance(x, y);
-                if (d < best) {
-                    best = d;
-                    a = x;
-                    b = y;
-                }
-            }
-        }
+        const { best, a, b } = closestPair(g, active);
         if (a < 0) {
             break; // no linked pair left: the rest stay separate roots
         }
@@ -242,111 +443,18 @@ export function hierarchicalClustering(s: AdjacencyView, options: HierarchicalOp
         right.push(b);
         distance.push(best);
         height[created] = Math.max(height[a], height[b]) + 1;
-        size[created] = size[a] + size[b];
-        const sa = slot[a];
-        const sb = slot[b];
-        for (const x of active) {
-            if (x === a || x === b) {
-                continue;
-            }
-            const sx = slot[x];
-            for (const [to, from1, from2] of [
-                [sa * n + sx, sa * n + sx, sb * n + sx],
-                [sx * n + sa, sx * n + sa, sx * n + sb],
-            ]) {
-                const c1 = count[from1];
-                const c2 = count[from2];
-                // An empty aggregate's min and max are meaningless: take the other side's.
-                if (c1 === 0 || c2 === 0) {
-                    const from = c1 === 0 ? from2 : from1;
-                    min[to] = min[from];
-                    max[to] = max[from];
-                } else {
-                    min[to] = Math.min(min[from1], min[from2]);
-                    max[to] = Math.max(max[from1], max[from2]);
-                }
-                sum[to] = sum[from1] + sum[from2];
-                count[to] = c1 + c2;
-            }
-        }
-        slot[created] = sa;
+        g.size[created] = g.size[a] + g.size[b];
+        mergeAggregates(g, active, a, b);
+        g.slot[created] = g.slot[a];
         active = active.filter((x) => x !== a && x !== b);
         active.push(created);
     }
-
-    const merges = left.length;
-    const leftArr = Uint32Array.from(left);
-    const rightArr = Uint32Array.from(right);
-    const members = (cluster: number): Uint32Array => {
-        if (!(cluster >= 0 && cluster < n + merges)) {
-            throw withCode(new RangeError(`cluster ${cluster} is not in [0, ${n + merges})`), "E_BAD_OPTION");
-        }
-        const out: number[] = [];
-        const stack = [cluster];
-        while (stack.length > 0) {
-            const c = stack.pop() as number;
-            if (c < n) {
-                out.push(c);
-            } else {
-                stack.push(rightArr[c - n], leftArr[c - n]);
-            }
-        }
-        return Uint32Array.from(out);
-    };
-    const roots = Uint32Array.from(active);
-    const distances = Float64Array.from(distance);
-    // a node of every merged cluster, to union the merges over nodes
-    const leaf = new Uint32Array(merges);
-    for (let k = 0; k < merges; k++) {
-        leaf[k] = leftArr[k] < n ? leftArr[k] : leaf[leftArr[k] - n];
-    }
-    const leafOf = (c: number): number => (c < n ? c : leaf[c - n]);
-    return {
-        nodeCount: n,
-        left: leftArr,
-        right: rightArr,
-        distance: distances,
-        height: height.slice(0, n + merges),
-        roots,
-        members,
-        cut(h: number): Uint32Array[] {
-            const out: Uint32Array[] = [];
-            const visit = (c: number): void => {
-                if (c < n || height[c] <= h) {
-                    out.push(members(c));
-                } else {
-                    visit(leftArr[c - n]);
-                    visit(rightArr[c - n]);
-                }
-            };
-            roots.forEach(visit);
-            return out;
-        },
-        cutAt(by): LabelResult {
-            let take = 0;
-            if ("clusters" in by) {
-                const k = by.clusters;
-                if (!Number.isInteger(k) || k < roots.length || k > n) {
-                    throw withCode(
-                        new RangeError(`clusters must be an integer in [${roots.length}, ${n}], got ${k}`),
-                        "E_BAD_OPTION",
-                    );
-                }
-                take = n - k;
-            } else {
-                if (Number.isNaN(by.distance)) {
-                    throw withCode(new RangeError("distance must not be NaN"), "E_BAD_OPTION");
-                }
-                while (take < merges && distances[take] <= by.distance) {
-                    take++;
-                }
-            }
-            const uf = new IntUnionFind(n);
-            for (let k = 0; k < take; k++) {
-                uf.union(leafOf(leftArr[k]), leafOf(rightArr[k]));
-            }
-            const { labels, count } = uf.toLabels();
-            return withGroups(labels, count);
-        },
-    };
+    return dendrogram(
+        n,
+        Uint32Array.from(left),
+        Uint32Array.from(right),
+        Float64Array.from(distance),
+        height,
+        Uint32Array.from(active),
+    );
 }

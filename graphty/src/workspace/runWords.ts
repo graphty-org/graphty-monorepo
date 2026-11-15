@@ -8,6 +8,7 @@
 import type { GraphSession, RunDistinction, Scope, SetId } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "./analyze/words";
+import { formatNumber } from "./settings/numberFormat";
 
 /** The facts a run's name is worded from: a `Run`, or its `record`. */
 interface NamedRun {
@@ -79,6 +80,18 @@ function scopeWords(spec: Scope, setName: (id: SetId) => string | undefined): st
         return `${spec.define.kind} set`;
     }
     return `${String(spec.nodes.length)} nodes`;
+}
+
+/**
+ * What to call the part of the graph a run computed over, where it is not the part a reader
+ * reads it on: "112 showing" (what was showing when it ran), else the scope's own words.
+ * @param session - the session, for a kept set's name.
+ * @param spec - the scope.
+ * @param nodes - how many nodes it covered.
+ * @returns a short phrase.
+ */
+export function ranOverWords(session: GraphSession, spec: Scope, nodes: number): string {
+    return spec === "visible" ? `${formatNumber(nodes)} showing` : scopeWords(spec, (id) => session.sets.get(id)?.name);
 }
 
 /**

@@ -1,19 +1,32 @@
 /**
  * Where graph-samples' hosted datasets come from (scripts/build-hosted.mjs): their sources, the
- * GitHub release that keeps a copy of every redistributable one, and the files graphty.app already
- * publishes. Only scripts/refresh-sources.mjs and build-hosted.mjs --from-original-hosts contact the
- * original hosts.
+ * GitHub releases that keep a copy of every redistributable one, and the files graphty.app already
+ * publishes. A rebuild contacts a source's original host only when the release has no good copy of it
+ * (or, with build-hosted.mjs --from-original-hosts and scripts/refresh-sources.mjs, always).
  */
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 const USER_AGENT = "graphty-graph-samples-build-hosted";
 
-/** The GitHub release holding a copy of every redistributable source, each named by its `file`. */
-export const SOURCES_RELEASE = "graph-samples-sources-v1";
-export const SOURCES_RELEASE_URL = `https://github.com/graphty-org/graphty-monorepo/releases/download/${SOURCES_RELEASE}/`;
+/**
+ * The GitHub release holding the copy of one redistributable source: one release per source, named by its
+ * checksum, because the repository's releases are immutable (no file can be added to a published one), so
+ * a new or changed source gets a release of its own. The graph-samples-sources.yml workflow creates them.
+ * @param {{ sha256: string }} source - an entry of SOURCES
+ * @returns {string} the release's tag
+ */
+export function sourceRelease(source) {
+    return `graph-samples-source-${source.sha256.slice(0, 16)}`;
+}
+
+/** The download URL of a source's copy in its release (sourceRelease). */
+export function sourceReleaseUrl(source) {
+    return `https://github.com/graphty-org/graphty-monorepo/releases/download/${sourceRelease(source)}/${source.file}`;
+}
 
 /**
  * The bytes of a file graphty.app already publishes, when they are exactly the ones recorded in the
@@ -41,7 +54,7 @@ export async function publishedCopy(url, sha256, fetchImpl = fetch) {
 
 /**
  * Every source file, its original URL and its checksum. `redistribute` says whether its terms
- * (graph-samples/NOTICE) allow a copy in this repository's release graph-samples-sources-v1.
+ * (graph-samples/NOTICE) allow a copy in a release of this repository (sourceRelease).
  */
 export const SOURCES = {
     roadNyArcs: {
@@ -91,21 +104,39 @@ export const SOURCES = {
 };
 
 /**
- * Where a source is fetched from: its copy in the release, or its original host when asked for.
+ * Where a source is fetched from, in order: its copy in the release, then its original host. A source
+ * whose terms do not allow a copy, or a refresh (fromOriginalHost), has only its original host.
  * @param {{ url: string, file: string, redistribute: boolean }} source - an entry of SOURCES
  * @param {{ fromOriginalHost?: boolean }} [options] - fromOriginalHost: the refresh, or a rebuild by hand
- * @returns {string} the URL
+ * @returns {string[]} the URLs to try
  */
-export function sourceUrl(source, { fromOriginalHost = false } = {}) {
-    if (fromOriginalHost) {
-        return source.url;
-    }
-    if (!source.redistribute) {
-        throw new Error(
-            `${source.file} is not redistributable, so ${SOURCES_RELEASE} has no copy: rebuild its dataset by hand with --from-original-hosts`,
-        );
-    }
-    return SOURCES_RELEASE_URL + source.file;
+export function sourceUrls(source, { fromOriginalHost = false } = {}) {
+    return fromOriginalHost || !source.redistribute ? [source.url] : [sourceReleaseUrl(source), source.url];
+}
+
+/**
+ * The hosted datasets whose built metadata (counts, columns, prose, bytes, sha256) is not what the
+ * committed src/datasets/hosted.ts records, including one built but not recorded and one recorded but
+ * not built. The deploy fails on any of them, so the files graphty.app serves never drift from the
+ * npm package's hosted.ts.
+ * @param {object[]} built - the metadata of the files just built or reused
+ * @param {readonly object[]} recorded - HOSTED_DATASETS of the commit being deployed
+ * @returns {string[]} the names that differ, in build order, then the recorded ones not built
+ */
+export function hostedDrift(built, recorded) {
+    const drifted = built
+        .filter(
+            (meta) =>
+                !isDeepStrictEqual(
+                    meta,
+                    recorded.find((other) => other.name === meta.name),
+                ),
+        )
+        .map((meta) => meta.name);
+    const missing = recorded
+        .filter((meta) => !built.some((other) => other.name === meta.name))
+        .map((meta) => meta.name);
+    return [...drifted, ...missing];
 }
 
 /** The hex SHA-256 of some bytes. */
@@ -114,30 +145,56 @@ export function sha256Of(bytes) {
 }
 
 /**
- * A source file in the cache directory, fetched (see sourceUrl) when missing, refused when its
- * SHA-256 is not the recorded one.
+ * The bytes at a URL when their SHA-256 is the recorded one, else why not.
+ * @returns {Promise<{ bytes: Buffer } | { reason: string }>} the verified bytes, or the reason
+ */
+async function verifiedDownload(url, source, fetchImpl) {
+    console.log(`fetching ${url}`);
+    try {
+        const response = await fetchImpl(url, { headers: { "User-Agent": USER_AGENT } });
+        if (!response.ok) {
+            return { reason: `${url}: HTTP ${response.status}` };
+        }
+        const bytes = Buffer.from(await response.arrayBuffer());
+        const actual = sha256Of(bytes);
+        return actual === source.sha256
+            ? { bytes }
+            : {
+                  reason: `${url}: sha256 ${actual}, expected ${source.sha256} -- the source changed; review it before updating`,
+              };
+    } catch (error) {
+        return { reason: `${url}: ${error.message}${error.cause ? " (" + error.cause.message + ")" : ""}` };
+    }
+}
+
+/**
+ * A source file in the cache directory, fetched when missing from the first of sourceUrls that serves
+ * the recorded SHA-256 (a copy missing from the release, or an old one, falls through to the original
+ * host); bytes with another SHA-256 are never used.
  * @param {{ url: string, sha256: string, file: string, redistribute: boolean }} source - an entry of SOURCES
  * @param {string} cacheDir - the cache directory
- * @param {{ fromOriginalHost?: boolean, fetchImpl?: typeof fetch }} [options] - see sourceUrl; fetch, replaceable in tests
+ * @param {{ fromOriginalHost?: boolean, fetchImpl?: typeof fetch }} [options] - see sourceUrls; fetch, replaceable in tests
  * @returns {Promise<string>} the cached file's path
  */
 export async function fetchSource(source, cacheDir, { fromOriginalHost = false, fetchImpl = fetch } = {}) {
     const target = path.join(cacheDir, source.file);
-    if (!existsSync(target)) {
-        const url = sourceUrl(source, { fromOriginalHost });
-        mkdirSync(cacheDir, { recursive: true });
-        console.log(`fetching ${url}`);
-        const response = await fetchImpl(url, { headers: { "User-Agent": USER_AGENT } });
-        if (!response.ok) {
-            throw new Error(`${url}: HTTP ${response.status}`);
+    if (existsSync(target) && sha256Of(readFileSync(target)) === source.sha256) {
+        return target;
+    }
+    const reasons = [];
+    for (const url of sourceUrls(source, { fromOriginalHost })) {
+        const result = await verifiedDownload(url, source, fetchImpl);
+        if ("bytes" in result) {
+            mkdirSync(cacheDir, { recursive: true });
+            writeFileSync(target, result.bytes);
+            return target;
         }
-        writeFileSync(target, Buffer.from(await response.arrayBuffer()));
+        reasons.push(result.reason);
     }
-    const actual = sha256Of(readFileSync(target));
-    if (actual !== source.sha256) {
-        throw new Error(
-            `${source.file}: sha256 ${actual}, expected ${source.sha256} -- the source changed; review it before updating`,
-        );
-    }
-    return target;
+    const advice = source.redistribute
+        ? `when its original host answers again, dispatch graph-samples-sources.yml (gh workflow run graph-samples-sources.yml --ref master) to copy it into the release ${sourceRelease(source)}, then re-run this build`
+        : `it is not redistributable, so no release has a copy: re-run this build when its original host answers again`;
+    throw new Error(
+        `${source.file}: no copy with sha256 ${source.sha256} could be fetched; ${advice}\n  ${reasons.join("\n  ")}`,
+    );
 }

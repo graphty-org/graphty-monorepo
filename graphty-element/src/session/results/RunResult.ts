@@ -22,6 +22,7 @@
 import type { EdgeId, FieldBand, FieldDescriptor, NodeId, ResultShape, RunId } from "../../catalog/types";
 import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors/GraphtyError";
+import { englishNotes } from "../english";
 import { retainedChanged } from "../project/retained";
 import type { Caveats } from "../runs/types";
 import type { CodedFact } from "../shared";
@@ -927,14 +928,20 @@ function summaryValueField(shape: ResultShape): string | null {
  * @param limit - How many rows a summary may carry.
  * @param named - Whether each group gets its rank and display name, which a partition into
  *   groups does and a table of levels or of named categories does not.
- * @returns The groups, bounded, or undefined when the value is not a table this can read.
+ * @returns The groups, bounded, and how many the whole table holds, or undefined when the value is
+ *   not a table this can read.
  */
-function toSummaryGroups(value: unknown, limit: number, named: boolean): readonly SummaryGroup[] | undefined {
+function toSummaryGroups(
+    value: unknown,
+    limit: number,
+    named: boolean,
+): { readonly groups: readonly SummaryGroup[]; readonly groupCount: number } | undefined {
     if (!Array.isArray(value)) {
         return undefined;
     }
 
     const groups: SummaryGroup[] = [];
+    let groupCount = 0;
 
     for (const row of value) {
         if (typeof row !== "object" || row === null) {
@@ -945,16 +952,15 @@ function toSummaryGroups(value: unknown, limit: number, named: boolean): readonl
         const group = record.group ?? record.category;
         const size = record.size ?? record.count;
         if (isGroupKey(group) && typeof size === "number") {
-            const rank = groups.length + 1;
-            groups.push(Object.freeze(named ? { group, size, rank, name: groupName(rank) } : { group, size }));
-        }
-
-        if (groups.length === limit) {
-            break;
+            groupCount++;
+            if (groups.length < limit) {
+                const rank = groupCount;
+                groups.push(Object.freeze(named ? { group, size, rank, name: groupName(rank) } : { group, size }));
+            }
         }
     }
 
-    return Object.freeze(groups);
+    return { groups: Object.freeze(groups), groupCount };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -975,6 +981,7 @@ class Result implements RunResult {
     readonly measured: { readonly nodes: number; readonly edges: number };
     readonly graph: Readonly<Record<string, unknown>>;
 
+    readonly #init: RunResultInit;
     readonly #nodes: ElementTable;
     readonly #edges: ElementTable;
     readonly #caveats: Caveats;
@@ -999,6 +1006,7 @@ class Result implements RunResult {
         edges: ElementTable,
         graph: Readonly<Record<string, unknown>>,
     ) {
+        this.#init = init;
         this.runId = init.runId;
         this.shape = init.shape;
         // An algorithm declares its fields before any run exists, as "results.$.value"; the
@@ -1050,6 +1058,16 @@ class Result implements RunResult {
      */
     column(field: string): NumericColumnView {
         return this.#analyze(field).view;
+    }
+
+    /**
+     * The element at each position of {@link Result.column}'s view of one field.
+     * @param field - The field name.
+     * @returns The ids, in column order.
+     * @throws A GraphtyError coded E_UNKNOWN_ATTRIBUTE when the run published no such field.
+     */
+    ids(field: string): readonly NodeId[] {
+        return this.elementIds(this.#descriptorFor(field).kind === "edge" ? "edge" : "node");
     }
 
     /**
@@ -1208,6 +1226,21 @@ class Result implements RunResult {
         return this.#summary;
     }
 
+    groupRanks(): ReadonlyMap<string, number> | undefined {
+        const { sizes } = this.graph;
+        if (this.shape !== "community" || !Array.isArray(sizes)) {
+            return undefined;
+        }
+
+        // `sizes` is largest first, ties broken as the summary and the legend break them.
+        this.#groupRanks ??= new Map(
+            (sizes as readonly { readonly group: unknown }[]).map((row, position) => [String(row.group), position + 1]),
+        );
+        return this.#groupRanks;
+    }
+
+    #groupRanks: ReadonlyMap<string, number> | undefined;
+
     /**
      * What this result means, in one sentence of plain language.
      * @param options - The locale and how technical to be.
@@ -1358,6 +1391,47 @@ class Result implements RunResult {
     }
 
     /**
+     * This result with some node fields' values renamed and other caveats: the same ids, the same
+     * other columns, and group size rows that follow the new names.
+     * @param renames - For each node field, each old value's new one; a value not listed stays.
+     * @param more - Facts the copy's caveats carry past this one's, and their deprecated sentences.
+     * @returns The copy.
+     */
+    renumbered(renames: ReadonlyMap<string, ReadonlyMap<unknown, unknown>>, more: AddedFacts): Result {
+        const from = this.#nodes;
+        const nodes: ElementTable = { ...from, columns: new Map(from.columns), orders: new Map() };
+        const rename = (map: ReadonlyMap<unknown, unknown>, value: unknown): unknown =>
+            map.has(value) ? map.get(value) : value;
+        for (const [field, map] of renames) {
+            const column = from.columns.get(field);
+            if (column !== undefined) {
+                nodes.columns.set(
+                    field,
+                    Array.from(column as ArrayLike<unknown>, (value) =>
+                        value === MISSING ? value : rename(map, value),
+                    ),
+                );
+                sealColumn(nodes, field);
+            }
+        }
+        const graph: Record<string, unknown> = { ...this.graph };
+        const groups = renames.get("group");
+        if (groups !== undefined && Array.isArray(graph.sizes)) {
+            const rows = (graph.sizes as readonly ResultSizeRow[]).map((row) =>
+                Object.freeze({ ...row, group: rename(groups, row.group) as ResultSizeRow["group"] }),
+            );
+            rows.sort((left, right) => right.size - left.size || compareGroupKeys(left.group, right.group));
+            graph.sizes = Object.freeze(rows);
+        }
+        const caveats: Caveats = Object.freeze({
+            ...this.#caveats,
+            facts: Object.freeze([...this.#caveats.facts, ...more.facts]),
+            notes: Object.freeze([...englishNotes(this.#caveats), ...more.sentences]),
+        });
+        return new Result({ ...this.#init, caveats }, nodes, this.#edges, Object.freeze(graph));
+    }
+
+    /**
      * The ids of the elements one half publishes values for, in the result's own order.
      * @param half - Nodes or edges.
      * @returns The ids.
@@ -1449,9 +1523,9 @@ class Result implements RunResult {
         };
 
         const table = this.graph.sizes ?? this.graph.categories;
-        const groups = toSummaryGroups(table, SUMMARY_GROUP_LIMIT, this.shape === "community");
+        const grouped = toSummaryGroups(table, SUMMARY_GROUP_LIMIT, this.shape === "community");
 
-        return Object.freeze(groups === undefined ? summary : { ...summary, groups });
+        return Object.freeze(grouped === undefined ? summary : { ...summary, ...grouped });
     }
 
     /**
@@ -1555,6 +1629,36 @@ export function retentionOf(result: RunResult): { readonly bytes: number; readon
  */
 export function elementIdsOf(result: RunResult, half: "node" | "edge"): readonly NodeId[] {
     return result instanceof Result ? result.elementIds(half) : [];
+}
+
+/** Caveat facts added to a result, and the English sentences the deprecated notes carry for them. */
+export interface AddedFacts {
+    readonly facts: Caveats["facts"];
+    readonly sentences: readonly string[];
+}
+
+/**
+ * Whether a value is a result this module built, so it can be renumbered and listed.
+ * @param value - Anything.
+ * @returns True for a built result.
+ */
+export function isBuiltResult(value: unknown): value is RunResult {
+    return value instanceof Result;
+}
+
+/**
+ * A result with some node fields' values renamed (a partition's group numbers) and other caveats.
+ * @param result - The result; one this module did not build is handed back unchanged.
+ * @param renames - For each node field, each old value's new one; a value not listed stays.
+ * @param more - Facts the copy's caveats carry past the result's, and their deprecated sentences.
+ * @returns The copy.
+ */
+export function renumberResult(
+    result: RunResult,
+    renames: ReadonlyMap<string, ReadonlyMap<unknown, unknown>>,
+    more: AddedFacts,
+): RunResult {
+    return result instanceof Result ? result.renumbered(renames, more) : result;
 }
 
 /**

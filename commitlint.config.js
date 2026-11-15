@@ -1,7 +1,7 @@
 export default {
     extends: ["@commitlint/config-conventional"],
-    // The merge commits tools/land.mjs makes on the golden branch ("land: <branch>") and its reapply of a
-    // reverted landing; the commits they bring in are checked on their own.
+    // The merge commits the retired golden landing tool made ("land: <branch>") and its reapply of a
+    // reverted landing, still in master's history; the commits they brought in are checked on their own.
     ignores: [(message) => /^(land: \S+|Reapply "land: \S+")\s*$/m.test(message.split("\n")[0])],
     rules: {
         "scope-enum": [
@@ -12,6 +12,7 @@ export default {
                 "graph-io",
                 "graph-samples",
                 "babylonjs-map",
+                "babylonjs-models",
                 "webgpu-graph-algorithms",
                 "algorithms",
                 "layout",
@@ -22,7 +23,6 @@ export default {
                 "graphty",
                 "visual-review",
                 "githerd",
-                "gpu-3d-force-layout",
                 "deps",
                 "release",
                 "ci",

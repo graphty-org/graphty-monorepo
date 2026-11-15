@@ -12,13 +12,16 @@
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import { type GraphSession, listAutosaves } from "@graphty/graphty-element/session";
+import { GraphtyLogger, LogLevel } from "@graphty/graphty-element/logging";
+import { type GraphSession, isGraphtyError, listAutosaves } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeEach, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { loadSiteConfig, resetSiteConfig } from "../../../siteConfig";
 import { openBy } from "../../../test/open";
-import { pickSample } from "../../../test/samples-dialog";
+import { pickSample, sampleTile } from "../../../test/samples-dialog";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
+import { writeAssistantChoice } from "../../assistant-door/provider";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
@@ -26,12 +29,13 @@ import { WORKSPACE_AUTOSAVE_KEY } from "../autosave";
 
 type ElementUnderTest = import("@graphty/graphty-element").Graphty;
 
-/** A hang guard for the element coming up and a sample loading, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
-
 /** The samples, and their node counts. */
 const FLORENTINE = { name: "Florentine families", nodes: 15 };
 const LES_MIS = { name: "Les Miserables", nodes: 77 };
+const MARVEL = { name: "Marvel films", nodes: 210 };
+
+/** What the element's mock model answers. */
+const MOCK_REPLY = "This is a mock response.";
 
 /** The name the reader gives the project. */
 const RENAMED = "Medici study";
@@ -91,6 +95,87 @@ function forgetAutosave(): Promise<void> {
 }
 
 /**
+ * Records what the workspace decided about kept work (its `decision` log line and the loading
+ * screen's line), and what graphty-element's listing found, so a test of a decision says which one
+ * was made when it fails.
+ * @returns the lines, and a function that stops recording.
+ */
+async function recordDecisions(): Promise<{ readonly lines: string[]; readonly stop: () => Promise<void> }> {
+    const lines: string[] = [];
+    const boot = (event: Event): void => {
+        lines.push(`boot ${JSON.stringify((event as CustomEvent<unknown>).detail)}`);
+    };
+    document.addEventListener("graphty-boot", boot);
+    await GraphtyLogger.configure({
+        enabled: true,
+        level: LogLevel.INFO,
+        modules: "*",
+        sinks: [
+            {
+                name: "decisions",
+                write: (record) => {
+                    if (record.category[1] === "workspace" || record.message.startsWith("kept work")) {
+                        lines.push(
+                            `${record.category.join(".")} ${record.message} ${JSON.stringify(record.data ?? {})}`,
+                        );
+                    }
+                },
+            },
+        ],
+    });
+    GraphtyLogger.removeSink("console");
+    return {
+        lines,
+        stop: async () => {
+            document.removeEventListener("graphty-boot", boot);
+            GraphtyLogger.removeSink("decisions");
+            await GraphtyLogger.configure({ enabled: false });
+        },
+    };
+}
+
+/**
+ * Waits for the workspace's decision about kept work.
+ * @param lines - the recorded lines.
+ * @returns the decision line.
+ */
+function decision(lines: readonly string[]): Promise<string> {
+    return waitFor(() => {
+        const line = lines.find((each) => each.startsWith("graphty.workspace decision "));
+        assert.isDefined(line, `no decision yet:\n${lines.join("\n")}`);
+        return line ?? "";
+    });
+}
+
+/**
+ * Holds autosave's database as a suspended tab does: a read-write transaction that never finishes.
+ * @returns a function that lets it go.
+ */
+function holdDatabase(): Promise<() => void> {
+    return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DATABASE);
+        request.onerror = () => {
+            reject(request.error ?? new Error("the autosave database did not open"));
+        };
+        request.onsuccess = () => {
+            const db = request.result;
+            const store = db.transaction([...db.objectStoreNames], "readwrite").objectStore(db.objectStoreNames[0]);
+            let held = true;
+            const spin = (): void => {
+                if (held) {
+                    store.count().onsuccess = spin;
+                }
+            };
+            spin();
+            resolve(() => {
+                held = false;
+                db.close();
+            });
+        };
+    });
+}
+
+/**
  * Mounts the workspace with autosave on, as the application does.
  * @returns the store and the render result.
  */
@@ -119,15 +204,15 @@ function openedElement(): { element: ElementUnderTest; session: GraphSession } {
  * @returns the entry id autosave wrote.
  */
 async function leave(element: ElementUnderTest, view: ReturnType<typeof render>): Promise<string> {
-    await waitFor(
-        () => {
-            assert.strictEqual(element.autosaver.status.state, "saved");
-            assert.isNotNull(element.autosaver.status.savedAt);
-        },
-        { timeout: TIMEOUT_MS },
-    );
-    const chip = within(screen.getByRole("contentinfo", { name: "Status" })).getByTestId("autosave-chip");
-    assert.strictEqual(chip.textContent, "Autosave: saved");
+    // The chip is drawn on React's next render after the element's status event, so the element's
+    // own status reads "saved" a moment before the chip exists or says so: wait for both.
+    const chip = await waitFor(() => {
+        assert.strictEqual(element.autosaver.status.state, "saved");
+        assert.isNotNull(element.autosaver.status.savedAt);
+        const shown = within(screen.getByRole("contentinfo", { name: "Status" })).getByTestId("autosave-chip");
+        assert.strictEqual(shown.textContent, "Autosave: saved");
+        return shown;
+    });
     // The chip's words are readable: 4.5:1 or more against what is behind them.
     assert.isAtLeast(textContrast(chip), 4.5);
     const { entry } = element.autosaver.status;
@@ -135,13 +220,10 @@ async function leave(element: ElementUnderTest, view: ReturnType<typeof render>)
         throw new Error("autosave wrote no entry");
     }
     view.unmount();
-    await waitFor(
-        async () => {
-            const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
-            assert.isTrue(kept !== undefined && !kept.live, "the work is not kept yet");
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(async () => {
+        const kept = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
+        assert.isTrue(kept !== undefined && !kept.live, "the work is not kept yet");
+    });
     return entry;
 }
 
@@ -169,12 +251,16 @@ async function renameThenLeave(): Promise<string> {
 
 /**
  * Makes a kept entry another tab's: gives it a new id, as a tab that wrote it and was closed
- * leaves it. This page's own record still names the old id, which no longer exists.
+ * leaves it, and this tab a new visit's empty session storage unless the tab is kept.
  * @param id - the entry.
+ * @param keepTab - leave this tab's session storage, for a tab that still names a project it had.
  * @returns the entry's new id.
  */
-async function fromAnotherTab(id: string): Promise<string> {
+async function fromAnotherTab(id: string, keepTab = false): Promise<string> {
     const other = crypto.randomUUID();
+    if (!keepTab) {
+        sessionStorage.clear();
+    }
     const db = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = indexedDB.open(DATABASE);
         request.onsuccess = () => {
@@ -217,11 +303,43 @@ async function fromAnotherTab(id: string): Promise<string> {
 }
 
 /**
+ * Holds autosave's database busy, so an entry's parts cannot be read until the hold ends; the
+ * listing (entries only) still answers. A reopen then waits at its read, as a slow disk makes it.
+ * @param database - the database to hold; autosave's by default.
+ * @param objectStore - its store to hold.
+ * @returns ends the hold.
+ */
+async function holdParts(database = DATABASE, objectStore = "blobs"): Promise<() => void> {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const request = indexedDB.open(database);
+        request.onsuccess = () => {
+            resolve(request.result);
+        };
+        request.onerror = () => {
+            reject(request.error ?? new Error("the autosave database did not open"));
+        };
+    });
+    const blobs = db.transaction(objectStore, "readwrite").objectStore(objectStore);
+    let held = true;
+    // A transaction stays open while it has a request pending.
+    const spin = (): void => {
+        if (held) {
+            blobs.count().onsuccess = spin;
+        }
+    };
+    spin();
+    return () => {
+        held = false;
+        db.close();
+    };
+}
+
+/**
  * The start screen's offer of the earlier work.
  * @returns the offer's region.
  */
 function offer(): Promise<HTMLElement> {
-    return screen.findByRole("region", { name: "Unsaved work" }, { timeout: TIMEOUT_MS });
+    return screen.findByRole("region", { name: "Unsaved work" });
 }
 
 describe("Workspace autosave with the real graphty-element", () => {
@@ -233,12 +351,9 @@ describe("Workspace autosave with the real graphty-element", () => {
         const { store, view } = mountWorkspace();
         await openBy(store, () => pickSample(FLORENTINE.name));
         const { element } = openedElement();
-        await waitFor(
-            () => {
-                assert.strictEqual(element.autosaver.status.state, "saved");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(element.autosaver.status.state, "saved");
+        });
         assert.notMatch(store.get().notice?.message ?? "", /private window|may clear/);
         assert.notMatch(document.body.textContent, /private window|may clear/);
         view.unmount();
@@ -252,8 +367,8 @@ describe("Workspace autosave with the real graphty-element", () => {
         assert.equal(session.project.name, LES_MIS.name);
 
         // The reader picks a layer in the Style layers list.
-        const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
-        const hovered = await within(tree).findByRole("treeitem", { name: /^Hovered, / }, { timeout: TIMEOUT_MS });
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        const hovered = await within(tree).findByRole("treeitem", { name: /^Hovered, / });
         await userEvent.click(hovered);
         await waitFor(() => {
             assert.strictEqual(first.store.get().inspected?.kind, "layer-row");
@@ -275,25 +390,19 @@ describe("Workspace autosave with the real graphty-element", () => {
         await openBy(second.store, () => Promise.resolve());
         const reopened = openedElement();
         assert.equal(reopened.session.data.statistics().nodeCount, LES_MIS.nodes);
-        await waitFor(
-            () => {
-                assert.strictEqual(reopened.element.autosaver.status.entry, entry, "this tab writes its own entry");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(reopened.element.autosaver.status.entry, entry, "this tab writes its own entry");
+        });
         // Same place, same layer, focus on the main heading, and the status line says what reopened.
-        await waitFor(
-            () => {
-                assert.strictEqual(second.store.get().place, "graph");
-                assert.deepEqual(second.store.get().inspected, { kind: "layer-row", id: layer });
-                assert.strictEqual(document.activeElement?.id, INSPECTOR_TITLE_ID);
-                assert.include(
-                    screen.getAllByRole("status").map((status) => status.textContent),
-                    `Reopened ${LES_MIS.name}`,
-                );
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.strictEqual(second.store.get().place, "graph");
+            assert.deepEqual(second.store.get().inspected, { kind: "layer-row", id: layer });
+            assert.strictEqual(document.activeElement?.id, INSPECTOR_TITLE_ID);
+            assert.include(
+                screen.getAllByRole("status").map((status) => status.textContent),
+                `Reopened ${LES_MIS.name}`,
+            );
+        });
         assert.strictEqual(document.activeElement?.textContent, "Hovered");
         const row = within(screen.getByRole("tree", { name: "Style layers" })).getByRole("treeitem", {
             name: /^Hovered, /,
@@ -307,49 +416,316 @@ describe("Workspace autosave with the real graphty-element", () => {
         second.view.unmount();
     });
 
-    it("never reopens the work another tab is writing: a duplicated tab starts on the start screen", async () => {
+    it("ends a reopen the browser's storage never answers in a reported failure, and reopens once it does (#8207)", async () => {
         const first = mountWorkspace();
-        await openBy(first.store, () => pickSample(LES_MIS.name));
-        const { element } = openedElement();
-        await waitFor(
-            () => {
-                assert.isNotNull(element.autosaver.status.savedAt);
-            },
-            { timeout: TIMEOUT_MS },
-        );
-        const { entry } = element.autosaver.status;
-        if (entry === null) {
-            throw new Error("autosave wrote no entry");
-        }
-        first.view.unmount();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        await leave(openedElement().element, first.view);
 
-        // The original tab still writes the entry: it holds the entry's lock, taken here as soon as
-        // the element's last write lets it go. A duplicated tab has a copy of the original's
-        // session storage, which names the same entry.
-        let release = (): void => undefined;
-        await new Promise<void>((resolve) => {
-            void navigator.locks.request(
-                `graphty-autosave:${WORKSPACE_AUTOSAVE_KEY}:${entry}`,
-                () =>
-                    new Promise<void>((done) => {
-                        release = done;
-                        resolve();
-                    }),
+        // Another tab holds the entries' parts in a write it never finishes: the listing (entries
+        // only) answers, so the reload reopens this tab's work, and the reopen cannot read it.
+        const release = await holdParts(DATABASE, "parts");
+        const boot: { line?: string; done?: boolean }[] = [];
+        const hear = (event: Event): void => {
+            boot.push((event as CustomEvent<{ line?: string; done?: boolean }>).detail);
+        };
+        document.addEventListener("graphty-boot", hear);
+        const second = mountWorkspace();
+        const error = await openBy(second.store, () => Promise.resolve()).then(
+            () => null,
+            (failure: unknown) => failure,
+        );
+        assert.isTrue(isGraphtyError(error) && error.code === "E_AUTOSAVE_STALLED", String(error));
+        await screen.findByText(
+            `${FLORENTINE.name} could not be opened: the browser's storage did not answer; close other graphty tabs, then reload.`,
+            { selector: ".cm-toast-message" },
+        );
+        // The loading screen is told the open is over, and never that the project opened.
+        await waitFor(() => {
+            assert.isTrue(
+                boot.some((detail) => detail.done === true),
+                "the loading screen was not ended",
             );
         });
+        assert.isFalse(boot.some((detail) => detail.line === "project opened"));
+        document.removeEventListener("graphty-boot", hear);
+
+        // The other tab lets go: the next reload reopens the same work.
+        release();
+        second.view.unmount();
+        const third = mountWorkspace();
+        await openBy(third.store, () => Promise.resolve());
+        assert.equal(openedElement().session.data.statistics().nodeCount, FLORENTINE.nodes);
+        third.view.unmount();
+    });
+
+    it("reopens this tab's timed work after a reload with exactly the style layers it had", async () => {
+        resetSiteConfig();
+        await loadSiteConfig(`data:application/json,${encodeURIComponent(JSON.stringify({ features: ["timeline"] }))}`);
         try {
+            const first = mountWorkspace();
+            await openBy(first.store, () => pickSample(MARVEL.name));
+            const { element, session } = openedElement();
+            // The reader times the films by release, which brings the Ghost row: a time field read
+            // back on reopening once brought every starting row back beside the saved ones (issue
+            // #7843).
+            await session.time.setField({ edges: { start: "released" } });
+            assert.include(
+                session.styles.tree().map((row) => row.name),
+                "Ghost",
+            );
+            const rows = session.styles.tree().map((row) => row.name);
+            const layers = JSON.stringify(session.styles.list());
+            await leave(element, first.view);
+
             const second = mountWorkspace();
-            await screen.findByRole("button", { name: `Open the ${LES_MIS.name} sample` }, { timeout: TIMEOUT_MS });
-            assert.isNull(second.store.get().project);
-            assert.isNull(document.querySelector("graphty-element:not([data-start-page])"));
-            const listed = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
-            assert.isTrue(listed?.live);
-            assert.notStrictEqual(listed?.own, true);
+            await openBy(second.store, () => Promise.resolve());
+            const reopened = openedElement();
+            assert.strictEqual(reopened.session.data.statistics().nodeCount, MARVEL.nodes);
+            assert.deepEqual(
+                reopened.session.styles.tree().map((row) => row.name),
+                rows,
+            );
+            assert.strictEqual(JSON.stringify(reopened.session.styles.list()), layers);
             second.view.unmount();
         } finally {
-            release();
+            resetSiteConfig();
         }
     });
+
+    it("keeps a rail click made while this tab's work reopens after a reload", async () => {
+        resetSiteConfig();
+        await loadSiteConfig(
+            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
+        );
+        try {
+            const first = mountWorkspace();
+            await openBy(first.store, () => pickSample(FLORENTINE.name));
+            await leave(openedElement().element, first.view);
+
+            // The reload, with the work's read held back: the reader clicks the rail's Assistant
+            // before the work is in.
+            const release = await holdParts();
+            const second = mountWorkspace();
+            const rail = await screen.findByRole("toolbar", { name: "Places" });
+            await userEvent.click(await within(rail).findByRole("button", { name: "Assistant" }));
+            await screen.findByRole("region", { name: "Assistant" });
+            assert.notInclude(
+                screen.getAllByRole("status").map((status) => status.textContent),
+                `Reopened ${FLORENTINE.name}`,
+                "the click came before the work was in",
+            );
+            release();
+
+            // The work comes in, and the reader is still where they went.
+            await waitFor(() => {
+                assert.include(
+                    screen.getAllByRole("status").map((status) => status.textContent),
+                    `Reopened ${FLORENTINE.name}`,
+                );
+            });
+            assert.equal(openedElement().session.data.statistics().nodeCount, FLORENTINE.nodes);
+            assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
+            assert.strictEqual(second.store.get().place, "assistant");
+            second.view.unmount();
+        } finally {
+            resetSiteConfig();
+        }
+    });
+
+    it("brings back an Assistant left open at a reload by itself, drawn whenever the rail marks it", async () => {
+        resetSiteConfig();
+        await loadSiteConfig(
+            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
+        );
+        try {
+            const first = mountWorkspace();
+            await openBy(first.store, () => pickSample(FLORENTINE.name));
+            const firstRail = await screen.findByRole("toolbar", { name: "Places" });
+            await userEvent.click(await within(firstRail).findByRole("button", { name: "Assistant" }));
+            await screen.findByRole("region", { name: "Assistant" });
+            await leave(openedElement().element, first.view);
+
+            // The reload, with the work's read held back. A click on a rail button marked as the
+            // open place closes it, so the rail must never mark the Assistant without its panel.
+            let markedWithoutPanel = false;
+            const watch = new MutationObserver(() => {
+                const marked = document.querySelector('[data-assistant-door][aria-current="page"]') !== null;
+                const drawn = document.querySelector('section[aria-label="Assistant"]') !== null;
+                markedWithoutPanel ||= marked && !drawn;
+            });
+            watch.observe(document.body, { childList: true, subtree: true, attributes: true });
+            const release = await holdParts();
+            const second = mountWorkspace();
+            // The panel is back with no click, before the work is in.
+            await screen.findByRole("region", { name: "Assistant" });
+            assert.notInclude(
+                screen.getAllByRole("status").map((status) => status.textContent),
+                `Reopened ${FLORENTINE.name}`,
+                "the panel waited for the work",
+            );
+            release();
+            await waitFor(() => {
+                assert.include(
+                    screen.getAllByRole("status").map((status) => status.textContent),
+                    `Reopened ${FLORENTINE.name}`,
+                );
+            });
+            watch.disconnect();
+            assert.isNotNull(screen.queryByRole("region", { name: "Assistant" }), "the Assistant closed");
+            assert.isFalse(markedWithoutPanel, "the rail marked the Assistant before its panel was drawn");
+            second.view.unmount();
+        } finally {
+            resetSiteConfig();
+        }
+    });
+
+    it("keeps a chat started with New chat while the saved chats and the work load: neither replaces it", async () => {
+        resetSiteConfig();
+        await loadSiteConfig(
+            `data:application/json,${encodeURIComponent(JSON.stringify({ features: ["assistant"] }))}`,
+        );
+        writeAssistantChoice({ provider: "mock", model: "mock", remember: false });
+        await new Promise((resolve) => {
+            indexedDB.deleteDatabase("graphty-ai").onsuccess = resolve;
+        });
+        try {
+            // A chat about the graph, saved, and the panel left open.
+            const first = mountWorkspace();
+            await openBy(first.store, () => pickSample(FLORENTINE.name));
+            await userEvent.click(
+                within(await screen.findByRole("toolbar", { name: "Places" })).getByRole("button", {
+                    name: "Assistant",
+                }),
+            );
+            await userEvent.click(await screen.findByRole("textbox", { name: "Message the assistant" }));
+            await userEvent.keyboard("First question{Enter}");
+            await within(await screen.findByRole("region", { name: "Chat" })).findByText(MOCK_REPLY);
+            await leave(openedElement().element, first.view);
+
+            // The reload, with the work and the saved chats held back: the reader starts a new chat
+            // and sends before either is in.
+            const release = await holdParts();
+            const releaseChats = await holdParts("graphty-ai", "conversations");
+            const second = mountWorkspace();
+            await userEvent.click(await screen.findByRole("button", { name: "New chat" }));
+            await userEvent.click(await screen.findByRole("textbox", { name: "Message the assistant" }));
+            await userEvent.keyboard("Second question{Enter}");
+            // The saved chats come in, and the turn is in the chat the reader started.
+            releaseChats();
+            await within(await screen.findByRole("region", { name: "Chat" })).findByText(MOCK_REPLY);
+            assert.isNull(
+                within(screen.getByRole("region", { name: "Chat" })).queryByText("First question"),
+                "the saved chat replaced the new one",
+            );
+            release();
+
+            // The work comes in; the chat the reader started stays open, its turn in it.
+            await waitFor(() => {
+                assert.include(
+                    screen.getAllByRole("status").map((status) => status.textContent),
+                    `Reopened ${FLORENTINE.name}`,
+                );
+            });
+            await waitFor(() => {
+                const shown = within(screen.getByRole("region", { name: "Chat" }));
+                assert.isNotNull(shown.queryByText("Second question"), "the turn left the open chat");
+                assert.isNotNull(shown.queryByText(MOCK_REPLY));
+                assert.isNull(shown.queryByText("First question"), "the saved chat replaced the new one");
+            });
+            // The list fills in around it: the open chat first, the saved one after. The chat begun
+            // before the work came in moves into the reopened project, so the count reaches 2.
+            await waitFor(() => {
+                assert.strictEqual(
+                    screen.getByRole("button", { name: /^Chats/ }).getAttribute("aria-label"),
+                    "Chats, 2: Second question",
+                );
+            });
+            await userEvent.click(screen.getByRole("button", { name: /^Chats/ }));
+            const list = await screen.findByRole("list", { name: "Chats" });
+            await waitFor(() => {
+                const rows = within(list)
+                    .getAllByRole("listitem")
+                    .map((row) => row.textContent ?? "");
+                assert.strictEqual(rows.length, 2);
+                assert.include(rows[0], "Second question");
+                assert.include(rows[1], "First question");
+            });
+            second.view.unmount();
+        } finally {
+            writeAssistantChoice(null);
+            resetSiteConfig();
+        }
+    });
+
+    for (const [title, stalled] of [
+        ["never reopens the work another tab is writing: a duplicated tab starts on the start screen", false],
+        [
+            "never reopens the work another tab is writing when the kept work cannot be listed: a duplicated tab, the database held, starts on the start screen",
+            true,
+        ],
+    ] as const) {
+        it(title, async () => {
+            const first = mountWorkspace();
+            await openBy(first.store, () => pickSample(LES_MIS.name));
+            const { element } = openedElement();
+            // Saved, and the app heard it: the chip is drawn from the same status event that notes
+            // the entry in this tab's session storage, which a duplicated tab copies.
+            await waitFor(() => {
+                assert.strictEqual(element.autosaver.status.state, "saved");
+                assert.strictEqual(screen.getByTestId("autosave-chip").textContent, "Autosave: saved");
+            });
+            const { entry } = element.autosaver.status;
+            if (entry === null) {
+                throw new Error("autosave wrote no entry");
+            }
+            first.view.unmount();
+
+            // The original tab still writes the entry: it holds the entry's lock, taken here as soon as
+            // the element's last write lets it go. A duplicated tab has a copy of the original's
+            // session storage, which names the same entry. A live tab answers when a page asks who
+            // holds the lock (graphty-element's lock channel), so the duplicate knows not to wait for it.
+            const lock = `graphty-autosave:${WORKSPACE_AUTOSAVE_KEY}:${entry}`;
+            const original = new BroadcastChannel("graphty-autosave-locks");
+            original.onmessage = (event: MessageEvent<{ ask?: string }>) => {
+                if (event.data.ask === lock) {
+                    original.postMessage({ held: lock });
+                }
+            };
+            let release = (): void => undefined;
+            await new Promise<void>((resolve) => {
+                void navigator.locks.request(
+                    lock,
+                    () =>
+                        new Promise<void>((done) => {
+                            release = done;
+                            resolve();
+                        }),
+                );
+            });
+            // Another tab, suspended in the middle of a write, holds the database: the kept work
+            // cannot be listed, which says nothing about whether the original's entry exists.
+            const letGo = stalled ? await holdDatabase() : (): void => undefined;
+            const log = await recordDecisions();
+            try {
+                const second = mountWorkspace();
+                const decided = await decision(log.lines);
+                assert.include(decided, '"decision":"landing"', log.lines.join("\n"));
+                await screen.findByRole("button", { name: sampleTile(LES_MIS.name) });
+                assert.isNull(second.store.get().project);
+                assert.isNull(document.querySelector("graphty-element:not([data-start-page])"));
+                letGo();
+                const listed = (await listAutosaves(WORKSPACE_AUTOSAVE_KEY)).find((each) => each.id === entry);
+                assert.isTrue(listed?.live);
+                assert.notStrictEqual(listed?.own, true);
+                second.view.unmount();
+            } finally {
+                letGo();
+                await log.stop();
+                release();
+                original.close();
+            }
+        });
+    }
 
     it("offers another tab's work with the project's name, and Restore opens it again", async () => {
         const first = mountWorkspace();
@@ -374,6 +750,65 @@ describe("Workspace autosave with the real graphty-element", () => {
         // This tab writes the restored work from here on.
         await waitFor(() => {
             assert.strictEqual(reopened.element.autosaver.status.entry, entry);
+        });
+        second.view.unmount();
+    });
+
+    it("offers the newest work with changes, though a newer visit opened a project and changed nothing", async () => {
+        // Older work with a change never saved to a file.
+        const dirty = mountWorkspace();
+        await openBy(dirty.store, () => pickSample(FLORENTINE.name));
+        const before = openedElement();
+        await before.session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
+        await fromAnotherTab(await leave(before.element, dirty.view));
+
+        // Then a sample opened untouched, and a new visit.
+        const clean = mountWorkspace();
+        await openBy(clean.store, () => pickSample(LES_MIS.name));
+        await fromAnotherTab(await leave(openedElement().element, clean.view));
+
+        const visit = mountWorkspace();
+        const region = await offer();
+        assert.include(region.textContent, FLORENTINE.name);
+        visit.view.unmount();
+    });
+
+    it("opens a tab's sample again when its work cannot be found, and offers no other project's work", async () => {
+        // Dirty work this tab had open, whose record is lost (as a reload before the first write).
+        const older = mountWorkspace();
+        await openBy(older.store, () => pickSample(FLORENTINE.name));
+        const before = openedElement();
+        await before.session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
+        await fromAnotherTab(await leave(before.element, older.view), true);
+
+        const reload = mountWorkspace();
+        await waitFor(() => {
+            assert.strictEqual(openedElement().session.data.snapshot().nodeCount, FLORENTINE.nodes);
+        });
+        assert.strictEqual(reload.store.get().project?.name, FLORENTINE.name);
+        assert.isNull(reload.store.get().recovered);
+        assert.isNull(screen.queryByRole("region", { name: "Unsaved work" }));
+        reload.view.unmount();
+    });
+
+    it("brings back the same style layers, and the tab the reader had open, when the offered work is restored", async () => {
+        const first = mountWorkspace();
+        await openBy(first.store, () => pickSample(FLORENTINE.name));
+        const { element, session } = openedElement();
+        const inspector = (): ReturnType<typeof within> =>
+            within(screen.getByRole("complementary", { name: "Inspector" }));
+        // A project opens on its Everything row's Style tab (#3409): the reader picks Values.
+        await userEvent.click(inspector().getByRole("tab", { name: "Values" }));
+        await session.styles.addRow({ name: "Layer 1", target: "both", selector: { match: "everything" } });
+        const layers = JSON.stringify(session.styles.list());
+        await fromAnotherTab(await leave(element, first.view));
+
+        const second = mountWorkspace();
+        await offer();
+        await openBy(second.store, () => userEvent.click(screen.getByRole("button", { name: "Restore" })));
+        assert.strictEqual(JSON.stringify(openedElement().session.styles.list()), layers);
+        await waitFor(() => {
+            assert.strictEqual(inspector().getByRole("tab", { selected: true }).textContent, "Values");
         });
         second.view.unmount();
     });

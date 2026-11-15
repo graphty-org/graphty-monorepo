@@ -4,28 +4,25 @@ import "./layout/index"; // register all internal layouts
 import "./algorithms/index"; // register all internal algorithms
 // Babylon.js installs scene.pick and scene.beginAnimation / stopAnimation only when these load.
 // test/packaging/babylon-side-effects.test.ts requires them wherever those methods are called.
-import "@babylonjs/core/Culling/ray";
-import "@babylonjs/core/Animations/animatable";
+import "@babylonjs/core/Culling/ray.js";
+import "@babylonjs/core/Animations/animatable.js";
 
-import {
-    AbstractMesh,
-    Animation,
-    Camera,
-    CubicEase,
-    EasingFunction,
-    Engine,
-    type InstancedMesh,
-    NullEngine,
-    Observable,
-    PointerEventTypes,
-    Quaternion,
-    RenderingGroup,
-    Scene,
-    type SubMesh,
-    Vector3,
-    WebGPUEngine,
-    WebXRDefaultExperience,
-} from "@babylonjs/core";
+import type { AbstractEngine, Nullable, Observer } from "@babylonjs/core";
+import { Animation } from "@babylonjs/core/Animations/animation.js";
+import { CubicEase, EasingFunction } from "@babylonjs/core/Animations/easing.js";
+import { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Engine } from "@babylonjs/core/Engines/engine.js";
+import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
+import { WebGPUEngine } from "@babylonjs/core/Engines/webgpuEngine.js";
+import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
+import type { Effect } from "@babylonjs/core/Materials/effect.js";
+import { Quaternion, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { SubMesh } from "@babylonjs/core/Meshes/subMesh.js";
+import { Observable } from "@babylonjs/core/Misc/observable.js";
+import { RenderingGroup } from "@babylonjs/core/Rendering/renderingGroup.js";
+import { Scene } from "@babylonjs/core/scene.js";
+import type { WebXRDefaultExperience } from "@babylonjs/core/XR/webXRDefaultExperience.js";
 import type { GraphSnapshot } from "@graphty/graph-format";
 
 import { ACCELERATION_POLICY_DEFAULT, AccelerationController } from "./acceleration";
@@ -33,10 +30,12 @@ import { VoiceInputAdapter } from "./ai/input/VoiceInputAdapter";
 import type { ApiKeyManager } from "./ai/keys";
 import { sessionColumns } from "./algorithms/input/columns";
 import { peekDerivedInputs } from "./algorithms/input/ScopedInput";
-import type { BasemapConfig, BasemapStatus, MapFrameFact } from "./config/Basemap";
+import type { BasemapConfig, BasemapStatus, GlobeLook, MapFrameFact } from "./config/Basemap";
 import type { LocationMapFrame } from "./layout/locationMap/place";
+import { flatMapReach } from "./layout/locationMap/reach";
 import { GraphtyLogger, type Logger } from "./logging";
 import { BasemapManager, mapCorners } from "./managers/BasemapManager";
+import { CAMERA_LOG_INTERVAL_MS, frameFacts, throttle, viewLog } from "./managers/viewLog";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
@@ -57,56 +56,48 @@ interface StableFrameWait {
 const DEFAULT_STABLE_FRAME_TIMEOUT_MS = 30000;
 
 /**
+ * The default wait of {@link Graph.waitForStableFrame}: 30 seconds, or a test harness's own hang
+ * guard when it sets the global `globalThis.__GRAPHTY_WAIT_GUARD_MS__` (a positive number). A
+ * harness on a busy machine draws slower than any fixed default, and its one guard is what ends a
+ * real hang there; the graphty monorepo's test setup sets it from tools/test-wait-guard.mjs.
+ * @returns The default wait in milliseconds.
+ */
+function defaultStableFrameTimeoutMs(): number {
+    const guard = (globalThis as { __GRAPHTY_WAIT_GUARD_MS__?: unknown }).__GRAPHTY_WAIT_GUARD_MS__;
+    return typeof guard === "number" && guard > 0 ? guard : DEFAULT_STABLE_FRAME_TIMEOUT_MS;
+}
+
+/**
+ * Whether a shader module's code can be drawn with. Which type `code` has depends on the WebGPU
+ * types a compilation sees: Babylon's also allow SPIR-V, which is binary and not looked into.
+ * @param code - The module's code.
+ * @returns False for WGSL with no entry point.
+ */
+function hasEntryPoint(code: string | Uint32Array): boolean {
+    return typeof code !== "string" || /@(?:vertex|fragment|compute)\b/.test(code);
+}
+
+/**
  * How much one `zoomStep` moves the camera: a fifth nearer or further, the smallest change that
  * reads as a change on a graph of any size.
  */
 const ZOOM_STEP_FACTOR = 1.25;
 
-/** How far from a drawn edge's line, in CSS pixels, a click still lands on the edge. */
-const EDGE_PICK_TOLERANCE_PX = 6;
-
 /**
- * The world points an edge's line is drawn through: its curve's points, or its two ends.
- * @param edge - The edge.
- * @returns The points, in order along the line.
+ * How near the camera comes to a map, as a share of its size: about 640 m above the earth on a
+ * globe. Single-precision positions are good to about a pixel there, whatever the map's size.
  */
-function edgeWorldPoints(edge: Edge): Vector3[] {
-    const curve = edge.drawnCurve;
-    if (curve !== null && !(edge.mesh instanceof PatternedLineMesh)) {
-        // A curve's points are in its batch's space, which an XR gesture moves with graph-root.
-        const world = edge.mesh.getWorldMatrix();
-        return curve.map((point) => Vector3.TransformCoordinates(point, world));
-    }
+const MAP_CLEARANCE = 1e-4;
 
-    return [edge.srcNode.mesh.getAbsolutePosition(), edge.dstNode.mesh.getAbsolutePosition()];
-}
-
-/**
- * The distance from a point to a segment, in the segment's pixels.
- * @param x - The point's x.
- * @param y - The point's y.
- * @param a - One end.
- * @param a.x - Its x.
- * @param a.y - Its y.
- * @param b - The other end.
- * @param b.x - Its x.
- * @param b.y - Its y.
- * @returns The distance.
- */
-function distanceToSegment(x: number, y: number, a: { x: number; y: number }, b: { x: number; y: number }): number {
-    const dx = b.x - a.x;
-    const dy = b.y - a.y;
-    const length2 = dx * dx + dy * dy;
-    const t = length2 === 0 ? 0 : Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / length2));
-    return Math.hypot(x - (a.x + t * dx), y - (a.y + t * dy));
-}
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
+import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
 import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
-import type { CameraState, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
+import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
+import { type OverviewInputs, OverviewSource, watchOverview } from "./cameras/overview";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
 import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
@@ -119,6 +110,7 @@ import type {
     ElementAtResult,
     FormatId,
     GroupOutlineAtResult,
+    NodeId,
     Scope,
     ScopeInput,
 } from "./catalog/types";
@@ -133,6 +125,7 @@ import {
     GraphBehaviorOpts,
     type GraphSelectionStyleInput,
     GraphSelectionStyleOpts,
+    type NodeStyleConfig,
     type StyleSchemaV1,
     StyleTemplate,
     type ViewMode,
@@ -143,16 +136,21 @@ import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./config/Lighting";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
-import { sampleOf } from "./data/source-bytes";
+import { WRITABLE_LANE, writableLane } from "./data/lane";
+import { fetchBytes, sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
 import {
     EventCallbackType,
     EventOfType,
     EventType,
+    type LimitsWarningEvent,
+    type RenderLostEvent,
+    type RenderRestoredEvent,
     type XRSessionEndedEvent,
     type XRSessionStartedEvent,
 } from "./events";
+import { attachRegionGesture } from "./input/RegionSelectGesture";
 import { layoutEngineInternals } from "./layout/LayoutEngine";
 import {
     type AddEdgesOptions,
@@ -189,7 +187,10 @@ import {
     type NodeLabelCounts,
 } from "./managers/LabelDeclutter";
 import { layoutManagerInternals } from "./managers/LayoutManager";
+import type { PendingWork } from "./managers/PendingWork";
+import { RecoveringWebGPUEngine } from "./managers/RecoveringWebGPUEngine";
 import {
+    type LayoutDevice,
     openWebGPUEngine,
     type PixelRatio,
     RENDERER_REQUESTS,
@@ -198,28 +199,64 @@ import {
 } from "./managers/RenderManager";
 import { bootstrapEdgePaint, bootstrapNodePaint } from "./managers/StylePainter";
 import { AnnotationMeshes } from "./meshes/AnnotationMeshes";
+import { EdgeRowLines } from "./meshes/EdgeRowLines";
 import { payLabelAnimations } from "./meshes/labelAnimationDebt";
 import { closeRectOnScreen, hasCloseLabels, inRect, isCloseLabel } from "./meshes/labelClose";
+import { labelFontsLoading, watchFontLoads } from "./meshes/labelFonts";
 import { MeshCache } from "./meshes/MeshCache";
+import { NodeBatches, type RenderPath, renderPathDefault, type RowCounts } from "./meshes/NodeBatch";
+import { forgetGlyphs } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
+import { sceneLighting } from "./meshes/NodeLighting";
+import { NodeMesh } from "./meshes/NodeMesh";
 import { NodeShaderDrawing } from "./meshes/NodeShaderDrawing";
-import { nodeThumbnail, type NodeThumbnailOptions } from "./meshes/NodeThumbnail";
-import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
-import { Node, releaseNodeMesh } from "./Node";
 import {
-    alongRay,
-    nodeActionManagerOf,
-    nodePointerRosterOf,
+    modelThumbnail,
+    type ModelThumbnailOptions,
+    nodeThumbnail,
+    type NodeThumbnailOptions,
+} from "./meshes/NodeThumbnail";
+import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
+import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
+import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
+import { optionsOf } from "./models/ModelCache";
+import { Node, releaseNodeMesh } from "./Node";
+import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
+import { EdgeIdTarget } from "./render/EdgeIdTarget";
+import { NodeIdTarget } from "./render/NodeIdTarget";
+import {
+    type CanvasPoint,
+    hoverEdgeAt,
+    insidePolygon,
+    openRowScan,
     pickAsDrawn,
+    pickCloseLabel,
+    pickEdgeId,
     pickNodeId,
-    pointerEventTime,
-} from "./NodeBehavior";
+    pickWorldPoint,
+    regionWork,
+    rowScanOf,
+    screenProjector,
+    useEdgeIdTarget,
+    useNodeIdTarget,
+} from "./render/PickService";
+import { type DrawnTarget, RowTable } from "./render/RowTable";
 import { ScreenshotCapture } from "./screenshot/ScreenshotCapture.js";
 import type { ScreenshotOptions, ScreenshotResult } from "./screenshot/types.js";
 import { createElementSession, type ElementSession, type GraphSession } from "./session";
+import type { AssetsApiInternal } from "./session/assets/AssetsApi";
 import { TEMPLATE_RUNS } from "./session/commands/algo";
 import { readProjectConfig } from "./session/commands/config";
-import { addsRows, type DataMutation } from "./session/commands/data";
+import {
+    addsRows,
+    checkMutation,
+    checkRows,
+    COLUMNS_VALUE,
+    type DataMutation,
+    recordFault,
+    SOURCE_VALUE,
+    SOURCES_VALUE,
+} from "./session/commands/data";
 import type { BatchCommand } from "./session/commands/index";
 import { DEFAULT_LAYOUT } from "./session/commands/layout";
 import { assertViewName } from "./session/commands/view";
@@ -228,10 +265,14 @@ import {
     dispatcherOf,
     handGraphPaintToRenderer,
     paintAddedRows,
+    repaintGraphPass,
     scopeResolverOfSession,
     sessionRunsOf,
     setsNotifierOfSession,
+    workingGraphOfSession,
 } from "./session/GraphSession";
+import { ISSUES_VALUE } from "./session/issues";
+import { DEFAULT_LIMITS, type LimitsOption, RenderLimits } from "./session/limits";
 import { loadLineOf, type LoadTurn } from "./session/loadLine";
 import type { SessionCommand } from "./session/planning";
 import {
@@ -247,17 +288,25 @@ import { reportCaught, strictStateEnabled, strictViolation } from "./session/pro
 import type { Run, StartOptions } from "./session/runs";
 import type { SelectionDelta, SelectionOp, SelectionTarget } from "./session/selection";
 import { shadersControllerOf } from "./session/shaders";
+import { PROVENANCE_VALUE } from "./session/sources/provenance";
 import type { StyleSuggestion } from "./session/styles";
 import { suggestionCommand } from "./session/styles/autoApply";
 import { toColorValue } from "./session/styles/channels";
 import { ANNOTATIONS_VALUE } from "./session/styles/fileStyles/annotations";
 import type { FileStyleOptions } from "./session/styles/fileStyles/translate";
-import type { ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
-import { attachTransitions, LayoutTransitionRunner, transitionsOf } from "./transitions/LayoutTransitionRunner";
+import type { CompiledLayer } from "./session/styles/Layer";
+import type { HistoryCause, ProjectConfig, ProjectConfigPatch, TransactionScope } from "./session/types";
+import type { WorkingGraph } from "./session/working/view";
+import {
+    attachTransitions,
+    LayoutTransitionRunner,
+    RowSubject,
+    transitionsOf,
+} from "./transitions/LayoutTransitionRunner";
 
 /** The namespace every algorithm this package ships is registered under. */
 const BUILT_IN_ALGORITHM_NAMESPACE = "graphty";
-import { createLazyShaderHost } from "./shaders/chunk";
+import { createLazyShaderHost, disposedError } from "./shaders/chunk";
 import { Styles } from "./Styles";
 import { XRUIManager } from "./ui/XRUIManager";
 import { downloadBlob } from "./utils/download";
@@ -371,15 +420,31 @@ function disposeEdgeMeshes(edge: Edge): void {
  *   version (`UpdateManager.viewMasksPending`), so the frame a moved mask needs is drawn unasked.
  * - The time field and its unit: they say which column holds time, and nothing is drawn from
  *   them; what a window then hides is a mask.
+ * - The graph values no layer reads and nothing draws (#3973): the issue state, which issues are
+ *   ignored or settled; where the graph was loaded from, its loads and their provenance; and the
+ *   column settings, whose hiding, types and rename bookkeeping repaint nothing (the rows' own
+ *   edits do, and a rename's declarations are keys of their own). The graph hook repaints for a
+ *   pass of graph values alone only when an earlier write left the paint owed, and that pass asks
+ *   for its frame itself (`#passRepainted`). The annotations and the file styles are graph values
+ *   that draw, so they are not here.
  */
 const KEYS_THAT_DRAW_NOTHING: Readonly<Partial<Record<string, ReadonlySet<string> | null>>> = {
     visibility: null,
     config: new Set([
         "data.knownFields.nodeTimePath",
         "data.knownFields.nodeTimeUnit",
+        "data.knownFields.nodeTimeParseZone",
+        "data.knownFields.nodeTimeEndPath",
+        "data.knownFields.nodeTimeSpellsPath",
         "data.knownFields.edgeTimePath",
         "data.knownFields.edgeTimeUnit",
+        "data.knownFields.edgeTimeParseZone",
+        "data.knownFields.edgeTimeEndPath",
+        "data.knownFields.edgeTimeSpellsPath",
     ]),
+    graph: new Set(
+        [ISSUES_VALUE, SOURCE_VALUE, SOURCES_VALUE, PROVENANCE_VALUE, COLUMNS_VALUE].map((name) => `v:${name}`),
+    ),
 };
 
 /**
@@ -484,36 +549,56 @@ interface Reservation {
     readonly generation: number;
     readonly replace: boolean;
     readonly turn: LoadTurn;
+    readonly signal?: AbortSignal;
 }
 
 /** Each graph's operation queue; see {@link operationQueueOf}. */
 const QUEUES = new WeakMap<Graph, OperationQueueManager>();
 
+/** How the element's data-source pair loads; see {@link loadSourcePair}. */
+interface PairImport {
+    readonly coalesce: string;
+    readonly setup: boolean;
+    /**
+     * Whether a `"url"` pair finds its format. Otherwise the type is looked up like any other: a
+     * registered source of that name reads it, and with none the load fails as an unknown format.
+     */
+    readonly findsUrlFormat: boolean;
+    /** Told when a `"url"` pair's format could not be found, before any load ran to report it. */
+    readonly readFailed: (error: unknown) => void;
+}
+
 /** What the element's data-source pair adds to the import its load dispatches; see {@link loadSourcePair}. */
-const pairImports = new WeakMap<Graph, { readonly coalesce: string; readonly setup: boolean }>();
+const pairImports = new WeakMap<Graph, PairImport>();
 
 /**
  * Load the element's data-source pair through `addDataFromSource`, as every load goes, with what
  * only the pair has: a coalesce key, so the two halves assigned in one tick are one load, and
- * whether the page declared it at construction, which makes it the baseline. No entry point
- * exports it.
+ * whether the page declared it at construction, which makes it the baseline. A `"url"` type names
+ * no format, so when `how.findsUrlFormat` says so it goes through `loadFromUrl`, which finds it. No
+ * entry point exports it.
  * @param graph - The graph.
  * @param type - The data source type.
  * @param config - Its configuration.
- * @param how - The coalesce key, and whether it is setup.
+ * @param how - The coalesce key, whether it is setup, and how a `"url"` pair finds its format.
  * @param how.coalesce - The key two pair loads coalesce under while the first waits.
  * @param how.setup - Declared at construction.
+ * @param how.findsUrlFormat - Whether a `"url"` pair finds its format.
+ * @param how.readFailed - Told when a `"url"` pair's format could not be found.
  * @returns The load, as `addDataFromSource` returns it.
  */
 export function loadSourcePair(
     graph: Graph,
     type: string,
     config: object,
-    how: { readonly coalesce: string; readonly setup: boolean },
+    how: PairImport,
 ): Promise<{ loadId: number }> {
     pairImports.set(graph, how);
     try {
-        return graph.addDataFromSource(type, config, { replace: true });
+        const { url, ...options } = config as { url?: unknown } & Parameters<Graph["loadFromUrl"]>[1];
+        return how.findsUrlFormat && typeof url === "string"
+            ? graph.loadFromUrl(url, { ...options, replace: true })
+            : graph.addDataFromSource(type, config, { replace: true });
     } finally {
         pairImports.delete(graph);
     }
@@ -535,18 +620,19 @@ export function operationQueueOf(graph: Graph): OperationQueueManager {
     return queue;
 }
 
-/** What each graph's settle waits wait for before the queue; see {@link waitFirstFor}. */
-const loadsAhead = new WeakMap<Graph, () => Promise<void>>();
+/** Each graph's record of pending picture work (its update manager's); see {@link waitFirstFor}. */
+const PENDING = new WeakMap<Graph, PendingWork>();
 
 /**
- * Make the graph's settle waits (`waitForSettled`, `waitForStableFrame`) wait for loads that have
- * not reached the queue yet: the element's page loads, held while autosave decides its restore.
- * No entry point exports it.
+ * Enter loads that have not reached the queue yet -- the element's page loads, held while
+ * autosave decides its restore -- in the graph's record of pending work, so its settle waits
+ * (`waitForSettled`, `waitForStableFrame`) wait for them (issue #4219). No entry point exports it.
  * @param graph - The graph.
- * @param pending - Settles once those loads are queued.
+ * @param held - Whether such loads are held now; asked live.
+ * @param queued - Settles once the loads held when it is called are queued.
  */
-export function waitFirstFor(graph: Graph, pending: () => Promise<void>): void {
-    loadsAhead.set(graph, pending);
+export function waitFirstFor(graph: Graph, held: () => boolean, queued: () => Promise<void>): void {
+    PENDING.get(graph)?.watch("load", "a page load is held while autosave decides its restore", held, "wait", queued);
 }
 
 /** Where each graph's session reads the experiments its element asked for; see {@link featuresFrom}. */
@@ -641,6 +727,9 @@ export class Graph implements GraphContext {
      */
     #cameraPlaced = false;
 
+    /** The tour playing now, if any: `ended` is set to stop it at its next step or frame. */
+    #tour: TourHandle | undefined;
+
     /**
      * The reader moved the camera: the element's own framing stops until the next load or layout,
      * as it does for `setCameraState`. Left running, a re-frame still owed -- a layout that had not
@@ -659,6 +748,15 @@ export class Graph implements GraphContext {
         this.updateManager.stopAutoZoomToFit();
     };
     /** Whether the camera frames the graph on its own; see {@link setAutoFrame}. */
+    /**
+     * Announces a new skybox's image: `skybox-loaded` once its texture arrived, `skybox-failed`
+     * when it could not be loaded. The element turns each into its `graphty-skybox-*` DOM event.
+     * @param url - The skybox image.
+     * @param loaded - Whether its texture loaded.
+     */
+    readonly #announceSkybox = (url: string, loaded: boolean): void => {
+        this.eventManager.emit(loaded ? "skybox-loaded" : "skybox-failed", { graph: this, url });
+    };
     #autoFrame = true;
     /** Whether the wheel zooms toward the pointer; see {@link setZoomToPointer}. */
     #zoomToPointer = false;
@@ -709,6 +807,14 @@ export class Graph implements GraphContext {
     };
 
     /**
+     * A canvas of a new size frames the graph again when `camera.refitOnResize` is on and the camera
+     * is still where a fit left it. Without it, a resize after the picture was final kept a framing
+     * for the old size, so a page whose panel opened before or after that point drew two pictures
+     * (issue #5097). A camera somebody placed is left alone.
+     */
+    #refitOnResize: Nullable<Observer<AbstractEngine>> = null;
+
+    /**
      * Fits the drawing to the canvas's current size and draws it at once, so the frame the page
      * paints after a resize holds the graph rather than the canvas the resize cleared. Called by
      * the element's ResizeObserver.
@@ -738,20 +844,38 @@ export class Graph implements GraphContext {
      * instead: the store's `stale` is true both before the first freeze and after a later edit.
      */
     #resident: GraphSnapshot | null = null;
+    /** The row tables, once something has opened them; see {@link Graph.openRowTable}. */
+    #rowTable: RowTable | null = null;
+    /** How nodes are drawn; see {@link Graph.setRenderPath}. */
+    #renderPath: RenderPath = renderPathDefault.value;
+    /** The ceilings asked for through `limits`, and those in force on this render path. */
+    readonly #limits = new RenderLimits(this.#renderPath === "batched");
+    /** The node batches, once the renderer is open on the `"batched"` path. */
+    #nodeBatches: NodeBatches | null = null;
+    /** Edge rows drawn with no `Edge`, on the `"batched"` path (`EdgeRowLines`). */
+    #edgeRowLines: EdgeRowLines | null = null;
+    /** What hover reads on the `"batched"` path. */
+    #nodeIds: NodeIdTarget | null = null;
+    #edgeIds: EdgeIdTarget | null = null;
+    /** The scene is the one that stays, so batches may be built on it. */
+    #renderPathOpen = false;
+
+    /** Whether plain edges were last painted as pulled lines, the `"batched"` path's. */
+    #edgesPulled = false;
     /** Imports reading now: the passes between their chunks build what arrived but do not paint. */
     #importsReading = 0;
 
     /** Rows a forward add brought that the layout has not placed yet: an import still reading. */
     #placementOwed = false;
 
+    /** The running pass repainted the whole graph, so it needs a frame whatever keys it wrote. */
+    #passRepainted = false;
+
     /** Aborted by `shutdown()`, so no whole-graph repaint runs against a torn-down graph. */
     readonly #teardown = new AbortController();
 
     /** Aborted and replaced each time the data is cleared, so a repaint in flight stops. */
     #dataGeneration = new AbortController();
-
-    /** Settles once every `applySuggestedStyles` call has stacked its layers in order. */
-    #suggestionsStacked: Promise<void> = Promise.resolve();
 
     // Managers
     /** Event manager for adding/removing event listeners */
@@ -774,12 +898,28 @@ export class Graph implements GraphContext {
     #rendererStatus: RendererStatus | null = null;
     /** Set when {@link Graph.init} starts opening the renderer; from then on the request is fixed. */
     #rendererChosen = false;
+    /** Set once {@link Graph.init} has started or been promised; an accelerator waits only then. */
+    #rendererExpected = false;
+    /** Called when {@link Graph.init} has opened the renderer, or the graph is gone without one. */
+    #rendererOpened: (() => void) | null = null;
+    /** Settles with {@link Graph.#rendererOpened}. */
+    readonly #whenRendererOpened = new Promise<void>((resolve) => {
+        this.#rendererOpened = resolve;
+    });
+    /** What shutdown has to free, set just before it disposes the managers. */
+    #releaseAcceleration: (() => void) | null = null;
+    /** Set from a `render-lost` until the device is back; see {@link Graph.restartRenderer}. */
+    #renderLost = false;
+    /** The restart waited on, settled when the device is back or the browser refuses it. */
+    #restart: { promise: Promise<void>; resolve: () => void; reject: (error: unknown) => void } | null = null;
+    /** WebGL's `WEBGL_lose_context`, taken while the context lives: a lost context hands out none. */
+    #loseContext: { restoreContext(): void } | null = null;
     private readonly dataManager: DataManager;
     private readonly layoutManager: LayoutManager;
     private readonly statsManager: StatsManager;
     private readonly updateManager: UpdateManager;
     private readonly algorithmManager: AlgorithmManager;
-    private inputManager: InputManager;
+    private readonly inputManager: InputManager;
     /** While an immersive session is active: its mode and when it started, stamped on steps. */
     private immersiveSince: string | null = null;
 
@@ -790,14 +930,24 @@ export class Graph implements GraphContext {
     private readonly drawsOnDemand = (): boolean =>
         this.viewSettings.behavior.rendering?.onDemand ?? onDemandWhenUnset();
     /**
+     * Whether the render loop flushes after each frame's WebGL fence, and keeps one WebGPU frame in
+     * flight: only under renderPath "batched". Its frames are short enough that waiting for the
+     * browser's own flush set their floor, and its million-row frames are long enough on the GPU
+     * that unpaced WebGPU frames queued minutes of work ahead of every readback. Asked each frame,
+     * so a live path change takes effect on the next one.
+     * @returns True under renderPath "batched".
+     */
+    readonly #batchedFrames = (): boolean => this.#renderPath === "batched";
+    /**
      * Whether the picture the model describes is on screen and final, and no headset is showing
      * it -- a VR or AR view moves with the reader's head, which the loop cannot see. Asked only
-     * while drawing on demand is on. See `RenderManager.mayRest`.
+     * while drawing on demand is on. A turning camera keeps it unfinished only while the canvas is
+     * in view: nobody sees a frame drawn out of it (#4426). See `RenderManager.mayRest`.
      * @returns True when a frame that changes nothing may be skipped.
      */
     private readonly pictureIsFinal = (): boolean =>
         this.updateManager.frameIsStable &&
-        !this.updateManager.autoTurning &&
+        !(this.updateManager.autoTurning && this.renderManager.canvasInView) &&
         (this.xrSessionManager?.getActiveMode() ?? null) === null;
     /** How many `batchOperations` callbacks are open. */
     private openBatches = 0;
@@ -833,6 +983,8 @@ export class Graph implements GraphContext {
     private readonly xrAvailability: XrAvailability;
     /** Stops redrawing the canvas XR buttons on each availability change. */
     #unwatchXrButtons: (() => void) | null = null;
+    /** Stops rebuilding labels when a web font they use loads; see {@link refreshFonts}. */
+    #unwatchFonts: (() => void) | null = null;
 
     // GraphContext implementation
     private graphContext: DefaultGraphContext;
@@ -841,12 +993,22 @@ export class Graph implements GraphContext {
     private activeCapture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture | null = null;
 
     /**
+     * Whether the canvas multisamples, as the engine was built: the constructor's `antialias`.
+     * Fixed for the life of the graph; WebGPU, when it opens, is built the same way.
+     * @experimental cosmograph
+     */
+    readonly antialias: boolean;
+
+    /**
      * Creates a new Graph instance and initializes the rendering engine and managers.
      * @param element - DOM element or element ID to attach the graph canvas to
      * @param useMockInput - Whether to use mock input for testing (defaults to false)
+     * @param options - How the engine is built; read once, here.
+     * @param options.antialias - Whether the canvas multisamples (4x). Left out, true.
      */
-    constructor(element: Element | string, useMockInput = false) {
+    constructor(element: Element | string, useMockInput = false, options: { readonly antialias?: boolean } = {}) {
         this.useMockInput = useMockInput;
+        this.antialias = options.antialias ?? true;
         // Initialize EventManager first as other components depend on it
         this.eventManager = new EventManager();
 
@@ -862,13 +1024,21 @@ export class Graph implements GraphContext {
         // layers -- those are `session.styles`.
         this.#styles = new Styles(() => this.configDocument());
 
-        this.stylePainter = new StylePainter(() => this.dataManager.directed);
+        this.stylePainter = new StylePainter(
+            (row) => this.dataManager.edgeDirected(row),
+            () => this.session.config.minMarkSize,
+        );
 
         // get the element that we are going to use for placing our canvas
         if (typeof element === "string") {
             const e: Element | null = document.getElementById(element);
             if (!e) {
-                throw new Error(`getElementById() could not find element '${element}'`);
+                throw new GraphtyError({
+                    code: "E_HOST_NOT_FOUND",
+                    message: `No element with id "${element}" to draw the graph in.`,
+                    source: "config",
+                    details: { id: element },
+                });
             }
 
             this.element = e;
@@ -891,11 +1061,13 @@ export class Graph implements GraphContext {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
+            flushesFrameFence: this.#batchedFrames,
+            pacesWebGpuFrames: this.#batchedFrames,
+            antialias: this.antialias,
         });
 
         this.basemapManager = new BasemapManager(
             () => this.scene,
-            this.element,
             () => {
                 // The map made or showed meshes, usually just before the scene draws: a frozen list
                 // of what is drawn would leave them out of this frame and the frames after it.
@@ -921,6 +1093,18 @@ export class Graph implements GraphContext {
 
         // Initialize DataManager
         this.dataManager = new DataManager(this.eventManager, this.styles);
+        this.dataManager.renderLimits = {
+            ceilings: () => this.#limits.overrides,
+            batched: () => this.#renderPath === "batched",
+            objectRows: () => this.#limits.effective.objectRows,
+            objectEdges: () => this.#limits.effective.objectEdges,
+            objectCap: (of, wanted, cap) => {
+                this.eventManager.emit("limits-warning", {
+                    code: "W_OBJECT_CAP",
+                    params: { of, wanted, cap },
+                } satisfies Omit<LimitsWarningEvent, "type">);
+            },
+        };
 
         // ONE controller for the element, this graph and its session. Nothing is probed until
         // `start()` is called, which the element does from `connectedCallback`. No `minNodes`
@@ -931,6 +1115,7 @@ export class Graph implements GraphContext {
             // No frame is drawn while a call-shaped run is on the device: a draw of this scene
             // is what the run's readback would otherwise wait behind (issue #390).
             whileRunning: () => this.renderManager.holdFrames(),
+            sharedDevice: () => this.deviceToShare(),
         });
 
         // The headless model, over the store the data manager already owns for the life of the
@@ -954,6 +1139,8 @@ export class Graph implements GraphContext {
             {
                 acceleration: this.acceleration,
                 xr: this.xrAvailability,
+                ceilings: this.#limits,
+                region: (polygon) => this.nodesInRegion(polygon),
                 store: laneStoreOf(this.dataManager),
                 features: () => requestedFeatures.get(this)?.(),
                 runs: {
@@ -971,6 +1158,10 @@ export class Graph implements GraphContext {
                 scheduler: queueScheduler(this.operationQueue),
                 // What the page declares before the graph first holds data is where history starts.
                 baselineWindow: true,
+                // Late-bound on purpose: a change of renderer replaces the render manager.
+                renderedFrame: () => this.renderManager.frameDrawn(),
+                // Under "batched" only, the repaint fills a uniform dirty set's mesh keys at once.
+                batched: () => this.#renderPath === "batched",
             },
         );
 
@@ -1014,33 +1205,7 @@ export class Graph implements GraphContext {
         handGraphPaintToRenderer(this.session);
         // Shaders compile in this scene's engine; the runtime loads on the first one.
         shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
-        // The background shader, group outlines and bloom read the stack and the nodes' places.
-        this.renderManager.bindShaderScene({
-            session: this.session,
-            member: (id) => {
-                const node = this.dataManager.nodes.get(id);
-                const color = node?.paintedColor;
-                if (
-                    node === undefined ||
-                    color === null ||
-                    color === undefined ||
-                    node.getRenderState() !== "visible"
-                ) {
-                    return undefined;
-                }
-
-                const { x, y, z } = node.getPosition();
-                return {
-                    x,
-                    y,
-                    z,
-                    radius: node.drawnRadius,
-                    color: [color.r / 255, color.g / 255, color.b / 255, color.a],
-                };
-            },
-        });
-        // No frame is drawn while an element built from the defaults waits for its style.
-        this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
+        this.bindRenderManager();
         lane.register("graph", async (_rendered, target, dirty) => {
             const { cause } = lane;
             this.dataManager.reconcile(target.graph, dirty, cause);
@@ -1075,42 +1240,10 @@ export class Graph implements GraphContext {
                 !dispatcher.graphWritesWaiting
             ) {
                 this.#placementOwed = false;
-                await this.layoutManager.updatePositions([...this.dataManager.nodes.values()]);
+                await this.layoutManager.updatePositions([...dataManagerInternals.builtNodes(this.dataManager)]);
             }
 
-            // A pass that leaves the whole-graph paint to a later one paints the rows it added now,
-            // their own rows only (and the waiting edges their nodes completed). While an import
-            // reads there is no whole-graph pass until its end, so a paged or streamed load was
-            // drawn in the element's defaults while the layout ran, often until after it had
-            // settled. No frame is drawn while an element built from the defaults waits for this.
-            const paintsWhole = cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting);
-            if (!paintsWhole) {
-                if (dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED)) {
-                    await paintAddedRows(this.session, target.styles, dirty, this.dataManager.takeLateEdgeRows());
-                }
-
-                this.dataManager.notePainted(dirty);
-            }
-
-            // A change to graph values alone (the source's name, the import report) moves nothing
-            // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
-            if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
-                return;
-            }
-
-            // While an import reads, the pass after each chunk builds what arrived but does not
-            // paint; the pass its end schedules paints the whole graph once. Likewise a graph
-            // write with another still waiting behind it leaves the paint to the last of them,
-            // so a run of queued adds repaints once, not once per add. Everything else -- undo,
-            // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
-            if (paintsWhole) {
-                dispatcher.paintOwed = false;
-                await this.repaintFromSession();
-                // The whole graph is painted, whatever an import stopped part way left waiting.
-                this.dataManager.notePainted(null);
-            } else if (this.#importsReading === 0) {
-                dispatcher.paintOwed = true;
-            }
+            await this.paintGraphPass(target.styles, dirty, cause);
         });
 
         // The `arrangement` hook's engine is this graph's layout: a history call stops it, a restore
@@ -1127,8 +1260,8 @@ export class Graph implements GraphContext {
             suspend: () => {
                 this.layoutManager.running = false;
             },
-            loadArrangement: (restoring, wrote) => {
-                this.layoutManager.loadArrangement(restoring, wrote);
+            loadArrangement: (restoring, wrote, byReader) => {
+                this.layoutManager.loadArrangement(restoring, wrote, byReader);
                 if (restoring) {
                     this.layoutManager.running = false;
                 }
@@ -1172,21 +1305,27 @@ export class Graph implements GraphContext {
             // steps below are idempotent.
             const { graph } = this.styles.config;
             if (changed("background")) {
-                this.renderManager.applyBackground(graph.background, (url) => {
-                    this.eventManager.emit("skybox-loaded", { graph: this, url });
-                });
+                this.renderManager.applyBackground(graph.background, this.#announceSkybox);
                 this.updateManager.meshesAdded();
             }
 
+            if (changed("viewRotation")) {
+                this.applyViewRotation(true);
+            }
+
+            if (changed("framing")) {
+                this.applyFraming();
+            }
+
             if (changed("selectionStyle") || changed("startingRows")) {
-                for (const node of this.dataManager.nodes.values()) {
+                for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
                     node.refreshSelectionOverlay();
                 }
             }
 
             // A selected edge's halo is drawn from the selection style: redraw it.
             if (changed("selectionStyle") || changed("startingRows")) {
-                for (const edge of this.dataManager.edges.values()) {
+                for (const edge of this.builtEdges()) {
                     if (edge.isSelected()) {
                         edge.updateStyle();
                     }
@@ -1194,6 +1333,9 @@ export class Graph implements GraphContext {
 
                 this.updateManager.forceEdgeWalk();
             }
+
+            // Every mark is drawn again at the new minimum; the painter drops its old paints itself.
+            return changed("minMarkSize") ? this.repaintFromSession() : undefined;
         });
 
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
@@ -1256,6 +1398,9 @@ export class Graph implements GraphContext {
         this.layoutManager.onRest = () => {
             dispatcherOf(this.session).arrangement.rest();
         };
+        this.layoutManager.onMotion = (motion) => {
+            this.session.layoutMotion(motion);
+        };
         this.layoutManager.restoring = () => dispatcherOf(this.session).lane.restoring;
         this.layoutManager.replacing = () => dispatcherOf(this.session).hasPendingOp("layout.set");
         // Not the write being derived: a replacing import runs until its own placement pass, and
@@ -1268,9 +1413,11 @@ export class Graph implements GraphContext {
         // a pass that wrote only keys that draw nothing (see KEYS_THAT_DRAW_NOTHING): on a software
         // GPU every frame costs the page 200 to 800 ms of its main thread under load (#4196).
         lane.passEnded = (dirty) => {
-            if (!drawsNothing(dirty)) {
+            if (this.#passRepainted || !drawsNothing(dirty)) {
                 this.renderManager.requestFrame();
             }
+
+            this.#passRepainted = false;
         };
 
         // Strict state: after every pass, what is drawn is what the slice holds, keyed the same
@@ -1295,6 +1442,7 @@ export class Graph implements GraphContext {
                 this.layoutManager.running = action === "play";
             },
             immersive: (mode) => this.setImmersive(mode),
+            followsFilters: () => this.followsShown(workingGraphOfSession(this.session)),
         };
         lane.register("layout", async (_rendered, target) => {
             const choice = target.layout ?? DEFAULT_LAYOUT;
@@ -1328,6 +1476,13 @@ export class Graph implements GraphContext {
         this.eventManager.onGraphEvent.add((event) => {
             if (event.type === "snapshot-replaced") {
                 this.#resident = event.next;
+                this.#rowTable?.replaced(event.report.nodeRemap, dataManagerInternals.builtNodes(this.dataManager));
+                this.#nodeBatches?.rowsMoved(event.report.nodeRemap);
+                this.#edgeRowLines?.rowsMoved(event.report.nodeRemap, event.report.edgeRemap);
+                // a pulled line is drawn from the row table, so there are none without one
+                if (event.report.nodeRemap !== null && this.#rowTable) {
+                    this.updateManager.rowsRenumbered();
+                }
                 // The derived inputs of scoped runs are over the snapshot that has gone: released
                 // now unless a run still holds one, and then when it lets go.
                 peekDerivedInputs(this)?.freeze();
@@ -1344,6 +1499,7 @@ export class Graph implements GraphContext {
                 peekDerivedInputs(this)?.freeze();
                 this.releaseSnapshot(this.#resident);
                 this.#resident = null;
+                this.#rowTable?.cleared();
                 // A repaint in flight is painting rows that no longer exist; stop it.
                 this.#dataGeneration.abort(new DOMException("The graph's data was cleared.", "AbortError"));
                 this.#dataGeneration = new AbortController();
@@ -1369,6 +1525,9 @@ export class Graph implements GraphContext {
         );
         // A picture the frame on screen does not show yet: an image annotation still loading, or a
         // scene shader's (the background, a group outline) still loading, compiling or owed a draw.
+        this.updateManager.fitAnnotations = () => {
+            this.#annotations?.refit();
+        };
         this.updateManager.picturesLoading = () =>
             this.#annotations?.isLoading === true || this.renderManager.shaderPicturePending();
         this.layoutManager.drawArrivedPaint = () => {
@@ -1380,19 +1539,34 @@ export class Graph implements GraphContext {
         this.updateManager.deriving = () => dispatcherOf(this.session).lane.deriving;
         // A queued operation, or a queued command waiting beside the queue for a key, is going to
         // change the picture, so a wait for the final picture waits for it too (issue #3528).
+        PENDING.set(this, this.updateManager.pending);
         this.updateManager.pending.watch(
             "operation",
             "a queued operation has not finished",
             () => this.operationsPending(),
             "wait",
+            () => this.untilQueueDrained(),
         );
-        // A load that holds a place in the session's load line and has not dispatched its step yet:
-        // its module import, download, unzip or format detection is still running.
+        // A style edit is written at once and repainted on the session's derivation lane; until the
+        // repaint of every edit so far has ended, the settle waits wait for it (issue #4219).
+        // A style edit still loading the body of a shader it names is going to change the picture
+        // the camera frames, so until it is dispatched no frame is final and the framing stays open
+        // to the extent it draws at (issue #7970).
         this.updateManager.pending.watch(
-            "load",
-            "a data load has not reached the graph yet",
-            () => loadLineOf(dispatcherOf(this.session)).size > 0,
+            "style",
+            "a style edit is still loading a shader it names",
+            () => dispatcherOf(this.session).writesAhead,
+        );
+        this.updateManager.pending.watch(
+            "style",
+            "a style edit has not been repainted yet",
+            // A live set a graph change queued for a later frame is a repaint still to come (#3667).
+            () =>
+                dispatcherOf(this.session).lane.deriving ||
+                this.getStylePainter().isPainting ||
+                setsNotifierOfSession(this.session).pending > 0,
             "wait",
+            () => this.session.styles.settled(),
         );
         // Work the graph starts outside the update pass that will still change the picture, entered
         // in the one record of it (issue #3546): a file's picture annotation, painted onto its
@@ -1403,10 +1577,43 @@ export class Graph implements GraphContext {
             "an annotation's picture is still loading",
             () => this.#annotations?.isLoading === true,
         );
+        // A label's web font still loading: its labels are rebuilt in the face when it lands.
+        this.updateManager.pending.watch("font", "a label's font is still loading", () =>
+            labelFontsLoading(this.scene),
+        );
         this.updateManager.pending.watch(
             "basemap",
             "the map under the graph is still loading",
             () => this.basemapManager.loading,
+        );
+        // A picture Babylon.js loads itself (a node's `image`, a table cell's `<IMG>`, a map tile) is drawn only
+        // once it lands; Babylon.js counts it as the scene's pending data until it has loaded or failed (#5344).
+        // Entered after every watch that owns such a load (the map's tiles), so a wait names the owner, not this.
+        this.updateManager.pending.watch(
+            "picture",
+            "a picture Babylon.js is loading is still on its way",
+            () => this.scene.getWaitingItemsCount() > 0,
+        );
+        // The node label counts the picture drew are announced a few frames after it
+        // (`graphty-label-change`): a page that shows them is not final until they are. Asking it
+        // asks the counts to be published on the first frame with nothing left to re-decide, so it
+        // is entered after the picture's own work and asked only once that is done.
+        this.updateManager.pending.watch(
+            "labels",
+            "the node label counts have not been announced",
+            () => {
+                const declutter: unknown = this.scene.metadata?.labelDeclutter;
+                return declutter instanceof LabelDeclutter && !declutter.published();
+            },
+            "wait",
+        );
+        // A load that holds a place in the session's load line and has not dispatched its step yet:
+        // its module import, download, unzip or format detection is still running.
+        this.updateManager.pending.watch(
+            "load",
+            "a data load has not reached the graph yet",
+            () => loadLineOf(dispatcherOf(this.session)).size > 0,
+            "wait",
         );
 
         // Initialize AlgorithmManager
@@ -1425,9 +1632,19 @@ export class Graph implements GraphContext {
                 config: () => this.styles.config.graph.layoutTransition,
                 quality: () => this.renderManager.shaderGuard.quality,
                 nodes: () => this.layoutManager.nodes,
+                rows: () => {
+                    const table = this.#rowTable;
+                    const rows = this.#nodeBatches?.columnRowIndices() ?? [];
+                    return table === null
+                        ? []
+                        : rows.map(
+                              (row) => new RowSubject(table, row, this.stylePainter.nodePaint(row)?.color ?? null),
+                          );
+                },
                 edges: () => this.layoutManager.edges,
                 selected: () => this.selectionManager.getSelectedNodes(),
                 layoutRunning: () => this.layoutManager.running,
+                reducedMotion: () => this.#motionReduced(),
             }),
         );
 
@@ -1435,6 +1652,46 @@ export class Graph implements GraphContext {
         this.selectionManager = new SelectionManager(this.eventManager);
         this.selectionManager.setDataManager(this.dataManager);
         this.selectionManager.bindSelection(this.session.selection);
+        // A selection change made by a cause `camera.pivotOnSelectionCauses` leaves out (a filter's
+        // Select, an undo) keeps the camera where the selections before it put it, as a pan of the
+        // reader's does: a glide still on its way to the last pivoting selection is finished first,
+        // so where the camera stops does not depend on how many frames ran in between (#5097).
+        // What was selected is worked out from the change only when a change holds the camera: a
+        // walk of the selection on every change is quadratic in a removal of many selected nodes.
+        let pivoted = false;
+        // A right-click or a touch-and-hold asks for a menu about what is under the pointer: a
+        // selection it makes (the element's own, or the menu's opener selecting the node from its
+        // `contextmenu` handler) keeps the camera still, or the node would glide out from under a
+        // menu opened at the pointer (issue #7452). Held for the press's own events and the
+        // handlers they run, until the next task.
+        let menuPress = false;
+        let menuPressEnd: ReturnType<typeof setTimeout> | undefined;
+        const pressMenu = (event: Event): void => {
+            if (event.type !== "contextmenu" && (event as PointerEvent).button !== 2) {
+                return;
+            }
+            menuPress = true;
+            clearTimeout(menuPressEnd);
+            menuPressEnd = setTimeout(() => {
+                menuPress = false;
+            });
+        };
+        for (const type of ["pointerdown", "pointerup", "contextmenu"]) {
+            this.element.addEventListener(type, pressMenu, { capture: true, signal: this.#teardown.signal });
+        }
+        this.session.on("selection:changed", ({ cause, added, removed }) => {
+            const causes = this.styles.config.behavior.camera.pivotOnSelectionCauses;
+            if (!menuPress && (causes === undefined || causes.includes(cause))) {
+                pivoted = true;
+                return;
+            }
+
+            const joined = new Set(added);
+            const stayed = this.selectionManager.getSelectedNodes().filter((node) => !joined.has(node.id));
+            const left = removed.flatMap((id) => this.dataManager.getNode(id) ?? []);
+            this.updateManager.holdSelectionFollow(pivoted ? [...stayed, ...left] : []);
+            pivoted = false;
+        });
         // The pointer left the graph: no node is under it, whatever node it last crossed.
         this.element.addEventListener(
             "pointerleave",
@@ -1451,11 +1708,15 @@ export class Graph implements GraphContext {
                 edges: () => this.session.selection.edgeMembers(),
                 nodes: () => this.session.selection.nodeMembers(),
             },
-            showContext: () => this.session.visibility.showContext,
+            // Off while the working graph is on: nothing outside the view is drawn.
+            showContext: () => this.session.visibility.drawsContext,
             // What is drawn: the visible elements, plus the ghosts outside the time window when
             // the timeline draws them. Visible stays the data scope everything else reads.
             visibility: this.session.visibility.drawnMasks,
             ghost: () => this.session.visibility.ghosting,
+            timeline: () => this.session.features.enabled.includes("timeline"),
+            timeWindow: () => this.session.time.current !== null,
+            ageFade: () => this.session.edgeAges(),
         };
         this.updateManager.bindViewMasks(viewMasks);
 
@@ -1490,7 +1751,14 @@ export class Graph implements GraphContext {
         const resolver = scopeResolverOfSession(this.session);
         // A layout's grouping option names an attribute or a run's field the way an algorithm's does.
         const columns = sessionColumns(this.session, [], {}, "layout");
+        const working = workingGraphOfSession(this.session);
         this.layoutManager.setScopeSource({
+            // What layouts run over while the session reads the working graph, or while
+            // `layout.visibleOnly` asks for it: the one way a layout runs over only what is shown.
+            working: () => (this.followsShown(working) ? working.filtered() : null),
+            // What a layout definition reads: the same, or else the whole graph chosen by name, the
+            // only way one reads it. Read only when a definition places, so it freezes nothing else.
+            input: () => (this.followsShown(working) ? working.filtered() : working.view("graph")),
             nodeValues: (graph, path) => columns.read(graph, path, "node", String)?.values ?? null,
             canonical: (input) => resolver.canonical(input),
             members: (scope) => resolver.nodeIdsOf(scope),
@@ -1513,6 +1781,21 @@ export class Graph implements GraphContext {
                 this.layoutManager.releaseDetachedScope();
             }
         });
+        // WHAT IS SHOWN CHANGED: a filter, a time-window commit, or an undo or redo of one. While
+        // layouts run over what is shown, the running layout follows it once
+        // (design/working-graph/design.md, section 7); queued, so `waitForSettled` waits for it. A
+        // restore or a rollback brings back an arrangement of its own.
+        this.session.on("visibility:changed", ({ cause }) => {
+            if (cause !== "restore" && cause !== "rollback" && this.followsShown(working)) {
+                this.followShown(cause === "undo" || cause === "redo");
+            }
+        });
+        // A layout's `clusterBy` may name a run's field, which moves when the run ends, is undone or comes back.
+        this.session.on("run:changed", ({ phase }) => {
+            if (phase === "end" || phase === "removed" || phase === "restored") {
+                this.layoutManager.clustersChanged();
+            }
+        });
 
         // Setup lifecycle manager
         const managers = (this.managers = new Map<string, Manager>([
@@ -1521,6 +1804,17 @@ export class Graph implements GraphContext {
             ["stats", this.statsManager],
             ["render", this.renderManager],
             ["data", this.dataManager],
+            [
+                "acceleration",
+                {
+                    init: () => Promise.resolve(),
+                    // Null when a failed init rolls the managers back: only shutdown lets go.
+                    dispose: () => {
+                        this.#releaseAcceleration?.();
+                        this.#releaseAcceleration = null;
+                    },
+                },
+            ],
             ["layout", this.layoutManager],
             ["update", this.updateManager],
             ["algorithm", this.algorithmManager],
@@ -1533,6 +1827,7 @@ export class Graph implements GraphContext {
             "stats",
             "render",
             "data",
+            "acceleration",
             "layout",
             "update",
             "algorithm",
@@ -1556,6 +1851,14 @@ export class Graph implements GraphContext {
 
         // The first settlement's framing has landed: that is the camera `resetCamera()` returns to.
         this.eventManager.addListener("zoom-to-fit-complete", () => {
+            if (GraphtyLogger.isEnabled()) {
+                viewLog.info("camera fit", {
+                    layout: this.layoutManager.layoutType ?? null,
+                    ...this.getCameraState(),
+                    ...this.#drawnCounts(),
+                });
+            }
+
             if (this.#initialCameraStateOwed) {
                 this.#initialCameraStateOwed = false;
                 this.initialCameraState = this.getCameraState();
@@ -1611,15 +1914,22 @@ export class Graph implements GraphContext {
 
         // Clean up event listeners
         window.removeEventListener("resize", this.resizeHandler);
+        this.engine.onResizeObservable.remove(this.#refitOnResize);
+        this.#refitOnResize = null;
 
         // Mark as not initialized
         this.initialized = false;
     }
 
     /**
-     * Shuts down the graph, stopping animations and disposing all resources.
+     * Shuts down the graph, stopping animations and disposing all resources. A second call does
+     * nothing.
      */
     shutdown(): void {
+        if (this.#teardown.signal.aborted) {
+            return;
+        }
+
         // First, so a repaint queued behind a load or a run -- or one already painting -- stops
         // rather than running against the store and session this is about to dispose.
         this.#teardown.abort(new DOMException("The graph was disposed.", "AbortError"));
@@ -1629,6 +1939,10 @@ export class Graph implements GraphContext {
         // the whole graph, its scene and its data alive for the life of the page.
         this.#unwatchXrButtons?.();
         this.#unwatchXrButtons = null;
+        this.#unwatchFonts?.();
+        this.#unwatchFonts = null;
+        this.#unwatchOverview?.();
+        this.#unwatchOverview = null;
         this.xrAvailability.dispose();
         this.basemapManager.dispose();
         this.xrUIManager?.dispose();
@@ -1655,11 +1969,29 @@ export class Graph implements GraphContext {
         // touch the store, which belongs to the data manager the lifecycle manager is about to
         // dispose -- nor the controller, which is handed to it and released below.
         this.session.dispose();
+        this.#rendererOpened?.();
+        this.#releaseAcceleration = this.accelerationRelease();
 
-        // The undirected copy of the resident snapshot is looked up HERE, while the data manager
-        // still holds the store that cached it: disposing the managers below replaces that store,
-        // and a lookup afterwards would build a fresh copy no accelerator had ever seen -- so the
-        // release would free nothing and the real buffers would leak. It is looked up only when
+        // Dispose all managers through lifecycle manager
+        this.lifecycleManager.dispose();
+    }
+
+    /**
+     * Reads what the accelerator holds, before any manager is disposed, and returns the release
+     * of it. That runs as a manager of its own: after the layout, whose running simulation would
+     * otherwise step on a dead context, and before the data and the render managers, because
+     * disposing the engine destroys a device the accelerator may share.
+     * @returns Frees the resident snapshot and disposes the controller.
+     */
+    private accelerationRelease(): () => void {
+        // The resident snapshot is read HERE because the managers ahead of the release can read
+        // rows as they go, and on a cleared graph that freezes the fresh store: a snapshot no
+        // accelerator ever uploaded, which would become the resident one.
+        //
+        // Its undirected copy is looked up here too, while the data manager still holds the store
+        // that cached it: disposing that manager replaces that store, and a lookup afterwards
+        // would build a fresh copy no accelerator had ever seen -- so the release would free
+        // nothing and the real buffers would leak. It is looked up only when
         // there is an accelerator with a `release` to hand it to: deriving it is a full CSR
         // symmetrization of the whole edge list, and a graph that ran on the CPU must not pay for
         // one at teardown to feed a release that does nothing.
@@ -1677,21 +2009,16 @@ export class Graph implements GraphContext {
             console.warn("graphty: an undirected copy could not be derived for release", error);
         }
 
-        // Dispose all managers through lifecycle manager
-        this.lifecycleManager.dispose();
+        return () => {
+            // The buffers go after the layout: disposing it is what stops the running simulation,
+            // so by now no simulation can be reading the snapshot whose device memory this frees.
+            this.releaseSnapshot(resident, residentUndirected);
+            this.#resident = null;
+            // Scoped runs' derived inputs go with it; one a run still holds goes when it lets go.
+            peekDerivedInputs(this)?.dispose();
 
-        // The buffers go after the managers, for the reason the controller goes after them too:
-        // disposing the managers is what stops the running layout, so by now no simulation can be
-        // reading the snapshot whose device memory this frees.
-        this.releaseSnapshot(resident, residentUndirected);
-        this.#resident = null;
-        // Scoped runs' derived inputs go with it; one a run still holds goes when that run lets go.
-        peekDerivedInputs(this)?.dispose();
-
-        // The controller goes LAST. Disposing the managers is what stops the running layout
-        // engine, and a simulation stepped after its accelerator's device had been destroyed
-        // would run against a dead context.
-        this.acceleration.dispose();
+            this.acceleration.dispose();
+        };
     }
 
     /**
@@ -1886,10 +2213,82 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Gets the graph drawn again after `render-lost`: asks the browser for the WebGL context or
+     * a WebGPU device again, and rebuilds every buffer, texture and shader from the graph held in
+     * memory. The data, the styles, the camera and the undo history stay as they are; nothing is
+     * loaded again. The element already asks once by itself, so this is for when the browser has
+     * not given the device back. Resolves at once while nothing is lost.
+     * @returns A promise that resolves when the graph is drawn again (after `render-restored`).
+     * @throws A `GraphtyError` with `E_RENDER_LOST` when the browser cannot give a WebGL context
+     *     back, `E_DEVICE_LOST` when no new WebGPU device can be opened, or `E_DISPOSED` when the
+     *     graph is shut down first.
+     * @since 3.53.0
+     */
+    restartRenderer(): Promise<void> {
+        if (!this.#renderLost) {
+            return Promise.resolve();
+        }
+
+        if (this.#restart === null) {
+            let resolve: () => void = () => undefined;
+            let reject: (error: unknown) => void = () => undefined;
+            const promise = new Promise<void>((yes, no) => {
+                resolve = yes;
+                reject = no;
+            });
+            this.#restart = { promise, resolve, reject };
+        }
+
+        const { engine } = this;
+        if (engine instanceof RecoveringWebGPUEngine) {
+            engine.retryRestore();
+        } else {
+            // In a task of its own: called from a `render-lost` listener, this runs while the
+            // browser is still dispatching `webglcontextlost`, before it has seen the event
+            // cancelled, and a restore asked for then is refused.
+            const loseContext = this.#loseContext;
+            setTimeout(() => {
+                loseContext?.restoreContext();
+            }, 0);
+        }
+
+        return this.#restart.promise;
+    }
+
+    /**
+     * Promises that {@link Graph.init} is on its way, so an accelerator looked for from now on
+     * waits for the device the renderer opens. Whoever calls this must call init or shut down.
+     * @internal
+     */
+    expectRenderer(): void {
+        this.#rendererExpected = true;
+    }
+
+    /**
+     * The device the accelerator runs on, when it is the one drawn with. A device a loss has taken
+     * is never the answer: this waits for the engine to have the new one. With no WebGPU renderer
+     * on its way nothing is waited for, since work asked for before an init that may never come
+     * must still finish. Such an accelerator keeps its own device, however the graph opens later.
+     * @returns The device, or undefined for one of the accelerator's own.
+     */
+    private async deviceToShare(): Promise<unknown> {
+        if (this.#rendererRequest === "webgl" || !this.#rendererExpected) {
+            return undefined;
+        }
+
+        await this.#whenRendererOpened;
+        const { engine } = this;
+        return engine instanceof RecoveringWebGPUEngine && engine.sharesDevice
+            ? await engine.drawingDevice()
+            : undefined;
+    }
+
+    /**
      * Opens the renderer asked for. The graph is built on a WebGL engine, because a WebGPU engine
      * initialises asynchronously and the scene cannot exist before it does; so when WebGPU is asked
      * for and available, the scene and everything bound to it is rebuilt here on a fresh canvas --
-     * before the managers are initialised, so nothing has drawn or attached yet.
+     * before the managers are initialised, so nothing has drawn or attached yet. What a consumer
+     * set on the first scene in the meantime moves with it: see {@link openWebGPU}.
      */
     private async openRenderer(): Promise<void> {
         const requested = this.#rendererRequest;
@@ -1900,6 +2299,7 @@ export class Graph implements GraphContext {
                 active: "webgl",
                 reason: null,
                 drawing: !(this.engine instanceof NullEngine),
+                layoutDevice: this.layoutDeviceFor(false),
             };
             return;
         }
@@ -1911,6 +2311,10 @@ export class Graph implements GraphContext {
         // WebGPU one. Disposing that many node meshes is quadratic (#680), which is what made a
         // 10k-node WebGPU load take 46 s against 3 s under WebGL (#614). Loads wait on the queue
         // instead, and take their turn once the scene they will be drawn on exists.
+        //
+        // The opening view is in force for that whole window, as it is at once on WebGL: a camera
+        // set in it reaches the camera the graph opens with, which the swap then carries over.
+        this.applyOpeningViewMode();
         const queue = this.operationQueue;
         const holdQueue = !queue.getStats().isPaused;
         if (holdQueue) {
@@ -1932,7 +2336,11 @@ export class Graph implements GraphContext {
      */
     private async openWebGPU(requested: RendererRequest): Promise<void> {
         const canvas = this.createCanvas();
-        const opened = await openWebGPUEngine(canvas);
+        const opened = await openWebGPUEngine(
+            canvas,
+            (adapter) => this.acceleration.sharesDevice(adapter),
+            this.antialias,
+        );
         // Shut down while the engine was opening: nothing will ever dispose it but this.
         if (this.#teardown.signal.aborted) {
             if (typeof opened !== "string") {
@@ -1948,16 +2356,26 @@ export class Graph implements GraphContext {
                 active: "webgl",
                 reason: opened,
                 drawing: !(this.engine instanceof NullEngine),
+                layoutDevice: this.layoutDeviceFor(false),
             };
             return;
         }
 
+        this.watchShaderModules(opened);
+        this.watchShaderCompiles(opened);
+        opened.onRestoreFailed = (error) => {
+            this.reportEngineGone(error);
+        };
         const background = this.scene.clearColor;
-        this.renderManager.dispose();
-        this.inputManager.dispose();
-        const label = this.canvas.getAttribute("aria-label");
-        if (label !== null) {
-            canvas.setAttribute("aria-label", label);
+        // a consumer that parked the scene's animations before WebGPU opened keeps them parked
+        const animates = this.scene.animationsEnabled;
+        const previous = this.renderManager;
+        // The name, role and description a screen reader reads follow the drawing to its new canvas.
+        for (const name of ["aria-label", "role", "aria-describedby"]) {
+            const value = this.canvas.getAttribute(name);
+            if (value !== null) {
+                canvas.setAttribute(name, value);
+            }
         }
 
         this.canvas.replaceWith(canvas);
@@ -1970,20 +2388,35 @@ export class Graph implements GraphContext {
             pixelRatio: this.#pixelRatio,
             pictureIsFinal: this.pictureIsFinal,
             drawsOnDemand: this.drawsOnDemand,
+            flushesFrameFence: this.#batchedFrames,
+            pacesWebGpuFrames: this.#batchedFrames,
         });
         this.engine = this.renderManager.engine;
         this.scene = this.renderManager.scene;
-        // A new engine: its shaders compile again there.
-        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
         this.camera = this.renderManager.camera;
         this.camera.onReaderMove = this.#readerMovedCamera;
         this.camera.setViewInsets(this.#viewInsets);
         this.camera.setZoomToPointer(this.#zoomToPointer);
+        this.camera.setInstantGlides(this.#cameraMoveMs() === 0);
+        // Where a consumer put the camera while WebGPU opened. Read before the old one is disposed.
+        this.camera.takeViewOf(previous.camera);
+        previous.dispose();
+        // Same manager, so its listeners, recording and enabled state stay; only the scene moves.
+        this.inputManager.rebind({
+            scene: this.scene,
+            engine: this.engine,
+            canvas: this.canvas,
+            eventManager: this.eventManager,
+        });
+        // A new engine: its shaders compile again there.
+        shadersControllerOf(this.session)?.attach(createLazyShaderHost(this.scene, this.renderManager.shaderGuard));
+        this.bindRenderManager();
         this.renderManager.applyLighting(this.#lighting);
+        NodeEffects.setOutlineWidth(this.scene, this.styles.config.behavior.node.outlineWidth);
         this.scene.clearColor = background;
+        this.scene.animationsEnabled = animates;
         this.statsManager.initializeBabylonInstrumentation(this.scene, this.engine);
         this.updateManager.rebindScene(this.camera);
-        this.inputManager = this.createInputManager();
         this.graphContext = new DefaultGraphContext(
             () => this.styles,
             this.dataManager,
@@ -1995,8 +2428,304 @@ export class Graph implements GraphContext {
         );
         this.setupBackgroundClickHandler();
         this.managers.set("render", this.renderManager);
-        this.managers.set("input", this.inputManager);
-        this.#rendererStatus = { requested, active: "webgpu", reason: null, drawing: true };
+        this.#rendererStatus = {
+            requested,
+            active: "webgpu",
+            reason: null,
+            drawing: true,
+            layoutDevice: this.layoutDeviceFor(opened.sharesDevice),
+        };
+    }
+
+    /**
+     * Where an accelerated layout will run, as the renderer opens.
+     * @param shared - Whether the renderer opened its device for the accelerator too.
+     * @returns The device, or null when no accelerator is offered.
+     */
+    private layoutDeviceFor(shared: boolean): LayoutDevice | null {
+        if (!this.acceleration.offersAccelerator) {
+            return null;
+        }
+
+        return shared ? "shared" : "separate";
+    }
+
+    /**
+     * Reports a shader the WebGPU device refuses or the translator loses. Nothing else would:
+     * creating the module does not throw and Babylon never asks how it went, the pipeline built
+     * from it is invalid, and the frame's whole command buffer is rejected, so the canvas stays
+     * blank with no failed call. The translator stops at a built-in it does not handle and returns
+     * the WGSL it has so far, which the device accepts and which holds no entry point.
+     * ponytail: a device Babylon opens after a device loss is not watched; it compiles the same shaders.
+     * @param engine - The engine whose device compiles the graph's shaders.
+     */
+    private watchShaderModules(engine: WebGPUEngine): void {
+        const device = engine._device;
+        const create = device.createShaderModule.bind(device);
+        device.createShaderModule = (descriptor) => {
+            const module = create(descriptor);
+            void module.getCompilationInfo().then(
+                ({ messages }) => {
+                    const errors = messages.filter(({ type }) => type === "error").map(({ message }) => message);
+                    if (errors.length > 0) {
+                        this.reportRefusedShader("device", errors);
+                    } else if (!hasEntryPoint(descriptor.code)) {
+                        this.reportRefusedShader("translator", []);
+                    }
+                },
+                // The GPU process died before answering: the engine's restore compiles it again.
+                () => undefined,
+            );
+            return module;
+        };
+    }
+
+    /**
+     * Reports a shader the GLSL compiler stops on. Babylon compiles in an async method it never
+     * awaits, so the failure is a rejection nobody holds and the effect is never told: its material
+     * stays not ready for good and nothing waiting on it ever hears. The effect is told here, as a
+     * synchronous failure would have told it, and everything listening to it hears as it does
+     * under WebGL. An effect with its own `onError` is the shader check's, which has its own report.
+     * @param engine - The engine that compiles the graph's shaders.
+     */
+    private watchShaderCompiles(engine: WebGPUEngine): void {
+        const prepare = engine._preparePipelineContextAsync.bind(engine);
+        engine._preparePipelineContextAsync = async (context, ...rest) => {
+            try {
+                await prepare(context, ...rest);
+            } catch (error) {
+                const { _compiledEffects: effects } = engine as unknown as { _compiledEffects: Record<string, Effect> };
+                const failed = Object.values(effects).find((effect) => effect.getPipelineContext() === context);
+                if (failed === undefined) {
+                    this.reportRefusedShader("compiler", [String(error)]);
+                } else {
+                    (
+                        failed as unknown as { _processCompilationErrors(cause: unknown): void }
+                    )._processCompilationErrors(error);
+                }
+            }
+        };
+        engine.onEffectErrorObservable.add(({ effect, errors }) => {
+            if (!effect.onError) {
+                this.reportRefusedShader("compiler", [errors]);
+            }
+        });
+    }
+
+    /**
+     * Stops claiming to draw and says why.
+     * @param stage - Which step gave up on the shader.
+     * @param messages - What it said; the translator says nothing the element can read.
+     */
+    private reportRefusedShader(stage: "compiler" | "translator" | "device", messages: readonly string[]): void {
+        if (this.#rendererStatus !== null) {
+            this.#rendererStatus = { ...this.#rendererStatus, drawing: false };
+        }
+
+        const error = new GraphtyError({
+            code: "E_SHADER_REFUSED",
+            message: `the WebGPU ${stage} refused a shader, so it is not drawn: ${messages.join("; ")}`,
+            source: "view",
+            recoverable: false,
+            details: { stage, messages },
+        });
+        this.eventManager.emitGraphError(this, error, "other");
+    }
+
+    /**
+     * Stops claiming to draw and says why: the device was lost and no new one could be had.
+     * @param cause - What opening the new device said.
+     */
+    private reportEngineGone(cause: unknown): void {
+        if (this.#rendererStatus !== null) {
+            this.#rendererStatus = { ...this.#rendererStatus, drawing: false };
+        }
+
+        const error = new GraphtyError({
+            code: "E_DEVICE_LOST",
+            message: `the WebGPU device was lost and no new one could be opened: ${String(cause)}`,
+            source: "view",
+            recoverable: false,
+            cause,
+        });
+        this.settleRestart(error);
+        this.eventManager.emitGraphError(this, error, "other");
+    }
+
+    /**
+     * Publishes the loss and the return of the drawing device as `render-lost` and
+     * `render-restored`. Babylon already rebuilds every buffer, texture and shader from the scene
+     * it holds when the device comes back (the WebGPU engine through {@link RecoveringWebGPUEngine}),
+     * so the graph, its styles, its camera and its history never leave memory; this only tells the
+     * consumer, and keeps `rendererStatus.drawing` true to what is on screen. The observers are
+     * removed on shutdown: Babylon never clears these observables, so one left there would keep a
+     * disposed graph alive.
+     */
+    private watchRenderLoss(): void {
+        const { engine, canvas } = this;
+        if (engine instanceof NullEngine) {
+            return;
+        }
+
+        const renderer = engine instanceof WebGPUEngine ? "webgpu" : "webgl";
+        if (engine instanceof Engine) {
+            this.#loseContext = engine._gl.getExtension("WEBGL_lose_context");
+        }
+
+        const setDrawing = (drawing: boolean): void => {
+            if (this.#rendererStatus !== null) {
+                this.#rendererStatus = { ...this.#rendererStatus, drawing };
+            }
+        };
+        const lost = engine.onContextLostObservable.add(() => {
+            viewLog.info("render lost", { renderer });
+            this.#renderLost = true;
+            setDrawing(false);
+            this.eventManager.emit("render-lost", {
+                code: "E_RENDER_LOST",
+                params: { renderer },
+            } satisfies Omit<RenderLostEvent, "type">);
+        });
+        const restored = engine.onContextRestoredObservable.add(() => {
+            viewLog.info("render restored", { renderer });
+            this.#renderLost = false;
+            setDrawing(true);
+            this.settleRestart(null);
+            this.eventManager.emit("render-restored", { renderer } satisfies Omit<RenderRestoredEvent, "type">);
+        });
+        const { signal } = this.#teardown;
+        // The browser tried to give a WebGL context back and could not make one.
+        canvas.addEventListener(
+            "webglcontextcreationerror",
+            () => {
+                if (this.#renderLost) {
+                    this.settleRestart(
+                        new GraphtyError({
+                            code: "E_RENDER_LOST",
+                            message: "the browser could not give the WebGL context back",
+                            source: "view",
+                            recoverable: true,
+                            details: { renderer },
+                        }),
+                    );
+                }
+            },
+            { signal },
+        );
+        signal.addEventListener(
+            "abort",
+            () => {
+                engine.onContextLostObservable.remove(lost);
+                engine.onContextRestoredObservable.remove(restored);
+                this.settleRestart(disposedError());
+            },
+            { once: true },
+        );
+    }
+
+    /**
+     * Logs the page's visibility changes and, at most a few times a second, where a moving camera
+     * is, to the `view` log. The camera is read only while logging is on.
+     */
+    #watchViewForLog(): void {
+        const { signal } = this.#teardown;
+        // What the first frame drawn after a return holds: a page shown again, or a context given
+        // back, that draws the map but no node or edge reads as nodesDrawn above meshesInView (#8216).
+        const logFirstFrame = (after: string): void => {
+            if (!GraphtyLogger.isEnabled()) {
+                return;
+            }
+
+            const observer = this.scene.onAfterRenderObservable.addOnce(() => {
+                viewLog.info("drawn after return", { after, ...this.#drawnCounts() });
+            });
+            signal.addEventListener(
+                "abort",
+                () => {
+                    this.scene.onAfterRenderObservable.remove(observer);
+                },
+                { once: true },
+            );
+        };
+        document.addEventListener(
+            "visibilitychange",
+            () => {
+                viewLog.info("page visibility", { state: document.visibilityState });
+                if (document.visibilityState === "visible") {
+                    logFirstFrame("page shown");
+                }
+            },
+            { signal },
+        );
+        // The WebGPU engine tells the canvas too (RecoveringWebGPUEngine), so both renderers are heard here.
+        this.canvas.addEventListener(
+            "webglcontextrestored",
+            () => {
+                logFirstFrame("render restored");
+            },
+            { signal },
+        );
+        const due = throttle(CAMERA_LOG_INTERVAL_MS);
+        let last = "";
+        const observer = this.scene.onAfterRenderObservable.add(() => {
+            if (!GraphtyLogger.isEnabled() || !due()) {
+                return;
+            }
+
+            const state = this.getCameraState();
+            const text = JSON.stringify(state);
+            if (text !== last) {
+                last = text;
+                viewLog.info("camera moved", { ...state });
+            }
+        });
+        signal.addEventListener(
+            "abort",
+            () => {
+                this.scene.onAfterRenderObservable.remove(observer);
+            },
+            { once: true },
+        );
+    }
+
+    /**
+     * What is drawn now, for the log: nodes held and drawn, edges held, and the meshes the last
+     * frame drew (nodes, edges and map tiles in view).
+     * @returns The counts.
+     */
+    #drawnCounts(): Record<string, number> {
+        let nodesDrawn = 0;
+        for (const node of this.dataManager.nodes.values()) {
+            if (node.isDrawn) {
+                nodesDrawn++;
+            }
+        }
+
+        return {
+            nodes: this.dataManager.nodes.size,
+            nodesDrawn,
+            edges: this.dataManager.edges.size,
+            meshesInView: this.scene.getActiveMeshes().length,
+            meshes: this.scene.meshes.length,
+        };
+    }
+
+    /**
+     * Settles the restart waited on, if any.
+     * @param error - Why it failed, or null when the graph is drawn again.
+     */
+    private settleRestart(error: unknown): void {
+        const restart = this.#restart;
+        this.#restart = null;
+        if (restart === null) {
+            return;
+        }
+
+        if (error === null) {
+            restart.resolve();
+        } else {
+            restart.reject(error);
+        }
     }
 
     /**
@@ -2016,6 +2745,37 @@ export class Graph implements GraphContext {
         // A drag on the drawing never starts a text selection on the host page.
         canvas.style.userSelect = "none";
         return canvas;
+    }
+
+    /** Give the render manager what it reads from the graph, on the first scene and on the swap. */
+    private bindRenderManager(): void {
+        // The background shader, group outlines and bloom read the stack and the nodes' places.
+        this.renderManager.bindShaderScene({
+            session: this.session,
+            member: (id) => {
+                const node = this.dataManager.nodes.get(id);
+                const color = node?.paintedColor;
+                if (
+                    node === undefined ||
+                    color === null ||
+                    color === undefined ||
+                    node.getRenderState() !== "visible"
+                ) {
+                    return undefined;
+                }
+
+                const { x, y, z } = node.getPosition();
+                return {
+                    x,
+                    y,
+                    z,
+                    radius: node.drawnRadius,
+                    color: [color.r / 255, color.g / 255, color.b / 255, color.a],
+                };
+            },
+        });
+        // No frame is drawn while an element built from the defaults waits for its style.
+        this.renderManager.drawHeld = (): boolean => this.dataManager.drawHeld;
     }
 
     /**
@@ -2054,13 +2814,25 @@ export class Graph implements GraphContext {
             return;
         }
 
+        this.expectRenderer();
+
         try {
             // The renderer is chosen before anything is drawn, and never again.
-            await this.openRenderer();
+            try {
+                await this.openRenderer();
+            } finally {
+                this.#rendererOpened?.();
+            }
+
             // Shut down while the renderer was opening: there is nothing left to initialise.
             if (this.#teardown.signal.aborted) {
                 return;
             }
+
+            this.watchRenderLoss();
+            this.#watchViewForLog();
+            this.#renderPathOpen = true;
+            this.#applyRenderPath();
 
             // Enable profiling if configured (needs to be done after statsManager is created but before use)
             if (this.enableDetailedProfiling) {
@@ -2098,9 +2870,8 @@ export class Graph implements GraphContext {
 
             // The configured background reaches the scene here, whether it was set through
             // `element.background` before the element was attached or left at its default.
-            this.renderManager.applyBackground(this.styles.config.graph.background, (url) => {
-                this.eventManager.emit("skybox-loaded", { graph: this, url });
-            });
+            this.renderManager.applyBackground(this.styles.config.graph.background, this.#announceSkybox);
+            this.applyViewRotation(false);
 
             // Start the graph system (render loop, etc.)
             this.lifecycleManager.startGraph((frameMs) => {
@@ -2112,6 +2883,27 @@ export class Graph implements GraphContext {
 
             // Watch for browser/canvas resize events
             window.addEventListener("resize", this.resizeHandler);
+            this.#refitOnResize ??= this.engine.onResizeObservable.add(() => {
+                if (
+                    this.styles.config.behavior.camera.refitOnResize &&
+                    !this.#cameraPlaced &&
+                    this.updateManager.zoomToFitCompleted
+                ) {
+                    this.autoFrame();
+                }
+            });
+            // A label drawn while its web font loaded shows the fallback face until it is rebuilt.
+            this.#unwatchFonts ??= watchFontLoads(this.scene, (families) => {
+                this.refreshFonts(families);
+            });
+            this.#unwatchOverview ??= watchOverview(
+                this.scene,
+                () => this.renderManager.graphRoot,
+                () => writableLane(this.dataManager),
+                () => {
+                    this.eventManager.emit("overview-changed", {});
+                },
+            );
 
             this.initialized = true;
         } catch (error) {
@@ -2123,8 +2915,8 @@ export class Graph implements GraphContext {
             // Clean up any partially initialized resources
             this.cleanup();
 
-            // Re-throw with context
-            throw new Error(`Failed to initialize graph: ${error instanceof Error ? error.message : String(error)}`);
+            // A coded failure (a renderer or WebGPU refusal) keeps its code, details and stack.
+            throw GraphtyError.wrap(error, { code: "E_INTERNAL", source: "view" });
         }
     }
 
@@ -2154,6 +2946,7 @@ export class Graph implements GraphContext {
                 }
 
                 this.#followedFrame = frame;
+                viewLog.info("map frame", frameFacts(frame));
                 this.#followFrame(frame);
             }
 
@@ -2190,6 +2983,8 @@ export class Graph implements GraphContext {
 
                     this.reportSettlementChange();
                 }
+
+                this.layoutManager.checkMotion();
             });
         });
 
@@ -2290,14 +3085,39 @@ export class Graph implements GraphContext {
         return this.basemapManager.status;
     }
 
+    /** See {@link setGlobeLook}. */
+    #globeLook: GlobeLook = Object.freeze({});
+
     /**
-     * How far above the canvas's bottom edge the map's credits sit, in CSS pixels, so they clear
-     * controls the page draws over that edge. A view setting, not saved with the project.
-     * @param pixels - The offset; 0 (the default) is the corner.
+     * How the globe under the `location-map` layout looks beyond its map; see {@link setGlobeLook}.
+     * @returns The look.
      * @since 3.31.0
      */
-    setAttributionOffset(pixels: number): void {
-        this.basemapManager.attributionOffset = pixels;
+    getGlobeLook(): GlobeLook {
+        return this.#globeLook;
+    }
+
+    /**
+     * Set how the globe under the `location-map` layout looks beyond its map: a glow of air around
+     * its rim, a sun lighting one side, and a colour the canvas is cleared to while it is drawn.
+     * Every part is off unless set. A view setting, not saved with the project; it takes effect at
+     * once on a globe drawn now, and on every globe drawn after.
+     * @param look - The look; a part left out is off.
+     * @since 3.31.0
+     */
+    setGlobeLook(look: GlobeLook): void {
+        this.#globeLook = Object.freeze({ ...look });
+        this.basemapManager.globeLook = this.#globeLook;
+        this.#lookOfFrame(this.#geoFrame());
+    }
+
+    /**
+     * The background the globe's look asks for while a globe is drawn, else the graph's own.
+     * @param frame - The frame now active, or null.
+     */
+    #lookOfFrame(frame: LocationMapFrame | null): void {
+        const color = this.#globeLook.background ?? null;
+        this.renderManager.backgroundOverride = frame?.surface === "globe" ? color : null;
     }
 
     /**
@@ -2375,9 +3195,16 @@ export class Graph implements GraphContext {
         this.writeViewSettings((settings) => {
             settings.behavior = view;
         });
-        NodeEffects.setOutlineWidth(this.scene, parsed.node.outlineWidth);
+        if (NodeEffects.outlineWidthOf(this.scene, undefined) !== (parsed.node.outlineWidth ?? 1)) {
+            NodeEffects.setOutlineWidth(this.scene, parsed.node.outlineWidth);
+            // A ring the shader batch draws packs the width when painted, so it is painted again.
+            NodeShaderDrawing.peek(this.scene)?.outlineWidthChanged();
+        }
+
         // A label declutter switched on or off changes the picture without moving anything.
         this.renderManager.requestFrame();
+        // `layout.visibleOnly` switched lays the graph out again over what it now covers.
+        this.followShown();
 
         // New fit insets frame the graph again inside what they leave.
         if (JSON.stringify(this.styles.config.behavior.camera.fitInsets) !== insetsBefore) {
@@ -2590,14 +3417,16 @@ export class Graph implements GraphContext {
      * @param options - How to load
      * @param options.replace - Replace the graph with what the source holds, but only once all of
      *     it has parsed: a malformed or empty source rejects and leaves the graph as it was
+     * @param options.signal - Cancels the load: it rejects with the signal's reason (an
+     *     `AbortError` by default) and adds nothing, leaving the graph as it was
      * @returns Promise that resolves to the load's id when data is loaded
      */
     async addDataFromSource(
         type: string,
         opts: object = {},
-        options?: { replace?: boolean },
+        options?: { replace?: boolean; signal?: AbortSignal },
     ): Promise<{ loadId: number }> {
-        return this.loadReserved(type, opts, this.reserveLoad(options?.replace));
+        return this.loadReserved(type, opts, this.reserveLoad(options?.replace, options?.signal));
     }
 
     /**
@@ -2611,9 +3440,11 @@ export class Graph implements GraphContext {
      * #3382). A replacing load supersedes this graph's earlier loads, which will never dispatch,
      * so it takes their places in the line at once rather than waiting for their reads.
      * @param replace - Whether the load replaces the graph
+     * @param signal - Cancels the load
      * @returns The reservation to hand to `loadReserved`, which gives the place up
      */
-    private reserveLoad(replace = false): Reservation {
+    private reserveLoad(replace = false, signal?: AbortSignal): Reservation {
+        signal?.throwIfAborted();
         if (replace) {
             for (const superseded of this.turns) {
                 superseded.leave();
@@ -2622,7 +3453,13 @@ export class Graph implements GraphContext {
         }
         const turn = loadLineOf(dispatcherOf(this.session)).join();
         this.turns.add(turn);
-        return { loadId: ++this.loadCount, generation: this.dataManager.beginLoad(replace), replace, turn };
+        return {
+            loadId: ++this.loadCount,
+            generation: this.dataManager.beginLoad(replace),
+            replace,
+            turn,
+            ...(signal === undefined ? {} : { signal }),
+        };
     }
 
     /**
@@ -2643,12 +3480,20 @@ export class Graph implements GraphContext {
      * @param load.generation - The load's place in line
      * @param load.replace - Whether the load replaces the graph
      * @param load.turn - Its place in the session's load line
+     * @param load.signal - Cancels the load
+     * @param pair - What a pair load adds; set only for the call that made it, so a door that reads
+     *     first passes what it found before its first await
      * @returns The load's id
      */
-    private async loadReserved(type: string, opts: object, load: Reservation): Promise<{ loadId: number }> {
-        // Read before the first await: a pair load's extras are set only for the call that made it.
+    private async loadReserved(
+        type: string,
+        opts: object,
+        load: Reservation,
+        pair = pairImports.get(this),
+    ): Promise<{ loadId: number }> {
         const { turn, ...place } = load;
-        const extras = pairImports.get(this);
+        const { coalesce, setup } = pair ?? {};
+        const extras = pair === undefined ? {} : { coalesce, setup };
         try {
             // Waited for only when an earlier load still reads, so one with nothing ahead of it
             // dispatches before this call returns, as it did before the line existed.
@@ -2669,6 +3514,7 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the file has parsed; see `addDataFromSource`
+     * @param options.signal - Cancels the load, its read included; see `addDataFromSource`
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      *     (`listGraphs` from `./catalog` lists them); the first when neither choice is given
      * @param options.graphName - Which graph to read, by name, from a file that holds several
@@ -2694,9 +3540,10 @@ export class Graph implements GraphContext {
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
+            signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {
-        const load = this.reserveLoad(options?.replace);
+        const load = this.reserveLoad(options?.replace, options?.signal);
         try {
             const { detectFormat } = await import("./data/format-detection.js");
 
@@ -2707,6 +3554,7 @@ export class Graph implements GraphContext {
                 // Read first 2KB for format detection
                 const sample = sampleOf(new Uint8Array(await file.slice(0, 4096).arrayBuffer()));
                 this.dataManager.throwIfSuperseded(load.generation, file.name);
+                options?.signal?.throwIfAborted();
                 const detected = detectFormat(file.name, sample);
 
                 if (!detected) {
@@ -2719,9 +3567,10 @@ export class Graph implements GraphContext {
             // The whole file, as bytes: the importer decodes it (a byte-order mark, an XML encoding
             // declaration), and a binary format such as a zip would not survive a text read.
             const content = new Uint8Array(await file.arrayBuffer());
+            options?.signal?.throwIfAborted();
 
             // Load using appropriate DataSource
-            const { replace: _replace, ...sourceOptions } = options ?? {};
+            const { replace: _replace, signal: _signal, ...sourceOptions } = options ?? {};
             return await this.loadReserved(
                 format,
                 {
@@ -2753,6 +3602,7 @@ export class Graph implements GraphContext {
      *     unset, the element reads `source`, then `src`, then `from`
      * @param options.edgeTarget - Where the node an edge ends at is named in the record
      * @param options.replace - Replace the graph, once the data has parsed; see `addDataFromSource`
+     * @param options.signal - Cancels the load, its fetch included; see `addDataFromSource`
      * @param options.graphIndex - Which graph to read, by position, from a file that holds several
      * @param options.graphName - Which graph to read, by name, from a file that holds several
      * @param options.styles - `"file"` also draws the file's own styles (colors, sizes, shapes,
@@ -2788,25 +3638,35 @@ export class Graph implements GraphContext {
             styles?: "file" | "none";
             styleOptions?: FileStyleOptions;
             layout?: "recommended" | "keep";
+            signal?: AbortSignal;
         },
     ): Promise<{ loadId: number }> {
-        const load = this.reserveLoad(options?.replace);
+        const load = this.reserveLoad(options?.replace, options?.signal);
+        const pair = pairImports.get(this);
         try {
             const { format, fetchedContent } = options?.format
                 ? { format: options.format, fetchedContent: undefined }
-                : await this.urlFormat(url, load.generation);
+                : await this.urlFormat(url, load.generation, options?.signal).catch((error: unknown) => {
+                      pair?.readFailed(error);
+                      throw error;
+                  });
 
             // Merge graph config with explicit options (explicit options take precedence)
             // A key is only carried when there is something to say. `edgeSource: undefined` would
             // reach the load as a declared-and-empty override and turn the probe off for a file that
             // named nothing, which is the failure this release exists to remove.
+            // The configured id path rides along only when it says something: the schema's default
+            // "id" would turn off the JSON reader's own-shape reading (Cytoscape.js, graphology,
+            // vis, JGF and node-link documents) and load nothing, as loadFromFile never did.
             const configured = this.styles.config.data.knownFields;
             const edgeSource = options?.edgeSource ?? configured.edgeSrcIdPath;
             const edgeTarget = options?.edgeTarget ?? configured.edgeDstIdPath;
+            const nodeIdPath =
+                options?.nodeIdPath ?? (configured.nodeIdPath === "id" ? undefined : configured.nodeIdPath);
             const { graphIndex, graphName, styles, styleOptions } = options ?? {};
             const mergedOptions = {
-                nodeIdPath: options?.nodeIdPath ?? configured.nodeIdPath,
                 ...presentOnly({
+                    nodeIdPath,
                     edgeSource,
                     edgeTarget,
                     graphIndex,
@@ -2820,10 +3680,10 @@ export class Graph implements GraphContext {
             // If we already fetched content for detection, pass it as data to avoid double-fetch
             // Otherwise pass URL and let DataSource handle the fetch
             if (fetchedContent !== undefined) {
-                return await this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load);
+                return await this.loadReserved(format, { data: fetchedContent, ...mergedOptions }, load, pair);
             }
 
-            return await this.loadReserved(format, { url, ...mergedOptions }, load);
+            return await this.loadReserved(format, { url, ...mergedOptions }, load, pair);
         } finally {
             this.leaveLine(load);
         }
@@ -2833,11 +3693,13 @@ export class Graph implements GraphContext {
      * The format of a file at a URL: from its extension, else from its content, which is fetched for it.
      * @param url - The URL
      * @param generation - The load's generation, to stop when another load superseded it
+     * @param signal - Cancels the fetch
      * @returns The format, and the content when it was fetched
      */
     private async urlFormat(
         url: string,
         generation: number,
+        signal?: AbortSignal,
     ): Promise<{ format: string; fetchedContent: Uint8Array | undefined }> {
         const { detectFormat } = await import("./data/format-detection.js");
         // First try extension-based detection (no fetch needed)
@@ -2847,13 +3709,8 @@ export class Graph implements GraphContext {
         }
 
         // Extension didn't match - fetch content for detection
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch URL '${url}': ${response.status} ${response.statusText}`);
-        }
-
         // Bytes, decoded by the importer: see loadFromFile.
-        const fetchedContent = new Uint8Array(await response.arrayBuffer());
+        const fetchedContent = await fetchBytes(url, signal);
         this.dataManager.throwIfSuperseded(generation, url);
         const detectedFromContent = detectFormat(url, sampleOf(fetchedContent));
         if (!detectedFromContent) {
@@ -3000,31 +3857,56 @@ export class Graph implements GraphContext {
         edges: Record<string | number, unknown>[],
         options?: AddEdgesOptions & QueueableOptions,
     ): Promise<void> {
-        const replace = (): void => {
-            this.dataManager.setEdges(edges, options);
-        };
+        await this.replaceRows(
+            () => {
+                this.dataManager.setEdges(edges, options);
+            },
+            `Replacing the graph's edges with ${edges.length}`,
+            options,
+        );
+    }
 
-        if (options?.skipQueue) {
-            replace();
-            return;
+    /**
+     * Run a replacement of the graph's nodes or edges in its place in the session's load line,
+     * taken when it was asked for (issue #3604): it lands on what a load asked for earlier, still
+     * reading, loaded rather than under it, and at once when none is.
+     * @param replace - The data manager's replacement.
+     * @param description - What the operation queue calls it.
+     * @param options - Queue options.
+     * @returns Once the replacement has landed (and, on the queue, is drawn).
+     */
+    private async replaceRows(replace: () => void, description: string, options?: QueueableOptions): Promise<void> {
+        const line = loadLineOf(dispatcherOf(this.session));
+        const turn = line.join(undefined, "edit");
+        const inTurn = (): void => {
+            line.within(turn, replace);
+        };
+        try {
+            if (options?.skipQueue) {
+                inTurn();
+            } else {
+                await this.operationQueue.queueOperationAsync(
+                    "data-add",
+                    (context) => {
+                        if (context.signal.aborted) {
+                            throw new Error("Operation cancelled");
+                        }
+
+                        inTurn();
+                    },
+                    { description, ...options },
+                );
+            }
+
+            await dataManagerInternals.lastEdit(this.dataManager);
+        } finally {
+            turn.leave();
         }
 
-        await this.operationQueue.queueOperationAsync(
-            "data-add",
-            (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                replace();
-            },
-            {
-                description: `Replacing the graph's edges with ${edges.length}`,
-                ...options,
-            },
-        );
-        // Settled once the pass that derives the replacement has drawn and painted it.
-        await dispatcherOf(this.session).lane.settled();
+        if (!options?.skipQueue) {
+            // Settled once the pass that derives the replacement has drawn and painted it.
+            await dispatcherOf(this.session).lane.settled();
+        }
     }
 
     /**
@@ -3046,31 +3928,13 @@ export class Graph implements GraphContext {
         idPath?: string,
         options?: QueueableOptions,
     ): Promise<void> {
-        const replace = (): void => {
-            this.dataManager.setNodes(nodes, idPath);
-        };
-
-        if (options?.skipQueue) {
-            replace();
-            return;
-        }
-
-        await this.operationQueue.queueOperationAsync(
-            "data-add",
-            (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("Operation cancelled");
-                }
-
-                replace();
+        await this.replaceRows(
+            () => {
+                this.dataManager.setNodes(nodes, idPath);
             },
-            {
-                description: `Replacing the graph's nodes with ${nodes.length}`,
-                ...options,
-            },
+            `Replacing the graph's nodes with ${nodes.length}`,
+            options,
         );
-        // Settled once the pass that derives the replacement has drawn and painted it.
-        await dispatcherOf(this.session).lane.settled();
     }
 
     /**
@@ -3148,7 +4012,8 @@ export class Graph implements GraphContext {
      * refuses a scope that cannot be laid out -- one naming a removed set, or a running layout
      * that is not scoped -- because it is not an explicit `setLayout`: such a scope is inactive,
      * and the layout runs over the whole graph.
-     * @param scope - The scope; undefined or `"graph"` for the whole graph.
+     * @param scope - The scope; undefined or `"graph"` for the whole graph, which while
+     *     `workingGraph` is on is what is shown: a layout never moves a hidden node.
      * @returns A promise that resolves once the running layout has restarted.
      * @throws A `GraphtyError` with `E_BAD_COMMAND` when the value is not a scope.
      * @since 2.5.0
@@ -3470,9 +4335,14 @@ export class Graph implements GraphContext {
                 { fact: { code: "style.suggested", params: { algorithms: [...keys] } } },
             )
             .then(undefined, report);
-        // Kept, so `waitForStableFrame()` and `waitForSettled()` wait for the layers to land.
-        // Chained, so a second call does not replace the first one's promise.
-        this.#suggestionsStacked = Promise.all([this.#suggestionsStacked, applied]).then(() => undefined);
+        // Entered in the record of pending work until the layers are stacked, so
+        // `waitForStableFrame()` and `waitForSettled()` wait for them to land (issue #4219).
+        void this.updateManager.pending.track(
+            "style",
+            "suggested style layers have not been stacked yet",
+            applied,
+            "wait",
+        );
 
         return painted.length > 0;
     }
@@ -3595,6 +4465,7 @@ export class Graph implements GraphContext {
         updates: { id: string | number; [key: string]: unknown }[],
         options?: QueueableOptions,
     ): Promise<void> {
+        checkRows("update-rows", updates, recordFault);
         await this.applyData(
             { kind: "update-rows", target: "node", rows: updates.map(({ id, ...values }) => ({ id, values })) },
             options,
@@ -3609,6 +4480,7 @@ export class Graph implements GraphContext {
      * @returns Settles once the change is drawn
      */
     async updateEdges(updates: { id: string; [key: string]: unknown }[], options?: QueueableOptions): Promise<void> {
+        checkRows("update-rows", updates, recordFault);
         await this.applyData(
             { kind: "update-rows", target: "edge", rows: updates.map(({ id, ...values }) => ({ id, values })) },
             options,
@@ -3627,11 +4499,13 @@ export class Graph implements GraphContext {
      * @param edgeIds - The edges removed.
      */
     private selectRemoval(nodeIds: readonly (string | number)[], edgeIds: readonly string[]): void {
+        // By id, building no `Node`: a row drawn with none is given none only to be removed, and
+        // one with none cannot be in the selection's `Node`s.
         const doomed = new Set<string | number>();
         for (const id of nodeIds) {
-            const node = this.dataManager.getNode(id);
-            if (node) {
-                doomed.add(node.id);
+            const known = dataManagerInternals.storedIdOf(this.dataManager, id);
+            if (known !== undefined) {
+                doomed.add(known);
             }
         }
 
@@ -3640,16 +4514,13 @@ export class Graph implements GraphContext {
         // could be selected: a run of removals stays linear either way.
         if (doomed.size > 0 && !this.session.selection.edgeRemovalChangesNothing()) {
             for (const id of doomed) {
-                const node = this.dataManager.getNode(id);
-                if (node) {
-                    doomedEdges.push(...this.dataManager.incidentEdgeIds(node));
-                }
+                doomedEdges.push(...dataManagerInternals.incidentEdgeIds(this.dataManager, id));
             }
         }
 
         this.selectionManager.onEdgesRemoved(doomedEdges);
         for (const id of doomed) {
-            const node = this.dataManager.getNode(id);
+            const node = dataManagerInternals.builtNode(this.dataManager, id);
             if (node) {
                 this.selectionManager.onNodeRemoved(node);
             }
@@ -3665,8 +4536,20 @@ export class Graph implements GraphContext {
      */
     private async applyData(mutation: DataMutation | BatchCommand, options?: QueueableOptions): Promise<void> {
         const dispatcher = dispatcherOf(this.session);
+        if (!("op" in mutation)) {
+            checkMutation(mutation);
+        }
+
         const command = "op" in mutation ? mutation : { op: "data.apply" as const, mutation };
-        await dispatcher.dispatch(command, options?.skipQueue === true ? { beside: true } : undefined);
+        // In the session's load line (issue #3604): at once when no load asked for earlier still
+        // reads, and otherwise once it has dispatched, queued behind its step rather than beside it.
+        let waited = false;
+        const sent = loadLineOf(dispatcher).edit(
+            () => dispatcher.dispatch(command, options?.skipQueue === true && !waited ? { beside: true } : undefined),
+            undefined,
+        );
+        waited = true;
+        await sent;
         // Settled once the pass that derives it has drawn and painted it: what a caller that
         // awaited the add reads is the graph with the add in it.
         await dispatcher.lane.settled();
@@ -3791,7 +4674,11 @@ export class Graph implements GraphContext {
             const named: DispatcherTransactionOptions = {
                 fact: { code: "transaction", params: { label: label ?? null } },
             };
-            await this.session.transaction(label ?? "Batch of changes", (tx) => fn(tx), named);
+            // An edit in the session's load line (issue #3604): it starts once every load asked
+            // for before it has dispatched, so its writes land on what they loaded.
+            await loadLineOf(dispatcherOf(this.session)).edit(async () => {
+                await this.session.transaction(label ?? "Batch of changes", (tx) => fn(tx), named);
+            }, undefined);
         } finally {
             if (--this.openBatches === 0) {
                 for (const verb of Object.keys(BATCH_VERBS)) {
@@ -3932,19 +4819,7 @@ export class Graph implements GraphContext {
         // the graph's own, dispatched or not, and every session load or edit still waiting in line
         // (issue #3524). The clear itself happens before this returns, as it always has; only
         // while a project open writes does it wait for the open, which it would otherwise land in.
-        this.dataManager.supersedeLoads();
-        loadLineOf(dispatcherOf(this.session))
-            .clear(() => {
-                this.dataManager.clear();
-                return Promise.resolve();
-            })
-            .catch((error: unknown) => {
-                this.eventManager.emitGraphError(
-                    this,
-                    error instanceof Error ? error : new Error(String(error)),
-                    "other",
-                );
-            });
+        this.dataManager.clear();
     }
 
     /**
@@ -3984,6 +4859,20 @@ export class Graph implements GraphContext {
         this.updateManager.enableZoomToFit(true);
     }
 
+    /**
+     * Whether the element is still framing the graph on its own: a layout is settling, or a framing
+     * it owes has not landed, and nobody has placed the camera since. A camera read now is not where
+     * the element will leave it, so a consumer that puts the camera back later frames again instead.
+     * @returns True while the element's own framing is under way.
+     */
+    get framing(): boolean {
+        return (
+            this.#autoFrame &&
+            !this.#cameraPlaced &&
+            !(this.updateManager.zoomToFitCompleted && this.layoutManager.isSettled)
+        );
+    }
+
     // GraphContext implementation methods
 
     /**
@@ -4003,6 +4892,59 @@ export class Graph implements GraphContext {
      */
     getStylePainter(): StylePainter {
         return this.stylePainter;
+    }
+
+    /**
+     * Bring the paint up to date at the end of a `graph` pass.
+     * @param stack - The stack the pass derived.
+     * @param dirty - The pass's dirty keys.
+     * @param cause - What caused the pass.
+     * @returns Settles once the paint this pass owes is done.
+     */
+    private async paintGraphPass(
+        stack: readonly CompiledLayer[],
+        dirty: ReadonlySet<string>,
+        cause: HistoryCause,
+    ): Promise<void> {
+        // A pass that leaves the whole-graph paint to a later one paints the rows it added now,
+        // their own rows only (and the waiting edges their nodes completed). While an import
+        // reads there is no whole-graph pass until its end, so a paged or streamed load was
+        // drawn in the element's defaults while the layout ran, often until after it had
+        // settled. No frame is drawn while an element built from the defaults waits for this.
+        const dispatcher = dispatcherOf(this.session);
+        const paintsWhole = cause !== "command" || (this.#importsReading === 0 && !dispatcher.graphWritesWaiting);
+        if (!paintsWhole) {
+            if (dirty.has(NODES_ADDED) || dirty.has(EDGES_ADDED)) {
+                await paintAddedRows(this.session, stack, dirty, this.dataManager.takeLateEdgeRows());
+            }
+
+            this.dataManager.notePainted(dirty);
+        }
+
+        // A change to graph values alone (the source's name, the import report) moves nothing
+        // a layer reads, so it repaints nothing unless an earlier write left the paint owed.
+        if (!dispatcher.paintOwed && dirty.size > 0 && [...dirty].every((key) => key.startsWith("v:"))) {
+            return;
+        }
+
+        // While an import reads, the pass after each chunk builds what arrived but does not
+        // paint; the pass its end schedules paints the whole graph once. Likewise a graph
+        // write with another still waiting behind it leaves the paint to the last of them,
+        // so a run of queued adds repaints once, not once per add. Everything else -- undo,
+        // redo, a rollback, an edit, a session verb -- is painted here, in its own pass.
+        if (paintsWhole) {
+            // A forward add over a picture that is current names what it changed; undo, redo
+            // and a paint an earlier write left owed have no such list.
+            const changed = cause === "command" && !dispatcher.paintOwed ? dirty : null;
+            dispatcher.paintOwed = false;
+            this.#passRepainted = true;
+            await repaintGraphPass(this.session, changed, () => this.repaintFromSession());
+            // The whole graph is painted, whatever an import stopped part way left waiting:
+            // a pass that painted only the changed rows found every other row painted already.
+            this.dataManager.notePainted(null);
+        } else if (this.#importsReading === 0) {
+            dispatcher.paintOwed = true;
+        }
     }
 
     /**
@@ -4062,7 +5004,9 @@ export class Graph implements GraphContext {
         const problems = this.dataManager.sliceProblems(slice);
         const engine = this.layoutManager.layoutEngine;
         if (engine !== undefined && !this.layoutManager.building) {
-            problems.push(...layoutEngineInternals.edgeProblems(engine, this.dataManager.edges));
+            problems.push(
+                ...layoutEngineInternals.edgeProblems(engine, dataManagerInternals.builtEdges(this.dataManager)),
+            );
         }
 
         if (problems.length > 0) {
@@ -4092,6 +5036,319 @@ export class Graph implements GraphContext {
      */
     getUpdateManager(): UpdateManager {
         return this.updateManager;
+    }
+
+    /**
+     * The row tables, when something has opened them.
+     * @returns The tables, or null.
+     * @internal
+     */
+    getRowTable(): RowTable | null {
+        return this.#rowTable;
+    }
+
+    /**
+     * Whether a straight pulled line draws the lean program, each piece's rectangle alone:
+     * `antialias` false under renderPath "batched" (design/rendering/cosmos-gap.md, G12).
+     * @returns True when it does.
+     * @internal
+     */
+    leansLines(): boolean {
+        return !this.antialias && this.#nodeBatches !== null;
+    }
+
+    /**
+     * The node batches, on the `"batched"` path.
+     * @returns The batches, or null.
+     * @internal
+     */
+    getNodeBatches(): NodeBatches | null {
+        return this.#nodeBatches;
+    }
+
+    /**
+     * The edge rows drawn with no `Edge`, on the `"batched"` path.
+     * @returns They, or null.
+     * @internal
+     */
+    getEdgeRowLines(): EdgeRowLines | null {
+        return this.#edgeRowLines;
+    }
+
+    /**
+     * The node ID target hover reads, on the `"batched"` path.
+     * @returns The target, or null.
+     * @internal
+     */
+    getNodeIdTarget(): NodeIdTarget | null {
+        return this.#nodeIds;
+    }
+
+    /**
+     * The edge ID target an edge hover reads, on the `"batched"` path.
+     * @returns The target, or null.
+     * @internal
+     */
+    getEdgeIdTarget(): EdgeIdTarget | null {
+        return this.#edgeIds;
+    }
+
+    /**
+     * How nodes are drawn.
+     * @returns The path asked for.
+     */
+    get renderPath(): RenderPath {
+        return this.#renderPath;
+    }
+
+    /**
+     * Choose how nodes are drawn, at any time: `"objects"`, a mesh each, or `"batched"`, eligible
+     * rows in one draw per look. Under NullEngine every row stays an object row.
+     * @param path - The path.
+     */
+    setRenderPath(path: RenderPath): void {
+        if (path !== "objects" && path !== "batched") {
+            throw new Error(`unknown render path "${String(path)}"`);
+        }
+
+        if (path === "objects" && this.#renderPath === "batched") {
+            const refusal = this.#objectsRefusal();
+            if (refusal !== null) {
+                this.eventManager.emitGraphError(this, refusal, "other");
+                return;
+            }
+        }
+
+        if (path === "objects") {
+            // Every row stored with no `Node` gets one, and every edge stored with no `Edge`: only a batch or a row
+            // line draws them otherwise.
+            dataManagerInternals.buildAll(this.dataManager);
+        }
+
+        this.#renderPath = path;
+        this.#limits.honor(path === "batched");
+        if (path === "objects") {
+            this.#warnLimitsIgnored();
+        }
+
+        if (this.#renderPathOpen) {
+            this.#applyRenderPath();
+        }
+    }
+
+    /**
+     * The ceilings asked for: honored under `"batched"`, set aside under `"objects"`.
+     * @returns The ceilings as given.
+     */
+    get limits(): Readonly<LimitsOption> {
+        return this.#limits.requested;
+    }
+
+    /**
+     * Ask for ceilings a load is refused above. Under `"objects"` the shipped ones stand, and
+     * `limits-warning` says so with `W_LIMITS_IGNORED`.
+     * @param value - The ceilings; a field left out keeps its default.
+     * @throws An Error when a value is not a whole number of at least 1.
+     */
+    setLimits(value: LimitsOption): void {
+        this.#limits.request(value);
+        this.#warnLimitsIgnored();
+        // A row drawn plain past an object budget is painted again, so a raised budget gives it its object.
+        this.updateManager.limitsChanged();
+        this.renderManager.requestFrame();
+    }
+
+    /** Say, as a code, that the ceilings asked for are not in force. */
+    #warnLimitsIgnored(): void {
+        if (this.#limits.ignored) {
+            this.eventManager.emit("limits-warning", {
+                code: "W_LIMITS_IGNORED",
+                params: { renderPath: this.#renderPath },
+            } satisfies Omit<LimitsWarningEvent, "type">);
+        }
+    }
+
+    /**
+     * Why the graph held now cannot move to `"objects"`, whose ceilings are the shipped ones.
+     * @returns The `E_TOO_LARGE` refusal, or null when it fits.
+     */
+    #objectsRefusal(): GraphtyError | null {
+        const nodes = this.dataManager.nodes.size;
+        const edges = this.dataManager.edges.size;
+        const over: ["nodes" | "edges", number, number][] = [
+            ["nodes", nodes, DEFAULT_LIMITS.renderCeiling],
+            ["edges", edges, DEFAULT_LIMITS.edgesDrawn],
+        ];
+        const found = over.find(([, count, limit]) => count > limit);
+        if (found === undefined) {
+            return null;
+        }
+
+        const [of, count, limit] = found;
+        return new GraphtyError({
+            code: "E_TOO_LARGE",
+            source: "view",
+            message: `render path "objects" holds at most ${limit} ${of}, and the graph holds ${count}`,
+            details: { limit, count, of, graph: { nodes, edges } },
+        });
+    }
+
+    /**
+     * How many rows each path is drawing, so a row that quietly left the fast path can be seen.
+     * @returns The counts as of the last frame.
+     */
+    get rowCounts(): RowCounts {
+        const batchedNodes = this.#nodeBatches?.batchedNodes ?? 0;
+        // An edge stored with no `Edge` is drawn from the row tables (`EdgeRowLines`), never as an object.
+        let objectEdges = 0;
+        for (const edge of this.builtEdges()) {
+            objectEdges += edge.isPulled ? 0 : 1;
+        }
+
+        return {
+            batchedNodes,
+            objectNodes: this.dataManager.nodes.size - batchedNodes,
+            pulledEdges: this.dataManager.edges.size - objectEdges,
+            objectEdges,
+        };
+    }
+
+    /** Open or close the batches to match the path. Proxies stay, so neither way rebuilds a row. */
+    #applyRenderPath(): void {
+        const batched = this.#renderPath === "batched" && !(this.engine instanceof NullEngine);
+        // Pulled edges read node places from the row table (`PulledLineBatch`).
+        if (pulledEdgesDefault.value && !(this.engine instanceof NullEngine)) {
+            this.openRowTable();
+        }
+
+        if (batched && this.#nodeBatches === null) {
+            const places = this.openRowTable();
+            this.#nodeBatches = new NodeBatches(
+                {
+                    cache: this.dataManager.meshCache,
+                    places,
+                    root: () => this.scene.getTransformNodeByName("graph-root"),
+                    view: () => ({
+                        flatOutline: this.getViewMode() !== "2d" && sceneLighting(this.scene) === "flat",
+                    }),
+                    nodes: () => dataManagerInternals.builtNodes(this.dataManager),
+                    sourceOf: ({ meshKey, style }) =>
+                        NodeMesh.source(
+                            this.dataManager.meshCache,
+                            { styleId: meshKey, is2D: this.getViewMode() === "2d", size: style.shape?.size ?? 0 },
+                            {
+                                shape: style.shape,
+                                texture: style.texture,
+                                effect: style.effect,
+                                border: style.border,
+                                picture: null,
+                            },
+                            this.scene,
+                        ),
+                    meshesChanged: () => {
+                        this.updateManager.thawActiveMeshes();
+                        this.updateManager.meshesShownOrHidden();
+                    },
+                    repaint: (rows) => {
+                        const painter = this.getStylePainter();
+                        for (const row of rows) {
+                            painter?.queue("node", row);
+                        }
+
+                        this.renderManager.requestFrame();
+                    },
+                    resized: () => {
+                        if (this.layoutManager.layoutEngine?.wakeForResize() === true) {
+                            this.layoutManager.running = true;
+                        }
+                    },
+                },
+                this.scene,
+            );
+            // A node whose mesh was read on the objects path shares its look's source, which the batch hides.
+            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+                node.holdOffBatch();
+            }
+
+            this.#edgeRowLines = new EdgeRowLines({
+                scene: this.scene,
+                cache: this.dataManager.meshCache,
+                rows: places,
+                lean: () => this.leansLines(),
+                requestFrame: () => {
+                    this.renderManager.requestFrame();
+                },
+            });
+            const batches = this.#nodeBatches;
+            const target = new NodeIdTarget(this.scene, {
+                positionTexture: () => places.positionTexture,
+                requestFrame: () => {
+                    this.renderManager.requestFrame();
+                },
+            });
+            this.#nodeIds = target;
+            useNodeIdTarget(this.scene, {
+                target,
+                nodeIdAt: (row) => this.dataManager.nodeAtRow(row)?.id,
+                hiddenRows: () => batches.hiddenRows(),
+            });
+            this.#edgeIds = new EdgeIdTarget(this.scene, {
+                positionTexture: () => places.positionTexture,
+                edges: () => this.builtEdges(),
+                root: () => this.scene.getTransformNodeByName("graph-root"),
+                requestFrame: () => {
+                    this.renderManager.requestFrame();
+                },
+            });
+            useEdgeIdTarget(this.scene, this.#edgeIds);
+        } else if (!batched && this.#nodeBatches !== null) {
+            useEdgeIdTarget(this.scene, null);
+            this.#edgeIds?.dispose();
+            this.#edgeIds = null;
+            useNodeIdTarget(this.scene, null);
+            this.#nodeIds?.dispose();
+            this.#nodeIds = null;
+            this.#edgeRowLines?.clear();
+            this.#edgeRowLines = null;
+            this.#nodeBatches.dispose();
+            this.#nodeBatches = null;
+        }
+
+        // Plain edges are pulled on "batched" (`Edge.pullsLine`): repaint them when that changes.
+        const pulls = this.#nodeBatches !== null;
+        if (pulls !== this.#edgesPulled) {
+            this.#edgesPulled = pulls;
+            for (const edge of this.builtEdges()) {
+                edge.updateStyle();
+            }
+
+            // A rebuilt placed line is placed by the next edge walk.
+            this.updateManager.forceEdgeWalk();
+            this.updateManager.meshesAdded();
+        }
+
+        this.renderManager.requestFrame();
+    }
+
+    /**
+     * Start keeping the row tables, or get them if they are kept already. The `"batched"` path
+     * draws from them; otherwise only tests and the benchmark harness open them.
+     * @returns The tables.
+     * @internal
+     */
+    openRowTable(): RowTable {
+        if (this.#rowTable === null) {
+            this.#rowTable = new RowTable(this.scene, () => this.dataManager[WRITABLE_LANE]);
+            this.#rowTable.replaced(null, dataManagerInternals.builtNodes(this.dataManager));
+            openRowScan(
+                this.scene,
+                this.#rowTable,
+                (row) => this.dataManager.nodeAtRow(row),
+                this.renderManager.graphRoot,
+            );
+        }
+
+        return this.#rowTable;
     }
 
     /**
@@ -4141,6 +5398,32 @@ export class Graph implements GraphContext {
      */
     getAcceleration(): AccelerationController {
         return this.acceleration;
+    }
+
+    /**
+     * The row table an accelerated layout fills: only under renderPath "batched". On a device shared
+     * with the accelerator it copies each landing on the card; on any other renderer `device` is null and
+     * it sends each landing's drawn rows as its readback brought them.
+     * @returns The table and the device, or null.
+     * @internal
+     */
+    getDrawnTarget(): DrawnTarget | null {
+        const { engine } = this;
+        const table = this.#rowTable;
+        if (this.#renderPath !== "batched" || table === null) {
+            return null;
+        }
+
+        const shared = engine instanceof RecoveringWebGPUEngine && engine.sharesDevice;
+        const device = shared ? engine.deviceNow() : null;
+        if (shared && device === null) {
+            return null;
+        }
+
+        // A transition draws its movers off their lanes, every frame, so the ring would only be overwritten.
+        const suspended = transitionsOf(this.layoutManager)?.active === true;
+        // On a device of its own (WebGL, or WebGPU not shared) the layout reads its drawn rows back instead.
+        return { table, device, suspended };
     }
 
     // ============================================================================
@@ -4259,6 +5542,52 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * The drawn nodes whose centers lie inside a polygon on the canvas: the `{ region }` selection
+     * target. With a row table open it is one typed walk over `rowBounds`; otherwise each node is
+     * placed as `nodeScreenPosition` places it.
+     * @param polygon - The polygon, in CSS pixels from the canvas's top-left corner.
+     * @returns The nodes' ids.
+     */
+    private nodesInRegion(polygon: readonly CanvasPoint[]): NodeId[] {
+        const ids: NodeId[] = [];
+        const scan = rowScanOf(this.scene);
+        if (scan !== undefined) {
+            for (const row of scan.rowsInRegion(polygon)) {
+                const id = this.dataManager.nodeIdAtRow(row);
+                if (id !== undefined) {
+                    ids.push(id);
+                }
+            }
+
+            return ids;
+        }
+
+        const camera = this.scene.activeCamera;
+        if (!camera) {
+            return ids;
+        }
+
+        const project = screenProjector(this.scene);
+        const view = this.scene.getViewMatrix().m;
+        for (const node of this.dataManager.nodes.values()) {
+            regionWork.nodes++;
+            if (node.getRenderState() !== "visible") {
+                continue;
+            }
+
+            node.drawnWorldMatrix(true);
+            const centre = node.drawnWorldPosition;
+            const depth = centre.x * view[2] + centre.y * view[6] + centre.z * view[10] + view[14];
+            const { x, y } = project(centre);
+            if (depth >= camera.minZ && insidePolygon(polygon, x, y)) {
+                ids.push(node.id);
+            }
+        }
+
+        return ids;
+    }
+
+    /**
      * Set up a scene pointer observer to handle background clicks for deselection.
      * When the user clicks on an area with no node, the current selection is cleared.
      */
@@ -4298,17 +5627,40 @@ export class Graph implements GraphContext {
             }
         });
 
+        // Shift and a drag on empty canvas, when `selection.region` turns it on.
+        attachRegionGesture({
+            scene: this.scene,
+            shape: () => this.styles.config.behavior.selection.region,
+            onNode: (x, y) => pickNodeId(this.scene, x, y) !== undefined,
+            holdCamera: (held) => {
+                if (held) {
+                    this.camera.temporarilyDisableInput();
+                } else {
+                    this.camera.temporarilyEnableInput();
+                }
+            },
+            select: (polygon) => {
+                this.session.selection.applyNow({ region: { polygon } }, "add", "user");
+            },
+        });
+
         // The nodes' shared observer goes in right after this one, where the first node's own
         // observers used to be, so a node's handlers still hear an event after the background does.
         // Their shared action manager is made here too, so it belongs to the scene from the start.
+        // Under "batched" it waits for the first object row's mesh: until a mesh has an action,
+        // Babylon runs no pick on a move (design/rendering/row-renderer.md 4.4).
         nodePointerRosterOf(this.scene);
-        nodeActionManagerOf(this.scene);
+        if (this.#renderPath !== "batched") {
+            nodeActionManagerOf(this.scene);
+        }
 
         // The pointer says a line can be clicked, as Babylon already says it over a node (each
         // node mesh has pointer triggers, so Babylon sets `hoverCursor` there). Lines are thin
         // instances of an unpickable batch, so Babylon never sees them: on every move it has just
         // restored `defaultCursor`, and this sets `hoverCursor` back when the pointer is over a line.
+        let edgeHoverMoves = 0;
         this.scene.onPointerObservable.add((pointerInfo) => {
+            const move = ++edgeHoverMoves;
             const canvas = this.scene.getEngine().getInputElement();
             const { buttons } = pointerInfo.event as { buttons?: number };
             if (
@@ -4321,8 +5673,23 @@ export class Graph implements GraphContext {
                 return;
             }
 
-            if (this.pickEdgeId(this.scene.pointerX, this.scene.pointerY) !== undefined) {
-                canvas.style.cursor = this.scene.hoverCursor;
+            const over = (edgeId: EdgeId | undefined): void => {
+                // A read answered after a later move is that move's no longer.
+                if (edgeId !== undefined && move === edgeHoverMoves) {
+                    canvas.style.cursor = this.scene.hoverCursor;
+                }
+            };
+            const edgeId = hoverEdgeAt(
+                this.scene,
+                () => this.builtEdges(),
+                this.scene.pointerX,
+                this.scene.pointerY,
+                (point) => this.worldToScreen(point),
+            );
+            if (edgeId instanceof Promise) {
+                void edgeId.then(over);
+            } else {
+                over(edgeId);
             }
         }, PointerEventTypes.POINTERMOVE);
 
@@ -4335,8 +5702,7 @@ export class Graph implements GraphContext {
             }
 
             const { pointerX: x, pointerY: y } = this.scene;
-            const ray = this.scene.createPickingRay(x, y, null, null);
-            const picked = this.scene.pick(x, y, alongRay(this.scene, ray, isCloseLabel)).pickedMesh;
+            const picked = pickCloseLabel(this.scene, x, y);
             const close = picked ? closeRectOnScreen(picked) : undefined;
             const over = close !== undefined && inRect(close, x, y);
             if (over !== overClose) {
@@ -4406,7 +5772,7 @@ export class Graph implements GraphContext {
      */
     private handledOnCloseLabel(x: number, y: number): boolean {
         const picked = pickAsDrawn(this.scene, x, y);
-        if (!picked || !isCloseLabel(picked)) {
+        if (!(picked instanceof AbstractMesh) || !isCloseLabel(picked)) {
             return false;
         }
 
@@ -4518,6 +5884,32 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Frame the graph as the project setting `framing` says, and frame it again if the element frames on its own.
+     */
+    private applyFraming(): void {
+        this.updateManager.framing = this.session.config.framing;
+        this.autoFrame();
+    }
+
+    /**
+     * Turn the 2D view as the project setting `viewRotation` says.
+     * @param reframe - Whether to frame the turned drawing again, when the view is 2D and the
+     *     element frames on its own initiative.
+     */
+    private applyViewRotation(reframe: boolean): void {
+        const twoD = this.camera.getController("2d");
+        if (!(twoD instanceof TwoDCameraController)) {
+            return;
+        }
+
+        twoD.rotation = ((this.session.config.viewRotation ?? 0) * Math.PI) / 180;
+        this.updateManager.viewMoved();
+        if (reframe && this.scene.metadata?.twoD === true) {
+            this.autoFrame();
+        }
+    }
+
+    /**
      * Frame the graph on the element's own initiative -- after a data load, a new layout, or the
      * first settlement -- unless framing was switched off with {@link setAutoFrame} or the
      * configuration placed the camera itself with `startingCameraDistance`. An explicit
@@ -4532,6 +5924,36 @@ export class Graph implements GraphContext {
         }
 
         return false;
+    }
+
+    /**
+     * Rebuild the labels, node glyphs and text annotations drawn in font families that have just
+     * loaded, so they show and measure the loaded face rather than its fallback, and frame the graph again for their new size unless the
+     * camera was placed since the element last framed it. Nothing is rebuilt when no label uses them.
+     * @param families - The families that loaded, as `fontFamilies` gives them.
+     */
+    private refreshFonts(families: ReadonlySet<string>): void {
+        // Glyphs are shared by style through the mesh cache: forget them once, and each node builds its own again.
+        forgetGlyphs(this.dataManager.meshCache, families);
+        let rebuilt = this.#annotations?.refreshFonts(families) === true;
+        for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+            rebuilt = node.refreshFonts(families) || rebuilt;
+        }
+
+        for (const edge of this.builtEdges()) {
+            rebuilt = edge.refreshFonts(families) || rebuilt;
+        }
+
+        if (!rebuilt) {
+            return;
+        }
+
+        if (!this.#cameraPlaced) {
+            this.autoFrame();
+        }
+
+        this.updateManager.pending.changed();
+        this.renderManager.requestFrame();
     }
 
     /**
@@ -4648,13 +6070,20 @@ export class Graph implements GraphContext {
         this.#edgeBandMeshes.clear();
         this.#nodeMeshes.clear();
         if (mapped) {
-            for (const node of this.dataManager.nodes.values()) {
-                const { mesh } = node;
-                this.#nodeMeshes.add("sourceMesh" in mesh ? (mesh as InstancedMesh).sourceMesh : mesh);
+            for (const node of dataManagerInternals.builtNodes(this.dataManager)) {
+                this.#nodeMeshes.add(node.drawnSourceMesh);
             }
         }
 
-        for (const [key, batch] of this.dataManager.meshCache.batchCacheMap) {
+        if (mapped) {
+            for (const batch of this.dataManager.meshCache.nodeBatchMap.values()) {
+                this.#nodeMeshes.add(batch.mesh);
+            }
+        }
+
+        // A pulled line (`"batched"`) is drawn over a map as the line it stands for is.
+        const { batchCacheMap, pulledBatchMap } = this.dataManager.meshCache;
+        for (const [key, batch] of [...batchCacheMap, ...pulledBatchMap]) {
             this.#edgeMeshes.add(batch.mesh);
             // A band under the line (an outline a layer drew) must draw before it: with no depth written
             // the later of two meshes at one depth wins, and a band drawn last hid its line.
@@ -4710,15 +6139,21 @@ export class Graph implements GraphContext {
 
     /**
      * The camera's rules on a map: the wheel zooms toward the pointer, and on a globe the camera
-     * never zooms inside it (its distance from the globe's center stays at least 1.02 radii).
+     * never zooms inside it, and its near clip plane comes in as it nears the surface, so the
+     * surface is never cut away. On a flat map the pivot stays on the map.
      * @param frame - The frame now active, or null.
      */
     #followFrame(frame: LocationMapFrame | null): void {
         this.camera.setZoomToPointer(this.#zoomToPointer || frame !== null);
+        this.#lookOfFrame(frame);
         const orbit = this.camera.getActiveController();
         if (orbit instanceof OrbitCameraController) {
-            orbit.surfaceFloor = frame?.surface === "globe" ? { radius: frame.radius * 1.02 } : null;
+            orbit.surfaceFloor = frame?.surface === "globe" ? { radius: frame.radius * (1 + MAP_CLEARANCE) } : null;
+            orbit.surfacePlane = frame?.surface === "flat" ? { floor: frame.size * MAP_CLEARANCE } : null;
             orbit.grabSphere = frame?.surface === "globe" ? { radius: frame.radius } : null;
+            orbit.farReach = frame?.surface === "flat" ? { radius: flatMapReach(frame.mapFrame) } : null;
+            // The clip planes follow the globe or the flat map (or their going).
+            orbit.updateCameraPosition();
         }
     }
 
@@ -4741,11 +6176,80 @@ export class Graph implements GraphContext {
      */
     setCameraTransitionDuration(ms: number | undefined): void {
         this.#cameraTransitionMs = ms === undefined ? undefined : Math.max(0, ms);
-        this.camera.setInstantGlides(this.#cameraTransitionMs === 0);
+        this.#applyMotion();
     }
 
     /** See {@link setCameraTransitionDuration}. */
     #cameraTransitionMs: number | undefined = undefined;
+
+    /**
+     * Whether the view reduces motion; see {@link setReducedMotion}.
+     * @returns The setting: true, false or "auto".
+     */
+    getReducedMotion(): boolean | "auto" {
+        return this.#reducedMotion;
+    }
+
+    /**
+     * Reduce motion: true makes every camera move -- a fit, a preset view, a glide to a picked
+     * node -- jump to its end, stops `camera.autoRotate`, skips the layout transition, and shows a
+     * running layout only once it has settled (it runs, unseen, until then). `"auto"` does so while
+     * the platform asks for reduced motion (`prefers-reduced-motion: reduce`), following it as it
+     * changes. False (the default) changes nothing. A preference of the view, not saved in a
+     * project file.
+     * @param value - true, false or "auto".
+     * @since 3.54.0
+     */
+    setReducedMotion(value: boolean | "auto"): void {
+        this.#reducedMotion = value;
+        this.#motionQuery?.abort();
+        this.#motionQuery = null;
+        if (value === "auto" && typeof globalThis.matchMedia === "function") {
+            this.#motionQuery = new AbortController();
+            matchMedia("(prefers-reduced-motion: reduce)").addEventListener(
+                "change",
+                () => {
+                    this.#applyMotion();
+                },
+                { signal: AbortSignal.any([this.#motionQuery.signal, this.#teardown.signal]) },
+            );
+        }
+
+        this.#applyMotion();
+    }
+
+    /** See {@link setReducedMotion}. */
+    #reducedMotion: boolean | "auto" = false;
+
+    /** Ends the platform-preference listener `"auto"` adds. */
+    #motionQuery: AbortController | null = null;
+
+    /**
+     * Whether motion is reduced now: the setting, with `"auto"` read from the platform.
+     * @returns True when motion is reduced.
+     */
+    #motionReduced(): boolean {
+        return this.#reducedMotion === "auto"
+            ? typeof globalThis.matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
+            : this.#reducedMotion;
+    }
+
+    /**
+     * How long an animated camera move takes now: 0 under reduced motion, else the view's own
+     * transition time (undefined lets each move keep its own).
+     * @returns The duration in milliseconds, or undefined.
+     */
+    #cameraMoveMs(): number | undefined {
+        return this.#motionReduced() ? 0 : this.#cameraTransitionMs;
+    }
+
+    /** Tell the camera, the layout and the frame loop whether motion is reduced. */
+    #applyMotion(): void {
+        const reduced = this.#motionReduced();
+        this.camera.setInstantGlides(this.#cameraMoveMs() === 0);
+        this.layoutManager.reducedMotion = reduced;
+        this.updateManager.reducedMotion = reduced;
+    }
 
     /**
      * Where the active map layout read its locations, and how it lays the map, as plain facts:
@@ -4768,8 +6272,8 @@ export class Graph implements GraphContext {
             warnings: frame.warnings,
         };
         return frame.surface === "globe"
-            ? { ...common, surface: "globe", radius: frame.radius }
-            : { ...common, surface: "flat", projection: frame.projection, bounds: frame.bounds, size: frame.size };
+            ? { ...common, mapDimension: "3d", radius: frame.radius, bounds: frame.bounds }
+            : { ...common, mapDimension: "2d", projection: frame.projection, bounds: frame.bounds, size: frame.size };
     }
 
     /**
@@ -4815,7 +6319,11 @@ export class Graph implements GraphContext {
      * so no fit puts a node under them: the automatic framing after a load or a layout,
      * `zoomToFit()`, and the `fitToGraph` view. In 3D the camera also centers what it looks at on
      * the part left free. Does not move the camera by itself; the element's own framing, when on,
-     * picks the margins up at its next fit. A preference of the view, not saved in a project file.
+     * picks the margins up at its next fit. A fit that landed and whose picture is not final yet
+     * counts as not done: margins set then are framed before `waitForStableFrame()` resolves; set
+     * after that picture is final, they wait for the next fit. A canvas resize is the one input
+     * that can frame again after that, with `layoutBehavior.camera.refitOnResize` on. A
+     * preference of the view, not saved in a project file.
      * @param insets - CSS pixels per side; a side left out, negative or not finite is 0.
      */
     setViewInsets(insets: ViewInsets | undefined): void {
@@ -4881,10 +6389,14 @@ export class Graph implements GraphContext {
      * not a step -- it is a device session -- but VR and AR draw in 3D, so asking for one from 2D
      * switches to 3D first, and the switch and the entry are one step. When entry fails, because
      * the browser has no WebXR or the session is refused, nothing is recorded, the graph stays in
-     * the dimension it was in, and the failure is logged rather than thrown.
+     * the dimension it was in, the failure is reported as `graph-error` with context `"xr"`, and
+     * the returned promise rejects with it.
      * @param mode - The view mode to set: "2d", "3d", "ar", or "vr"
      * @param options - Optional queueing options; `skipQueue` switches at once.
      * @returns Promise that resolves when view mode is set
+     * @throws A `GraphtyError` (as a rejection) for VR or AR: `E_UNSUPPORTED` when XR is off
+     *     (`xr.enabled`) or the browser has no WebXR, `E_XR_SESSION_FAILED` when the browser or
+     *     headset refuses the session.
      * @example
      * ```typescript
      * // Switch to 2D orthographic view
@@ -4920,12 +6432,8 @@ export class Graph implements GraphContext {
             return;
         }
 
-        try {
-            // From 2D the op switches to 3D itself, in the same step.
-            await this.session.execute({ op: "view.immersive", mode });
-        } catch (error) {
-            console.warn(`[Graph] Cannot switch to ${mode} mode:`, error);
-        }
+        // From 2D the op switches to 3D itself, in the same step.
+        await this.session.execute({ op: "view.immersive", mode });
     }
 
     /**
@@ -5038,7 +6546,7 @@ export class Graph implements GraphContext {
         // are instances of.
         dataManagerInternals.flushReleasing(this.dataManager);
         const nodes = [...this.getNodes()];
-        const edges = [...this.dataManager.edges.values()];
+        const edges = [...this.builtEdges()];
 
         // Every mesh goes in one bulk teardown, then every mesh is built again. Disposed one
         // element at a time, each mesh, action manager and drag handler left scene-wide lists by
@@ -5085,7 +6593,7 @@ export class Graph implements GraphContext {
     private settleDimension(twoD: boolean, frame: boolean): void {
         if (twoD) {
             for (const node of this.getNodes()) {
-                const { x, y } = node.mesh.position;
+                const { x, y } = node.drawnPosition;
                 node.setMeshPosition(x, y, 0);
             }
         } else {
@@ -5096,14 +6604,18 @@ export class Graph implements GraphContext {
 
         // Now update edges to connect to the updated node positions. Each one aims its own
         // ray when it needs it, so there is nothing to prime here.
-        for (const edge of this.dataManager.edges.values()) {
+        for (const edge of this.builtEdges()) {
             edge.update();
         }
 
         if (frame) {
             // Zoom the camera to fit the nodes. Only the nodes, as the mode switch always has: the
             // labels are framed by zoom-to-fit, on a data load or a layout change.
-            const box = nodeFramingBox(this.getNodes());
+            const box = nodeFramingBox(
+                this.getNodes(),
+                this.session.config.framing?.extent,
+                this.updateManager.columnFraming(),
+            );
             if (box) {
                 this.camera.zoomToBoundingBox(box.min, box.max, box.spots);
             }
@@ -5115,8 +6627,8 @@ export class Graph implements GraphContext {
      * session is not the document. From 2D, `session.execute` switches to 3D first, in the same
      * step. A failed entry is also reported as `graph-error` with context `"xr"`.
      * @param mode - VR, AR, or null to leave.
-     * @throws A `GraphtyError` with `E_UNSUPPORTED` without WebXR; whatever the browser rejects
-     *     the session with otherwise.
+     * @throws A `GraphtyError` with `E_UNSUPPORTED` without WebXR, or `E_XR_SESSION_FAILED` when
+     *     the session cannot start.
      */
     private async setImmersive(mode: "vr" | "ar" | null): Promise<void> {
         if (mode === null) {
@@ -5222,8 +6734,11 @@ export class Graph implements GraphContext {
     /**
      * Set XR configuration.
      * Merges the partial into the configuration in force, so `{ ui: { enabled: false } }` leaves
-     * the rest as it was. After init the XR session manager and the canvas buttons are rebuilt
-     * from it, ending an immersive session first, and `capabilities:changed` fires.
+     * the rest as it was. After init the canvas buttons are redrawn from it and
+     * `capabilities:changed` fires. A running VR or AR session keeps going: `input` drag settings
+     * apply at once, and the session settings (`vr`, `ar`, `input.handTracking`,
+     * `input.nearInteraction`) from the next session. Only turning `xr.enabled` on or off rebuilds
+     * XR, ending a running session first.
      * @param config - Partial XR configuration to apply
      */
     setXRConfig(config: PartialXRConfig): void {
@@ -5236,12 +6751,20 @@ export class Graph implements GraphContext {
             vr: { ...current.vr, ...patch.vr },
             ar: { ...current.ar, ...patch.ar },
             input: { ...current.input, ...patch.input },
-            teleportation: { ...current.teleportation, ...patch.teleportation },
         });
         this.graphContext.updateConfig({ xr: fullConfig });
-        if (this.initialized) {
-            void this.reinitializeXR();
+        if (!this.initialized) {
+            return;
         }
+
+        if (fullConfig.enabled !== current.enabled) {
+            void this.reinitializeXR();
+            return;
+        }
+
+        this.xrSessionManager?.configure(this.xrSessionConfig());
+        this.drawXRButtons();
+        this.xrAvailability.changed();
     }
 
     /**
@@ -5335,29 +6858,11 @@ export class Graph implements GraphContext {
      * @returns Screen coordinates {x, y}
      */
     worldToScreen(worldPos: { x: number; y: number; z: number }): { x: number; y: number } {
-        const engine = this.scene.getEngine();
-        const viewport = this.scene.activeCamera?.viewport;
-        const view = this.scene.getViewMatrix();
-        const projection = this.scene.getProjectionMatrix();
-
-        if (!viewport) {
+        if (!this.scene.activeCamera?.viewport) {
             return { x: 0, y: 0 };
         }
 
-        // Create transformation matrix manually
-        const viewProjection = view.multiply(projection);
-        const worldVec = new Vector3(worldPos.x, worldPos.y, worldPos.z);
-
-        // Transform to clip space
-        const clipSpace = Vector3.TransformCoordinates(worldVec, viewProjection);
-
-        // Convert to screen space, in CSS pixels: the canvas may be drawn at a higher pixel ratio
-        // (`pixelRatio`), which the hardware scaling level undoes.
-        const css = engine.getHardwareScalingLevel();
-        const screenX = (clipSpace.x + 1) * 0.5 * engine.getRenderWidth() * css;
-        const screenY = (1 - clipSpace.y) * 0.5 * engine.getRenderHeight() * css;
-
-        return { x: screenX, y: screenY };
+        return screenProjector(this.scene)(worldPos);
     }
 
     /**
@@ -5378,9 +6883,8 @@ export class Graph implements GraphContext {
         }
 
         // The world centre, not `mesh.position`: an XR gesture moves and scales graph-root.
-        const { mesh } = node;
-        mesh.computeWorldMatrix(true);
-        const centre = mesh.getAbsolutePosition();
+        node.drawnWorldMatrix(true);
+        const centre = node.drawnWorldPosition;
         const { x, y } = this.worldToScreen(centre);
 
         // Distance in front of the camera along its view axis; the same test LabelDeclutter uses.
@@ -5395,8 +6899,9 @@ export class Graph implements GraphContext {
 
         // The node's largest half-extent in the world, projected: the projection's y scale over
         // the clip w (the depth in perspective, 1 in orthographic), in pixels.
-        const extent = mesh.getBoundingInfo().boundingBox.extendSize;
-        const scale = mesh.absoluteScaling;
+        const box = node.drawnBoundingBox;
+        const extent = box.extendSize;
+        const scale = node.drawnWorldScaling;
         const worldRadius =
             Math.max(extent.x, extent.y, extent.z) * Math.max(Math.abs(scale.x), Math.abs(scale.y), Math.abs(scale.z));
         const projection = this.scene.getProjectionMatrix().m;
@@ -5404,7 +6909,7 @@ export class Graph implements GraphContext {
         const radius = inDepth ? (worldRadius * Math.abs(projection[5]) * height) / (2 * w) : 0;
 
         const bounds = { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity };
-        for (const corner of mesh.getBoundingInfo().boundingBox.vectorsWorld) {
+        for (const corner of box.vectorsWorld) {
             const ahead = corner.x * view[2] + corner.y * view[6] + corner.z * view[10] + view[14];
             if (ahead < camera.minZ) {
                 continue;
@@ -5439,17 +6944,63 @@ export class Graph implements GraphContext {
      * @returns World coordinates {x, y, z} or null if no intersection
      */
     screenToWorld(screenPos: { x: number; y: number }): { x: number; y: number; z: number } | null {
-        const pickInfo = this.scene.pick(screenPos.x, screenPos.y);
+        return pickWorldPoint(this.scene, screenPos.x, screenPos.y);
+    }
 
-        if (pickInfo?.pickedPoint) {
-            return {
-                x: pickInfo.pickedPoint.x,
-                y: pickInfo.pickedPoint.y,
-                z: pickInfo.pickedPoint.z,
-            };
+    /** The last overview projection, kept while nothing it depends on moves. */
+    readonly #overview = new OverviewSource();
+
+    /** Stops the per-frame overview watch. */
+    #unwatchOverview: (() => void) | null = null;
+
+    /**
+     * Every placed node seen along the current view, laid flat in a unit frame, and the part of
+     * that frame the camera shows: what a minimap draws. See `Graphty.getOverview`.
+     * @param options - Point limit and density grid size.
+     * @returns The overview.
+     */
+    getOverview(options?: OverviewOptions): GraphOverview {
+        return this.#overview.read(this.overviewInputs(), options);
+    }
+
+    /**
+     * Move the camera, keeping its zoom and direction, so the view is centred on a point of the
+     * overview frame. See `Graphty.centerOnOverview`.
+     * @param point - The point, in the frame `getOverview()` returns.
+     * @param point.x - Frame x, 0 to 1 left to right.
+     * @param point.y - Frame y, 0 to 1 top to bottom.
+     * @param options - Animation options.
+     * @returns Resolves once the camera is there.
+     */
+    async centerOnOverview(
+        point: { x: number; y: number },
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        const shift = this.#overview.shift(this.overviewInputs(), point);
+        if (!shift) {
+            return;
         }
 
-        return null;
+        const state = this.getCameraState();
+        if (state.pan) {
+            await this.setCameraState({ pan: { x: state.pan.x + shift.x, y: state.pan.y + shift.y } }, options);
+        } else if (state.position && state.target) {
+            const move = (p: { x: number; y: number; z: number }): { x: number; y: number; z: number } => ({
+                x: p.x + shift.x,
+                y: p.y + shift.y,
+                z: p.z + shift.z,
+            });
+            await this.setCameraState({ position: move(state.position), target: move(state.target) }, options);
+        }
+    }
+
+    private overviewInputs(): OverviewInputs {
+        return {
+            scene: this.scene,
+            root: this.renderManager.graphRoot,
+            lane: writableLane(this.dataManager),
+            target: this.getCameraState().target,
+        };
     }
 
     /**
@@ -5501,59 +7052,23 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The drawn edge nearest a point, within {@link EDGE_PICK_TOLERANCE_PX} of its line.
-     *
-     * MEASURED ON SCREEN, not ray cast: every line is a thin instance of a shared, unpickable
-     * batch, and a line a pixel or two wide is too thin to hit with a pointer anyway.
+     * The drawn edge at a point.
      * @param x - X in CSS pixels from the canvas's left edge.
      * @param y - Y in CSS pixels from the canvas's top edge.
      * @returns The edge's id, or `undefined` when no drawn edge is that close.
      */
+    /**
+     * The `Edge`s built so far, building none: the element's own walks (a pick, a hover, a
+     * restyle, a dimension switch) visit these, since an edge stored with no `Edge` has no line
+     * object of its own to pick, restyle or rebuild. Every edge while all are built.
+     * @returns They.
+     */
+    private builtEdges(): MapIterator<Edge> {
+        return dataManagerInternals.builtEdges(this.dataManager).values();
+    }
+
     private pickEdgeId(x: number, y: number): EdgeId | undefined {
-        const camera = this.scene.activeCamera;
-        // Nothing is drawn before the first frame, and the scene's view matrix is unset until
-        // then: a press that arrives first picks nothing.
-        if (!camera || this.scene.getFrameId() === 0) {
-            return undefined;
-        }
-
-        // worldToScreen answers in render pixels; Babylon's own picking divides CSS pixels by the
-        // hardware scaling level the same way.
-        const scaling = this.scene.getEngine().getHardwareScalingLevel();
-        const px = x / scaling;
-        const py = y / scaling;
-        let best = EDGE_PICK_TOLERANCE_PX / scaling;
-        let found: EdgeId | undefined;
-        const view = this.scene.getViewMatrix().m;
-        const inFront = (p: Vector3): boolean =>
-            p.x * view[2] + p.y * view[6] + p.z * view[10] + view[14] >= camera.minZ;
-
-        // ponytail: a linear walk over every edge per pick; a spatial index if picking huge graphs on hover.
-        for (const edge of this.dataManager.edges.values()) {
-            if (edge.isDisposed() || !edge.isRenderVisible()) {
-                continue;
-            }
-
-            const points = edgeWorldPoints(edge);
-            for (let i = 1; i < points.length; i++) {
-                if (!inFront(points[i - 1]) || !inFront(points[i])) {
-                    continue;
-                }
-
-                const distance = distanceToSegment(
-                    px,
-                    py,
-                    this.worldToScreen(points[i - 1]),
-                    this.worldToScreen(points[i]),
-                );
-                if (distance <= best) {
-                    best = distance;
-                    found = edge.id;
-                }
-            }
-        }
-
-        return found;
+        return pickEdgeId(this.scene, this.builtEdges(), x, y, (point) => this.worldToScreen(point));
     }
 
     /**
@@ -5618,10 +7133,9 @@ export class Graph implements GraphContext {
      * ```
      */
     async waitForSettled(): Promise<void> {
-        await this.untilNothingIsAhead();
         // Style edits are not queued: they are written at once and repainted on the session's
-        // derivation lane, which this waits for, along with anything a finished run painted.
-        await this.session.styles.settled();
+        // derivation lane, which is one of the entries this waits for.
+        await this.untilNothingIsAhead();
     }
 
     /**
@@ -5647,6 +7161,19 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Whether a frame showing the graph's nodes has been drawn.
+     *
+     * True from the first frame that draws the nodes, while the layout may still be moving them,
+     * until the graph is emptied of every node. The `graph-first-frame` event announces the moment
+     * it becomes true. A page uses it to take a loading placeholder away.
+     * @returns True once the nodes are on screen.
+     * @beta
+     */
+    get isGraphDrawn(): boolean {
+        return this.updateManager.graphIsDrawn;
+    }
+
+    /**
      * Wait until the picture is final.
      * @remarks
      * Resolves when all four of these are true, in this order: every queued operation has run,
@@ -5664,7 +7191,9 @@ export class Graph implements GraphContext {
      * error names what was still moving. A wait for a final frame that quietly gives up and
      * returns a moving one is worse than no wait at all: the caller cannot tell the two apart.
      * @param options - How the wait is bounded.
-     * @param options.timeoutMs - How long to wait before giving up; 30 seconds by default.
+     * @param options.timeoutMs - Deprecated: how long to wait before giving up; 30 seconds by default.
+     *   Leave it out. To ask whether the picture is final now, without waiting, read
+     *   {@link Graph.isFrameStable}.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
      * It also rejects, at once, when the graph is shut down -- the element was removed from the page
      * -- before the picture came to rest, or had been already when the wait started: a graph that
@@ -5682,8 +7211,20 @@ export class Graph implements GraphContext {
      * const screenshot = await graph.captureScreenshot();
      * ```
      */
-    async waitForStableFrame(options: { timeoutMs?: number } = {}): Promise<void> {
-        const timeoutMs = options.timeoutMs ?? DEFAULT_STABLE_FRAME_TIMEOUT_MS;
+    async waitForStableFrame(
+        options: {
+            /**
+             * How long to wait before the wait rejects; 30 seconds by default.
+             * @deprecated Since 3.33. Leave it out: a per-call deadline makes a wait fail on a busy
+             * machine while the picture is still on its way. To ask whether the picture is final
+             * now, without waiting, read {@link Graph.isFrameStable}. Still honored.
+             */
+            timeoutMs?: number;
+        } = {},
+    ): Promise<void> {
+        // Read through a plain type: the option is deprecated for callers, not for its own implementation.
+        const bound: { timeoutMs?: number } = options;
+        const timeoutMs = bound.timeoutMs ?? defaultStableFrameTimeoutMs();
         // Counted so a timeout can tell a picture that kept changing from a page that stopped
         // drawing: a GPU far behind blocks the page for seconds per frame, and whatever the last
         // frame left unfinished is then all the reason names.
@@ -5744,6 +7285,39 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Resolve once every style change made so far is drawn on the canvas: the repaint passes have
+     * ended (`styles.settled()`) and the renderer has applied their last batch. A large graph's
+     * repaint is spread over many frames, so `styles.settled()` alone resolves while the canvas
+     * still shows the old colors (ws-polish 3). It does not wait for the layout or the camera, as
+     * {@link Graph.waitForStableFrame} does, and it never rejects: a graph shut down ends the wait.
+     * @returns Promise that resolves once the last repaint batch has been applied.
+     * @beta
+     */
+    async waitForPainted(): Promise<void> {
+        await this.getSession().styles.settled();
+        const painter = this.getStylePainter();
+        const teardown = this.#teardown.signal;
+
+        if (!painter.hasPending || teardown.aborted) {
+            return;
+        }
+
+        await new Promise<void>((resolve) => {
+            const done = (): void => {
+                this.scene.onAfterRenderObservable.remove(observer);
+                teardown.removeEventListener("abort", done);
+                resolve();
+            };
+            const observer = this.scene.onAfterRenderObservable.add(() => {
+                if (!painter.hasPending) {
+                    done();
+                }
+            });
+            teardown.addEventListener("abort", done, { once: true });
+        });
+    }
+
+    /**
      * The unbounded half of {@link Graph.waitForStableFrame}.
      * @param wait - Whether the caller gave up, and how to stop the round waiting now.
      * @returns Promise that resolves once a frame of the finished picture has been drawn.
@@ -5756,27 +7330,20 @@ export class Graph implements GraphContext {
             // The queue first: a layout change or a data load that has not run yet is going to move
             // the picture, so a frame that is final right now is final about the wrong graph.
             await this.untilNothingIsAhead();
+            // Then the frame, and what only frames end: the picture, and the label counts it drew.
             await this.untilNothingIsOwed(wait);
-
-            // The picture is final, but the label counts it drew are announced a few frames later
-            // (`graphty-label-change`); a page that shows them is not final until they are.
-            const declutter: unknown = this.scene.metadata?.labelDeclutter;
-            if (declutter instanceof LabelDeclutter) {
-                await declutter.whenPublished();
-            }
         } while (!wait.gaveUp && !this.updateManager.nothingIsOwed());
     }
 
     /**
-     * Wait for what both settle waits wait for first, written once so the two cannot drift
-     * (issue #3376 had to add the loads twice): loads not queued yet (the element's, held behind
-     * the autosave restore), then suggested styles, which queue their reordering only once they
-     * are due, then the queue.
+     * Wait for what both settle waits wait for first, written once so the two cannot drift: the
+     * queue, then the `wait` work in the record of pending work that ends without a frame -- loads
+     * held behind the autosave restore, suggested styles still being stacked, the repaint of style
+     * edits, and the queue again for anything they queued (issue #4219).
      */
     private async untilNothingIsAhead(): Promise<void> {
-        await loadsAhead.get(this)?.();
-        await this.#suggestionsStacked;
         await this.untilQueueDrained();
+        await this.updateManager.pending.settled();
     }
 
     /**
@@ -5828,7 +7395,8 @@ export class Graph implements GraphContext {
         }
 
         if (this.updateManager.frameIsStable) {
-            return "the node label counts have not been announced";
+            // Only `wait` work is left: the label counts, a load held behind the restore, ...
+            return this.updateManager.pending.firstPending("wait")?.reason ?? "the picture is final";
         }
 
         return this.updateManager.whyFrameIsNotStable();
@@ -5870,6 +7438,132 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * One node drawn as a model, alone, as the graph draws it, on a transparent background. See
+     * {@link ModelThumbnailOptions}. Waits for the asset to settle; queued with `nodeThumbnail` and
+     * drawn once per asset digest, size, style values, 2D and lighting.
+     * @param ref - What `node.model` takes: an asset id, a sample's id, or a URL the session holds.
+     * @param options - The size and the node's style values.
+     * @returns The picture as a PNG data URL.
+     * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
+     *     rejected or waiting model, its first problem's code and params (a waiting model with
+     *     `standInMissing` is drawn unless it waits for its geometry or an answer); for an accepted model that
+     *     could not be drawn, the load failure's code (`E_MODEL_STRUCTURE`, `E_MODEL_PARSE`,
+     *     `E_MODEL_DECODER_UNAVAILABLE`, `E_MODEL_EXTERNAL_URL`) and its params as `details`.
+     */
+    async modelThumbnail(ref: string, options: ModelThumbnailOptions = {}): Promise<string> {
+        const { assets } = this.getSession();
+        const held = assets.find(ref); // NOSONAR(S7754): the session's find, not Array.find
+        if (held === undefined && !ref.startsWith("asset:sample/")) {
+            throw new GraphtyError({
+                code: "E_MODEL_UNKNOWN_ASSET",
+                source: "data",
+                message: `No model is held as ${ref}.`,
+                details: { ref },
+            });
+        }
+
+        const record = await assets.ready(ref);
+        const problem =
+            record.kind === "image"
+                ? {
+                      code: "E_MODEL_FORMAT_UNSUPPORTED",
+                      params: { format: record.format, fileName: record.path ?? "", assetKind: "image" },
+                  }
+                : record.problems[0];
+        const standIn =
+            options.standInMissing === true && record.state !== "accepted"
+                ? (assets as AssetsApiInternal).standIn(record.id)
+                : undefined;
+        if ((record.state !== "accepted" && standIn === undefined) || record.kind === "image") {
+            throw new GraphtyError({
+                code: (problem?.code ?? "E_MODEL_UNKNOWN_ASSET") as GraphtyError["code"],
+                source: "data",
+                message: `The model ${ref} cannot be drawn.`,
+                details: problem?.params ?? { ref },
+            });
+        }
+
+        const style = options.style ?? {};
+        const shape = {
+            type: "box",
+            model: ref,
+            modelSourceUp: style["node.modelSourceUp"],
+            modelTurn: style["node.modelTurn"],
+            modelCenter: style["node.modelCenter"],
+            modelFit: style["node.modelFit"],
+            modelTint: style["node.modelTint"],
+            modelDoubleSided: style["node.modelDoubleSided"],
+            modelAnimation: style["node.modelAnimation"],
+        } as NonNullable<NodeStyleConfig["shape"]>;
+        const is2D = this.getViewMode() === "2d";
+        const key = JSON.stringify([
+            standIn === undefined ? "model" : "model-stand-in",
+            record.digest,
+            options.size,
+            style["node.color"],
+            shape.modelSourceUp,
+            shape.modelTurn,
+            shape.modelCenter,
+            shape.modelFit,
+            shape.modelTint,
+            shape.modelDoubleSided,
+            shape.modelAnimation,
+            style["node.modelAnimationOffset"],
+            style["node.unlit"],
+            style["node.wireframe"],
+            is2D,
+            this.#lighting,
+        ]);
+        let shot = this.#thumbnails.get(key);
+        if (shot === undefined) {
+            shot = this.#thumbnailQueue.then(async () => {
+                const container = await loadModel(
+                    this.scene,
+                    standIn?.files ?? assets.files(record.id),
+                    standIn?.main ?? record.path ?? "",
+                    standIn?.format ?? record.format,
+                    standIn?.skipped ?? record.skipped,
+                ).catch((error: unknown) => {
+                    if (!(error instanceof ModelLoadFailure)) {
+                        throw error;
+                    }
+
+                    throw new GraphtyError({
+                        code: error.fact.code as GraphtyError["code"],
+                        source: "data",
+                        message: `The model ${ref} could not be drawn.`,
+                        details: error.fact.params,
+                    });
+                });
+                const chunk = await loadChunk();
+                const template = await chunk.prepareTemplate(
+                    this.scene,
+                    container,
+                    `graphty-model-thumbnail-${record.digest.slice(0, 8)}`,
+                    optionsOf(shape, standIn === undefined ? assets.inspect(record.id).upAxis : "unknown", {
+                        unlit: style["node.unlit"] === true,
+                        wireframe: style["node.wireframe"] === true,
+                    }),
+                    () => chunk.neutralEnvironment(this.scene),
+                );
+                try {
+                    // As nodeThumbnail: the instance is made now, so the frozen list must not leave it out.
+                    this.updateManager.thawActiveMeshes();
+                    return await modelThumbnail(this.engine, this.scene, is2D, template, options);
+                } finally {
+                    template.dispose();
+                }
+            });
+            this.#thumbnailQueue = shot.catch(() => undefined);
+            this.#thumbnails.set(key, shot);
+            shot.catch(() => {
+                this.#thumbnails.delete(key);
+            });
+        }
+        return shot;
+    }
+
+    /**
      * Capture a screenshot of the current graph visualization.
      * @param options - Screenshot options (format, resolution, destinations, etc.)
      * @returns Promise resolving to ScreenshotResult with blob and metadata
@@ -5892,9 +7586,16 @@ export class Graph implements GraphContext {
      * ```
      */
     async captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult> {
-        const screenshotCapture = new ScreenshotCapture(this.engine, this.scene, this.canvas, this, () => {
-            this.renderManager.requestFrame();
-        });
+        const screenshotCapture = new ScreenshotCapture(
+            this.engine,
+            this.scene,
+            this.canvas,
+            this,
+            () => {
+                this.renderManager.requestFrame();
+            },
+            () => this.session.styles.legend(),
+        );
         return screenshotCapture.captureScreenshot(options);
     }
 
@@ -5967,9 +7668,27 @@ export class Graph implements GraphContext {
     async captureAnimation(
         options: import("./video/VideoCapture.js").AnimationOptions,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const { MediaRecorderCapture } = await import("./video/MediaRecorderCapture.js");
+        const { MediaRecorderCapture, holdCameraForCapture } = await import("./video/MediaRecorderCapture.js");
 
-        const capture = new MediaRecorderCapture();
+        // A frame reaches the recorder once the engine has ended it: WebGPU submits the frame's
+        // work only in endFrame(), so a copy made from the scene's after-render would read a canvas
+        // that does not hold the frame yet. A tick that ends with no scene drawn is no frame.
+        const capture = new MediaRecorderCapture((onFrame) => {
+            let drawn = false;
+            const afterRender = this.scene.onAfterRenderObservable.add(() => {
+                drawn = true;
+            });
+            const endFrame = this.engine.onEndFrameObservable.add(() => {
+                if (drawn) {
+                    drawn = false;
+                    onFrame();
+                }
+            });
+            return () => {
+                this.scene.onAfterRenderObservable.remove(afterRender);
+                this.engine.onEndFrameObservable.remove(endFrame);
+            };
+        });
 
         // Store reference for cancellation
         this.activeCapture = capture;
@@ -5989,8 +7708,14 @@ export class Graph implements GraphContext {
                 return await this.captureAnimatedCameraVideo(options, capture, onProgress);
             }
 
-            // Capture stationary video
-            const result = await capture.captureRealtime(this.canvas, options, onProgress);
+            // Capture stationary video, from the camera asked for
+            const restoreCamera = options.camera ? await holdCameraForCapture(this, options.camera) : undefined;
+            let result: import("./video/VideoCapture.js").AnimationResult;
+            try {
+                result = await capture.captureRealtime(this.canvas, options, onProgress);
+            } finally {
+                await restoreCamera?.();
+            }
 
             // Handle download if requested
             this.handleVideoDownload(result, options);
@@ -6015,70 +7740,170 @@ export class Graph implements GraphContext {
         capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
         onProgress: (progress: number) => void,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const { CameraPathAnimator } = await import("./video/CameraPathAnimator.js");
-
-        const cameraPath = options.tour ? this.tourPath(options.tour, options.duration) : options.cameraPath;
-        // Validate cameraPath is provided
-        if (!cameraPath || cameraPath.length < 2) {
+        // Every path, and a `tour` of names, is flown with the element's own camera moves
+        // (setCameraState), so each stop lands where setCameraState puts it, in 2D and in 3D.
+        // A tour of names jumps to the first view and splits the duration evenly between the legs.
+        const names = options.tour;
+        const leg = names && names.length > 1 ? options.duration / (names.length - 1) : 0;
+        const path = names
+            ? names.map((view, index) => ({ view, duration: index === 0 ? 0 : leg }))
+            : options.cameraPath;
+        const isTour = !names && path?.some((stop) => "view" in stop || stop.hold !== undefined);
+        if (!path || (path.length < 2 && !isTour)) {
             throw new Error("Animated camera mode requires at least 2 waypoints in cameraPath");
         }
+        return this.captureTourVideo(options, path, capture, onProgress);
+    }
 
-        const camera = this.scene.activeCamera;
-        if (!camera) {
-            throw new Error("No active camera available for animated capture");
-        }
-
-        const fps = options.fps ?? 30;
-
-        // Create camera path animator
-        const animator = new CameraPathAnimator(camera, this.scene, {
-            fps,
-            duration: options.duration,
-            easing: options.easing,
+    /**
+     * Record a tour: the stops flown with the element's own camera moves while the recording runs,
+     * and the tour stopped when the recording ends.
+     * @param options - Animation configuration options
+     * @param path - The tour's stops
+     * @param capture - Media recorder capture instance
+     * @param onProgress - Progress callback function
+     * @returns The recording
+     */
+    private async captureTourVideo(
+        options: import("./video/VideoCapture.js").AnimationOptions,
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+        capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
+        onProgress: (progress: number) => void,
+    ): Promise<import("./video/VideoCapture.js").AnimationResult> {
+        const stops = this.resolveTour(path);
+        const tour = this.beginTour();
+        const recording = capture.captureRealtime(this.canvas, options, onProgress).finally(() => {
+            if (this.#tour === tour) {
+                this.cancelCameraAnimation();
+            }
         });
-
-        // Create animations from waypoints
-        animator.createCameraAnimations(cameraPath);
-
-        // Start recording and animation simultaneously
-        const recordingPromise = capture.captureRealtime(this.canvas, options, onProgress);
-
-        // Start camera animation (will run concurrently with recording)
-        const animationPromise = animator.startRealtimeAnimation();
-
-        // Wait for both to complete
-        // Recording duration is controlled by options.duration
-        // Animation should complete around the same time
-        const [result] = await Promise.all([recordingPromise, animationPromise]);
-
-        // Handle download if requested
+        const [result] = await Promise.all([recording, this.flyTour(stops, options.easing, tour)]);
         this.handleVideoDownload(result, options);
-
         return result;
     }
 
     /**
-     * The waypoints of a tour: each named view resolved as `resolveCameraPreset` does, the
-     * duration split evenly between the legs.
-     * @param names - Camera view ids or saved view names, in order.
-     * @param duration - The whole tour, in milliseconds.
-     * @returns The waypoints.
-     * @throws A `GraphtyError` with `E_UNSUPPORTED` when a view has no position and target.
+     * Each stop of a tour as the camera state it flies to, checked before anything moves.
+     * @param path - The stops.
+     * @returns The camera state, flight and hold of each stop.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
+     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
      */
-    private tourPath(names: readonly string[], duration: number): import("./video/VideoCapture.js").CameraWaypoint[] {
-        const leg = names.length > 1 ? duration / (names.length - 1) : duration;
-        return names.map((name, index) => {
-            const { position, target } = orbitAnglesToPosition(this.resolveCameraPreset(name));
-            if (!position || !target) {
+    private resolveTour(
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+    ): { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[] {
+        const flat = this.getViewMode() === "2d";
+        return path.map((stop, index) => {
+            const view = "view" in stop ? stop.view : { position: stop.position, target: stop.target };
+            const state = orbitAnglesToPosition(typeof view === "string" ? this.resolveCameraPreset(view) : view);
+            if (flat ? state.zoom === undefined && !state.pan : !state.position || !state.target) {
                 throw new GraphtyError({
                     code: "E_UNSUPPORTED",
-                    message: `the view "${name}" has no camera position and target to fly to`,
+                    message: `tour stop ${index} has no ${flat ? "2D zoom or pan" : "camera position and target"} to fly to`,
                     source: "view",
-                    details: { view: name },
+                    details: { stop: index, ...(typeof view === "string" ? { view } : {}), mode: flat ? "2d" : "3d" },
                 });
             }
-            return { position, target, ...(index === 0 ? {} : { duration: leg }) };
+            return { state, duration: Math.max(0, stop.duration ?? 0), hold: Math.max(0, stop.hold ?? 0) };
         });
+    }
+
+    /**
+     * Make a new tour the one playing, ending any tour or camera move under way.
+     * @returns The tour's handle.
+     */
+    private beginTour(): TourHandle {
+        this.cancelCameraAnimation();
+        const tour = { ended: false };
+        this.#tour = tour;
+        return tour;
+    }
+
+    /**
+     * Fly a tour's stops in order, holding at each, until the last or until the tour is ended.
+     * @param stops - The resolved stops.
+     * @param easing - The easing of each flight.
+     * @param tour - The tour's handle, from `beginTour`.
+     */
+    private async flyTour(
+        stops: readonly { state: import("./screenshot/types.js").CameraState; duration: number; hold: number }[],
+        easing: import("./screenshot/types.js").CameraAnimationOptions["easing"],
+        tour: TourHandle,
+    ): Promise<void> {
+        try {
+            for (const { state, duration, hold } of stops) {
+                if (tour.ended) {
+                    return;
+                }
+                await this.setCameraState(state, { animate: duration > 0, duration, easing: easing ?? "easeInOut" });
+                await this.holdTourStop(hold, tour);
+            }
+        } finally {
+            if (this.#tour === tour) {
+                this.#tour = undefined;
+            }
+        }
+    }
+
+    /**
+     * Wait while frames are drawn until their time adds up to the hold, or the tour is ended.
+     * @param ms - The hold, in milliseconds.
+     * @param tour - The tour's handle.
+     * @returns Settles when the hold is over.
+     */
+    private holdTourStop(ms: number, tour: TourHandle): Promise<void> {
+        if (ms <= 0 || tour.ended) {
+            return Promise.resolve();
+        }
+        return new Promise((resolve) => {
+            let held = 0;
+            const observer = this.scene.onAfterRenderObservable.add(() => {
+                held += this.engine.getDeltaTime();
+                if (held >= ms || tour.ended) {
+                    this.scene.onAfterRenderObservable.remove(observer);
+                    resolve();
+                }
+            });
+        });
+    }
+
+    /**
+     * Play a camera tour: fly to each stop in turn and hold there, in 2D or in 3D. A stop names a
+     * view (a camera view or one saved in `session.views`), gives a camera state, or gives a 3D
+     * `position` and `target`. Every stop is checked before the camera moves. The camera's
+     * transition time (`setCameraTransitionDuration`), when set, replaces each flight's duration.
+     * `cancelCameraAnimation` ends the tour where it is; a new tour or a capture's tour replaces it.
+     * @param path - The stops, in order.
+     * @param options - How to fly.
+     * @param options.easing - The easing of each flight. Default `"easeInOut"`.
+     * @returns Settles when the last stop's hold is over, or the tour is ended.
+     * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` for a view name nothing answers to, or
+     * `E_UNSUPPORTED` for a stop with nothing the current drawing mode can use.
+     * @example
+     * ```typescript
+     * await graph.playTour([
+     *     { view: "overview", hold: 2000 },
+     *     { view: "cluster-a", duration: 1500, hold: 3000 },
+     * ]);
+     * ```
+     */
+    async playTour(
+        path: readonly (
+            import("./video/VideoCapture.js").CameraWaypoint | import("./video/VideoCapture.js").ViewWaypoint
+        )[],
+        options?: { easing?: import("./screenshot/types.js").CameraAnimationOptions["easing"] },
+    ): Promise<void> {
+        const stops = this.resolveTour(path);
+        const releaseFrames = animatesEveryFrame(this.scene);
+        try {
+            await this.flyTour(stops, options?.easing, this.beginTour());
+        } finally {
+            releaseFrames();
+        }
     }
 
     /**
@@ -6149,6 +7974,27 @@ export class Graph implements GraphContext {
         }
 
         return cancelled;
+    }
+
+    /**
+     * Stop the camera's animated moves: the one under way stops where the camera is now, and
+     * moves still waiting their turn are dropped, and a tour playing (`playTour`) ends. Every caller
+     * awaiting one of them resolves; a cancelled move is not an error.
+     * @returns True if a camera move or tour was cancelled, false if none was under way or waiting
+     * @example
+     * ```typescript
+     * const moving = graph.applyCameraView("top", { animate: true, duration: 2000 });
+     * graph.cancelCameraAnimation();
+     * await moving; // resolves, with the camera wherever it had got to
+     * ```
+     */
+    cancelCameraAnimation(): boolean {
+        const tour = this.#tour;
+        if (tour) {
+            tour.ended = true;
+            this.#tour = undefined;
+        }
+        return this.operationQueue.cancelByCategory("camera-update") > 0 || tour !== undefined;
     }
 
     /**
@@ -6277,6 +8123,9 @@ export class Graph implements GraphContext {
                 x: twoDController.camera.position.x,
                 y: twoDController.camera.position.y,
             };
+            if (controller instanceof TwoDCameraController) {
+                state.rotation = controller.rotation;
+            }
         } else if ("position" in camera) {
             // Fallback for other camera types
             state.position = {
@@ -6331,12 +8180,16 @@ export class Graph implements GraphContext {
         }
 
         // The view's own transition time, when set, wins over the move's.
-        if (options !== undefined && this.#cameraTransitionMs !== undefined) {
-            options = { ...options, duration: this.#cameraTransitionMs };
+        const moveMs = this.#cameraMoveMs();
+        if (options !== undefined && moveMs !== undefined) {
+            options = { ...options, duration: moveMs };
         }
 
         // For immediate (non-animated) updates, skipQueue or a transition of no time, apply directly
         if (!options || !options.animate || options.skipQueue || options.duration === 0) {
+            // A placement made now is where the camera stays: an animation still running toward an
+            // earlier request would otherwise go on moving it and end at that request's target.
+            this.operationQueue.cancelByCategory("camera-update");
             this.applyCameraStateImmediate(resolvedState);
             // Emit event
             this.eventManager.emit("camera-state-changed", { state: resolvedState });
@@ -6407,111 +8260,144 @@ export class Graph implements GraphContext {
         const controller = this.camera.getActiveController();
 
         if (controller && "pivot" in controller && "cameraDistance" in controller) {
-            // OrbitCameraController - work with pivot system
-            const orbitController = controller as unknown as {
-                pivot: {
-                    position: Vector3;
-                    rotation: Vector3;
-                    rotationQuaternion: Quaternion | null;
-                    computeWorldMatrix: (force: boolean) => void;
-                };
-                cameraDistance: number;
-                clampDistance: (distance: number) => number;
-                updateCameraPosition: () => void;
-            };
-
-            // Set pivot position (target)
-            if (state.target) {
-                orbitController.pivot.position.set(state.target.x, state.target.y, state.target.z);
-            }
-
-            // Set pivot rotation if provided (for exact state restoration)
-            // Must use rotationQuaternion because PivotController initializes with quaternion
-            // In Babylon.js, when rotationQuaternion is set (not null), it takes precedence over Euler rotation
-            if (state.pivotRotation) {
-                // Convert Euler angles to quaternion
-                const quat = Quaternion.RotationYawPitchRoll(
-                    state.pivotRotation.y, // yaw
-                    state.pivotRotation.x, // pitch
-                    state.pivotRotation.z, // roll
-                );
-                orbitController.pivot.rotationQuaternion = quat;
-            } else if (state.position && state.target) {
-                // Calculate pivot rotation from position and target
-                // Camera should look from position towards target
-                const direction = new Vector3(
-                    state.position.x - state.target.x,
-                    state.position.y - state.target.y,
-                    state.position.z - state.target.z,
-                );
-                const distance = direction.length();
-
-                // Calculate rotation angles to orient pivot so camera looks at target
-                // Add π to yaw because OrbitController's camera points in the opposite direction
-                const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
-                const pitch = Math.asin(direction.y / distance);
-
-                // Convert Euler angles to quaternion
-                const quat = Quaternion.RotationYawPitchRoll(yaw, pitch, 0);
-                orbitController.pivot.rotationQuaternion = quat;
-            }
-
-            // Set camera distance if provided, floored the way every orbit distance is
-            if (state.cameraDistance !== undefined) {
-                orbitController.cameraDistance = orbitController.clampDistance(state.cameraDistance);
-            } else if (state.position && state.target) {
-                // Calculate distance from position to target
-                const dx = state.position.x - state.target.x;
-                const dy = state.position.y - state.target.y;
-                const dz = state.position.z - state.target.z;
-                orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
-            }
-
-            // Update the pivot's world matrix and camera position
-            orbitController.pivot.computeWorldMatrix(true);
-            orbitController.updateCameraPosition();
+            this.applyOrbitCameraState(controller, state);
         } else if (controller && "velocity" in controller) {
-            // TwoDCameraController - handle zoom and pan
-            const twoDController = controller as unknown as {
-                camera: {
-                    position: Vector3;
-                    orthoLeft: number | null;
-                    orthoRight: number | null;
-                    orthoTop: number | null;
-                    orthoBottom: number | null;
-                };
-                config: {
-                    initialOrthoSize: number;
-                };
-                updateOrtho: (size: number) => void;
-            };
-
-            // Set zoom (ortho bounds)
-            if (state.zoom !== undefined) {
-                const initialSize = twoDController.config.initialOrthoSize;
-                const targetSize = initialSize / state.zoom;
-                twoDController.updateOrtho(targetSize); // Reuse controller method
-            }
-
-            // Set pan (camera position)
-            if (state.pan) {
-                // Reuse controller's pan method for consistency
-                const dx = state.pan.x - twoDController.camera.position.x;
-                const dy = state.pan.y - twoDController.camera.position.y;
-
-                // Use controller's pan method (adds delta)
-                const panMethod = twoDController as unknown as { pan: (dx: number, dy: number) => void };
-                panMethod.pan(dx, dy);
-            }
+            this.applyTwoDCameraState(controller, state);
         } else {
-            // Fallback for other camera types
-            if (state.position && "position" in camera) {
-                camera.position.set(state.position.x, state.position.y, state.position.z);
+            this.applyFallbackCameraState(camera, state);
+        }
+    }
+
+    /**
+     * Apply a camera state to an orbit controller through its pivot: target, rotation, distance.
+     * @param controller - The active orbit camera controller
+     * @param state - Camera state to apply
+     */
+    private applyOrbitCameraState(
+        controller: CameraController,
+        state: import("./screenshot/types.js").CameraState,
+    ): void {
+        // OrbitCameraController - work with pivot system
+        const orbitController = controller as unknown as {
+            pivot: {
+                position: Vector3;
+                rotation: Vector3;
+                rotationQuaternion: Quaternion | null;
+                computeWorldMatrix: (force: boolean) => void;
+            };
+            cameraDistance: number;
+            clampDistance: (distance: number) => number;
+            updateCameraPosition: () => void;
+        };
+
+        // Set pivot position (target)
+        if (state.target) {
+            orbitController.pivot.position.set(state.target.x, state.target.y, state.target.z);
+        }
+
+        // Set pivot rotation if provided (for exact state restoration)
+        // Must use rotationQuaternion because PivotController initializes with quaternion
+        // In Babylon.js, when rotationQuaternion is set (not null), it takes precedence over Euler rotation
+        if (state.pivotRotation) {
+            // Convert Euler angles to quaternion
+            const quat = Quaternion.RotationYawPitchRoll(
+                state.pivotRotation.y, // yaw
+                state.pivotRotation.x, // pitch
+                state.pivotRotation.z, // roll
+            );
+            orbitController.pivot.rotationQuaternion = quat;
+        } else if (state.position && state.target) {
+            // Calculate pivot rotation from position and target
+            // Camera should look from position towards target
+            const direction = new Vector3(
+                state.position.x - state.target.x,
+                state.position.y - state.target.y,
+                state.position.z - state.target.z,
+            );
+            const distance = direction.length();
+
+            // Calculate rotation angles to orient pivot so camera looks at target
+            // Add π to yaw because OrbitController's camera points in the opposite direction
+            const yaw = Math.atan2(direction.x, direction.z) + Math.PI;
+            const pitch = Math.asin(direction.y / distance);
+
+            // Convert Euler angles to quaternion
+            const quat = Quaternion.RotationYawPitchRoll(yaw, pitch, 0);
+            orbitController.pivot.rotationQuaternion = quat;
+        }
+
+        // Set camera distance if provided, floored the way every orbit distance is
+        if (state.cameraDistance !== undefined) {
+            orbitController.cameraDistance = orbitController.clampDistance(state.cameraDistance);
+        } else if (state.position && state.target) {
+            // Calculate distance from position to target
+            const dx = state.position.x - state.target.x;
+            const dy = state.position.y - state.target.y;
+            const dz = state.position.z - state.target.z;
+            orbitController.cameraDistance = orbitController.clampDistance(Math.sqrt(dx * dx + dy * dy + dz * dz));
+        }
+
+        // Update the pivot's world matrix and camera position
+        orbitController.pivot.computeWorldMatrix(true);
+        orbitController.updateCameraPosition();
+    }
+
+    /**
+     * Apply a camera state to a 2D controller: zoom, then rotation and pan.
+     * @param controller - The active 2D camera controller
+     * @param state - Camera state to apply
+     */
+    private applyTwoDCameraState(
+        controller: CameraController,
+        state: import("./screenshot/types.js").CameraState,
+    ): void {
+        // TwoDCameraController - handle zoom and pan
+        const twoDController = controller as unknown as {
+            camera: {
+                position: Vector3;
+                orthoLeft: number | null;
+                orthoRight: number | null;
+                orthoTop: number | null;
+                orthoBottom: number | null;
+            };
+            config: {
+                initialOrthoSize: number;
+            };
+            updateOrtho: (size: number) => void;
+        };
+
+        // Set zoom (ortho bounds)
+        if (state.zoom !== undefined) {
+            const initialSize = twoDController.config.initialOrthoSize;
+            const targetSize = initialSize / state.zoom;
+            twoDController.updateOrtho(targetSize); // Reuse controller method
+        }
+
+        if (controller instanceof TwoDCameraController) {
+            if (state.rotation !== undefined) {
+                controller.rotation = state.rotation;
             }
 
-            if (state.target && "setTarget" in camera && typeof camera.setTarget === "function") {
-                camera.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
+            // Set pan (camera position): the view's center, in world units however the view is turned
+            if (state.pan) {
+                controller.panTo(state.pan.x, state.pan.y);
             }
+        }
+    }
+
+    /**
+     * Apply a camera state to a camera no known controller drives: position and target.
+     * @param camera - The scene's active camera
+     * @param state - Camera state to apply
+     */
+    private applyFallbackCameraState(camera: Camera, state: import("./screenshot/types.js").CameraState): void {
+        // Fallback for other camera types
+        if (state.position && "position" in camera) {
+            camera.position.set(state.position.x, state.position.y, state.position.z);
+        }
+
+        if (state.target && "setTarget" in camera && typeof camera.setTarget === "function") {
+            camera.setTarget(new Vector3(state.target.x, state.target.y, state.target.z));
         }
     }
 
@@ -6594,11 +8480,17 @@ export class Graph implements GraphContext {
         this.applyEasing(distAnim, easing);
 
         return new Promise((resolve) => {
-            // Create observer to update controller during animation
-            const observer = this.scene.onBeforeRenderObservable.add(() => {
-                orbitController.cameraDistance = dummy.value;
-                orbitController.updateCameraPosition();
-            });
+            // Moves the camera, so first of the frame's observers: the passes run before the frame
+            // (the group outlines, the label declutter) read the camera, which must already stand
+            // where this frame draws it from (issue #5562).
+            const observer = this.scene.onBeforeRenderObservable.add(
+                () => {
+                    orbitController.cameraDistance = dummy.value;
+                    orbitController.updateCameraPosition();
+                },
+                undefined,
+                true,
+            );
 
             // Animate the dummy object
             const animatable = this.scene.beginDirectAnimation(dummy, [distAnim], 0, frameCount, false, 1, () => {
@@ -6895,6 +8787,11 @@ export class Graph implements GraphContext {
             return;
         }
 
+        // The turn is not animated: it is set at the start, so the pan and zoom glide in the turned view.
+        if (targetState.rotation !== undefined && controller instanceof TwoDCameraController) {
+            controller.rotation = targetState.rotation;
+        }
+
         const twoDController = controller as unknown as {
             camera: {
                 position: Vector3;
@@ -7047,15 +8944,21 @@ export class Graph implements GraphContext {
                 }
             };
 
-            // Create observer to update controller
-            observer = this.scene.onBeforeRenderObservable.add(() => {
-                twoDController.camera.position.x = dummy.posX;
-                twoDController.camera.position.y = dummy.posY;
-                twoDController.camera.orthoLeft = dummy.orthoLeft;
-                twoDController.camera.orthoRight = dummy.orthoRight;
-                twoDController.camera.orthoTop = dummy.orthoTop;
-                twoDController.camera.orthoBottom = dummy.orthoBottom;
-            });
+            // Moves the camera, so first of the frame's observers: the passes run before the frame
+            // (the group outlines, the label declutter) read the camera, which must already stand
+            // where this frame draws it from (issue #5562).
+            observer = this.scene.onBeforeRenderObservable.add(
+                () => {
+                    twoDController.camera.position.x = dummy.posX;
+                    twoDController.camera.position.y = dummy.posY;
+                    twoDController.camera.orthoLeft = dummy.orthoLeft;
+                    twoDController.camera.orthoRight = dummy.orthoRight;
+                    twoDController.camera.orthoTop = dummy.orthoTop;
+                    twoDController.camera.orthoBottom = dummy.orthoBottom;
+                },
+                undefined,
+                true,
+            );
 
             // Animate dummy object
             const animatable = this.scene.beginDirectAnimation(dummy, animations, 0, frameCount, false, 1, () => {
@@ -7237,17 +9140,20 @@ export class Graph implements GraphContext {
      * Ids that name no node are skipped; when none of them names a node the camera does not
      * move. The camera is view state, so this is not an undoable step.
      * @param nodeIds - One node id, or several.
-     * @param options - Optional animation configuration.
+     * @param options - Optional animation configuration, and the `extent` each node is measured by.
+     * @param options.extent - `"centers"` (the default) measures each node by its centre;
+     *   `"drawn"` by the box it is drawn in, so a big node is framed whole.
      * @returns Promise that resolves when the camera has moved.
      * @since 3.3.0
      * @example
      * ```typescript
      * await graph.zoomToNodes(["n1", "n2"]);
+     * await graph.zoomToNodes("hub", { extent: "drawn" });
      * ```
      */
     async zoomToNodes(
         nodeIds: (string | number) | readonly (string | number)[],
-        options?: import("./screenshot/types.js").CameraAnimationOptions,
+        options?: { extent?: CameraViewExtent } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         // Each id is looked up the way getNode looks it up, so either spelling of an integer id
         // frames the node, and the scope is handed the ids the graph itself holds.
@@ -7294,23 +9200,91 @@ export class Graph implements GraphContext {
             }
         }
 
+        // While the session reads the working graph, Frame selection frames the selected nodes
+        // that are shown: one the time window hides stays selected but is not framed.
+        const working = workingGraphOfSession(this.session);
+        const view = working.enabled ? working.view() : null;
+        if (view !== null && !view.whole) {
+            const { ids } = view.snapshot;
+            for (const id of nodes) {
+                if (!ids.has(id)) {
+                    nodes.delete(id);
+                }
+            }
+        }
+
         return nodes;
     }
 
-    private boundsToFrame(nodeIds?: Iterable<string | number>): GraphBounds {
-        const nodes =
-            nodeIds === undefined
+    /**
+     * Whether layouts run over only what is shown, the working graph's view: as
+     * `layout.visibleOnly` says, and while it is unset, as the session's `workingGraph` option says.
+     * @param working - The session's working graph.
+     * @returns True when they do.
+     */
+    private followsShown(working: WorkingGraph): boolean {
+        return this.styles.config.behavior.layout.visibleOnly ?? working.enabled;
+    }
+
+    /**
+     * Have the running layout follow what is shown, queued so that `waitForSettled` waits for it.
+     * Nothing is queued when what is shown is what it was built over: a change that moves no node
+     * (a time field, a playback setting) draws no frame for it.
+     * @param atRest - Whether an undo or a redo changed what is shown: see `LayoutManager.followView`.
+     */
+    private followShown(atRest = false): void {
+        if (!this.layoutManager.viewChanged()) {
+            return;
+        }
+
+        void this.operationQueue
+            .queueOperationAsync(
+                "layout-update",
+                async () => {
+                    await this.layoutManager.followView(atRest);
+                },
+                { description: "Laying out what is shown" },
+            )
+            .catch(() => undefined);
+    }
+
+    private boundsToFrame(nodeIds?: Iterable<string | number>, extentOption?: CameraViewExtent): GraphBounds {
+        // The whole graph is framed as the project's framing says, by what is drawn when it says
+        // nothing, so no node at the rim is cut off; a subset by its centres unless the caller asks otherwise.
+        const whole = nodeIds === undefined;
+        const extent = extentOption ?? (whole ? (this.session.config.framing?.extent ?? "drawn") : "centers");
+        // Only what the reader can see: a hidden node keeps its position but must not stretch the box.
+        const nodes = (
+            whole
                 ? this.getNodes()
-                : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined);
+                : [...nodeIds].map((id) => this.getNode(id)).filter((node): node is Node => node !== undefined)
+        ).filter((node) => node.getRenderState() === "visible");
 
         const points = nodes.map((node) => node.getPosition());
+        // "drawn" takes each node out to its drawn box, so a big node at the edge is not cut off.
+        const boxes: { min: GraphBounds["min"]; max: GraphBounds["max"] }[] =
+            extent === "drawn" ? nodes.map((node) => node.framingBounds()) : [];
+
+        // The whole graph also holds the visible rows drawn with no `Node` (renderPath "batched"),
+        // each a spot as wide as its widest half, as zoom-to-fit frames them.
+        const columns = whole ? this.updateManager.columnFraming() : undefined;
+        for (const { pos, half } of columns ? (nodeFramingBox([], extent, columns)?.spots ?? []) : []) {
+            points.push(pos);
+            if (extent === "drawn") {
+                boxes.push({
+                    min: { x: pos.x - half, y: pos.y - half, z: pos.z - half },
+                    max: { x: pos.x + half, y: pos.y + half, z: pos.z + half },
+                });
+            }
+        }
+
         // The whole graph on a map is the map too: its edges, or the globe.
-        const frame = nodeIds === undefined ? this.#geoFrame() : null;
+        const frame = whole ? this.#geoFrame() : null;
         if (frame !== null && points.length > 0) {
             points.push(...mapCorners(frame));
         }
 
-        return measureBounds(points);
+        return measureBounds(points, boxes);
     }
 
     /**
@@ -7375,6 +9349,9 @@ export class Graph implements GraphContext {
      * @param options - What to frame and how to configure the view.
      * @param options.nodes - The nodes to measure the box over. Absent frames the whole graph.
      * @param options.params - The view's own options, filled in from its declared defaults.
+     * @param options.extent - What each node counts as in the box: `"centers"` its centre,
+     *   `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph and
+     *   `"centers"` when `nodes` names a subset.
      * @returns The camera state the view computed.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA` when nothing answers to the name,
      * `E_UNSUPPORTED` when the view does not work in the drawing mode the element is in, or
@@ -7382,7 +9359,11 @@ export class Graph implements GraphContext {
      */
     resolveCameraPreset(
         preset: string,
-        options?: { nodes?: Iterable<string | number>; params?: Readonly<Record<string, unknown>> },
+        options?: {
+            nodes?: Iterable<string | number>;
+            params?: Readonly<Record<string, unknown>>;
+            extent?: CameraViewExtent;
+        },
     ): CameraState {
         /* A VIEW IS ASKED FIRST, AND ONLY THEN A SNAPSHOT. `saveCameraPreset` refuses a name a
            view holds AT THE MOMENT OF SAVING, which leaves one order of events open: a consumer
@@ -7399,7 +9380,7 @@ export class Graph implements GraphContext {
             }
         }
 
-        const context = this.cameraViewContext(this.boundsToFrame(options?.nodes), options?.params);
+        const context = this.cameraViewContext(this.boundsToFrame(options?.nodes, options?.extent), options?.params);
 
         return resolveCameraView(preset, context);
     }
@@ -7416,6 +9397,9 @@ export class Graph implements GraphContext {
      * @param options.scope - What to frame. Absent frames the whole graph. `"selection"` frames the
      *   selected nodes and both ends of every selected edge.
      * @param options.params - The view's own options, filled in from its declared defaults.
+     * @param options.extent - What each node counts as in the box the view is handed: `"centers"`
+     *   its centre, `"drawn"` the box it is drawn in. The default is `"drawn"` for the whole graph
+     *   and `"centers"` when `scope` names a subset.
      * @returns A promise that resolves once the camera has arrived.
      * @throws A `GraphtyError` with `E_UNKNOWN_CAMERA`, `E_UNSUPPORTED`, `E_UNKNOWN_OPTION` or
      * `E_OPTION_RANGE`, exactly as `resolveCameraPreset` does.
@@ -7425,6 +9409,7 @@ export class Graph implements GraphContext {
         options?: {
             scope?: ScopeInput;
             params?: Readonly<Record<string, unknown>>;
+            extent?: CameraViewExtent;
         } & import("./screenshot/types.js").CameraAnimationOptions,
     ): Promise<void> {
         const scope = options?.scope;
@@ -7441,6 +9426,7 @@ export class Graph implements GraphContext {
         const state = this.resolveCameraPreset(id, {
             ...(nodes === undefined ? {} : { nodes }),
             ...(options?.params === undefined ? {} : { params: options.params }),
+            ...(options?.extent === undefined ? {} : { extent: options.extent }),
         });
 
         return this.setCameraState(state, options);
@@ -7459,8 +9445,27 @@ export class Graph implements GraphContext {
     saveCameraPreset(name: string, camera?: import("./screenshot/types.js").CameraState): void {
         assertViewName(name);
         // Checked above, so the immediate lane records it before this returns; a refusal from
-        // here on would be a defect, and is left unhandled on purpose.
-        void this.session.views.save([{ name, camera: camera ?? this.getCameraState() }]);
+        // here on would be a defect, reported as `graph-error`.
+        this.reportUnawaited(this.session.views.save([{ name, camera: camera ?? this.getCameraState() }]), {
+            op: "views.save",
+        });
+    }
+
+    /**
+     * Report a failure of work nobody awaits as `graph-error` (context `"other"`), instead of
+     * leaving it to the page's unhandled-rejection channel.
+     * @param work - The promise nobody holds.
+     * @param details - What the work was.
+     */
+    private reportUnawaited(work: Promise<unknown>, details: Record<string, unknown>): void {
+        work.catch((error: unknown) => {
+            this.eventManager.emitGraphError(
+                this,
+                error instanceof Error ? error : new Error(String(error)),
+                "other",
+                details,
+            );
+        });
     }
 
     /**
@@ -7601,7 +9606,8 @@ export class Graph implements GraphContext {
         }
 
         if (views.length > 0) {
-            void this.session.views.save(views);
+            // A name the views refuse rejects; nobody holds this promise, so it is reported.
+            this.reportUnawaited(this.session.views.save(views), { op: "views.save" });
         }
     }
 
@@ -7653,11 +9659,36 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * Get all nodes
+     * Get all nodes.
+     *
+     * On the `"batched"` render path most nodes are drawn from row tables with no `Node` object.
+     * The array this returns builds a node's `Node` only when that element is first read, so the
+     * call itself, `length` and reading a few elements stay cheap at a million nodes. Walking the
+     * whole array (a `for...of`, `map`, spread) builds every `Node`, which a graph of that size may
+     * not have the memory for: to enumerate nodes there, walk {@link Graph.getNodeIds} and read
+     * {@link Graph.getNode} only for the ones you need.
      * @returns Array of all node instances
      */
     getNodes(): Node[] {
-        return Array.from(this.dataManager.nodes.values());
+        return dataManagerInternals.nodeList(this.dataManager);
+    }
+
+    /**
+     * Get the id of every node, building no `Node` object, in the order {@link Graph.getNodes}
+     * returns the nodes.
+     * @returns The ids.
+     * @since 3.40.0
+     */
+    getNodeIds(): (string | number)[] {
+        return [...this.dataManager.nodes.keys()];
+    }
+
+    /**
+     * Get all edges, in the order the edge pick walks them.
+     * @returns Array of all edge instances
+     */
+    getEdges(): Edge[] {
+        return Array.from(this.dataManager.edges.values());
     }
 
     /**
@@ -7673,12 +9704,23 @@ export class Graph implements GraphContext {
 
     // AI Manager instance (lazy-initialized)
     private aiManager: import("./ai/AiManager").AiManager | null = null;
+    /** The assistant's XR hooks, which the class keeps off its public surface. */
+    private aiXr: import("./ai/AiManager").AssistantXrHooks | null = null;
+    /** Counts `enableAiControl` and `disableAiControl` calls: an enable a later call superseded does nothing. */
+    private aiGeneration = 0;
+    /**
+     * The newest `enableAiControl` until it settles: a conversation opened or started meanwhile
+     * waits for it, so the reader's choice is not lost to an assistant still coming up.
+     */
+    private aiEnabling: Promise<void> = Promise.resolve();
 
     /**
      * Enable AI-powered natural language control of the graph.
      *
      * `provider: "webllm"` runs a model in the browser: install the optional package
      * `@mlc-ai/web-llm`; the model downloads on the first command.
+     * A later `enableAiControl` or `disableAiControl` supersedes one still settling: the earlier
+     * call then resolves without changing anything, and the later one decides which assistant is on.
      * @param config - AI configuration including provider and optional API key
      * @returns Promise resolving when AI is ready
      * @throws A `GraphtyError` with `E_MISSING_PACKAGE` when `provider` is `"webllm"` and
@@ -7699,8 +9741,39 @@ export class Graph implements GraphContext {
      * ```
      */
     async enableAiControl(config: import("./ai/AiManager").AiManagerConfig): Promise<void> {
+        const enabling = this.enableAi(config);
+        this.aiEnabling = enabling.catch(() => undefined);
+        return enabling;
+    }
+
+    /**
+     * Waits until no `enableAiControl` is coming up, a later one included.
+     * @returns When the newest has settled.
+     */
+    private async aiSettled(): Promise<void> {
+        let waited: Promise<void>;
+        do {
+            waited = this.aiEnabling;
+            await waited;
+        } while (waited !== this.aiEnabling);
+    }
+
+    /**
+     * What `enableAiControl` does.
+     * @param config - The configuration.
+     * @returns When the assistant is up.
+     */
+    private async enableAi(config: import("./ai/AiManager").AiManagerConfig): Promise<void> {
+        const generation = ++this.aiGeneration;
+        // A configuration that cannot run rejects before anything is built, and the current
+        // assistant stays.
+        const { checkAiConfig } = await import("./ai/roles");
+        checkAiConfig(config);
+
         // Dynamically import to avoid loading AI code when not needed
-        const { AiManager } = await import("./ai/AiManager");
+        const { AiManager, assistantXr, loadEncryptStorage } = await import("./ai/AiManager");
+        // Its key manager restores persisted keys as it is built, so the store's package loads first.
+        await loadEncryptStorage();
 
         // The in-browser provider loads asynchronously, and only when it is picked. Built before
         // the old assistant goes, so a missing package leaves the current one in place.
@@ -7710,10 +9783,35 @@ export class Graph implements GraphContext {
             providerInstance = await loadWebLlmProvider(config.model);
         }
 
+        // A later enable or a disable came while this one loaded: that call decides.
+        if (generation !== this.aiGeneration) {
+            return;
+        }
+
         // Enabling again replaces the assistant: the previous one is disposed, not leaked.
         this.aiManager?.dispose();
-        this.aiManager = new AiManager();
-        this.aiManager.init(this, { ...config, providerInstance });
+        const manager = new AiManager();
+        this.aiManager = manager;
+        const xr = assistantXr(manager);
+        this.aiXr = xr;
+        manager.init(this, { ...config, providerInstance });
+        // With `history`, the saved conversation is open when this resolves. A call that supersedes
+        // this one meanwhile disposes `manager` itself, and leaves its own in place.
+        await manager.ready();
+        // Enabled inside an immersive session: bind to it now.
+        const xrCameraController = this.scene.metadata?.xrCameraController as
+            import("./cameras/XRPivotCameraController").XRPivotCameraController | null | undefined;
+        if (xrCameraController && this.aiManager === manager) {
+            await xr.enter(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai);
+        }
+
+        // Speech support read before this assistant existed said "not enabled": say what it is now.
+        if (this.aiManager === manager) {
+            const support = await manager.getVoiceSupport();
+            if (this.aiManager === manager) {
+                this.eventManager.emit("ai-voice-support-change", { support });
+            }
+        }
     }
 
     /**
@@ -7725,9 +9823,16 @@ export class Graph implements GraphContext {
      * ```
      */
     disableAiControl(): void {
+        this.aiGeneration++;
         if (this.aiManager) {
             this.aiManager.dispose();
             this.aiManager = null;
+            this.aiXr = null;
+            void this.getAiVoiceSupport().then((support) => {
+                if (this.aiManager === null) {
+                    this.eventManager.emit("ai-voice-support-change", { support });
+                }
+            });
         }
     }
 
@@ -7747,8 +9852,14 @@ export class Graph implements GraphContext {
      * // Switch dimension
      * await graph.aiCommand('Show in 2D');
      * ```
+     * @param options - The saved conversation to send it into (with `history` set); an unknown
+     *     one resolves `AI_HISTORY_UNAVAILABLE` with `{ reason: "unknown-conversation" }`. `via:
+     *     "voice"` records that the reader spoke it (a transcript from `startVoiceInput`).
      */
-    async aiCommand(input: string): Promise<import("./ai/AiController").ExecutionResult> {
+    async aiCommand(
+        input: string,
+        options?: import("./ai/AiController").AiCommandOptions,
+    ): Promise<import("./ai/AiController").ExecutionResult> {
         if (!this.aiManager) {
             return {
                 success: false,
@@ -7758,7 +9869,198 @@ export class Graph implements GraphContext {
             };
         }
 
-        return this.aiManager.execute(input);
+        return this.aiManager.execute(input, options);
+    }
+
+    /**
+     * The assistant's open conversation, as an application draws it: what the reader and the model
+     * said, and the calls the model made with their outcomes as codes. Needs `history` in
+     * `enableAiControl`; `ai-conversation-changed` says when to read it again.
+     * @returns Its snapshot, or null without `history` or before AI is enabled.
+     * @since 4.0.0
+     */
+    getAiConversation(): import("./ai/conversation/snapshot").AiConversationSnapshot | null {
+        return this.aiManager?.getConversation() ?? null;
+    }
+
+    /**
+     * The approval requests waiting on the reader (`ai-approval-requested` asked, nothing ended
+     * yet): held in this page, or reopened from the saved conversation after a reload. Read it any
+     * time to draw approval cards, whether or not the replayed events were heard.
+     * @returns The requests, oldest first; none before AI is enabled.
+     * @since 4.0.0
+     */
+    getPendingAiApprovals(): readonly import("./events").AiApprovalRequest[] {
+        return this.aiManager?.getPendingAiApprovals() ?? [];
+    }
+
+    /**
+     * The questions the model asked the reader and waits on (`ai-question-asked` asked, nothing
+     * ended yet): asked in this page, or reopened from the saved conversation after a reload. Read
+     * it any time to draw questions, whether or not the replayed events were heard.
+     * @returns The questions, oldest first; none before AI is enabled.
+     * @since 4.0.0
+     */
+    getPendingAiQuestions(): readonly import("./events").AiQuestionRequest[] {
+        return this.aiManager?.getPendingQuestions() ?? [];
+    }
+
+    /**
+     * What the assistant can use with its provider and model: web search, reading web pages and
+     * in-page code (`AiToolOptions`), each `"available"`, `"unsupported"`,
+     * `"results-not-returned"` or `"unknown"`. Synchronous.
+     * @returns The capabilities, or null before AI is enabled.
+     * @since 4.0.0
+     */
+    getAiCapabilities(): import("./catalog/ai").AiCapabilities | null {
+        return this.aiManager?.getCapabilities() ?? null;
+    }
+
+    /**
+     * Press (`true`) or release (`false`) talk: while it is held the assistant listens, then sends
+     * what was said as a command (`AiManagerConfig.voice`). Without `voice`, or before AI is
+     * enabled, a press ends at once with `ai-voice-end` `{ code: "AI_NOT_ENABLED" }`.
+     * @param down - True to press, false to release.
+     * @param options - How the press behaves (`endOnSilence`).
+     * @since 4.0.0
+     */
+    aiTalk(down: boolean, options?: import("./ai/AiManager").AiTalkOptions): void {
+        if (this.aiManager) {
+            this.aiManager.talk(down, options);
+        } else if (down) {
+            this.eventManager.emit("ai-voice-end", { reason: "error", code: "AI_NOT_ENABLED", params: {} });
+        }
+    }
+
+    /**
+     * Whether talk is on: pressed with `aiTalk(true)` (or toggled on) and still listening.
+     * @returns False once talk is released, even while what was heard is still being transcribed.
+     * @since 4.0.0
+     */
+    isAiTalking(): boolean {
+        return this.aiManager?.isTalking() ?? false;
+    }
+
+    /**
+     * Stop speaking an answer at once (`ai-speech-end` `{ code: "AI_CANCELLED" }`).
+     * @since 4.0.0
+     */
+    stopAiSpeech(): void {
+        this.aiManager?.stopSpeech();
+    }
+
+    /**
+     * End a live conversation (`voice.mode: "live"`): its connection closes, a held press ends with
+     * `AI_CANCELLED`, and the next press opens another. Does nothing when none is open.
+     * @since 4.0.0
+     */
+    endAiLive(): void {
+        this.aiManager?.endLive();
+    }
+
+    /**
+     * How speech would be carried in each direction now: the path, whether it is ready, why not,
+     * and where the audio goes. May start the browser's recognition once to find out.
+     * @returns Both directions; unavailable with `AI_NOT_ENABLED` without `voice`.
+     * @since 4.0.0
+     */
+    async getAiVoiceSupport(): Promise<import("./ai/AiManager").AiVoiceSupport> {
+        if (this.aiManager) {
+            return this.aiManager.getVoiceSupport();
+        }
+
+        // Built here rather than imported, so the assistant's chunk stays unloaded until enabled.
+        const none = {
+            path: "none",
+            status: "unavailable",
+            code: "AI_NOT_ENABLED",
+            params: {},
+            destination: "none",
+        } as const;
+        return { input: none, output: none };
+    }
+
+    /**
+     * The assistant's saved conversations, newest first: this element's scope, or every scope.
+     * @param options - Which.
+     * @param options.allKeys - True for every scope's.
+     * @returns Their summaries; none without `history`.
+     * @since 4.0.0
+     */
+    async listAiConversations(options?: {
+        readonly allKeys?: boolean;
+    }): Promise<readonly import("./ai/conversation/snapshot").AiConversationSummary[]> {
+        return (await this.aiManager?.listConversations(options)) ?? [];
+    }
+
+    /**
+     * Make a saved conversation the open one; the next `aiCommand` continues it.
+     * @param id - Its id.
+     * @returns Its snapshot, or null when there is none.
+     * @since 4.0.0
+     */
+    async openAiConversation(id: string): Promise<import("./ai/conversation/snapshot").AiConversationSnapshot | null> {
+        await this.aiSettled();
+        return (await this.aiManager?.openConversation(id)) ?? null;
+    }
+
+    /**
+     * Start a new conversation; the open one stays saved and listed.
+     * @returns Its snapshot, or null without `history`.
+     * @since 4.0.0
+     */
+    async newAiConversation(): Promise<import("./ai/conversation/snapshot").AiConversationSnapshot | null> {
+        await this.aiSettled();
+        return (await this.aiManager?.newConversation()) ?? null;
+    }
+
+    /**
+     * Delete a saved conversation; deleting the open one starts a new one.
+     * @param id - Its id.
+     * @since 4.0.0
+     */
+    async deleteAiConversation(id: string): Promise<void> {
+        await this.aiManager?.deleteConversation(id);
+    }
+
+    /**
+     * Name a saved conversation, or clear its name so it is known by its first words again.
+     * @param id - Its id.
+     * @param name - The name, trimmed; null or "" clears it.
+     * @experimental assistant
+     */
+    async renameAiConversation(id: string, name: string | null): Promise<void> {
+        await this.aiManager?.renameConversation(id, name);
+    }
+
+    /**
+     * Delete every saved conversation, of every scope: for a shared headset's or kiosk's "end session".
+     * Works with no assistant enabled too: it then clears the browser's store.
+     * @param options - Which store, with no assistant open on one.
+     * @param options.database - The IndexedDB database `history.database` named; `graphty-ai` when absent.
+     * @since 4.0.0
+     */
+    async clearAiHistory(options: { readonly database?: string } = {}): Promise<void> {
+        const manager = this.aiManager;
+        if (manager !== null && manager.getConversation() !== null) {
+            await manager.clearHistory();
+            return;
+        }
+
+        const { openConversationStore } = await import("./ai/conversation/Conversation");
+        const { store } = await openConversationStore({ store: "browser", ...options });
+        await store.clear();
+        store.close();
+    }
+
+    /**
+     * A saved conversation as JSON, in the published `graphty-ai-conversation` format (version 1).
+     * @param id - Its id.
+     * @returns The JSON text, or null when there is none.
+     * @since 4.0.0
+     */
+    async exportAiConversation(id: string): Promise<string | null> {
+        return (await this.aiManager?.exportConversation(id)) ?? null;
     }
 
     /**
@@ -7815,6 +10117,59 @@ export class Graph implements GraphContext {
      */
     cancelAiCommand(): void {
         this.aiManager?.cancel();
+    }
+
+    /**
+     * Answer a request the assistant made for the reader's approval (`ai-approval-requested`): a
+     * change it held because it was large, slow, replaced the graph, could not be undone, fetched a
+     * URL the reader did not give, or the `approvals` policy asked. The message that made it
+     * continues: approve runs the held calls (with any `calls[].arguments` the reader edited) as
+     * one more step of the message; deny drops them; either way the model hears the decision and
+     * answers. A new message, `cancelAiCommand()` or an undo of the message ends the request
+     * instead (`ai-pending-resolved`).
+     * @param id - The request's id, from the event.
+     * @param answer - The reader's answer: `{ approve }`, and optionally `calls` with edited arguments.
+     * @returns The message's final result, which `ai-command-complete` also carries:
+     *     `AI_COMPLETED`, `AI_APPROVAL_DENIED` or `AI_APPROVAL_STALE` with the model's answer,
+     *     `AI_CONFIRMATION_NEEDED` with a new request when another limit holds the calls again, or
+     *     `AI_NOT_ENABLED`. An answer given while its message is still running waits for it.
+     * @since 4.0.0
+     */
+    async resolveAiApproval(
+        id: string,
+        answer: import("./ai/AiController").AiApprovalAnswer,
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        if (!this.aiManager) {
+            return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
+        }
+
+        return this.aiManager.resolveAiApproval(id, answer);
+    }
+
+    /**
+     * Answer a question the model asked the reader (`ai-question-asked`, with `questions: true`).
+     * The message that asked continues: the answer is its question's result, and the model goes
+     * on. A new message, `cancelAiCommand()` or an undo of the message ends the question instead
+     * (`ai-pending-resolved`).
+     * @param id - The question's id, from the event.
+     * @param answer - One of its choices, by value; or several, for a question that takes several.
+     * @param options - How it was given: `typed` lets a text the reader wrote, outside the choices,
+     *     go to the model as written.
+     * @returns The message's final result, which `ai-command-complete` also carries;
+     *     `AI_ANSWER_INVALID` when the answer is not among the choices (the question stays open);
+     *     `AI_APPROVAL_STALE` when the question is no longer open; or `AI_NOT_ENABLED`.
+     * @since 4.0.0
+     */
+    async answerAiQuestion(
+        id: string,
+        answer: string | readonly string[],
+        options?: import("./ai/AiController").AiAnswerOptions,
+    ): Promise<import("./ai/AiController").ExecutionResult> {
+        if (!this.aiManager) {
+            return { success: false, message: "", code: "AI_NOT_ENABLED", params: {} };
+        }
+
+        return this.aiManager.answerQuestion(id, answer, options);
     }
 
     /**
@@ -7884,6 +10239,28 @@ export class Graph implements GraphContext {
     }
 
     /**
+     * Forget the reader's API keys, from memory and from both storages, whether or not an assistant
+     * is enabled: for a "clear my data" page. An assistant already running keeps the key its provider
+     * was given until `disableAiControl`.
+     * @param options - Which keys.
+     * @param options.provider - One provider's key; every provider's when absent.
+     * @param options.prefix - `keyPersistence.prefix`, with no assistant enabled.
+     * @experimental assistant
+     */
+    async forgetAiKeys(
+        options: { readonly provider?: import("./ai/providers").ProviderType; readonly prefix?: string } = {},
+    ): Promise<void> {
+        const { provider, prefix } = options;
+        const keys =
+            this.getApiKeyManager() ?? (await Graph.createApiKeyManager(prefix === undefined ? {} : { prefix }));
+        if (provider === undefined) {
+            keys.forgetKeys();
+        } else {
+            keys.forgetKey(provider);
+        }
+    }
+
+    /**
      * Create a standalone ApiKeyManager for key management without enabling AI.
      * Useful for settings UIs that configure keys before AI activation.
      *
@@ -7898,6 +10275,7 @@ export class Graph implements GraphContext {
      * A consumer who wants it synchronously imports `ApiKeyManager` from
      * `@graphty/graphty-element/ai` and constructs it themselves -- which is the honest shape,
      * because they are then choosing to load the encryption library.
+     * @param options - Where persisted keys live
      * @returns A new ApiKeyManager instance
      * @example
      * ```typescript
@@ -7910,10 +10288,11 @@ export class Graph implements GraphContext {
      * keyManager.setKey('openai', apiKey);
      * ```
      */
-    static async createApiKeyManager(): Promise<ApiKeyManager> {
-        const { ApiKeyManager: KeyManager } = await import("./ai/keys");
+    static async createApiKeyManager(options?: import("./ai/keys").ApiKeyManagerOptions): Promise<ApiKeyManager> {
+        const { ApiKeyManager: KeyManager, loadEncryptStorage } = await import("./ai/keys");
+        await loadEncryptStorage();
 
-        return new KeyManager();
+        return new KeyManager(options);
     }
 
     // ===========================================
@@ -7922,6 +10301,8 @@ export class Graph implements GraphContext {
 
     // Voice input adapter instance (lazy-initialized)
     private voiceAdapter: VoiceInputAdapter | null = null;
+    // Removes the running session's `onTranscript`, so it never hears a later session.
+    private voiceTranscriptOff: (() => void) | null = null;
 
     /**
      * Get the voice input adapter.
@@ -7945,6 +10326,8 @@ export class Graph implements GraphContext {
                 if (active) {
                     this.eventManager.emit("ai-voice-start", {});
                 } else {
+                    this.voiceTranscriptOff?.();
+                    this.voiceTranscriptOff = null;
                     this.eventManager.emit("ai-voice-end", { reason });
                 }
             });
@@ -7963,8 +10346,10 @@ export class Graph implements GraphContext {
      * @param options - Voice input options
      * @param options.continuous - Whether to continuously listen for input
      * @param options.interimResults - Whether to return interim transcription results
-     * @param options.language - BCP 47 language tag (e.g., "en-US", "fr-FR")
-     * @param options.onTranscript - Callback for transcription events
+     * @param options.language - BCP 47 language tag (e.g., "en-US", "fr-FR"); without one the
+     *   browser recognizes the page's language (`<html lang>`)
+     * @param options.onTranscript - Callback for this session's transcription events; it is not
+     *   called again once the session ends or another starts
      * @param options.onStart - Callback when voice input starts
      * @returns True if voice input started successfully
      * @example
@@ -7975,7 +10360,7 @@ export class Graph implements GraphContext {
      *   onTranscript: (text, isFinal) => {
      *     console.log('Transcript:', text, isFinal ? '(final)' : '(interim)');
      *     if (isFinal) {
-     *       graph.aiCommand(text);
+     *       graph.aiCommand(text, { via: "voice" });
      *     }
      *   },
      * });
@@ -7995,11 +10380,6 @@ export class Graph implements GraphContext {
             return false;
         }
 
-        // Register transcript callback if provided
-        if (options?.onTranscript) {
-            adapter.onInput(options.onTranscript);
-        }
-
         // Register start callback if provided
         if (options?.onStart) {
             adapter.onStart(options.onStart);
@@ -8009,8 +10389,13 @@ export class Graph implements GraphContext {
         adapter.start({
             continuous: options?.continuous ?? false,
             interimResults: options?.interimResults ?? true,
-            language: options?.language ?? "en-US",
+            language: options?.language,
         });
+
+        // Registered after `start`, which ends the previous session (and removes its callback) first.
+        // This session's callback is removed when it ends.
+        this.voiceTranscriptOff?.();
+        this.voiceTranscriptOff = options?.onTranscript ? adapter.onInput(options.onTranscript) : null;
 
         // Return true because permission is being requested
         // Actual start/failure will be notified via onStart callback
@@ -8049,16 +10434,7 @@ export class Graph implements GraphContext {
     private initializeXR(): void {
         const xrConfig = this.xrConfig();
         if (xrConfig.enabled) {
-            // The headset can end the session itself; the view then leaves VR or AR as it would
-            // for `view.immersive` with `null` (`xrSessionEnded`).
-            this.xrSessionManager = new XRSessionManager(this.scene, {
-                vr: xrConfig.vr,
-                ar: xrConfig.ar,
-                handTracking: xrConfig.input.handTracking,
-                onSessionEnded: ({ mode, cause }) => {
-                    this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
-                },
-            });
+            this.xrSessionManager = new XRSessionManager(this.scene, this.xrSessionConfig());
         }
 
         this.#unwatchXrButtons ??= this.xrAvailability.onChange(() => {
@@ -8094,6 +10470,25 @@ export class Graph implements GraphContext {
                 .catch((error: unknown) => {
                     console.error("Failed to enter XR mode:", error);
                 });
+        };
+    }
+
+    /**
+     * What the XR session manager starts sessions with, from the configuration in force.
+     * @returns The session manager's configuration.
+     */
+    private xrSessionConfig(): ConstructorParameters<typeof XRSessionManager>[1] {
+        const { vr, ar, input } = this.xrConfig();
+        return {
+            vr,
+            ar,
+            handTracking: input.handTracking,
+            nearInteraction: input.nearInteraction,
+            // The headset can end the session itself; the view then leaves VR or AR as it would
+            // for `view.immersive` with `null` (`xrSessionEnded`).
+            onSessionEnded: ({ mode, cause }) => {
+                this.xrSessionEnded(mode === "immersive-vr" ? "vr" : "ar", cause);
+            },
         };
     }
 
@@ -8140,12 +10535,22 @@ export class Graph implements GraphContext {
     /**
      * Enter XR mode (VR or AR)
      * @param mode - The XR mode to enter ('immersive-vr' or 'immersive-ar')
+     * @throws A `GraphtyError`: `E_UNSUPPORTED` when XR is off or the browser has no WebXR,
+     *     `E_XR_SESSION_FAILED` when the session cannot start. Nothing is left running.
      */
     public async enterXR(mode: "immersive-vr" | "immersive-ar"): Promise<void> {
         if (!this.xrSessionManager) {
-            throw new Error("XR is not initialized");
+            throw new GraphtyError({
+                code: "E_UNSUPPORTED",
+                message: "XR is off for this graph (xr.enabled).",
+                source: "view",
+                details: { mode: immersiveOf(mode), reason: "xr-disabled" },
+            });
         }
 
+        // Inside the click that entered, before anything waits: a headset asks for the microphone
+        // and lets speech start only from a click.
+        this.aiXr?.prime();
         const previousCamera = this.camera.getActiveController()?.camera;
 
         if (mode === "immersive-vr") {
@@ -8154,9 +10559,28 @@ export class Graph implements GraphContext {
             await this.xrSessionManager.enterAR(previousCamera ?? undefined);
         }
         this.immersiveSince = `${mode === "immersive-vr" ? "vr" : "ar"}:${new Date().toISOString()}`;
+        try {
+            await this.bindXRSession();
+        } catch (error) {
+            // The session started but cannot be driven: end it rather than leave it running.
+            await this.exitXR().catch((exitError: unknown) => {
+                graphLogger.warn("Could not end the XR session that failed to start", { error: exitError });
+            });
+            throw GraphtyError.wrap(error, {
+                code: "E_XR_SESSION_FAILED",
+                source: "view",
+                recoverable: true,
+                details: { mode: immersiveOf(mode) },
+            });
+        }
+    }
 
-        // Phase 3: Set up XR camera controller and input handler
-        const xrHelper = this.xrSessionManager.getXRHelper();
+    /**
+     * Drive the session just entered: the XR camera controller, its per-frame update, and the
+     * assistant's controls.
+     */
+    private async bindXRSession(): Promise<void> {
+        const xrHelper = this.xrSessionManager?.getXRHelper();
         if (!xrHelper) {
             throw new Error("XR helper not available after session creation");
         }
@@ -8173,13 +10597,26 @@ export class Graph implements GraphContext {
         // We just need to call update() every frame for input processing
 
         // Hook into render loop to update XR input
-        const xrUpdateObserver = this.scene.onBeforeRenderObservable.add(() => {
-            xrCameraController.update();
-        });
+        // First of the frame's observers, so every pass reads where the camera stands this frame.
+        const xrUpdateObserver = this.scene.onBeforeRenderObservable.add(
+            () => {
+                xrCameraController.update();
+            },
+            undefined,
+            true,
+        );
 
         // Store for cleanup
         this.scene.metadata.xrCameraController = xrCameraController;
         this.scene.metadata.xrUpdateObserver = xrUpdateObserver;
+
+        // The assistant's talk, approve and deny buttons, pointing and cards (`xr.ai`).
+        await this.aiXr
+            ?.enter(xrCameraController.getInputHandler(), this.scene, this.graphContext.getConfig().xr?.ai)
+            .catch((error: unknown) => {
+                // The session runs on without the assistant's controls.
+                console.warn("[Graph] The assistant could not bind to the XR session:", error);
+            });
         this.xrAvailability.changed();
     }
 
@@ -8192,6 +10629,8 @@ export class Graph implements GraphContext {
         }
 
         this.immersiveSince = null;
+        // Leaving XR closes a held microphone without sending, and stops speech.
+        this.aiXr?.leave();
 
         // Clean up XR camera controller
         if (this.scene.metadata?.xrCameraController) {
@@ -8224,10 +10663,14 @@ export class Graph implements GraphContext {
     private drawAnnotations(value: unknown): void {
         if (this.#annotations?.scene !== this.scene) {
             // a picture that arrives after the frame was called final has to be drawn, on demand too
-            this.#annotations = new AnnotationMeshes(this.scene, () => {
-                this.updateManager.pending.changed();
-                this.renderManager.requestFrame();
-            });
+            this.#annotations = new AnnotationMeshes(
+                this.scene,
+                () => {
+                    this.updateManager.pending.changed();
+                    this.renderManager.requestFrame();
+                },
+                () => this.dataManager.nodes.values(),
+            );
         }
 
         this.#annotations.update(value);
@@ -8248,4 +10691,9 @@ export class Graph implements GraphContext {
 
         this.shutdown();
     }
+}
+
+/** A playing tour, ended by setting `ended`: it stops at its next step or frame. */
+interface TourHandle {
+    ended: boolean;
 }

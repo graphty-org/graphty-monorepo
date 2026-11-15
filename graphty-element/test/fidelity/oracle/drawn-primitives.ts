@@ -3,10 +3,11 @@
  * scene `extractScene` built from the renderer (with its precedence rules: a hidden node, a
  * covered fill, an occluded label are not drawn) plus what only the raw drawn read
  * (`drawn-scene.ts`) carries -- a label's weight, style, family and rotation, a gradient fill,
- * each flat arrowhead's outline. Lengths are render pixels, y down. Pure: no DOM.
+ * each flat arrowhead's outline. Lengths are render pixels, y down. Pure: no DOM, but for an SVG picture's own reading.
  */
+import { deltaE } from "../../../../graph-io/test/fidelity/compare";
 import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
-import type { DrawnEdge, DrawnGraph, DrawnLabel } from "../drawn-scene";
+import type { DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
 import { extendToTip, measureArrow, mergeTexts, stackedOn, withinShape } from "./associate";
 import {
@@ -18,13 +19,22 @@ import {
     type PArrow,
     type PBox,
     type PEdge,
+    type PFill,
     type PGradient,
+    PICTURE_PART,
+    PICTURE_WHOLE,
     type PNode,
     type PScene,
     type PShape,
     type Pt,
     type PText,
+    rampAngleOnScreen,
+    TAPER_POINT,
 } from "./primitives";
+import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
+
+/** The SVG pictures read so far, by URL: a sheet's nodes share them. */
+const svgPictures = new Map<string, SvgPrimitives>();
 
 const SHAPES: Partial<Record<ShapeClass, PShape>> = {
     ellipse: "ellipse",
@@ -36,18 +46,51 @@ const SHAPES: Partial<Record<ShapeClass, PShape>> = {
     octagon: "octagon",
 };
 
+/**
+ * The part of a label's words box its inked lines fill: a blank line before or after the words is room in the plane
+ * and not words, as an SVG text's box holds only its letters (yEd's "\nCS" in graphml-stm32-func draws "CS" on the
+ * second of two lines). The text holds one line per laid-out line (wrapped lines too), and `tall` says which of them
+ * were drawn a line tall; a label turned other than a quarter turn at a time is left as it is.
+ * @param d - the drawn label
+ * @param box - its words box on screen
+ * @returns the box of its inked lines
+ */
+export function inkedLines(d: DrawnLabel, box: PBox): PBox {
+    // only the lines drawn a line tall share the box: a blank line with no height is in the text and not the box
+    const lines = d.text.split("\n").filter((_, i) => d.tall?.[i] !== false);
+    const inked = lines.flatMap((l, i) => (l.trim() === "" ? [] : [i]));
+    const quarter = (((Math.round(d.rotation / 90) % 4) + 4) % 4) as 0 | 1 | 2 | 3;
+    if (inked.length === 0 || Math.abs(d.rotation - 90 * Math.round(d.rotation / 90)) > 1e-6) {
+        return box;
+    }
+    const [from, to] = [inked[0] / lines.length, (inked[inked.length - 1] + 1) / lines.length];
+    if (from === 0 && to === 1) {
+        return box;
+    }
+    // the lines step down the plane's y axis, which is drawn turned clockwise by the label's rotation
+    const across = (a0: number, a1: number, back: boolean): [number, number] =>
+        back ? [a1 - to * (a1 - a0), a1 - from * (a1 - a0)] : [a0 + from * (a1 - a0), a0 + to * (a1 - a0)];
+    if (quarter === 0 || quarter === 2) {
+        const [y0, y1] = across(box.y0, box.y1, quarter === 2);
+        return { ...box, y0, y1 };
+    }
+    const [x0, x1] = across(box.x0, box.x1, quarter === 1);
+    return { ...box, x0, x1 };
+}
+
 function textOf(d: DrawnLabel): PText {
     // the words' own box, as an SVG text's box is its letters', not the plane they are drawn on with its margins
     const b = d.textBox ?? d.box;
     const box = { x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 };
     const n = Math.max(1, d.lineCount);
-    const lineH = (box.y1 - box.y0) / n;
     const bg = d.background;
+    const words = inkedLines(d, box);
+    const lineH = (words.y1 - words.y0) / n;
     return {
         content: d.text,
-        x: (box.x0 + box.x1) / 2,
-        y: (box.y0 + box.y1) / 2,
-        box,
+        x: (words.x0 + words.x1) / 2,
+        y: (words.y0 + words.y1) / 2,
+        box: words,
         sizePx: d.fontPx,
         family: d.family,
         weight: d.weight,
@@ -57,7 +100,11 @@ function textOf(d: DrawnLabel): PText {
         color: d.color,
         opacity: d.opacity,
         // graphty draws its lines in one plane: their count is read, their alignment declared
-        lines: Array.from({ length: n }, (_, i) => ({ ...box, y0: box.y0 + i * lineH, y1: box.y0 + (i + 1) * lineH })),
+        lines: Array.from({ length: n }, (_, i) => ({
+            ...words,
+            y0: words.y0 + i * lineH,
+            y1: words.y0 + (i + 1) * lineH,
+        })),
         align: d.align,
         outline: d.outline,
         background:
@@ -116,14 +163,20 @@ const DASHED_PATTERNS: ReadonlySet<string> = new Set(["dash", "dot", "box", "das
  * @param pattern - the pattern graphty drew, or null
  * @param dashPx - the drawn elements and gaps, or null where none were read
  * @param width - the line's width in pixels
- * @returns the class
+ * @param taper - its width at the target over its width at the source, where it tapers
+ * @returns the class; a line narrowing to a point at one end is tapered, by the rule the oracle's tapered outlines are
+ * read by (`taperedOutline`)
  */
 function drawnLineClass(
     style: string,
     pattern: string | null,
     dashPx: readonly number[] | null,
     width: number,
+    taper: number | undefined,
 ): DashClass {
+    if (taper !== undefined && Math.min(taper, 1) <= TAPER_POINT * Math.max(taper, 1)) {
+        return "tapered";
+    }
     const name = pattern ?? style;
     if (dashPx !== null && dashPx.length >= 2 && DASHED_PATTERNS.has(name)) {
         return dashClassOf(dashPx, width);
@@ -148,6 +201,8 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     inverted: "inverted",
     vee: "vee",
     crow: "crow",
+    // a vee read at its line's other end (drawn-scene.ts, POINTS_BACK)
+    "inverted-vee": "inverted-vee",
     diamond: "diamond",
     "open-diamond": "diamond",
     dot: "circle",
@@ -156,6 +211,10 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     box: "box",
     tee: "tee",
     "half-open": "half",
+    // half-open's arm as one thin stroke (Cytoscape's HALF_TOP and HALF_BOTTOM)
+    "half-barb": "half",
+    // one slanted stroke, read as the oracle reads yEd's skewed_dash
+    slash: "half",
     "half-circle": "half-circle",
     "open-half-circle": "half-circle",
     // the round side of a half circle alone, bulging toward the node (vis-network's curve), drawn as a stroke
@@ -170,6 +229,13 @@ const ARROW_SHAPE: Readonly<Record<string, ArrowShape>> = {
     // a delta with a bar across the line behind it, a gap between them; a hollow one's is its filled twin's
     "cross-delta": "cross-delta",
     "open-cross-delta": "cross-delta",
+    // two strokes crossing on the line
+    cross: "cross",
+    // darts: a reader's triangle, as their outlines read
+    kite: "triangle",
+    deltoid: "triangle",
+    // a vee's arms alone, read as the notch they leave
+    "open-vee": "vee",
 };
 
 /** Where along its edge each of graphty's caps sits. */
@@ -202,7 +268,9 @@ const SIDED_KEEP_CLASS: ReadonlySet<ArrowShape> = new Set(["box", "tee", "invert
 const POINTING_BACK: Partial<Record<ArrowShape, ArrowShape>> = {
     triangle: "inverted",
     inverted: "triangle",
-    vee: "crow",
+    // a vee turned round has no tine along its line: no crow's foot
+    vee: "inverted-vee",
+    "inverted-vee": "vee",
     crow: "vee",
 };
 
@@ -218,9 +286,17 @@ const CAP_PLACE_PX = 2;
  * off its line, 30 px back along it or 12 px to its side, as a head in its place (extendToTip bridged a gap to it).
  * @param c - the cap
  * @param line - the line as drawn, source end first, before any cap carries it on
+ * @param lineEnds - where the line itself ends, source end first, short of its caps' tips; undefined where not read
+ * @param standing - whether a stem stands it back from the line's end, so how far back is judged against the program's
  * @returns the arrow
  */
-function drawnArrow(c: DrawnCap, line: readonly Pt[]): PArrow {
+function drawnArrow(
+    c: DrawnCap,
+    line: readonly Pt[],
+    lineEnds?: readonly [Pt, Pt],
+    standing = false,
+    background = "#ffffff",
+): PArrow {
     const end = CAP_END[c.end];
     const open =
         (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
@@ -229,14 +305,28 @@ function drawnArrow(c: DrawnCap, line: readonly Pt[]): PArrow {
     // points back along it
     const named = arrowShapeNamed(c.name);
     const shape = c.end === "arrowMiddleTail" ? (POINTING_BACK[named] ?? named) : named;
+    // an open cap with an inside (`ArrowStyle.fillColor`) reads as the oracle's arrowheads do (associate.ts arrowFrom):
+    // filled in its inside's color where that differs from the canvas, else hollow in its outline's
+    const inside = open && c.fill !== undefined && deltaE(c.fill, background) > 3 ? c.fill : null;
     // a picture's colors are its own, not the cap's
-    const look = { filled: !open, color: shape === "image" ? null : c.color, shape };
+    const look = {
+        filled: !open || inside !== null,
+        color: shape === "image" ? null : (inside ?? c.color),
+        shape,
+    };
     if (c.outline === null) {
         return { end, length: c.sizePx, width: c.sizePx, ...look };
     }
     const read = measureArrow(c.outline, line, end, { filled: look.filled, color: look.color });
     const backward = end !== "middle" && POINTING_BACK[shape] !== undefined && read.shape === POINTING_BACK[shape];
-    const arrow = measureArrow(c.outline, line, end, backward ? { ...look, shape: read.shape } : look);
+    const measured = measureArrow(c.outline, line, end, backward ? { ...look, shape: read.shape } : look);
+    // the line stops short of the tip `line` runs on to: the break between it and the cap is read where it stops
+    let lineGap: number | undefined;
+    if (end !== "middle" && lineEnds !== undefined) {
+        const ownLine = end === "target" ? [...line.slice(0, -1), lineEnds[1]] : [lineEnds[0], ...line.slice(1)];
+        ({ lineGap } = measureArrow(c.outline, ownLine, end, look));
+    }
+    const arrow = lineGap === undefined ? measured : { ...measured, lineGap };
     // an end's head its style draws part-way along the line is no head at the line's end: where along the line it sits
     // is judged against the program's (pajek-graphstream-b: Pajek's and graphty's both at the middle, failed for
     // standing 260 px off the line's end)
@@ -244,8 +334,15 @@ function drawnArrow(c: DrawnCap, line: readonly Pt[]): PArrow {
     if (end !== "middle" && position > 0 && position < 1) {
         return { ...arrow, partWay: true };
     }
+    if (standing) {
+        return { ...arrow, standing };
+    }
     // a half arrow lies to one side of its line by its make
-    const misplaced = end === "middle" ? 0 : capPlaceMiss(c.outline, line, end, !shape.startsWith("half"));
+    // and a slash lies back from its line's end behind its stem
+    const misplaced =
+        end === "middle" || (shape === "half" && c.name.includes("slash"))
+            ? 0
+            : capPlaceMiss(c.outline, line, end, !shape.startsWith("half"));
     return misplaced > 0 ? { ...arrow, misplaced } : arrow;
 }
 
@@ -285,8 +382,8 @@ export function capPlaceMiss(
 /** The caps whose name says "open" though they are drawn filled: graphty's half-open is one filled barb (a half vee). */
 const FILLED_OPEN_NAMES: readonly string[] = ["half-open"];
 
-/** Cap names drawn as a stroke, hollow whatever their name says (vis-network's curve, an arc). */
-const STROKED_NAMES: readonly string[] = ["curve"];
+/** Cap names drawn as a stroke, hollow whatever their name says (vis-network's curve, an arc; the half barb). */
+const STROKED_NAMES: readonly string[] = ["curve", "half-barb", "slash"];
 
 /**
  * A path whose end at an open half circle is moved back to the arc's back, where the line meets the stroke.
@@ -335,22 +432,66 @@ function arrowShapeNamed(name: string): ArrowShape {
 }
 
 /**
+ * A gradient color as a stop: `#rrggbb` and its alpha, from `#rrggbb`, `#rrggbbaa` or `#rgba` (NodeMesh paints a stop's
+ * alpha, reading the ramp's alpha through the material).
+ * @param color - the color as the style holds it
+ * @returns the stop's color and opacity
+ */
+function stopColor(color: string): { color: string; opacity: number } {
+    const c = color.toLowerCase();
+    if (/^#[0-9a-f]{4}$/.test(c)) {
+        const [r, g, b, a] = c.slice(1);
+        return {
+            color: `#${r}${r}${g}${g}${b}${b}`,
+            opacity: Math.round((Number.parseInt(a + a, 16) / 255) * 1000) / 1000,
+        };
+    }
+    if (/^#[0-9a-f]{8}$/.test(c)) {
+        return { color: c.slice(0, 7), opacity: Math.round((Number.parseInt(c.slice(7), 16) / 255) * 1000) / 1000 };
+    }
+    return { color: c, opacity: 1 };
+}
+
+/**
+ * A node's fill as graphty paints it: a flat color, or a gradient, whose color and opacity are its first stop's (times
+ * the node's fill opacity), as the oracle reads an SVG gradient fill.
+ * @param color - the fill's color
+ * @param opacity - the node's fill opacity
+ * @param ramp - the drawn ramp, or null for a flat fill
+ * @param box - the node's box on screen
+ * @param box.w - its width
+ * @param box.h - its height
+ * @returns the fill
+ */
+function gradientFill(color: string, opacity: number, ramp: DrawnNode["ramp"], box: { w: number; h: number }): PFill {
+    const gradient = gradientOf(ramp, box.w, box.h);
+    const first = gradient?.stops[0];
+    return first === undefined
+        ? { color, opacity, gradient }
+        : { color: stopColor(color).color, opacity: Math.round(opacity * first.opacity * 1000) / 1000, gradient };
+}
+
+/**
  * A node's gradient as graphty paints it: its colors at their stops (evenly spaced when it has none), a linear one
- * along its direction.
+ * along the direction its color changes on screen. NodeMesh paints the ramp at its direction across a square texture
+ * and stretches the square over the node's box, so on a box wider than tall its color changes along
+ * atan2(sin(direction) / height, cos(direction) / width) (`rampAngleOnScreen`), not along its direction.
  * @param ramp - the drawn ramp
+ * @param w - the node's width on screen
+ * @param h - the node's height on screen
  * @returns the gradient, or null
  */
-function gradientOf(
-    ramp: { kind: "linear" | "radial"; colors: string[]; direction: number | null; stops?: number[] } | null,
-): PGradient | null {
+function gradientOf(ramp: DrawnNode["ramp"], w: number, h: number): PGradient | null {
     if (ramp === null) {
         return null;
     }
     const last = Math.max(ramp.colors.length - 1, 1);
+    const rad = ((ramp.direction ?? 0) * Math.PI) / 180;
     return {
         kind: ramp.kind,
-        stops: ramp.colors.map((color, i) => ({ offset: ramp.stops?.[i] ?? i / last, color, opacity: 1 })),
-        angle: ramp.kind === "linear" ? (ramp.direction ?? 0) : null,
+        stops: ramp.colors.map((color, i) => ({ offset: ramp.stops?.[i] ?? i / last, ...stopColor(color) })),
+        angle: ramp.kind === "linear" ? (rampAngleOnScreen([Math.cos(rad), Math.sin(rad)], [w, 0, 0, h]) ?? 0) : null,
+        ...(ramp.center === undefined ? {} : { center: ramp.center }),
     };
 }
 
@@ -415,6 +556,134 @@ function glyphTexts(n: SceneNode, glyph: { text: string; color: string | null } 
             owner: n.id,
         },
     ];
+}
+
+/**
+ * A box's name among the pictures drawn over nodes.
+ * @param x - its left
+ * @param y - its top
+ * @returns the name
+ */
+const boxKey = (x: number, y: number): string => `${x.toFixed(3)},${y.toFixed(3)}`;
+
+/**
+ * What an SVG picture URL draws, read by the same reader as the oracle's own SVG.
+ * @param src - the `data:image/svg+xml` URL
+ * @returns its primitives
+ */
+function svgOfPicture(src: string): SvgPrimitives {
+    const known = svgPictures.get(src);
+    if (known !== undefined) {
+        return known;
+    }
+    const comma = src.indexOf(",");
+    const payload = src.slice(comma + 1);
+    const svg = src.slice(0, comma).endsWith(";base64") ? atob(payload) : decodeURIComponent(payload);
+    const read = readSvgPrimitives(svg);
+    svgPictures.set(src, read);
+    return read;
+}
+
+/**
+ * The shapes and words of the pictures graph-io draws over nodes (`data-node-drawing`), each in its place on the
+ * canvas: a program draws them one by one (yEd Live's UML sections), and each is judged against the program's by its
+ * box and its words, as any free shape or text is, so a picture of the wrong things or in the wrong place fails. A
+ * picture from the file stays one picture.
+ * @param scene - the scene
+ * @param drawn - `readDrawn` of the same frame
+ * @returns the shapes, as strays without their index, the words, and the places of the pictures themselves
+ */
+function pictureParts(
+    scene: Scene,
+    drawn: DrawnGraph,
+): {
+    shapes: { tag: string; kind: "shape"; box: PBox; fill: string | null; stroke: null; text: null }[];
+    texts: PText[];
+    wholes: Set<string>;
+} {
+    const shapes = [];
+    const texts = [];
+    const wholes = new Set<string>();
+    for (const n of scene.nodes) {
+        const picture = n.visible ? drawn.nodes.get(n.id)?.svgPicture : undefined;
+        if (picture === undefined) {
+            continue;
+        }
+        const { box, src } = picture;
+        wholes.add(boxKey(box.x0, box.y0));
+        const read = svgOfPicture(src);
+        const [sx, sy] = [(box.x1 - box.x0) / read.width, (box.y1 - box.y0) / read.height];
+        const placed = (b: PBox): PBox => ({
+            x0: box.x0 + b.x0 * sx,
+            y0: box.y0 + b.y0 * sy,
+            x1: box.x0 + b.x1 * sx,
+            y1: box.y0 + b.y1 * sy,
+        });
+        for (const p of read.prims) {
+            if (p.text === null) {
+                shapes.push({
+                    // a program's open line is no stray on its side, so nothing there can answer for one of graphty's
+                    tag: p.kind === "path" && !p.closed && p.fill === null ? PICTURE_WHOLE : PICTURE_PART,
+                    kind: "shape" as const,
+                    box: placed(p.box),
+                    fill: p.fill?.color ?? null,
+                    stroke: null,
+                    text: null,
+                });
+            } else {
+                texts.push({ ...p.text, box: placed(p.box), sizePx: p.text.sizePx * sy, owner: n.id });
+            }
+        }
+    }
+    return { shapes, texts, wholes };
+}
+
+/**
+ * The outlines of the cells of the tables graphty draws edge labels as (`label.table`: a Graphviz HTML-like table
+ * label's cells), as free shapes: the oracle draws each cell's outline as a polygon of its own, which no label takes
+ * (its label background is the table's own fill and outline), so each is judged against graphty's by its box
+ * (stray.present, stray.extra), and a cell graphty leaves out or draws elsewhere still fails.
+ * @param scene - the scene
+ * @param drawn - `readDrawn` of the same frame
+ * @returns the cells, as strays without their index
+ */
+function labelCells(
+    scene: Scene,
+    drawn: DrawnGraph,
+): { tag: string; kind: "shape"; box: PBox; fill: null; stroke: null; text: null }[] {
+    return scene.edges.flatMap((e) => {
+        const label = drawn.edges.get(e.id)?.label;
+        return label === undefined || label === null || !label.enabled
+            ? []
+            : (label.cells ?? []).map((box) => ({
+                  tag: "label-cell",
+                  kind: "shape" as const,
+                  box,
+                  fill: null,
+                  stroke: null,
+                  text: null,
+              }));
+    });
+}
+
+/**
+ * The closed lines graphty draws over node faces that are no node's outline (a yEd bevel's line 8 in from its edge,
+ * `faceLine`), as free shapes: the oracle's side leaves such a line a stray, so each is judged against graphty's by its
+ * box (stray.present, stray.extra), and a line graphty leaves out or draws elsewhere still fails.
+ * @param scene - the scene
+ * @param drawn - `readDrawn` of the same frame
+ * @returns the lines, as strays without their index
+ */
+function faceLines(
+    scene: Scene,
+    drawn: DrawnGraph,
+): { tag: string; kind: "shape"; box: PBox; fill: null; stroke: null; text: null }[] {
+    return scene.nodes.flatMap((n) => {
+        const d = drawn.nodes.get(n.id);
+        return d?.visible === true && d.faceLine !== undefined
+            ? [{ tag: "face-line", kind: "shape" as const, box: d.faceLine, fill: null, stroke: null, text: null }]
+            : [];
+    });
 }
 
 /**
@@ -519,6 +788,7 @@ export function drawnPrimitives(
 ): PScene {
     const sceneGroups = options.groups ? scene.groups : [];
     const groupIds = new Set(sceneGroups.map((g) => g.id));
+    const parts = pictureParts(scene, drawn);
     const nodes: PNode[] = [];
     for (const n of scene.nodes) {
         if (!n.visible || groupIds.has(n.id)) {
@@ -555,12 +825,20 @@ export function drawnPrimitives(
         // that border, as the oracle reads a ring clear of the outline; a ring with no border is the node's outline
         const outer = d?.outer ?? null;
         const split = outer !== null && (d?.innerBorder ?? null) !== null;
-        const own = split ? (d?.innerBorder ?? null) : (d?.border ?? null);
-        const gap = split ? 2 * outer.gapPx : 0;
-        const borderColor = split ? (own?.color ?? null) : n.border.color;
-        const borderWidth = split ? (own?.widthPx ?? 0) : n.border.width;
+        // a table's background drawn as the node's body has its cells' outline as its own, as an SVG draws it
+        const table = split || n.border.width > 0 ? null : (d?.tableOutline ?? null);
+        const own = split ? (d?.innerBorder ?? null) : (d?.border ?? table);
+        // the rings inside the outermost are the node's own outlines, as the program's further peripheries are
+        const rings = outer?.ringsPx ?? 0;
+        const gap = split ? 2 * (outer.gapPx - rings) : 0;
+        const borderColor = split ? (own?.color ?? null) : (table?.color ?? n.border.color);
+        const borderWidth = split ? (own?.widthPx ?? 0) : (table?.widthPx ?? n.border.width);
         // a line waving round the node is as thick as it is drawn, in a ring as wide as the border
         const waved = split ? null : (d?.border?.lineWidthPx ?? null);
+        // a figure's outline in halves of its fill from its center, as the oracle's side reads its own (`figureOf`)
+        const [hw, hh] = [(n.w - inset - gap) / 2, (n.h - inset - gap) / 2];
+        const unit = ([x, y]: readonly [number, number]): Pt => [(x - n.x) / hw, (y - n.y) / hh];
+        const figure = hw > 0 && hh > 0 ? d?.figure?.map(([a, b]): [Pt, Pt] => [unit(a), unit(b)]) : undefined;
         nodes.push({
             id: n.id,
             cx: n.x,
@@ -569,14 +847,7 @@ export function drawnPrimitives(
             w: n.w - inset - gap,
             h: n.h - inset - gap,
             shape: SHAPES[n.shape] ?? "other",
-            fill:
-                fill === null
-                    ? null
-                    : {
-                          color: fill,
-                          opacity: n.fillOpacity,
-                          gradient: d?.gradient === true ? gradientOf(d.ramp) : null,
-                      },
+            fill: fill === null ? null : gradientFill(fill, n.fillOpacity, d?.gradient === true ? d.ramp : null, n),
             stroke:
                 borderColor !== null && borderWidth > 0
                     ? {
@@ -598,7 +869,7 @@ export function drawnPrimitives(
                           width: outer.border.widthPx,
                           dash: null,
                           dashClass: LINE_CLASS[outer.border.style] ?? "other",
-                          reach: outer.gapPx + outer.border.widthPx,
+                          reach: outer.gapPx - rings + outer.border.widthPx,
                       }
                     : null,
             label,
@@ -606,6 +877,7 @@ export function drawnPrimitives(
             inset: inset > 0,
             ...(faceless === undefined ? {} : { faceless }),
             ...(d?.picture === undefined ? {} : { pictures: [d.picture] }),
+            ...(figure === undefined ? {} : { figure }),
         });
     }
     const ends = shownEnds(scene, new Set(nodes.map((n) => n.id)));
@@ -615,9 +887,16 @@ export function drawnPrimitives(
             return [];
         }
         // a cap drawn at no opacity or no size draws nothing
-        const arrows: PArrow[] = d.caps
-            .filter((c) => c.opacity > 0 && c.sizePx > 0)
-            .map((c) => drawnArrow(c, d.points));
+        const isStem = (c: DrawnCap): boolean => c.name.includes("stem");
+        // a slash's middle is off a bent line, where it is read off the bend, so how far back it stands is not judged
+        const standsBack = (c: DrawnCap, k: number): boolean =>
+            !c.name.includes("slash") && d.caps.slice(0, k).some((s) => s.end === c.end && isStem(s));
+        // a stem is a length of the line, no arrow: what stands behind it is
+        const arrows: PArrow[] = d.caps.flatMap((c, k) =>
+            c.opacity > 0 && c.sizePx > 0 && !isStem(c)
+                ? [drawnArrow(c, d.points, d.lineEnds, standsBack(c, k), scene.background ?? undefined)]
+                : [],
+        );
         // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
         // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip) -- except
         // an open half circle standing off its node (a gap, Cytoscape's OPEN_HALF_CIRCLE): the line stops at the arc's
@@ -641,6 +920,7 @@ export function drawnPrimitives(
             d.pattern,
             d.dashPx ?? null,
             d.thicknessPx > 0 ? d.thicknessPx : e.width,
+            d.taper,
         );
         return [
             {
@@ -719,14 +999,15 @@ export function drawnPrimitives(
                     : [];
             }),
             ...drawnGroups.flatMap((g) => (!boxed(g) && g.label !== null ? [g.label] : [])),
+            ...parts.texts,
         ],
         strays: [
             ...(scene.annotations ?? []).flatMap((a) => [
                 {
-                    tag: `annotation-${a.kind}`,
+                    tag: parts.wholes.has(boxKey(a.bbox.x, a.bbox.y)) ? PICTURE_WHOLE : `annotation-${a.kind}`,
                     kind: a.kind === "text" ? ("text" as const) : ("shape" as const),
                     box: { x0: a.bbox.x, y0: a.bbox.y, x1: a.bbox.x + a.bbox.w, y1: a.bbox.y + a.bbox.h },
-                    fill: null,
+                    fill: a.fill ?? null,
                     stroke: null,
                     text: a.text ?? null,
                 },
@@ -742,6 +1023,9 @@ export function drawnPrimitives(
                 })),
             ]),
             ...linelessCaps(scene, drawn),
+            ...labelCells(scene, drawn),
+            ...faceLines(scene, drawn),
+            ...parts.shapes,
         ].map((s, index) => ({ index, ...s })),
     };
 }

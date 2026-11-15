@@ -23,6 +23,12 @@ export interface AcquireAcceleratorOptions {
     readonly accelerator?: AcceleratorOptions | undefined;
     /** Warn once when more than this many snapshots stay resident on the device (the context's default when absent). */
     readonly warnUnreleasedSnapshots?: number | undefined;
+    /**
+     * Browser only: run on this device, which the caller goes on owning, instead of finding one. Nothing is probed,
+     * the device is never destroyed here, and its uncaptured errors stay the caller's (`errorSink: false`). A handle
+     * given a device cannot replace it: after a loss, acquire again with the new one.
+     */
+    readonly device?: GPUDevice | undefined;
     /** Node only: a substring of the Dawn adapter name to pick (`"llvmpipe"`, `"4070"`). Ignored in a browser. */
     readonly adapter?: string | undefined;
 }

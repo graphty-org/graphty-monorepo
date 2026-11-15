@@ -1,0 +1,54 @@
+{
+    "tasks": [
+        {
+            "task": "T61",
+            "path": {
+                "A": 7,
+                "B": 7
+            },
+            "sessions": [],
+            "keyboard": [],
+            "medianOver": null,
+            "holds": false,
+            "why": "no counted session"
+        },
+        {
+            "task": "T62",
+            "path": {
+                "A": 5,
+                "B": 5
+            },
+            "sessions": [],
+            "keyboard": [],
+            "medianOver": null,
+            "holds": false,
+            "why": "no counted session"
+        },
+        {
+            "task": "T65",
+            "path": {
+                "A": 14,
+                "B": 13
+            },
+            "sessions": [],
+            "keyboard": [],
+            "medianOver": null,
+            "holds": false,
+            "why": "no counted session"
+        },
+        {
+            "task": "T67",
+            "path": {
+                "A": 3,
+                "B": 4
+            },
+            "sessions": [],
+            "keyboard": [],
+            "medianOver": null,
+            "holds": false,
+            "why": "no counted session"
+        }
+    ],
+    "problems": [],
+    "holds": false
+}

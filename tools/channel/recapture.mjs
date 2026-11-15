@@ -14,10 +14,13 @@
 //       after actions/download-artifact with a pattern: when exactly one artifact matched, the action extracts it
 //       straight into <dir> (no <name>/ directory, since v5); this moves it into <prefix><project>-0, the layout
 //       every reader here expects. Several matches are left as they are.
-//   node tools/channel/recapture.mjs accepted --captures <dir> --head <sha>
-//       release.yml's resume job: rewrites each capture's results.json in <dir> so a story whose captured PNG is the
-//       head's (the owner's accept-only pull request's) baseline byte for byte is unchanged; the gate then judges
-//       the approved head as a fresh capture of it would. Reads visual-review.config.json's baselines directory.
+//   node tools/channel/recapture.mjs accepted --captures <dir> --head <sha> --tested <sha>
+//       release.yml's resume job: rewrites each capture's results.json in <dir> rendered from --tested (the
+//       candidate) so a story whose captured PNG is the head's (the owner's accept-only pull request's) baseline byte
+//       for byte is unchanged; the gate then judges the approved head as a fresh capture of it would. A capture
+//       rendered from another commit is left as it is. A story the head excludes (its settings file sets
+//       disableSnapshot) is excluded, as a fresh capture would find it. Reads visual-review.config.json's baselines
+//       directory.
 //
 // A story stays changed (or new) only when the second shot draws the same picture as the first. One that matches
 // its baseline the second time was a flake and is unchanged; one that draws a third picture is `unstable`
@@ -180,22 +183,52 @@ const APPROVABLE = new Set(["changed", "moved", "new", "unseeded"]);
  * A judged capture read against the owner's approved baselines: each changed, moved, new or unseeded story whose captured
  * PNG is byte for byte the head's baseline (the accept commit copies the captured bytes) becomes unchanged, as a
  * capture of the head would find it, and a removed story whose baseline the head deleted is dropped. Anything else
- * keeps its status, so the gate still refuses it.
+ * keeps its status, so the gate still refuses it. A story the head excludes (the owner's Finish wrote its settings
+ * file with disableSnapshot) is excluded whatever its captured status, as a fresh capture of the head would find it.
+ *
+ * This is a fresh comparison, not a decision carried by image hash (design/visual-testing/early-capture.md, rejected
+ * option b; issue #4986), but only for a capture rendered from the candidate H itself: the head P is H plus
+ * accept-only commits, so a baseline equals such a PNG only where the owner accepted that very render on this
+ * candidate. A capture whose results.json names another commit (a fix forward's re-test carries a project's final
+ * capture over from the run that judged an earlier candidate) is left as it is, so the gate decides it.
  * @param results a final capture's results.json
  * @param oidOf (file) => the SHA-256 of the head's baseline of that file, or null when it has none
- * @returns the number of stories now unchanged; results.items is rewritten in place
+ * @param tested H, the commit the full run tested
+ * @param settingsOf (story id) => the head's settings file of that story, parsed, or null when it has none
+ * @returns the number of stories now unchanged or excluded; results.items is rewritten in place
  */
-export function acceptedBy(results, oidOf) {
+export function acceptedBy(results, oidOf, tested, settingsOf = () => null) {
+    if (results.commit !== tested) return 0;
     const before = results.items.length;
     let n = 0;
     // a removed story whose baseline the owner deleted is gone, as from a fresh capture
     results.items = results.items.filter((i) => i.status !== "removed" || oidOf(i.file) !== null);
     results.items = results.items.map((i) => {
+        const settings = i.status === "excluded" ? null : settingsOf(i.id);
+        if (settings?.disableSnapshot === true) {
+            n++;
+            const reason = typeof settings.reason === "string" && settings.reason ? settings.reason : null;
+            return { ...i, status: "excluded", flaky: false, reason: reason ?? "excluded by the approved head" };
+        }
         if (!APPROVABLE.has(i.status) || !i.capture || oidOf(i.file) !== i.capture) return i;
         n++;
         return { ...i, status: "unchanged", baseline: i.capture };
     });
     return n + before - results.items.length;
+}
+
+/**
+ * A file's bytes at a commit.
+ * @param head the commit
+ * @param path the file's path in the repository
+ * @returns the bytes, or null when the commit has no such file
+ */
+function blobAt(head, path) {
+    try {
+        return execFileSync("git", ["cat-file", "blob", `${head}:${path}`], { stdio: ["ignore", "pipe", "ignore"] });
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -205,12 +238,8 @@ export function acceptedBy(results, oidOf) {
  * @returns the hash, or null when the commit has no such file
  */
 function baselineOid(head, path) {
-    let bytes;
-    try {
-        bytes = execFileSync("git", ["cat-file", "blob", `${head}:${path}`], { stdio: ["ignore", "pipe", "ignore"] });
-    } catch {
-        return null;
-    }
+    const bytes = blobAt(head, path);
+    if (bytes === null) return null;
     const oid = /^oid sha256:([0-9a-f]{64})$/m.exec(bytes.subarray(0, 300).toString("latin1"))?.[1];
     return oid ?? createHash("sha256").update(bytes).digest("hex");
 }
@@ -220,7 +249,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
     const { values } = parseArgs({
         args: rest,
         options: Object.fromEntries(
-            ["project", "captures", "first", "second", "out", "head", "prefix", "leg"].map((k) => [
+            ["project", "captures", "first", "second", "out", "head", "tested", "prefix", "leg"].map((k) => [
                 k,
                 { type: "string", multiple: k === "second" },
             ]),
@@ -245,14 +274,30 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
         const to = nestSingle(values.captures, values.prefix);
         if (to) console.log(`one artifact was extracted straight into ${values.captures}: moved to ${to}`);
     } else if (cmd === "accepted") {
+        if (!/^[0-9a-f]{40}$/.test(values.tested ?? ""))
+            throw new Error("accepted needs --tested <the candidate's sha>");
         const root = JSON.parse(readFileSync("visual-review.config.json", "utf8")).baselines;
         for (const name of readdirSync(values.captures)) {
             const file = join(values.captures, name, "results.json");
             if (!existsSync(file)) continue;
             const results = JSON.parse(readFileSync(file, "utf8"));
-            const n = acceptedBy(results, (f) => baselineOid(values.head, `${root}/${results.project}/${f}`));
+            if (results.commit !== values.tested) {
+                console.log(
+                    `${name}: rendered from ${results.commit ?? "an unknown commit"}, not the candidate: left as is`,
+                );
+                continue;
+            }
+            const n = acceptedBy(
+                results,
+                (f) => baselineOid(values.head, `${root}/${results.project}/${f}`),
+                values.tested,
+                (id) => {
+                    const bytes = blobAt(values.head, `${root}/${results.project}/${id}.json`);
+                    return bytes === null ? null : JSON.parse(bytes.toString("utf8"));
+                },
+            );
             writeFileSync(file, `${JSON.stringify(results, null, 2)}\n`);
-            console.log(`${name}: ${n} ${n === 1 ? "story matches" : "stories match"} the approved baselines`);
+            console.log(`${name}: ${n} ${n === 1 ? "story" : "stories"} matched or excluded by the approved head`);
         }
     } else {
         console.error(

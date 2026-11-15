@@ -21,9 +21,6 @@ import { afterEach, assert, describe, test, vi } from "vitest";
 
 import type { Graphty } from "../../index.js";
 
-/** How long a poll below may wait for the element to initialise or to load: the test's own budget. */
-const POLL_BUDGET_MS = 10_000;
-
 /**
  * Six nodes in a star, so several edges converge on one node -- the shape the stray arrowheads
  * formed in the reported screenshot.
@@ -59,12 +56,9 @@ async function createGraphtyElement(): Promise<Graphty> {
     element.style.display = "block";
     container.appendChild(element);
 
-    await vi.waitFor(
-        () => {
-            assert.isTrue(element.graph.initialized, "the element finished initialising");
-        },
-        { timeout: POLL_BUDGET_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isTrue(element.graph.initialized, "the element finished initialising");
+    });
 
     mounted = element;
 
@@ -98,12 +92,9 @@ async function loadInline(element: Graphty, data: string): Promise<void> {
     element.dataSource = "json";
     element.dataSourceConfig = { data };
 
-    await vi.waitFor(
-        () => {
-            assert.isAbove(element.graph.getDataManager().nodes.size, 0, "the data source has loaded");
-        },
-        { timeout: POLL_BUDGET_MS },
-    );
+    await vi.waitFor(() => {
+        assert.isAbove(element.graph.getDataManager().nodes.size, 0, "the data source has loaded");
+    });
     await element.waitForStableFrame();
 }
 

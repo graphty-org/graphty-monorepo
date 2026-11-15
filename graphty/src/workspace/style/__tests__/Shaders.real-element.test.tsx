@@ -12,6 +12,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { afterEach, assert, beforeAll, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
 import { showKind } from "./kindTab";
 import {
@@ -23,10 +24,13 @@ import {
     removeElement,
     renderPanel,
     section,
-    TIMEOUT_MS,
     treeRow,
     usesOn,
 } from "./shaderHarness";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 afterEach(removeElement);
 
@@ -72,13 +76,10 @@ describe("style options and the Shaders gallery", () => {
         const hex = within(row).getByRole<HTMLInputElement>("textbox", { name: /^Node glow/ });
         await userEvent.tripleClick(hex);
         await userEvent.keyboard("FF00FF{Enter}");
-        await waitFor(
-            () => {
-                assert.equal(written(mounted.session, layer, "node.glow"), "#FF00FF");
-                assert.equal(glowOf(mounted.session), "#ff00ff");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(written(mounted.session, layer, "node.glow"), "#FF00FF");
+            assert.equal(glowOf(mounted.session), "#ff00ff");
+        });
 
         await userEvent.click(within(row).getByRole("button", { name: "Remove node glow" }));
         await waitFor(() => {
@@ -108,7 +109,7 @@ describe("style options and the Shaders gallery", () => {
         const layer = await addNodeLayer(mounted.session);
         renderPanel(mounted, [layer]);
         await userEvent.click(within(section("node", "shaders")).getByRole("button", { name: "Add to node shaders" }));
-        const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+        const gallery = await screen.findByTestId("shader-gallery", {});
         await userEvent.keyboard("glow");
         const tile = await within(gallery).findByRole("button", { name: "Glow" });
         assert.include(tile.textContent, "Shape option");
@@ -130,13 +131,10 @@ describe("style options and the Shaders gallery", () => {
             );
         });
         await addByName("Reticle");
-        await waitFor(
-            () => {
-                assert.deepEqual(usesOn(session, alpha), [{ shader: reticle }]);
-                assert.deepEqual(usesOn(session, beta), [{ shader: reticle }]);
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.deepEqual(usesOn(session, alpha), [{ shader: reticle }]);
+            assert.deepEqual(usesOn(session, beta), [{ shader: reticle }]);
+        });
 
         await userEvent.keyboard("{Escape}{Control>}z{/Control}");
         await waitFor(() => {
@@ -162,11 +160,8 @@ describe("style options and the Shaders gallery", () => {
         const head = await within(ends).findByRole("combobox", { name: /^Edge target end/ });
         await userEvent.click(head);
         await userEvent.click(await screen.findByRole("option", { name: "None" }));
-        await waitFor(
-            () => {
-                assert.equal(written(mounted.session, edges.id, "edge.arrowHead"), "none");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            assert.equal(written(mounted.session, edges.id, "edge.arrowHead"), "none");
+        });
     });
 });

@@ -2921,7 +2921,7 @@
       "origin": "authored (test/conformance/tools/make_cx2_fixtures.py)",
       "license": "MIT (authored for graph-io)",
       "version": "2026-10-02",
-      "roundTripFailure": "the CX2 exporter writes the specification's integer node ids, so it refuses string ids without sanitizeIds \"mangle\" (declared loss E_ID_CHARSET)"
+      "roundTripRefusal": "E_ID_CHARSET"
     },
     {
       "file": "authored/empty-network.cx2",

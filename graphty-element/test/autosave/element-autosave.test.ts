@@ -10,13 +10,15 @@ import { assert, describe, it } from "vitest";
 import {
     type AutosaveEnvironment,
     ElementAutosave,
+    listAutosaves,
     type PageLocks,
     resolveAutosaveKey,
 } from "../../src/autosave/elementAutosave";
 import { memoryAutosaveStore } from "../../src/autosave/memoryStore";
 import type { AutosaveStore } from "../../src/autosave/types";
 import { type GraphtyError, isGraphtyError } from "../../src/errors/GraphtyError";
-import { baseSession } from "../helpers/project-session";
+import type { GraphSession } from "../../src/session/types";
+import { baseSession, sessionWithRuns } from "../helpers/project-session";
 import { FakeClock, FakeLocks } from "./fakes";
 
 describe("the autosave key", () => {
@@ -281,5 +283,136 @@ describe("while the page is hidden", () => {
         assert.strictEqual(autosave.api.status.state, "saved");
         assert.deepStrictEqual(autosave.api.stashed("test.note"), 1);
         autosave.depart();
+    });
+});
+
+describe("a remount", () => {
+    it("finds an edit made while the page's own load was still running (issues #5038, #5039)", async () => {
+        const { env } = page();
+        const inner = memoryAutosaveStore();
+        // Commits wait until the test opens them, as an IndexedDB commit is still running when an
+        // element added again in the same task lists the key's entries.
+        let open = (): void => undefined;
+        const opened = new Promise<void>((resolve) => {
+            open = resolve;
+        });
+        const store: AutosaveStore = {
+            ...inner,
+            commit: async (writes, options) => {
+                await opened;
+                return inner.commit(writes, options);
+            },
+        };
+        const key = "test.remount-during-load";
+        const startOn = async (session: GraphSession): Promise<ElementAutosave> => {
+            const autosave = new ElementAutosave(() => undefined, env);
+            await autosave.start({
+                session,
+                key,
+                options: { store },
+                restore: "auto",
+                pageConfig: {},
+                reloadPage: () => Promise.resolve(),
+            });
+            return autosave;
+        };
+
+        const firstSession = await baseSession();
+        const first = await startOn(firstSession);
+        // The page's rows arrive as a load that has not settled when the reader edits: a large or a
+        // busy page settles its load long after its rows are in, so the edit is held until then.
+        let settle = (): void => undefined;
+        void first.admit(
+            { kind: "rows", nodes: [{ id: "a" }] },
+            () =>
+                new Promise<void>((resolve) => {
+                    settle = resolve;
+                }),
+        );
+        await firstSession.config.set({ name: "Edited while the load ran" });
+        first.depart();
+        settle();
+
+        // The remounted element is fresh: a graph it already held would keep the restore out (#3313).
+        const secondSession = sessionWithRuns();
+        const second = startOn(secondSession);
+        open();
+        const restored = await (await second).api.ready;
+        assert.isNotNull(restored, "the remount waited for the departed element's final write");
+        assert.strictEqual(secondSession.project.name, "Edited while the load ran");
+        (await second).depart();
+    });
+});
+
+describe("a reload while this tab's work is being reopened", () => {
+    it("still names the work as this tab's own, until the reopening page writes (issue #6484)", async () => {
+        const items = new Map<string, string>();
+        const storage = {
+            getItem: (name: string) => items.get(name) ?? null,
+            setItem: (name: string, value: string) => items.set(name, value),
+            removeItem: (name: string) => items.delete(name),
+        };
+        const pageWithSession = (): AutosaveEnvironment => ({ ...page().env, sessionStorage: () => storage });
+        const key = "test.reload-while-reopening";
+        const store = memoryAutosaveStore();
+        // Starts autosave on a page; `setUp` is the page's own setup, made while autosave starts.
+        const startOn = async (
+            env: AutosaveEnvironment,
+            session: GraphSession,
+            setUp?: () => Promise<unknown>,
+        ): Promise<ElementAutosave> => {
+            const autosave = new ElementAutosave(() => undefined, env);
+            const starting = autosave.start({
+                session,
+                key,
+                options: { store },
+                restore: "manual",
+                pageConfig: {},
+                reloadPage: () => Promise.resolve(),
+            });
+            await setUp?.();
+            await starting;
+            return autosave;
+        };
+
+        // The reader's work, written.
+        const firstSession = await baseSession();
+        const first = await startOn(pageWithSession(), firstSession);
+        await firstSession.config.set({ name: "The reader's work" });
+        await first.api.flush();
+        const { entry } = first.api.status;
+        assert.isNotNull(entry);
+        first.depart();
+
+        // The reload: the page that reopens it sets itself up before it restores the work, which
+        // starts an entry of the page's own, written first.
+        const reopenSession = sessionWithRuns();
+        // Setup holds nothing a file lacks: the page saves it here, as a page whose history is not
+        // recording yet leaves it.
+        const reopening = await startOn(pageWithSession(), reopenSession, async () => {
+            await reopenSession.config.set({ runPlacement: "top" });
+            await reopenSession.project.save();
+        });
+        await reopening.api.flush();
+        const { entry: setup } = reopening.api.status;
+        assert.isNotNull(setup);
+        assert.notStrictEqual(setup, entry);
+        assert.isFalse(reopening.api.status.unexported, "the page's setup is not the reader's work");
+        assert.strictEqual(items.get(`graphty-autosave:own:${key}`), setup);
+
+        // A second reload here still finds the reader's work as this tab's own.
+        const listed = await listAutosaves(key, { store });
+        assert.deepEqual(
+            listed.filter((each) => each.own === true).map((each) => each.id),
+            [entry],
+        );
+
+        // Once the work is reopened, the tab names it alone.
+        await reopening.api.restore(entry, { discard: true });
+        await reopening.api.flush();
+        assert.strictEqual(items.get(`graphty-autosave:own:${key}`), entry);
+        assert.isFalse(items.has(`graphty-autosave:own-before:${key}`));
+        assert.strictEqual(reopenSession.project.name, "The reader's work");
+        reopening.depart();
     });
 });

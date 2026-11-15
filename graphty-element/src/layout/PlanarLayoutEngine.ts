@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { defineOptions, type OptionsSchema } from "../config";
 import { layoutDim, SimpleLayoutConfig } from "./LayoutEngine";
+import { seedSchema } from "./seedOption";
 import { sceneUnits, SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
@@ -34,7 +35,7 @@ const planarLayoutOptionsSchema = defineOptions({
         },
     },
     seed: {
-        schema: z.number().nullable().default(null),
+        schema: seedSchema,
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible layout",
@@ -49,7 +50,7 @@ const PlanarLayoutConfig = z.strictObject({
     scale: z.number().positive().default(1),
     center: z.array(z.number()).length(2).or(z.null()).default(null),
     dim: z.number().default(2),
-    seed: z.number().or(z.null()).default(null),
+    seed: seedSchema,
 });
 type PlanarLayoutConfigType = z.infer<typeof PlanarLayoutConfig>;
 type PlanarLayoutOpts = Partial<PlanarLayoutConfigType>;
@@ -58,9 +59,9 @@ type PlanarLayoutOpts = Partial<PlanarLayoutConfigType>;
  * Planar layout engine for planar graphs (no edge crossings)
  */
 export class PlanarLayout extends SnapshotLayoutEngine {
-    static type = "planar";
-    static maxDimensions = 2;
-    static zodOptionsSchema: OptionsSchema = planarLayoutOptionsSchema;
+    static readonly type: string = "planar";
+    static readonly maxDimensions: number = 2;
+    static readonly zodOptionsSchema: OptionsSchema = planarLayoutOptionsSchema;
     protected readonly dimensions: 2 | 3;
     config: PlanarLayoutConfigType;
 

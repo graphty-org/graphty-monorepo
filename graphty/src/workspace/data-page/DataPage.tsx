@@ -10,6 +10,7 @@ import {
     PopoutManager,
     ResetButton,
     SegmentedControl,
+    TargetTooltip,
     useFileDrop,
 } from "@graphty/compact-mantine";
 import {
@@ -20,6 +21,7 @@ import {
     LOAD_ROLES,
     type LoadDraft,
     type LoadReport,
+    type SourceKey,
     type TableMapping,
     type TimeUnit,
 } from "@graphty/graphty-element/session";
@@ -41,20 +43,22 @@ import {
     Title,
     Tooltip,
 } from "@mantine/core";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { meaningGloss, weightName } from "../analyze/words";
 import { missingNodes, NO_NODE_ROW, noNodeRow } from "../data-place/words";
+import { fileStylesOn } from "../features";
 import { focusIsLost } from "../frame/focus";
 import { GLYPHS } from "../glyphs";
 import { valueWord } from "../inspector/words";
 import { openProjectFile } from "../project/actions";
+import { replaceWith } from "../replace/commands";
 import { writeFileStylesChoice } from "../settings/preferences";
 import { readPasted } from "../start/open";
 import { useAnnounceChange } from "../state/useAnnounceChange";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { noticeFileStyles } from "../styles/noticeFileStyles";
-import { showNotices } from "../time/timeActions";
+import { showNotices, timelineOn } from "../time/timeActions";
 import { UNIT_CHOICES } from "../time/timeWords";
 import {
     elementRole,
@@ -68,10 +72,18 @@ import {
     setRowsAre,
     setTimeUnit,
     setWeightMeaning,
+    timeMarked,
     weightHolder,
 } from "./choices";
-import { canReplace, rememberLoad, replaceSource, takeDataPageRequest, whileDataPageOpen } from "./request";
-import { type LoadDraftState, type PageSource, type RowFilter, sourceName, useLoadDraft } from "./useLoadDraft";
+import { takeDataPageRequest, whileDataPageOpen } from "./request";
+import {
+    type LoadDraftState,
+    type PageSource,
+    type RowFilter,
+    sourceInput,
+    sourceName,
+    useLoadDraft,
+} from "./useLoadDraft";
 import {
     addWords,
     baseName,
@@ -91,6 +103,8 @@ import {
     replaceWords,
     roleWords,
     SEPARATORS,
+    SUGGESTED_TIME,
+    TIMELINE_CANDIDATE,
     tooLargeRefusal,
     UNMATCHED_HINTS,
 } from "./words";
@@ -158,24 +172,24 @@ export function DataPage(): React.JSX.Element {
 }
 
 /**
- * What the graph holds before a replacing load: its size, its first source's name and the
+ * What the graph holds before a replacing load: its size, the replaced load's name and the
  * meaning of its loaded weight.
  * @param session - the graph session.
- * @param replacing - whether the load replaces the graph.
+ * @param replacing - the load the page replaces, or undefined when it replaces none.
  * @returns the graph before the load, or null when the load does not replace one.
  */
 function graphBefore(
     session: GraphSession | null,
-    replacing: boolean,
+    replacing: SourceKey | undefined,
 ): { nodes: number; edges: number; name: string; meaning: LoadedMeaning } | null {
-    if (session === null || !replacing) {
+    if (session === null || replacing === undefined) {
         return null;
     }
     const { nodeCount, edgeCount } = session.data.statistics();
     return {
         nodes: nodeCount,
         edges: edgeCount,
-        name: session.data.sources()[0]?.name ?? "The data",
+        name: session.data.sources().find((each) => each.key === replacing)?.name ?? "The data",
         meaning: session.data.loadedWeight()?.meaning ?? null,
     };
 }
@@ -210,7 +224,15 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     const [initial] = useState<PageSource | null>(() =>
         request.files !== undefined && request.files.length > 0 ? { kind: "files", files: request.files } : null,
     );
-    const page = useLoadDraft(session, request.intent === "add" ? "merge" : "replace", initial, request.choices);
+    // A replace replaces its one load by key; without a key it replaces the graph.
+    const replaces = request.intent === "replace" ? request.replaces : undefined;
+    const page = useLoadDraft(
+        session,
+        request.intent === "add" ? "merge" : "replace",
+        initial,
+        request.choices,
+        replaces,
+    );
     // A read the reader starts on the open page (another file, a file setting) is said; the read
     // the page opens on is not, and its rows are said by the grid once they arrive.
     useAnnounceChange(page.reading && page.source !== null ? `Reading ${sourceName(page.source)}` : null);
@@ -224,9 +246,8 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         }
     }, []);
 
-    const replacing = request.intent === "replace";
     // What the graph held before a replacing load, for its before-and-after line and status line.
-    const [was] = useState(() => graphBefore(session, replacing));
+    const [was] = useState(() => graphBefore(session, replaces));
     useCarriedMeaning(page, was?.meaning ?? null);
     // The graph an addition joins, so the summary gives it and the file each their own counts.
     const [joins] = useState(() => {
@@ -288,9 +309,6 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         if (!(await page.load(request.intent === "new" ? "start" : undefined))) {
             return;
         }
-        if (session !== null && source?.kind === "files") {
-            rememberLoad(session, { files: source.files, choices: page.choices });
-        }
         // A loaded new graph is named after every file it read; inside a project nothing is renamed.
         const named = session === null ? undefined : graphName(session.data.sources());
         // The inspector shows the graph just loaded, and focus lands on its heading (Frame).
@@ -309,6 +327,7 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
         noticeFileStyles(store, session);
         // A time field marked at import says what its values held, as Set as time does.
         if (session.time.field !== null) {
+            await session.time.ready;
             showNotices(session, store, session.time.notices());
         }
         // The status line, written once the place is showing and the header has its name: the
@@ -398,16 +417,34 @@ function DataPageView({ onRestart }: { readonly onRestart: () => void }): React.
     // An addition whose edges repeat the graph's says so, and offers the source menu's Replace
     // with this file beside Load, when the graph's one source can be replaced. When every edge
     // in the file repeats, Load would only double the graph's edges, so Replace is the primary.
+    // Replace replaces at once, as opening a copy of the source does, with a receipt and Undo:
+    // the page already showed the file, and a load can be undone, so nothing asks again. The file
+    // is read as the page read it, with the reader's file settings and column roles.
     const repeats = request.intent === "add" ? (page.report?.repeated.seen ?? 0) : 0;
     const sources = repeats > 0 && session !== null ? session.data.sources() : [];
     const file = page.source?.kind === "files" && page.source.files.length === 1 ? page.source.files[0] : undefined;
     const replace =
-        file !== undefined && canReplace(sources)
+        // Which load the repeated edges came from is known only when there is one.
+        file !== undefined && sources.length === 1 && sources[0].kind !== "server"
             ? {
                   label: `Replace ${sources[0].name ?? "the data"}`,
                   primary: repeats >= (page.report?.counts.edgeRecords ?? Infinity),
                   run: () => {
-                      replaceSource(store, sources[0], file);
+                      const { draft, source, settings, choices } = page;
+                      if (session === null || draft === null || source === null) {
+                          return;
+                      }
+                      store.set({ page: "panels" });
+                      const incoming = { name: file.name, source: sourceInput(source, settings) };
+                      void replaceWith(
+                          store,
+                          session,
+                          sources[0].key,
+                          incoming,
+                          loadChoices(draft, choices, "merge", fileStylesOn(session)),
+                      ).catch(() => {
+                          store.set({ notice: { message: "Not replaced" } });
+                      });
                   },
               }
             : null;
@@ -527,11 +564,11 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                 <Menu position="bottom-start">
                     <Menu.Target>
                         {/* To the left, over empty space: below, it covers the table's "Each row is" label. */}
-                        <Tooltip label="Add a table" position="left">
+                        <TargetTooltip label="Add a table" position="left">
                             <ActionIcon ref={addButton} variant="subtle" size="sm" aria-label="Add a table">
                                 <GLYPHS.add size={14} aria-hidden />
                             </ActionIcon>
-                        </Tooltip>
+                        </TargetTooltip>
                     </Menu.Target>
                     <Menu.Dropdown>
                         <Menu.Item onClick={onChooseFiles}>File...</Menu.Item>
@@ -556,6 +593,7 @@ function TablesList({ page, onChooseFiles }: PartProps & { onChooseFiles: () => 
                     <Popout.Panel
                         width={ENTRY_WIDTH}
                         header={{ variant: "title", title: "From a URL" }}
+                        closeLabel="Close From a URL"
                         anchorX={addButton}
                         anchorY={addButton}
                         placement="right"
@@ -640,14 +678,14 @@ function leftOutRows(page: LoadDraftState): number {
  * @param props.leftOut - How many of its rows the load would leave out
  * @returns The mark
  */
-function ReadyMark({ ready, leftOut = 0 }: Readonly<{ ready: boolean; leftOut?: number }>): React.JSX.Element {
+export function ReadyMark({ ready, leftOut = 0 }: Readonly<{ ready: boolean; leftOut?: number }>): React.JSX.Element {
     if (!ready) {
         return <GLYPHS.empty size={14} role="img" aria-label="Not ready" />;
     }
     if (leftOut > 0) {
         return <GLYPHS.warning size={14} color="var(--cm-text-danger)" role="img" aria-label={leftOutWords(leftOut)} />;
     }
-    return <GLYPHS.ready size={14} color="var(--mantine-color-green-6)" role="img" aria-label="Ready" />;
+    return <GLYPHS.ready size={14} color="var(--cm-text-success)" role="img" aria-label="Ready" />;
 }
 
 /**
@@ -940,6 +978,7 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
                 <Popout.Panel
                     width={SETTINGS_WIDTH}
                     header={{ variant: "title", title: "File settings" }}
+                    closeLabel="Close File settings"
                     placement="bottom"
                 >
                     <Popout.Content>
@@ -999,6 +1038,33 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
 }
 
 /**
+ * A role option as a column that looks like time shows it: Time carries the mark.
+ * @param option - The option.
+ * @param option.value - Its role.
+ * @param option.label - Its words.
+ * @returns The option, marked when it is Time.
+ */
+function markTimeOption(option: { value: string; label: string }): { value: string; label: string } {
+    return option.value === "time" ? { ...option, label: SUGGESTED_TIME } : option;
+}
+
+/**
+ * The roles a column offers. A column of a table the file sets can only become the time column.
+ * @param options - Every role of the table.
+ * @param fixed - Whether the file sets the table's roles.
+ * @param marked - Whether the column shows the mark.
+ * @returns The options.
+ */
+function roleChoices(
+    options: readonly { value: string; label: string }[],
+    fixed: boolean,
+    marked: boolean,
+): { value: string; label: string }[] {
+    const offered = fixed ? options.filter(({ value }) => value === "time" || value === "attribute") : [...options];
+    return marked ? offered.map(markTimeOption) : offered;
+}
+
+/**
  * Each column's role (section 2.10, item 4). The grid's header cannot hold a menu, so the roles
  * are listed above it, one per column, in the grid's order.
  * @param props - Component props
@@ -1008,10 +1074,17 @@ function FileSettings({ page }: PartProps): React.JSX.Element {
  * @returns The list
  */
 function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table: DraftTable }): React.JSX.Element {
+    const { session } = useWorkspace();
     const kind = rowsAreOf(draft, table, page.choices);
     const changed = kindChanged(draft, table, page.choices);
+    // With the timeline off Time is no choice, but a role the element already reads stays shown.
+    const timeOffered =
+        timelineOn(session) ||
+        table.columns.some((column) => elementRole(draft, table, column.name, page.choices) === "time");
     const options: { value: string; label: string }[] = [
-        ...LOAD_ROLES[kind].takes.map((role) => ({ value: role, label: roleWords(role) })),
+        ...LOAD_ROLES[kind].takes
+            .filter((role) => role !== "time" || timeOffered)
+            .map((role) => ({ value: role, label: roleWords(role) })),
         { value: "attribute", label: roleWords("attribute") },
         // After a kind change the element's new reading of each role is not reported (#911).
         ...(changed ? [{ value: "auto", label: "Auto" }] : []),
@@ -1026,8 +1099,11 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                 const own = elementRole(draft, table, column.name, page.choices);
                 const chosen = page.choices.tables[table.id]?.roles[column.name];
                 const current = chosen ?? own ?? "auto";
+                const marked = timeMarked(draft, table, column, page.choices);
                 // A role the file sets is a fact, not a choice: plain words, never a box to open.
-                if (table.fixed) {
+                // Only a column that looks like time stays open, as no file says which is its time.
+                const fileSet = table.fixed && column.looksLike !== "time";
+                if (fileSet) {
                     return (
                         <div key={column.name} className="dp-role" data-testid="fixed-role">
                             <Text size="xs" fw={500}>
@@ -1047,7 +1123,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                                 label={column.name}
                                 aria-label={`Role of ${column.name}`}
                                 value={current}
-                                data={options}
+                                data={roleChoices(options, table.fixed, marked)}
                                 allowDeselect={false}
                                 style={{ flex: 1 }}
                                 onChange={(value) => {
@@ -1065,9 +1141,12 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                         </Group>
                         <Text size="xs" c="dimmed">
                             {TYPE_WORDS[column.type] ?? column.type}
+                            {marked ? `, ${TIMELINE_CANDIDATE}` : ""}
                         </Text>
                         {/* A number column holding times says how its numbers read: epoch or years. */}
-                        {(chosen ?? own) === "time" && (column.type === "number" || column.type === "integer") ? (
+                        {timelineOn(session) &&
+                        (chosen ?? own) === "time" &&
+                        (column.type === "number" || column.type === "integer") ? (
                             <Select
                                 size="xs"
                                 label="Unit"
@@ -1075,7 +1154,7 @@ function RoleList({ page, draft, table }: PartProps & { draft: LoadDraft; table:
                                 value={page.choices.tables[table.id]?.timeUnit ?? "ms"}
                                 data={UNIT_CHOICES.map((c) => ({ value: c.value, label: c.label }))}
                                 allowDeselect={false}
-                                disabled={table.fixed}
+                                disabled={fileSet}
                                 onChange={(value) => {
                                     if (value !== null) {
                                         page.setChoices(setTimeUnit(table, value as TimeUnit, page.choices));
@@ -1112,27 +1191,51 @@ const COLUMN_MAX = 320;
 
 let measurer: CanvasRenderingContext2D | null = null;
 
+/** How wide a column must be to show its header and every value given, whole, in pixels. */
+type FitWidth = (header: string, values: readonly string[]) => number;
+
 /**
- * How wide a column must be to show its header and every value given, whole.
- * @param header - the column's name.
- * @param values - its shown values.
- * @returns the width in pixels.
+ * Measures with the faces loaded now. Inter swaps in after first paint, so a width measured before
+ * it arrived is the fallback font's; each font load hands out a new one, and the grid measures
+ * again (#6127).
+ * @returns the measure.
  */
-function fitWidth(header: string, values: readonly string[]): number {
-    measurer ??= document.createElement("canvas").getContext("2d");
-    if (measurer === null) {
-        return COLUMN_MIN;
-    }
-    const family = getComputedStyle(document.body).fontFamily;
-    measurer.letterSpacing = CELL_TRACKING;
-    measurer.font = `600 ${CELL_FONT} ${family}`;
-    let widest = measurer.measureText(header).width + HEADER_PAD;
-    measurer.font = `450 ${CELL_FONT} ${family}`;
-    for (const value of values) {
-        widest = Math.max(widest, measurer.measureText(value).width + CELL_PAD);
-    }
-    // One pixel more: the cell lays text out on subpixels and rounds its own box down.
-    return Math.min(COLUMN_MAX, Math.max(COLUMN_MIN, Math.ceil(widest) + 1));
+function makeFitWidth(): FitWidth {
+    return (header, values) => {
+        measurer ??= document.createElement("canvas").getContext("2d");
+        if (measurer === null) {
+            return COLUMN_MIN;
+        }
+        const family = getComputedStyle(document.body).fontFamily;
+        measurer.letterSpacing = CELL_TRACKING;
+        measurer.font = `600 ${CELL_FONT} ${family}`;
+        let widest = measurer.measureText(header).width + HEADER_PAD;
+        measurer.font = `450 ${CELL_FONT} ${family}`;
+        for (const value of values) {
+            widest = Math.max(widest, measurer.measureText(value).width + CELL_PAD);
+        }
+        // One pixel more: the cell lays text out on subpixels and rounds its own box down.
+        return Math.min(COLUMN_MAX, Math.max(COLUMN_MIN, Math.ceil(widest) + 1));
+    };
+}
+
+let fitWidthNow = makeFitWidth();
+// Swapped whether or not a grid is subscribed yet: one that rendered before the load and
+// subscribes after it still sees a new measure.
+document.fonts.addEventListener("loadingdone", () => {
+    fitWidthNow = makeFitWidth();
+});
+
+/**
+ * Follows the page's font loads.
+ * @param onChange - called after each load.
+ * @returns the unsubscribe.
+ */
+function subscribeFonts(onChange: () => void): () => void {
+    document.fonts.addEventListener("loadingdone", onChange);
+    return () => {
+        document.fonts.removeEventListener("loadingdone", onChange);
+    };
 }
 
 /**
@@ -1157,6 +1260,7 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
             row.missingEnds?.some((end) => endColumns?.[end]?.column === name) === true,
         [endColumns],
     );
+    const fitWidth = useSyncExternalStore(subscribeFonts, () => fitWidthNow);
     const columns = useMemo<DataTableColumn<DraftRow>[]>(() => {
         // A yes-or-no reads Yes or No, as it does everywhere else once loaded.
         const types = new Map(table.columns.map((column) => [column.name, column.type]));
@@ -1202,7 +1306,7 @@ function SampleGrid({ page, table }: PartProps & { table: DraftTable }): React.J
                 };
             }),
         ];
-    }, [table, rows, missingIn]);
+    }, [table, rows, missingIn, fitWidth]);
     const what = page.filter === "unmatched" ? "unmatched row" : "row that could not be read";
     const missingNames = rows.flatMap((row) =>
         (row.missingEnds ?? []).flatMap((end) => {
@@ -1452,6 +1556,7 @@ function Footer({
     onCancel: () => void;
     onLoad: () => void;
 }): React.JSX.Element {
+    const { session } = useWorkspace();
     const blocked = loadBlocked(page);
     const loadButton = useRef<HTMLButtonElement>(null);
     const replaceButton = useRef<HTMLButtonElement>(null);
@@ -1511,7 +1616,7 @@ function Footer({
                     });
                 }}
             />
-            {draft !== null && offersStyles(draft) ? (
+            {draft !== null && fileStylesOn(session) && offersStyles(draft) ? (
                 <Checkbox
                     label="Import styles from the file"
                     size="xs"

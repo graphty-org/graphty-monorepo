@@ -1,0 +1,4 @@
+# gauges.csv open on its own (11 gauges, no flows yet), Data place showing
+--click Open a file
+--upload gauges.csv
+--click Data

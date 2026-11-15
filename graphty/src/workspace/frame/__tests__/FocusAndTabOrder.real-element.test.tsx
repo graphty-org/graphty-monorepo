@@ -1,7 +1,7 @@
 /**
  * Where keyboard focus goes in the workspace, on the REAL graphty-element, by real keys: never to
  * the page. Tab rounds the page; F6 crosses from the layer list to the inspector in one press;
- * Shift+T puts focus in the table; View > Frame selection hands focus back to View; a "Why this
+ * Shift+T puts focus in the table; Camera > Frame selection hands focus back to Camera; a "Why this
  * look" link hands it to the inspector's title; the arrow keys on the Node and Edge tabs keep it
  * on the tabs; an info button opens only when pressed; Tab out of a Vary by list closes it and
  * moves on; a section "+" with nothing to add is no Tab stop.
@@ -14,12 +14,15 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
+import { siteFeatures } from "../../../test/siteFeatures";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /** Two rings of six joined by one bridge; each node labeled. */
 const NODES = Array.from({ length: 12 }, (_, i) => ({ id: `n${String(i)}`, label: `Node ${String(i)}` }));
@@ -38,14 +41,11 @@ async function openRings(): Promise<{ session: GraphSession; store: WorkspaceSto
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Two rings", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -72,7 +72,7 @@ const inspector = (): ReturnType<typeof within> => within(screen.getByRole("comp
  * @returns the row.
  */
 async function treeRow(name: string): Promise<HTMLElement> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     return within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) });
 }
 
@@ -126,12 +126,12 @@ describe("focus and Tab order in the workspace, on the real element", () => {
         });
     });
 
-    it("View > Frame selection hands focus back to View", async () => {
+    it("Camera > Frame selection hands focus back to Camera", async () => {
         const { session } = await openRings();
         await act(async () => {
             await session.selection.apply({ nodes: ["n3"] });
         });
-        const view = screen.getByRole("button", { name: /^View/ });
+        const view = screen.getByRole("button", { name: "Camera" });
         await userEvent.click(view);
         await userEvent.click(await screen.findByRole("menuitem", { name: "Frame selection" }));
         await waitFor(() => {
@@ -228,6 +228,8 @@ describe("focus and Tab order in the workspace, on the real element", () => {
     });
 
     it("a section's + with nothing left to add is no Tab stop and says why", async () => {
+        // Fill full needs the node models experiment off: on, Fill also offers Picture.
+        await siteFeatures([]);
         await openRings();
         await userEvent.click(await treeRow("Everything"));
         await userEvent.click(await inspector().findByRole("tab", { name: "Style" }));

@@ -116,6 +116,11 @@ export default async function setup(project: TestProject): Promise<() => Promise
     project.provide("deadServer", `http://127.0.0.1:${String(deadPort)}`);
     const close = (s: Server | TcpServer): Promise<void> => new Promise((resolve) => s.close(() => resolve()));
     return async () => {
-        await Promise.all([close(server), close(dead)]);
+        const closed = Promise.all([close(server), close(dead)]);
+        // close() ends only idle connections and stops the headers-timeout sweep, so a socket
+        // Chromium opened and never sent a request on (a preconnect) held the run open forever,
+        // with the browser still up. Every test is done here, so end every connection.
+        server.closeAllConnections();
+        await closed;
     };
 }

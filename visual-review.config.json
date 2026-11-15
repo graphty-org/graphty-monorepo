@@ -10,6 +10,7 @@
     "usage": true,
     "ignoreBranches": ["dependabot/"],
     "candidates": "node tools/channel/candidates.mjs",
+    "rolling": "node tools/channel/rolling.mjs",
     "updateCheck": "ulimit -c 0 && pnpm install --frozen-lockfile --prefer-offline && NX_DAEMON=false NODE_OPTIONS=--max-old-space-size=8192 pnpm exec nx affected -t build --base=\"$VISUAL_REVIEW_UPDATE_BASE\" --head=HEAD",
     "projects": {
         "compact-mantine": {

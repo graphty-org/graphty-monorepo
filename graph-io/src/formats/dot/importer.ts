@@ -5,7 +5,8 @@
  *
  * - `graph` / `digraph` set the direction through the DirectionResolver (rule 1 of 8.4); `strict`
  *   merges parallel edges as cgraph does and is recorded in `meta.extra.dot.strict`; the graph name
- *   becomes `meta.name`.
+ *   becomes `meta.name`. The texts written as HTML strings (`<...>`) are listed in `meta.extra.dot.html` (empty
+ *   when there are none), since their cells hold the same text as a quoted string with the same brackets.
  * - node, edge and graph attribute statements (`node [..]`, `edge [..]`, `graph [..]`, `ID = ID`)
  *   are stateful, scoped defaults applied to the elements created after them in the same or a
  *   nested subgraph; every element receives its effective attributes as plain cells, so the
@@ -79,7 +80,7 @@ import {
 } from "../../common/options.js";
 import { plural } from "../../common/plural.js";
 import { ImportReportBuilder } from "../../common/report.js";
-import { inferTextDtype, parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
+import { inferTextDtype, itemAt, parseTextCell, TextCellWriter, WIDENING_UNSUPPORTED_CODE } from "../../common/text.js";
 import { parseWeightText } from "../../common/weights.js";
 import {
     type CommonImportOptions,
@@ -88,9 +89,12 @@ import {
     type ImportInput,
     type ImportReport,
 } from "../../types.js";
+import { dotGraphLabel } from "./graph-label.js";
+import { dotLayout } from "./layout.js";
 import {
     CLUSTER_COLUMN,
     DOT_FORMAT,
+    DOT_META_KEY,
     DOT_ORIGIN,
     KEY_ATTRIBUTE,
     LABEL_ATTRIBUTE,
@@ -373,6 +377,8 @@ export const dotImporter: GraphImporter<DotImportOptions> = Object.freeze({
     mimeTypes: MIME_TYPES,
     styles: dotStyles,
     positions: dotPositions,
+    layout: dotLayout,
+    annotations: dotGraphLabel,
 
     /**
      * Confidence that the head of an input is DOT: the `[strict] graph | digraph` header after
@@ -576,21 +582,29 @@ function countGraphs(lexer: DotTokenizer, first: DotToken): number {
         if (!isPunct(token, "{")) {
             throw new DotSyntaxError(`expected "{" after the graph header, found ${describeToken(token)}`, token.line);
         }
-        for (let depth = 1; depth > 0;) {
-            token = lexer.next();
-            if (token.kind === "eof") {
-                throw new DotSyntaxError('missing "}" at the end of a graph', token.line);
-            }
-            if (isPunct(token, "{")) {
-                depth++;
-            } else if (isPunct(token, "}")) {
-                depth--;
-            }
-        }
+        skipGraphBody(lexer);
         count++;
         token = lexer.next();
     }
     return count;
+}
+
+/**
+ * Read past a graph's statements up to the `}` that balances its opening `{`.
+ * @param lexer - the tokenizer, positioned after the graph's `{`
+ */
+function skipGraphBody(lexer: DotTokenizer): void {
+    for (let depth = 1; depth > 0;) {
+        const token = lexer.next();
+        if (token.kind === "eof") {
+            throw new DotSyntaxError('missing "}" at the end of a graph', token.line);
+        }
+        if (isPunct(token, "{")) {
+            depth++;
+        } else if (isPunct(token, "}")) {
+            depth--;
+        }
+    }
 }
 
 /** How many leading bytes the `charset` search sees: a license comment may come before the graph. */
@@ -613,16 +627,15 @@ function dotCharset(head: string): string | null {
         let token = lexer.next();
         while (token.kind !== "eof") {
             if (isPunct(token, "[")) {
-                list = previous !== null && isKeyword(previous, "graph") ? "graph" : "other";
+                list = listOwner(previous);
             } else if (isPunct(token, "]")) {
                 list = null;
             } else if (list !== "other" && isKeyword(token, "charset")) {
-                const equals = lexer.next();
-                const value = isPunct(equals, "=") ? lexer.next() : equals;
-                if (value !== equals && value.kind === "id") {
-                    return value.text.replace(/^(latin|big)-/i, "$1");
+                const read = charsetValue(lexer);
+                if (read.label !== null) {
+                    return read.label;
                 }
-                token = value;
+                token = read.next;
             }
             previous = token;
             token = lexer.next();
@@ -634,6 +647,30 @@ function dotCharset(head: string): string | null {
         }
     }
     return null;
+}
+
+/**
+ * Whose attribute list a `[` opens: the graph's after the keyword `graph`, else a node's or an edge's.
+ * @param previous - the token before the `[`
+ * @returns "graph" or "other"
+ */
+function listOwner(previous: DotToken | null): "graph" | "other" {
+    return previous !== null && isKeyword(previous, "graph") ? "graph" : "other";
+}
+
+/**
+ * Read the value of a `charset` attribute whose name was just read.
+ * @param lexer - the tokenizer, after the name
+ * @returns the label (Graphviz's `latin-1` and `big-5` mapped to the WHATWG labels), or null when
+ * no `= id` follows; and the last token read, where the scan continues
+ */
+function charsetValue(lexer: DotTokenizer): { readonly label: string | null; readonly next: DotToken } {
+    const equals = lexer.next();
+    const value = isPunct(equals, "=") ? lexer.next() : equals;
+    if (value !== equals && value.kind === "id") {
+        return { label: value.text.replace(/^(latin|big)-/i, "$1"), next: value };
+    }
+    return { label: null, next: value };
 }
 
 /**
@@ -886,6 +923,7 @@ class DotParser {
             throw new DotSyntaxError(`expected "graph" or "digraph", found ${describeToken(token)}`, token.line);
         }
         const headerLine = token.line;
+        lexer.htmlTexts.clear();
         token = lexer.next();
         let name: string | null = null;
         if (token.kind === "id") {
@@ -896,14 +934,14 @@ class DotParser {
             throw new DotSyntaxError(`expected "{" after the graph header, found ${describeToken(token)}`, token.line);
         }
         this.resolver.setHeader(this.directed, { line: headerLine });
-        this.sink.setMeta({
-            name,
-            sourceFormat: DOT_FORMAT,
-            ...(this.strict ? { extra: { dot: { strict: true } } } : {}),
-        });
+        this.sink.setMeta({ name, sourceFormat: DOT_FORMAT });
         const root = this.newScope(null, headerLine, true, null);
         this.statementList(root);
         this.applyInherited();
+        // which texts were HTML strings, since the text alone cannot say (a quoted "<init>" is plain text); recorded
+        // even when empty, so the exporter knows the file named every one
+        const dot = { ...(this.strict ? { strict: true } : {}), html: [...lexer.htmlTexts] };
+        this.sink.setMeta({ extra: { [DOT_META_KEY]: dot } });
         return lexer.next();
     }
 
@@ -1134,7 +1172,7 @@ class DotParser {
         if (isKeyword(token, "subgraph")) {
             token = lexer.next();
             if (token.kind === "id") {
-                name = token.text;
+                name = token.html ? token.text.slice(1, -1) : token.text;
                 token = lexer.next();
             }
         }
@@ -1630,7 +1668,8 @@ class DotParser {
      * @returns the endpoint, or null when the node could not be created (recorded)
      */
     private mentionEndpoint(scope: Scope, id: DotToken, port: string | null): Endpoint | null {
-        const nodeId = this.coerceId(id.text, id.line);
+        // an HTML-string id names the node by the text inside its angle brackets, as Graphviz does
+        const nodeId = this.coerceId(id.html ? id.text.slice(1, -1) : id.text, id.line);
         if (nodeId === null) {
             return null;
         }
@@ -1683,21 +1722,15 @@ class DotParser {
         const element = `${String(source.id)} ${kind === "directed" ? "->" : "--"} ${String(target.id)}`;
         const where: EdgeWhere = { line, element };
         const { weightFrom } = this.options;
-        let weight: number | undefined;
-        const weightText = weightFrom === null ? undefined : effective.get(weightFrom);
-        if (weightText !== undefined) {
-            try {
-                weight = parseWeightText(weightText, this.report);
-            } catch (err) {
-                this.report.recordError(err, where);
-                this.report.counts.skippedEdges++;
-                return;
-            }
+        const read = this.edgeWeight(effective, where);
+        if (read === null) {
+            return;
         }
+        const { weight } = read;
         const key = effective.get(KEY_ATTRIBUTE);
         const dedupeKey = this.dedupeKey(source.index, target.index, kind, key);
         if (dedupeKey !== null) {
-            const existing = (this.strict ? this.strictEdges : this.keyedEdges).get(dedupeKey);
+            const existing = this.dedupeEdges.get(dedupeKey);
             if (existing !== undefined) {
                 this.mergeEdge(existing, weight, effective, where, key);
                 this.setPorts(existing, source, target, where);
@@ -1716,7 +1749,7 @@ class DotParser {
         }
         this.report.counts.edges += sink.edgeCount - before;
         if (dedupeKey !== null) {
-            (this.strict ? this.strictEdges : this.keyedEdges).set(dedupeKey, e);
+            this.dedupeEdges.set(dedupeKey, e);
         }
         for (const [name, value] of effective) {
             if (name !== weightFrom) {
@@ -1724,6 +1757,39 @@ class DotParser {
             }
         }
         this.setPorts(e, source, target, where);
+    }
+
+    /**
+     * The weight of an edge from its effective attributes, under the weightFrom option.
+     * @param effective - the edge's effective attributes
+     * @param where - the line and element
+     * @returns the weight (undefined when the edge has none); null when it does not parse (reported,
+     * the edge counted skipped)
+     */
+    private edgeWeight(
+        effective: ReadonlyMap<string, string>,
+        where: EdgeWhere,
+    ): { readonly weight: number | undefined } | null {
+        const { weightFrom } = this.options;
+        const weightText = weightFrom === null ? undefined : effective.get(weightFrom);
+        if (weightText === undefined) {
+            return { weight: undefined };
+        }
+        try {
+            return { weight: parseWeightText(weightText, this.report) };
+        } catch (err) {
+            this.report.recordError(err, where);
+            this.report.counts.skippedEdges++;
+            return null;
+        }
+    }
+
+    /**
+     * The edges later edges merge into: by endpoints in a strict graph, else by key.
+     * @returns dedupe key -> edge index
+     */
+    private get dedupeEdges(): Map<string, number> {
+        return this.strict ? this.strictEdges : this.keyedEdges;
     }
 
     /**
@@ -1898,8 +1964,9 @@ class DotParser {
         }
         const x = Number(match[1]);
         const y = Number(match[2]);
-        const z = match[3] === undefined ? 0 : Number(match[3]);
-        const dims = match[3] === undefined ? 2 : 3;
+        const zText = itemAt(match, 3);
+        const z = zText === undefined ? 0 : Number(zText);
+        const dims = zText === undefined ? 2 : 3;
         const point = [x, y, z];
         if (point.some((v) => !Number.isFinite(v))) {
             // a half-infinite point would be a half-valid position

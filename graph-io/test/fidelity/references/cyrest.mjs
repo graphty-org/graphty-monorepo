@@ -46,6 +46,42 @@ export function cyrestIds(topology) {
     return { nodes, edges, repeated: [...seen.values()].some((k) => k > 1) };
 }
 
+/** A Cytoscape gradient custom graphic, as the desktop writes it (`<class>:{...}`) or as an object (CX2). */
+const GRADIENT_GRAPHIC = /org\.cytoscape\.(Linear|Radial)Gradient/;
+
+/**
+ * Whether a node row's custom graphics slots hold a gradient, which the desktop paints over the node's whole face.
+ * @param r - the node's CyREST row
+ * @returns whether one does
+ */
+function paintsGradient(r) {
+    return Array.from({ length: 9 }, (_, k) => r[`NODE_CUSTOMGRAPHICS_${String(k + 1)}`]).some((v) =>
+        GRADIENT_GRAPHIC.test(typeof v === "string" ? v : JSON.stringify(v ?? "")),
+    );
+}
+
+/**
+ * Where a centered label sits once its offset moves it: outside the node's box when its center leaves it, on the
+ * side it went furthest, as the drawn scene reads a label from its box (graphty-element extract-scene.ts labelPlace).
+ * ponytail: only a centered label is moved; an offset on a side anchor keeps the anchor's class
+ * @param place - the class its anchors give
+ * @param dx - the label position's x offset, px
+ * @param dy - the label position's y offset, px, down
+ * @param w - the node's width
+ * @param h - the node's height
+ * @returns the class
+ */
+function offsetPosition(place, dx, dy, w, h) {
+    const [x, y] = [Number.isFinite(dx) ? dx : 0, Number.isFinite(dy) ? dy : 0];
+    if (place !== "inside" || (Math.abs(x) <= w / 2 && Math.abs(y) <= h / 2)) {
+        return place;
+    }
+    if (Math.abs(y) >= Math.abs(x)) {
+        return y < 0 ? "above" : "below";
+    }
+    return x < 0 ? "left" : "right";
+}
+
 /**
  * The scene of one Cytoscape network view as CyREST reports it.
  * Under "lock node width and height", Cytoscape draws a node at NODE_SIZE, except where the node
@@ -81,10 +117,8 @@ export function sceneFromCyrest(v) {
         const fill = parseColor(r.NODE_FILL_COLOR);
         const border = parseColor(r.NODE_BORDER_PAINT);
         const text = String(r.NODE_LABEL ?? "");
-        const anchor = String(r.NODE_LABEL_POSITION ?? "C,C")
-            .split(",")
-            .slice(0, 2)
-            .join(",");
+        const placed = String(r.NODE_LABEL_POSITION ?? "C,C").split(",");
+        const anchor = placed.slice(0, 2).join(",");
         return {
             id,
             x: r.NODE_X_LOCATION,
@@ -104,12 +138,14 @@ export function sceneFromCyrest(v) {
                       text,
                       fontSize: r.NODE_LABEL_FONT_SIZE ?? 12,
                       color: parseColor(r.NODE_LABEL_COLOR)?.hex ?? "#000000",
-                      position: POSITION[anchor] ?? "other",
+                      position: offsetPosition(POSITION[anchor] ?? "other", Number(placed[3]), Number(placed[4]), w, h),
                       visible: (r.NODE_LABEL_TRANSPARENCY ?? 255) > 0,
                   }
                 : null,
             visible: r.NODE_VISIBLE !== false,
             z: r.NODE_Z_LOCATION ?? 0,
+            // a gradient custom graphic is painted over the node's whole face: NODE_FILL_COLOR is the colour under it
+            ...(paintsGradient(r) ? { paintedOver: true } : {}),
         };
     });
     const ends = new Map(

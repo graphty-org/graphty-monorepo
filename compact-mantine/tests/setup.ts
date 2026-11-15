@@ -1,7 +1,14 @@
 import "@testing-library/jest-dom/vitest";
 import "@mantine/core/styles.css";
 
+import { configure } from "@testing-library/react";
+
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
 import { ensureCompactStyles } from "../src/theme/global-styles";
+
+// Every waitFor and findBy* waits until the monorepo's one hang guard, not Testing Library's 1000 ms:
+// a deadline on a wait fails a test whenever the machine is busy (tools/test-wait-guard.mjs).
+configure({ asyncUtilTimeout: WAIT_GUARD_MS });
 
 // The package's stylesheet (tokens, Inter, shared classes) is injected by the first themed
 // component to render; injecting it up front means a test that reads a token before rendering
@@ -32,8 +39,9 @@ class ResizeObserverMock {
 
 global.ResizeObserver = ResizeObserverMock;
 
-// Mock Pointer Capture API for JSDOM (required by @zag-js/floating-panel)
-// These methods are not implemented in JSDOM but are used by Zag.js for drag behavior
+// Mock Pointer Capture API for JSDOM, which does not implement it. compact-mantine's own drag
+// interactions call it (ResizeHandle, useScrub, useFloatingPanel, HistogramBrush, RampEditor,
+// OpacityInput, Tree, GradientEditor).
 if (!Element.prototype.hasPointerCapture) {
     Element.prototype.hasPointerCapture = function () {
         return false;

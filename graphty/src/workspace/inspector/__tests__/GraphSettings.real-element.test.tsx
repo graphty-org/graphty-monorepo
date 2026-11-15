@@ -8,14 +8,11 @@
 import "@graphty/graphty-element";
 
 import { assert, beforeAll, describe, it } from "vitest";
-import { page, userEvent } from "vitest/browser";
+import { commands, page, userEvent } from "vitest/browser";
 
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
-
-/** A hang guard for the element coming up, not a pass/fail timing. */
-const TIMEOUT_MS = 60_000;
 
 /**
  * Renders the workspace on Graph settings and waits for the element and a small graph.
@@ -25,13 +22,10 @@ async function openGraphSettings(): Promise<HTMLElementTagNameMap["graphty-eleme
     const store = createWorkspaceStore({ project: { name: "Pair", id: 1 }, inspected: { kind: "graph" } });
     render(<Workspace store={store} />);
     let found: HTMLElementTagNameMap["graphty-element"] | null = null;
-    await waitFor(
-        () => {
-            found = document.querySelector("graphty-element");
-            assert.isDefined(found?.session);
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    await waitFor(() => {
+        found = document.querySelector("graphty-element");
+        assert.isDefined(found?.session);
+    });
     if (found === null) {
         throw new Error("the element never came up");
     }
@@ -39,9 +33,16 @@ async function openGraphSettings(): Promise<HTMLElementTagNameMap["graphty-eleme
     await element.session.data.addNodes([{ id: "a" }, { id: "b" }]);
     await element.session.data.addEdges([{ source: "a", target: "b" }]);
     // The graph opens on its Values tab; the settings are on Style.
-    await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
-    await screen.findByRole("combobox", { name: "Lighting" }, { timeout: TIMEOUT_MS });
+    await userEvent.click(await screen.findByRole("tab", { name: "Style" }));
+    await screen.findByRole("combobox", { name: "Lighting" });
     return element;
+}
+
+declare module "vitest/browser" {
+    interface BrowserCommands {
+        /** Answers the next file picker with this file (graphty/vitest.config.ts). */
+        chooseNextFile: (name: string, mimeType: string, text: string) => Promise<void>;
+    }
 }
 
 describe("Graph settings", () => {
@@ -59,16 +60,16 @@ describe("Graph settings", () => {
         });
     });
 
-    it("turns the declutter rule off and back on, and labels move off nodes until turned off", async () => {
+    it("turns the declutter rule on and back off, and labels move off nodes until turned off", async () => {
         const element = await openGraphSettings();
-        assert.isTrue(element.layoutBehavior?.labels?.declutter);
-        await userEvent.click(screen.getByRole("switch", { name: "Hide overlapping labels" }));
-        await waitFor(() => {
-            assert.isFalse(element.layoutBehavior?.labels?.declutter);
-        });
+        assert.isFalse(element.layoutBehavior?.labels?.declutter, "every label is drawn by default");
         await userEvent.click(screen.getByRole("switch", { name: "Hide overlapping labels" }));
         await waitFor(() => {
             assert.isTrue(element.layoutBehavior?.labels?.declutter);
+        });
+        await userEvent.click(screen.getByRole("switch", { name: "Hide overlapping labels" }));
+        await waitFor(() => {
+            assert.isFalse(element.layoutBehavior?.labels?.declutter);
         });
         assert.isTrue(element.layoutBehavior?.labels?.avoidNodesAndEdges, "labels move off nodes by default");
         await userEvent.click(screen.getByRole("switch", { name: "Move labels off nodes and edges" }));
@@ -103,7 +104,7 @@ describe("Graph settings", () => {
         const add = screen.getByRole("button", { name: "Add to background" });
         await userEvent.click(add);
         await userEvent.click(await screen.findByRole("menuitem", { name: /^Shader/ }));
-        const gallery = await screen.findByTestId("shader-gallery", {}, { timeout: TIMEOUT_MS });
+        const gallery = await screen.findByTestId("shader-gallery", {});
         await userEvent.click(within(gallery).getByRole("button", { name: /^Nebula/ }));
         await waitFor(() => {
             assert.strictEqual(element.session.config.background.shader?.id, "nebula");
@@ -141,20 +142,39 @@ describe("Graph settings", () => {
         });
     });
 
-    it("writes Outline width to the element's layout behavior", async () => {
+    it("an image the browser cannot decode is a failure notice; one it can is drawn as the background", async () => {
         const element = await openGraphSettings();
-        const width = screen.getByRole("spinbutton", { name: /^Outline width/ });
-        await userEvent.clear(width);
-        await userEvent.type(width, "3{Enter}");
+        await userEvent.click(screen.getByRole("button", { name: "Add to background" }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Image/ }));
+
+        // Bytes no browser here decodes, named as an iPad camera roll hands over a HEIC photo.
+        await commands.chooseNextFile("IMG_0001.HEIC", "image/heic", "\u0000\u0000\u0000\u0018ftypheic");
+        await userEvent.click(await screen.findByRole("button", { name: "Upload image" }));
+        const alert = await screen.findByRole("alert");
+        assert.include(alert.textContent ?? "", "IMG_0001.HEIC is HEIC, which this browser cannot draw.");
+        assert.notStrictEqual(element.session.config.background.backgroundType, "skybox", "nothing was written");
+
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="16"><rect width="32" height="16" fill="#369"/></svg>`;
+        await commands.chooseNextFile("sky.svg", "image/svg+xml", svg);
+        await userEvent.click(screen.getByRole("button", { name: "Upload image" }));
         await waitFor(() => {
-            assert.strictEqual(element.layoutBehavior?.node?.outlineWidth, 3);
+            assert.strictEqual(element.session.config.background.backgroundType, "skybox");
         });
-        assert.isNotNull(screen.getByText(/use Halo/));
+        const { background } = element.session.config;
+        assert.strictEqual(background.backgroundType, "skybox");
+        assert.match(background.backgroundType === "skybox" ? background.data : "", /^data:image\/png;base64,/);
+    });
+
+    it("offers no Outline width: each style layer sets its own", async () => {
+        await openGraphSettings();
+        assert.isNotNull(screen.getByRole("combobox", { name: "Lighting" }), "the panel is open");
+        assert.isNull(screen.queryByText(/Outline width/));
+        assert.isNull(document.querySelector('[data-setting="node.outlineWidth"]'));
     });
 
     it("hides Lighting and Same size at any depth in 2D, moves focus on, and the Values tab counts them", async () => {
         const element = await openGraphSettings();
-        // Focus on Same size at any depth, then 5, the toolbar View's key for 2D.
+        // Focus on Same size at any depth, then 5, the Mode menu's key for 2D.
         await userEvent.click(screen.getByRole("switch", { name: "Same size at any depth" }));
         await userEvent.click(screen.getByRole("switch", { name: "Same size at any depth" }));
         await userEvent.keyboard("5");
@@ -164,16 +184,16 @@ describe("Graph settings", () => {
             assert.isNull(screen.queryByRole("switch", { name: "Same size at any depth" }));
         });
         assert.isFalse(element.session.config.inEffect("lighting").inEffect);
-        // The hidden row held focus: it moves to the next row still shown.
+        // The hidden row held focus: it moves to the next row still shown, in Labels (Canvas has none left).
         await waitFor(() => {
-            assert.strictEqual(document.activeElement, screen.getByRole("spinbutton", { name: /^Outline width/ }));
+            assert.strictEqual(document.activeElement, screen.getByRole("switch", { name: "Hide overlapping labels" }));
         });
         await userEvent.click(screen.getByRole("tab", { name: "Values" }));
         const note = await screen.findByTestId("settings-other-view");
         assert.strictEqual(note.textContent, "2 graph settings apply only in another view");
     });
 
-    it("draws no View switch and no Layout section: the toolbar is their one home", async () => {
+    it("draws no Mode switch and no Layout section: the toolbar is their one home", async () => {
         await openGraphSettings();
         const inspector = screen.getByRole("complementary", { name: "Inspector" });
         const threeD = within(inspector)

@@ -114,7 +114,7 @@ const flatRows = new WeakMap<readonly CompiledLayer[], Rows>();
  * @param id - The layer.
  * @returns The row.
  */
-export function layerRow(id: LayerId): RowNode {
+function layerRow(id: LayerId): RowNode {
     return Object.freeze({ id, kind: "layer", pin: "none", locked: false, hidden: false });
 }
 

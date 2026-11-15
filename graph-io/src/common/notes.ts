@@ -4,6 +4,8 @@
  * characters, a total count and the element indexes the note covers.
  */
 
+import { jsonText } from "./text.js";
+
 /** At most this many samples per note. */
 const MAX_SAMPLES = 8;
 /** A sample is cut to this many characters. */
@@ -89,6 +91,6 @@ export class NoteCollector<C extends string> {
  * @returns the text
  */
 function sampleText(value: unknown): string {
-    const text = typeof value === "string" ? value : (JSON.stringify(value) ?? String(value));
+    const text = typeof value === "string" ? value : (jsonText(value) ?? String(value));
     return text.length > MAX_SAMPLE_LENGTH ? `${text.slice(0, MAX_SAMPLE_LENGTH - 3)}...` : text;
 }

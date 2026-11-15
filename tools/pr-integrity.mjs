@@ -5,11 +5,16 @@
  * head, measured from its merge base with master:
  *
  *   - test integrity (tools/check-test-integrity.mjs): no test, assertion, timeout, retry or threshold
- *     weakened; a code owner's approval of the head clears it;
- *   - owned closure (tools/check-owned-closure.mjs): every file an owned file reaches is owned, judged on
- *     the merge result with master (`ownedClosure` below), not on the head;
+ *     weakened; an agent review of the head that answers the finding clears it (`agentCleared`), and so does
+ *     a code owner's approval of the head; a finding about screenshot capture settings needs the owner;
  *   - no breaking change: a `!` in the title or a commit subject, or a `BREAKING CHANGE:` footer, fails
- *     unless a code owner approved the head;
+ *     unless a code owner approved the head; a commit master's release-not-breaking.json lists is the owner's
+ *     ruling that it is not breaking, and is skipped;
+ *   - saved format: a change to the save-file checks (graphty-element/test/saved-format/, their exceptions
+ *     list among them, tools/check-saved-format-allowlist.mjs, graphty-element/eslint.config.js that turns its lint
+ *     rule on, and the shipped and revoked shader hash lists) fails unless a code owner approved the head,
+ *     since anyone can type the `Saved-Format-Exception-Approved:` trailer the push check reads
+ *     (design/architecture/self-contained-save-files.md, 2.6);
  *   - baselines signed: a change to a PNG or story settings file under visual-baselines/ (review
  *     records aside) needs the owner's signed approval of the head's tree, checked with master's own
  *     visual-review/trusted/gate.mjs (`git archive`, never the pull request's copy);
@@ -34,23 +39,37 @@
  * exit 1 with one `::error` line per problem.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { parseCodeowners, unownedClosure } from "./check-owned-closure.mjs";
+import { judge, LISTS as SAVED_FORMAT_LISTS } from "./check-saved-format-allowlist.mjs";
 import { check as testIntegrity } from "./check-test-integrity.mjs";
+import { ruledNotBreaking } from "./release-not-breaking.mjs";
 
 export const AGENT = "graphty-agent";
-/**
- * The repository owner: his approval counts whatever CODEOWNERS names (its owners may be a team, which
- * ownerLogins() leaves out; while code-owner review is off they are a team that does not exist yet).
- */
+/** The repository owner: the only account whose approval counts as a code owner's. */
 export const OWNER = "apowers313";
 export const DEPENDABOT = "dependabot[bot]";
 const BASELINES = "visual-baselines";
+/**
+ * The files that decide what a save file may name and still be self-contained: only a code owner widens them.
+ * @param f a changed path
+ * @returns boolean
+ */
+export const isSavedFormatGuard = (f) =>
+    f.startsWith("graphty-element/test/saved-format/") ||
+    f === "tools/check-saved-format-allowlist.mjs" ||
+    // Spreads the lint rule in: deleting that line switches the rule off.
+    f === "graphty-element/eslint.config.js" ||
+    // A listed shipped hash is trusted wherever a file carries it, so adding one grants trust.
+    f === "graphty-element/src/catalog/shipped-shader-hashes.json" ||
+    f === "graphty-element/src/catalog/revoked-shader-hashes.json";
 const APPROVALS = "visual-review-approvals";
+/** The self-contained kinds' rows: a change that only adds lines adds a kind, which needs no owner. */
+const SAVED_FORMAT_KINDS = "graphty-element/test/saved-format/kinds.ts";
 
 const git = (cwd, args, input) =>
     execFileSync("git", args, { cwd, input, encoding: "utf8", maxBuffer: 1 << 30, stdio: ["pipe", "pipe", "pipe"] });
@@ -102,29 +121,65 @@ export function isBreaking(message) {
 
 /**
  * Whether a pull request description has a non-empty `## Proof` section (HTML comments, such as the
- * template's hints, do not count).
+ * template's hints, do not count). The section ends at `PROOF_END` when the description has one, else at the
+ * next `## ` heading.
  * @param body the description
  * @returns boolean
  */
 export function hasProof(body = "") {
-    const text = body.replaceAll(/<!--[\s\S]*?-->/gu, "");
-    const m = /^##[ \t]+Proof[ \t]*$([\s\S]*?)(?=^##[ \t]|(?![\s\S]))/imu.exec(text);
-    return Boolean(m && m[1].trim());
+    // Strip comments until none is left: one pass leaves `<!--` behind in `<!<!-- -->-- -->` (CodeQL js/incomplete-multi-character-sanitization).
+    let text = body ?? "";
+    for (let prev = ""; prev !== text;) {
+        prev = text;
+        text = prev.replaceAll(/<!--[\s\S]*?-->/gu, (c) => (c === PROOF_END ? c : ""));
+    }
+    const m = /^##[ \t]+Proof[ \t]*\r?$/imu.exec(text);
+    if (!m) return false;
+    const rest = text.slice(m.index + m[0].length);
+    const end = rest.indexOf(PROOF_END);
+    const section = end >= 0 ? rest.slice(0, end) : rest.split(/^##[ \t]/mu)[0];
+    return Boolean(section.trim());
 }
 
+/** The line tools/pr-open.sh writes after the Proof it pastes: the Proof section ends there, whatever headings it holds. */
+export const PROOF_END = "<!-- /proof -->";
+
 /**
- * The GitHub logins a CODEOWNERS file names (teams left out).
- * @param text the file
- * @returns Set of logins
+ * A test-integrity finding only a code owner clears: screenshot capture settings are his (owner, 2026-10-29: he
+ * keeps screenshots, passkeys, releases, production, Figma, spending and one-way doors, and reviews no code).
  */
-export function ownerLogins(text) {
-    return new Set([...text.replaceAll(/#.*/gu, "").matchAll(/@([\w-]+)(?![\w/-])/gu)].map((m) => m[1]));
+export const OWNER_ONLY_FINDING = /: parameters\.chromatic /u;
+
+/**
+ * The id tools/pr-review.sh writes for a finding it clears: the first 16 hex digits of its text's sha256.
+ * @param finding a check-test-integrity finding
+ * @returns the id
+ */
+export const findingId = (finding) => createHash("sha256").update(finding).digest("hex").slice(0, 16);
+
+/**
+ * The ids of the findings a trusted review cleared for this head: tools/pr-review.sh's lines
+ * `<!-- integrity-cleared <head sha> <finding id> -->`, written only for a finding its reviewer answered
+ * "cleared". A line naming another head (an older push) clears nothing.
+ * @param reviews the pull request's reviews
+ * @param trusted (review) => whether its author counts
+ * @param head the head sha
+ * @returns a Set of finding ids
+ */
+export function agentCleared(reviews, trusted, head) {
+    const ids = new Set();
+    for (const r of reviews.filter(trusted)) {
+        for (const m of (r.body ?? "").matchAll(/^<!-- integrity-cleared ([0-9a-f]{40}) ([0-9a-f]{16}) -->$/gmu)) {
+            if (m[1] === head) ids.add(m[2]);
+        }
+    }
+    return ids;
 }
 
 /**
  * Whether a code owner's latest deciding review approves the head commit.
  * @param reviews the pull request's reviews, oldest first (`{ user: { login }, state, commit_id }`)
- * @param owners ownerLogins()
+ * @param owners the logins whose approval counts (`new Set([OWNER])`)
  * @param head the head sha
  * @returns boolean
  */
@@ -168,6 +223,36 @@ export function revertedMerge(cwd, { base, mergeBase, head, text }) {
 }
 
 /**
+ * The saved-format guard paths a pull request changes that need a code owner. A change limited to
+ * the exception lists (and lines added to the kinds' rows) needs one only when the allowlist check's
+ * judge says it widens them; anything else under the guard always does.
+ * @param cwd the repository
+ * @param mergeBase the merge base
+ * @param head the head
+ * @param files the changed paths
+ * @returns the paths that need a code owner, or none
+ */
+export function savedFormatNeedingOwner(cwd, mergeBase, head, files) {
+    const guarded = files.filter(isSavedFormatGuard);
+    if (guarded.length === 0 || !guarded.every((f) => f === SAVED_FORMAT_LISTS || f === SAVED_FORMAT_KINDS)) {
+        return guarded;
+    }
+    if (guarded.includes(SAVED_FORMAT_KINDS)) {
+        const stat = tryGit(cwd, ["diff", "--numstat", mergeBase, head, "--", SAVED_FORMAT_KINDS]) ?? "-";
+        if (stat.split("\t")[1] !== "0") return guarded;
+    }
+    const lists = (rev) => {
+        try {
+            return { lists: JSON.parse(git(cwd, ["show", `${rev}:${SAVED_FORMAT_LISTS}`])), shipped: [], revoked: [] };
+        } catch {
+            return { lists: {}, shipped: [], revoked: [] };
+        }
+    };
+    const { needsOwner, forbidden } = judge(lists(mergeBase), lists(head), []);
+    return needsOwner.length + forbidden.length === 0 ? [] : guarded;
+}
+
+/**
  * What kind of pull request this is, for the exemptions.
  * @param cwd the repository
  * @param pr `{ base, mergeBase, head, author, byDependabot, text, files }`; byDependabot false when a
@@ -193,6 +278,13 @@ const changesBaselines = (files) =>
     files.some((f) => f.startsWith(`${BASELINES}/`) && !f.startsWith(`${BASELINES}/reviews/`));
 
 /**
+ * Only the agent's own review (pr-open.sh) or a code owner's counts: anyone can review a public pull request.
+ * @param owners the code owners' logins
+ * @returns (review) => boolean
+ */
+const trustedReview = (owners) => (r) => r.user?.login === AGENT || owners.has(r.user?.login);
+
+/**
  * The problems of the agent-only rules: Proof and the fresh review.
  * @param cwd the repository
  * @param pr the pull request
@@ -205,10 +297,9 @@ function agentProblems(cwd, pr) {
             "Proof: the description has no non-empty `## Proof` section (the command and its output, the test that failed before the fix, or a capture)",
         );
     }
-    // Only the agent's own review (pr-open.sh) or a code owner's counts: anyone can review a public pull request.
     // One review per pull request (owner, 2026-10-26): any fresh-review marker counts, whatever the branch changed
     // after it, so a fix no longer needs a whole new review.
-    const trusted = (r) => r.user?.login === AGENT || pr.owners.has(r.user?.login);
+    const trusted = trustedReview(pr.owners);
     if (!pr.reviews.some((r) => trusted(r) && (r.body ?? "").includes("<!-- fresh-review "))) {
         problems.push(
             "Fresh review: the pull request has no review marked <!-- fresh-review ... -->; run tools/pr-review.sh",
@@ -218,71 +309,52 @@ function agentProblems(cwd, pr) {
 }
 
 /**
- * The owned closure of what would land: the merge result with master. A branch behind master is judged on
- * a temporary worktree of `git merge-tree` of the two, with the merged CODEOWNERS, so a gap master already
- * closed does not fail it (an approval branch built on an older candidate, #4404) and one master opened
- * after it branched is named. A branch that has master, or that conflicts with it, is judged on its head.
- * @param cwd the repository, checked out at the head
- * @param pr `{ base, head, codeowners }`, codeowners the head's
- * @returns unownedClosure()'s map
- */
-export function ownedClosure(cwd, pr) {
-    const behind = tryGit(cwd, ["merge-base", "--is-ancestor", pr.base, pr.head]) === null;
-    const tree = behind ? tryGit(cwd, ["merge-tree", "--write-tree", pr.base, pr.head]) : null;
-    if (!tree) return unownedClosure(cwd, parseCodeowners(pr.codeowners));
-    // no commit is made: a worktree of the head with no checkout, whose index and files read-tree sets to the merged tree
-    const env = { ...process.env, GIT_LFS_SKIP_SMUDGE: "1" };
-    const run = (args, at = cwd) =>
-        execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
-            cwd: at,
-            env,
-            encoding: "utf8",
-            stdio: "pipe",
-        }).trim();
-    const dir = join(mkdtempSync(join(tmpdir(), "pr-integrity-merge-")), "tree");
-    run(["worktree", "add", "--detach", "--no-checkout", "--quiet", dir, pr.head]);
-    try {
-        run(["read-tree", "-u", "--reset", tree], dir);
-        const codeowners = tryGit(dir, ["show", `${tree}:.github/CODEOWNERS`]) ?? "";
-        return unownedClosure(dir, parseCodeowners(codeowners));
-    } finally {
-        run(["worktree", "remove", "--force", dir]);
-        rmSync(dirname(dir), { recursive: true, force: true });
-    }
-}
-
-/**
  * Every problem PR Integrity finds.
- * @param cwd the repository, checked out at the head
- * @param pr `{ base, head, title, body, author, reviews, owners, codeowners, baselineProblems }`;
+ * @param cwd the repository holding the head's commits (read through git only; nothing from the head runs)
+ * @param pr `{ base, head, title, body, author, reviews, owners, baselineProblems }`;
  *     baselineProblems(mergeBase) runs master's gate on the baselines
  * @returns `{ kind, problems }`
  */
 export function prIntegrity(cwd, pr) {
     const mergeBase = git(cwd, ["merge-base", pr.base, pr.head]).trim();
     const files = git(cwd, ["diff", "--name-only", "--no-renames", mergeBase, pr.head]).split("\n").filter(Boolean);
-    const messages = git(cwd, ["log", "--format=%B%x00", `${mergeBase}..${pr.head}`])
+    const commits = git(cwd, ["log", "--format=%H %B%x00", `${mergeBase}..${pr.head}`])
         .split("\0")
         .map((m) => m.trim())
-        .filter(Boolean);
+        .filter(Boolean)
+        .map((m) => ({ id: m.slice(0, 40), message: m.slice(41).trim() }));
+    const messages = commits.map((c) => c.message);
+    // master's list, never the head's: a pull request cannot rule its own commit not breaking
+    const notBreaking = ruledNotBreaking(pr.base, cwd);
+    const breaking = [pr.title, ...commits.filter((c) => !notBreaking.has(c.id)).map((c) => c.message)];
     const full = { ...pr, mergeBase, files, text: [pr.title, pr.body ?? "", ...messages].join("\n") };
     const kind = classify(cwd, full);
     const approved = ownerApproved(pr.reviews, pr.owners, pr.head);
     const problems = [];
     const exempt = kind.revert || kind.acceptOnly;
     if (!exempt && !approved) {
-        problems.push(
-            ...testIntegrity({ base: mergeBase, head: pr.head, cwd }).map(
-                (f) => `Test integrity: ${f} (a code owner's approval of the head clears it)`,
-            ),
-        );
+        const cleared = agentCleared(pr.reviews, trustedReview(pr.owners), pr.head);
+        for (const f of testIntegrity({ base: mergeBase, head: pr.head, cwd })) {
+            if (OWNER_ONLY_FINDING.test(f)) {
+                problems.push(
+                    `Test integrity: ${f} (screenshot settings: only a code owner's approval of the head clears it)`,
+                );
+            } else if (!cleared.has(findingId(f))) {
+                problems.push(
+                    `Test integrity: ${f} (an agent review of the head that answers it, tools/pr-review.sh, clears it)`,
+                );
+            }
+        }
     }
-    for (const [file, { from }] of ownedClosure(cwd, pr)) {
-        problems.push(`Owned closure: ${file} is reached from the owned ${from} but is not in .github/CODEOWNERS`);
-    }
-    if (!approved && [pr.title, ...messages].some(isBreaking)) {
+    if (!approved && breaking.some(isBreaking)) {
         problems.push(
             "Breaking change: the title or a commit is marked `!` or has a BREAKING CHANGE footer; it needs a code owner's approval of the head",
+        );
+    }
+    const savedFormat = savedFormatNeedingOwner(cwd, mergeBase, pr.head, files);
+    if (!approved && !kind.revert && savedFormat.length) {
+        problems.push(
+            `Saved format: ${savedFormat.join(", ")} decide what a save file may name; a change needs a code owner's approval of the head`,
         );
     }
     if (!kind.revert && changesBaselines(files)) {
@@ -364,9 +436,6 @@ async function main(argv) {
                   { encoding: "utf8", maxBuffer: 1 << 28 },
               ),
           ).flat();
-    const codeowners = existsSync(join(cwd, ".github/CODEOWNERS"))
-        ? readFileSync(join(cwd, ".github/CODEOWNERS"), "utf8")
-        : "";
     const head = event.head.sha;
     const byDependabot =
         event.user.login === DEPENDABOT
@@ -393,8 +462,7 @@ async function main(argv) {
         author: event.user.login,
         byDependabot,
         reviews,
-        owners: new Set([OWNER, ...ownerLogins(tryGit(cwd, ["show", `${base}:.github/CODEOWNERS`]) ?? codeowners)]),
-        codeowners,
+        owners: new Set([OWNER]),
         baselineProblems: await masterBaselineCheck(cwd, base, head),
     });
     console.log(`PR Integrity on ${head.slice(0, 10)}: ${describe(kind)}`);

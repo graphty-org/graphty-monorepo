@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { after, describe, it } from "node:test";
 
 import { buildChild, needsScan, pickCommit, prepareAlert, scanLock, weekOverWeek } from "../sonar-baseline.mjs";
+import { acquireLock } from "./api.mjs";
 
 const run = (headSha, status, conclusion = "", event = "schedule", databaseId = headSha) => ({
     headSha,
@@ -82,33 +83,37 @@ describe("scanLock", () => {
     after(() => rmSync(dir, { recursive: true, force: true }));
     const lock = join(dir, "sonar-local.lock");
 
-    // A stand-in for a pre-push gate: holds the lock for `seconds`, resolving once it holds it.
-    const holdLock = (seconds) =>
+    // A stand-in for a pre-push gate: holds the lock until its stdin is closed, resolving once it holds it.
+    const holdLock = () =>
         new Promise((resolve) => {
-            const c = spawn("flock", [lock, "-c", `echo held; sleep ${seconds}`], {
-                stdio: ["ignore", "pipe", "ignore"],
-            });
+            const c = spawn("flock", [lock, "-c", "echo held; read _"], { stdio: ["pipe", "pipe", "ignore"] });
             c.stdout.once("data", () => resolve(c));
         });
 
     it("waits for a held lock and proceeds once it is released", async () => {
-        const holder = await holdLock(1);
-        const start = Date.now();
+        const holder = await holdLock();
         const said = [];
-        const release = await scanLock(lock, 10, (m) => said.push(m));
+        let settled = false;
+        const pending = scanLock(lock, 10, (m) => said.push(m)).then((r) => {
+            settled = true;
+            return r;
+        });
+        // A non-blocking try is a child process round trip, after which a scanLock that did not wait
+        // would have settled.
+        assert.equal(await acquireLock(lock, 0), null, "the holder still has the lock");
+        assert.equal(settled, false, "it waits for the holder");
+        holder.stdin.end();
+        const release = await pending;
         assert.ok(release, "the lock was obtained");
-        // eslint-disable-next-line local/no-test-timing -- a lower bound: load only lengthens the wait, so it cannot fail spuriously
-        assert.ok(Date.now() - start >= 500, "it waited for the holder");
         assert.deepEqual(said, []);
         release();
-        holder.kill();
     });
 
     it("gives up after the timeout and logs why", async () => {
-        const holder = await holdLock(5);
+        const holder = await holdLock();
         const said = [];
         const release = await scanLock(lock, 1, (m) => said.push(m));
-        holder.kill();
+        holder.stdin.end();
         assert.equal(release, null);
         assert.equal(said.length, 1);
         assert.match(said[0], /held by a push for 1 s; retrying at the next poll/);

@@ -1,5 +1,6 @@
-import { ScreenshotError, ScreenshotErrorCode } from "./ScreenshotError.js";
-import type { ScreenshotLegendSection } from "./types.js";
+import { formatNumber, type LegendBlock, type LegendSwatch } from "../session/styles/legend.js";
+import { captureError } from "./captureError.js";
+import type { ScreenshotLegendPosition, ScreenshotLegendSection } from "./types.js";
 
 /** Sizes in canvas (CSS) pixels; every one is multiplied by the capture's scale. */
 const PAD = 8;
@@ -9,6 +10,9 @@ const CHIP = 10;
 const RAMP_WIDTH = 120;
 const RAMP_HEIGHT = 8;
 const FONT = "12px system-ui, sans-serif";
+
+/** The key's sizes, for a figure that lays it out as {@link drawLegend} does. */
+export const LEGEND_METRICS = { PAD, LINE, GAP, CHIP, RAMP_HEIGHT } as const;
 const BOLD = "600 12px system-ui, sans-serif";
 
 /**
@@ -52,28 +56,102 @@ function measure(
 }
 
 /**
+ * The key's card size: the width inside its padding and its height, in canvas (CSS) pixels.
+ * @param sections - The key.
+ * @returns The size; zero where no canvas can measure text.
+ */
+export function legendSize(sections: readonly ScreenshotLegendSection[]): { inner: number; height: number } {
+    const ctx = new OffscreenCanvas(1, 1).getContext("2d");
+    return ctx ? measure(ctx, sections) : { inner: 0, height: 0 };
+}
+
+/**
  * Where the key {@link drawLegend} draws sits, with a gap of the card's own padding around it.
  * @param sections - The key.
  * @returns The card's right and bottom edges from the image's top left, in canvas (CSS) pixels.
  */
 export function legendBox(sections: readonly ScreenshotLegendSection[]): { right: number; bottom: number } {
-    const ctx = new OffscreenCanvas(1, 1).getContext("2d");
-    if (!ctx) {
+    const { inner, height } = legendSize(sections);
+    if (inner === 0) {
         return { right: 0, bottom: 0 };
     }
-
-    const { inner, height } = measure(ctx, sections);
 
     return { right: PAD + inner + PAD * 2 + PAD, bottom: PAD + height + PAD };
 }
 
 /**
- * Draws a key onto a captured image at its top left: a light card holding each section's title,
+ * The element's own legend as the sections a capture draws: one per bound channel that paints
+ * something, headed by the field's name, with a row per value or a ramp between the domain's ends.
+ * Every word is the data's -- values, the names readers gave them, the field's name -- and none is
+ * the element's.
+ * @param blocks - `session.styles.legend()`.
+ * @returns The sections; none when no block binds a value.
+ */
+export function legendSections(blocks: readonly LegendBlock[]): ScreenshotLegendSection[] {
+    const sections: ScreenshotLegendSection[] = [];
+    for (const block of blocks) {
+        if (block.field === undefined || block.painted === 0) {
+            continue;
+        }
+
+        const heading = block.field.technicalName;
+        const { domain } = block;
+        const shown = block.swatches.filter((swatch) => swatch.hidden !== true);
+        const continuous = block.kind === "sequential" || block.kind === "diverging";
+        if (continuous && domain !== undefined && domain.min !== domain.max) {
+            const colors = shown.flatMap((swatch) => (swatch.color === undefined ? [] : [swatch.color]));
+            sections.push({
+                title: heading,
+                ramp: {
+                    min: formatNumber(domain.min),
+                    max: formatNumber(domain.max),
+                    ...(colors.length > 0 ? { colors } : {}),
+                },
+            });
+            continue;
+        }
+
+        const hidden = block.overflow?.hidden;
+        sections.push({
+            title: heading,
+            rows: shown.map((swatch) => ({
+                label: swatchText(swatch),
+                ...(swatch.color === undefined ? {} : { color: swatch.color }),
+            })),
+            ...(hidden === undefined ? {} : { note: `+${String(hidden)}` }),
+        });
+    }
+
+    return sections;
+}
+
+/**
+ * A row's text: the name a reader gave the value, else the value (or the range a row covers).
+ * @param swatch - The row.
+ * @returns Its text, with no words of the element's.
+ */
+function swatchText(swatch: LegendSwatch): string {
+    if (swatch.name !== undefined) {
+        return swatch.name;
+    }
+    if (swatch.role === "other") {
+        return "...";
+    }
+    if (swatch.extent !== undefined && swatch.extent.min !== swatch.extent.max) {
+        return `${formatNumber(swatch.extent.min)} - ${formatNumber(swatch.extent.max)}`;
+    }
+
+    return typeof swatch.value === "number" ? formatNumber(swatch.value) : String(swatch.value);
+}
+
+/**
+ * Draws a key onto a captured image in one corner: a light card holding each section's title,
  * its rows (color chip, label, value at the right), its ramp and its note.
  * @param blob - The captured image.
- * @param sections - The key, in the caller's words.
+ * @param sections - The key.
  * @param scale - Output pixels per canvas pixel, so the key is the size it would be on the canvas.
  * @param quality - Quality for a lossy format.
+ * @param position - The corner the key sits in.
  * @returns The image with the key drawn on, in the captured image's format.
  */
 export async function drawLegend(
@@ -81,6 +159,7 @@ export async function drawLegend(
     sections: readonly ScreenshotLegendSection[],
     scale: number,
     quality: number,
+    position: ScreenshotLegendPosition = "top-left",
 ): Promise<Blob> {
     const image = await createImageBitmap(blob);
     const canvas = document.createElement("canvas");
@@ -88,10 +167,7 @@ export async function drawLegend(
     canvas.height = image.height;
     const ctx = canvas.getContext("2d");
     if (!ctx) {
-        throw new ScreenshotError(
-            "Failed to get 2D context for the legend",
-            ScreenshotErrorCode.CANVAS_ALLOCATION_FAILED,
-        );
+        throw captureError("E_OUT_OF_MEMORY", "Failed to get 2D context for the legend", { of: "canvas" });
     }
     ctx.drawImage(image, 0, 0);
     image.close();
@@ -99,19 +175,22 @@ export async function drawLegend(
     ctx.textBaseline = "middle";
 
     const { inner, height } = measure(ctx, sections);
+    const cardWidth = inner + PAD * 2;
+    const cardLeft = position.endsWith("left") ? PAD : canvas.width / scale - PAD - cardWidth;
+    const cardTop = position.startsWith("top") ? PAD : canvas.height / scale - PAD - height;
 
-    // The card, at the canvas legend's place.
+    // The card, in its corner.
     ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
     ctx.strokeStyle = "#d0d0d0";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.roundRect(PAD, PAD, inner + PAD * 2, height, 4);
+    ctx.roundRect(cardLeft, cardTop, cardWidth, height, 4);
     ctx.fill();
     ctx.stroke();
 
-    const left = PAD * 2;
+    const left = cardLeft + PAD;
     const right = left + inner;
-    let y = PAD * 2;
+    let y = cardTop + PAD;
     for (const section of sections) {
         ctx.font = BOLD;
         ctx.fillStyle = "#1a1a1a";
@@ -142,9 +221,7 @@ export async function drawLegend(
                 if (drawn) {
                     resolve(drawn);
                 } else {
-                    reject(
-                        new ScreenshotError("Failed to draw the legend", ScreenshotErrorCode.SCREENSHOT_CAPTURE_FAILED),
-                    );
+                    reject(captureError("E_CAPTURE_FAILED", "Failed to draw the legend", { media: "image" }));
                 }
             },
             blob.type,

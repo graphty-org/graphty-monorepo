@@ -6,11 +6,13 @@ import {
     NullEngine,
     Scene,
     type StandardMaterial,
+    UniversalCamera,
     Vector3,
     VertexBuffer,
 } from "@babylonjs/core";
 
-import { FlatMap, Globe, type MapSource, mapSources, type TextureLoader } from "../src/index.js";
+import { LAYER_GAP, sunShade } from "../src/globe.js";
+import { FlatMap, Globe, latLonToSphere, type MapSource, mapSources, type TextureLoader } from "../src/index.js";
 
 interface Request {
     url: string;
@@ -86,8 +88,13 @@ describe("FlatMap", () => {
         expect(box.minimum.x).toBeCloseTo(-50);
         expect(box.maximum.y).toBeCloseTo(50);
         expect(map.status).toMatchObject({ loading: 0, ready: 1, failed: 0 });
-        expect(map.attribution).toEqual(["Natural Earth"]);
-        expect(map.credits).toEqual([{ text: "Natural Earth", url: "https://www.naturalearthdata.com/" }]);
+        // A lone picture has nothing to stack under: its depth is not pushed back at all. A push
+        // past the far end of the depth range is clamped there, and a globe's far side then ties
+        // with its near side and draws over it in bands.
+        expect((mesh.material as StandardMaterial).zOffsetUnits).toBe(0);
+        // Natural Earth is public domain: the bundled world is drawn without a credit.
+        expect(map.attribution).toEqual([]);
+        expect(map.credits).toEqual([]);
     });
 
     it("loads finer tiles as the camera comes closer", async () => {
@@ -193,6 +200,46 @@ describe("FlatMap", () => {
         expect(changed).toHaveBeenCalledTimes(1);
     });
 
+    it("says why each failed tile failed", async () => {
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, { sources: [OSM], loadTexture: tiles.load });
+        map.update();
+        const { url } = tiles.requests[0];
+        tiles.requests[0].reject();
+        await settle();
+        expect(map.status.errors).toEqual([{ layer: 0, url, code: "load", cause: new Error("403") }]);
+    });
+
+    it("fails a tile whose loader throws, and keeps loading the others", async () => {
+        let calls = 0;
+        const map = new FlatMap(scene, {
+            sources: [OSM],
+            maxConcurrentLoads: 1,
+            loadTexture: () => {
+                calls++;
+                throw new Error("broken loader");
+            },
+        });
+        camera.radius = 20;
+        expect(() => scene.render()).not.toThrow();
+        while (map.status.loading > 0) {
+            await settle();
+        }
+        expect(calls, "every tile in view was asked for").toBeGreaterThan(1);
+        expect(map.status.failed).toBe(calls);
+        expect(map.status.errors[0]).toMatchObject({ code: "load", cause: new Error("broken loader") });
+    });
+
+    it("tells the host to render when the sources, frame or edge change", () => {
+        const map = new FlatMap(scene, { loadTexture: loader(scene).load });
+        const changed = vi.fn();
+        map.onChangedObservable.add(changed);
+        map.setSources([OSM]);
+        map.frame = { projection: "equirectangular", size: 10 };
+        map.beyond = "continue";
+        expect(changed).toHaveBeenCalledTimes(3);
+    });
+
     it("disposes the least recently drawn tiles beyond the cache cap", async () => {
         const tiles = loader(scene);
         const map = new FlatMap(scene, {
@@ -231,7 +278,7 @@ describe("FlatMap", () => {
         await tiles.answerAll();
         const changed = vi.fn();
         map.onChangedObservable.add(changed);
-        map.update(); // the loaded picture becomes a mesh, and its credit is drawn
+        map.update(); // the loaded picture becomes a mesh, and its credit is reported
         expect(changed).toHaveBeenCalledTimes(1);
         map.update(); // nothing new
         expect(changed).toHaveBeenCalledTimes(1);
@@ -267,7 +314,7 @@ describe("FlatMap", () => {
         map.update();
         await tiles.answerAll();
         map.update();
-        expect(map.attribution).toEqual(["Natural Earth", "(c) OpenStreetMap contributors"]);
+        expect(map.attribution).toEqual(["(c) OpenStreetMap contributors"]);
         const offsets = shownMeshes(scene).map((m) => m.material?.zOffsetUnits ?? 0);
         expect(offsets).toEqual([...offsets].sort((a, b) => b - a));
         expect(new Set(offsets).size).toBe(3);
@@ -346,6 +393,27 @@ describe("FlatMap tile recovery and edges", () => {
         expect(shownMeshes(scene).map((m) => zoomOf(`${m.name.replace(/.*\|/, "/")}.png`))).toEqual([1, 1, 1, 1]);
     });
 
+    it("keeps the finer tiles on screen while zooming out, until the coarser tile arrives", async () => {
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, { sources: [OSM], loadTexture: tiles.load, maxConcurrentLoads: 100 });
+        view(25); // four zoom-1 tiles, no zoom-0 tile ever loaded
+        map.update();
+        expect(tiles.requests.map((r) => zoomOf(r.url))).toEqual([1, 1, 1, 1]);
+        await tiles.answerAll();
+        map.update();
+        const zooms = (): number[] => shownMeshes(scene).map((m) => zoomOf(`${m.name.replace(/.*\|/, "/")}.png`));
+        expect(zooms()).toEqual([1, 1, 1, 1]);
+
+        view(50); // zoomed out: the zoom-0 tile is wanted and not loaded yet
+        map.update();
+        expect(tiles.requests.map((r) => zoomOf(r.url))).toEqual([0]);
+        expect(zooms(), "the zoom-1 tiles stay up, no hole while the zoom-0 tile loads").toEqual([1, 1, 1, 1]);
+
+        await tiles.answerAll();
+        map.update();
+        expect(zooms()).toEqual([0]);
+    });
+
     it("asks for failed tiles again at once when the browser comes back online", async () => {
         const target = new EventTarget();
         vi.stubGlobal("addEventListener", target.addEventListener.bind(target));
@@ -379,27 +447,41 @@ describe("FlatMap tile recovery and edges", () => {
         expect(shownMeshes(scene).some((m) => m.name.includes("natural-earth"))).toBe(true);
     });
 
-    it("draws on past the data's box with beyond: continue, a world to each side", async () => {
+    it.each([
+        ["in one hemisphere", -75, -73],
+        ["across the antimeridian", 170, 190],
+    ] as const)("draws on past a data box %s with beyond: continue, one world wide", async (_, west, east) => {
         const tiles = loader(scene);
         const box = {
             bounds: [
-                [-75, 40],
-                [-73, 41],
+                [west, -10],
+                [east, 10],
             ] as const,
         };
-        const map = new FlatMap(scene, { sources: [OSM], loadTexture: tiles.load, frame: box, beyond: "continue" });
+        const map = new FlatMap(scene, {
+            sources: [OSM],
+            loadTexture: tiles.load,
+            frame: box,
+            beyond: "continue",
+            maxConcurrentLoads: 100,
+        });
         expect(map.beyond).toBe("continue");
         view(1e6);
         map.update();
-        expect(tiles.requests.map((r) => r.url)).toEqual(Array(3).fill("https://tile.openstreetmap.org/0/0/0.png"));
         await tiles.answerAll();
         map.update();
-        const xs = shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.center.x);
-        // The data's box is 100 units across: a whole world is about 18,000 units.
-        expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(10_000);
+        // The map's extent is exactly one world, centered on the data: no copy beside it.
+        const boxes = shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox);
+        const world = map.toScene({ lat: 0, lon: 180 }).x - map.toScene({ lat: 0, lon: -180 }).x;
+        const left = Math.min(...boxes.map((b) => b.minimum.x));
+        const right = Math.max(...boxes.map((b) => b.maximum.x));
+        expect(right - left).toBeCloseTo(world, 3);
+        expect((left + right) / 2).toBeCloseTo(0, 3);
         map.beyond = "clip";
         map.update();
-        expect(Math.max(...shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.maximum.x))).toBeCloseTo(50);
+        expect(Math.max(...shownMeshes(scene).map((m) => m.getBoundingInfo().boundingBox.maximum.x))).toBeCloseTo(
+            map.frame.width / 2,
+        );
     });
 
     it("draws a box across the antimeridian from the world's two copies", async () => {
@@ -444,8 +526,97 @@ describe("FlatMap tile recovery and edges", () => {
         view(50);
         map.update();
         await settle();
-        // Without a DOM canvas the picture is loaded as it is.
-        expect(tiles.requests.map((r) => r.url)).toEqual([expect.stringMatching(/natural-earth\.jpg$/)]);
+        // Without a DOM canvas there is no gray picture: the tile fails, never drawn in color.
+        expect(tiles.requests).toEqual([]);
+        const { failed, errors } = map.status;
+        expect(failed).toBe(1);
+        expect(errors).toMatchObject([{ layer: 0, code: "no-canvas" }]);
+        expect(errors[0].url).toMatch(/natural-earth\.jpg$/);
+    });
+
+    /**
+     * A DOM just big enough for the gray picture: a picture that loads (or fails) as soon as its
+     * `src` is set, and a canvas that turns it into a data URL.
+     * @param fails - Whether a picture fails to load.
+     * @returns How many pictures were loaded.
+     */
+    function grayDom(fails: () => boolean): { pictures: string[] } {
+        const pictures: string[] = [];
+        vi.stubGlobal(
+            "Image",
+            class {
+                naturalWidth = 2;
+                naturalHeight = 1;
+                onload: () => void = () => undefined;
+                onerror: () => void = () => undefined;
+                set src(url: string) {
+                    pictures.push(url);
+                    queueMicrotask(() => {
+                        if (fails()) {
+                            this.onerror();
+                        } else {
+                            this.onload();
+                        }
+                    });
+                }
+            },
+        );
+        vi.stubGlobal("document", {
+            createElement: () => ({
+                getContext: () => ({
+                    drawImage: () => undefined,
+                    getImageData: () => ({ data: new Uint8ClampedArray(8) }),
+                    putImageData: () => undefined,
+                }),
+                toDataURL: () => "data:image/jpeg;base64,gray",
+            }),
+        });
+        return { pictures };
+    }
+
+    it("makes a gray picture once however many copies of the world draw it", async () => {
+        const dom = grayDom(() => false);
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, {
+            sources: [{ image: "https://example.com/once.jpg", tone: "gray" }],
+            loadTexture: tiles.load,
+            // A box off the antimeridian: the one world drawn around it spans two copies.
+            frame: {
+                bounds: [
+                    [-125, 25],
+                    [-70, 50],
+                ],
+            },
+            beyond: "continue",
+        });
+        view(400);
+        map.update();
+        await settle();
+        expect(tiles.requests.length, "the world is drawn more than once").toBeGreaterThan(1);
+        expect(tiles.requests.map((r) => r.url)).toEqual(tiles.requests.map(() => "data:image/jpeg;base64,gray"));
+        expect(dom.pictures).toEqual(["https://example.com/once.jpg"]);
+    });
+
+    it("makes a gray picture again after it failed", async () => {
+        vi.useFakeTimers();
+        let failing = true;
+        const dom = grayDom(() => failing);
+        const tiles = loader(scene);
+        const map = new FlatMap(scene, {
+            sources: [{ image: "https://example.com/again.jpg", tone: "gray" }],
+            loadTexture: tiles.load,
+        });
+        view(50);
+        map.update();
+        await settle();
+        expect(tiles.requests).toEqual([]);
+        failing = false;
+        // The failed picture's backoff, then the update its retry asks for.
+        await vi.runAllTimersAsync();
+        map.update();
+        await settle();
+        expect(dom.pictures).toEqual(["https://example.com/again.jpg", "https://example.com/again.jpg"]);
+        expect(tiles.requests.map((r) => r.url)).toEqual(["data:image/jpeg;base64,gray"]);
     });
 });
 
@@ -478,6 +649,64 @@ describe("Globe", () => {
         globe.update();
         const [mesh] = shownMeshes(scene);
         expect(mesh.getBoundingInfo().boundingBox.maximum.length()).toBeLessThanOrEqual(100 * Math.SQRT2 + 1e-6);
+        scene.getEngine().dispose();
+    });
+
+    it("keeps a layer drawn under a tile service below its tiles everywhere, close to the surface", async () => {
+        // The bundled world's patch is facets between points on the sphere, and so are the tiles
+        // over it; where its points stood on the sphere they poked through the tiles' facets, and
+        // close to the surface the reader saw light diamonds of it over the satellite picture.
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 104, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const globe = new Globe(scene, {
+            sources: [mapSources["natural-earth"], OSM],
+            loadTexture: tiles.load,
+            maxConcurrentLoads: 1000,
+        });
+        for (let round = 0; round < 30; round++) {
+            globe.update();
+            if (tiles.requests.length === 0) {
+                break;
+            }
+            await tiles.answerAll();
+        }
+        globe.update();
+        const radii = (mesh: Mesh): number[] => {
+            const p = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+            const out: number[] = [];
+            for (let i = 0; i < p.length; i += 3) {
+                out.push(Math.hypot(p[i], p[i + 1], p[i + 2]));
+            }
+            return out;
+        };
+        // The lowest a facet comes is near its middle: the mean of its three corners.
+        const facetMiddles = (mesh: Mesh): number[] => {
+            const p = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+            const index = mesh.getIndices() ?? [];
+            const out: number[] = [];
+            for (let i = 0; i < index.length; i += 3) {
+                const [a, b, c] = [index[i] * 3, index[i + 1] * 3, index[i + 2] * 3];
+                out.push(
+                    Math.hypot(
+                        (p[a] + p[b] + p[c]) / 3,
+                        (p[a + 1] + p[b + 1] + p[c + 1]) / 3,
+                        (p[a + 2] + p[b + 2] + p[c + 2]) / 3,
+                    ),
+                );
+            }
+            return out;
+        };
+        const shown = shownMeshes(scene);
+        const base = shown.filter((m) => m.name.includes("natural-earth"));
+        const top = shown.filter((m) => m.name.includes("openstreetmap"));
+        expect(base.length).toBeGreaterThan(0);
+        expect(Math.max(...top.map((t) => Number(/\|(\d+)\/\d+\/\d+$/.exec(t.name)?.[1])))).toBeGreaterThanOrEqual(6);
+        const baseHighest = Math.max(...base.flatMap(radii));
+        const topLowest = Math.min(...top.flatMap(facetMiddles));
+        expect(baseHighest, "the bundled world never reaches the tiles over it").toBeLessThan(topLowest);
+        expect(baseHighest).toBeCloseTo(100 * (1 - LAYER_GAP), 6);
+        expect(Math.max(...top.flatMap(radii)), "the top layer stays on the sphere").toBeCloseTo(100, 6);
         scene.getEngine().dispose();
     });
 
@@ -518,6 +747,16 @@ describe("Globe", () => {
         scene.getEngine().dispose();
     });
 
+    it("tells the host to render when the radius changes", () => {
+        const scene = new Scene(new NullEngine());
+        const globe = new Globe(scene, { loadTexture: loader(scene).load });
+        const changed = vi.fn();
+        globe.onChangedObservable.add(changed);
+        globe.radius = 3;
+        expect(changed).toHaveBeenCalledTimes(1);
+        scene.getEngine().dispose();
+    });
+
     it("reads points back and rebuilds for a new radius", async () => {
         const scene = new Scene(new NullEngine());
         new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene);
@@ -552,6 +791,184 @@ describe("Globe", () => {
         expect(Math.max(...ys.map((b) => b.maximum.y))).toBeCloseTo(100);
         expect(Math.min(...ys.map((b) => b.minimum.y))).toBeCloseTo(-100);
         expect(globe.attribution).toEqual(["(c) OpenStreetMap contributors"]);
+        scene.getEngine().dispose();
+    });
+
+    it("fetches the root tile of a small globe once and keeps no second texture", async () => {
+        // A globe this far away wants only the root tile, which the pole caps also ask for: both
+        // asks once queued it twice, so it was fetched twice and the first picture never disposed.
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 5000, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const disposed = vi.spyOn(BaseTexture.prototype, "dispose");
+        const globe = new Globe(scene, { sources: [OSM], loadTexture: tiles.load });
+        globe.update();
+        expect(tiles.requests.map((r) => r.url)).toEqual(["https://tile.openstreetmap.org/0/0/0.png"]);
+        await tiles.answerAll();
+        globe.update();
+        expect(tiles.requests).toHaveLength(0);
+        expect(disposed).not.toHaveBeenCalled();
+        globe.dispose();
+        expect(disposed).toHaveBeenCalledTimes(1);
+        scene.getEngine().dispose();
+    });
+
+    it("loads finer tiles as the camera nears the surface, only around the point below it", async () => {
+        const scene = new Scene(
+            new NullEngine({
+                renderWidth: 1200,
+                renderHeight: 900,
+                textureSize: 512,
+                deterministicLockstep: false,
+                lockstepMaxSteps: 4,
+            }),
+        );
+        const camera = new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 400, Vector3.Zero(), scene);
+        camera.minZ = 0.01;
+        const tiles = loader(scene);
+        const globe = new Globe(scene, { sources: [OSM], loadTexture: tiles.load, maxConcurrentLoads: 1000 });
+        const deepest = (): number => Math.max(...tiles.requests.map((r) => zoomOf(r.url)));
+        globe.update();
+        const far = deepest();
+        await tiles.answerAll();
+
+        // 1 unit above the surface at latitude 0, longitude 0 (the radius is 100)
+        camera.radius = 101;
+        globe.update();
+        const near = deepest();
+        expect(near, "much finer near the surface").toBeGreaterThanOrEqual(far + 4);
+        for (const { url } of tiles.requests.filter((r) => zoomOf(r.url) === near)) {
+            const [, z, x] = /\/(\d+)\/(\d+)\/\d+\.png$/.exec(url) ?? [];
+            const lon = ((Number(x) + 0.5) / 2 ** Number(z)) * 360 - 180;
+            expect(Math.abs(lon), url).toBeLessThan(10);
+        }
+        await tiles.answerAll();
+        globe.update();
+        const drawn = shownMeshes(scene).map((m) => Number(/\|(\d+)\/\d+\/\d+$/.exec(m.name)?.[1]));
+        expect(Math.max(...drawn), "the fine tiles are drawn once loaded").toBe(near);
+        scene.getEngine().dispose();
+    });
+
+    // Close to the surface, the camera sees a small cap of the globe. A coarse tile around it was
+    // judged by nine points on it: behind the horizon when none of them was in that cap, so the
+    // tile and everything finer under it was dropped (a hole), and as far away as the nearest of
+    // them, so the tile under the camera was left coarse.
+    it.each([
+        [20, 20, -67],
+        [8, 20, -67],
+        [2, 20, -67],
+        [2, -31, 112],
+        [0.5, 52, 13],
+    ])(
+        "%s units above (%s, %s): no hole, and the tile below at the level its size on screen asks for",
+        async (height, lat, lon) => {
+            const H = 900;
+            const scene = new Scene(
+                new NullEngine({
+                    renderWidth: 1200,
+                    renderHeight: H,
+                    textureSize: 512,
+                    deterministicLockstep: false,
+                    lockstepMaxSteps: 4,
+                }),
+            );
+            const camera = new UniversalCamera("camera", Vector3.Zero(), scene);
+            const at = latLonToSphere({ lat, lon }, 100 + height);
+            camera.position.set(at.x, at.y, at.z);
+            camera.setTarget(Vector3.Zero());
+            camera.minZ = height / 4;
+            camera.getViewMatrix(true);
+            const tiles = loader(scene);
+            const globe = new Globe(scene, { sources: [OSM], loadTexture: tiles.load, maxConcurrentLoads: 1000 });
+            for (let round = 0; round < 40; round++) {
+                globe.update();
+                if (tiles.requests.length === 0) {
+                    break;
+                }
+                await tiles.answerAll();
+            }
+            globe.update();
+            expect(tiles.requests, "every wanted tile was asked for and loaded").toHaveLength(0);
+
+            let seen = 0;
+            for (let j = 1; j < 15; j++) {
+                for (let i = 1; i < 20; i++) {
+                    const ray = scene.createPickingRay((1200 * i) / 20, (H * j) / 15, null, camera);
+                    const o = ray.origin;
+                    const d = ray.direction;
+                    const b = Vector3.Dot(o, d);
+                    if (b * b - o.lengthSquared() + 100 * 100 < 0) {
+                        continue;
+                    }
+                    seen++;
+                    const hit = scene.pickWithRay(ray, (m) => m.name.includes("-tile-") && m.isEnabled());
+                    expect(hit?.hit, `a tile is drawn at pixel ${String(i)}, ${String(j)}`).toBe(true);
+                }
+            }
+            expect(seen).toBeGreaterThan(0);
+
+            // The tile under the middle of the view: a texel at most a pixel, its parent's more.
+            const below = scene.pickWithRay(
+                scene.createPickingRay(600, H / 2, null, camera),
+                (m) => m.name.includes("-tile-") && m.isEnabled(),
+            );
+            const z = Number(/\|(\d+)\/\d+\/\d+$/.exec(below?.pickedMesh?.name ?? "")?.[1]);
+            // A tile's width there: the circumference over 2^z, narrowed by the latitude.
+            const pixels = (level: number): number =>
+                (((2 * Math.PI * 100 * Math.cos((lat * Math.PI) / 180)) / 2 ** level) * H) /
+                (2 * height * Math.tan(camera.fov / 2));
+            expect(pixels(z - 1), `level ${String(z)} is fine enough`).toBeGreaterThan(256);
+            expect(z, "not finer than the source has").toBeLessThanOrEqual(19);
+            scene.getEngine().dispose();
+        },
+    );
+
+    it("shades the side away from a sun dark, with a soft twilight, and none without one", async () => {
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene);
+        const tiles = loader(scene);
+        const globe = new Globe(scene, { loadTexture: tiles.load });
+        globe.update();
+        await tiles.answerAll();
+        globe.update();
+        expect(shownMeshes(scene)[0].getVerticesData(VertexBuffer.ColorKind), "no sun, no shading").toBeNull();
+
+        globe.sun = { lat: 0, lon: 0 };
+        globe.update();
+        const [mesh] = shownMeshes(scene);
+        const positions = mesh.getVerticesData(VertexBuffer.PositionKind) ?? [];
+        const colors = mesh.getVerticesData(VertexBuffer.ColorKind) ?? [];
+        const sun = latLonToSphere({ lat: 0, lon: 0 }, 1);
+        for (let i = 0; i < positions.length / 3; i++) {
+            const p = { x: positions[3 * i], y: positions[3 * i + 1], z: positions[3 * i + 2] };
+            expect(colors[4 * i]).toBeCloseTo(sunShade(p, sun), 6);
+        }
+        const at = (lat: number, lon: number): number => sunShade(latLonToSphere({ lat, lon }, 100), sun);
+        expect(at(0, 0), "noon").toBe(1);
+        expect(at(0, 180), "midnight").toBeCloseTo(0.2);
+        expect(at(0, 88)).toBeGreaterThan(at(0, 92));
+        expect(at(0, 92)).toBeGreaterThan(at(0, 100));
+        scene.getEngine().dispose();
+    });
+
+    it("draws the air's glow around the rim when asked, at the globe's radius, and removes it", () => {
+        const scene = new Scene(new NullEngine());
+        new ArcRotateCamera("camera", -Math.PI / 2, Math.PI / 2, 300, Vector3.Zero(), scene);
+        const globe = new Globe(scene, { atmosphere: true, loadTexture: loader(scene).load });
+        const air = (): Mesh | undefined =>
+            scene.meshes.find((m) => m.name.endsWith("-atmosphere")) as Mesh | undefined;
+        expect(globe.atmosphere).toBe(true);
+        expect(air()?.parent).toBe(globe.root);
+        expect(air()?.isPickable).toBe(false);
+        expect(air()?.scaling.x).toBeCloseTo(106);
+        expect((air()?.material as StandardMaterial).alphaMode, "added onto what is behind").toBe(1);
+        globe.radius = 10;
+        expect(air()?.scaling.x).toBeCloseTo(10.6);
+        globe.atmosphere = false;
+        expect(air()).toBeUndefined();
+        expect(new Globe(scene, { name: "plain", loadTexture: loader(scene).load }).atmosphere, "off by default").toBe(
+            false,
+        );
         scene.getEngine().dispose();
     });
 });

@@ -14,12 +14,15 @@ import type { GraphSession, Layer } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { openSampleFromStart } from "../../../test/open";
 import { findValuePicker, screen, waitFor, within } from "../../../test/test-utils";
+import { selectWithTwin } from "../../../test/twin-layer";
 import { type WorkspaceStore } from "../../state/store";
 
-/** A hang guard for the element coming up and loading a sample, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Opens a layer's Style tab and its color binding popover by clicking the color's value pill.
@@ -29,15 +32,13 @@ const TIMEOUT_MS = 90_000;
  */
 async function openBinding(store: WorkspaceStore, layer: Layer): Promise<HTMLElement> {
     store.set({ inspected: { kind: "layer-row", id: layer.id } });
-    const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
-    const pill = await waitFor(
-        () => {
-            const found = tab.querySelector<HTMLElement>(".cm-var-fill-button");
-            assert.isNotNull(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    // A project opens on its Everything row's Style tab, which the layer's tab replaces: read the
+    // tab shown now on every look, never one found before the swap.
+    const pill = await waitFor(() => {
+        const found = screen.getByTestId("style-tab").querySelector<HTMLElement>(".cm-var-fill-button");
+        assert.isNotNull(found);
+        return found;
+    });
     if (pill === null) {
         throw new Error("no value pill");
     }
@@ -105,14 +106,11 @@ describe("the binding popover's rows and readings", () => {
         assert.isNull(within(popover).queryByRole("button", { name: /^Use one (color|value)/ }));
 
         await userEvent.click(within(popover).getByRole("button", { name: "One color per value" }));
-        await waitFor(
-            () => {
-                const binding = session.styles.get(layer.id)?.encode?.["node.color"];
-                assert.equal(binding !== undefined && "by" in binding ? binding.scale : undefined, "ordinal");
-                assert.equal(nodeColors(session).size, 12, "12 conferences, 12 colors");
-            },
-            { timeout: TIMEOUT_MS },
-        );
+        await waitFor(() => {
+            const binding = session.styles.get(layer.id)?.encode?.["node.color"];
+            assert.equal(binding !== undefined && "by" in binding ? binding.scale : undefined, "ordinal");
+            assert.equal(nodeColors(session).size, 12, "12 conferences, 12 colors");
+        });
         assert.isDefined(
             await within(popover).findByRole("combobox", { name: /^Palette/ }),
             "the categorical palettes are offered",
@@ -182,7 +180,7 @@ describe("the binding popover's rows and readings", () => {
         // A set select's own Clear: the palette, once one is picked.
         await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
         await userEvent.click(await screen.findByRole("option", { name: "Seven bright colors" }));
-        const reset = await within(popover).findByRole("button", { name: /^Reset Palette/ });
+        const reset = await within(popover).findByRole("button", { name: /^Reset the node color palette/ });
         assert.isDefined(reset, "the palette select's Clear");
         const marks = reset.querySelectorAll("svg line, svg path");
         assert.lengthOf(marks, 1, "one stroke");
@@ -203,8 +201,14 @@ describe("the binding popover's rows and readings", () => {
             selector: { match: "everything" },
             set: { "node.color": "#FF0000" },
         });
-        store.set({ inspected: { kind: "layer-row", id: layer.id } });
-        const tab = await screen.findByTestId("style-tab", {}, { timeout: TIMEOUT_MS });
+        // A click on its tree row opens its Style tab in place of Everything's, which the project
+        // opened on.
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${layer.name}, `) }));
+        await waitFor(() => {
+            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: layer.id });
+        });
+        const tab = await screen.findByTestId("style-tab", {});
 
         // The vary picker on Node size, every value unfolded.
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node shape" }));
@@ -246,7 +250,9 @@ describe("the binding popover's rows and readings", () => {
         });
         await userEvent.keyboard("{Escape}");
 
-        // The Which picker's add menu.
+        // The Which picker's add menu: the cards of two selected layers (one alone opens the
+        // selection editor).
+        await selectWithTwin(session, "Mine");
         await userEvent.click(await screen.findByRole("button", { name: /^Which nodes, / }));
         await userEvent.click(await screen.findByRole("button", { name: "Add a condition" }));
         const listbox = await screen.findByRole("listbox");

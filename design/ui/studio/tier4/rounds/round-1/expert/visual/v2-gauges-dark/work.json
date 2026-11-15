@@ -1,0 +1,41 @@
+{
+ "start": {
+  "runs": [],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [],
+  "sources": [
+   "gauges.csv"
+  ]
+ },
+ "end": {
+  "runs": [],
+  "layers": [
+   "node-defaults_1 Node defaults",
+   "edge-defaults_1 Edge defaults",
+   "everything_1 Everything",
+   "everything_2 Everything",
+   "pinned_1 Pinned",
+   "selected_1 Selected",
+   "selected_2 Selected",
+   "hovered_1 Hovered"
+  ],
+  "notes": [],
+  "steps": [
+   "filter-1 on {\"kind\":\"all\",\"of\":[{\"kind\":\"text\",\"reads\":\"data.telemetry\",\"mode\":\"exact\",\"text\":\"true\",\"caseSensitive\":true,\"nodes\":\"ends\"},{\"kind\":\"range\",\"attribute\":\"data.depth_cm\",\"min\":70,\"max\":210,\"nodes\":\"ends\"}]}"
+  ],
+  "sources": [
+   "gauges.csv"
+  ]
+ },
+ "gone": {}
+}

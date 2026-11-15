@@ -1,13 +1,14 @@
 import "./join.css";
 
 import { DataTable, type DataTableColumn, EntityChip } from "@graphty/compact-mantine";
-import type { GraphSession, JoinChoices, JoinReport } from "@graphty/graphty-element/session";
+import type { GraphSession, JoinChoices, JoinReport, JoinRowFate } from "@graphty/graphty-element/session";
 import { Badge, Button, Checkbox, HoverCard, Menu, SegmentedControl } from "@mantine/core";
 import { useElementSize } from "@mantine/hooks";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
 import { formatNumber } from "../inspector/words";
+import { errorWords } from "../project/words";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { columnChoices, headerIconsLabel, type RecordKind, type TableColumnChoice } from "../table/columns";
 import { HeaderIcons } from "../table/HeaderCell";
@@ -25,8 +26,9 @@ import {
     type ReplaceTarget,
     replaceTargets,
 } from "./commands";
-import { type JoinShow, MatchChips } from "./MatchChips";
+import { MatchChips } from "./MatchChips";
 import { MatchRow } from "./MatchRow";
+import { type JoinShow, shownChips } from "./shownChips";
 
 /** The smallest table drawn, while its pane is being measured. */
 const MIN_TABLE_HEIGHT = 32;
@@ -79,11 +81,34 @@ function inOpenPopup(target: EventTarget | null): boolean {
     );
 }
 
-/** One incoming row as the table draws it: its place in the file, its values, its match. */
+/** One incoming row as the table draws it: its place in the file, its values, its match, its fate. */
 interface IncomingRow {
     readonly at: number;
     readonly values: Readonly<Record<string, unknown>>;
     readonly match: readonly (string | number)[];
+    readonly fate: JoinRowFate | undefined;
+}
+
+/** What the join does with a row that adds nothing, in the row's tag. */
+const FATE_WORDS: Readonly<Partial<Record<JoinRowFate, string>>> = {
+    repeat: "Repeat, not added",
+    "left-out": "Left out",
+};
+
+/**
+ * A row's tag: what it joins to; for a new edge to an end the graph lacks, its two ends as given
+ * and "new node".
+ * @param row - the row.
+ * @param choices - the join.
+ * @returns the words, or "" for none.
+ */
+function tagWords(row: IncomingRow, choices: JoinChoices): string {
+    if (row.fate === "new-end") {
+        const ends = choices.keys.map((key) => String(cellValue(row.values[key.file]) ?? ""));
+        return `${ends.join(" - ")}, new node`;
+    }
+    const quiet = row.fate === undefined ? undefined : FATE_WORDS[row.fate];
+    return quiet ?? row.match.join(" - ");
 }
 
 /**
@@ -101,12 +126,13 @@ function cellValue(value: unknown): string | number | boolean | undefined {
 }
 
 /**
- * The join's key column on the graph side, as the table names it: `id`, or `a:<attribute>`.
+ * The join's key column on the graph side, as the table names it: `id`, an edge's `source` or
+ * `target`, or `a:<attribute>`.
  * @param path - the key's graph value.
  * @returns the column id.
  */
 function graphColumnId(path: string): string {
-    return path === "id" ? "id" : `a:${path.replace(/^data\./, "")}`;
+    return path === "id" || path === "source" || path === "target" ? path : `a:${path.replace(/^data\./, "")}`;
 }
 
 /**
@@ -124,13 +150,13 @@ function included(choices: JoinChoices, columns: readonly string[]): readonly st
  * The report for the choices, or the reason the element refused them.
  * @param subject - the table.
  * @param choices - the join.
- * @returns the report, or the refusal's message.
+ * @returns the report, or why it was refused, in the app's words.
  */
 function reportOf(subject: JoinSubject, choices: JoinChoices): JoinReport | string {
     try {
         return subject.report(choices);
     } catch (error: unknown) {
-        return error instanceof Error ? error.message : String(error);
+        return errorWords("Cannot join", error);
     }
 }
 
@@ -158,7 +184,7 @@ function JoinButton({
     how: JoinHow;
     hows: readonly JoinHow[];
     onHow: (how: JoinHow, target?: ReplaceTarget) => void;
-    onRun: () => void;
+    onRun: (how: JoinHow, target: ReplaceTarget | undefined) => void;
     disabled: boolean;
     targets: readonly ReplaceTarget[];
     target: ReplaceTarget | undefined;
@@ -170,7 +196,9 @@ function JoinButton({
             <Button
                 size="xs"
                 data-autofocus
-                onClick={onRun}
+                onClick={() => {
+                    onRun(how, target);
+                }}
                 disabled={(disabled && how === "join") || (how === "replace" && target === undefined)}
             >
                 {words(how, target)}
@@ -190,8 +218,10 @@ function JoinButton({
                                     key={to === undefined ? each : `${each}:${to.key}`}
                                     aria-checked={each === how && to?.key === target?.key}
                                     leftSection={to === undefined ? undefined : <GLYPHS.data size={14} aria-hidden />}
+                                    // Choosing an act from the menu does it, as the button would.
                                     onClick={() => {
                                         onHow(each, to);
+                                        onRun(each, to);
                                     }}
                                 >
                                     {words(each, to)}
@@ -221,7 +251,7 @@ interface IncomingTableProps {
  * Match on this.
  * @param props - Component props
  * @param props.subject - The table
- * @param props.rows - Its rows, narrowed by Show
+ * @param props.rows - Its rows, narrowed by a count chip
  * @param props.choices - The join as chosen
  * @param props.report - The element's counts, for the clashes
  * @param props.onChange - Takes changed choices
@@ -262,13 +292,18 @@ function IncomingTable({
                 ...rows.slice(0, SIZED_ROWS).map((row) => row.match.join(" - ").length * CHAR_WIDTH + HEADER_EXTRA),
             ),
         ),
-        value: (row) => row.match.join(" - ") || undefined,
-        cell: (row) =>
-            row.match.length === 0 ? null : (
-                <EntityChip kind={edges || choices.shape === "edge-values" ? "edge" : "node"}>
-                    {row.match.join(" - ")}
-                </EntityChip>
-            ),
+        value: (row) => tagWords(row, choices) || undefined,
+        // The tag says what Join does with the row: what it joins to, a new node, or nothing.
+        cell: (row) => {
+            const quiet = row.fate === undefined ? undefined : FATE_WORDS[row.fate];
+            if (quiet !== undefined) {
+                return <span className="jn-fate">{quiet}</span>;
+            }
+            const words = tagWords(row, choices);
+            return words === "" ? null : (
+                <EntityChip kind={edges || choices.shape === "edge-values" ? "edge" : "node"}>{words}</EntityChip>
+            );
+        },
     };
     const columns = subject.columns.map((column): DataTableColumn<IncomingRow> => {
         const key = keyOf(column);
@@ -407,7 +442,7 @@ interface GraphTableProps {
     kind: RecordKind;
     choices: JoinChoices;
     onChange: (choices: JoinChoices) => void;
-    /** The nodes Show narrows it to, or null for every one. */
+    /** The nodes a count chip narrows it to, or null for every one. */
     only: readonly (string | number)[] | null;
     height: number;
 }
@@ -420,7 +455,7 @@ interface GraphTableProps {
  * @param props.kind - Nodes or edges
  * @param props.choices - The join as chosen
  * @param props.onChange - Takes changed choices
- * @param props.only - The nodes Show narrows it to
+ * @param props.only - The nodes a count chip narrows it to
  * @param props.height - The table's height
  * @returns The table
  */
@@ -491,15 +526,18 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
     useSessionVersion(session);
     const [choices, setChoices] = useState<JoinChoices>(subject.initial);
     const [how, setHow] = useState<JoinHow>(subject.how);
-    const [show, setShow] = useState<JoinShow>(null);
+    const [chosenShow, setShow] = useState<JoinShow>(null);
+    const chipsId = useId();
     const [rows, setRows] = useState<readonly Readonly<Record<string, unknown>>[]>([]);
     const [busy, setBusy] = useState(false);
     const graph = useElementSize();
     const incoming = useElementSize();
     const screenRef = useRef<HTMLElement>(null);
     const targets = replaceTargets(workspace);
-    // Replace data names the source it replaces; with one there is nothing to pick.
-    const [target, setTarget] = useState<ReplaceTarget | undefined>(targets.length === 1 ? targets[0] : undefined);
+    // Replace data names the source it replaces: the one the file matches; with one there is nothing to pick.
+    const [target, setTarget] = useState<ReplaceTarget | undefined>(
+        targets.find((each) => each.key === subject.matches) ?? (targets.length === 1 ? targets[0] : undefined),
+    );
     // The screen takes focus as it opens, on its Join button, so Esc and Tab work in it at once.
     useEffect(() => {
         const screenEl = screenRef.current;
@@ -531,6 +569,12 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
     const kind: RecordKind = choices.shape === "edge-values" ? "edge" : "node";
     const graphPaths = [
         { value: "id", label: "Id" },
+        ...(kind === "edge"
+            ? [
+                  { value: "source", label: "Source" },
+                  { value: "target", label: "Target" },
+              ]
+            : []),
         ...session.data
             .attributes()
             .filter((each) => each.kind === kind && each.origin !== "result" && each.hidden !== true)
@@ -540,14 +584,36 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
         .joins()
         .filter((each) => each.source !== subject.edit)
         .map((each) => ({ value: each.source, label: each.table.name }));
+    // A narrowing whose chip is gone stops narrowing.
+    const show = counts !== null && shownChips(counts, choices).includes(chosenShow) ? chosenShow : null;
     const shown = rows
-        .map((values, at): IncomingRow => ({ at, values, match: counts?.rowMatches[at] ?? [] }))
-        .filter((row) => show !== "not-in-graph" || row.match.length === 0);
+        .map((values, at): IncomingRow => ({
+            at,
+            values,
+            // What a row joins to means nothing to Add as rows, Replace or a separate graph.
+            match: (how === "join" ? counts?.rowMatches[at] : undefined) ?? [],
+            fate: how === "join" ? counts?.rowFates[at] : undefined,
+        }))
+        .filter((row) => {
+            if (show === "not-in-graph") {
+                return row.match.length === 0;
+            }
+            // An edge join's chips narrow to the rows that become edges, or that add a node.
+            if (show === "added") {
+                return row.fate === "joined" || row.fate === "new-end";
+            }
+            if (show === "new-end") {
+                return row.fate === "new-end";
+            }
+            return show !== "matched" || row.match.length > 0;
+        });
+    const matchedIds = show === "matched" ? [...new Set(counts?.rowMatches.flat() ?? [])] : null;
     const hows = howChoices(workspace, subject);
     return (
         <section // NOSONAR(S6847): the screen's own keys, caught as they bubble from its controls; it takes focus (tabIndex -1)
             className="jn-screen"
-            aria-label="Join"
+            aria-label={`Join ${subject.name}`}
+            aria-describedby={how === "join" ? chipsId : undefined}
             ref={screenRef}
             tabIndex={-1}
             onKeyDown={onKeyDown}
@@ -576,13 +642,18 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                     targets={targets}
                     target={target}
                     disabled={counts === null || busy}
-                    onRun={() => {
+                    onRun={(runHow, runTarget) => {
+                        if (
+                            (runHow === "join" && (counts === null || busy)) ||
+                            (runHow === "replace" && runTarget === undefined)
+                        ) {
+                            return;
+                        }
                         setBusy(true);
-                        finishJoin(workspace, subject, choices, how, target?.key).catch((error: unknown) => {
+                        finishJoin(workspace, subject, choices, runHow, runTarget?.key).catch((error: unknown) => {
                             setBusy(false);
-                            const reason = error instanceof Error ? error.message : String(error);
                             workspace.store.set({
-                                notice: { message: `${subject.name} could not be joined. ${reason}` },
+                                notice: { message: errorWords(`${subject.name} could not be joined`, error) },
                             });
                         });
                     }}
@@ -605,9 +676,14 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                         graphPaths={graphPaths}
                         mappings={mappings}
                         onChange={setChoices}
+                        extra={{
+                            ignoringCase: counts?.extraIgnoringCase ?? 0,
+                            ignoringSpaces: counts?.extraIgnoringSpaces ?? 0,
+                        }}
                     />
                     {counts === null ? (
                         <p // NOSONAR(S6819): a live announcement of why the join was refused; <output> is for a form's computed result
+                            id={chipsId}
                             className="jn-refused"
                             role="status"
                         >
@@ -615,6 +691,7 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                         </p>
                     ) : (
                         <MatchChips
+                            id={chipsId}
                             report={counts}
                             choices={choices}
                             onChange={setChoices}
@@ -633,8 +710,8 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                     <div className="jn-pane-head">
                         <EntityChip kind={kind}>
                             {kind === "node"
-                                ? `${formatNumber(session.data.nodes().length)} nodes`
-                                : `${formatNumber(session.data.edges().length)} edges`}
+                                ? `${formatNumber(session.data.count().nodes)} nodes`
+                                : `${formatNumber(session.data.count().edges)} edges`}
                         </EntityChip>
                     </div>
                     <div className="jn-pane-body" ref={graph.ref}>
@@ -643,7 +720,7 @@ function JoinBody({ subject, session }: Readonly<{ subject: JoinSubject; session
                             kind={kind}
                             choices={choices}
                             onChange={setChoices}
-                            only={show === "without-value" ? (counts?.withoutValueIds ?? null) : null}
+                            only={show === "without-value" ? (counts?.withoutValueIds ?? null) : matchedIds}
                             height={Math.max(MIN_TABLE_HEIGHT, graph.height)}
                         />
                     </div>

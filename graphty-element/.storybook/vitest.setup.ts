@@ -49,7 +49,7 @@
 
 import { Logger } from "@babylonjs/core";
 import { setProjectAnnotations } from "@storybook/web-components-vite";
-import { afterEach, assert } from "vitest";
+import { afterEach, assert, vi } from "vitest";
 
 import type { Graphty } from "../src/graphty-element";
 import {
@@ -58,9 +58,16 @@ import {
     paintOf,
     strandedOnBootstrap,
 } from "../test/helpers/paint-assertions";
-import { click, hover } from "../test/helpers/real-input";
+import { click, doubleClick, hover, press, release } from "../test/helpers/real-input";
 import * as projectAnnotations from "./preview";
 import { operationQueueOf } from "../src/Graph";
+
+// Real input for every play function's `userEvent` (vitest.real-user-event.mjs at the root): Playwright drives
+// the browser, as a reader's mouse and keyboard do. Storybook's own UI and a capture keep its replay.
+vi.mock("storybook/test", async (importOriginal) => {
+    const { withRealUserEvent } = await import("../../vitest.real-user-event.mjs");
+    return withRealUserEvent(await importOriginal(), (await import("vitest/browser")).userEvent);
+});
 
 // Strict state: every session created in these tests checks that project state changes only
 // through the dispatcher (src/session/project/strict.ts, design/undo/undo-design.md section 12.1).
@@ -76,7 +83,7 @@ const capture = /[?&]chromatic=true/.test(location.search);
 // capture: the built Storybook draws every frame, and a play that watches frames go by (a label's
 // animation, switched off for the capture) waits for frames a resting graph never draws.
 (globalThis as { __GRAPHTY_TEST_RENDER_ON_DEMAND__?: boolean }).__GRAPHTY_TEST_RENDER_ON_DEMAND__ = !capture;
-// The test project brings its own timeout, so the play functions' waits set none of their own
+// A runner, not a reader, runs these stories, so a story's endless demo cycle stays off
 // (`isUnderRunner` in stories/helpers.ts).
 (globalThis as { __GRAPHTY_STORY_RUNNER__?: boolean }).__GRAPHTY_STORY_RUNNER__ = true;
 // Its full sweep after each test: no typed array state kept was written in place.
@@ -105,9 +112,6 @@ if (globalThis.window !== undefined) {
         originalWarn.apply(console, args);
     };
 }
-
-/** How often to look again while waiting for the data to arrive. */
-const POLL_MS = 50;
 
 /** The story parameters this hook reads. */
 interface PaintCheckParameters {
@@ -192,7 +196,12 @@ function exemptionOf(story: string, parameters: Record<string, unknown> | undefi
  */
 async function until(done: () => boolean): Promise<void> {
     while (!done()) {
-        await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+        // Once a frame: what is waited for changes as the element draws.
+        await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => {
+                resolve();
+            });
+        });
     }
 }
 
@@ -301,6 +310,6 @@ setProjectAnnotations([
     projectAnnotations,
     {
         afterEach: assertStoryDrewWhatItAskedFor,
-        parameters: capture ? {} : { realInput: { click, hover } },
+        parameters: capture ? {} : { realInput: { click, doubleClick, hover, press, release } },
     },
 ]);

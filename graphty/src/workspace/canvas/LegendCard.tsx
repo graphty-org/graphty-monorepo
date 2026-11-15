@@ -3,6 +3,8 @@ import type { GraphSession, LegendBlock } from "@graphty/graphty-element/session
 import { ColorSwatch, Paper, Stack, Text, Tooltip } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { nodeModelsOn, selectionWorkspaceOn } from "../features";
+import { useNumberFormats } from "../settings/numberFormat";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { CatalogGlyph } from "../style/ValueField";
 import { colorName } from "../style/words";
@@ -17,6 +19,7 @@ import {
     swatchText,
     swatchValue,
 } from "./legendWords";
+import { modelName, pictureName } from "./models";
 
 /** Props for LegendCard. */
 interface LegendCardProps {
@@ -271,6 +274,30 @@ function useScrolls(ref: React.RefObject<HTMLElement | null>): { scrolls: boolea
 }
 
 /**
+ * With the node-models experiment on, a model's or a picture's rows named as the Style panel names
+ * them ("police"), never by the element's asset id or the address a layer names, whose query may
+ * hold a signed token.
+ * @param session - the session.
+ * @param block - one legend block.
+ * @returns the block, its model and picture rows named.
+ */
+function withAssetNames(session: GraphSession, block: LegendBlock): LegendBlock {
+    if (block.channel !== "node.model" && block.channel !== "node.texture") {
+        return block;
+    }
+    const nameOf = block.channel === "node.model" ? modelName : pictureName;
+    return {
+        ...block,
+        swatches: block.swatches.map((swatch) => {
+            // What it paints is the ref itself, so it is not printed beside the name either.
+            const { paints, ...rest } = swatch;
+            const ref = typeof paints === "string" ? paints : swatch.value;
+            return typeof ref === "string" ? { ...rest, name: swatch.name ?? nameOf(session, ref) } : swatch;
+        }),
+    };
+}
+
+/**
  * The legend card (tier1-design.md section 2.4): read-only, one section per channel a row paints
  * from the data, the row that wins on top. Each section is titled "<Property>: <row>"; a run's
  * node and edge highlight in one color share one section titled by the run.
@@ -285,17 +312,22 @@ function useScrolls(ref: React.RefObject<HTMLElement | null>): { scrolls: boolea
 export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): React.JSX.Element {
     const ref = useRef<HTMLElement>(null);
     const { scrolls, below } = useScrolls(ref);
+    // The reader's Number format respells the key's values.
+    useNumberFormats();
     // The element lists the stack bottom first; the card reads top first, the winner first.
     const names = keyNames(session);
-    const sections = keySections(blocks, names);
+    const sections = keySections(
+        nodeModelsOn(session) ? blocks.map((block) => withAssetNames(session, block)) : blocks,
+        names,
+    );
     return (
         <Paper
             ref={ref}
             component="section"
             aria-label="Legend"
-            className="ws-legend-card"
+            className="ws-legend-card cm-focus-inside"
             // A key that scrolls takes focus, so the keyboard can scroll it too; its scrollbar says
-            // that more lies below.
+            // that more lies below. Its ring is the app's shared inset one, on the card's own edge.
             tabIndex={scrolls ? 0 : undefined}
             withBorder
             shadow="xs"
@@ -304,7 +336,7 @@ export function LegendCard({ blocks, session }: Readonly<LegendCardProps>): Reac
             <Stack gap="xs">
                 {sections.length === 0 ? (
                     <Text size="xs" c="dimmed">
-                        {NOTHING_KEYED}
+                        {selectionWorkspaceOn(session) ? "No styles" : NOTHING_KEYED}
                     </Text>
                 ) : null}
                 {sections.map(({ title, block, entry, merged, scope, covered }) => {

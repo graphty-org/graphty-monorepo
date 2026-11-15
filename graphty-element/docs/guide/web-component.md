@@ -53,7 +53,7 @@ All configuration is done through HTML attributes or their corresponding JavaScr
 | `edgeWeightPath`         | `edge-weight-path`         | `string`                                                            | `'weight'`  | Path to an edge's weight, which every weighted algorithm reads                                                                                                                                                                                                                      |
 | `positionScale`          | `position-scale`           | `number`                                                            | `1`         | Multiplier from a record's own coordinates into scene units                                                                                                                                                                                                                         |
 | `directed`               | `directed`                 | `boolean \| 'auto'`                                                 | `'auto'`    | Overrules a file header's direction; `'auto'` lets the file decide                                                                                                                                                                                                                  |
-| `selectionStyle`         | property only              | `{ color?, scale?, opacity? }`                                      | gold halo   | What a selected node looks like                                                                                                                                                                                                                                                     |
+| `selectionStyle`         | property only              | `{ color?, scale?, opacity? }`                                      | blue halo   | What a selected node looks like                                                                                                                                                                                                                                                     |
 | `layoutBehavior`         | property only              | `object`                                                            | `{}`        | How the element drives the layout, whether overlapping labels are thinned out, and the two on-demand expansion functions                                                                                                                                                            |
 | `algorithmsOnLoad`       | (property only)            | `Array<string \| object>`                                           | unset       | Algorithms to run once data loads: names, or `{ algorithm, params?, style?, seed?, as? }` (see [Algorithms](./algorithms#running-algorithms-when-the-data-loads))                                                                                                                   |
 | `runAlgorithmsOnLoad`    | `run-algorithms-on-load`   | `boolean`                                                           | `false`     | Whether `algorithmsOnLoad` runs; a boolean attribute, on by presence                                                                                                                                                                                                                |
@@ -87,7 +87,7 @@ The Web Component exposes many methods directly. See [Direct Methods](#direct-me
 
 ### What a selected node looks like
 
-The highlight is a gold halo around the selected node, and it is configuration rather than a style
+The highlight is a solid blue halo around the selected node (and a blue band along a selected edge), and it is configuration rather than a style
 layer -- a selection is what a reader is pointing at, not a property of the data, so a layer
 drawing it would be reorderable, persistable and lost at a dataset boundary along with every other
 layer.
@@ -101,8 +101,10 @@ element.selectionStyle = {
 ```
 
 Merged over what is already set, so naming one field leaves the others alone, and it takes effect
-on a selection that is already on screen. An `opacity` of `0` draws no halo at all, for a page that
-marks the selected node its own way, such as with a `node.outline` style layer.
+on a selection that is already on screen. An `opacity` of `0` draws no halo at all, and an
+`edgeOpacity` of `0` no band, for a page that marks the selection its own way, such as with a
+`node.outline` style layer. With `startingRows` on, the Selected row draws the mark instead: delete
+it to stop drawing the selection ([Everything, Selected and Hovered](./starting-rows.md)).
 
 ### How 3D nodes are lit
 
@@ -190,6 +192,31 @@ is not saved in a project file. They are the same settings as `layoutBehavior.ca
 and `layoutBehavior.camera.fitInsets`.
 
 The canvas still draws everywhere, so a node turned into an inset is drawn and can be pointed at.
+
+By default the turning carries on as soon as the reader lets go. `layoutBehavior.camera.autoRotateResume`
+makes it wait: a number of milliseconds after the reader's last drag, pinch, wheel or camera key,
+or `"never"` to stop at their first move until `autoRotate` is changed. Turning never cancels the
+element's framing, so a graph loaded with `autoRotate` on is still zoomed to fit:
+
+```javascript
+element.layoutBehavior = { camera: { autoRotate: 0.15, autoRotateResume: 3000 } }; // back after 3 s
+```
+
+### Framing again when the canvas changes size
+
+A resize that lands while the element is still framing the graph is framed at the new size. One
+that lands after the picture is final leaves the camera where it is, by default. A page that
+opens its own panel beside the canvas and shrinks it -- an inspector, a side sheet -- can turn
+`layoutBehavior.camera.refitOnResize` on, so every resize frames the graph again for the new
+canvas, and the picture is the same whenever the panel opens:
+
+```javascript
+element.layoutBehavior = { camera: { refitOnResize: true } };
+```
+
+It only moves a camera the element framed itself or `zoomToFit()` framed. Once the reader zooms,
+turns or pans, or `setCameraState` places the camera, a resize leaves it alone until the next
+load or layout change. With `autoFrame` off it does nothing.
 
 ### A sharp picture on a high-resolution screen
 
@@ -443,7 +470,8 @@ For VR/AR modes, see the [VR/AR Guide](./vr-ar).
 
 The element is a block that fills its container's width. Its height is 2:1 -- half its width --
 unless you give it a height or place it in a parent that has one, in which case it fills that
-parent. Size it with ordinary CSS:
+parent. The 2:1 ratio is a preferred size, never a minimum: in a grid or flex layout the element
+shrinks to the space it is given rather than pushing the page wider. Size it with ordinary CSS:
 
 ```css
 graphty-element {
@@ -695,6 +723,9 @@ element.stopVoiceInput();
 element.disableAiControl();
 ```
 
+Remembered conversations, approvals before a change, and the rules each promise follows are in
+the [AI Assistant guide](./ai-assistant).
+
 ### Screenshot and Capture
 
 ```javascript
@@ -707,7 +738,7 @@ const result = await element.captureScreenshot({
 // Check capabilities before asking for a large one
 const capability = await element.canCaptureScreenshot({ multiplier: 4 });
 if (!capability.supported) {
-    console.warn(capability.reason);
+    console.warn(capability.reason?.code, capability.reason?.params);
 }
 ```
 

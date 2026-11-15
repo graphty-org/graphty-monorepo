@@ -214,7 +214,7 @@ describe("graphmlImporter corpus", () => {
 });
 
 describe("graphmlImporter malformed corpus", () => {
-    const fatal: Record<string, string> = {
+    const fatal: Partial<Record<string, string>> = {
         // one code for the concept: every importer gives an empty input E_EMPTY_INPUT (was E_XML_SYNTAX)
         "empty-file.graphml": GRAPHML_ISSUE.EMPTY_INPUT,
         "invalid-xml.graphml": GRAPHML_ISSUE.XML_SYNTAX,
@@ -233,14 +233,16 @@ describe("graphmlImporter malformed corpus", () => {
         "missing-node-id.graphml": { code: GRAPHML_ISSUE.MISSING_ID, nodes: 2, edges: 1 },
     };
 
+    // a malformed file need not be listed in either table
+    const recoverableByName: Partial<typeof recoverable> = recoverable;
     for (const name of malformedFiles("graphml")) {
         it(`${name}: ImportError with a report under errorLimit 0`, async () => {
             const bytes = readMalformedBytes("graphml", name);
-            const err = await importError(bytes, { errorLimit: 0, ...recoverable[name]?.options });
+            const err = await importError(bytes, { errorLimit: 0, ...recoverableByName[name]?.options });
             expect(err.code).toBe("E_IMPORT");
             expect(err.report.format).toBe("graphml");
             expect(err.report.errorCount).toBeGreaterThan(0);
-            const expected = fatal[name] ?? recoverable[name]?.code;
+            const expected = fatal[name] ?? recoverableByName[name]?.code;
             expect(expected, `no expectation for ${name}`).toBeDefined();
             expect(codes(err.report)).toContain(expected);
             if (name in fatal) {
@@ -366,6 +368,8 @@ describe("graphmlImporter keys and data", () => {
         expect(snapshot.nodes.require("count").isSet(0)).toBe(false);
         expect(codes(report)).toEqual(["E_COLUMN_TYPE", "E_COLUMN_TYPE"]);
         expect(report.issues[0]).toMatchObject({ category: "validation-error", element: "k_int", line: 13 });
+        // only the value was dropped, and the issue says so
+        expect(report.issues.map((issue) => issue.params)).toEqual([{ skipped: "value" }, { skipped: "value" }]);
     });
 
     it("treats blank text as unset for non-string types and as an empty string for strings", async () => {
@@ -390,7 +394,9 @@ describe("graphmlImporter keys and data", () => {
         expect(snapshot.nodes.require("x").meta.dtype).toBe("string");
         expect(snapshot.nodes.require("x").meta.origin?.type).toBe("date");
         expect(column(snapshot, "nodes", "x")).toEqual(["2024-01-01"]);
-        expect(report.errorCount).toBe(2);
+        // the undeclared key's value is kept as text under the key id
+        expect(column(snapshot, "nodes", "nope")).toEqual(["1"]);
+        expect(report.errorCount).toBe(1);
     });
 
     it("reports keys without an id, duplicate keys, invalid and unsupported domains", async () => {
@@ -477,11 +483,70 @@ describe("graphmlImporter keys and data", () => {
         expect(column(snapshot, "edges", "targetport")).toEqual(["p2"]);
     });
 
+    it("keeps a port's yFiles data in its node's ports column, and a save writes it back as <port> elements", async () => {
+        const keys = `<key id="ps" for="port" attr.name="PortStyle" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/PortStyle"/>
+<key id="pg" for="port" yfiles.type="portgraphics"/>
+<key id="pv" for="port" attr.name="plain" attr.type="int"/>\n`;
+        const body = `<node id="a"><port name="p0"><data key="ps"><y:Style kind="event"/></data><data key="pv">1</data></port><port name="p1"><data key="pg"><y:Old/></data></port><port name="p2"/></node><node id="b"/>
+<edge source="a" target="b" sourceport="p2"/>`;
+        const { snapshot, report } = await load(doc(body, "directed", keys));
+        // the plain port key is not kept, the yFiles one is
+        expect(codes(report)).toEqual([GRAPHML_ISSUE.KEY_DOMAIN_UNSUPPORTED, GRAPHML_ISSUE.PORT_DECLARATION]);
+        const ports = snapshot.nodes.require("ports");
+        expect(ports.meta.origin?.type).toBe("port");
+        expect(ports.meta.extra.portKeys).toEqual({
+            PortStyle: "http://www.yworks.com/xml/yfiles-common/2.0/PortStyle",
+            pg: "portgraphics",
+        });
+        expect(column(snapshot, "nodes", "ports")).toEqual([
+            [
+                { name: "p0", PortStyle: { "y:Style": { "@_kind": "event" } } },
+                { name: "p1", pg: { "y:Old": "" } },
+            ],
+            undefined,
+        ]);
+        expect(graphmlExporter.check(snapshot).map((n) => n.code)).not.toContain(GRAPHML_LOSS.PORTS_DROPPED);
+        const text = await graphmlExporter.exportToString(snapshot);
+        expect(text).toContain(
+            'for="port" attr.name="PortStyle" y:attr.uri="http://www.yworks.com/xml/yfiles-common/2.0/PortStyle"/>',
+        );
+        expect(text).toContain('<port name="p2"/>');
+        // the save reads back with the same ports, and the edge's port is declared on its node
+        const again = await load(text);
+        expect(codes(again.report)).toEqual([GRAPHML_ISSUE.PORT_DECLARATION]);
+        expect(column(again.snapshot, "nodes", "ports")).toEqual(column(snapshot, "nodes", "ports"));
+        expect(again.snapshot.nodes.require("ports").meta.extra).toEqual(ports.meta.extra);
+    });
+
+    it("notes the port values a save cannot write: no yFiles key type, no name, or no XML tree", async () => {
+        const builder = new GraphBuilder({ directed: true });
+        const ports = builder.declareNodeColumn({
+            name: "ports",
+            dtype: "json",
+            origin: { format: "graphml", type: "port", namespace: "yfiles" },
+            extra: { portKeys: { PortStyle: "http://www.yworks.com/xml/yfiles-common/2.0/PortStyle" } },
+        });
+        const a = builder.addNode("a");
+        builder.setNodeValue(ports, a, [
+            { name: "p0", PortStyle: { "y:Style": "" }, Unknown: { "y:X": "" } },
+            { PortStyle: { "y:Style": "" } },
+            { name: "p1", PortStyle: { "y:Bad": [[1]] } },
+        ]);
+        const snapshot = builder.freeze();
+        const note = graphmlExporter.check(snapshot).find((n) => n.code === GRAPHML_LOSS.PORTS_DROPPED);
+        expect(note?.count).toBe(3);
+        const text = await graphmlExporter.exportToString(snapshot);
+        expect(text).toContain('<port name="p0">');
+        expect(text).toContain('<port name="p1"/>');
+        expect(text).not.toContain("y:X");
+        expect(text).not.toContain("y:Bad");
+    });
+
     it("says where a misplaced GraphML element belongs instead of calling it foreign", async () => {
         const message = async (body: string): Promise<string | undefined> =>
             (await load(doc(body))).report.issues.find((i) => i.code === GRAPHML_ISSUE.UNKNOWN_ELEMENT)?.message;
-        expect(await message(`<key id="k" for="node" attr.name="k"/><node id="a"/>`)).toBe(
-            "element <key> is only allowed as a child of <graphml>, before the first <graph>; it was skipped",
+        expect(await message(`<node id="a"><key id="k" for="node" attr.name="k"/></node>`)).toBe(
+            "element <key> is only allowed as a child of <graphml> or <graph>; it was skipped",
         );
         expect(await message(`<node id="a"><bogus/></node>`)).toBe("element <bogus> is not GraphML and was skipped");
     });
@@ -555,20 +620,20 @@ describe("graphmlImporter ids and endpoints", () => {
         expect(codes(report)).toEqual([GRAPHML_ISSUE.DUPLICATE_NODE]);
     });
 
-    it("reports edges without a target, with a bad directed flag, or a duplicate id, and skips them", async () => {
+    it("reports edges without a target or with a duplicate id and skips them; a bad directed flag keeps its edge", async () => {
         const body = `<node id="a"/><node id="b"/>
 <edge source="a"/>
 <edge source="a" target="b" directed="maybe"/>
 <edge id="e" source="a" target="b"/>
 <edge id="e" source="b" target="a"/>`;
         const { snapshot, report } = await load(doc(body));
-        expect(snapshot.edgeCount).toBe(1);
+        expect(snapshot.edgeCount).toBe(2);
         expect(codes(report)).toEqual([
             GRAPHML_ISSUE.MISSING_ENDPOINT,
             GRAPHML_ISSUE.INVALID_DIRECTED,
             "E_DUPLICATE_EDGE_ID",
         ]);
-        expect(report.counts).toMatchObject({ edges: 1, skippedEdges: 3 });
+        expect(report.counts).toMatchObject({ edges: 2, skippedEdges: 2 });
         expect(report.issues[2]).toMatchObject({ element: "e", line: 8 });
     });
 

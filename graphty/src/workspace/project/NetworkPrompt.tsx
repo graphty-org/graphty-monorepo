@@ -1,6 +1,6 @@
 import { ModalFooter } from "@graphty/compact-mantine";
 import type { NetworkRequest } from "@graphty/graphty-element/session";
-import { Button, Modal, Stack, Text } from "@mantine/core";
+import { Button, getDefaultZIndex, Modal, Stack, Text } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
 import {
@@ -18,6 +18,15 @@ const KIND_WORDS: Readonly<Record<string, string>> = {
     texture: "a picture",
     source: "a data source",
 };
+
+/**
+ * The file an address names: its last path part, without its query or fragment.
+ * @param url - the address.
+ * @returns the file name, else the address.
+ */
+function fileOf(url: string): string {
+    return url.split(/[?#]/)[0].split("/").pop() || url;
+}
 
 /**
  * The question before a project opens a web address it names (a model, a picture, a data
@@ -71,14 +80,26 @@ export function NetworkPrompt(): React.JSX.Element | null {
                 });
             }}
             title="Open a web address?"
+            // Asked while another dialog may be open (Load custom model's part rows): above it.
+            zIndex={getDefaultZIndex("modal") + 1}
         >
             {request === undefined ? null : (
                 <Stack gap="xs">
-                    <Text size="sm">This project wants to open {request.params.url}. Continue?</Text>
-                    <Text size="xs" c="dimmed">
-                        It is {KIND_WORDS[request.params.kind] ?? "a file"} on {request.params.host}. Continue opens it
-                        and anything else this project names on that site.
-                    </Text>
+                    {request.params.by === "supplied" ? (
+                        // A part the reader handed a model by its address (only the node-models
+                        // experiment's Parts pop-over supplies parts).
+                        <Text size="sm">
+                            Load a part of this model from {request.params.host}? It is {fileOf(request.params.url)}.
+                        </Text>
+                    ) : (
+                        <>
+                            <Text size="sm">This project wants to open {request.params.url}. Continue?</Text>
+                            <Text size="xs" c="dimmed">
+                                It is {KIND_WORDS[request.params.kind] ?? "a file"} on {request.params.host}. Continue
+                                opens it and anything else this project names on that site.
+                            </Text>
+                        </>
+                    )}
                     <ModalFooter mt="md">
                         <Button
                             variant="default"

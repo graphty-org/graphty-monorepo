@@ -52,6 +52,7 @@ describe("per-setting judging", () => {
         assert.strictEqual(settingOf("loop-n->loop-n#0"), "loop");
         assert.isNull(settingOf("rect#3"));
         assert.isNull(settingOf("graphty:path#12"));
+        assert.isNull(settingOf("text@-88,-8,88,2~2"));
         // graphty's extra node by its id, and an extra edge by its ends (the comparator's subject)
         assert.strictEqual(settingOf("graphty:stipple-gray50"), "stipple-gray50");
         assert.strictEqual(settingOf("stipple-gray50-s->stipple-gray50-t"), "stipple-gray50");

@@ -1,23 +1,23 @@
-import { ControlSection, PanelField, Popout, PopoutButton, ToggleIconButton } from "@graphty/compact-mantine";
+import { ControlSection, PanelField, Popout } from "@graphty/compact-mantine";
 import {
     type ChannelDescriptor,
-    channelsFor,
     LABEL_LOOKS,
     LABEL_STYLE_DEFAULTS,
     labelLookChanges,
 } from "@graphty/graphty-element/catalog";
 import { type Channel, type LabelStyle, labelTemplateLine } from "@graphty/graphty-element/schema";
 import type { GraphSession, Layer } from "@graphty/graphty-element/session";
-import { ActionIcon, Button, Checkbox, Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
+import { ActionIcon, Button, Group, Stack, Text, TextInput, Tooltip } from "@mantine/core";
 import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { useAnnounceChange } from "../state/useAnnounceChange";
+import { SettingsPopout } from "../options/SettingsPopout";
 import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { cardLines, cardSummary } from "./cardLines";
 import { CARD_LOOK, isCard } from "./cardLook";
 import { CardContents } from "./LabelCard";
 import { LabelSettings, type VaryField } from "./LabelSettings";
+import { offeredChannel, shownChannel } from "./offered";
 import { Field, type RowContext, VarySlot } from "./PropertyRow";
 import {
     type DataChoice,
@@ -36,7 +36,7 @@ import {
 import { AddButton, type AddOption } from "./Section";
 import { focusLineNext, focusSectionNext, headerBottom, lineTarget } from "./useFocusLine";
 import { ValuePicker } from "./ValuePicker";
-import { failureWords, labelStatement, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
+import { failureWords, positionWord, TEXT_KINDS, type TextKindSpec } from "./words";
 
 /** The width of the entry's pop-outs: the source list as wide as the panel's rows, the settings wider. */
 const LIST_WIDTH = 248;
@@ -120,17 +120,31 @@ function channelsOf(kind: TextKindSpec): Channel[] {
 /**
  * The Text section of one kind (the owner's style panel design, 2026-10-13): labels and tooltips
  * on nodes, labels and end captions on edges, one entry of each. A layer that writes no text shows
- * only the dimmed title and "+". "+" ("Add to Text") lists the kinds of text not here yet and, for
- * each entry here, its look, size and position while it does not set them. Picking a kind opens its
+ * only the dimmed title and "+". "+" ("Add to Text") lists the kinds of text not here yet; each
+ * entry's own "+" adds its look, size and position while it does not set them. Picking a kind opens its
  * source list, with "Fixed text" first, and nothing is written until a source is picked or words
  * are typed; Escape leaves nothing. Picking a look, size or position adds it with its starting
  * value. Nothing from the layers beneath is drawn.
  * @param props - Component props
  * @param props.ctx - the row and side
+ * @param props.configured - whether the row writes text, drawn as a dot after the title
+ * @param props.actions - more header buttons, before its "+"
+ * @param props.loose - more text properties drawn as their own lines when the row sets them and no
+ *   entry of this section draws them (a file's label size with no label words)
  * @returns The section
  */
-export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
-    const { element, store } = useWorkspace();
+export function LabelSection({
+    ctx,
+    configured,
+    actions,
+    loose = [],
+}: Readonly<{
+    ctx: RowContext;
+    configured?: boolean;
+    actions?: React.ReactNode;
+    loose?: readonly Channel[];
+}>): React.JSX.Element {
+    const { store } = useWorkspace();
     // The kind picked from "+" whose source list is open, and the kind whose fixed words are being typed.
     const [picking, setPicking] = useState<string | null>(null);
     const [typing, setTyping] = useState<string | null>(null);
@@ -147,20 +161,9 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
             list.current?.querySelector<HTMLElement>("[data-plus]")?.focus();
         }
     }, [refocus]);
-    const allLabelsShown = useWorkspaceState((state) => state.allLabelsShown);
     const { session, side: target } = ctx;
     const kinds = TEXT_KINDS[target];
     const kindWord = target === "node" ? "Node" : "Edge";
-    // The label count is said when it changes (a label added, Show all labels); not the count the
-    // section opens with, nor "0 labels" while a graph is still loading. A label line added while
-    // the section is open makes its first count news: "24 labels, 4 hidden".
-    const labeled = lineIn(ctx, "node.label") !== undefined;
-    const openedLabeled = useRef(labeled);
-    const labelCounts = target === "node" && labeled && element !== null ? element.nodeLabelCounts : null;
-    useAnnounceChange(
-        labelCounts === null || labelCounts.labeled === 0 ? null : labelStatement(labelCounts, !allLabelsShown),
-        openedLabeled.current,
-    );
     const hasEntry = (kind: TextKindSpec): boolean =>
         lineIn(ctx, kind.words) !== undefined || lineIn(ctx, kind.style) !== undefined;
     const fail = (error: unknown): void => {
@@ -177,7 +180,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
             }
             next = { binding: textBinding(session, proposal.binding) };
         }
-        focusLineNext(kind.words);
+        focusLineNext(session, kind.words);
         const card = asCard.current;
         asCard.current = false;
         // A card: the card look and the picked value as its first row, in bold, in one step.
@@ -199,7 +202,7 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                 store.set({ announcement: `${kindWord} ${card ? "card" : kind.name.toLowerCase()} added` });
             })
             .catch((error: unknown) => {
-                focusLineNext(null);
+                focusLineNext(session, null);
                 fail(error);
             });
     };
@@ -216,18 +219,8 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                   ]
                 : [{ key: kind.id, label: kind.name }];
         }
-        const style = styleOf(lineIn(ctx, kind.style));
-        const parts: AddOption[] = [];
-        if (style.look === undefined) {
-            parts.push({ key: `${kind.id}:look`, label: `${kind.name} look` });
-        }
-        if (lineIn(ctx, kind.size) === undefined && descriptorOf(target, kind.size) !== undefined) {
-            parts.push({ key: `${kind.id}:size`, label: `${kind.name} size` });
-        }
-        if (style.location === undefined) {
-            parts.push({ key: `${kind.id}:position`, label: `${kind.name} position` });
-        }
-        return parts;
+        // Its look, size and position are added from the entry's own "+".
+        return [];
     });
     const onAdd = (key: string): void => {
         const [id, part] = key.split(":");
@@ -245,11 +238,11 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
         const style = styleOf(styleLine);
         let write: Promise<unknown>;
         if (part === "size") {
-            const size = descriptorOf(target, kind.size);
+            const size = descriptorOf(session, target, kind.size);
             if (size === undefined) {
                 return;
             }
-            focusLineNext(kind.size);
+            focusLineNext(session, kind.size);
             write = writeIn(ctx, kind.size, { value: startFor(ctx, size) });
         } else {
             const patch: Partial<LabelStyle> =
@@ -283,15 +276,29 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     }, [asked, askedHas, store]);
     const shown = kinds.filter((kind) => hasEntry(kind) || picking === kind.id || typing === kind.id);
     const partial = kinds.filter((kind) => !shown.includes(kind) && partlySet(ctx, kind.words, kind.style));
+    // No value is invisible: a text property the row sets that no entry draws gets a line of its own.
+    const drawn = new Set(shown.flatMap(channelsOf));
+    const looseLines = loose.flatMap((channel) => {
+        const held =
+            !drawn.has(channel) && (lineIn(ctx, channel) !== undefined || partlySet(ctx, channel) !== undefined);
+        const descriptor = held ? shownChannel(session, target, channel, true) : undefined;
+        return descriptor?.renderable === true ? [descriptor] : [];
+    });
 
     return (
         <div ref={list} data-section={`${target}-text`} className="ws-section">
             <ControlSection
                 label="Text"
                 headingLevel={3}
-                empty={shown.length === 0 && partial.length === 0}
+                empty={shown.length === 0 && partial.length === 0 && looseLines.length === 0}
+                hasConfiguredValues={configured}
                 collapsible={false}
-                actions={<AddButton kind={target} title="Text" options={options} onAdd={onAdd} />}
+                actions={
+                    <>
+                        {actions}
+                        <AddButton kind={target} title="Text" options={options} onAdd={onAdd} />
+                    </>
+                }
             >
                 {kinds.map((kind) => {
                     if (picking === kind.id) {
@@ -354,7 +361,16 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                         );
                     }
                     if (hasEntry(kind)) {
-                        return <TextEntry key={kind.id} ctx={ctx} kind={kind} onWords={writeWords} onFail={fail} />;
+                        return (
+                            <TextEntry
+                                key={kind.id}
+                                ctx={ctx}
+                                kind={kind}
+                                onWords={writeWords}
+                                onPart={onAdd}
+                                onFail={fail}
+                            />
+                        );
                     }
                     const some = partlySet(ctx, kind.words, kind.style);
                     const { many } = ctx;
@@ -389,35 +405,28 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                         </Group>
                     );
                 })}
-                {target === "node" && lineIn(ctx, "node.label") !== undefined && element !== null ? (
-                    <Group gap={8} wrap="nowrap">
-                        <Text size="xs" c="dimmed">
-                            {labelStatement(element.nodeLabelCounts, !allLabelsShown)}
-                        </Text>
-                        <Checkbox
-                            size="xs"
-                            ml="auto"
-                            label="Show all labels"
-                            checked={allLabelsShown}
-                            onChange={(event) => {
-                                store.set({ allLabelsShown: event.currentTarget.checked });
-                            }}
-                        />
-                    </Group>
-                ) : null}
+                {looseLines.map((descriptor) => (
+                    <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
+                ))}
             </ControlSection>
         </div>
     );
 }
 
 /**
- * A channel's descriptor on one kind, when graphty-element draws it.
+ * A channel's descriptor on one kind, when the element offers it and draws it.
+ * @param session - the element's session.
  * @param target - nodes or edges.
  * @param channel - the channel.
  * @returns the descriptor, or undefined.
  */
-function descriptorOf(target: RowContext["side"], channel: Channel): ChannelDescriptor | undefined {
-    return channelsFor(target).find((d) => d.channel === channel && d.renderable);
+function descriptorOf(
+    session: RowContext["session"],
+    target: RowContext["side"],
+    channel: Channel,
+): ChannelDescriptor | undefined {
+    const descriptor = offeredChannel(session, target, channel);
+    return descriptor?.renderable === true ? descriptor : undefined;
 }
 
 /**
@@ -512,7 +521,13 @@ function SourcePicker({
     return (
         <Popout opened={opened} onOpenChange={onOpenChange}>
             <Popout.Trigger>{children}</Popout.Trigger>
-            <Popout.Panel width={LIST_WIDTH} placement="left" alignment="start" header={{ variant: "title", title }}>
+            <Popout.Panel
+                width={LIST_WIDTH}
+                placement="left"
+                alignment="start"
+                header={{ variant: "title", title }}
+                closeLabel={`Close ${title}`}
+            >
                 <ValuePicker
                     title={title}
                     target={target}
@@ -597,19 +612,67 @@ function sourceWordsOf(ctx: RowContext, kind: TextKindSpec, words: ReturnType<ty
         : (sourceName(session, words.binding) ?? words.binding.by);
 }
 
+/**
+ * A text entry's own "+" ("Add to node label"): its look, size and position while it sets none.
+ * @param props - Component props
+ * @param props.ctx - the row
+ * @param props.kind - the kind of text
+ * @param props.locked - the entry's layer is locked, so nothing is added
+ * @param props.onPart - adds one, by `<kind>:<part>`
+ * @returns The button, or nothing when the entry sets all three or is locked
+ */
+function EntryAdd({
+    ctx,
+    kind,
+    locked,
+    onPart,
+}: Readonly<{
+    ctx: RowContext;
+    kind: TextKindSpec;
+    locked: boolean;
+    onPart: (key: string) => void;
+}>): React.JSX.Element | null {
+    const parts = locked ? [] : partsOf(ctx, kind);
+    return parts.length === 0 ? null : (
+        <AddButton kind={ctx.side} title={kind.name} options={parts} inRow onAdd={onPart} />
+    );
+}
+
 /** Props for TextEntry. */
 interface TextEntryProps {
     ctx: RowContext;
     kind: TextKindSpec;
     /** Writes the words: typed, or read from a value. */
     onWords: (kind: TextKindSpec, write: { value: string } | { choice: DataChoice }) => void;
+    /** Adds the entry's look, size or position, by `<kind>:<part>`. */
+    onPart: (key: string) => void;
     onFail: (error: unknown) => void;
 }
 
 /**
+ * What a text entry's own "+" can still add: its look, size and position while it sets none.
+ * @param ctx - the row.
+ * @param kind - the kind of text.
+ * @returns the menu items, keyed `<kind>:<part>`.
+ */
+function partsOf(ctx: RowContext, kind: TextKindSpec): AddOption[] {
+    const style = styleOf(lineIn(ctx, kind.style));
+    const parts: AddOption[] = [];
+    if (style.look === undefined) {
+        parts.push({ key: `${kind.id}:look`, label: "Look" });
+    }
+    if (lineIn(ctx, kind.size) === undefined && descriptorOf(ctx.session, ctx.side, kind.size) !== undefined) {
+        parts.push({ key: `${kind.id}:size`, label: "Size" });
+    }
+    if (style.location === undefined) {
+        parts.push({ key: `${kind.id}:position`, label: "Position" });
+    }
+    return parts;
+}
+
+/**
  * One text entry at rest (design 2.3). Line 1: the kind's glyph and word in the label column, the
- * source (typed words, or a value the words read), the settings button, the eye
- * (`LabelStyle.enabled`), the minus. Then the look (previews; "Card, edited" while a field differs,
+ * source (typed words, or a value the words read), the settings button, the minus. Then the look (previews; "Card, edited" while a field differs,
  * from graphty-element's `labelLookChanges`), the size with its vary glyph, and the position, each
  * on the panel's field column with its Clear. Accessible names carry the kind ("Node label size"),
  * since a layer on nodes and edges draws two entries.
@@ -617,10 +680,11 @@ interface TextEntryProps {
  * @param props.ctx - the row
  * @param props.kind - the kind of text
  * @param props.onWords - writes the words
+ * @param props.onPart - adds its look, size or position
  * @param props.onFail - reports a refused write
  * @returns The entry
  */
-function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): React.JSX.Element {
+function TextEntry({ ctx, kind, onWords, onPart, onFail }: Readonly<TextEntryProps>): React.JSX.Element {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [sourceOpen, setSourceOpen] = useState(false);
     const [typing, setTyping] = useState(false);
@@ -631,13 +695,14 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
     const styleLine = lineIn(ctx, kind.style);
     const style = styleOf(styleLine);
     const locked = (words ?? styleLine)?.layer.locked === true;
-    const hidden = style.enabled === false;
-    const descriptors = channelsFor(target);
+    // What the element offers, and a setting the row already sets even when it is not offered.
     const descriptorOf = (channel: Channel): ChannelDescriptor | undefined =>
-        descriptors.find((d) => d.channel === channel);
+        shownChannel(session, target, channel, lineIn(ctx, channel) !== undefined);
+    // A write from the row drops `enabled: false`, which the row no longer sets: a label hidden
+    // before the row lost its eye is drawn again once the reader changes it here.
     const writeStyle = (patch: Partial<LabelStyle>): void => {
         const next = Object.fromEntries(
-            Object.entries({ ...style, ...patch }).filter(([, value]) => value !== undefined),
+            Object.entries({ ...style, enabled: undefined, ...patch }).filter(([, value]) => value !== undefined),
         ) as LabelStyle;
         const done =
             Object.keys(next).length === 0 && styleLine !== undefined
@@ -690,93 +755,65 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
     // about 30 px.
     const fixed = typed || typing;
     const sourceWord = fixed ? FIXED_TEXT : source;
+    // The button is narrow and cuts its words short ("Fixed t..."), so its tooltip says them whole,
+    // in the words of its name.
+    const sourceName = `${kind.name} source: ${sourceWord}`;
     const sourceControl = sourcePicker(
-        <Button
-            size="compact-xs"
-            variant="default"
-            c={words === undefined ? "dimmed" : undefined}
-            fullWidth
-            justify="flex-start"
-            aria-label={`${kind.name} source: ${sourceWord}`}
-            aria-haspopup="dialog"
-            aria-expanded={sourceOpen}
-            style={{ flex: 1, minWidth: 0 }}
-        >
-            {sourceWord}
-        </Button>,
+        <Tooltip label={sourceName}>
+            <Button
+                size="compact-xs"
+                variant="default"
+                c={words === undefined ? "dimmed" : undefined}
+                fullWidth
+                justify="flex-start"
+                aria-label={sourceName}
+                aria-haspopup="dialog"
+                aria-expanded={sourceOpen}
+                style={{ flex: 1, minWidth: 0 }}
+            >
+                {sourceWord}
+            </Button>
+        </Tooltip>,
     );
 
     return (
-        <Stack
-            gap={0}
-            pl={4}
-            data-line={kind.words}
-            data-bound={words?.binding === undefined ? undefined : true}
-            data-hidden={hidden ? true : undefined}
-        >
-            {/* Line 1: what kind of text it is, where its words come from, its settings, eye and minus. */}
+        <Stack gap={0} pl={4} data-line={kind.words} data-bound={words?.binding === undefined ? undefined : true}>
+            {/* Line 1: what kind of text it is, where its words come from, its settings and minus. */}
             <Group gap={4} wrap="nowrap" mih={28}>
                 <span className="ws-text-kind">
                     {React.createElement(KIND_GLYPHS[kind.id] ?? GLYPHS.label, { size: 14, "aria-hidden": true })}
                     <span className="ws-field-name" title={kind.name}>
                         {KIND_WORDS[kind.id] ?? kind.name}
                     </span>
+                    <EntryAdd ctx={ctx} kind={kind} locked={locked} onPart={onPart} />
                 </span>
                 {sourceControl}
-                <Popout opened={settingsOpen} onOpenChange={setSettingsOpen}>
-                    <Popout.Trigger>
-                        <Tooltip label={`${kind.name} settings`}>
-                            <PopoutButton
-                                icon={<GLYPHS.settings size={14} aria-hidden />}
-                                aria-label={`${where} settings`}
-                                aria-haspopup="dialog"
-                                aria-expanded={settingsOpen}
-                            />
-                        </Tooltip>
-                    </Popout.Trigger>
-                    <Popout.Panel
-                        width={SETTINGS_WIDTH}
-                        placement="left"
-                        alignment="start"
-                        boundaryTop={settingsOpen ? headerBottom() : 0}
-                        header={{ variant: "title", title: `${kind.name} settings` }}
-                    >
-                        <Popout.Content>
-                            {card && words !== undefined ? (
-                                <CardContents
-                                    session={session}
-                                    target={target}
-                                    channel={kind.words}
-                                    lines={cardLines(words)}
-                                    onLines={(lines) => {
-                                        writeLine(
-                                            session,
-                                            ctx.row,
-                                            target,
-                                            kind.words,
-                                            { template: lines },
-                                            ctx.fresh,
-                                        ).catch(onFail);
-                                    }}
-                                    onFail={(message) => {
-                                        onFail(new Error(message));
-                                    }}
-                                />
-                            ) : null}
-                            <LabelSettings style={style} onChange={writeStyle} vary={vary} />
-                        </Popout.Content>
-                    </Popout.Panel>
-                </Popout>
-                <ToggleIconButton
-                    variant="swap"
-                    label={`Hide ${noun}`}
-                    checked={hidden}
-                    icon={<GLYPHS.show size={14} />}
-                    checkedIcon={<GLYPHS.hide size={14} />}
-                    onChange={(hide) => {
-                        writeStyle({ enabled: hide ? false : undefined });
-                    }}
-                />
+                <SettingsPopout
+                    label={`${where} settings`}
+                    title={`${kind.name} settings`}
+                    opened={settingsOpen}
+                    onOpenChange={setSettingsOpen}
+                    width={SETTINGS_WIDTH}
+                    boundaryTop={settingsOpen ? headerBottom() : 0}
+                >
+                    {card && words !== undefined ? (
+                        <CardContents
+                            session={session}
+                            target={target}
+                            channel={kind.words}
+                            lines={cardLines(words)}
+                            onLines={(lines) => {
+                                writeLine(session, ctx.row, target, kind.words, { template: lines }, ctx.fresh).catch(
+                                    onFail,
+                                );
+                            }}
+                            onFail={(message) => {
+                                onFail(new Error(message));
+                            }}
+                        />
+                    ) : null}
+                    <LabelSettings style={style} onChange={writeStyle} vary={vary} />
+                </SettingsPopout>
                 {locked ? (
                     <span className="ws-slot" />
                 ) : (
@@ -787,7 +824,7 @@ function TextEntry({ ctx, kind, onWords, onFail }: Readonly<TextEntryProps>): Re
                             aria-label={`Remove ${noun}`}
                             onClick={(event) => {
                                 // The minus goes with the entry: focus moves to the list's "+".
-                                focusSectionNext(event.currentTarget, kind.words);
+                                focusSectionNext(session, event.currentTarget, kind.words);
                                 removeEntry(session, layers, channelsOf(kind)).catch(onFail);
                             }}
                         >

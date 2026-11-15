@@ -8,6 +8,7 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { createContext, useContext } from "react";
 
 import type { Command, CommandContext, WorkspaceCommands } from "../commands/registry";
+import { errorWords } from "../project/words";
 import { useStoreValue, type WorkspaceState, type WorkspaceStore } from "./store";
 
 /** The workspace context's value. */
@@ -111,8 +112,7 @@ export function makeWorkspaceValue(
             const outcome = command.run(value);
             if (outcome instanceof Promise) {
                 outcome.catch((error: unknown) => {
-                    const reason = error instanceof Error ? error.message : String(error);
-                    store.set({ notice: { message: `${command.label} failed: ${reason}` } });
+                    store.set({ notice: { message: errorWords(`${command.label} failed`, error) } });
                 });
             }
         },

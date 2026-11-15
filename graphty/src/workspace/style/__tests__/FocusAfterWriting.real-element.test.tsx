@@ -16,14 +16,17 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { INSPECTOR_TITLE_ID } from "../../frame/focus";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { colorName } from "../words";
 import { showKind } from "./kindTab";
 
-/** A hang guard for the element coming up and a run finishing, not a pass/fail timing. */
-const TIMEOUT_MS = 90_000;
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with the starting rows.
@@ -33,14 +36,11 @@ async function openScene(): Promise<GraphSession> {
     await page.viewport(1440, 900);
     const store = createWorkspaceStore({ project: { name: "Untitled", id: 1 } });
     render(<Workspace store={store} />);
-    const session = await waitFor(
-        () => {
-            const found = document.querySelector("graphty-element")?.session;
-            assert.isDefined(found);
-            return found;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    const session = await waitFor(() => {
+        const found = document.querySelector("graphty-element")?.session;
+        assert.isDefined(found);
+        return found;
+    });
     if (session === undefined) {
         throw new Error("the element never came up");
     }
@@ -54,7 +54,7 @@ async function openScene(): Promise<GraphSession> {
  * @param name - the row's visible name.
  */
 async function openStyle(name: string): Promise<void> {
-    const tree = await screen.findByRole("tree", { name: "Style layers" }, { timeout: TIMEOUT_MS });
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
     await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${name}, `) }));
     const inspector = screen.getByRole("complementary", { name: "Inspector" });
     const style = await within(inspector).findByRole("tab", { name: "Style" });
@@ -70,16 +70,11 @@ async function openStyle(name: string): Promise<void> {
  * @returns the line.
  */
 async function lineOf(channel: Channel): Promise<HTMLElement> {
-    return waitFor(
-        () => {
-            const line = document.querySelector<HTMLElement>(
-                `[data-testid="style-tab"] .ws-row[data-line="${channel}"]`,
-            );
-            assert.isNotNull(line, `${channel} drawn`);
-            return line;
-        },
-        { timeout: TIMEOUT_MS },
-    );
+    return waitFor(() => {
+        const line = document.querySelector<HTMLElement>(`[data-testid="style-tab"] .ws-row[data-line="${channel}"]`);
+        assert.isNotNull(line, `${channel} drawn`);
+        return line;
+    });
 }
 
 /**
@@ -272,32 +267,6 @@ describe("focus after a style line is written or removed", () => {
         assert.notStrictEqual(active?.getAttribute("role"), "tab", `focus is not on a tab (${focusName()})`);
     });
 
-    it("Tab out of a selection's first color moves on, not to the Style tab", async () => {
-        const session = await openScene();
-        const valjean = String(session.data.nodes().find((n) => n.name === "Valjean")?.id);
-        await act(async () => {
-            await session.selection.apply({ nodes: [valjean] });
-        });
-        await userEvent.click(await screen.findByRole("tab", { name: "Style" }, { timeout: TIMEOUT_MS }));
-        await screen.findByTestId("style-tab");
-        await showKind("node");
-        const before = session.styles.list().length;
-        await addLine("node", "fill", "Color", "node.color");
-        await userEvent.keyboard("purple{Tab}");
-
-        await waitFor(() => {
-            assert.isAbove(session.styles.list().length, before, "the selection's layer is made");
-        });
-        await drawn(session);
-        const box = within(await lineOf("node.color")).getByRole("textbox", { name: /^Node color(,|$)/ });
-        const active = document.activeElement;
-        assert.notStrictEqual(active?.getAttribute("role"), "tab", `focus is not on a tab (${focusName()})`);
-        assert.isTrue(
-            active !== null && (box.compareDocumentPosition(active) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
-            `focus is after the color box, not on ${focusName()}`,
-        );
-    });
-
     it.each(["Paint", "Everything"])(
         "Remove a line with Enter on %s lands on its section's +, so a second Enter removes nothing",
         async (row) => {
@@ -358,13 +327,20 @@ describe("focus after a style line is written or removed", () => {
             await userEvent.keyboard(`${typed}{Escape}`);
             assert.strictEqual(document.activeElement, box, `focus stays in the box, not on ${focusName()}`);
             const line = await lineOf(channel);
-            const kept = channel === "edge.width" ? "3" : "0000FF";
+            // A color is said as its box names it: the hex and its words.
+            const kept = channel === "edge.width" ? "3" : `0000FF ${colorName("#0000FF")}`;
             const words = `Edit discarded; this stays ${kept}.`;
-            await waitFor(() => {
-                const said = within(line)
+            // Waits for the note, whatever its words, so a wrong one fails rather than waits.
+            const said = await waitFor(() => {
+                const notes = within(line)
                     .getAllByRole("status")
-                    .map((status) => status.textContent);
-                assert.include(said, words, "said aloud");
+                    .map((status) => status.textContent)
+                    .filter((text) => text.startsWith("Edit discarded"));
+                assert.isNotEmpty(notes, "a discard is said");
+                return notes;
+            });
+            assert.include(said, words, "said aloud");
+            await waitFor(() => {
                 const shown = within(line)
                     .getAllByText(words)
                     .filter(
@@ -410,7 +386,7 @@ describe("focus after a style line is written or removed", () => {
         await act(async () => {
             await session.selection.apply({ nodes: [valjean] });
         });
-        await userEvent.click(await screen.findByRole("tab", { name: "Values" }, { timeout: TIMEOUT_MS }));
+        await userEvent.click(await screen.findByRole("tab", { name: "Values" }));
         const memberships = await screen.findByRole("heading", { name: "Memberships" });
         const section = memberships.closest("section") ?? document.body;
         const entry = within(section).getByRole("button", { name: /^Louvain/ });

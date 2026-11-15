@@ -1,25 +1,5 @@
 import { expect, waitFor } from "storybook/test";
 
-import { TOOLTIP_OPEN_DELAY } from "../../src/theme/styles/overlays";
-
-/**
- * The longest delay `setTimeout` accepts (about 24.8 days): in effect, no deadline.
- */
-const NO_DEADLINE_MS = 2 ** 31 - 1;
-
-/**
- * Options for a play function's `waitFor` or `findBy*`: no deadline of their own under a test
- * runner (the Storybook vitest project, the visual capture), so the runner's own test timeout is
- * the only backstop; `interactiveMs` in the interactive Storybook, so a hang still shows an error
- * there. A fixed deadline under a runner fails a story whenever a stalled machine outlasts it,
- * though the work it waits on still finishes inside the test's own timeout (#2864).
- * @param interactiveMs - the deadline in the interactive Storybook
- * @returns the `timeout` option to pass to `waitFor` or `findBy*`
- */
-export function storyWaitOptions(interactiveMs: number): { timeout: number } {
-    return { timeout: navigator.webdriver ? NO_DEADLINE_MS : interactiveMs };
-}
-
 /**
  * Waits until a story's floating parts have stopped moving: the page's web fonts have loaded,
  * no pop-out panel has a reposition queued (`data-cm-repositioning`), and the boxes of every
@@ -54,20 +34,18 @@ export async function waitForSettledLayout(root: HTMLElement, selector: string):
 }
 
 /**
- * Ends a play function that leaves keyboard focus on a control: focus opens the control's
- * tooltip, if it has one, only after the theme's open delay, so a screenshot taken inside that
- * delay shows the tooltip or not depending on how long the capture took. Wait the delay out,
- * then until no tooltip is still held or not yet seen by the overlay behavior (a slow machine
- * can run the hold's timer after ours), and let any tooltip settle, so every capture shows the
- * same thing. Harmless without a tooltip.
+ * Ends a play function that leaves keyboard focus on a control: focus mounts the control's
+ * tooltip, if it has one, at once (focus is a discrete event, so React commits its update before
+ * the focusing call returns), and the overlay behavior holds it hidden (`data-cm-held`) for the
+ * theme's open delay, so a screenshot taken inside that delay shows the tooltip or not depending
+ * on how long the capture took. Wait until no tooltip is still held or not yet seen by the
+ * overlay behavior, and let any tooltip settle, so every capture shows the same thing. Harmless
+ * without a tooltip.
  * @param root - the story's canvas element
  */
 export async function settleFocusTooltip(root: HTMLElement): Promise<void> {
-    await new Promise((resolve) => setTimeout(resolve, TOOLTIP_OPEN_DELAY + 100));
-    await waitFor(
-        () =>
-            expect(root.ownerDocument.querySelector(".cm-tooltip:is([data-cm-held], :not([data-cm-seen]))")).toBeNull(),
-        storyWaitOptions(5000),
+    await waitFor(() =>
+        expect(root.ownerDocument.querySelector(".cm-tooltip:is([data-cm-held], :not([data-cm-seen]))")).toBeNull(),
     );
     await waitForSettledLayout(root, ".mantine-Tooltip-tooltip");
 }

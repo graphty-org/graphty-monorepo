@@ -5,7 +5,7 @@
 
 import { assert } from "vitest";
 
-import type { Door, DoorCall } from "../../../src/session/commands/doors";
+import { type Door, DOOR_LOADED_AT, type DoorCall } from "../../../src/session/commands/doors";
 import type { Dispatcher } from "../../../src/session/project/Dispatcher";
 
 /**
@@ -55,6 +55,28 @@ export async function dispatchesOf(
 }
 
 /**
+ * What a door dispatched, with every load's wall-clock `loadedAt` written as the rows write it.
+ * @param value - The dispatched commands, or any part of them.
+ * @returns A copy of its arrays and plain objects, each string `loadedAt` replaced by
+ *     {@link DOOR_LOADED_AT}.
+ */
+export function pinLoadedAt(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map(pinLoadedAt);
+    }
+    // Only plain objects are copied: a Map, a Set or a typed array is compared as it was sent.
+    if (value === null || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) {
+        return value;
+    }
+    return Object.fromEntries(
+        Object.entries(value).map(([key, each]) => [
+            key,
+            key === "loadedAt" && typeof each === "string" ? DOOR_LOADED_AT : pinLoadedAt(each),
+        ]),
+    );
+}
+
+/**
  * Check one row's calls against what it dispatched.
  * @param label - `Root.member`, for the message.
  * @param door - The row.
@@ -70,7 +92,7 @@ export function checkDispatches(label: string, door: Door, seen: readonly unknow
     } else if (door.kind === "dispatches" || door.kind === "partial") {
         assert.isNotEmpty(seen, `${label} is ${door.kind} but dispatched nothing`);
         assert.deepEqual(
-            seen,
+            pinLoadedAt(seen),
             door.expect,
             `${label} dispatched something other than its row expects: ${JSON.stringify(seen)}`,
         );

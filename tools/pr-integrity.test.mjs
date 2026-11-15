@@ -12,13 +12,12 @@ import { isolateGit } from "./isolated-git-env.mjs";
 import {
     AGENT,
     DEPENDABOT,
+    findingId,
     onlyDependabot,
     hasProof,
     isBreaking,
     masterBaselineCheck,
-    ownedClosure,
     ownerApproved,
-    ownerLogins,
     patchId,
     prIntegrity,
 } from "./pr-integrity.mjs";
@@ -65,7 +64,6 @@ const pr = (r, over = {}) => ({
     author: "someone",
     reviews: [],
     owners: new Set(["owner"]),
-    codeowners: "",
     baselineProblems: () => [],
     ...over,
 });
@@ -87,9 +85,14 @@ describe("pure rules", () => {
         assert.ok(!hasProof("## Proof\n"));
         assert.ok(!hasProof("Proof: none"));
         assert.ok(!hasProof(undefined));
+        assert.ok(hasProof("## Proof\r\n\r\nran it\r\n"), "a description edited on GitHub has CRLF line ends");
+        assert.ok(!hasProof("<!--\n## Proof\nhint\n-->"), "a commented-out heading is no Proof");
+        assert.ok(!hasProof("## Proof\n<!<!-- a -->-- b -->\n## Notes\nx"), "a nested comment is stripped whole");
     });
-    it("ownerLogins takes users, not teams or comments", () => {
-        assert.deepEqual([...ownerLogins("# @nobody\n/a/ @apowers313 @org/team\n/b @x-y\n")], ["apowers313", "x-y"]);
+    it("hasProof reads up to pr-open's end marker, whatever headings the Proof holds", () => {
+        assert.ok(hasProof("## Proof\n\n## Tests\nran it\n<!-- /proof -->\n## Notes\n"));
+        assert.ok(!hasProof("## Proof\n\n<!-- /proof -->\n## Notes\nnot proof"));
+        assert.ok(!hasProof("## Proof\n\n## Tests\nran it\n"), "without the marker, the next heading ends it");
     });
     it("ownerApproved needs the owner's latest deciding review to approve the head", () => {
         const owners = new Set(["owner"]);
@@ -170,6 +173,86 @@ describe("prIntegrity", () => {
         assert.deepEqual(prIntegrity(r.dir, pr(r, { reviews: [review("owner", "APPROVED", head)] })).problems, []);
     });
 
+    for (const path of [
+        "graphty-element/test/saved-format/saved-format-lists.json",
+        "tools/check-saved-format-allowlist.mjs",
+        "graphty-element/eslint.config.js",
+        "graphty-element/src/catalog/shipped-shader-hashes.json",
+    ]) {
+        it(`fails a change to ${path} unless a code owner approved the head`, () => {
+            const r = repo();
+            r.git("switch", "-q", "-c", "b");
+            const widened = '{"exceptions":[{"kind":"palette","paths":["a.palette"],"catalogs":["palettes"]}]}\n';
+            const head = r.commit("test: widen the save-file checks", {
+                [path]: path.endsWith("saved-format-lists.json") ? widened : "{}\n",
+            });
+            assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: /);
+            assert.match(prIntegrity(r.dir, pr(r, { author: DEPENDABOT })).problems.join(), /^Saved format: /);
+            assert.deepEqual(prIntegrity(r.dir, pr(r, { reviews: [review("owner", "APPROVED", head)] })).problems, []);
+        });
+    }
+
+    it("lets a change that only narrows the exception lists and adds a kind's row through", () => {
+        const lists = "graphty-element/test/saved-format/saved-format-lists.json";
+        const kinds = "graphty-element/test/saved-format/kinds.ts";
+        const r = repo();
+        r.commit("test: the lists", {
+            [lists]:
+                '{"selfContained":["shaders"],"exceptions":[{"kind":"palette","paths":["a"],"catalogs":["palettes"]}]}\n',
+            [kinds]: "export const KINDS = [\n    shaders,\n];\n",
+        });
+        r.git("switch", "-q", "-c", "b");
+        r.commit("test: carry palettes", {
+            [lists]: '{"selfContained":["shaders","palettes"],"exceptions":[]}\n',
+            [kinds]: "export const KINDS = [\n    shaders,\n    palettes,\n];\n",
+        });
+        assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
+        r.commit("test: rewrite a row", { [kinds]: "export const KINDS = [\n    palettes,\n];\n" });
+        assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: .*kinds\.ts/);
+    });
+
+    it("lets a mechanical revert change the save-file checks", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "feature");
+        r.commit("test: a saved-format list", { "graphty-element/test/saved-format/saved-format-lists.json": "{}\n" });
+        r.git("switch", "-q", "master");
+        r.git("merge", "-q", "--no-ff", "--no-edit", "feature");
+        const m = r.git("rev-parse", "HEAD");
+        r.git("switch", "-q", "-c", "revert");
+        r.git("revert", "--no-edit", "-m", "1", m);
+        assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
+        // anything else in a saved-format file still needs the owner
+        r.git("switch", "-q", "-c", "other", m);
+        r.commit("test: unrelated", { "graphty-element/test/saved-format/x.test.ts": "x\n" });
+        assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Saved format: /);
+    });
+
+    it("skips a breaking commit master's release-not-breaking.json lists, but not one the branch lists", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "b");
+        const ruled = r.commit("feat(x)!: drop a", { "src/a.mjs": "export const a = 2;\n" });
+        const list = JSON.stringify({
+            notBreaking: [{ commit: ruled, project: "x", reason: "owner", since: "2026-11-09" }],
+        });
+        r.commit("chore: rule it here", { "release-not-breaking.json": list });
+        assert.match(
+            prIntegrity(r.dir, pr(r)).problems.join(),
+            /Breaking change/,
+            "the branch's own list counts for nothing",
+        );
+        r.git("switch", "-q", "master");
+        r.commit("chore: the owner's ruling", { "release-not-breaking.json": list });
+        r.git("switch", "-q", "b");
+        r.git("merge", "-q", "--no-edit", "master");
+        assert.deepEqual(prIntegrity(r.dir, pr(r)).problems, []);
+        r.commit("fix: more\n\nBREAKING CHANGE: b is gone", { "src/a.mjs": "export const b = 2;\n" });
+        assert.match(
+            prIntegrity(r.dir, pr(r)).problems.join(),
+            /Breaking change/,
+            "an unlisted breaking commit still fails",
+        );
+    });
+
     it("fails a weakened test, which a code owner's approval clears and Dependabot does not skip", () => {
         const r = repo();
         r.git("switch", "-q", "-c", "b");
@@ -177,6 +260,42 @@ describe("prIntegrity", () => {
         assert.match(prIntegrity(r.dir, pr(r)).problems.join(), /^Test integrity:/);
         assert.match(prIntegrity(r.dir, pr(r, { author: DEPENDABOT })).problems.join(), /^Test integrity:/);
         const head = r.git("rev-parse", "HEAD");
+        assert.deepEqual(prIntegrity(r.dir, pr(r, { reviews: [review("owner", "APPROVED", head)] })).problems, []);
+    });
+
+    // #5083: the owner reviews no code, so an independent agent review that answers each finding clears it.
+    it("lets an agent review of the head clear each finding it answers, and no other", () => {
+        const r = repo();
+        r.git("switch", "-q", "-c", "b");
+        const older = r.commit("test: drop one", { "src/a.test.mjs": TEST.split("\n").slice(0, 2).join("\n") + "\n" });
+        const head = r.commit("build: a prepare script", { "package.json": '{"scripts":{"prepare":"b"}}\n' });
+        const integrity = (reviews) =>
+            prIntegrity(r.dir, pr(r, { reviews })).problems.filter((p) => p.startsWith("Test integrity:"));
+        const found = integrity([]).map((p) => /^Test integrity: (.*) \(an agent review/u.exec(p)[1]);
+        assert.equal(found.length, 3, found.join("\n")); // tests -1, assertions -1, scripts.prepare added
+        const clears = (sha, fs) => fs.map((f) => `<!-- integrity-cleared ${sha} ${findingId(f)} -->`).join("\n");
+        const body = (sha, fs) => `<!-- fresh-review x -->\n${clears(sha, fs)}\n\nBlocking findings: 0`;
+        assert.deepEqual(integrity([review(AGENT, "COMMENTED", head, body(head, found))]), []);
+        // a record for an older head, one that leaves a finding unanswered, or one by an untrusted account
+        assert.equal(integrity([review(AGENT, "COMMENTED", older, body(older, found))]).length, 3);
+        assert.equal(integrity([review(AGENT, "COMMENTED", head, body(head, found.slice(1)))]).length, 1);
+        assert.equal(integrity([review("stranger", "COMMENTED", head, body(head, found))]).length, 3);
+    });
+
+    it("keeps a screenshot-settings finding for the owner, whatever an agent review says", () => {
+        const r = repo();
+        r.commit("test: a story", { "src/x.stories.ts": "export default {};\nexport const A = {};\n" });
+        r.git("switch", "-q", "-c", "b");
+        const head = r.commit("test: capture settings", {
+            "src/x.stories.ts": "export default {};\nexport const A = { parameters: { chromatic: { delay: 9 } } };\n",
+        });
+        const [p] = prIntegrity(r.dir, pr(r)).problems;
+        const f = /^Test integrity: (.*) \(screenshot settings/u.exec(p)[1];
+        const body = `<!-- integrity-cleared ${head} ${findingId(f)} -->`;
+        assert.equal(
+            prIntegrity(r.dir, pr(r, { reviews: [review(AGENT, "COMMENTED", head, body)] })).problems.length,
+            1,
+        );
         assert.deepEqual(prIntegrity(r.dir, pr(r, { reviews: [review("owner", "APPROVED", head)] })).problems, []);
     });
 
@@ -248,52 +367,6 @@ describe("prIntegrity", () => {
         r.commit("chore: record", { "visual-baselines/reviews/1.json": "{}" });
         assert.deepEqual(prIntegrity(r.dir, pr(r, { baselineProblems: unsigned })).problems, []);
     });
-
-    it("names an unowned file an owned file imports", () => {
-        const r = repo();
-        r.git("switch", "-q", "-c", "b");
-        r.commit("ci: owned tool", {
-            "tools/owned.mjs": 'import "./helper.mjs";\n',
-            "tools/helper.mjs": "export {};\n",
-        });
-        const codeowners = "/tools/owned.mjs @owner\n";
-        assert.match(prIntegrity(r.dir, pr(r, { codeowners })).problems.join(), /Owned closure: tools\/helper\.mjs/);
-        assert.deepEqual(
-            prIntegrity(r.dir, pr(r, { codeowners: `${codeowners}/tools/helper.mjs @owner\n` })).problems,
-            [],
-        );
-    });
-});
-
-describe("ownedClosure", () => {
-    it("judges the merge result with master: a gap master closed passes, one master opened fails", () => {
-        const r = repo();
-        r.commit("ci: owned tool", {
-            ".github/CODEOWNERS": "/tools/owned.mjs @owner\n",
-            "tools/owned.mjs": 'import "./helper.mjs";\n',
-            "tools/helper.mjs": "export {};\n",
-        });
-        r.git("switch", "-q", "-c", "old");
-        r.commit("chore: unrelated", { "src/c.mjs": "export {};\n" });
-        const head = r.git("rev-parse", "HEAD");
-        const codeowners = r.git("show", "HEAD:.github/CODEOWNERS");
-        // on its own head the branch has the gap
-        assert.ok(ownedClosure(r.dir, { base: head, head, codeowners }).has("tools/helper.mjs"));
-        r.git("switch", "-q", "master");
-        r.commit("ci: own the helper", {
-            ".github/CODEOWNERS": "/tools/owned.mjs @owner\n/tools/helper.mjs @owner\n",
-        });
-        const closed = ownedClosure(r.dir, { base: "master", head, codeowners });
-        assert.deepEqual([...closed.keys()], []);
-        // a gap master opened after the branch left it is named too
-        r.commit("ci: another helper", {
-            "tools/owned.mjs": 'import "./helper.mjs";\nimport "./more.mjs";\n',
-            "tools/more.mjs": "",
-        });
-        assert.deepEqual([...ownedClosure(r.dir, { base: "master", head, codeowners }).keys()], ["tools/more.mjs"]);
-        // the temporary worktree is gone
-        assert.equal(r.git("worktree", "list").split("\n").length, 1);
-    });
 });
 
 describe("masterBaselineCheck", () => {
@@ -328,6 +401,20 @@ describe("the workflows", () => {
         assert.doesNotMatch(wf, /issue_comment|pull_request_review_comment|pull_request_target/);
         assert.match(wf, /name: PR Integrity\n/);
         assert.match(wf, /node tools\/pr-integrity\.mjs --base origin\/master/);
+    });
+    it("PR Integrity runs master's copy of the check and reads the head only as data (#4421)", () => {
+        const wf = read("pr-integrity.yml");
+        // the only checkout is master, so a check fix on master reaches every open pull request
+        assert.deepEqual(
+            [...wf.matchAll(/uses: actions\/checkout@v\d+\n\s+with:\n\s+ref: ([^\n]+)/g)].map((m) => m[1]),
+            ["master"],
+        );
+        assert.doesNotMatch(wf, /ref: \$\{\{ ?github\.event\.pull_request\.head/);
+        assert.match(
+            wf,
+            /HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}\n\s+run: git fetch --no-tags origin "\$HEAD_SHA"/,
+        );
+        assert.match(wf, /permissions:\n\s+contents: read\n\s+pull-requests: read\n/);
     });
     it("Dependabot auto-merge never checks out the pull request and leaves Actions updates alone", () => {
         const wf = read("dependabot-automerge.yml");

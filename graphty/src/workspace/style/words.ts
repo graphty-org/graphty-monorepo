@@ -26,12 +26,18 @@ import {
     GraphtyError,
     type GraphtyErrorCode,
     type GraphtyWarningCode,
+    type ModelCompression,
+    type ModelEncoding,
+    type ModelSummary,
     type ReadableValue,
+    renamePaths,
+    rulePath,
 } from "@graphty/graphty-element/session";
 
 import { wordsFor } from "../analyze/words";
 import { formatNumber } from "../inspector/words";
 import { runName } from "../runWords";
+import { formatCount } from "../settings/numberFormat";
 
 /** Where a label sits, as the element names it. */
 type LabelLocation = NonNullable<LabelStyle["location"]>;
@@ -53,7 +59,40 @@ export interface SectionSpec {
     readonly channels: readonly Channel[];
     /** The section is the tab's Shaders list: its rows are the layer's shader uses, its "+" opens the gallery. */
     readonly shaders?: boolean;
+    /**
+     * Properties the section sets from inside one of its lines (the Shape field's Model... and Model
+     * settings), never a "+" item of their own.
+     */
+    readonly inner?: readonly Channel[];
+    /** The properties its "+" offers; absent, every property it lists. */
+    readonly offer?: readonly Channel[];
+    /** Whether the row writes something in the section, drawn as a dot after its title. */
+    readonly configured?: boolean;
+    /** Row words that replace a property's own, by property. */
+    readonly words?: Readonly<Partial<Record<Channel, string>>>;
+    /**
+     * The things a list section holds (a fill's paints, the effects): one heading line per item the
+     * row sets, with a minus that takes every property of the item away, then its lines.
+     */
+    readonly items?: readonly { readonly id: string; readonly name: string; readonly channels: readonly Channel[] }[];
+    /** Properties drawn together: once the row sets one, the others show, waiting for a value. */
+    readonly together?: readonly Channel[];
 }
+
+/** A model's channels: what the Shape field names, and what Model settings sets. */
+export const MODEL_CHANNELS: readonly Channel[] = [
+    "node.model",
+    "node.modelSourceUp",
+    "node.modelTurn",
+    "node.modelTint",
+    "node.modelFit",
+    "node.modelCenter",
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelDoubleSided",
+    "node.unlit",
+];
 
 /**
  * One kind of text a Text list entry draws: its words, its look, and the look's three channels a
@@ -125,8 +164,13 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
             channels: [
                 "node.shape",
                 "node.size",
+                "node.width",
+                "node.height",
+                "node.depth",
+                "node.relativeExtents",
                 "node.wireframe",
                 "node.outline",
+                "node.outlineWidth",
                 "node.glow",
                 "node.glowStrength",
                 "node.haloColor",
@@ -179,6 +223,64 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
     ],
 };
 
+/** The Line properties the `cosmograph` experiment adds (issue #3247): the long-edge fade and blending. */
+const COSMOGRAPH_LINE_CHANNELS: readonly Channel[] = [
+    "edge.fadeEnd",
+    "edge.fadeStart",
+    "edge.fadeOpacity",
+    "edge.blending",
+];
+
+/** The edge sections with the `cosmograph` experiment on: Line ends with its fade and blending. */
+const COSMOGRAPH_EDGE_SECTIONS: readonly SectionSpec[] = SECTIONS.edge.map((section) =>
+    section.id === "line" ? { ...section, channels: [...section.channels, ...COSMOGRAPH_LINE_CHANNELS] } : section,
+);
+
+/**
+ * The node sections with the `node-models` experiment on (issue #3396): Shape holds a model in
+ * place of a built-in shape, with its settings, and Fill's "+" offers Picture.
+ */
+const NODE_MODELS_SECTIONS: readonly SectionSpec[] = SECTIONS.node.map((section) => {
+    if (section.id === "shape") {
+        return { ...section, inner: MODEL_CHANNELS };
+    }
+    return section.id === "fill" ? { ...section, channels: [...section.channels, "node.texture"] } : section;
+});
+
+/** The experiments that change which properties the Style tab's sections hold. */
+export interface SectionFlags {
+    /** The `cosmograph` experiment: Line's long-edge fade and blending. */
+    readonly cosmograph: boolean;
+    /** The `node-models` experiment: Shape's models and Fill's Picture. */
+    readonly nodeModels: boolean;
+}
+
+/**
+ * The properties an experiment that is off keeps out of the Style tab: with `cosmograph` off, Line's
+ * fade and blending; with `node-models` off, the model's settings and Picture.
+ * @param flags - which experiments are on.
+ * @returns the properties to leave out.
+ */
+export function experimentChannelsOff(flags: SectionFlags): ReadonlySet<Channel> {
+    return new Set<Channel>([
+        ...(flags.cosmograph ? [] : COSMOGRAPH_LINE_CHANNELS),
+        ...(flags.nodeModels ? [] : ["node.texture" as const, ...MODEL_CHANNELS]),
+    ]);
+}
+
+/**
+ * A group's sections, with what the experiments switched on add.
+ * @param kind - nodes or edges.
+ * @param flags - which experiments are on.
+ * @returns the sections, in their fixed order.
+ */
+export function sectionsFor(kind: Kind, flags: SectionFlags): readonly SectionSpec[] {
+    if (kind === "edge") {
+        return flags.cosmograph ? COSMOGRAPH_EDGE_SECTIONS : SECTIONS.edge;
+    }
+    return flags.nodeModels ? NODE_MODELS_SECTIONS : SECTIONS.node;
+}
+
 /**
  * The opacity a color field carries in its opacity box: Fill's and Line's. Opacity has one source,
  * the opacity channel, so the color stays six digits and a row that set Opacity keeps it.
@@ -197,6 +299,10 @@ export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boo
         [true, "On"],
         [false, "Off"],
     ],
+    "node.relativeExtents": [
+        [true, "On"],
+        [false, "Off"],
+    ],
     "node.visible": [
         [true, "Shown"],
         [false, "Hidden"],
@@ -208,6 +314,10 @@ export const TWO_WORDS: Partial<Readonly<Record<Channel, readonly (readonly [boo
     "edge.curvature": [
         [false, "Straight"],
         [true, "Curved"],
+    ],
+    "edge.blending": [
+        [true, "On"],
+        [false, "Off"],
     ],
 };
 
@@ -278,6 +388,10 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.modelSourceUp": "Model up axis",
     "node.modelTurn": "Model turn",
     "node.modelTint": "Use node color",
+    "node.modelDoubleSided": "Model double-sided",
+    "node.modelAnimation": "Model animation",
+    "node.modelAnimationSpeed": "Model animation speed",
+    "node.modelAnimationOffset": "Model animation start",
     "node.modelFit": "Model fit",
     "node.modelCenter": "Model center",
     "node.texture": "Texture",
@@ -299,6 +413,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.tooltipStyle": "Tooltip style",
     "node.opacity": "Opacity",
     "node.outline": "Outline",
+    "node.outlineWidth": "Outline width",
     "node.glow": "Glow",
     "node.glowStrength": "Glow strength",
     "node.halo": "Halo",
@@ -318,6 +433,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.width": "Width",
     "node.height": "Height",
     "node.depth": "Depth",
+    "node.relativeExtents": "Scale with size",
     "node.planar": "Planar",
     "node.zIndex": "Z-index",
     "node.drawOrder": "Draw order",
@@ -335,6 +451,9 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelPaddingX": "Label padding across",
     "node.labelPaddingY": "Label padding down",
     "node.labelFitSquare": "Keep square when fitted",
+    "node.labelFitQuantum": "Round fitted size to",
+    "node.labelFitImage": "Fit image pixel size",
+    "node.labelFitImagePadding": "Fit image padding",
     "edge.color": "Color",
     "edge.width": "Width",
     "edge.opacity": "Opacity",
@@ -410,9 +529,22 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.labelOffsetY": "Label offset y",
     "node.labelShiftX": "Label shift x",
     "node.labelShiftY": "Label shift y",
+    "node.labelShiftOf": "Label shift of",
+    "node.labelGapOf": "Label gap of",
+    "node.labelBox": "Label box",
     "node.labelMinNodeScreenSize": "Label min node screen size",
     "node.labelTextAlign": "Label text align",
     "node.labelLocation": "Label location",
+    "node.xlabel": "Outside label",
+    "node.xlabelStyle": "Outside label style",
+    "node.xlabelLocation": "Outside label location",
+    "node.xlabelOffsetX": "Outside label offset x",
+    "node.xlabelOffsetY": "Outside label offset y",
+    "edge.xlabel": "Outside label",
+    "edge.xlabelStyle": "Outside label style",
+    "edge.xlabelLocation": "Outside label location",
+    "edge.xlabelOffsetX": "Outside label offset x",
+    "edge.xlabelOffsetY": "Outside label offset y",
     "node.borderWaveAmplitude": "Border wave amplitude",
     "node.borderWavePeriod": "Border wave period",
     "node.outerBorderColor": "Outer border color",
@@ -420,6 +552,15 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.outerBorderOpacity": "Outer border opacity",
     "node.outerBorderStyle": "Outer border style",
     "node.outerBorderOffset": "Outer border offset",
+    "node.outerBorderCount": "Outer border count",
+    "node.raisedBorderWidth": "Raised border width",
+    "node.raisedBorderLightColor": "Raised border light color",
+    "node.raisedBorderDarkColor": "Raised border dark color",
+    "node.shadowColor": "Shadow color",
+    "node.shadowOpacity": "Shadow opacity",
+    "node.shadowBlur": "Shadow blur",
+    "node.shadowOffsetX": "Shadow offset X",
+    "node.shadowOffsetY": "Shadow offset Y",
     "node.underlayColor": "Underlay color",
     "node.underlayOpacity": "Underlay opacity",
     "node.underlayPadding": "Underlay padding",
@@ -464,6 +605,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.stripeOpacities": "Stripe opacities",
     "node.stripeDirection": "Stripe direction",
     "node.stripeSize": "Stripe size",
+    "node.stripeFrame": "Stripe frame",
     "node.chartKind": "Chart kind",
     "node.chartValues": "Chart values",
     "node.chartColors": "Chart colors",
@@ -471,21 +613,39 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.chartMax": "Chart max",
     "node.chartHorizontal": "Chart horizontal",
     "node.chartSize": "Chart size",
+    "node.chartWidth": "Chart width",
+    "node.chartHeight": "Chart height",
+    "node.chartOffsetX": "Chart offset x",
+    "node.chartOffsetY": "Chart offset y",
     "node.chartMargin": "Chart margin",
     "node.chartGap": "Chart gap",
     "node.chartLineWidth": "Chart line width",
     "node.chartBorderColor": "Chart border color",
     "node.chartBorderWidth": "Chart border width",
+    "node.chartBackgroundColor": "Chart background color",
+    "node.chartBackgroundOpacity": "Chart background opacity",
     "node.exactCornerRadius": "Exact corner radius",
+    "node.cornerFraction": "Corner fraction",
     "node.shapeStretchPoints": "Polygon stretch",
+    "node.shapeRotation": "Shape rotation",
     "node.shapeParts": "Shape parts",
     "node.shapeLines": "Shape lines",
     "node.shapeTexts": "Shape texts",
+    "node.labelTable": "Label table",
     "node.shapeLineWidth": "Shape line width",
+    "node.shapeLineHaloColor": "Shape line halo color",
+    "node.shapeLineHaloWidth": "Shape line halo width",
     "node.gradientColors": "Gradient colors",
     "node.gradientStops": "Gradient stops",
     "node.gradientKind": "Gradient kind",
+    "node.gradientCenterX": "Gradient center x",
+    "node.gradientCenterY": "Gradient center y",
+    "node.gradientRadius": "Gradient radius",
     "edge.minScreenWidth": "Min screen width",
+    "edge.fadeEnd": "Fade end",
+    "edge.fadeStart": "Fade start",
+    "edge.fadeOpacity": "Fade opacity",
+    "edge.blending": "Blending",
     "edge.outlineColor": "Outline color",
     "edge.outlineWidth": "Outline width",
     "edge.outlineOpacity": "Outline opacity",
@@ -501,13 +661,18 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.gradientKind": "Gradient kind",
     "edge.waveAmplitude": "Wave amplitude",
     "edge.wavePeriod": "Wave period",
+    "edge.dashLength": "Dash length",
+    "edge.dashGap": "Dash gap",
     "edge.bendCurve": "Bend curve",
     "edge.arcRadius": "Arc radius",
     "edge.route": "Route",
     "edge.arcHeight": "Arc height",
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Target end side",
+    "edge.arrowHeadOutlineWidth": "Target end outline width",
+    "edge.arrowHeadFillColor": "Target end fill color",
     "edge.arrowHeadGap": "Target end gap",
+    "edge.arrowHeadStack": "Target end stack",
     "edge.arrowHeadImage": "Target end image",
     "edge.arrowHeadTextLetterSize": "Label at target end letter size",
     "edge.arrowHeadTextFont": "Label at target end font",
@@ -518,7 +683,10 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowHeadTextOffsetX": "Label at target end offset x",
     "edge.arrowHeadTextOffsetY": "Label at target end offset y",
     "edge.arrowTailSide": "Source end side",
+    "edge.arrowTailOutlineWidth": "Source end outline width",
+    "edge.arrowTailFillColor": "Source end fill color",
     "edge.arrowTailGap": "Source end gap",
+    "edge.arrowTailStack": "Source end stack",
     "edge.arrowTailImage": "Source end image",
     "edge.arrowTailTextLetterSize": "Label at source end letter size",
     "edge.arrowTailTextFont": "Label at source end font",
@@ -532,6 +700,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleHeadSize": "Arrow middle head size",
     "edge.arrowMiddleHeadWidth": "Arrow middle head width",
     "edge.arrowMiddleHeadSide": "Arrow middle head side",
+    "edge.arrowMiddleHeadOutlineWidth": "Arrow middle head outline width",
+    "edge.arrowMiddleHeadFillColor": "Arrow middle head fill color",
     "edge.arrowMiddleHeadPosition": "Arrow middle head position",
     "edge.arrowMiddleHeadColor": "Arrow middle head color",
     "edge.arrowMiddleHeadOpacity": "Arrow middle head opacity",
@@ -540,6 +710,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleTailSize": "Arrow middle tail size",
     "edge.arrowMiddleTailWidth": "Arrow middle tail width",
     "edge.arrowMiddleTailSide": "Arrow middle tail side",
+    "edge.arrowMiddleTailOutlineWidth": "Arrow middle tail outline width",
+    "edge.arrowMiddleTailFillColor": "Arrow middle tail fill color",
     "edge.arrowMiddleTailPosition": "Arrow middle tail position",
     "edge.arrowMiddleTailColor": "Arrow middle tail color",
     "edge.arrowMiddleTailOpacity": "Arrow middle tail opacity",
@@ -559,12 +731,16 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.labelOutlineOpacity": "Label outline opacity",
     "edge.labelBorderOpacity": "Label border opacity",
     "edge.labelPadding": "Label padding",
+    "edge.labelTable": "Label table",
     "edge.labelCornerRadius": "Label corner radius",
     "edge.labelLineHeight": "Label line height",
     "edge.labelOffsetX": "Label offset x",
     "edge.labelOffsetY": "Label offset y",
     "edge.labelShiftX": "Label shift x",
     "edge.labelShiftY": "Label shift y",
+    "edge.labelShiftOf": "Label shift of",
+    "edge.labelGapOf": "Label gap of",
+    "edge.labelBox": "Label box",
     "node.groupPadding": "Group padding",
     "node.groupPaddingRatio": "Group padding ratio",
     "node.groupPaddingOf": "Group padding of",
@@ -577,6 +753,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.targetNodeGap": "Target node gap",
     "edge.supportModel": "Support model",
     "edge.supportUnit": "Support unit",
+    "edge.supportScale": "Support scale",
     "edge.supportSpringLength": "Support spring length",
     "edge.supportSpringConstant": "Support spring constant",
     "edge.supportRepulsion": "Support repulsion",
@@ -600,6 +777,23 @@ export function isPercent(descriptor: ChannelDescriptor): boolean {
  */
 export function channelWord(channel: Channel): string {
     return CHANNEL_WORDS[channel];
+}
+
+/**
+ * A style's setting named on its own line under the style's row, where the style is already said:
+ * "Size" under Halo for "Halo size", "Count" under Pattern for "Pattern count".
+ * @param style - the style's channel (graphty-element's `modifies`).
+ * @param setting - the setting's channel.
+ * @returns the words.
+ */
+export function settingWord(style: Channel, setting: Channel): string {
+    const prefix = `${channelWord(style)} `;
+    const word = channelWord(setting);
+    if (!word.startsWith(prefix)) {
+        return word;
+    }
+    const rest = word.slice(prefix.length);
+    return rest.charAt(0).toUpperCase() + rest.slice(1);
 }
 
 /**
@@ -699,7 +893,8 @@ export function readableName(session: GraphSession, value: ReadableValue): { nam
  */
 export function groupRank(session: GraphSession, path: string, value: unknown): number | undefined {
     const run = session.runs.list().find((each) => session.results.path(each.id) === path);
-    return run?.result?.summary().groups?.find((g) => String(g.group) === String(value))?.rank;
+    // Every group's rank, not only the ten a summary lists, so a value is named one way.
+    return run?.result?.groupRanks()?.get(String(value));
 }
 
 /**
@@ -828,23 +1023,6 @@ export function positionWord(location: LabelLocation | undefined): string {
 }
 
 /**
- * The label line's statement, from the element's label counts (round 8: every count is computed
- * from live state). The hidden part is said only while the overlap rule is on (Show all labels off).
- * @param counts - the element's `nodeLabelCounts`.
- * @param counts.labeled - nodes whose label has text.
- * @param counts.hiddenByOverlap - of those, labels the overlap rule hid.
- * @param declutter - whether the overlap rule is on.
- * @returns "77 labels, 64 hidden", or "77 labels".
- */
-export function labelStatement(
-    counts: { readonly labeled: number; readonly hiddenByOverlap: number },
-    declutter: boolean,
-): string {
-    const labels = `${String(counts.labeled)} ${counts.labeled === 1 ? "label" : "labels"}`;
-    return declutter ? `${labels}, ${String(counts.hiddenByOverlap)} hidden` : labels;
-}
-
-/**
  * Whether an item's name matches a search: the start of any word (tier1-design.md section 2.8,
  * "the field list").
  * @param name - the item's name.
@@ -885,7 +1063,7 @@ function said(value: CodedFact["params"][string] | undefined): string {
  * @returns the text.
  */
 function amount(value: CodedFact["params"][string] | undefined): string {
-    return typeof value === "number" ? value.toLocaleString() : said(value);
+    return typeof value === "number" ? formatCount(value) : said(value);
 }
 
 /** What the app says for each model code. Typed over the element's codes, so a new one fails to compile here. */
@@ -897,7 +1075,10 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
     E_MODEL_URL_BLOCKED: (p) => `This style loads a model from ${said(p.hosts)}, which is not allowed here.`,
     E_MODEL_TOO_LARGE: (p) =>
         `This model is too large: ${amount(p.found)} ${said(p.what)}, the limit is ${amount(p.limit)}. Pick a lighter one.`,
-    E_MODEL_STRUCTURE: () => "The model file is damaged.",
+    E_MODEL_STRUCTURE: (p) =>
+        p.rule === "delayLoad"
+            ? "This .babylon file keeps its meshes in other files. Export it as one file or as .glb."
+            : "The model file is damaged.",
     E_MODEL_FORMAT_UNSUPPORTED: (p) =>
         `${said(p.format).toUpperCase()} files cannot be loaded yet. Export as GLB from your 3D program.`,
     E_MODEL_FORMAT_UNKNOWN: (p) => `${said(p.fileName) || "This file"} is not a 3D model file graphty knows.`,
@@ -912,14 +1093,31 @@ const MODEL_WORDS: Readonly<Record<ModelCode, (p: CodedFact["params"]) => string
             : "That address is a web page, not a model. Use the address of the file itself.",
     E_MODEL_PART_REQUIRED: (p) => `The model cannot be drawn without ${said(p.name)}.`,
     E_MODEL_EXTERNAL_URL: () => "This model loads parts from somewhere else, which is not allowed. Export it as .glb.",
-    E_MODEL_DECODER_UNAVAILABLE: () => "This model is compressed in a way this page cannot read yet.",
+    E_MODEL_DECODER_UNAVAILABLE: (p) => {
+        if (p.reason === "missing") {
+            return "This page cannot read this model's compression.";
+        }
+        if (p.reason === "load") {
+            return "The decoder for this model's compressed data did not load. Try again.";
+        }
+        return p.reason === "decode"
+            ? "This model's compressed data is damaged."
+            : "This model is compressed in a way this page cannot read yet.";
+    },
     E_MODEL_PARSE: (p) => `The file is damaged or not a valid ${said(p.format).toUpperCase() || "model"}.`,
     E_MODEL_ZIP: () => "The .zip could not be opened.",
     E_MODEL_NAME_TAKEN: (p) => `A different model is already called ${said(p.id).replace(/^asset:/, "")}.`,
     E_MODEL_UNKNOWN_ASSET: () => "This style needs a model that is not here. Add the model file again.",
     E_MODEL_DIGEST_MISMATCH: () => "The model in this file is damaged.",
     W_MODEL_UP_GUESSED: () => "This model may be lying down. Use Turn upright to stand it up.",
-    W_MODEL_HAS_ANIMATIONS: () => "This model has animations; they do not play yet.",
+    W_MODEL_POINTS_APPROXIMATED: (p) => `This model's ${amount(p.points)} points are drawn as small solids.`,
+    W_MODEL_HAS_ANIMATIONS: () => "This model has animations. Choose one under Animation to play it.",
+    W_MODEL_EXTENSION_IGNORED: (p) => `This model's ${said(p.extension)} look is drawn opaque.`,
+    W_MODEL_ANIMATION_UNKNOWN: (p) =>
+        `This model has no animation called ${said(p.name)}. It has ${said(p.available) || "none"}.`,
+    W_MODEL_ANIMATION_REDUCED: (p) =>
+        `This model's animations play at ${amount(p.fps)} frames a second to save memory.`,
+    W_MODEL_ANIMATION_PARTIAL: () => "Some parts of this model hold still: their shape keys do not play.",
     W_MODEL_COLOR_IGNORED: () => "The model keeps its own colors. Use node color to paint it.",
     W_MODEL_HEAVY: (p) => `This model is detailed; with ${amount(p.nodes)} nodes the graph may be slow.`,
     W_MODEL_BUDGET: (p) => `The graph draws ${amount(p.triangles)} triangles and may be slow.`,
@@ -945,12 +1143,26 @@ export function modelWords(fact: CodedFact): string {
     return words === undefined ? "The model could not be drawn." : words(fact.params);
 }
 
+/**
+ * How well a name matches a search: 0 when it is the search, 1 when it starts with it, 2 otherwise.
+ * @param name - the name as the reader sees it.
+ * @param query - the search, trimmed and lower case.
+ * @returns the rank, lower is better.
+ */
+export function nameRank(name: string, query: string): number {
+    const lower = name.toLowerCase();
+    if (lower === query) {
+        return 0;
+    }
+    return lower.startsWith(query) ? 1 : 2;
+}
+
 /** Compares names as a reader counts: GAL2 before GAL10. */
 export const NATURAL = new Intl.Collator(undefined, { numeric: true });
 
 /**
- * A search's matches with the names that start with the typed text first, then the rest, each part
- * in the order it came in: "on" lists on_record before donations.
+ * A search's matches with the name that is exactly the typed text first, then the names that start
+ * with it, then the rest, each part in the order it came in: "on" lists on_record before donations.
  * @param items - the matches, in list order.
  * @param nameOf - an item's name as the reader sees it.
  * @param query - the search text.
@@ -962,7 +1174,7 @@ export function prefixFirst<T>(items: readonly T[], nameOf: (item: T) => string,
         return [...items];
     }
     // Array.prototype.sort is stable, so each part keeps its order.
-    const rank = (item: T): number => (nameOf(item).toLowerCase().startsWith(q) ? 0 : 1);
+    const rank = (item: T): number => nameRank(nameOf(item), q);
     return [...items].sort((a, b) => rank(a) - rank(b));
 }
 
@@ -1050,7 +1262,7 @@ export const SCALE_WORDS: Readonly<Record<string, string>> = {
 };
 
 /** The element's reasons for refusing a style edit, in the app's words, by error code. */
-const REFUSAL_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
+export const REFUSAL_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
     E_LOCKED: "its layer is locked",
     E_PROTECTED: "that layer is drawn by graphty itself; add a layer above it instead",
     E_OPTION_RANGE: "that value is outside what the property accepts",
@@ -1077,6 +1289,27 @@ const REFUSAL_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> = {
 export function failureWords(what: string, verb: string, error: unknown): string {
     const reason = error instanceof GraphtyError ? REFUSAL_WORDS[error.code] : undefined;
     return reason === undefined ? `${what} could not be ${verb}.` : `${what} could not be ${verb}: ${reason}.`;
+}
+
+/**
+ * Logs what a graphty-element call threw when it is not a refusal the caller expects, so a catch
+ * that answers a refusal quietly never hides a bug: anything that is not a GraphtyError, the
+ * element's own `E_INTERNAL`, or a code outside `expected`. A disposed session is never logged.
+ * @param where - the call, such as "styles.preview".
+ * @param error - what it threw.
+ * @param expected - the refusal codes the caller answers; left out, every code but `E_INTERNAL`.
+ * @returns whether it was logged.
+ */
+export function logUnexpected(where: string, error: unknown, expected?: readonly GraphtyErrorCode[]): boolean {
+    if (
+        error instanceof GraphtyError &&
+        (error.code === "E_DISPOSED" ||
+            (expected === undefined ? error.code !== "E_INTERNAL" : expected.includes(error.code)))
+    ) {
+        return false;
+    }
+    console.error(`[style] ${where} failed:`, error);
+    return true;
 }
 
 /** The control a value of one property is edited with: one per kind of property. */
@@ -1184,7 +1417,7 @@ export function madeWords(name: string, nodes: number, edges: number): string {
  * @param edges - how many edges are selected.
  * @returns the words.
  */
-export function selectedWords(nodes: number, edges: number): string {
+function selectedWords(nodes: number, edges: number): string {
     const [first, ...rest] = pickedCount(nodes, edges).split(" and ");
     const [n, word] = first.split(" ");
     const selected = n === "1" ? `selected ${word}` : `${n} selected ${word}`;
@@ -1210,16 +1443,6 @@ function pickedCount(nodes: number, edges: number): string {
  */
 export function firstValueWords(property: string): string {
     return `Not set yet: the first ${property.toLowerCase()} you pick makes the layer`;
-}
-
-/**
- * What a selection's Style tab says before its layer exists: the first style set makes it.
- * @param nodes - how many nodes are selected.
- * @param edges - how many edges are selected.
- * @returns the words.
- */
-export function firstStyleWords(nodes: number, edges: number): string {
-    return `The first style you set makes a layer for ${selectedWords(nodes, edges)}.`;
 }
 
 /** Which list a shader gallery opens for: a tab's Shaders, or the graph's Background. */
@@ -1335,6 +1558,68 @@ export const OPTION_TILE_WORDS: Readonly<Record<"node" | "edge", string>> = {
     edge: "Line option",
 };
 
+/** The shader editor's words, each as a reader sees it. */
+export const EDITOR_WORDS = {
+    newTitle: "New shader",
+    editTitle: "Edit shader",
+    code: "Shader code",
+    preview: "Preview",
+    problems: "Problems",
+    add: "Add",
+    addToProject: "Add to project",
+    drawsOn: "Draws on",
+    targets: { node: "Node", edge: "Edge", background: "Background" },
+    showInStyle: "Show in Style",
+    addedToProject: (name: string) => `${name} added to This project`,
+    alreadyInGallery: (name: string) => `${name} is already in the gallery`,
+    name: "Name",
+    reach: "Reach",
+    minSize: "Minimum size",
+    fullText: "Full text",
+    copyCode: "Copy code",
+    copied: "Shader code copied",
+    copyFailed: "The code could not be copied",
+    close: "Close",
+    closeTip: "Close  Esc",
+    tabIndent: "Tab: Indent",
+    tabNextField: "Tab: Next field",
+    parameters: "Parameters",
+    unnamedParam: "Parameter",
+    displayName: "Display name",
+    min: "Min",
+    max: "Max",
+    step: "Step",
+    choices: "Choices",
+    varies: "Varies",
+    on: "On",
+    off: "Off",
+    starts: "Starts",
+    startsNone: "None",
+    from: "From",
+    to: "To",
+    insertNeedsCursor: "Click in the code first",
+    paramTypes: {
+        number: "Number",
+        integer: "Integer",
+        boolean: "Switch",
+        enum: "Choice",
+        color: "Color",
+    } as Readonly<Record<string, string>>,
+    seedChoices: ["One", "Two"],
+    nameOf: (param: string): string => `${param} name`,
+    typeOf: (param: string): string => `${param} type`,
+    defaultOf: (param: string): string => `${param} default`,
+    insert: (param: string): string => `Insert ${param}`,
+    settingsOf: (param: string): string => `${param} settings`,
+    closeSettings: (param: string): string => `Close ${param} settings`,
+    removeParam: (param: string): string => `Remove ${param}`,
+    choiceLabel: (param: string, index: number): string => `${param} choice ${String(index)}`,
+    removeChoice: (param: string, index: number): string => `Remove ${param} choice ${String(index)}`,
+    addChoice: (param: string): string => `Add a choice to ${param}`,
+    newChoice: (position: number): string => `Choice ${String(position)}`,
+    rangeColor: (param: string, at: number): string => `${param} color ${String(at + 1)}`,
+} as const;
+
 /** The code dialog's link to the published guide to writing a shader. */
 export const PASTE_GUIDE_WORDS = "How to write one";
 
@@ -1381,37 +1666,17 @@ export const SHADER_STEP_WORDS = {
 } as const;
 
 /**
- * The words a reader may search the gallery by beside a shader's name, by preset id: glass,
- * metal, glow, bubble, 3D, shiny. Grouping and searching are the app's; the ids are the catalog's.
- */
-const SHADER_ALIASES: Readonly<Record<string, readonly string[]>> = {
-    glass: ["bubble", "3D"],
-    "glass-marble": ["glass", "3D", "shiny"],
-    "frosted-glass": ["glass", "3D"],
-    pearl: ["shiny", "3D"],
-    gemstone: ["shiny", "3D", "glass"],
-    "disco-ball": ["shiny", "3D", "metal"],
-    "liquid-metal": ["metal", "shiny", "3D"],
-    "anodized-steel": ["metal", "shiny", "3D"],
-    "matcap-ink": ["3D"],
-    "cel-shade": ["3D"],
-    halftone: ["3D"],
-    lantern: ["3D"],
-    "foil-shimmer": ["shiny"],
-    hologram: ["shiny"],
-    frost: ["glass"],
-    "soap-bubble": ["bubble"],
-};
-
-/**
- * Whether a gallery search finds a shader: the start of a word of its name or of one of its
- * aliases.
+ * Whether a gallery search finds a shader: the start of a word of its name, of one of its
+ * categories or of one of its tags, all catalog data supplied by whoever registered it.
  * @param descriptor - the catalog's entry.
  * @param query - the search text.
  * @returns true when it matches.
  */
-export function shaderMatches(descriptor: Pick<ShaderDescriptor, "id" | "plainName">, query: string): boolean {
-    return [descriptor.plainName, ...(SHADER_ALIASES[descriptor.id] ?? [])].some((name) =>
+export function shaderMatches(
+    descriptor: Pick<ShaderDescriptor, "plainName" | "categories" | "tags">,
+    query: string,
+): boolean {
+    return [descriptor.plainName, ...(descriptor.categories ?? []), ...(descriptor.tags ?? [])].some((name) =>
         matchesWordStart(name, query),
     );
 }
@@ -1476,7 +1741,7 @@ export function effectOffWords(name: string): string {
 }
 
 /** The moments a clock counts from, as a bound parameter's value shows them. */
-const CLOCK_WORDS: Readonly<Record<string, string>> = {
+export const CLOCK_WORDS: Readonly<Record<string, string>> = {
     "since.matched": "When this layer starts applying",
     "since.unmatched": "When this layer stops applying",
     "since.selected": "When selected",
@@ -1631,6 +1896,19 @@ export const BACKGROUND_SECTION_WORDS = {
         const named = word === "" ? hex : `${word} (${hex})`;
         return `No color set: drawn in ${named}`;
     },
+    /**
+     * A picture graphty-element could not decode (`E_IMAGE_DECODE`), so it is not the background.
+     * @param problem - the element's report.
+     * @returns the notice's sentence, such as "IMG_0001.HEIC is HEIC, which this browser cannot draw."
+     */
+    notDrawn: (problem: CodedFact): string => {
+        const name = typeof problem.params.fileName === "string" ? problem.params.fileName : "This image";
+        const format = typeof problem.params.format === "string" ? problem.params.format : "";
+        const kind = format.replace(/^image\//, "").toUpperCase();
+        return kind === ""
+            ? `${name} could not be drawn: this browser cannot read it as an image.`
+            : `${name} is ${kind}, which this browser cannot draw.`;
+    },
 } as const;
 
 /** The Quality row's choices: the reader's `shaderSettings.quality`. */
@@ -1697,3 +1975,403 @@ export const GROUP_BY_WORDS = {
     line: (value: string): string => `Group by ${value}`,
     none: "None",
 } as const;
+
+/** The Shape list's last entry, which opens the Models pop-over (the node-models experiment). */
+export const MODEL_TILE = "Model...";
+
+/** The value the Shape list's Model... entry carries: never written, it opens the Models pop-over. */
+export const MODEL_PICK = "+model";
+
+/**
+ * What a refused file should be instead: "choose a GLB, GLTF, OBJ, STL file".
+ * @param formats - the formats' extensions, ".glb".
+ * @returns the words.
+ */
+function readsWords(formats: readonly string[]): string {
+    return `choose a ${formats.map((e) => e.replace(/^\./, "").toUpperCase()).join(", ")} file`;
+}
+
+/** How a model file is stored, in a reader's words. */
+const ENCODING_WORDS: Readonly<Record<ModelEncoding, string>> = {
+    ascii: "ASCII",
+    binary: "binary",
+    binaryBigEndian: "big-endian binary",
+};
+
+/** A glTF's compression, by its usual name. */
+const COMPRESSION_WORDS: Readonly<Record<ModelCompression, string>> = {
+    draco: "Draco",
+    meshopt: "meshopt",
+    ktx2: "KTX2",
+    webp: "WebP",
+    avif: "AVIF",
+};
+
+/**
+ * A model format's usual name: "glTF", "GLB", "PLY".
+ * @param format - graphty-element's format id.
+ * @returns the name.
+ */
+function formatWord(format: string): string {
+    return format === "gltf" ? "glTF" : format.toUpperCase();
+}
+
+/** The Load custom model dialog's words (node-models design 14.6). */
+/**
+ * Bytes as a reader reads a file's size: "12.4 MB", "640 KB".
+ * @param bytes - how many.
+ * @returns the words.
+ */
+function megabytes(bytes: number): string {
+    return bytes < 1_000_000 ? `${formatCount(Math.ceil(bytes / 1000))} KB` : `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
+
+/**
+ * A model's extent along one axis, in the file's own units, to three figures.
+ * @param value - the extent.
+ * @returns the words.
+ */
+function sizeNumber(value: number): string {
+    return String(Number(value.toPrecision(3)));
+}
+
+export const CUSTOM_MODEL = {
+    title: "Load custom model",
+    button: "Add custom model...",
+    description: "Load a 3D model file or address into this project",
+    address: "Model address",
+    chooseFile: "Choose file",
+    chooseFolder: "Choose folder",
+    cancelLoad: "Cancel load",
+    /**
+     * Said when the reader stops a load.
+     * @param name - what was loading.
+     * @returns the words.
+     */
+    cancelled: (name: string): string => `Stopped loading ${name}`,
+    /** What a load is doing, by graphty-element's stage. */
+    stages: { downloading: "Downloading", reading: "Reading", unpacking: "Unpacking" } as Readonly<
+        Record<string, string>
+    >,
+    /** Said once graphty-element has the files and draws the model. */
+    preparing: "Preparing",
+    /**
+     * How much of a load has come: "3.2 of 12.4 MB", or "3.2 MB" when the size is not known.
+     * @param completed - bytes so far.
+     * @param total - bytes in all, or null.
+     * @returns the words.
+     */
+    bytes: (completed: number, total: number | null): string =>
+        total === null || total <= 0
+            ? megabytes(completed)
+            : `${megabytes(completed).replace(/ MB$/, "")} of ${megabytes(total)}`,
+    moreOptions: "More options",
+    animation: "Animation",
+    still: "Still",
+    pose: "Pose",
+    /**
+     * A clip as the Animation menu lists it: "Walk, 2.0 s".
+     * @param clip - the clip's name and length.
+     * @param clip.name - its name.
+     * @param clip.seconds - its length.
+     * @returns the words.
+     */
+    clip: (clip: { readonly name: string; readonly seconds: number }): string =>
+        `${clip.name || "Unnamed"}, ${clip.seconds.toFixed(1)} s`,
+    /** The rotate buttons under the preview, by `turnModelOrientation`'s step. */
+    turns: { left: "Turn left", right: "Turn right", forward: "Tip forward", back: "Tip back" } as const,
+    rotate: "Rotate",
+    /** What a refused file should be instead. */
+    reads: readsWords,
+    checkAddress: "check the address or choose the file instead",
+    /**
+     * A lone picture where a model was expected.
+     * @param name - the picture's name.
+     * @param formats - the model formats' extensions.
+     * @returns the words.
+     */
+    notModel: (name: string, formats: readonly string[]): string =>
+        `${name} is a picture, not a 3D model: ${readsWords(formats)}`,
+    /**
+     * The x beside the loaded file's name.
+     * @param name - the file's name or the address.
+     * @returns the words.
+     */
+    remove: (name: string): string => `Remove ${name}`,
+    /**
+     * Said once the loaded model is taken out of the dialog.
+     * @param name - the file's name or the address.
+     * @returns the words.
+     */
+    removed: (name: string): string => `${name} removed`,
+    name: "Name",
+    color: "Color",
+    files: "Files",
+    details: "Details",
+    /**
+     * Which variant of its format a model is, under its preview: "PLY, binary, point cloud", "glTF, Draco".
+     * @param summary - from graphty-element's `assets.inspect`.
+     * @returns the words.
+     */
+    variantLine: (
+        summary: Pick<ModelSummary, "format" | "encoding" | "geometry" | "compression" | "gltfVersion">,
+    ): string =>
+        [
+            summary.gltfVersion === "1.0" ? `${formatWord(summary.format)}, glTF 1.0` : formatWord(summary.format),
+            summary.encoding === undefined ? "" : ENCODING_WORDS[summary.encoding],
+            { mesh: "", points: "point cloud", splats: "Gaussian splats" }[summary.geometry ?? "mesh"],
+            ...(summary.compression ?? []).map((c) => COMPRESSION_WORDS[c]),
+        ]
+            .filter((w) => w !== "")
+            .join(", "),
+    /**
+     * The model's details as rows of a table: each fact graphty-element reports, by its name, the
+     * ones a file does not have left out.
+     * @param summary - from graphty-element's `assets.inspect`.
+     * @param fileBytes - the model's files, in bytes, if known.
+     * @param ignored - the extensions graphty-element drew without (`W_MODEL_EXTENSION_IGNORED`).
+     * @returns each row's name, its value, and a tooltip for a value that lists more than it shows.
+     */
+    detailRows: (
+        summary: ModelSummary,
+        fileBytes: number | undefined,
+        ignored: readonly string[] = [],
+    ): readonly { readonly name: string; readonly value: string; readonly tip?: string }[] => {
+        const rows: { name: string; value: string; tip?: string }[] = [
+            { name: "Format", value: CUSTOM_MODEL.variantLine(summary) },
+        ];
+        const add = (when: boolean, name: string, value: string, tip?: string): void => {
+            if (when) {
+                rows.push(tip === undefined ? { name, value } : { name, value, tip });
+            }
+        };
+        add(fileBytes !== undefined, "File size", megabytes(fileBytes ?? 0));
+        add(summary.points !== undefined, "Points", formatCount(summary.points ?? 0));
+        add(summary.points === undefined, "Triangles", formatCount(summary.triangles));
+        add(true, "Meshes", formatCount(summary.meshes));
+        add(
+            true,
+            "Materials",
+            formatCount(summary.materials.length),
+            summary.materials.filter((m) => m !== "").join(", ") || undefined,
+        );
+        add(summary.textures > 0, "Textures", `${formatCount(summary.textures)}, ${megabytes(summary.textureBytes)}`);
+        add(
+            summary.animations.length > 0,
+            "Animations",
+            summary.animations.map((clip) => CUSTOM_MODEL.clip(clip)).join("; "),
+        );
+        add(summary.skinned, "Skinned", "Yes");
+        add(summary.morphTargets > 0, "Morph targets", formatCount(summary.morphTargets));
+        add(summary.vertexColors === true, "Vertex colors", "Yes");
+        add(summary.transparent, "Transparent", "Yes");
+        add(true, "Up axis", summary.upAxis === "unknown" ? "Not stated" : summary.upAxis.toUpperCase());
+        const { bounds } = summary;
+        add(
+            bounds !== undefined,
+            "Size",
+            bounds === undefined ? "" : [0, 1, 2].map((i) => sizeNumber(bounds.max[i] - bounds.min[i])).join(" x "),
+        );
+        add(summary.extensionsRequired.length > 0, "Extensions required", summary.extensionsRequired.join(", "));
+        add(ignored.length > 0, "Extensions ignored", ignored.join(", "));
+        return rows;
+    },
+    /**
+     * What the closed Files line says about files that need nothing: "1 substituted, 2 not used".
+     * @param counts - how many parts are in each state.
+     * @param counts.substituted - found under another name.
+     * @param counts.skipped - left out.
+     * @param counts.unused - files nothing names.
+     * @returns the words, or "" for none.
+     */
+    filesNote: (counts: { readonly substituted: number; readonly skipped: number; readonly unused: number }): string =>
+        [
+            counts.substituted > 0 ? `${String(counts.substituted)} substituted` : "",
+            counts.skipped > 0 ? `${String(counts.skipped)} skipped` : "",
+            counts.unused > 0 ? `${String(counts.unused)} not used` : "",
+        ]
+            .filter((w) => w !== "")
+            .join(", "),
+    /**
+     * A part row's address field: its placeholder and its name.
+     * @param part - the part's file name.
+     * @returns the words.
+     */
+    partAddress: (part: string): string => `${part} address`,
+    useFile: "Use file",
+    cancel: "Cancel",
+    add: "Add model",
+    addToProject: "Add to project",
+    addFirst: "Add a model first",
+    /**
+     * Add's tooltip while a part is missing.
+     * @param part - the part's file name.
+     * @returns the words.
+     */
+    missing: (part: string): string => `${part} is missing`,
+    /**
+     * The preview's text alternative.
+     * @param name - the model's name.
+     * @returns the words.
+     */
+    preview: (name: string): string => `${name} preview`,
+    /**
+     * Said while a model loads.
+     * @param name - its name, or "model".
+     * @returns the words.
+     */
+    loading: (name: string): string => `Loading ${name}`,
+    /**
+     * Said once a model is in the dialog.
+     * @param name - its name.
+     * @returns the words.
+     */
+    loaded: (name: string): string => `${name} loaded`,
+    /**
+     * Said once the main menu's dialog added a model.
+     * @param name - its name.
+     * @returns the words.
+     */
+    added: (name: string): string => `${name} added to the project`,
+} as const;
+
+/** What Fill's "+" and the Picture line call `node.texture` (the node-models experiment). */
+export const PICTURE_WORD = "Picture";
+
+/**
+ * Model settings' rows (node-models design 13.3): each row's word and, for a choice, each value's
+ * word in list order. Turn is a number in degrees.
+ */
+export const MODEL_SETTING_ROWS: readonly {
+    readonly channel: Channel;
+    readonly word: string;
+    readonly choices?: readonly (readonly [string, string])[];
+    /** A number's unit, after it. */
+    readonly unit?: string;
+    /** A number's step for the arrow keys. Default 1. */
+    readonly step?: number;
+}[] = [
+    {
+        channel: "node.modelSourceUp",
+        word: "Up",
+        choices: [
+            ["detected", "Detected"],
+            ["y", "Y"],
+            ["z", "Z"],
+            ["-y", "-Y"],
+            ["-z", "-Z"],
+            ["x", "X"],
+            ["-x", "-X"],
+        ],
+    },
+    { channel: "node.modelTurn", word: "Turn", unit: "deg" },
+    {
+        channel: "node.modelTint",
+        word: "Color",
+        choices: [
+            ["false", "Model's own"],
+            ["true", "Node color on top"],
+            ["untextured", "Node color on plain parts"],
+            ["replace", "Node color only"],
+        ],
+    },
+    {
+        channel: "node.modelFit",
+        word: "Fit",
+        choices: [
+            ["contain", "Keep proportions"],
+            ["stretch", "Stretch"],
+        ],
+    },
+    {
+        channel: "node.modelCenter",
+        word: "Center",
+        choices: [
+            ["bounds", "Middle"],
+            ["origin", "File's origin"],
+        ],
+    },
+    // Its choices are the model's clips, which the row reads from graphty-element's summary.
+    { channel: "node.modelAnimation", word: "Animation", choices: [["", "Still"]] },
+    { channel: "node.modelAnimationSpeed", word: "Speed", unit: "x", step: 0.1 },
+    { channel: "node.modelAnimationOffset", word: "Start", unit: "s", step: 0.1 },
+    {
+        channel: "node.modelDoubleSided",
+        word: "Sides",
+        choices: [
+            ["file", "File's choice"],
+            ["true", "Both sides"],
+            ["false", "Front only"],
+        ],
+    },
+    {
+        channel: "node.unlit",
+        word: "Light",
+        choices: [
+            ["false", "Lit"],
+            ["true", "Unlit"],
+        ],
+    },
+];
+
+/** The Model settings rows that only a model with animations shows. */
+export const ANIMATION_CHANNELS: ReadonlySet<Channel> = new Set([
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+]);
+
+/** A warning chip on a Model settings row: its word and its tooltip (design 13.3). */
+export const MODEL_SETTING_CHIPS: Readonly<
+    Partial<Record<Channel, { readonly code: string; readonly word: string; readonly tip: string }>>
+> = {
+    "node.modelSourceUp": { code: "W_MODEL_UP_GUESSED", word: "Guessed", tip: "up axis guessed from the file" },
+    "node.modelTint": { code: "W_MODEL_COLOR_IGNORED", word: "Color unused", tip: "node color not drawn on the model" },
+};
+
+/**
+ * A rule as the reader reads and types it: its numbers without the backticks the element writes
+ * around them. Only numbers: a backticked text means something else bare.
+ * @param rule - the rule, without "=".
+ * @returns the rule.
+ */
+export function plainRule(rule: string): string {
+    return rule.replaceAll(/`(-?\d+(?:\.\d+)?)`/g, "$1");
+}
+
+/**
+ * The name the panels show a column a rule reads by: a run's value under its run's name, a node's
+ * structure under its own (Degree, never graphty.degree).
+ * @param session - the element's session.
+ * @param path - the path as the rule names it: a bare column name or a dotted path.
+ * @returns the name, or undefined for a path no value answers.
+ */
+export function shownName(session: GraphSession, path: string): string | undefined {
+    const value = session.data
+        .readableValues()
+        .find((each) => each.end === undefined && (each.path === path || rulePath(each.path) === path));
+    if (value !== undefined) {
+        return readableName(session, value).name;
+    }
+    const structure = session.data.structureValues().find((each) => each.path === path);
+    if (structure !== undefined) {
+        return structure.plainName;
+    }
+    const named = attributeName(session, path);
+    return named === path ? undefined : named;
+}
+
+/**
+ * A rule as the find box shows it: each column under the name the panels give it, numbers bare.
+ * It is shown, never typed back: a rule reads columns by their paths.
+ * @param session - the element's session.
+ * @param rule - the rule, without "=".
+ * @returns the words.
+ */
+export function shownRule(session: GraphSession, rule: string): string {
+    try {
+        return plainRule(renamePaths(rule, (path) => shownName(session, path)));
+    } catch {
+        return plainRule(rule);
+    }
+}

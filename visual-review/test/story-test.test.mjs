@@ -207,6 +207,29 @@ describe("story tests' visual step", () => {
         await report(v, root, { files: ["a.stories.ts"], ran: { "a.stories.ts": ["a--lost"] } });
         expect(read(out).partial).toMatchObject({ reported: false, missing: ["a--lost"] });
     });
+    it("reports a shot that differed and then matched, and keeps it on record after a retry that settles (#3389)", async () => {
+        const root = repo({ "a--flips.png": png(10) });
+        const out = tempDir("story-test-out-");
+        const id = "a--flips";
+        const shoot = async (v, shots) => {
+            const ctx = context(shots);
+            await v.commands.visualPlan(ctx, { id, chromatic: {} });
+            const first = await v.commands.visualShot(ctx, { id, mode: null, chromatic: {}, console: [] });
+            return first.again ? v.commands.visualShot(ctx, { id, mode: null, chromatic: {}, console: [] }) : first;
+        };
+
+        const first = visualStoryTest({ project: "graphty-element", out, root });
+        expect(await shoot(first, [png(200), png(10)])).toEqual({ status: "unchanged", flaky: true });
+        await report(first, root, { files: ["a.stories.ts"], ran: { "a.stories.ts": [id] } });
+
+        const retry = visualStoryTest({ project: "graphty-element", out, root });
+        expect(await shoot(retry, [png(10)])).toEqual({ status: "unchanged" });
+        await report(retry, root, { files: ["a.stories.ts"], ran: { "a.stories.ts": [id] } });
+
+        expect(read(out).items).toMatchObject([{ id, status: "unchanged", flaky: false, unstableFirst: true }]);
+        expect(existsSync(join(out, "flaky/a--flips.png"))).toBe(true);
+    });
+
     it("keeps the first run's items when the failed story files are run again into the same directory", async () => {
         const root = repo({ "a--same.png": png(10), "b--wobbles.png": png(10) });
         const out = tempDir("story-test-out-");

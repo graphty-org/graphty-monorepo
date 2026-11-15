@@ -404,14 +404,25 @@ function judge(file, rows) {
 
 /**
  * Trend verdicts per key and run kind: `recent` = median of the last 5 runs, `earlier` = median of
- * the 10 before; an alarm when recent is over the budget, or over 1.3 x earlier and 60 s slower.
+ * the 10 before; an alarm when recent is over the budget, or over 1.3 x earlier and 60 s slower. A key that
+ * stopped getting samples (closeVanished) gets no verdict.
  * @param history stored rows { key, run_kind, seconds, sha, recorded_at, outcome }
  * @param file the parsed ci-budgets.json
  * @returns key, kind, recent, earlier, alarm, range, runs per key and kind
  */
 export function trend(history, file) {
+    const live = history.filter((r) => r.outcome !== "cancelled");
+    // a key no run of its workflow and kind has sampled in VANISHED_RUNS runs (counted by commit) is gone: no verdict
+    const gone = (rows) => {
+        const { key, run_kind, recorded_at } = rows.at(-1);
+        const wf = key.split(":")[1];
+        const later = live.filter(
+            (r) => r.run_kind === run_kind && r.key.split(":")[1] === wf && r.recorded_at > recorded_at,
+        );
+        return new Set(later.map((r) => r.sha)).size >= VANISHED_RUNS;
+    };
     return [...groups(history).entries()]
-        .filter(([, rows]) => rows.length >= 5)
+        .filter(([, rows]) => rows.length >= 5 && !gone(rows))
         .map(([k, rows]) => ({ key: k.split("\u0000")[0], kind: k.split("\u0000")[1], ...judge(file, rows) }));
 }
 
@@ -541,6 +552,48 @@ export async function applyTrend(gh, run, rows, answer, file) {
     return syncIssues(gh, verdicts, file.defaults?.owner);
 }
 
+// A key with no sample in this many runs of its workflow and kind is gone (its job or step was renamed or removed,
+// #5176). 10 full runs are two to three days: longer than a red run or two that skips a job's later steps, short
+// enough that a dead alarm does not sit open for a week. A key that comes back is judged and filed again.
+export const VANISHED_RUNS = 10;
+
+const ALARM_TITLE = /^CI budget: (.+) \(([a-z-]+)\) /;
+
+/**
+ * Closes each open alarm of this run's workflow and kind whose key has had no sample in the last VANISHED_RUNS
+ * runs (or none in the store's 30-day window): the trend judges only the keys a run posts, so such an alarm would
+ * otherwise stay open for good. Run and nx task keys are left alone (a run always has its run row; a task key
+ * names no workflow).
+ * @param gh (path, init?) => parsed answer of GitHub's REST API for this repository
+ * @param run the run (`path`)
+ * @param kind the stored run kind
+ * @param lastSeen the store's `lastSeen`: `{ [storeKey]: { runId, sha, at, runsSince } }`
+ * @returns the actions taken, `{ action: "vanished", key, kind, number }[]`
+ */
+export async function closeVanished(gh, run, kind, lastSeen) {
+    // an older store answers no lastSeen: then nothing is judged gone
+    if (!lastSeen || !Object.keys(lastSeen).length) return [];
+    const workflow = basename(run.path ?? "ci.yml");
+    const open = await gh(`/issues?state=open&labels=ci-budget&per_page=100`);
+    const done = [];
+    for (const issue of open) {
+        const [, key, k] = ALARM_TITLE.exec(issue.title) ?? [];
+        const [level, wf, job, ...step] = key?.split(":") ?? [];
+        if (k !== kind || wf !== workflow || !["job", "step", "queue"].includes(level)) continue;
+        const stepName = level === "queue" ? QUEUE_STEP : step.join(":");
+        const seen = lastSeen[level === "job" ? key : `step:${wf}:${job}:${stepName}`];
+        if (seen && seen.runsSince < VANISHED_RUNS) continue;
+        const last = seen
+            ? `Its last sample was run ${seen.runId} on ${String(seen.sha).slice(0, 10)} at ${new Date(seen.at).toISOString()}, and ${seen.runsSince} ${kind} runs of ${workflow} have had none since.`
+            : `It has no sample in the results store's last 30 days of ${kind} runs of ${workflow}.`;
+        const body = `\`${key}\` no longer runs: the job or step was renamed or removed. ${last} Closing this alarm; it is filed again if the key comes back over its line.`;
+        await gh(`/issues/${issue.number}/comments`, { method: "POST", body: JSON.stringify({ body }) });
+        await gh(`/issues/${issue.number}`, { method: "PATCH", body: JSON.stringify({ state: "closed" }) });
+        done.push({ action: "vanished", key, kind, number: issue.number });
+    }
+    return done;
+}
+
 // The store sets the rows' kind from the job's OIDC token (the timings job needs id-token: write), and judges
 // each posted key's trend against the budgets sent with the rows.
 async function sendRows(run, rows, evals) {
@@ -589,12 +642,17 @@ async function report(v) {
     const pr = v.pr ?? run.pull_requests?.[0]?.number;
     if (body && pr) await failOpen("the pull request comment", () => upsertComment(gh, pr, body));
     const stored = await failOpen("sending the rows", () => sendRows(run, rows, evals));
-    if (ISSUE_KINDS.has(stored?.kind) && stored.trend?.length) {
-        // ponytail: two master timings jobs finishing together can both file one key's issue; a lock if seen
-        const done = await failOpen("the trend alarm issues", () => applyTrend(gh, run, rows, stored.trend, file));
-        for (const a of done ?? []) console.log(`${a.action} #${a.number}: ${a.key} (${a.kind})`);
-    }
+    if (ISSUE_KINDS.has(stored?.kind)) await alarmIssues(gh, run, rows, stored, file);
     return 0;
+}
+
+async function alarmIssues(gh, run, rows, stored, file) {
+    // ponytail: two master timings jobs finishing together can both file one key's issue; a lock if seen
+    const done = stored.trend?.length
+        ? await failOpen("the trend alarm issues", () => applyTrend(gh, run, rows, stored.trend, file))
+        : [];
+    const gone = await failOpen("closing vanished alarms", () => closeVanished(gh, run, stored.kind, stored.lastSeen));
+    for (const a of [...(done ?? []), ...(gone ?? [])]) console.log(`${a.action} #${a.number}: ${a.key} (${a.kind})`);
 }
 
 async function trendCommand(v) {

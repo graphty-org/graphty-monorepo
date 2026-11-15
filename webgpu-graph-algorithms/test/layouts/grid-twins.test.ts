@@ -29,7 +29,6 @@ import { adapterClass, writeNoiseFixture } from "../helpers/noise-floor.js";
 import { assertCheckPasses, type CheckReport, ratioOf } from "../helpers/sabotage.js";
 import { acquire, adapterSummary, gpuScale, requireGpu } from "../setup/gpu.js";
 
-const CASE_TIMEOUT = 300_000;
 /** Spec 12.2's second pass: acquire() then defaults to subgroups: false, so both contexts are the workgroup twin (a policy skip). */
 const NO_SUBGROUPS_PASS = process.env.GRAPHTY_GPU_NO_SUBGROUPS === "1";
 /** The stages a reduction reaches before they are read, and the tolerance id each is held to. */
@@ -74,48 +73,43 @@ describe("grid tier subgroup twins in-process (spec 11.3)", () => {
         expect(adapterClass(withSubgroups.caps)).toBe(adapterClass(withoutSubgroups.caps));
     });
 
-    // eslint-disable-next-line local/no-test-timing -- no condition to wait on, its GPU work takes 10 s on the Windows WARP host lane, more than a third of the 30 s budget; tracked in #1636
-    it(
-        "random20k: the build, the pyramid and the far field bitwise between the twins; G7's force within grid-twins.force; K5 and K1 within the P3 twin tolerances",
-        async (t) => {
-            requireGpu(t);
-            if (NO_SUBGROUPS_PASS) {
-                t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
-                return;
-            }
-            const { snapshot: s, start } = gridFixture("random20k", gpuScale(), GRID_BASE_OPTIONS);
-            try {
-                const a = await captureGridStages(withSubgroups, s, start, GRID_BASE_OPTIONS, null);
-                const b = await captureGridStages(withoutSubgroups, s, start, GRID_BASE_OPTIONS, null);
-                for (const key of GRID_STAGE_KEYS) {
-                    const twin = TWINNED[key];
-                    if (twin === undefined) {
-                        expectBitwiseEqual(
-                            a.stages[key].values,
-                            b.stages[key].values,
-                            `random20k/${key}: no twin, bitwise`,
-                        );
-                        continue;
-                    }
-                    const err = stageError(a.stages[key].kind === "vector", a.stages[key].values, b.stages[key].values);
-                    const tolerance = twin.p4 ? gridTolerance(twin.id).value : toleranceOf(twin.id);
-                    const report: CheckReport = {
-                        worst: ratioOf(err.rel, tolerance),
-                        worstLabel: `random20k/${key}`,
-                        samples: a.stages[key].values.length,
-                    };
-                    console.warn(
-                        `[grid-twins] random20k/${key}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)} ratio ${report.worst.toExponential(3)} (${twin.id})`,
+    it("random20k: the build, the pyramid and the far field bitwise between the twins; G7's force within grid-twins.force; K5 and K1 within the P3 twin tolerances", async (t) => {
+        requireGpu(t);
+        if (NO_SUBGROUPS_PASS) {
+            t.skip("GRAPHTY_GPU_NO_SUBGROUPS=1: both contexts are the workgroup twin");
+            return;
+        }
+        const { snapshot: s, start } = gridFixture("random20k", gpuScale(), GRID_BASE_OPTIONS);
+        try {
+            const a = await captureGridStages(withSubgroups, s, start, GRID_BASE_OPTIONS, null);
+            const b = await captureGridStages(withoutSubgroups, s, start, GRID_BASE_OPTIONS, null);
+            for (const key of GRID_STAGE_KEYS) {
+                const twin = TWINNED[key];
+                if (twin === undefined) {
+                    expectBitwiseEqual(
+                        a.stages[key].values,
+                        b.stages[key].values,
+                        `random20k/${key}: no twin, bitwise`,
                     );
-                    assertCheckPasses(report);
+                    continue;
                 }
-            } finally {
-                withSubgroups.release(s);
-                withoutSubgroups.release(s);
+                const err = stageError(a.stages[key].kind === "vector", a.stages[key].values, b.stages[key].values);
+                const tolerance = twin.p4 ? gridTolerance(twin.id).value : toleranceOf(twin.id);
+                const report: CheckReport = {
+                    worst: ratioOf(err.rel, tolerance),
+                    worstLabel: `random20k/${key}`,
+                    samples: a.stages[key].values.length,
+                };
+                console.warn(
+                    `[grid-twins] random20k/${key}: rel ${err.rel.toExponential(3)} abs ${err.abs.toExponential(3)} ratio ${report.worst.toExponential(3)} (${twin.id})`,
+                );
+                assertCheckPasses(report);
             }
-        },
-        CASE_TIMEOUT,
-    );
+        } finally {
+            withSubgroups.release(s);
+            withoutSubgroups.release(s);
+        }
+    });
 
     it("hubcell: the hub cell's level-0 entry (G4b, the one pyramid kernel with a reduction) agrees between the twins within grid-twins.hubCentroid", async (t) => {
         requireGpu(t);

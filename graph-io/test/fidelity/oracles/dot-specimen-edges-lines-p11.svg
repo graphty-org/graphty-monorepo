@@ -48,7 +48,7 @@
 <!-- cap&#45;default -->
 <g id="node7" class="node">
 <title>cap&#45;default</title>
-<text xml:space="preserve" text-anchor="middle" x="209.67" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">default</text>
+<text xml:space="preserve" text-anchor="middle" x="209.67" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">default</text>
 </g>
 <!-- pos&#45;arrow&#45;startpoint&#45;s -->
 <g id="node8" class="node">
@@ -69,7 +69,7 @@
 <!-- cap&#45;pos&#45;arrow&#45;startpoint -->
 <g id="node10" class="node">
 <title>cap&#45;pos&#45;arrow&#45;startpoint</title>
-<text xml:space="preserve" text-anchor="middle" x="583" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos with s,x,y dir=back</text>
+<text xml:space="preserve" text-anchor="middle" x="583" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">pos with s,x,y dir=back</text>
 </g>
 <!-- pos&#45;arrow&#45;both&#45;points&#45;s -->
 <g id="node11" class="node">
@@ -91,7 +91,7 @@
 <!-- cap&#45;pos&#45;arrow&#45;both&#45;points -->
 <g id="node13" class="node">
 <title>cap&#45;pos&#45;arrow&#45;both&#45;points</title>
-<text xml:space="preserve" text-anchor="middle" x="956.33" y="-404.07" font-family="DejaVu Sans" font-size="9.00" fill="#000000">pos with s and e dir=both</text>
+<text xml:space="preserve" text-anchor="middle" x="956.33" y="-404.07" font-family="DejaVu Sans,sans-serif" font-size="9.00" fill="#000000">pos with s and e dir=both</text>
 </g>
 </g>
 </svg>

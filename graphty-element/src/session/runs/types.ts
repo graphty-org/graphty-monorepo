@@ -18,11 +18,10 @@
 
 import type {
     AlgorithmKey,
-    EdgeId,
     EdgeReading,
     FieldDescriptor,
     LayerId,
-    NodeId,
+    OptionDescriptor,
     PaletteId,
     ResultShape,
     RunId,
@@ -34,7 +33,8 @@ import type { GraphtyErrorCode } from "../../errors/codes";
 import type { GraphtyError } from "../../errors/GraphtyError";
 import type { JournalId } from "../journal";
 import type { ResultSummary, RunResult } from "../results/types";
-import type { CodedFact } from "../shared";
+import type { ResolvedScope } from "../scope/ScopeApi";
+import type { CodedFact, CodedFactParam } from "../shared";
 import type { StyleSuggestion } from "../styles/derive";
 import type { CaveatCode, PartialCode } from "./caveatFacts";
 
@@ -147,8 +147,18 @@ export interface RunChange {
  * reader a lie they will time their patience against.
  */
 export interface Progress {
-    /** What the run is doing now, in words a progress line can show. */
+    /**
+     * What the run is doing now, as a code an application words: `"queued"`, `"running"` and
+     * `"failed"` for the run itself, or the step an algorithm names, in kebab case
+     * (`"iterating"`, `"grouping-nodes"`, `"reading-scores"`). Never a sentence.
+     */
     readonly phase: string;
+    /**
+     * The figures the phase is about, by name: `{ maxIterations }` while `"iterating"`, the
+     * member's `{ algorithm }` while a batch is `"running"`. Absent when the phase has none.
+     * @since 3.40.0
+     */
+    readonly params?: Readonly<Record<string, CodedFactParam>>;
     /** Whether the total is known. False means the run cannot say how much is left. */
     readonly determinate: boolean;
     /** How many units are done. */
@@ -159,7 +169,11 @@ export interface Progress {
     readonly fraction: number | null;
     /** How much longer, in milliseconds, or null when that cannot be projected. */
     readonly etaMs: number | null;
-    /** A sentence about the current step, when the run has one to offer. */
+    /**
+     * Text an algorithm registered by a consumer chose to report, passed through as it wrote it.
+     * graphty-element's own algorithms never fill it: word {@link Progress.phase} and
+     * {@link Progress.params}.
+     */
     readonly message?: string;
 }
 
@@ -169,6 +183,8 @@ export type StaleReason = "data-changed" | "scope-changed" | "window-moved";
 /**
  * The time window a run over the visible graph was computed in, and what it left visible then.
  * Numbers only: `from` and `to` are epoch milliseconds (or ordinal values), half-open.
+ * @experimental timeline
+ * @beta
  */
 export interface RunWindow {
     /** The attribute the window read. */
@@ -201,6 +217,8 @@ export interface StaleNote {
     /**
      * With `reason: "window-moved"`: the window the run was computed in, `{ code: "window-moved",
      * params: { from, to, nodes, edges } }`.
+     * @experimental timeline
+     * @beta
      */
     readonly window?: CodedFact<"window-moved">;
     /** How many elements the run was computed over. */
@@ -275,7 +293,11 @@ export interface Caveats {
     readonly filterScope?: boolean;
     /** Whether a time window narrowed what the run looked at. */
     readonly windowScope?: boolean;
-    /** The time window a run over the visible graph was computed in, and its visible counts. */
+    /**
+     * The time window a run over the visible graph was computed in, and its visible counts.
+     * @experimental timeline
+     * @beta
+     */
     readonly window?: RunWindow;
     /** How edge direction was treated. */
     readonly direction: RunDirection;
@@ -326,37 +348,7 @@ export interface Caveats {
 // Scope, as a run records it
 // ---------------------------------------------------------------------------------------------
 
-/**
- * A scope specification resolved against the graph as it stands.
- *
- * Declared here because a run carries the scope it ran over and the scope API has not landed.
- * It moves to the scope module when that arrives; nothing should declare a second one in the
- * meantime.
- */
-export interface ResolvedScope {
-    /**
-     * The nodes in scope. Lazy: built on the first read, then the same set on every read. It yields
-     * each id as the graph holds it, but `has` takes an integer id written either way: with node
-     * `34` in scope, `nodes.has("34")` is true.
-     */
-    readonly nodes: ReadonlySet<NodeId>;
-    /** The edges in scope. Lazy: built on the first read, then the same set on every read. */
-    readonly edges: ReadonlySet<EdgeId>;
-    /** How many nodes are in scope. */
-    readonly nodeCount: number;
-    /** How many edges are in scope. */
-    readonly edgeCount: number;
-    /**
-     * Equal digests mean equal scopes, which is how staleness is derived rather than tracked.
-     * Versioned: `d1:` and 16 hex digits, comparable only within one session and store. Computed
-     * on first read.
-     */
-    readonly digest: string;
-    /** What was asked for, before it was resolved. */
-    readonly spec: Scope;
-    /** When it was resolved, as an ISO 8601 timestamp. */
-    readonly resolvedAt: string;
-}
+export type { ResolvedScope } from "../scope/ScopeApi";
 
 /** The scope a run ran over, in the structured-cloneable form a record carries. */
 export interface RunScopeRecord {
@@ -389,6 +381,8 @@ export interface RunScopeRecord {
     /**
      * For a scope over the visible graph: the time window in force when it resolved, or null when
      * there was none. Absent for every other scope.
+     * @experimental timeline
+     * @beta
      */
     readonly window?: RunWindow | null;
 }
@@ -615,8 +609,24 @@ export interface BatchStep {
     readonly runId?: RunId;
     /** Whether it succeeded. */
     readonly ok: boolean;
-    /** Why it did not, when it did not. */
-    readonly reason?: string;
+    /** Why it did not, when it did not; absent when it succeeded. */
+    readonly failure?: BatchStepFailure;
+}
+
+/**
+ * Why one member of a batch did not succeed, as a code an application words.
+ *
+ * - `"not-started"`: the batch was stopped before this member started.
+ * - `"canceled"`: the batch, or an undo, stopped this member while it ran.
+ * - Any {@link GraphtyErrorCode}: the member was refused or failed with that error; `details` are
+ *   the error's own details.
+ * @since 3.40.0
+ */
+export interface BatchStepFailure {
+    /** What happened. */
+    readonly code: "not-started" | "canceled" | GraphtyErrorCode;
+    /** The facts behind it: the error's details, or empty. */
+    readonly details: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -627,8 +637,8 @@ export interface BatchStep {
  * on the consumer's behalf that partial work is worthless.
  */
 export interface BatchResult {
-    /** What the batch is called. */
-    readonly label: string;
+    /** What the caller named the batch (`batch(specs, { label })`), or null when it named none. */
+    readonly label: string | null;
     /** How many members it had. */
     readonly total: number;
     /** How many finished. */
@@ -637,6 +647,54 @@ export interface BatchResult {
     readonly partial: boolean;
     /** How each member turned out, in specification order. */
     readonly steps: readonly BatchStep[];
+}
+
+/**
+ * What a sweep takes besides the option it varies: the parameters held fixed, and the rest as
+ * {@link RunSpec} and `batch()` take them.
+ * @since 3.51.0
+ */
+export interface SweepOptions extends RunOptions {
+    /** The algorithm's other parameters, the same for every value. */
+    readonly params?: Readonly<Record<string, unknown>>;
+    /** What every run may look at, as {@link StartOptions.scope}. */
+    readonly scope?: ScopeInput;
+    /** The seed every run uses, so the values are compared on the same start. */
+    readonly seed?: number;
+    /** What each run paints on first completion; see {@link RunStyle}. Defaults to `false`. */
+    readonly style?: RunStyle;
+    /** The sweep's label, as `batch()` takes it. */
+    readonly label?: string;
+}
+
+/**
+ * One value of a sweep and what its run found.
+ * @since 3.51.0
+ */
+export interface SweepRow {
+    /** The value the option was set to. */
+    readonly value: unknown;
+    /** Whether its run succeeded. */
+    readonly ok: boolean;
+    /** The run it started, absent when it never started. */
+    readonly runId?: RunId;
+    /** Why it did not succeed; absent when it did. */
+    readonly failure?: BatchStepFailure;
+    /** The run's bounded result (its `groupCount`, its top elements, its statistics); absent unless it succeeded. */
+    readonly summary?: ResultSummary;
+    /** The run's graph-level values (a modularity, a component count); absent unless it succeeded. */
+    readonly graph?: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * What a sweep produced: the batch it ran, and one row per value in the order given.
+ * @since 3.51.0
+ */
+export interface SweepResult extends BatchResult {
+    /** The option the sweep varied. */
+    readonly option: OptionDescriptor["name"];
+    /** One row per value, in the order the values were given. */
+    readonly rows: readonly SweepRow[];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -688,6 +746,11 @@ export interface RunRecord {
      * @since 3.18.0
      */
     readonly siblingsDifferBy: readonly string[] | null;
+    /**
+     * The name the reader gave the run with {@link RunsApi.rename}, or null while it has none.
+     * @since 3.40.0
+     */
+    readonly name: string | null;
 
     /** Which algorithm ran. */
     readonly algorithm: AlgorithmKey;
@@ -886,7 +949,32 @@ export interface RunRemoval {
     readonly removedLayers: number;
     /** Which ones, so an undo can name them. */
     readonly layerIds: readonly LayerId[];
+    /**
+     * The selections that read the run's values and are left waiting: a style layer's Which
+     * nodes, or a Data filter condition. Nothing re-runs them unasked; each step waits with
+     * `run-needed` until the reader allows it (`scope.allowRun`).
+     * @beta
+     */
+    readonly selections: readonly RunReader[];
 }
+
+/**
+ * A selection that reads a run's values in one of its steps: a style layer's selector, or a
+ * visibility filter condition. Ids only, so a consumer looks the layer or the condition up live.
+ * More kinds may be added in a minor release; keep a default branch.
+ * @beta
+ */
+export type RunReader =
+    | {
+          /** A style layer whose selector reads the run. */
+          readonly kind: "layer";
+          readonly id: LayerId;
+      }
+    | {
+          /** A visibility filter condition whose rule reads the run. */
+          readonly kind: "filter";
+          readonly id: string;
+      };
 
 /**
  * What became of one style suggestion a run made when it first completed.
@@ -1005,6 +1093,32 @@ export interface RunsApi {
      */
     batch(specs: readonly RunSpec[], options?: RunOptions & { readonly label?: string }): Run<BatchResult>;
     /**
+     * Run one algorithm once per value of one of its options (a parameter sweep), as one batch
+     * with one progress stream and one cancel, and resolve to one row per value: what each run
+     * found, ready for a comparison table or a chart. Each value is its own listed run, and one
+     * undo takes them all away. A cancelled sweep keeps the values that finished.
+     * @example
+     * ```ts
+     * const sweep = await session.runs.sweep("louvain", "resolution", [0.5, 1, 2], { seed: 1 });
+     * for (const row of sweep.rows) {
+     *     console.log(row.value, row.summary?.groupCount, row.graph?.modularity);
+     * }
+     * ```
+     * @param algorithm - Which algorithm.
+     * @param option - The option to vary, as the algorithm's catalog `options` name it.
+     * @param values - The values to try, in order.
+     * @param options - The parameters held fixed, the scope, the seed, the style, the label and
+     *   the ordinary run options.
+     * @returns A run over the sweep, resolving to its rows.
+     * @since 3.51.0
+     */
+    sweep(
+        algorithm: AlgorithmKey,
+        option: OptionDescriptor["name"],
+        values: readonly unknown[],
+        options?: SweepOptions,
+    ): Run<SweepResult>;
+    /**
      * One run, by id.
      * @param id - The run id.
      * @returns The run, or undefined when this session holds none with that id.
@@ -1025,6 +1139,15 @@ export interface RunsApi {
      */
     remove(id: RunId): RunRemoval;
     /**
+     * The selections that read a run's values in one of their steps, which removing the run would
+     * leave waiting: what a confirmation lists before it asks. Layers the run itself painted
+     * (`bindings`) are not among them: they go with it.
+     * @param id - The run id.
+     * @returns The readers, style layers first, then filter conditions.
+     * @beta
+     */
+    readers(id: RunId): readonly RunReader[];
+    /**
      * Move every style layer reading a run, as one block and in its own order, to another place
      * in the stack, as one step.
      *
@@ -1040,6 +1163,23 @@ export interface RunsApi {
      *     `E_BAD_COMMAND` when `before` is one of the run's own layers.
      */
     move(id: RunId, before: LayerId | null, options?: { readonly signal?: AbortSignal }): Promise<void>;
+    /**
+     * Give a finished run the reader's own name, as one step that undo takes back. The name shows
+     * as {@link RunRecord.name}; null takes it away.
+     *
+     * ```ts
+     * const run = await session.runs.start("pagerank");
+     * await session.runs.rename(run.runId, "Influence");
+     * session.runs.get(run.runId)?.record.name; // "Influence"
+     * await session.undo(); // back to null
+     * ```
+     * @param id - The run id.
+     * @param name - The new name, 1 to 1,024 characters and not all spaces, or null.
+     * @returns Settles once the name is recorded. Rejects with `E_UNKNOWN_RUN` for a run this
+     *     session holds no finished result of, and `E_OPTION_RANGE` for an empty or overlong name.
+     * @since 3.40.0
+     */
+    rename(id: RunId, name: string | null): Promise<void>;
     /**
      * Which style layers read a run.
      *

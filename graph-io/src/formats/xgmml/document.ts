@@ -13,6 +13,7 @@
 
 import { escapeXmlAttribute, escapeXmlText } from "../../common/escape.js";
 import { type ImportReportBuilder } from "../../common/report.js";
+import { itemAt } from "../../common/text.js";
 import { isWhitespace, localName, type XmlHandler } from "../../common/xml.js";
 import { XGMML_ISSUE, XGMML_NAMESPACE, XLINK_NAMESPACE } from "./constants.js";
 
@@ -931,7 +932,8 @@ export class XgmmlParser implements XmlHandler {
         if (frame.att.name === "networkMetadata") {
             const field = localName(rawName);
             this.rdfElement = field;
-            if (this.rdf[field] !== undefined) {
+            const fields: Partial<Record<string, string>> = this.rdf;
+            if (fields[field] !== undefined) {
                 // a second <dc:title>: the first is kept, the two are never joined
                 this.rdfElement = null;
                 this.report.warning(
@@ -1160,7 +1162,7 @@ function bindPrefixes(xml: string, start: number, scope: ReadonlyMap<string, str
     const segment = xml.slice(start);
     const used = new Set<string>();
     for (const match of segment.matchAll(/<\/?([A-Za-z_][\w.-]*):|\s([A-Za-z_][\w.-]*):[\w.-]+="/g)) {
-        used.add(match[1] ?? match[2]);
+        used.add(itemAt(match, 1) ?? match[2]);
     }
     let declarations = "";
     for (const prefix of used) {

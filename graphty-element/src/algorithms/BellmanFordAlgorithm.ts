@@ -64,16 +64,16 @@ interface BellmanFordOptions extends Record<string, unknown> {
  * negative edge weights and detecting negative cycles.
  */
 export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> {
-    static namespace = "graphty";
-    static type = "bellman-ford";
+    static readonly namespace: string = "graphty";
+    static readonly type: string = "bellman-ford";
     /** The weight this algorithm reads; see `Algorithm.weightMeaning`. */
     static readonly weightMeaning = "distance" as const;
     /** Searches the run's scope: the node and edge lists and the graph all come from the input. */
-    static scopeInput: ScopeInputDeclaration = "subgraph";
+    static readonly scopeInput: ScopeInputDeclaration = "subgraph";
 
-    static zodOptionsSchema: ZodOptionsSchema = bellmanFordOptionsSchema;
+    static readonly zodOptionsSchema: ZodOptionsSchema = bellmanFordOptionsSchema;
 
-    static optionsSchema: OptionsSchema = {
+    static readonly optionsSchema: OptionsSchema = {
         source: {
             type: "nodeId",
             default: null,
@@ -155,7 +155,7 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
         const sourceIndex = this.nodeIndex(snapshot, "source", source);
         const targetIndex = this.nodeIndex(snapshot, "target", target);
 
-        context.report({ phase: "Relaxing edges", total: null });
+        context.report({ phase: "relaxing-edges", total: null });
         const { value, precision } = await searchFollowing(
             this.graph,
             directed && direction === "in",
@@ -173,7 +173,7 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
 
         const { ids } = snapshot;
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Marking the route", nodeIds, (nodeId) => {
+        await forEachChunked(context, "marking-the-route", nodeIds, (nodeId) => {
             const index = ids.indexOf(nodeId);
             const order = index === INVALID_INDEX ? undefined : orderOf.get(index);
             const distance = index === INVALID_INDEX ? Infinity : value.dist[index];
@@ -186,7 +186,7 @@ export class BellmanFordAlgorithm extends DeclaredAlgorithm<BellmanFordOptions> 
            parallel group, stand for the one merged edge the route crossed, and all of them are on
            it. The id PUBLISHED is the element's own, which a style layer can name. */
         const edges: ResultElementValues<EdgeId>[] = [];
-        await forEachChunked(context, "Marking the route", scopeEdges(input), (edge) => {
+        await forEachChunked(context, "marking-the-route", scopeEdges(input), (edge) => {
             const merged = edgeRemap === null ? edge.row : (edgeRemap[edge.row] ?? INVALID_INDEX);
             edges.push({ id: edge.id, values: { onPath: routeEdges.has(merged) } });
         });

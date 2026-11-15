@@ -3,11 +3,13 @@
 # (design/ci/channels-pipeline/merging.md, section 6). A habit, not a gate: CI decides, and a failure
 # here only means "you would have found out in CI". Run it in the background (it waits for test slots):
 #
-#   pnpm run check:quick [--base <ref>] [--with-dry-run]     (default base origin/master)
+#   pnpm run check:quick [--base <ref>] [--with-dry-run] [--whole-browser-shards]   (default base origin/master)
 #
 # 1. prettier --check on the files changed since the merge base with the base;
 # 2. nx affected -t build lint typecheck (lint needs the builds of what it imports; local nx cache);
-# 3. tools/test-changed.mjs: the tests CI's selection would run, with CI's shard commands, no coverage;
+# 3. tools/test-changed.mjs: the tests CI's selection would run, with CI's shard commands, no coverage; a
+#    browser shard CI runs whole runs only its selected files here, or nothing (issue #8042), unless
+#    --whole-browser-shards asks for the whole shard;
 # 4. tools/sonar-gate.mjs: SonarQube on the changed lines (off the owner's network it passes, warning);
 # 5. when webgpu-graph-algorithms is affected, its node tests on this machine's NVIDIA card;
 # 6. PR Integrity on HEAD (tools/pr-integrity.mjs --local: test integrity, breaking
@@ -36,14 +38,16 @@ MAIN_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
 
 BASE=origin/master
 DRY_RUN=0
+TEST_ARGS=()
 usage() {
-    echo "usage: tools/check-quick.sh [--base <ref>] [--with-dry-run]" >&2
+    echo "usage: tools/check-quick.sh [--base <ref>] [--with-dry-run] [--whole-browser-shards]" >&2
     exit 2
 }
 while [ $# -gt 0 ]; do
     case "$1" in
         --base) [ -n "${2:-}" ] || usage; BASE="$2"; shift 2 ;;
         --with-dry-run) DRY_RUN=1; shift ;;
+        --whole-browser-shards) TEST_ARGS+=("$1"); shift ;;
         *) usage ;;
     esac
 done
@@ -91,7 +95,7 @@ gpu_tests() {
 step "Formatting" formatting
 step "Build, lint and type-check (affected)" pnpm exec nx affected -t build lint typecheck --base="$BASE"
 # The tests read no developer git config (their git sandboxes would inherit signing, hooks, aliases).
-step "Selected tests" env GIT_CONFIG_GLOBAL=/dev/null node tools/test-changed.mjs --base "$BASE"
+step "Selected tests" env GIT_CONFIG_GLOBAL=/dev/null node tools/test-changed.mjs --base "$BASE" "${TEST_ARGS[@]}"
 step "SonarQube (changed lines)" node tools/sonar-gate.mjs
 # Captured, not piped into grep -q: under pipefail an early grep exit could SIGPIPE nx and skip the
 # GPU step, and a failing nx must not read as "not affected".

@@ -55,7 +55,7 @@
             "paths": [],
             "catalogs": ["transitions"],
             "issue": 6507,
-            "finding": "layoutTransition in the configuration names a transition preset by id (glide)."
+            "finding": "layoutTransition in the configuration names a transition preset by id (glide). Kept on purpose: the owner decided on 2026-11-13 that code-backed built-ins are named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "sample-model",

@@ -2487,6 +2487,63 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         sources.runs().filter((run) => run.stale?.reason === "scope-changed" || run.stale?.reason === "window-moved");
 
     /**
+     * A window's bounds under a new step: a sliding window snaps to one step on its boundary, a
+     * cumulative one's end to the end of its step.
+     * @param from - The window's start.
+     * @param to - The window's end.
+     * @param step - The new step.
+     * @param zone - The zone calendar steps read in.
+     * @param sliding - Whether the window slides.
+     * @returns The bounds that change.
+     */
+    const resteppedBounds = (
+        from: number,
+        to: number,
+        step: TimeStep,
+        zone: string,
+        sliding: boolean,
+    ): { readonly from?: number; readonly to: number } => {
+        if (!sliding) {
+            return { to: addSteps(alignAt(to - 1, step, zone), step, 1, zone) };
+        }
+        const start = alignAt(from, step, zone);
+        return { from: start, to: addSteps(start, step, 1, zone) };
+    };
+
+    /**
+     * A window's bounds under a new zone alone. A bound on a boundary in the old zone moves to the
+     * nearest boundary in the new one, and any other bound stays; two zones lie under a step apart,
+     * so switching back returns each bound. A cumulative window keeps its start.
+     * @param from - The window's start.
+     * @param to - The window's end.
+     * @param step - The step.
+     * @param zones - The zone the window read in, and the new one.
+     * @param zones.was - The old zone.
+     * @param zones.zone - The new zone.
+     * @param sliding - Whether the window slides.
+     * @returns The bounds that change, or none when they would cross.
+     */
+    const rezonedBounds = (
+        from: number,
+        to: number,
+        step: TimeStep,
+        { was, zone }: { readonly was: string; readonly zone: string },
+        sliding: boolean,
+    ): { readonly from?: number; readonly to?: number } => {
+        const rezoned = (at: number): number => {
+            if (alignAt(at, step, was) !== at) {
+                return at;
+            }
+            const below = alignAt(at, step, zone);
+            const above = addSteps(below, step, 1, zone);
+            return at - below <= above - at ? below : above;
+        };
+        const start = sliding ? rezoned(from) : from;
+        const end = rezoned(to);
+        return start < end ? { from: start, to: end } : {};
+    };
+
+    /**
      * The window as new settings leave it: its step, mode, missing rule and zone.
      * @param current - The window now.
      * @param next - The settings.
@@ -2500,18 +2557,6 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
         const to = boundOf(current, "to");
         const was = zoneOf(undefined, current);
         const zone = zoneOf(newZone, current);
-        const restepped = step !== current.step;
-        const resized = restepped || (zone !== was && isCalendarStep(step));
-        // A bound on a boundary in the old zone moves to the nearest boundary in the new one; any
-        // other bound stays. Two zones lie under a step apart, so switching back returns each bound.
-        const rezoned = (at: number): number => {
-            if (alignAt(at, step, was) !== at) {
-                return at;
-            }
-            const below = alignAt(at, step, zone);
-            const above = addSteps(below, step, 1, zone);
-            return at - below <= above - at ? below : above;
-        };
         const { timeZone: _timeZone, ...unzoned } = current;
         let window: TimeWindow = Object.freeze({
             ...(newZone === undefined ? current : unzoned),
@@ -2525,17 +2570,14 @@ export function createTimeApi(sources: TimeSources): { readonly api: TimeApi; re
             // Back to sliding: one step ending where the cumulative window ended.
             const { mode: _mode, ...rest } = window;
             window = Object.freeze({ ...rest, from: Math.max(extent.from, addSteps(to, step, -1, zone)) });
-        } else if (resized && !restepped) {
-            // A new zone alone never snaps the window to one step; a cumulative window keeps its start.
-            const start = next.mode === "sliding" ? rezoned(from) : from;
-            const end = rezoned(to);
-            window = Object.freeze({ ...window, ...(start < end ? { from: start, to: end } : {}) });
-        } else if (resized && next.mode === "sliding") {
-            // A new step or zone snaps a sliding window to one step on its boundary.
-            const start = alignAt(from, step, zone);
-            window = Object.freeze({ ...window, from: start, to: addSteps(start, step, 1, zone) });
-        } else if (resized) {
-            window = Object.freeze({ ...window, to: addSteps(alignAt(to - 1, step, zone), step, 1, zone) });
+        } else if (step !== current.step) {
+            window = Object.freeze({ ...window, ...resteppedBounds(from, to, step, zone, next.mode === "sliding") });
+        } else if (zone !== was && isCalendarStep(step)) {
+            // A new zone alone never snaps the window to one step.
+            window = Object.freeze({
+                ...window,
+                ...rezonedBounds(from, to, step, { was, zone }, next.mode === "sliding"),
+            });
         }
 
         if (next.missing !== (current.missing ?? "inside")) {

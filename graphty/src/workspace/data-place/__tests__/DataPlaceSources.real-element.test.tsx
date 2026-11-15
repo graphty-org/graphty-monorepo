@@ -123,7 +123,7 @@ describe("the Sources tab with two loads", () => {
         );
     });
 
-    it("gives each load its own section with its node and edge rows, its own columns and its own Filters", async () => {
+    it("gives each load its own section with its node and edge rows, its own columns and its own Filter + row", async () => {
         const { football: cf, miserables: lm } = await openTwo();
         for (const load of [cf, lm]) {
             const section = await sectionOf(load);
@@ -131,8 +131,9 @@ describe("the Sources tab with two loads", () => {
             await waitFor(() => {
                 within(section).getByText("Nodes", { exact: true });
                 within(section).getByText("Edges", { exact: true });
-                within(section).getByRole("group", { name: "Filters" });
-                within(section).getByRole("button", { name: "Add filter" });
+                // With no filter yet, its Filters are one "Filter +" row, with no empty header.
+                assert.strictEqual(within(section).getByRole("button", { name: "Add filter" }).textContent, "Filter");
+                assert.isNull(within(section).queryByRole("group", { name: "Filters" }));
             });
             const edges = section.querySelector('[data-kind="edge"] .cm-entity-text');
             assert.strictEqual(edges?.textContent, String(load.counts.edges), "the load's own edge count");

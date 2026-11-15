@@ -580,6 +580,14 @@ export interface CodedFact<Code extends string = string> {
 // @public
 export type CodedFactParam = string | number | boolean | null | readonly (string | number | boolean | null)[];
 
+// @beta
+export interface CollapsedGroup {
+    readonly group: GroupValue;
+    readonly groupBy: Path;
+    readonly node: NodeId;
+    readonly size: number;
+}
+
 // @public
 export interface CollapseResult {
     readonly kept: readonly CodedFact<"W_COLLAPSE_KEPT">[];
@@ -645,6 +653,7 @@ export interface CommandOutcomeMap {
     "data.collapse": Promise<void>;
     "data.columns": Promise<void>;
     "data.declare": Promise<void>;
+    "data.derive": Promise<void>;
     "data.expand": Promise<void>;
     "data.import": Promise<void>;
     "data.import-source": Promise<void>;
@@ -989,6 +998,18 @@ export type DefaultableLimits = Omit<Limits, "graphMemoryBudgetBytes">;
 export function defaultReading(result: RunResult, options: ReadingOptions): string;
 
 export { defineSource }
+
+// @public
+export interface DerivedColumn {
+    readonly expression: Query;
+    readonly kind: "node" | "edge";
+    readonly name: string;
+}
+
+// @public
+export interface DeriveOptions {
+    readonly kind?: "node" | "edge";
+}
 
 // @public
 export interface DraftColumn extends Pick<AttributeDescriptor, "name" | "type" | "completeness" | "uniqueCount" | "sampleValues"> {
@@ -1700,6 +1721,8 @@ export interface GraphSession {
     readonly features: EnabledFeatures;
     find(text: string, options?: FindOptions): FindResult;
     fingerprint(): string;
+    // @beta
+    readonly groups: GroupsApi;
     readonly hidden: SessionHidden;
     readonly history: SessionHistory;
     readonly journal: JournalApi;
@@ -2880,6 +2903,22 @@ export interface GroupOverlap {
     readonly count: number;
 }
 
+// @beta
+export type GroupRef = {
+    readonly run: RunRef;
+    readonly group: GroupValue;
+} | {
+    readonly groupBy: Path;
+    readonly group: GroupValue;
+};
+
+// @beta
+export interface GroupsApi {
+    collapse(ref: GroupRef): Promise<NodeId>;
+    expand(ref: GroupRef): Promise<void>;
+    list(): readonly CollapsedGroup[];
+}
+
 // @public
 export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
 
@@ -2897,6 +2936,9 @@ export interface GroupTableOptions {
 
 // @public
 export type GroupTableRow = Readonly<Record<string, string | number | boolean | null>>;
+
+// @beta
+export type GroupValue = string | number | boolean;
 
 // @public
 export interface HighlightSpec {
@@ -2949,7 +2991,7 @@ export interface HistoryClearOptions {
 }
 
 // @public
-export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
+export type HistoryCode = "algo.run" | "algo.legacy" | "algo.remove" | "algo.move" | "algo.rename" | "algo.batch" | "algo.template" | "batch" | "data.add-nodes" | "data.add-edges" | "data.remove-nodes" | "data.remove-edges" | "data.edit" | "data.fix-issue" | "data.ignore-issue" | "data.ignore-issues" | "data.issues" | "data.clear" | "data.set" | "data.replace-nodes" | "data.replace-edges" | "data.merge-nodes" | "groups.collapse" | "groups.expand" | "data.import" | "data.import-source" | "data.expand" | "data.source-expand" | "data.collapse" | "data.declare" | "data.set-source" | "data.remove-source" | "data.replace-source" | "data.join" | "data.edit-join" | "data.label" | "data.set-role" | "data.set-type" | "data.rename-column" | "data.hide-columns" | "data.show-columns" | "data.columns" | "data.derive" | "data.set-file-styles" | "style.add-layer" | "style.update-layer" | "style.remove-layer" | "style.move-layer" | "style.remove-layers" | "style.highlight" | "style.fix-channel" | "style.encode" | "style.template" | "style.suggested" | "style.add-folder" | "style.rename-row" | "style.move-row" | "style.pin-row" | "style.lock-row" | "style.hide-row" | "style.delete-row" | "style.add-default-rows" | "shader.add" | "shader.replace" | "shader.remove" | "visibility.filter" | "visibility.clear-filter" | "visibility.window" | "visibility.clear-window" | "visibility.show-context" | "visibility.hide-context" | "visibility.step-add" | "visibility.step-edit" | "visibility.step-on" | "visibility.step-off" | "visibility.step-remove" | "visibility.condition-add" | "visibility.condition-edit" | "visibility.condition-on" | "visibility.condition-off" | "visibility.condition-remove" | "visibility.steps" | "visibility.playback" | "visibility.hide-nodes" | "visibility.show-nodes" | "time.field" | "time.clear-field" | "set.create" | "set.rename" | "set.redefine" | "set.members" | "set.remove" | "set.restore" | "note.add" | "note.update" | "note.remove" | "note.merge" | "view.save" | "view.remove" | "view.dimension" | "view.immersive" | "config.set" | "positions.set" | "positions.pin" | "positions.release" | "node.drag" | "layout.set" | "layout.rerun" | "layout.behavior" | "layout.scope" | "layout.whole-graph" | "project.open" | "document.open" | "transaction";
 
 // @public
 export type HistoryOutcome = {
@@ -4484,6 +4526,10 @@ export interface ProjectConfig {
         readonly minDelta: number;
     };
     readonly layoutTransition?: LayoutTransitionConfig;
+    readonly minMarkSize?: {
+        readonly node?: number;
+        readonly edge?: number;
+    };
     readonly name?: string;
     readonly pinnedStyle?: GraphSelectionStyleConfig;
     readonly runAlgorithmsOnLoad: boolean;
@@ -4509,6 +4555,7 @@ export interface ProjectConfigPatch {
     // (undocumented)
     readonly layoutBehavior?: Partial<ProjectConfig["layoutBehavior"]>;
     readonly layoutTransition?: LayoutTransitionConfig;
+    readonly minMarkSize?: ProjectConfig["minMarkSize"];
     readonly name?: string | null;
     readonly pinnedStyle?: GraphSelectionStyleInput;
     // (undocumented)
@@ -6046,7 +6093,7 @@ export type SessionCapabilities = Pick<Capabilities, "acceleration" | "xr"> & {
 export type SessionCatalogApi = Omit<CatalogApi, DeprecatedCatalogMethod>;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // @public
 export interface SessionConfig extends ProjectConfig {
@@ -6072,6 +6119,8 @@ export interface SessionDataApi {
         readonly edges: number;
     };
     declare(column: ColumnRef, declaration: MeasurementDeclaration): Promise<void>;
+    derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
+    derivedColumns(): readonly DerivedColumn[];
     edge(id: EdgeId): EdgeRecord | undefined;
     edgeName(edge: {
         readonly source: NodeId_2;
@@ -7180,6 +7229,31 @@ export interface StyleFileDocument extends StyleDocument {
 }
 
 // @public
+export interface StyleGrayCollision {
+    readonly colors: readonly [StyleGrayColor, StyleGrayColor];
+    readonly difference: number;
+}
+
+// @public
+export interface StyleGrayCollisionOptions {
+    readonly threshold?: number;
+}
+
+// @public
+export interface StyleGrayColor {
+    readonly color: string;
+    readonly lightness: number;
+    readonly uses: readonly StyleGrayUse[];
+}
+
+// @public
+export interface StyleGrayUse {
+    readonly channel: Channel;
+    readonly layer: LayerId;
+    readonly value?: unknown;
+}
+
+// @public
 export interface StyleProblem {
     readonly error: GraphtyError;
     readonly runId: RunId;
@@ -7234,6 +7308,7 @@ export interface StylesApi {
     encode(spec: EncodingSpec | ColumnEncodingSpec, options?: RunOptions): Run<Layer>;
     explain(target: ExplainTarget): StyleExplanation;
     get(id: LayerId): Layer | undefined;
+    grayCollisions(options?: StyleGrayCollisionOptions): readonly StyleGrayCollision[];
     groups(id: LayerId, path: Path): readonly ValueGroup[];
     hideRow(id: StyleRowId, hidden: boolean, options?: RunOptions): Run<StyleRow>;
     highlight(spec: HighlightSpec, options?: RunOptions): Run<readonly Layer[]>;

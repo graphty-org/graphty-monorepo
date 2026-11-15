@@ -406,6 +406,9 @@ since a live change puts a merge there first).
   reaches master.
 - Never wait inside a model turn: start a push or a long run in the background and end the turn. A subagent opens
   its pull request and stops. A prompt that starts an agent carries this rule.
+- Tell the owner when work is done locally, never only after CI or the merge (owner, 2026-11-14): once it is
+  committed and its local checks pass, say what changed. A mock, story or new behavior he can see gets a running
+  local URL and an `ACTION NEEDED` line to review it.
 - Every session shares graphty-agent's 5,000 GitHub requests an hour: ask about many pull requests in one GraphQL
   query, read pull request status from the broker's `tmp/pr-status/status.json`, poll every 5 minutes or slower,
   and on a 403 rate limit stop and wait. A prompt that starts an agent which talks to GitHub carries these rules.

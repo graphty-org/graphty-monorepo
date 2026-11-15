@@ -128,4 +128,34 @@ describe("oracle nodes no id or label names", () => {
         );
         assert.strictEqual(nameDrawnNodes([text(10, 100, 150, "Server")], below)[0].hint, null);
     });
+
+    it("takes a text node's place and size from where the program drew it, not from its words", () => {
+        // json-vis-synth 4: vis-network's box is the words and a 5 px margin each side, and its lines run to its middle
+        const words: Prim = {
+            ...body(0, 200, 100, "#000000"),
+            kind: "text",
+            fill: null,
+            box: { x0: 190, y0: 96, x1: 210, y1: 104 },
+            text: {
+                content: "text",
+                x: 200,
+                y: 100,
+                box: { x0: 190, y0: 96, x1: 210, y1: 104 },
+                sizePx: 8,
+                family: "arial",
+                weight: 400,
+                style: "normal",
+                anchor: "middle",
+                rotation: 0,
+                color: "#000000",
+                opacity: 1,
+            },
+        };
+        const t = { nodes: [{ id: "t", x: 200, y: 100, w: 30, h: 18, box: { x0: 185, y0: 91, x1: 215, y1: 109 } }] };
+        const n = associate(nameDrawnNodes([words], t), 400, 400, guide, {
+            ownLayout: true,
+            drawn: t,
+        }).scene.nodes.find((x) => x.id === "t");
+        assert.deepEqual([n?.cx, n?.cy, n?.w, n?.h, n?.drawnBox], [200, 100, 30, 18, true]);
+    });
 });

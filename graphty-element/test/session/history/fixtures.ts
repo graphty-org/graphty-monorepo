@@ -807,6 +807,16 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         },
     },
     {
+        name: "data.derive",
+        tags: BOTH,
+        command: {
+            op: "data.derive",
+            columns: [{ kind: "node", name: "copied", expression: "data.name" }],
+            nodes: [{ id: "n1", values: { copied: "one" } }],
+            column: { kind: "node", name: "copied" },
+        },
+    },
+    {
         name: "data.setFileStyles",
         tags: ["session"],
         command: {
@@ -914,6 +924,12 @@ export const FIXTURES: readonly RoundTripFixture[] = [
         variant: "framing",
         tags: BOTH,
         command: { op: "config.set", values: { framing: { extent: "centers", padding: 30 } } },
+    },
+    {
+        name: "config.set minMarkSize",
+        variant: "minMarkSize",
+        tags: BOTH,
+        command: { op: "config.set", values: { minMarkSize: { node: 0.5, edge: 1 } } },
     },
     {
         name: "config.set author",

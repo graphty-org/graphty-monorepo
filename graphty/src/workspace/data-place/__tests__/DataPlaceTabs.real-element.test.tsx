@@ -84,12 +84,15 @@ describe("the Data place's Sources and Calculated tabs", () => {
         const sources = within(panel).getByRole("group", { name: "Data sources" });
         const [load] = session.data.sources();
         const own = within(panel).getByRole("group", { name: sourceName(load) });
-        const filters = within(own).getByRole("group", { name: "Filters" });
+        // With no filter yet, the load's Filters are one "Filter +" row, and no Filters header.
+        const row = within(own).getByRole("button", { name: "Add filter" });
+        assert.strictEqual(row.textContent, "Filter");
         assert.isTrue(
-            Boolean(sources.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING),
-            "Filters below Data sources",
+            Boolean(sources.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING),
+            "Filter + below Data sources",
         );
-        assert.lengthOf(within(place()).getAllByText("Filters"), 1, "one Filters, none above the tabs");
+        assert.lengthOf(within(place()).getAllByRole("button", { name: "Add filter" }), 1, "none above the tabs");
+        assert.isNull(within(place()).queryByText("Filters"), "no empty Filters header");
         assert.isNull(within(place()).queryByText("Runs"), "no Runs heading");
         // And not in Calculated, even with a filter set.
         await session.visibility.addCondition({
@@ -102,7 +105,14 @@ describe("the Data place's Sources and Calculated tabs", () => {
                 branches: [{ start: "all", steps: [{ op: "keep", rule: { kind: "degree", min: 3 } }] }],
             },
         });
+        // Once there is a filter, the Filters header shows with it, below Data sources.
         await within(place()).findByRole("list", { name: "Filters" });
+        const filters = within(own).getByRole("group", { name: "Filters" });
+        assert.isTrue(
+            Boolean(sources.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING),
+            "Filters below Data sources",
+        );
+        assert.lengthOf(within(place()).getAllByText("Filters"), 1, "one Filters, none above the tabs");
         await userEvent.click(within(list).getByRole("tab", { name: "Calculated" }));
         await waitFor(() => {
             assert.strictEqual(
@@ -206,6 +216,28 @@ describe("the Data place's Sources and Calculated tabs", () => {
         await waitFor(() => {
             assert.deepEqual(store.get().inspected, { kind: "measure-row", id });
         });
+    });
+
+    it("opens a result with no style in the inspector with no Style tab, and Apply style brings the tab", async () => {
+        const { session } = await openData();
+        await session.runs.start("pagerank", {});
+        const id = session.runs.list().find((run) => run.algorithm === "pagerank")?.id ?? "";
+        for (const layer of session.runs.bindings(id)) {
+            await session.styles.remove(layer);
+        }
+        const row = await calculatedRow();
+        await waitFor(() => {
+            assert.isNull(within(row).queryByRole("img", { name: /^Styles/ }), "nothing styles it");
+        });
+        await userEvent.click(row.querySelector<HTMLElement>(".dp-run-main") ?? row);
+        const inspector = within(screen.getByRole("complementary", { name: "Inspector" }));
+        const values = await inspector.findByRole("tab", { name: "Values" });
+        assert.strictEqual(values.getAttribute("aria-selected"), "true");
+        assert.isNull(inspector.queryByRole("tab", { name: "Style" }), "no empty Style tab");
+
+        await userEvent.click(within(row).getByRole("button", { name: /^More for / }));
+        await userEvent.click(await screen.findByRole("menuitem", { name: /^Apply style/ }));
+        await inspector.findByRole("tab", { name: "Style" });
     });
 
     it("a filter's row is one group named by its words, its controls by short names, Edit showing Enter", async () => {

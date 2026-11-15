@@ -99,6 +99,14 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SelectionApi: selectOne,
     SelectionOwner: selectOne,
     NotesApi: (session) => session.notes,
+    GroupsApi: async (session) => {
+        await session.data.addNodes([{ id: "g1", team: "door" }, { id: "g2", team: "door" }, { id: "g3" }]);
+        await session.data.addEdges([
+            { source: "g1", target: "g2" },
+            { source: "g2", target: "g3" },
+        ]);
+        return session.groups;
+    },
     ProjectApi: (session) => session.project,
     SessionViews: (session) => session.views,
     SessionLayout: (session) => session.layout,

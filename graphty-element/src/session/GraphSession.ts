@@ -70,6 +70,7 @@ import { type CostEstimate, DEFAULT_COST_GATE_LIMITS } from "./cost";
 import { headlessDataService, SessionData, sliceRecords } from "./data";
 import { dispatcherOf, registerDispatcher } from "./dispatchers";
 import { englishRunLabel } from "./english";
+import { createGroupsApi, type GroupsApi } from "./groups";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
 import { LayoutRunner } from "./layoutRunner";
@@ -392,6 +393,7 @@ const TX_PARTS = [
     "scope",
     "sets",
     "notes",
+    "groups",
     "selection",
     "visibility",
     "styles",
@@ -574,6 +576,7 @@ class Session implements ElementSession {
     readonly notes: NotesApi;
     readonly assets: AssetsApiInternal;
     readonly network: NetworkApiInternal;
+    readonly groups: GroupsApi;
     readonly journal: JournalApi;
     readonly selection: SelectionOwner;
     readonly visibility: SessionVisibilityApi;
@@ -703,6 +706,32 @@ class Session implements ElementSession {
         this.unwatchCeilings = this.ceilings.onChange(changed);
         let version = 0;
         this.dispatcher = parts.dispatcher;
+        // A collapse is worked out from the graph once the loads ahead of it have landed.
+        // Inside a transaction or a command (`tx.groups`, a project opening) the steps join it at
+        // once, as a door called through a routed facade does; on their own they are one step,
+        // taken in line with the loads.
+        this.groups = createGroupsApi(this, async (build) => {
+            if (this.dispatcher.routing) {
+                const send = this.dispatcher.capturedDispatch();
+                for (const command of (await build()).steps) {
+                    await send(command);
+                }
+                return;
+            }
+
+            await loadLineOf(this.dispatcher).edit(async () => {
+                const { label, fact, steps } = await build();
+                await this.dispatcher.transaction(
+                    label,
+                    async (tx) => {
+                        for (const command of steps) {
+                            await tx.dispatch(command);
+                        }
+                    },
+                    { fact, moves: true },
+                );
+            }, undefined);
+        });
         // Chained: the kept sets hear each change after it, to tell `set:changed`.
         const beside = this.dispatcher.events.project;
         this.dispatcher.events.project = (change) => {
@@ -1968,6 +1997,9 @@ function configOf(
         get framing() {
             return read().framing;
         },
+        get minMarkSize() {
+            return read().minMarkSize;
+        },
         // Read from the controller, not from a value frozen at construction: the policy and the
         // threshold are changed at runtime through the session's accessors and the element's
         // attributes.
@@ -3165,6 +3197,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 new Set<NodeId | EdgeId>(
                     target === "node" ? requireQuery(query).nodes(where) : requireQuery(query).edges(where),
                 ),
+            valuesWhere: (where, target, overlay) => requireQuery(query).values(where, target, overlay),
+            unresolvedWhere: (where) => requireQuery(query).unresolvedPathsOf(where),
             // Read through calls: the runs are built below.
             run: (id: RunId) => runs.get(id),
             runIds: () => runs.list().map((run) => run.id),
@@ -3187,6 +3221,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     if (store.store instanceof GraphStore) {
         dispatcher.services.data = headlessDataService(store.store, dispatcher, readData, ceilings);
     }
+    // The computed columns, brought up to date by what moves their inputs (`commands/derive.ts`).
+    dispatcher.services.derive = () => data.derivedRefresh();
 
     const components = componentLabelsOf(data);
     // Kept sets, published as `session.sets`.

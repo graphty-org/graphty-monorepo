@@ -429,6 +429,12 @@ export interface PNode {
      * any other shape.
      */
     figure?: [Pt, Pt][];
+    /**
+     * The oracle's side only: a node the program drew no body for (vis-network's text and icon nodes) whose place and
+     * size are the program's own account of where it drew it (`DrawnNodes`), not its words' box. A line is cut at it
+     * as at a box.
+     */
+    drawnBox?: true;
 }
 
 /**

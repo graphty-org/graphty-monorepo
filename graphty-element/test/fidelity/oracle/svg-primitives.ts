@@ -978,6 +978,10 @@ const JAVA_FACES: Readonly<Record<string, string>> = {
     // where Carlito's or the browser's stand-in's would; every PostScript style of it (`Calibri-Italic`) is looked up
     // by its family
     calibri: "DejaVu Sans",
+    // Tahoma, which JFreeChart asks for in Cytoscape desktop's charts and the oracles' Java lacks: the two "..."
+    // category names of images-charts-p7's line chart start 21.37 units apart at 20 units, their DejaVu Sans width
+    // (19.07) and a 2.3-unit gap, not the browser's stand-in's
+    tahoma: "DejaVu Sans",
     times: "DejaVu Serif",
     serif: "DejaVu Serif",
     courier: "DejaVu Sans Mono",

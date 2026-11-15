@@ -1135,6 +1135,10 @@ const config = defineConfig({
                             },
                         }),
                         instances: [{ browser: "chromium" }],
+                        // The page a visual capture loads (VIEWPORT in visual-review/capture/capture.mjs):
+                        // a story laid out for it -- AiControl's Send, right of the graph in the 800 px
+                        // host -- is off Vitest's default 414 px viewport, where no pointer reaches it.
+                        viewport: { width: 1200, height: 900 },
                     },
                 },
             },

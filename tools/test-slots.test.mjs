@@ -490,8 +490,8 @@ describe("test-slots", () => {
         const dir = fresh();
         const holder = sleeper();
         const releaseHolder = await acquire({ ...quiet, dir, slots: 1, pid: holder.pid, label: "holder" });
-        // The timed command takes a slot the way vitest does: if the runner did not hold one, it would queue
-        // behind the holder inside the 1 s limit and be killed.
+        // The timed command goes through the slot wrapper the way vitest does. Once it runs, it reports who holds a
+        // ticket. The evidence is that state, never how long anything took.
         // The command stands in for vitest, so it writes the JSON report vitest would; without it an exit of 0 fails.
         const report = JSON.stringify({ numTotalTests: 1, numPassedTests: 1, numFailedTests: 0 });
         const command = [
@@ -499,7 +499,9 @@ describe("test-slots", () => {
             SCRIPT,
             process.execPath,
             "-e",
-            `require("fs").writeFileSync("browser-results.json", ${JSON.stringify(report)}); console.log("timed command ran")`,
+            `require("fs").writeFileSync("browser-results.json", ${JSON.stringify(report)});
+             import(${JSON.stringify(pathToFileURL(SCRIPT).href)}).then(({ liveTickets }) => console.log("timed command ran " +
+               JSON.stringify(liveTickets(${JSON.stringify(dir)}).map((t) => t.pid))));`,
         ];
         const runner = spawn(
             process.execPath,
@@ -507,7 +509,7 @@ describe("test-slots", () => {
                 "--input-type=module",
                 "-e",
                 `const { main } = await import(${JSON.stringify(pathToFileURL(BROWSER_RUNNER).href)});
-                 process.exit(await main([], { command: ${JSON.stringify(command)}, limitSeconds: 1 }));`,
+                 process.exit(await main([], { command: ${JSON.stringify(command)} }));`,
             ],
             {
                 env: {
@@ -530,11 +532,18 @@ describe("test-slots", () => {
         const queued = liveTickets(dir);
         assert.equal(queued.length, 2, "the holder and one run in line");
         assert.equal(queued[1].pid, runner.pid, "the runner, not its timed command, waits for the slot");
-        assert.doesNotMatch(output, /timed command ran|limit hit/, "nothing started while the slot was held");
+        assert.doesNotMatch(
+            output,
+            /\[run-browser-project\] timeout|^timed command ran/m,
+            "the limit had not started and nothing ran while the slot was held",
+        );
         releaseHolder();
         assert.equal(await exited, 0, output);
-        assert.match(output, /timed command ran/);
-        assert.doesNotMatch(output, /limit hit/);
+        // The command ran under the runner's slot, already held when the limit started: the only ticket was the
+        // runner's, so the wrapper inside the limit took none of its own and had nothing to wait for.
+        const seen = /^timed command ran (.*)$/m.exec(output);
+        assert.ok(seen, output);
+        assert.deepEqual(JSON.parse(seen[1]), [runner.pid], "only the runner held a ticket while its command ran");
         assert.deepEqual(readdirSync(dir), [], "the runner gave its slot back");
     });
 

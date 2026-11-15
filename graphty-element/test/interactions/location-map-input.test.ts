@@ -126,18 +126,6 @@ function basemapIs(element: Graphty, state: string, source?: string, credit?: st
 }
 
 /**
- * The map's credits as drawn over the canvas now.
- * @param element - The element.
- * @returns The credit strip's text, or "" when it is hidden or absent.
- */
-function creditText(element: Graphty): string {
-    const strip =
-        element.querySelector<HTMLElement>("[data-graphty-attribution]") ??
-        element.shadowRoot?.querySelector<HTMLElement>("[data-graphty-attribution]");
-    return strip === null || strip === undefined || strip.style.display === "none" ? "" : (strip.textContent ?? "");
-}
-
-/**
  * A mounted element holding the cities (or other places), laid out on the map.
  * @param viewMode - The view mode.
  * @param options - The layout's options, and `sizeSpace`: the element's `layoutBehavior.node.sizeSpace`.
@@ -1364,11 +1352,11 @@ describe("the location map's history and map", () => {
         await commands.holdRequests("127.0.0.1:9");
         // What is on screen when each state is told: a fallback is told only once the world it falls
         // back to is drawn, so never while that picture is still held back, and the failed service's
-        // credit never shows.
+        // credit is never reported.
         let worldServed = false;
         const states: { state: string; error?: { code: string }; worldServed: boolean; credits: string }[] = [];
         element.addEventListener("basemap-status", (event) => {
-            states.push({ ...event.detail, worldServed, credits: creditText(element) });
+            states.push({ ...event.detail, worldServed, credits: event.detail.attribution.join(" | ") });
         });
         await element.session.layout.set("location-map", {
             options: { map: { tiles: "http://127.0.0.1:9/{z}/{x}/{y}.png", attribution: "Bad Tiles Co" } },
@@ -1389,6 +1377,9 @@ describe("the location map's history and map", () => {
         assert.notInclude(fallback?.credits, "Bad Tiles Co", "the failed service is not credited");
         assert.notInclude(element.basemapStatus.attribution, "Bad Tiles Co");
         await applied(element);
-        assert.notInclude(creditText(element), "Bad Tiles Co", "the failed service is not credited");
+        assert.notInclude(element.basemapStatus.attribution, "Bad Tiles Co", "the failed service is not credited");
+        // Nothing is drawn over the canvas: the credits are data only (owner, 2026-11-15).
+        assert.notInclude(element.textContent ?? "", "Natural Earth");
+        assert.notInclude(element.shadowRoot?.textContent ?? "", "Natural Earth");
     });
 });

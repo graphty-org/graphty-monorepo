@@ -409,7 +409,8 @@ last kind away (`setRole(column, null)`) turns the search off. Before any kind i
     g.layoutConfig = { location: "where", mapDimension: "3d", map: { source: "nasa-gibs-blue-marble" } };
     ```
 
-    The map's credits are drawn in the canvas's corner and are on `element.basemapStatus.attribution`.
+    The element draws no credit over the canvas; the map's credits are data on
+    `element.basemapStatus.attribution`, for the page to show where it chooses.
     The map is saved with the layout in the project.
 
 ### forceatlas2 (Force-Directed, live)

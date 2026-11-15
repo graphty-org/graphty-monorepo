@@ -231,10 +231,6 @@ export interface GraphtyElementJSXProps {
      */
     background?: Graphty["background"];
     /**
-     * Moves the map's credits up from the corner.
-     */
-    attributionOffset?: Graphty["attributionOffset"];
-    /**
      * Sets how the globe looks.
      */
     globeLook?: Graphty["globeLook"];
@@ -458,10 +454,6 @@ export interface GraphtyElementJSXProps {
      * Sets 2D mode (deprecated). Converts boolean to viewMode internally.
      */
     "layout-2d"?: boolean;
-    /**
-     * Moves the map's credits up from the corner.
-     */
-    "attribution-offset"?: string;
     /**
      * Sets how long camera moves take.
      */

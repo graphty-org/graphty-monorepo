@@ -93,7 +93,6 @@ export interface GraphtyElementJSXProps {
     "accessible-node-list"?: boolean;
     // (undocumented)
     "aria-label"?: string;
-    "attribution-offset"?: string;
     "auto-frame"?: boolean;
     "auto-rotate"?: string;
     "autosave-restore"?: string;
@@ -303,7 +302,6 @@ export interface GraphtyElementJSXProps {
     accessibleNodeList?: Graphty["accessibleNodeList"];
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     antialias?: Graphty["antialias"];
-    attributionOffset?: Graphty["attributionOffset"];
     autoFrame?: Graphty["autoFrame"];
     autoRotate?: Graphty["autoRotate"];
     autosave?: Graphty["autosave"];

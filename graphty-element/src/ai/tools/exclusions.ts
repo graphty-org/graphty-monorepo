@@ -220,7 +220,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     {
         root: "Graph",
         members: [
-            "setAttributionOffset",
             "setCameraTransitionDuration",
             "setReducedMotion",
             "setPixelRatio",
@@ -239,7 +238,6 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
             "autoRotate",
             "fitInsets",
             "pixelRatio",
-            "attributionOffset",
             "globeLook",
             "cameraTransitionDuration",
             "reducedMotion",
@@ -424,7 +422,7 @@ export const NOT_FOR_THE_ASSISTANT: readonly Exclusion[] = [
     { root: "SessionShaders", members: ["fromCatalog"], reason: "mechanism", kind: BY_DESIGN },
     {
         root: "BasemapManager",
-        members: ["attributionOffset", "globeLook"],
+        members: ["globeLook"],
         reason: "machine-preference",
         kind: BY_DESIGN,
     },

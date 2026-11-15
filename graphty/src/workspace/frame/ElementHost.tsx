@@ -30,9 +30,6 @@ const LAYOUT_CONFIG = { seed: LAYOUT_SEED } as const;
  */
 const XR_CONFIG = { enabled: true, ui: { enabled: false } } as const;
 
-/** The room between the canvas toolbar and the map's credits under it, in pixels. */
-const TOOLBAR_GAP = 12;
-
 /**
  * The element's limits under the Cosmograph-inspired rendering experiment (#6389): a million nodes
  * and a million edges may load, and each may draw as an object of its own, on the batched path.
@@ -110,10 +107,9 @@ export function ElementHost({ onReady, autosave = false, loadElement }: Readonly
         }),
         [allLabelsShown, labelsAvoid, sizeSpace, layoutShownOnly],
     );
-    // The map's credits sit above the canvas toolbar, measured from its dock; and a reader who
-    // prefers less motion gets camera moves without the glide; and the globe is drawn as the earth
-    // from space (constants/globe.ts). View settings, written on the
-    // element; they record no step.
+    // A reader who prefers less motion gets camera moves without the glide, and the globe is drawn
+    // as the earth from space (constants/globe.ts). View settings, written on the element; they
+    // record no step.
     const still = useReducedMotion();
     useEffect(() => {
         const element = ref.current;
@@ -123,26 +119,7 @@ export function ElementHost({ onReady, autosave = false, loadElement }: Readonly
 
         element.cameraTransitionDuration = still ? 0 : undefined;
         element.globeLook = APP_GLOBE_LOOK;
-        const canvas = element.closest<HTMLElement>(".ws-canvas");
-        const dock = canvas?.querySelector<HTMLElement>(".ws-toolbar-dock");
-        if (canvas === null || canvas === undefined || dock === null || dock === undefined) {
-            element.attributionOffset = 0;
-            return undefined;
-        }
-
-        const place = (): void => {
-            // A hidden toolbar (under the selection workspace) leaves the attribution at the edge.
-            element.attributionOffset = dock.hidden
-                ? 0
-                : Math.max(0, canvas.clientHeight - dock.offsetTop + TOOLBAR_GAP);
-        };
-        place();
-        const observer = new ResizeObserver(place);
-        observer.observe(canvas);
-        observer.observe(dock);
-        return () => {
-            observer.disconnect();
-        };
+        return undefined;
     }, [hosted, still]);
 
     // React 19 writes a prop onto a custom element as a property only when the tag is defined at

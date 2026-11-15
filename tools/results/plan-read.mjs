@@ -215,7 +215,12 @@ export async function planRead({ root, affected, out, sha, base, files = [], sna
     const snap = !plan && variants.length > 0 ? readSnapshot(snapshot) : null;
     const durations = snap ? pick(snap.durations, families) : durationsOf(plan);
     mkdirSync(out, { recursive: true });
-    writeFileSync(join(out, "results-plan.json"), JSON.stringify(plan ? { ...plan, families } : { unavailable: why }));
+    // `changed`: the files the pull request changes, which prJudge() never excuses (a re-run's plan keeps it)
+    const changed = files.length > 0 ? { changed: files } : {};
+    writeFileSync(
+        join(out, "results-plan.json"),
+        JSON.stringify(plan ? { ...plan, families, ...changed } : { unavailable: why }),
+    );
     writeFileSync(join(out, "durations.json"), JSON.stringify(durations));
     const n = Object.values(durations).reduce((t, d) => t + Object.keys(d).length, 0);
     const also = readers.length > 0 ? ` (with ${readers.join(", ")}: its files import an affected package)` : "";

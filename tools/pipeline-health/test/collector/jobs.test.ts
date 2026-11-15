@@ -391,6 +391,26 @@ describe("chronicJobs", () => {
         expect(chronicJobs([h(removed.map(([d, ok]): [number, boolean] => [d - 2, ok]))], NOW)).toHaveLength(1);
     });
 
+    it("judges the share only over the last 7 days, so a fixed job is not chronic on older failures (#7369)", () => {
+        // Dependabot on 2026-11-12: passing since its fix, five failures 12 days before it
+        const dependabot: [number, boolean][] = [
+            [0.1, true],
+            [0.4, true],
+            [0.5, true],
+            [1.5, false],
+            [7.3, true],
+            [11.6, false],
+            [11.6, false],
+            [11.6, false],
+            [12.1, false],
+            [12.1, false],
+        ];
+        expect(chronicJobs([h(dependabot)], NOW)).toEqual([]);
+        // a week earlier, the same failures were recent and chronic
+        const before = dependabot.slice(4).map(([d, ok]): [number, boolean] => [d - 7, ok]);
+        expect(chronicJobs([h(before)], NOW)).toHaveLength(1);
+    });
+
     it("still judges a weekly job between its runs", () => {
         expect(
             chronicJobs(
@@ -403,6 +423,17 @@ describe("chronicJobs", () => {
                 NOW,
             ),
         ).toHaveLength(1);
+        expect(
+            chronicJobs(
+                [
+                    h([
+                        [8, false],
+                        [15, false],
+                    ]),
+                ],
+                NOW,
+            )[0],
+        ).toMatchObject({ runs: 2, failed: 2 });
     });
 
     it("reads each job's runs in order from the rollup's pass and fail times", () => {

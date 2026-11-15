@@ -911,6 +911,13 @@ describe("ghost runs", () => {
         expect(isGhostRun(ghost, open("some/other-branch"), false)).toBe(false);
         expect(isGhostRun({ ...ghost, event: "push" }, [], true)).toBe(false);
     });
+
+    it("calls a queued run of any pull request event a ghost once its pull request merged (#7358)", () => {
+        for (const event of ["pull_request_target", "pull_request_review"]) {
+            expect(isGhostRun({ ...ghost, event }, open("some/other-branch"), true)).toBe(true);
+            expect(isGhostRun({ ...ghost, event }, open(ghost.head_branch!), true)).toBe(false);
+        }
+    });
 });
 
 describe("runs waiting on their own concurrency group", () => {

@@ -27,8 +27,7 @@ graph-samples/
 +-- project.json             # Nx project "graph-samples"
 +-- NOTICE                   # every dataset's source, citation and license (a test keeps it in sync)
 +-- scripts/entries.js       # bundle entries: root, generators, one per src/datasets/<name>/index.ts
-+-- scripts/build-bundle.js  # multi-entry vite build -> dist/graph-samples.js, dist/generators.js, dist/datasets/<name>.js
-+-- scripts/bundle-types.js  # the matching dist/*.d.ts shims
++-- scripts/build-bundle.js  # multi-entry vite build -> dist/graph-samples.js, dist/generators.js, dist/datasets/<name>.js and their d.ts shims (tools/build-bundle.mjs)
 +-- scripts/convert-datasets.mjs  # small sources (URL + SHA-256) -> data/<name>.ts
 +-- scripts/pack-datasets.mjs     # data/<name>.ts -> dist/data/v1/<name>.gsnp.gz, index.json (last step of build:all); --write: src/datasets/packed.ts
 +-- scripts/build-hosted.mjs     # large sources (URL + SHA-256) -> public-data/v1/<name>.gsnp.gz, src/datasets/hosted.ts; copies dist/data/v1/ in; index.json of all

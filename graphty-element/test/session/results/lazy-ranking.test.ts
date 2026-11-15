@@ -1,16 +1,19 @@
 /**
  * @file Building a run's result does no work a reader has not asked for: it reads its nodes
  * through the snapshot's id index rather than building a Map of its own, and it sorts for the
- * `rank` and `percentile` fields only when one is first read, once however often it is read.
+ * `rank` and `percentile` fields only when one is first read, once however often it is read. And
+ * starting a run does work in proportion to the graph.
  */
 
 import { fromEdgeArrays } from "@graphty/graph-format";
 import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 
+import { createGraphSession } from "../../../session";
 import type { FieldDescriptor } from "../../../src/catalog/types";
 import { createRunResult, retentionOf } from "../../../src/session/results/RunResult";
 import { rankOrder } from "../../../src/session/results/statistics";
 import type { Caveats } from "../../../src/session/runs/types";
+import { assertScalesLinearly, visitsDuring } from "../../helpers/cost";
 
 vi.mock("../../../src/session/results/statistics", async (actual) => {
     const real = await actual<typeof import("../../../src/session/results/statistics")>();
@@ -108,5 +111,40 @@ describe("building a run result", () => {
         result.summary();
         result.column("rank");
         assert.strictEqual(vi.mocked(rankOrder).mock.calls.length, 1, "every later read");
+    });
+});
+
+describe("starting a run", () => {
+    it("RunsApi.start: no more than linear in the graph", async () => {
+        await assertScalesLinearly(
+            async (size) => {
+                // The executor publishes a degree-shaped column at once, so the work counted is
+                // RunsApi.start's own: admitting, publishing and recording the run.
+                let published: string[] = [];
+                const session = createGraphSession({
+                    runs: {
+                        execute: (context) =>
+                            Promise.resolve({
+                                result: createRunResult({
+                                    runId: context.runId,
+                                    shape: "node-metric",
+                                    fields: [{ ...field("value", "integer"), path: `results.${context.runId}.value` }],
+                                    measured: { nodes: size, edges: size },
+                                    nodes: published.map((id, at) => ({ id, values: { value: at % 7 } })),
+                                    caveats: CAVEATS,
+                                    durationMs: 1,
+                                }),
+                            }),
+                    },
+                });
+                await session.data.generate("cycle", { n: size });
+                published = session.data.nodes().map((node) => String(node.id));
+                const visits = await visitsDuring(() => session.runs.start("degree", undefined, { style: false }));
+                assert.strictEqual(session.runs.list().length, 1);
+                session.dispose();
+                return visits;
+            },
+            { sizes: [200, 800], growth: "linear", counter: "elements visited by RunsApi.start" },
+        );
     });
 });

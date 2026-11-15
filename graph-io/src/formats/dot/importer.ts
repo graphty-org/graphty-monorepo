@@ -5,7 +5,8 @@
  *
  * - `graph` / `digraph` set the direction through the DirectionResolver (rule 1 of 8.4); `strict`
  *   merges parallel edges as cgraph does and is recorded in `meta.extra.dot.strict`; the graph name
- *   becomes `meta.name`.
+ *   becomes `meta.name`. The texts written as HTML strings (`<...>`) are listed in `meta.extra.dot.html` (empty
+ *   when there are none), since their cells hold the same text as a quoted string with the same brackets.
  * - node, edge and graph attribute statements (`node [..]`, `edge [..]`, `graph [..]`, `ID = ID`)
  *   are stateful, scoped defaults applied to the elements created after them in the same or a
  *   nested subgraph; every element receives its effective attributes as plain cells, so the
@@ -94,6 +95,7 @@ import { dotLayout } from "./layout.js";
 import {
     CLUSTER_COLUMN,
     DOT_FORMAT,
+    DOT_META_KEY,
     DOT_ORIGIN,
     KEY_ATTRIBUTE,
     LABEL_ATTRIBUTE,
@@ -925,6 +927,7 @@ class DotParser {
             throw new DotSyntaxError(`expected "graph" or "digraph", found ${describeToken(token)}`, token.line);
         }
         const headerLine = token.line;
+        lexer.htmlTexts.clear();
         token = lexer.next();
         let name: string | null = null;
         if (token.kind === "id") {
@@ -935,14 +938,14 @@ class DotParser {
             throw new DotSyntaxError(`expected "{" after the graph header, found ${describeToken(token)}`, token.line);
         }
         this.resolver.setHeader(this.directed, { line: headerLine });
-        this.sink.setMeta({
-            name,
-            sourceFormat: DOT_FORMAT,
-            ...(this.strict ? { extra: { dot: { strict: true } } } : {}),
-        });
+        this.sink.setMeta({ name, sourceFormat: DOT_FORMAT });
         const root = this.newScope(null, headerLine, true, null);
         this.statementList(root);
         this.applyInherited();
+        // which texts were HTML strings, since the text alone cannot say (a quoted "<init>" is plain text); recorded
+        // even when empty, so the exporter knows the file named every one
+        const dot = { ...(this.strict ? { strict: true } : {}), html: [...lexer.htmlTexts] };
+        this.sink.setMeta({ extra: { [DOT_META_KEY]: dot } });
         return lexer.next();
     }
 
@@ -1173,7 +1176,7 @@ class DotParser {
         if (isKeyword(token, "subgraph")) {
             token = lexer.next();
             if (token.kind === "id") {
-                name = token.text;
+                name = token.html ? token.text.slice(1, -1) : token.text;
                 token = lexer.next();
             }
         }
@@ -1701,7 +1704,8 @@ class DotParser {
      * @returns the endpoint, or null when the node could not be created (recorded)
      */
     private mentionEndpoint(scope: Scope, id: DotToken, port: string | null): Endpoint | null {
-        const nodeId = this.coerceId(id.text, id.line);
+        // an HTML-string id names the node by the text inside its angle brackets, as Graphviz does
+        const nodeId = this.coerceId(id.html ? id.text.slice(1, -1) : id.text, id.line);
         if (nodeId === null) {
             return null;
         }

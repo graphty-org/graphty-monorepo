@@ -360,7 +360,8 @@ describe("the JSON marker rule", () => {
             }),
             "json",
         );
-        expect(vis.positions?.source.yAxis).toBe("down");
+        // the importer stores the position flipped to y up, as it does Cytoscape's
+        expect(vis.positions?.source.yAxis).toBe("up");
         expect(vis.positions?.units).toBe("px");
         expect(at(vis.snapshot, vis.positions as FilePositions, "a")).toEqual([1, -2, 0]);
     });

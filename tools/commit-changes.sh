@@ -33,7 +33,7 @@
 # and so does a run that leaves changed files no step claims (unless
 # --allow-leftovers is given). Both checks apply to --dry-run too.
 #
-# The repository releases with semantic-release, so every subject has to be a
+# The repository releases with nx release, so every subject has to be a
 # conventional commit. Every rendered message is run through commitlint -- the same
 # tool and config the commit-msg hook uses -- before anything is staged, rather than
 # being discovered by a commit-msg failure halfway through the run.

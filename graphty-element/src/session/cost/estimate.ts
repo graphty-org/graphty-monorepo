@@ -463,10 +463,22 @@ function memoryStretch(nodes: number, edges: number, calibration: MachineCalibra
         return 1;
     }
 
+    return 1 + cacheMissShare(nodes, edges) * (LOADED_MEMORY_SPEED / speed - 1);
+}
+
+/**
+ * The share of a walk over this graph that misses a core's own cache: 0 for a working set (one
+ * 8-byte value per node and per edge) at {@link CACHE_RESIDENT_BYTES}, 1 at
+ * {@link CACHE_MISSING_BYTES}, by the logarithm of the size between them.
+ * @param nodes - Nodes in scope.
+ * @param edges - Edges in scope.
+ * @returns The share, from 0 to 1.
+ */
+function cacheMissShare(nodes: number, edges: number): number {
     const bytes = BYTES_PER_VALUE * (nodes + edges);
     const missing = Math.log2(bytes / CACHE_RESIDENT_BYTES) / Math.log2(CACHE_MISSING_BYTES / CACHE_RESIDENT_BYTES);
 
-    return 1 + Math.min(1, Math.max(0, missing)) * (LOADED_MEMORY_SPEED / speed - 1);
+    return Math.min(1, Math.max(0, missing));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -848,31 +860,39 @@ const OWN_COST_MODELS: Readonly<Partial<Record<string, OwnCostModel>>> = {
             ((nodes + edges) * Math.log2(Math.max(2, nodes + edges))) /
             (11 * rates.iterativeElementsPerSecond * (1 + Math.min(10 * (statistics.transitivity ?? 0), 1))),
     },
-    /* Power iteration x <- (A + I)x over the snapshot: a setup, then up to k passes of n + m each
-       (k = 1,000 by default). How many passes depends on the spectral gap, which nothing the
+    /* Power iteration x <- (A + cI)x over the snapshot: a setup, then up to k passes of n + m each
+       (k = 1,000 by default), stopping once a pass changes the scores by less than the tolerance
+       relative to their size. How many passes depends on the spectral gap, which nothing the
        estimate sees predicts, so the whole bound is charged, and a graph that converges early
-       reads as pessimistic by 1,000 / its pass count:
-       - a path settles in 1 or 2 passes: every node but the two ends has the same degree, so the
-         start vector (1 everywhere) changes only near the ends and meets the tolerance at once;
-       - clique rings and dense random graphs settle in 4 to 6, and random m = 5n in about 11:
-         their degrees cluster tightly, so the start vector is already close, and the gap is wide;
-       - scale-free graphs settle in about 50: their hubs dominate the leading eigenvector;
-       - random m = 1.2n takes 263 to 415, growing with n: it is barely past its percolation
-         threshold, so its gap is narrow;
-       - trees take 121 to 338, grids 63 to over 1,000 and stars 478 to over 1,000, so those run
-         most or all of the bound.
+       reads as pessimistic by 1,000 / its pass count. Measured 2026-11-13 at the default tolerance:
+       - stars settle in about 14: the shift grows with the hub, which stops the slow alternation;
+       - random m = 5n in about 25, scale-free graphs in about 125, a 100,000-node path in about
+         124 (its start vector changes only near the ends, which is small beside the whole);
+       - random m = 1.2n at 100,000 nodes takes about 1,700, growing with n: it is barely past its
+         percolation threshold, so its gap is narrow; grids of 10,000 nodes take over 4,000. Those
+         run the whole bound and fail.
        Mean degree does not predict the pass count either (a grid and random m = 2n both have mean
-       degree 4, and take over 199 and about 33). Refitted on 2026-09-29, after the element moved
+       degree 4, and converge at very different speeds). Refitted on 2026-09-29, after the element moved
        it onto the dispatcher's CPU port: on those shapes at 10,000 to 200,000 nodes the setup cost
        0.55 to 2.3 ns per element per unit of log2(n + m) (48 ns on the object graph before), and a
        pass 1.7 to 7.1 ns per element, the most on sparse random graphs, whose passes miss the
        cache most. Pinned at 3.3 ns per unit of log2(n + m) (1 / (100 * the iterative rate)) and
-       7.4 ns per pass (1 / (45 * the iterative rate)): 1.7x to 2.7x over graphs that run the whole
-       bound. The class model charged each pass at the iterative rate, 333 ns per element. */
+       7.4 ns per pass (1 / (45 * the iterative rate)) while the graph stays in a core's cache.
+       A pass that misses the cache costs more beside the calibration probe, which never does: on
+       2026-11-14 (issue #7920) a pass over random m = 1.2n at 100,000 nodes (about 1.8 MB) took
+       6.7 ns per element on the reference machine against 3.3 on a 10,000-node grid, and on CI's
+       runners, whose per-core cache is a quarter the size, it read 0.92 to 0.94 of the 7.4 ns
+       charge. That row converged in 263 to 415 passes until the relative stop of 2026-11-13, so
+       the thin margin never showed; it now runs all 1,000. So a pass is charged up to 1.5x more
+       as the working set misses the cache (`cacheMissShare`): 1.35x on that row, nothing on the
+       grid. The class model charged each pass at the iterative rate, 333 ns per element. */
     eigenvector: {
-        term: (iterations) => `(n + m) log2(n + m) + k(n + m) with k=${group(iterations)}`,
+        term: (iterations) =>
+            `(n + m) log2(n + m) + k(n + m)(1 + s / 2) with k=${group(iterations)}, s the share missing the cache`,
         seconds: (nodes, edges, rates, iterations) =>
-            ((nodes + edges) * (Math.log2(Math.max(2, nodes + edges)) / 100 + iterations / 45)) /
+            ((nodes + edges) *
+                (Math.log2(Math.max(2, nodes + edges)) / 100 +
+                    (iterations / 45) * (1 + cacheMissShare(nodes, edges) / 2))) /
             rates.iterativeElementsPerSecond,
     },
 };
@@ -1438,10 +1458,13 @@ export const DEFAULT_COST_GATE_LIMITS: Readonly<CostGateLimits> = Object.freeze(
 
 /** A scope that would bring a refused run back under the cap. */
 interface FittingScope {
-    /** The scope specification, which a caller passes straight back to the run it was refused. */
+    /**
+     * The scope specification, which a caller passes straight back to the run it was refused. It
+     * also says what kind of scope this is: `"largest-component"`, or `{ set }` for a kept set.
+     */
     readonly scope: Scope;
-    /** What to call it on a button. */
-    readonly label: string;
+    /** A kept set's name, as the reader gave it; absent for the largest component. */
+    readonly label?: string;
     /** How many nodes it would cover. */
     readonly nodes: number;
     /** How many edges it would cover. */
@@ -1497,7 +1520,7 @@ export type CostGateDecision =
 export interface ScopeCandidate {
     /** The scope specification. */
     readonly scope: Scope;
-    /** What to call it on a button: the set's name. */
+    /** The set's name, as the reader gave it. */
     readonly label: string;
     /** How many nodes it covers. */
     readonly nodes: number;
@@ -1620,7 +1643,6 @@ function fittingScopes(
             fitting.push(
                 Object.freeze({
                     scope: "largest-component",
-                    label: "The largest connected piece",
                     nodes: largestSize,
                     edges,
                     seconds: estimate.seconds,

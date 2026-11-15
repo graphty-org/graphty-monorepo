@@ -161,8 +161,16 @@ describe("network data from the start page", () => {
                 "APIWeb APIJSON results as nodes and edges",
             ],
         );
-        within(chooser).getByPlaceholderText("Web address of a graph file");
-        within(chooser).getByRole("button", { name: /^Open a file/ });
+        assert.isNull(within(chooser).queryByRole("button", { name: /^Open a file/ }));
+        assert.isNull(within(chooser).queryByPlaceholderText("Web address of a graph file"));
+        const webAddress = within(chooser).getByRole("button", { name: /^Web address/ });
+        await userEvent.click(webAddress);
+        assert.strictEqual(webAddress.getAttribute("aria-expanded"), "true");
+        assert.strictEqual(
+            document.activeElement,
+            within(chooser).getByPlaceholderText("Web address of a graph file"),
+            "the address field takes the focus",
+        );
         assert.isNull(store.get().project);
     });
 
@@ -570,7 +578,8 @@ describe("network data from a project", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Network data..." }));
         const chooser = await screen.findByRole("dialog", { name: "Open network data" });
         assert.isNotNull(within(chooser).getByRole("button", { name: /^NDEx/ }), "the same cards as the start page");
-        assert.isNotNull(within(chooser).getByRole("button", { name: /^Open a file/ }));
+        assert.isNull(within(chooser).queryByRole("button", { name: /^Open a file/ }));
+        await userEvent.click(within(chooser).getByRole("button", { name: /^Web address/ }));
         await userEvent.type(
             within(chooser).getByPlaceholderText("Web address of a graph file"),
             `${fixtureUrl("ships-to-2024-09.csv")}{Enter}`,

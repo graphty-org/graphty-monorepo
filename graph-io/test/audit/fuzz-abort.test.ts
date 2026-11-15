@@ -6,14 +6,13 @@
  * body), the caller's sink must be left intact and usable (the importer does not own it, so it
  * is never disposed), and no ImportError or report may be produced for a cancellation.
  *
- * The tests marked FAILS pin three defects: (1) importGraph() under format "auto" peeks the head
- * through a reader, and when the signal fires during the read that completes the head the
- * importer throws before ever touching the replaying input, so the reader lock is never released,
- * the stream is never cancelled and an async-generator input is never finalised; (2) a non-Error
- * abort reason (a string, as AbortController.abort(reason) allows) is replaced by a DOMException
- * instead of being rethrown as the contract says; (3) an abort raised while a chunk is being
- * parsed (from the sink or a callback) is honoured by DOT, GEXF and JSON but ignored by CSV,
- * GML, GraphML, Neo4j and Pajek for a string input, which is one chunk with no "between".
+ * Three cases here once found defects, and the tests now guard the fixed behavior: (1) when
+ * importGraph() under format "auto" peeks the head and the signal fires during the read that
+ * completes it, the reader lock is still released, the stream cancelled and an async-generator
+ * input finalized; (2) a non-Error abort reason (a string, as AbortController.abort(reason)
+ * allows) is rethrown as it is, never replaced by a DOMException; (3) an abort raised while a
+ * single in-memory chunk is being parsed (from the sink or a callback) is honored by every
+ * importer, not only between chunks.
  */
 
 import { GraphBuilder, type GraphSink } from "@graphty/graph-format";
@@ -194,12 +193,10 @@ describe("fuzz audit: AbortSignal mid-stream", () => {
         it.skipIf(bytes.byteLength < 8192)(
             `${format}: an abort as the sniff peek completes still cancels the stream (no dangling reader)`,
             async () => {
-                // FAILS: peekHead() (src/registry.ts) checks the signal at the top of its read loop but
-                // not after the read that completes the 8 KB head; importer.import() then throws from
-                // textChunks()'s first throwIfAborted() before iterating the replaying input, whose
-                // return() is the only place the reader is cancelled and released. The stream stays
-                // locked and un-cancelled: a File.stream() or fetch body is left open. (A file under
-                // 8 KB is read to its end by the peek, which releases the reader, so it is skipped.)
+                // The abort lands on the read that completes peekHead()'s 8 KB head (src/registry.ts),
+                // before the importer iterates the replaying input; the stream must still be cancelled
+                // and released, or a File.stream() or fetch body is left open. (A file under 8 KB is
+                // read to its end by the peek, which releases the reader, so it is skipped.)
                 const ac = new AbortController();
                 const reason = new Error("abort as the peek completes");
                 const t = tracked(
@@ -221,8 +218,7 @@ describe("fuzz audit: AbortSignal mid-stream", () => {
     }
 
     it("an async-generator input is finalised when the abort lands as the sniff peek completes", async () => {
-        // FAILS: same window as above; the generator's finally block never runs because return()
-        // is never called on the replaying iterator.
+        // same window as above: return() must reach the generator so its finally block runs
         const bytes = readCorpusBytes("gml", FILES.gml);
         const ac = new AbortController();
         let finalized = false;
@@ -266,9 +262,8 @@ describe("fuzz audit: AbortSignal mid-stream", () => {
     });
 
     it("a string abort reason is rethrown as the reason, not replaced by a DOMException", async () => {
-        // FAILS: throwIfAborted() (src/common/input.ts) wraps a non-Error reason in a DOMException
-        // named AbortError, so the caller cannot compare the rejection with signal.reason (the
-        // platform's signal.throwIfAborted() and fetch() both throw the reason as it is).
+        // the caller compares the rejection with signal.reason, as with the platform's
+        // signal.throwIfAborted() and fetch(), which both throw the reason as it is
         const bytes = readCorpusBytes("csv", FILES.csv);
         const ac = new AbortController();
         const t = tracked(bytes, 256, (n) => {
@@ -306,10 +301,9 @@ describe("fuzz audit: AbortSignal mid-stream", () => {
     describe("an abort raised while a single in-memory chunk is being parsed", () => {
         for (const format of CORPUS_FORMATS) {
             it(`${format}: rejects with the reason instead of finishing the import`, async () => {
-                // FAILS for csv, gml, graphml, neo4j and pajek: their only signal check is between
-                // chunks, and a string is one chunk, so an abort raised from the sink (or any
-                // callback) during the parse is ignored and import() resolves with a full report;
-                // DOT, GEXF and JSON check the signal every few hundred elements and reject.
+                // a string is one chunk, so a signal check only between chunks would miss an abort
+                // raised from the sink (or any callback) during the parse; every importer also
+                // checks it while parsing
                 const text = readCorpusInput(format, FILES[format]);
                 const ac = new AbortController();
                 const reason = new Error("abort from the sink");

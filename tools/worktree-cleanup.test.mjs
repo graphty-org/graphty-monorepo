@@ -4,13 +4,13 @@
 //   node tools/worktree-cleanup.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, beforeEach, describe, it } from "node:test";
 
 import { isolateGit } from "./isolated-git-env.mjs";
-import { cleanup, KEEP } from "./worktree-cleanup.mjs";
+import { cleanup, closedPulls, KEEP } from "./worktree-cleanup.mjs";
 
 isolateGit();
 
@@ -67,7 +67,24 @@ function mergedTree(name) {
     return d;
 }
 
-const pass = (o = {}) => cleanup({ root, apply: true, max: 50, recentHours: 0, home, log: () => {}, ...o });
+const noClosed = () => new Map();
+const pass = (o = {}) =>
+    cleanup({ root, apply: true, max: 50, recentHours: 0, home, log: () => {}, closedPulls: noClosed, ...o });
+
+/**
+ * A worktree on a new branch with one commit, pushed to origin and never merged.
+ * @param name the branch and directory name
+ * @returns the worktree
+ */
+function pushedTree(name) {
+    const d = dir(name);
+    git(root, "worktree", "add", "-q", "-b", name, d, "master");
+    put(join(d, `${name}.txt`), "work\n");
+    git(d, "add", "-A");
+    git(d, "commit", "-q", "-m", `feat: ${name}`);
+    git(d, "push", "-q", "-u", "origin", name);
+    return d;
+}
 
 describe("worktree-cleanup", () => {
     it("removes a clean merged worktree, keeps its ignored tmp/ and deletes its merged branch", () => {
@@ -233,5 +250,70 @@ describe("worktree-cleanup", () => {
         assert.deepEqual(r.removed, dirs.slice(0, 2));
         assert.equal(r.waiting, 1);
         assert.match(r.text, /1 more wait for the next run/);
+    });
+
+    it("removes a worktree whose newest pull request was closed unmerged, and the branch stays on origin", () => {
+        const d = pushedTree("closed");
+        pushedTree("still-open");
+        const asked = [];
+        const r = pass({
+            closedPulls: (branches) => {
+                asked.push(branches);
+                return new Map([["closed", 7]]);
+            },
+        });
+        assert.deepEqual(asked, [["closed", "still-open"]]);
+        assert.deepEqual(r.removed, [d]);
+        assert.equal(git(root, "ls-remote", "--heads", "origin", "closed").endsWith("refs/heads/closed"), true);
+        assert.match(r.text, /1 not finished, 1 finished/);
+    });
+
+    it("keeps a closed-unmerged worktree that fails a safety check: unpushed commits or untracked files", () => {
+        const ahead = pushedTree("closed-ahead");
+        put(join(ahead, "late.txt"), "late\n");
+        git(ahead, "add", "-A");
+        git(ahead, "commit", "-q", "-m", "feat: after the close");
+        const dirty = pushedTree("closed-dirty");
+        put(join(dirty, "notes.txt"), "mine\n");
+        const closed = () =>
+            new Map([
+                ["closed-ahead", 1],
+                ["closed-dirty", 2],
+            ]);
+        const dry = pass({ apply: false, closedPulls: closed });
+        assert.deepEqual(dry.would, []);
+        assert.deepEqual(dry.kept, { [KEEP.unpushed]: 1, [KEEP.dirty]: 1 });
+        assert.deepEqual(
+            dry.keptTrees.map((t) => t.finished),
+            ["pull request #1 closed without merging", "pull request #2 closed without merging"],
+        );
+    });
+
+    it("asks GitHub once for every branch and reads only a CLOSED newest pull request as finished", () => {
+        const bin = join(tmp, "bin");
+        const argsFile = join(tmp, "gh-args");
+        put(
+            join(bin, "gh"),
+            `#!/bin/sh\nprintf '%s\\n' "$@" >> "${argsFile}"\necho '{"data":{"repository":{"b0":{"nodes":[{"number":5,"state":"CLOSED"}]},"b1":{"nodes":[{"number":6,"state":"MERGED"}]},"b2":{"nodes":[]}}}}'\n`,
+        );
+        chmodSync(join(bin, "gh"), 0o755);
+        const path = process.env.PATH;
+        process.env.PATH = `${bin}:${path}`;
+        try {
+            assert.deepEqual([...closedPulls(["a", "b/c", "d"], root)], [["a", 5]]);
+            assert.deepEqual(closedPulls([], root), new Map());
+        } finally {
+            process.env.PATH = path;
+        }
+        const args = readFileSync(argsFile, "utf8");
+        assert.equal(args.match(/^graphql$/gm).length, 1);
+        assert.match(args, /^b1=b\/c$/m);
+        put(join(bin, "gh"), "#!/bin/sh\nexit 1\n");
+        process.env.PATH = `${bin}:${path}`;
+        try {
+            assert.deepEqual(closedPulls(["a"], root), new Map());
+        } finally {
+            process.env.PATH = path;
+        }
     });
 });

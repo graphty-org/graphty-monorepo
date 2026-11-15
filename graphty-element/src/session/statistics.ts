@@ -7,7 +7,13 @@
  * only place the answer can be right.
  */
 
-import { type GraphSnapshot, INVALID_INDEX, type NodeId, type U32 } from "@graphty/graph-format";
+import {
+    directedness as edgeDirectedness,
+    type GraphSnapshot,
+    INVALID_INDEX,
+    type NodeId,
+    type U32,
+} from "@graphty/graph-format";
 
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { arrayColumn, buildHistogram } from "./results/statistics";
@@ -139,9 +145,10 @@ function summariseComponents(snapshot: GraphSnapshot, labels: Int32Array, count:
  * arc count is halved; a self-loop is stored once per row either way, so it is counted from the
  * one row it is in.
  * @param snapshot - the snapshot to count over
- * @returns how many edges are repeats of an earlier edge between the same endpoints
+ * @returns how many edges are repeats of an earlier edge between the same endpoints, split into
+ *     repeated self-loops and repeats between two different nodes
  */
-function countRepeatedEdges(snapshot: GraphSnapshot): number {
+function countRepeatedEdges(snapshot: GraphSnapshot): { loops: number; pairs: number } {
     const { nodeCount, rowPtr, colIdx, directed } = snapshot;
     let repeatedArcs = 0;
     let repeatedLoops = 0;
@@ -161,7 +168,7 @@ function countRepeatedEdges(snapshot: GraphSnapshot): number {
         }
     }
 
-    return directed ? repeatedArcs + repeatedLoops : repeatedArcs / 2 + repeatedLoops;
+    return { loops: repeatedLoops, pairs: directed ? repeatedArcs : repeatedArcs / 2 };
 }
 
 /**
@@ -318,13 +325,16 @@ function isWeighted(snapshot: GraphSnapshot): boolean {
 /**
  * Edges as a fraction of the pairs that could carry one.
  *
- * Self-loops are excluded from the numerator because they are excluded from the denominator: a
- * node pairs with `n - 1` others, not with itself. Counting them in the numerator alone is how a
- * density of more than 1 gets printed next to a graph.
+ * The numerator counts each pair that carries an edge once. Self-loops are excluded because they
+ * are excluded from the denominator (a node pairs with `n - 1` others, not with itself), and
+ * repeated edges between the same pair are counted once because the denominator counts the pair
+ * once. Counting either in the numerator alone is how a density of more than 1 gets printed next
+ * to a graph.
  * @param snapshot - the snapshot to measure
+ * @param repeatedPairEdges - edges that repeat an earlier edge between the same two different nodes
  * @returns the density, or 0 for a graph with fewer than two nodes
  */
-function density(snapshot: GraphSnapshot): number {
+function density(snapshot: GraphSnapshot, repeatedPairEdges: number): number {
     const { nodeCount, edgeCount, selfLoopCount, directed } = snapshot;
     if (nodeCount < 2) {
         return 0;
@@ -332,12 +342,13 @@ function density(snapshot: GraphSnapshot): number {
 
     const pairs = nodeCount * (nodeCount - 1);
     const possible = directed ? pairs : pairs / 2;
-    return Math.max(0, edgeCount - selfLoopCount) / possible;
+    return Math.max(0, edgeCount - selfLoopCount - repeatedPairEdges) / possible;
 }
 
 /**
- * Whether the graph is directed, as a fact about the whole graph.
- * @param snapshot - the snapshot to read the frozen direction flag from
+ * Whether the graph is directed, as a fact about the whole graph: `"mixed"` when its edges carry
+ * graph-format's per-edge direction and some differ from the others.
+ * @param snapshot - the snapshot to read the direction from
  * @param directedConfig - the element's `data.directed` setting
  * @returns the tri-state a consumer renders
  */
@@ -349,7 +360,7 @@ function directedness(snapshot: GraphSnapshot, directedConfig: boolean | "auto")
         return "unknown";
     }
 
-    return snapshot.directed ? "directed" : "undirected";
+    return edgeDirectedness(snapshot);
 }
 
 /**
@@ -373,16 +384,17 @@ export function computeStatistics(
     const { labels, count } = labelComponents(snapshot);
     const degreeVector = snapshot.degree();
     const degrees = degreeSummary(degreeVector);
+    const repeated = countRepeatedEdges(snapshot);
 
     return Object.freeze({
         nodeCount: snapshot.nodeCount,
         edgeCount: snapshot.edgeCount,
-        density: density(snapshot),
+        density: density(snapshot, repeated.pairs),
         directedness: directedness(snapshot, directedConfig),
         directednessSource: Object.freeze(directednessSource),
         weighted: isWeighted(snapshot),
         selfLoopCount: snapshot.selfLoopCount,
-        repeatedEdgeCount: countRepeatedEdges(snapshot),
+        repeatedEdgeCount: repeated.loops + repeated.pairs,
         degreeRange: Object.freeze(degrees.range),
         meanDegree: degrees.mean,
         degreeHistogram: buildHistogram(arrayColumn(degreeVector), { integerValued: true }),

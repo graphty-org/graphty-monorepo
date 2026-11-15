@@ -22,9 +22,9 @@ import type {
     TableMappingRead,
 } from "@graphty/graphty-element/session";
 
-import { formatNumber, valueText } from "../inspector/words";
+import { count, formatNumber, valueText } from "../inspector/words";
 import { kindName } from "../server/words";
-import { formatCount } from "../settings/numberFormat";
+import { failureWords } from "../style/words";
 
 /** What an Attributes row's glyph shows: what the column measures, or the run that made it. */
 export type TypeGlyph = "category" | "text" | "number" | "ordinal" | "time" | "yes-no" | "unknown" | "result";
@@ -44,16 +44,6 @@ export interface AttributeRow {
     readonly fill: string | null;
     /** The row's second line, which a screen reader hears after the name: the type word, then the fill. */
     readonly description: string;
-}
-
-/**
- * A count and its noun, singular for one.
- * @param n - the count.
- * @param noun - the singular noun.
- * @returns such as "1 node" or "34 nodes".
- */
-export function count(n: number, noun: string): string {
-    return `${formatCount(n)} ${noun}${n === 1 ? "" : "s"}`;
 }
 
 /**
@@ -237,6 +227,19 @@ export function attributeRows(
                 description: a.completeness <= 0 ? type.typeWord : `${type.typeWord}, ${fill ?? "all"} have a value`,
             };
         });
+}
+
+/** Why an attribute's verbs cannot run: it went away under the open menu. */
+export const GONE_WORD = "No longer in the data";
+
+/**
+ * A notice for a filter change the element refused, with its reason when the app has words for
+ * the element's code.
+ * @param error - what the element threw.
+ * @returns "The filter could not be changed: its layer is locked."
+ */
+export function filterFailureWords(error: unknown): string {
+    return failureWords("The filter", "changed", error);
 }
 
 /**

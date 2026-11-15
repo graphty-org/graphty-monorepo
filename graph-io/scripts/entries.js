@@ -3,7 +3,7 @@
  * (design section 8.2: `@graphty/graph-io/gexf`, `/graphml`, `/gml`, `/dot`, `/pajek`, `/csv`,
  * `/json`, `/neo4j`), plus `@graphty/graph-io/styles`, the format-independent style
  * module. Shared by scripts/build-bundle.js (which emits dist/<name>.js for each) and
- * scripts/bundle-types.js (which writes the matching dist/<name>.d.ts shim); package.json
+ * tools/build-bundle.mjs (which writes the matching dist/<name>.d.ts shim); package.json
  * "exports" must list the same names, which test/build-output.test.ts checks.
  *
  * Keys are the output names under dist/, values the source entry relative to the package root.
@@ -29,15 +29,10 @@ export const ENTRIES = Object.freeze({
     "sources-cypher": "src/sources/cypher/index.ts",
     "sources-rest": "src/sources/rest/index.ts",
     "sources-sparql": "src/sources/sparql/index.ts",
+    "sources-github": "src/sources/github/index.ts",
+    "sources-s3": "src/sources/s3/index.ts",
+    "sources-zenodo": "src/sources/zenodo/index.ts",
+    "sources-gremlin": "src/sources/gremlin/index.ts",
     styles: "src/styles/index.ts",
     positions: "src/positions/index.ts",
 });
-
-/**
- * The declaration file a bundle entry re-exports: the tsc output of its source entry under dist/src/.
- * @param source - the source entry relative to the package root (`src/formats/gexf/index.ts`)
- * @returns the relative import specifier for the shim (`./src/formats/gexf/index.js`)
- */
-export function declarationSpecifier(source) {
-    return `./${source.replace(/\.ts$/, ".js")}`;
-}

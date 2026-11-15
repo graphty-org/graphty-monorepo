@@ -11,7 +11,7 @@ export class ExpansionRefused extends GraphFormatError {}
 
 /** The most edges the expansions of one import make; a 20k-member clique would be 200M edges. */
 // ponytail: a fixed cap; make it an option if a real file needs more
-export const MAX_HYPEREDGE_EXPANSION = 1_000_000;
+const MAX_HYPEREDGE_EXPANSION = 1_000_000;
 
 /**
  * Refuse an expansion that would take the import beyond MAX_HYPEREDGE_EXPANSION expanded edges,

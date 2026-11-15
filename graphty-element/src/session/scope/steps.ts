@@ -12,6 +12,8 @@
 import type {
     EdgeId,
     NodeId,
+    Path,
+    Query,
     RuleTree,
     RunId,
     Scope,
@@ -23,7 +25,9 @@ import type {
 import { GraphtyError } from "../../errors";
 import type { NumericColumnSource } from "../results/statistics";
 import type { Histogram, HistogramOptions } from "../results/types";
+import { dependenciesOf } from "../sets/dependencies";
 import type { CodedFact } from "../shared";
+import { expressionPaths } from "../styles/predicate";
 import type { FilterRunResult } from "../visibility/filter";
 import type { Bytes, UnionRead } from "../visibility/union";
 import type { ScopeApi } from "./ScopeApi";
@@ -148,8 +152,12 @@ export interface BranchReading {
 export interface StepsReading {
     /** The rule as the element holds it: ids and colors filled. */
     readonly rule: UnionLeaf;
-    /** The elements in a ready branch that is on, out of the base. */
-    readonly total: { readonly count: number; readonly of: number };
+    /**
+     * The elements in a ready branch that is on, out of the base, and how many of them are shown
+     * now (`shown`): those the filter and the time window leave drawn. A rule read over the whole
+     * graph (a filter's own) can count elements that are hidden; `shown` says how many are not.
+     */
+    readonly total: { readonly count: number; readonly of: number; readonly shown: number };
     /** The ids of the branches that are on and wait on a run. */
     readonly pending: readonly string[];
     /** Everything in a ready branch that is on. */
@@ -252,7 +260,7 @@ export interface ValueHistogramOptions extends HistogramOptions {
 
 /**
  * The branch colors when a session sets none: six hues each at least 3:1 against both a white and
- * a near-black panel, clear of the selection's gold ring and blue edge band.
+ * a near-black panel, clear of the selection's blue ring and edge band.
  * Experimental: may change or be removed in a minor release.
  * @beta
  */
@@ -623,6 +631,12 @@ interface ReadingSources {
      * @returns The histogram, or null.
      */
     valuesOf?(step: UnionStep, input: Bytes): ValueHistogram | null;
+    /**
+     * Whether an element of a side is shown now; absent: everything is.
+     * @param side - The side.
+     * @returns The test, by dense index.
+     */
+    shownOn?(side: UnionLeaf["side"]): (index: number) => boolean;
 }
 
 /**
@@ -636,6 +650,24 @@ function ones(bytes: Bytes): number {
         count += byte;
     }
 
+    return count;
+}
+
+/**
+ * How many members are shown.
+ * @param bytes - The members.
+ * @param shown - Whether an index is shown; absent: all are.
+ * @returns The count.
+ */
+function shownOf(bytes: Bytes, shown: ((index: number) => boolean) | undefined): number {
+    if (shown === undefined) {
+        return ones(bytes);
+    }
+
+    let count = 0;
+    bytes.forEach((byte, index) => {
+        count += byte === 1 && shown(index) ? 1 : 0;
+    });
     return count;
 }
 
@@ -724,7 +756,7 @@ function stepsReadingOf(
 
     return {
         rule: leaf,
-        total: { count: ones(read.total), of: ones(read.base) },
+        total: { count: ones(read.total), of: ones(read.base), shown: shownOf(read.total, sources.shownOn?.(side)) },
         pending: read.branches.flatMap((branch, at) =>
             branch.state === "pending" ? [leaf.branches[at].id ?? ""] : [],
         ),
@@ -870,24 +902,25 @@ function stepOf(rule: UnionLeaf, stepId: string): UnionStep {
 }
 
 /**
- * The paths of the runs a rule reads, `results.<run>.*`.
+ * The runs a rule reads: through a `results.<run>.*` path in any leaf or query, or an `item`
+ * leaf naming a result.
  * @param tree - The rule.
  * @returns The run ids.
  */
-function runsRead(tree: RuleTree): string[] {
-    const loose = tree as unknown as Readonly<Record<string, unknown>>;
-    const path = [loose.path, loose.attribute, loose.reads].find(
-        (each): each is string => typeof each === "string" && each.startsWith("results."),
-    );
-    const own = path === undefined ? [] : [path.slice("results.".length).split(".")[0]];
-    switch (tree.kind) {
-        case "all":
-        case "any":
-            return [...own, ...tree.of.flatMap(runsRead)];
-        case "not":
-            return [...own, ...runsRead(tree.of)];
-        default:
-            return own;
+function runsRead(tree: RuleTree): RunId[] {
+    return dependenciesOf(tree, queryPaths).flatMap((each) => (each.kind === "run" ? [each.run] : []));
+}
+
+/**
+ * The paths a query reads, or none when it does not parse (the rule's own check refuses it).
+ * @param where - The query.
+ * @returns The paths.
+ */
+function queryPaths(where: Query): readonly Path[] {
+    try {
+        return expressionPaths(where);
+    } catch {
+        return [];
     }
 }
 

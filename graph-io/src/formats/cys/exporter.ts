@@ -1263,7 +1263,10 @@ function positionNotes(position: Column, z: Column | null, note: NoteFn): void {
  * @category Plugin helpers
  */
 export function sessionEscape(text: string): string {
-    const wellFormed = text.replaceAll(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "�");
+    const wellFormed = text.replaceAll(
+        /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g,
+        "\uFFFD",
+    );
     return encodeURIComponent(wellFormed)
         .replaceAll(/[!~'()]/g, (c) => `%${(c.codePointAt(0) ?? 0).toString(16).toUpperCase()}`)
         .replaceAll("%20", "+")

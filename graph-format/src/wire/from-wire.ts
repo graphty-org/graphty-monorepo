@@ -812,7 +812,7 @@ class WireDecoder {
         if (this.structure && column.nullCount !== declaredNullCount) {
             throw badWire(
                 `${path}.nullCount`,
-                `manifest says ${String(declaredNullCount)}, the bitmap says ${column.nullCount}`,
+                `manifest says ${describe(declaredNullCount)}, the bitmap says ${column.nullCount}`,
                 {
                     expected: column.nullCount,
                     found: declaredNullCount,
@@ -854,11 +854,12 @@ class WireDecoder {
             return false;
         }
         const found = dtype === "list" ? itemDtype : dtype;
+        const foundName = typeof found === "string" ? found : describe(found);
         if (this.options.unknownColumns === "skip") {
-            this.skipped.push({ domain, table, name, dtype: String(found) });
+            this.skipped.push({ domain, table, name, dtype: foundName });
             return true;
         }
-        throw new GraphFormatError("E_UNSUPPORTED", `column "${name}" has unknown dtype ${String(found)}`, {
+        throw new GraphFormatError("E_UNSUPPORTED", `column "${name}" has unknown dtype ${foundName}`, {
             dtype: found,
             column: name,
             ref: path,
@@ -1584,7 +1585,7 @@ function decodeArena(
     if (structure && a.hotByteLength !== hotByteLength) {
         throw badWire(
             "arena.hotByteLength",
-            `manifest says ${String(a.hotByteLength)}, the segments say ${hotByteLength}`,
+            `manifest says ${describe(a.hotByteLength)}, the segments say ${hotByteLength}`,
             {
                 expected: hotByteLength,
                 found: a.hotByteLength,

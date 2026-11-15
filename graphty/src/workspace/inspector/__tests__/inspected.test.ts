@@ -97,5 +97,9 @@ describe("what the inspector shows", () => {
         assert.equal(tabFor(kinds.get("node"), { node: "style" }), "values");
         assert.equal(tabFor(kinds.get("graph"), { graph: "style" }), "style");
         assert.isNull(tabFor(kinds.get("attribute"), {}));
+        // A remembered Notes holds only for an item with notes; with none it opens on the default.
+        assert.equal(tabFor(kinds.get("edge"), { edge: "notes" }, true), "notes");
+        assert.equal(tabFor(kinds.get("edge"), { edge: "notes" }), "values");
+        assert.equal(tabFor(kinds.get("node"), { node: "notes" }, true), "values");
     });
 });

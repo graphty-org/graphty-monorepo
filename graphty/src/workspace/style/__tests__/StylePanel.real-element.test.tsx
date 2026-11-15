@@ -14,11 +14,16 @@ import type { GraphSession } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { act, findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectionWorkspaceOn } from "../../features";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * A new project on a five-node path with the starting rows on.
@@ -400,8 +405,12 @@ describe("the Style tab's rows on the real element", () => {
         await screen.findByTestId("style-tab", {});
         await varyBy("Node color", "dept");
         await waitFor(() => {
-            const mine = readerLayers(session);
-            assert.lengthOf(mine, 1, "one Everything layer, no other row");
+            const mine = readerLayers(session).filter((l) => l.target === "node");
+            assert.deepEqual(
+                readerLayers(session).map((l) => l.name),
+                ["Everything", "Everything"],
+                "one Everything row, its node and edge parts, no other row",
+            );
             const proposal = session.styles.proposeEncoding({
                 column: { kind: "node", name: "dept" },
                 channel: "node.color",
@@ -423,7 +432,7 @@ describe("the Style tab's rows on the real element", () => {
         await screen.findByTestId("style-tab", {});
         await varyBy("Node color", "code");
         await waitFor(() => {
-            const binding = readerLayers(session)[0]?.encode?.["node.color"];
+            const binding = readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"];
             assert.equal(binding !== undefined && "by" in binding ? binding.scale : undefined, "ordinal");
         });
         await userEvent.click(await varyGlyph("Node size"));
@@ -477,7 +486,7 @@ describe("the Style tab's rows on the real element", () => {
         await userEvent.click(within(list).getByRole("option", { name: /^Degree(,|$)/ }));
         const path = session.results.path(runId);
         await waitFor(() => {
-            const mine = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
+            const mine = readerLayers(session).filter((l) => l.name === "Everything" && l.target === "node");
             assert.lengthOf(mine, 1);
             // The element skips an element the run did not measure, so the layer keeps its rule.
             assert.deepEqual(mine[0].selector, { match: "everything" });
@@ -486,7 +495,7 @@ describe("the Style tab's rows on the real element", () => {
         });
         await userEvent.click(within(styleTab()).getByRole("button", { name: /Stop varying node size by data/ }));
         await waitFor(() => {
-            const mine = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
+            const mine = readerLayers(session).filter((l) => l.name === "Everything" && l.target === "node");
             assert.lengthOf(mine, 1);
             assert.deepEqual(mine[0].selector, { match: "everything" });
             assert.isUndefined(mine[0].encode?.["node.size"]);
@@ -510,7 +519,8 @@ describe("the Style tab's rows on the real element", () => {
         });
         await userEvent.click(await within(styleTab()).findByRole("button", { name: /^Node color: code,/ }));
         const popover = await screen.findByRole("group", { name: "Color binding" });
-        const binding = (): Record<string, unknown> => readerLayers(session)[0]?.encode?.["node.color"] ?? {};
+        const binding = (): Record<string, unknown> =>
+            readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"] ?? {};
         await userEvent.click(within(popover).getByRole("combobox", { name: /^Palette/ }));
         await userEvent.click(await screen.findByRole("option", { name: /^Shades of blue/ }));
         await waitFor(() => {
@@ -524,8 +534,11 @@ describe("the Style tab's rows on the real element", () => {
         await userEvent.keyboard("{Escape}");
         await userEvent.click(within(styleTab()).getByRole("button", { name: "Stop varying node color by data" }));
         await waitFor(() => {
-            assert.isUndefined(readerLayers(session)[0]?.encode?.["node.color"]);
-            assert.isDefined(readerLayers(session)[0]?.set?.["node.color"], "a fixed value again");
+            assert.isUndefined(readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"]);
+            assert.isDefined(
+                readerLayers(session).find((l) => l.target === "node")?.set?.["node.color"],
+                "a fixed value again",
+            );
         });
     });
 
@@ -548,7 +561,8 @@ describe("the Style tab's rows on the real element", () => {
         // The list opens with nothing active, as a select's does: Down reaches the first value.
         await userEvent.keyboard("{ArrowDown}{Enter}");
         await waitFor(() => {
-            const bound = readerLayers(session)[0]?.encode?.["node.color"] as { by?: string } | undefined;
+            const bound = readerLayers(session).find((l) => l.target === "node")?.encode?.["node.color"] as
+                { by?: string } | undefined;
             assert.equal(bound?.by, `data.${first}`);
         });
     });
@@ -568,22 +582,25 @@ describe("the Style tab's rows on the real element", () => {
             targetPosition: { x: box.width * 0.9, y: box.height * 0.9 },
         });
         await waitFor(() => {
-            assert.isString(readerLayers(session)[0]?.set?.["node.color"]);
+            assert.isString(readerLayers(session).find((l) => l.target === "node")?.set?.["node.color"]);
         });
         await session.styles.settled();
         assert.equal(session.history.steps.length, before + 1, "the drag wrote once, on release");
     });
 
-    it("Everything's edge color goes to the Everything layer, and an edge's to its own row", async () => {
+    it("Everything's edge color goes to the Everything layer, and an edge's to the selected layer", async () => {
         await page.viewport(1366, 768);
         const { session } = await openEverything();
         await screen.findByTestId("style-tab", {});
         await typeColor("Edge color", "FF0000");
         await waitFor(() => {
-            const everything = readerLayers(session).filter((l) => l.userData?.graphtyEverything === true);
+            const everything = readerLayers(session).filter((l) => l.name === "Everything");
             assert.deepEqual(
                 everything.map((l) => [l.target, hexOf(l.set?.["edge.color"])]),
-                [["edge", "#FF0000"]],
+                [
+                    ["edge", "#FF0000"],
+                    ["node", null],
+                ],
             );
         });
         const [edge] = session.data.edges();
@@ -592,61 +609,55 @@ describe("the Style tab's rows on the real element", () => {
         });
         await pickStyleTab();
         await typeColor("Edge color", "00FF00");
+        // No row opened since: the selected layer is the row that paints every element (#3409).
         await waitFor(() => {
             assert.deepEqual(
-                idLayers(session).map((l) => [l.target, hexOf(l.set?.["edge.color"])]),
-                [["edge", "#00FF00"]],
+                readerLayers(session)
+                    .filter((l) => l.name === "Everything")
+                    .map((l) => [l.target, hexOf(l.set?.["edge.color"])]),
+                [
+                    ["edge", "#00FF00"],
+                    ["node", null],
+                ],
             );
         });
+        assert.lengthOf(idLayers(session), 0, "no row for the edge");
     });
 
-    it("a node's first edit adds its row named for it and selects it; selecting it again edits that row", async () => {
+    it("Everything's first edit adds an ordinary row, which stays when its last value is removed", async () => {
         await page.viewport(1366, 768);
-        const { session, store } = await openEverything();
-        await session.selection.apply({ nodes: ["1"] });
-        await pickStyleTab();
+        const { session } = await openEverything();
+        await screen.findByTestId("style-tab", {});
         const size = within(await rowOf("Node size")).getByRole("spinbutton", { name: /^Node size/ });
         await userEvent.tripleClick(size);
         await userEvent.keyboard("3{Enter}");
-        await waitFor(() => {
-            assert.equal(idLayers(session).length, 1);
-        });
-        const [row] = idLayers(session);
-        assert.equal(row.name, "1");
-        assert.deepEqual(row.selector, { match: "ids", nodes: ["1"], edges: [] });
-        await waitFor(() => {
-            assert.deepEqual(store.get().inspected, { kind: "layer-row", id: row.id });
-        });
-
-        session.selection.clear();
-        await session.selection.apply({ nodes: ["1"] });
-        await pickStyleTab();
-        await typeColor("Node color", "00FF00");
-        await waitFor(() => {
-            assert.equal(hexOf(session.styles.get(row.id)?.set?.["node.color"]), "#00FF00");
-        });
-        assert.equal(idLayers(session).length, 1, "the same ids reuse their row");
-    });
-
-    it("several selected share one row, named by their count, and Undo takes it away", async () => {
-        await page.viewport(1366, 768);
-        const { session } = await openEverything();
-        await session.selection.apply({ nodes: ["2", "3", "4"] });
-        await pickStyleTab();
-        await userEvent.click(await within(styleTab()).findByRole("button", { name: "Add to node text" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: /^Tooltip/ }));
-        await userEvent.click(within(await findValuePicker()).getByRole("option", { name: /^Node id(,|$)/ }));
+        const everything = (): ReturnType<GraphSession["styles"]["list"]> =>
+            readerLayers(session).filter((l) => l.name === "Everything");
         await waitFor(() => {
             assert.deepEqual(
-                idLayers(session).map((l) => l.name),
-                ["3 nodes"],
+                everything().map((l) => [l.target, l.set?.["node.size"]]),
+                [
+                    ["edge", undefined],
+                    ["node", 3],
+                ],
             );
         });
-        await userEvent.keyboard("{Escape}");
-        await userEvent.click(screen.getByRole("button", { name: /^Undo( |$)/ }));
+        const [part] = everything();
+        const row = part.row ?? part.id;
+        assert.isDefined(
+            session.styles.tree().find((each) => each.id === row),
+            "a row of the tree, as any row a reader adds",
+        );
+
+        // Emptying the field and pressing Enter removes the line; the row stays, as every row does.
+        const again = within(await rowOf("Node size")).getByRole("spinbutton", { name: /^Node size/ });
+        await userEvent.click(again);
+        await userEvent.keyboard("{Control>}a{/Control}{Backspace}{Enter}");
         await waitFor(() => {
-            assert.equal(idLayers(session).length, 0);
+            assert.isUndefined(everything().find((l) => l.target === "node")?.set?.["node.size"]);
         });
+        assert.lengthOf(everything(), 2, "the emptied row is kept");
+        assert.isDefined(session.styles.tree().find((each) => each.id === row));
     });
 
     it("a new Tooltip asks what it reads; Fixed text keeps typed words, and Undo takes them back", async () => {
@@ -663,7 +674,7 @@ describe("the Style tab's rows on the real element", () => {
         const field = await within(styleTab()).findByRole("textbox", { name: "Node tooltip text" });
         await userEvent.type(field, "hello{Enter}");
         await waitFor(() => {
-            assert.equal(readerLayers(session)[0]?.set?.["node.tooltip"], "hello");
+            assert.equal(readerLayers(session).find((l) => l.target === "node")?.set?.["node.tooltip"], "hello");
         });
         await session.undo();
         await waitFor(() => {

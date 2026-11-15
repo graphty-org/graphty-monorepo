@@ -3,10 +3,11 @@
  * empty, before anything is written to it: a region that arrives already holding its words is
  * not read by many screen readers. A failure stays an alert.
  */
-import { assert, beforeEach, describe, it } from "vitest";
+import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
 import { act, render, screen, waitFor } from "../../../test/test-utils";
+import { forgetUsageAnswer } from "../../privacy/usageData";
 import { createWorkspaceStore, type WorkspaceState } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -26,12 +27,9 @@ function regionsSaying(words: string): Element[] {
     return liveRegions().filter((region) => region.textContent === words);
 }
 
-beforeEach(() => {
-    localStorage.removeItem("graphty.usageData.v1");
-});
-
 describe("spoken messages", () => {
     it("says the usage data answer from a status line that was already on the page", async () => {
+        forgetUsageAnswer();
         render(<Workspace store={createWorkspaceStore()} />);
         const before = new Set(liveRegions());
 

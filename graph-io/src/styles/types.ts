@@ -645,6 +645,10 @@ export interface NodeStyleValues {
     readonly chartBorderColor: StyleColor;
     /** How wide a bar's and a box's outline is (a length); unset, none. */
     readonly chartBorderWidth: number;
+    /** The color filling the chart's plot box under its bars, cells or lines; unset, no fill. */
+    readonly chartBackgroundColor: StyleColor;
+    /** The opacity of `chartBackgroundColor`, 0 to 1; unset, 1. */
+    readonly chartBackgroundOpacity: number;
     /**
      * How far a group drawn round its members (a node other nodes name as their parent, with no box of its own) reaches
      * past their box on every side (a length; Cytoscape.js `padding` on a compound parent). Unset, the reader's own.
@@ -691,6 +695,13 @@ export interface EdgeStyleValues {
     readonly sourceArrowColor: StyleColor;
     /** The color of the arrow at the target end. */
     readonly targetArrowColor: StyleColor;
+    /**
+     * The color a hollow arrow at the source end is filled with, inside its outline in `sourceArrowColor` (yEd's framed
+     * edges); absent, its inside is empty.
+     */
+    readonly sourceArrowFillColor: StyleColor;
+    /** The color a hollow arrow at the target end is filled with, as `sourceArrowFillColor` says. */
+    readonly targetArrowFillColor: StyleColor;
     /** The label's text color. */
     readonly labelColor: StyleColor;
     /** The opacity of the whole edge, 0..1. */
@@ -800,6 +811,12 @@ export interface EdgeStyleValues {
     readonly waveAmplitude: number;
     /** How far along its path a zigzag or sine-wave line runs before it repeats (a length; Cytoscape's: 20 px). */
     readonly wavePeriod: number;
+    /**
+     * The line's width at the target as a multiple of its width at the source (`width`): 1 (the default) draws it the
+     * same width all along, 0 narrows it to a point at the target (Graphviz's `style=tapered`, `dir=forward`;
+     * Cytoscape.js's `curve-style: straight-triangle`).
+     */
+    readonly taper: number;
     /** The arrow at the source end. */
     readonly sourceArrow: StyleArrowShape;
     /** The arrow at the target end. */
@@ -1120,6 +1137,8 @@ export type StyleDialect =
     | "css"
     /** X11 color names (`gray` is `#bebebe`). */
     | "x11"
+    /** The GML draft's Tk colors: CSS, then Tk's `#RRRGGGBBB`, `#RRRRGGGGBBBB` and X11 names written with spaces. */
+    | "tk"
     /** Graphviz: X11 and SVG names, color schemes and `/scheme/name`, `#rrggbbaa`, HSV triples, inches. */
     | "graphviz"
     /** Java's `java.awt.Color` names and `#rrggbb`. */

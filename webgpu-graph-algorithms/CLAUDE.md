@@ -44,7 +44,7 @@ ONE copy, `scripts/gpu-policy.js`; the runner-class rule ONE copy, `scripts/runn
 pnpm run build:all          # tsc -p tsconfig.build.json, then the multi-entry vite bundle and the d.ts shims
 pnpm run lint               # eslint + tsc --noEmit + tsc -p tsconfig.strict-consumer.json (build first)
 pnpm run test:node          # the whole node suite, one file at a time; the default adapter
-pnpm run coverage           # the node suite with the 80/80/75/80 thresholds
+pnpm run coverage           # the node suite with the 90/90/90/90 thresholds
 pnpm run test:browser:ci    # node scripts/run-browser-project.js (SwiftShader unless GRAPHTY_BROWSER_GPU=nvidia)
 pnpm run test:limits        # vitest run --project=node-limits (GPU lane only)
 pnpm run bench              # tsx benchmarks/run.ts -> benchmarks/out/<runner-class>.json
@@ -99,7 +99,7 @@ globals and fast-check. `@internal` stands alone on its JSDoc line. A JSDoc line
 
 | Project       | Contents                                                                      | Default lane | GPU lane |
 | ------------- | ----------------------------------------------------------------------------- | ------------ | -------- |
-| `node`        | every unit / kernel / primitive / algorithm / layout test; 80/80/75/80        | lavapipe     | NVIDIA   |
+| `node`        | every unit / kernel / primitive / algorithm / layout test; 90/90/90/90        | lavapipe     | NVIDIA   |
 | `node-limits` | tests needing real device limits or time (`test/limits/**`)                   | no           | yes      |
 | `browser`     | `test/browser/**`, Playwright Chromium, flags chosen by `GRAPHTY_BROWSER_GPU` | SwiftShader  | NVIDIA   |
 

@@ -52,7 +52,7 @@ describe("GraphML namespaces", () => {
 });
 
 describe("GraphML edges", () => {
-    it("graphml-directed-xs-boolean-1-0: directed 1 and 0 are the xs:boolean true and false; yes stays an error", async () => {
+    it("graphml-directed-xs-boolean-1-0: directed 1 and 0 are the xs:boolean true and false; yes stays an error and keeps the edge", async () => {
         const { snapshot, report } = await load(
             "graphml",
             graphml(
@@ -64,9 +64,11 @@ describe("GraphML edges", () => {
         );
         expect(codes(report)).toEqual([GRAPHML_ISSUE.INVALID_DIRECTED]);
         expect(report.issues[0].message).toContain('directed="yes"');
-        expect(report.counts.skippedEdges).toBe(1);
-        // directed="1" is directed in the undirected graph: expanded to a pair beside the undirected edge
-        expect(report.counts.expandedMixed).toBe(1);
+        // the edge is kept with its graph's direction (undirected): skipping it would lose data
+        expect(report.counts.skippedEdges).toBe(0);
+        // directed="1" is directed in the undirected graph: the undirected edges (directed="0" and the kept
+        // directed="yes" one) are each expanded to a pair beside it
+        expect(report.counts.expandedMixed).toBe(2);
         expect(snapshot.nodeCount).toBe(2);
     });
 
@@ -167,16 +169,13 @@ describe("GraphML keys and data", () => {
         expect(snapshot.nodes.value("d", 1)).toBe("3");
     });
 
-    it("graphml-key-declared-after-graph: data whose key is declared after the graph is reported per value", async () => {
+    it("graphml-key-declared-after-graph: data whose key is declared after the graph is kept as text", async () => {
         const doc = `<graphml xmlns="${GRAPHML_NS}"><graph edgedefault="directed"><node id="a"><data key="d">1</data></node><node id="b"><data key="d">2</data></node></graph>${KEY_D}</graphml>`;
         const { snapshot, report } = await load("graphml", doc);
-        expect(codes(report)).toEqual([
-            GRAPHML_ISSUE.UNKNOWN_KEY,
-            GRAPHML_ISSUE.UNKNOWN_KEY,
-            GRAPHML_ISSUE.KEY_DECLARED_LATE,
-        ]);
-        expect(report.issues[2].message).toMatch(/declared after data that uses it/);
+        expect(codes(report)).toEqual([GRAPHML_ISSUE.UNKNOWN_KEY, GRAPHML_ISSUE.KEY_DECLARED_LATE]);
+        expect(report.issues[1].message).toMatch(/declared after data that uses it/);
         expect(snapshot.nodeCount).toBe(2);
+        expect([snapshot.nodes.value("d", 0), snapshot.nodes.value("d", 1)]).toEqual(["1", "2"]);
     });
 
     it("graphml-duplicate-edge-id-deferred: an edge waiting for its nodes keeps its id over a later edge reusing it", async () => {

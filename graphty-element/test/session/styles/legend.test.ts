@@ -2,6 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import type { Channel, LayerId, LayerSpec, Path } from "../../../src/catalog/types";
 import { isGraphtyError } from "../../../src/errors";
+import { asColorValue } from "../../../src/session/styles/channels";
 import { prepareBinding, type PreparedBinding } from "../../../src/session/styles/encoding";
 import {
     type ChannelExplanation,
@@ -331,6 +332,24 @@ describe("the departures are what stop a legend implying something the picture d
         );
 
         assert.deepEqual(blocks[0].departures, ["not measured (1)"]);
+    });
+});
+
+describe("a column with no spread", () => {
+    const flat: readonly Row[] = [1, 2, 3].map(() => ({ "results.betweenness.value": 3 }));
+    const spread: readonly Row[] = [{ "results.betweenness.value": 0 }, { "results.betweenness.value": 6 }];
+
+    it("paints the middle of the palette, and the legend shows that same colour and says there is no spread", () => {
+        const fixture = harness([betweennessColor()], flat);
+        const [block] = buildLegend(fixture.legend);
+        const painted = fixture.legend.encoding(block.layerId)[0].paint(3);
+        const middle = harness([betweennessColor()], spread).legend.encoding("l0")[0].paint(3);
+
+        assert.deepEqual(painted, middle);
+        assert.strictEqual(block.swatches.length, 1);
+        assert.strictEqual(block.swatches[0].color, asColorValue(painted)?.hex);
+        assert.deepInclude(block.facts, { code: "legend.no-spread", params: { value: 3 } });
+        assert.include(block.departures, "no spread");
     });
 });
 
@@ -951,5 +970,77 @@ describe("the legend's facts are codes and values, worded by the application", (
         assert.strictEqual(first.value, first.extent?.min);
         assert.isAbove(first.extent?.max ?? 0, 0);
         assert.isUndefined(onlyBlock([betweennessColor()]).swatches[0].extent, "a ramp stop is one value");
+    });
+});
+
+describe("a binding that names its values with a map", () => {
+    const COLORS = { a: "#ff0000", b: "#00ff00", c: "#0000ff" } as const;
+
+    /** A layer that paints the louvain groups through `map`, with the scale given or left out. */
+    function mapped(channel: Channel, map: Record<string, unknown>, scale?: string): LayerSpec {
+        const by = "results.louvain.group";
+        return {
+            name: "Communities",
+            kind: "encoding",
+            selector: { match: "has", path: by },
+            encode: { [channel]: { by, map, ...(scale === undefined ? {} : { scale }) } },
+        } as LayerSpec;
+    }
+
+    /** What the canvas paints one value, through the same preparation a repaint takes. */
+    function canvasOf(spec: LayerSpec, channel: Channel, value: unknown): unknown {
+        const fixture = harness([spec]);
+        const [prepared] = fixture.legend.encoding(fixture.layers[0].id);
+        assert.strictEqual(prepared.channel, channel);
+        const painted = prepared.paint(value);
+        return painted === undefined ? undefined : (asColorValue(painted)?.hex ?? painted);
+    }
+
+    for (const scale of [undefined, "ordinal", "passthrough"]) {
+        it(`lists each mapped colour, as the canvas paints it, with scale ${String(scale)}`, () => {
+            const spec = mapped("node.color", COLORS, scale);
+            const block = onlyBlock([spec]);
+
+            assert.strictEqual(block.kind, "categorical");
+            assert.deepEqual(
+                block.swatches.map((swatch) => [swatch.value, swatch.color]),
+                Object.entries(COLORS),
+            );
+            for (const swatch of block.swatches) {
+                assert.strictEqual(canvasOf(spec, "node.color", swatch.value), swatch.color, swatch.label);
+            }
+        });
+
+        it(`lists each mapped size, as the canvas paints it, with scale ${String(scale)}`, () => {
+            const spec = mapped("node.size", { a: 5, b: 10, c: 20 }, scale);
+            const block = onlyBlock([spec]);
+
+            assert.strictEqual(block.kind, "categorical");
+            assert.deepEqual(
+                block.swatches.map((swatch) => [swatch.value, swatch.size]),
+                [
+                    ["a", 5],
+                    ["b", 10],
+                    ["c", 20],
+                ],
+            );
+            for (const swatch of block.swatches) {
+                assert.strictEqual(canvasOf(spec, "node.size", swatch.value), swatch.size, swatch.label);
+            }
+        });
+    }
+
+    it("gives no row to a value the map leaves out and the canvas does not paint", () => {
+        const spec = mapped("node.color", { a: COLORS.a, b: COLORS.b });
+        const block = onlyBlock([spec]);
+
+        assert.strictEqual(canvasOf(spec, "node.color", "c"), undefined);
+        assert.deepEqual(
+            block.swatches.map((swatch) => [swatch.value, swatch.color]),
+            [
+                ["a", COLORS.a],
+                ["b", COLORS.b],
+            ],
+        );
     });
 });

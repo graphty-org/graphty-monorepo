@@ -42,7 +42,9 @@ export const np = {
     repeat: function <T>(a: T | T[], repeats: number): T[] {
         const result: T[] = [];
         for (let i = 0; i < repeats; i++) {
-            result.push(...np.array(a));
+            for (const x of np.array(a)) {
+                result.push(x);
+            }
         }
         return result;
     },
@@ -102,14 +104,14 @@ export const np = {
         if (typeof arr === "number") {
             return arr;
         }
-        return Math.max(...((arr as readonly unknown[]).flat(Infinity) as number[]));
+        return ((arr as readonly unknown[]).flat(Infinity) as number[]).reduce((m, x) => Math.max(m, x), -Infinity);
     },
 
     min: function (arr: NestedNumbers): number {
         if (typeof arr === "number") {
             return arr;
         }
-        return Math.min(...((arr as readonly unknown[]).flat(Infinity) as number[]));
+        return ((arr as readonly unknown[]).flat(Infinity) as number[]).reduce((m, x) => Math.min(m, x), Infinity);
     },
 
     norm: function (arr: number[]): number {

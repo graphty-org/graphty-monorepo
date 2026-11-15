@@ -52,9 +52,6 @@ const config: KnipConfig = {
                 // only in .secretlintrc.json)
                 "secretlint",
                 "@secretlint/secretlint-rule-preset-recommend",
-                // Semantic release plugins (used by nx release and child packages)
-                "@semantic-release/changelog",
-                "@semantic-release/git",
                 // The githerd CLI, linked at the root so `pnpm exec githerd` works from any
                 // checkout; nothing imports it
                 "@graphty/githerd",
@@ -168,6 +165,26 @@ const config: KnipConfig = {
         "babylonjs-map": {
             entry: ["src/index.ts!", "src/location/index.ts!", "src/projection/index.ts!", "test/**/*.test.ts"],
             project: ["src/**/*.ts!", "test/**/*.ts"],
+            // `@babylonjs/core` is an optional peer (and a devDependency): only the root entry imports it, and the
+            // two subpaths never load it. `lint:knip:prod` runs --strict and would report it as unlisted; the
+            // default run resolves it as a devDependency and hints an ignore as redundant.
+            ignoreDependencies: production ? ["@babylonjs/core"] : [],
+        },
+
+        // babylonjs-models package: the root and the Babylon-free "./files" and "./detect" subpaths are entries
+        "babylonjs-models": {
+            entry: [
+                "src/index.ts!",
+                "src/files/index.ts!",
+                "src/detect/index.ts!",
+                "test/**/*.test.ts",
+                "scripts/*.mjs",
+            ],
+            project: ["src/**/*.ts!", "test/**/*.ts", "scripts/*.mjs"],
+            // `@babylonjs/core` and `@babylonjs/loaders` are optional peers (and devDependencies): only the root entry
+            // imports them. `lint:knip:prod` runs --strict and would report them as unlisted. `three` is a
+            // devDependency only for the Draco decoder files scripts/copy-decoders.mjs copies from its folder.
+            ignoreDependencies: production ? ["@babylonjs/core", "@babylonjs/loaders"] : ["three"],
         },
 
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test
@@ -183,8 +200,10 @@ const config: KnipConfig = {
                 "test/setup/*.ts",
                 "benchmarks/layout-run.ts",
                 "scripts/**/*.{ts,js}",
+                // the browser demo (`npm run demo`): its two pages and its vite config
+                "demo/{main,compile,vite.config}.ts",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}", "demo/**/*.ts"],
             // Optional peers (`webgpu`, imported inside `await import("webgpu")` in src/node/index.ts,
             // and the CPU packages its types name). `lint:knip:prod` runs --strict and would report
             // them as unlisted; the default run hints an ignore of them as redundant.
@@ -341,8 +360,6 @@ const config: KnipConfig = {
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",
-                // Testing utilities
-                "chai", // Provided by vitest
                 // Build tools
                 "vite-plugin-eslint",
                 // Type definitions
@@ -421,9 +438,6 @@ const config: KnipConfig = {
             // The plugin finds nothing else that run reads.
             ...(production ? { vite: false } : {}),
             ignoreDependencies: [
-                // Used in storybook demos
-                "@zag-js/floating-panel",
-                "@zag-js/react",
                 // The engine @storybook/addon-a11y ships (a devDependency here), imported by
                 // tests/a11y/stories-axe.browser.test.tsx to enforce what the addon only reports.
                 // Declaring it would change pnpm-lock.yaml.
@@ -480,6 +494,7 @@ const config: KnipConfig = {
         "wait", // Shell built-in used in npm scripts
         // System tools that scripts and tests run with execFileSync or spawn (knip 6 reads those calls;
         // knip 5 did not): none is an npm package, so none can be listed as a dependency.
+        "convert", // ImageMagick, for the model variant fixtures (babylonjs-models/test/fixtures/variants)
         "dot", // Graphviz
         "fc-list",
         "flock",

@@ -166,20 +166,20 @@ describe("a style edit in the history", () => {
     it("restores to a step and leaves nothing to redo when asked to drop the redo steps", async () => {
         const { session, advance } = clocked();
         const kept = await session.styles.add(RED);
+        const keptIds = session.styles.list().map((layer) => layer.id);
         const before = session.history.steps.at(-1)?.id ?? null;
         advance(5000);
-        await session.styles.add({ ...RED, name: "Second" });
-        await session.styles.add({ ...RED, name: "Third" });
+        const second = await session.styles.add({ ...RED, name: "Second" });
+        const third = await session.styles.add({ ...RED, name: "Third" });
 
         const outcome = await session.history.restoreTo(before, { redo: "drop" });
 
         assert.strictEqual(outcome.kind, "restored");
         const ids = session.styles.list().map((layer) => layer.id);
         assert.include(ids, kept.id);
-        assert.lengthOf(
-            ids.filter((id) => id !== kept.id && id.startsWith("red")),
-            0,
-        );
+        assert.notInclude(ids, second.id);
+        assert.notInclude(ids, third.id);
+        assert.deepEqual(ids, keptIds, "the style stack is back to what it was at the step");
         assert.strictEqual(session.history.position, 1);
         assert.strictEqual(session.history.steps.length, 1, "the steps passed are gone");
         assert.strictEqual((await session.redo()).kind, "nothing");

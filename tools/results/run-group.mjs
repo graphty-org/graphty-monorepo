@@ -7,8 +7,8 @@
 // Computes the group's inputs key, runs the shard's command (or <command>, run shape `selected`) through
 // tools/test-quarantine.mjs runShard() -- which retries the failed test files once and decides as it does
 // today -- then posts one record per try (1 = the run, 2 = the retry) and exits with runShard()'s code. The
-// reporter (tools/results/reporter.mjs) sends each failure while the group runs. A record it does not take
-// within 5 s is written to test-results/results-spool/<id>.json.
+// reporter (tools/results/reporter.mjs) sends each failure while the group runs. A record the store does not take
+// is lost, and the log says so.
 //
 // On a pull request with RESULTS_PLAN set (the light check's `results-plan` artifact: GET /v1/plan's answer plus
 // `base`, `affected` (the test files whose file or import closure the pull request changed) and `unknownFamilies`
@@ -95,9 +95,9 @@ const keyOf = (f) => failureHashes((f.text ?? f.message ?? "").slice(0, 2000), f
 /**
  * The pull request rules (results-service.md 6.1, 6.3) as runShard()'s `judge`. Quarantined tests pass loudly. A
  * test that failed and then passed fails as `[NEW-FLAKY]` when the pull request touched it, else passes as
- * `[FLAKY-UNRELATED]`. A test that failed every time fails when touched; untouched, it passes as `[KNOWN]` only
- * when master's own runs failed it the same way on the base (`failingOnBase`, same family and key), else passes
- * loudly as `[UNRELATED]` (#3925: a failure with another source must not block a merge; the full run with bisect and
+ * `[FLAKY-UNRELATED]`. A test that failed every time passes as `[KNOWN]` when master's own runs failed it the
+ * same way (`failingOnBase`, same family, flags and key) and the pull request did not change its file (`changed`,
+ * or not touched at all); else it fails when touched and, untouched, passes loudly as `[UNRELATED]` (#3925: a failure with another source must not block a merge; the full run with bisect and
  * revert is the net), with a job summary line. GPU families are never excused. Each untouched case names its base-check.yml dispatch, and with `out` also writes it to
  * `<out>/<shard>.jsonl` as one JSON line `{ base, file, variant, repeat }`, which ci.yml's base-checks job dispatches: the base check's master
  * records are what quarantine a flaky test and file its issue, so nobody has to read the warning to dispatch it.
@@ -120,6 +120,12 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
         (b) => b.variant.split("|")[0] === family && flagsOf(b.variant) === flagsOf(variant),
     );
     const known = (f) => onBase.find((b) => b.file === f.file && b.name === f.name && b.key === keyOf(f));
+    // #8051: the same failure (same key) master already has is not this pull request's, even when the pull request
+    // changed the test's imports; never when it changed the test file itself, and never without the plan's
+    // `changed` list to tell the two apart (a screenshot plan, where every test counts as touched)
+    const changed = plan?.changed ? new Set(plan.changed) : null;
+    const gpu = /^webgpu-graph-algorithms/.test(family); // never excused (CLAUDE.md, WebGPU)
+    const excusable = (f) => !gpu && (!touched(f) || (changed !== null && !changed.has(f.file)));
     const list = storeList(plan);
     const check = (f, repeat) => {
         if (out) {
@@ -156,7 +162,7 @@ export function prJudge(plan, { shard, family, variant, base, out, env = process
         // "every time" only when a retry ran: a failure that was not retried failed once (#5128)
         const how = unretried ? `failed (${unretried})` : "failed every time";
         for (const f of d.failing) {
-            const k = !touched(f) && known(f);
+            const k = excusable(f) && known(f);
             if (k) warn(`[KNOWN] ${shard}: ${idOf(f)} fails the same way on master ${k.sha}, ${issue(k)}`);
             else if (touched(f)) fail(f, `[FAIL] ${shard}: ${idOf(f)} ${how}`);
             else {
@@ -236,7 +242,9 @@ function readPlanFile(file) {
  */
 export async function refreshPlan(plan, { cfg, sha, family, variant }) {
     if (!cfg || !plan?.base) return plan;
-    const variants = [...new Set([`${family}|flags=off|whole`, `${family}|flags=off|selected`, variant])];
+    // an On twin's master evidence is recorded under flags=on (#7847), so ask under the job's own flags
+    const flags = variant.split("|")[1] ?? "flags=off";
+    const variants = [...new Set([`${family}|${flags}|whole`, `${family}|${flags}|selected`, variant])];
     try {
         const r = await fetchPlan(cfg, { sha, base: plan.base, variants, inputs: variants.map(() => "-") });
         if (!r.ok || !r.data) {
@@ -413,7 +421,7 @@ function fileFailingOnMaster(gh, f, sha) {
  * @param [o.onMaster] whether a base run that failed files `Failing on master` (false for one repeat of several,
  *   which alone proves nothing: the repeats together decide, through the store's flaky verdict)
  * @param [o.base] whether this is a base run (`cli.mjs base-check` sets RESULTS_REPEAT); also true when any answer
- *   the store gave says kind `base`, so a spooled last answer cannot turn a base run into a master one
+ *   the store gave says kind `base`, so a lost last answer cannot turn a base run into a master one
  * @param [o.file] the one test file a base check asked about; `Failing on master` files only its tests
  * @returns the issues filed or commented on: `{ signature, number }`
  */
@@ -572,26 +580,24 @@ export function recordsOf(o) {
 }
 
 /**
- * Posts a group's records. A store that did not take one is not asked again: the rest go straight to the spool,
- * so a store that never answers costs one timeout, not one per record.
+ * Posts a group's records. A store that never answered one (or answered 5xx) is not asked again, so a store that
+ * is down costs one timeout, not one per record; one that refused a record (4xx) is still asked for the next. A
+ * record the store did not take is lost, and the log says so (#7266).
  * @param cfg config()
  * @param recs recordsOf()
- * @param spool the spool directory
  * @param [ms] the timeout of each post
  * @returns postInvocation()'s results
  */
-export async function postRecords(cfg, recs, spool, ms = undefined) {
+export async function postRecords(cfg, recs, ms = undefined) {
     const out = [];
     let store = cfg;
     for (const rec of recs) {
         // the health API still gets the records the store is no longer asked for
         if (!store && cfg?.health) sendHealth(cfg, "/v1/invocations", rec);
-        const r = await postInvocation(store, rec, spool, ms);
-        if (!r.ok) store = null;
+        const r = await postInvocation(store, rec, ms);
+        if (r.down) store = null;
         console.log(
-            r.ok
-                ? `run-group: recorded ${rec.id}`
-                : `run-group: ${rec.id} not recorded (${r.why}); spooled to ${r.spooled}`,
+            r.ok ? `run-group: recorded ${rec.id}` : `run-group: ${rec.id} not recorded (${r.why}); the record is lost`,
         );
         out.push(r);
     }
@@ -715,16 +721,20 @@ export async function runGroup(
         const facts = { cmd, root, env, id, runId, code, resultFile, startedAt, endedAt };
         await record(shardName, shard, { ...facts, command, head, gh, storeMs, storyProjects: STORY_PROJECTS });
     } catch (e) {
-        // The store never changes the verdict: a record that cannot be built, sent or spooled is only a warning.
+        // The store never changes the verdict: a record that cannot be built or sent is only a warning.
         console.log(`run-group: ${shardName}: no record (${e.message.split("\n")[0]}); the shard's result stands`);
     }
     return code;
 }
 
+/** A command that runs the On projects (tools/features-on.mjs ON_ENV; it reads graphty-element, so no import). */
+const ON_COMMAND = /(^|\s)GRAPHTY_FEATURES_ON=1\s/u;
+
 /**
  * A group's flags, run shape and variant. The flags are "on" for an On shard (its SHARDS entry says
- * `flags: "on"`, tools/ci-test-matrix.mjs FEATURES_ON_SHARDS) or under GRAPHTY_FLAGS=on, else "off";
- * RESULTS_VARIANT overrides the variant.
+ * `flags: "on"`, tools/ci-test-matrix.mjs FEATURES_ON_SHARDS), for a pull request's bin of one (its command sets
+ * GRAPHTY_FEATURES_ON=1, and its name, `<family>-<n>`, need not be a shard's), or under GRAPHTY_FLAGS=on, else
+ * "off"; RESULTS_VARIANT overrides the variant.
  * @param o the facts
  * @param o.shardName the shard
  * @param o.shard its SHARDS entry, or undefined
@@ -733,7 +743,8 @@ export async function runGroup(
  * @returns `{ flags, selected, variant }`
  */
 export function groupShape({ shardName, shard, command, env }) {
-    const flags = shard?.flags === "on" || env.GRAPHTY_FLAGS === "on" ? "on" : "off";
+    const on = shard?.flags === "on" || ON_COMMAND.test(command ?? "") || env.GRAPHTY_FLAGS === "on";
+    const flags = on ? "on" : "off";
     const selected = command !== undefined && command !== shard?.["test-command"];
     const variant = env.RESULTS_VARIANT || `${groupFamily(shardName, env)}|flags=${flags}|${runShape(env, selected)}`;
     return { flags, selected, variant };
@@ -787,7 +798,7 @@ export function runShape(env, selected) {
 }
 
 /**
- * Builds a finished group's records, posts them (spooling what the store does not take) and files the
+ * Builds a finished group's records, posts them and files the
  * quarantine issues the store asks for.
  * @param shardName the shard
  * @param shard its SHARDS entry, or undefined
@@ -808,7 +819,7 @@ async function record(shardName, shard, o) {
     });
     const cfg = config(env, root);
     if (cfg && storeMs.retry) cfg.retryMs = storeMs.retry;
-    const answers = await postRecords(cfg, recs, join(root, "test-results/results-spool"), storeMs.record);
+    const answers = await postRecords(cfg, recs, storeMs.record);
     await fileIssues(cfg, recs, answers, result.failing ?? [], gh, Date.now(), {
         onMaster: env.RESULTS_FILE_FAILING !== "0",
         base: Boolean(env.RESULTS_REPEAT),

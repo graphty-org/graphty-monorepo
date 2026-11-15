@@ -30,8 +30,9 @@ export interface Vec3 {
 export type DrawingMode = "2d" | "3d";
 
 /**
- * What each node counts as in the box a camera view frames: `"centers"` its centre alone (the
- * default), `"drawn"` the box it is drawn in, so a big node at the edge of the frame is not cut off.
+ * What each node counts as in the box a camera view frames: `"centers"` its centre alone,
+ * `"drawn"` the box it is drawn in, so a big node at the edge of the frame is not cut off. A camera
+ * view framing the whole graph defaults to `"drawn"`; one framing a subset defaults to `"centers"`.
  */
 export type CameraViewExtent = "centers" | "drawn";
 

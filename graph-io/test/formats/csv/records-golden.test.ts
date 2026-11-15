@@ -78,12 +78,14 @@ describe("RecordReader golden outputs", () => {
                     }
                 }
             }
-            // compared as parsed JSON, so reformatting the golden file changes nothing; delete it to rewrite it
+            // compared as parsed JSON, so reformatting the golden file changes nothing; a missing golden fails, and
+            // UPDATE_RECORDS_GOLDEN=1 rewrites it
             const file = new URL(`__golden__/records-${name}.json`, import.meta.url);
             const actual: unknown = JSON.parse(JSON.stringify(out));
-            if (!existsSync(file)) {
+            if (process.env.UPDATE_RECORDS_GOLDEN === "1") {
                 writeFileSync(file, `${JSON.stringify(actual, null, 4)}\n`);
             }
+            expect(existsSync(file), `${file.pathname} is missing: rerun with UPDATE_RECORDS_GOLDEN=1`).toBe(true);
             expect(actual).toEqual(JSON.parse(readFileSync(file, "utf8")));
         });
     }

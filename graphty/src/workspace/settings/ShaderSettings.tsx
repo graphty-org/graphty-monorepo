@@ -1,6 +1,6 @@
 import { ControlSection, Popout } from "@graphty/compact-mantine";
 import type { ShaderParams as Params } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, TransactionScope } from "@graphty/graphty-element/session";
 import { Button, Group, Select, Stack, Text, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useState } from "react";
 
@@ -13,6 +13,7 @@ import { copyShaderText, pickedShader } from "../style/shaderSlots";
 import { headerBottom } from "../style/useFocusLine";
 import {
     BACKGROUND_SECTION_WORDS,
+    failureWords,
     placeWords,
     renderQualityWords,
     SHADER_MOTION_WORDS,
@@ -59,7 +60,7 @@ interface BackgroundShaderProps {
      * Writes a shader and its parameters as the background, through `scope` when given (a paste's
      * transaction, so the add and the write are one undo step).
      */
-    readonly onWrite: (shader: string, params: Params, scope?: GraphSession) => Promise<void> | void;
+    readonly onWrite: (shader: string, params: Params, scope?: TransactionScope) => Promise<void> | void;
     /** Whether the gallery is open when the row appears: the row was just added by a "+". */
     readonly startOpen?: boolean;
 }
@@ -84,8 +85,14 @@ export function BackgroundShader({
     onWrite,
     startOpen = false,
 }: Readonly<BackgroundShaderProps>): React.JSX.Element {
+    const { store } = useWorkspace();
     const [picking, setPicking] = useState(startOpen);
     const [settings, setSettings] = useState(false);
+    const fail =
+        (what: string) =>
+        (error: unknown): void => {
+            store.set({ notice: { message: failureWords(what, "changed", error), error: true } });
+        };
     const [paste, setPaste] = useState<PasteInit | null>(null);
     const descriptor = shader === undefined ? undefined : session.shaders.describe(shader);
     const name = descriptor?.plainName ?? shader ?? "None";
@@ -130,9 +137,9 @@ export function BackgroundShader({
                                 setPicking(false);
                                 // Its settings open next, as a style row's do after a pick.
                                 setSettings((session.shaders.describe(id)?.params.length ?? 0) > 0);
-                                void pickedShader(session, id).then((picked) =>
-                                    picked === shader ? undefined : onWrite(picked, {}),
-                                );
+                                pickedShader(session, id)
+                                    .then((picked) => (picked === shader ? undefined : onWrite(picked, {})))
+                                    .catch(fail("The shader"));
                             }}
                         />
                     </Popout.Content>
@@ -157,9 +164,12 @@ export function BackgroundShader({
                             const next = value === undefined ? rest : { ...rest, [param]: value };
                             const option = descriptor.params.find((each) => each.name === param);
                             // One step, named so Undo reads "Undid changing Nebula tint".
-                            void session.transaction(SHADER_STEP_WORDS.param(name, option?.plainName ?? param), (tx) =>
-                                onWrite(descriptor.id, next, tx as GraphSession),
-                            );
+                            const label = option?.plainName ?? param;
+                            session
+                                .transaction(SHADER_STEP_WORDS.param(name, label), (tx) =>
+                                    onWrite(descriptor.id, next, tx),
+                                )
+                                .catch(fail(label));
                         }}
                     />
                 </SettingsPopout>

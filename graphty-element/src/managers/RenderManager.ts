@@ -1032,8 +1032,8 @@ export class RenderManager implements Manager {
         }
         this.canvas.addEventListener("pointerdown", this.holdPointer, { passive: true });
         // On the window: a pointer can be released off the canvas.
-        window.addEventListener("pointerup", this.releasePointer, { passive: true });
-        window.addEventListener("pointercancel", this.releasePointer, { passive: true });
+        globalThis.addEventListener("pointerup", this.releasePointer, { passive: true });
+        globalThis.addEventListener("pointercancel", this.releasePointer, { passive: true });
         this.canvas.addEventListener("webglcontextlost", this.dropFence);
         this.canvas.addEventListener("webglcontextrestored", this.dropFence);
         this.viewWatch?.observe(this.canvas);
@@ -1134,8 +1134,8 @@ export class RenderManager implements Manager {
         this.flashCheck = null;
         this.canvas.removeEventListener("pointerdown", this.focusOnPointer);
         this.canvas.removeEventListener("pointerdown", this.holdPointer);
-        window.removeEventListener("pointerup", this.releasePointer);
-        window.removeEventListener("pointercancel", this.releasePointer);
+        globalThis.removeEventListener("pointerup", this.releasePointer);
+        globalThis.removeEventListener("pointercancel", this.releasePointer);
         this.canvas.removeEventListener("pointerup", this.focusOnPointer);
         this.canvas.removeEventListener("blur", this.restoreFocusRing);
         this.canvas.removeEventListener("keydown", this.restoreFocusRing);

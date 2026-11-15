@@ -575,6 +575,32 @@ export interface DataBody {
 }
 
 /**
+ * A source's `mapping`: its node key in its own `source:<id>` space, and its edge columns.
+ * @param source - The source.
+ * @param model - The model.
+ * @param hasNodes - Whether its copy holds nodes.
+ * @param hasEdges - Whether its copy holds edges.
+ * @returns The mapping.
+ */
+function mappingOf(source: ModelSource, model: DataModel, hasNodes: boolean, hasEdges: boolean): JsonObject {
+    const { edgeIdColumn } = model;
+    const hasEdgeId = edgeIdColumn !== undefined && source.edges.some((edge) => edge[edgeIdColumn] !== undefined);
+    return {
+        ...(hasNodes ? { nodes: { key: "id", space: `source:${source.id}`, renamed: {} } } : {}),
+        ...(hasEdges
+            ? {
+                  edges: {
+                      ...(hasEdgeId ? { edgeId: edgeIdColumn } : {}),
+                      source: "source",
+                      target: "target",
+                      renamed: {},
+                  },
+              }
+            : {}),
+    };
+}
+
+/**
  * One source record (spec 4.1.1), from its load.
  * @param source - The source.
  * @param model - The model.
@@ -612,21 +638,7 @@ function sourceRecordOf(
         ...(load.url === undefined ? {} : { url: load.url }),
         ...(load.size === undefined ? {} : { size: load.size }),
     };
-    const { edgeIdColumn } = model;
-    const hasEdgeId = edgeIdColumn !== undefined && source.edges.some((edge) => edge[edgeIdColumn] !== undefined);
-    const mapping: JsonObject = {
-        ...(copy.nodes === undefined ? {} : { nodes: { key: "id", space: `source:${source.id}`, renamed: {} } }),
-        ...(edges === undefined
-            ? {}
-            : {
-                  edges: {
-                      ...(hasEdgeId ? { edgeId: edgeIdColumn } : {}),
-                      source: "source",
-                      target: "target",
-                      renamed: {},
-                  },
-              }),
-    };
+    const mapping = mappingOf(source, model, copy.nodes !== undefined, edges !== undefined);
     const { choices } = load;
     const settings: JsonObject = {
         ...(model.edges.length === 0 ? {} : { directed: model.directed }),

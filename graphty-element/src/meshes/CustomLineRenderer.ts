@@ -226,7 +226,8 @@ function joinedLineSamplers(options: JoinedLineOptions): string[] {
     }
 
     const tables = ["rowPosition", "edgeRows", "edgeHidden", "edgeOrder"];
-    return options.pulledCurve === true ? [...tables, "edgeRoutes"] : tables;
+    // a straight piece stops at a translucent row's outline (`PULLED_TRIM_GLSL`)
+    return options.pulledCurve === true ? [...tables, "edgeRoutes"] : [...tables, "rowExtent", "rowOutline"];
 }
 
 interface LineGeometry {

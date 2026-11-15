@@ -35,7 +35,9 @@ import {
 import {
     borderRing,
     convexHull,
+    drawnAgainstBox,
     flatShapeOutline,
+    inUnitBox,
     isFlatShape,
     mitredEdges,
     offsetOutline,
@@ -66,6 +68,19 @@ interface NodeMeshCreateOptions {
  * 4 wide is as wide as a node of size 4.
  */
 export const NODE_EXTENT_PER_SIZE = 1.5;
+
+/** The flat shapes an edge ends on without their outline: their box is it, or the ellipse in it is (`surfaceReach`). */
+const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellipse"]);
+
+/**
+ * The opacity a node's style draws its body at (`node.opacity`), as its source mesh's visibility.
+ * @param texture - The style's texture.
+ * @returns The opacity, 1 when the style names none.
+ */
+export function styleOpacity(texture: NodeStyleConfig["texture"]): number {
+    const color = texture?.color;
+    return typeof color === "object" && "opacity" in color ? (color.opacity ?? 1) : 1;
+}
 
 /** How deep a node drawn flat is, as a fraction of its smaller side: thin, but never zero. */
 const THIN_DEPTH_RATIO = 0.02;
@@ -421,7 +436,7 @@ export class NodeMesh {
             typeof createOptions.texture.color === "object" &&
             "opacity" in createOptions.texture.color
         ) {
-            mesh.visibility = createOptions.texture.color.opacity ?? 1;
+            mesh.visibility = styleOpacity(createOptions.texture);
         }
 
         return mesh;
@@ -1005,6 +1020,27 @@ export class NodeMesh {
         mesh.isPickable = false;
 
         return mesh;
+    }
+
+    /**
+     * The outline a line ends on for a flat shape whose outline is neither its box nor the ellipse in it (a star, a
+     * diamond, a cross, Pajek's man and woman): its fill's outline in units of its box's half size.
+     * @param createOptions - The node's shape and border.
+     * @param size - The node's size, when its shape gives none.
+     * @param fill - The node's own mesh, whose outline a solid's face is.
+     * @returns The outline, counter-clockwise, or null for a shape whose box or ellipse is its outline, or that is not
+     *     flat.
+     * @internal
+     */
+    static reachOutlineOf(createOptions: NodeMeshCreateOptions, size: number, fill: AbstractMesh): Point2[] | null {
+        const { shape } = createOptions;
+        const type = shape?.type;
+        const outlined =
+            type !== undefined &&
+            isFlatShape(type) &&
+            !BOX_OR_ELLIPSE.has(type) &&
+            !(type === "polygon" && drawnAgainstBox(shape?.points));
+        return outlined ? inUnitBox(this.faceOf(createOptions, size, fill).outline) : null;
     }
 
     /**

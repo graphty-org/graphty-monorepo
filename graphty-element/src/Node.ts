@@ -53,7 +53,7 @@ import {
     type TableDecoration,
 } from "./meshes/NodeDecorationMesh";
 import { NodeEffects } from "./meshes/NodeEffects";
-import { NodeMesh } from "./meshes/NodeMesh";
+import { NodeMesh, styleOpacity } from "./meshes/NodeMesh";
 import {
     NodeShaderDrawing,
     type NodeShaderLook,
@@ -65,7 +65,7 @@ import { pictureSize } from "./meshes/pictureSize";
 import { readColor } from "./meshes/readColor";
 import { type AttachPosition, RichTextLabel, type RichTextLabelOptions } from "./meshes/RichTextLabel";
 import { pixelsPerUnit } from "./meshes/screenSize";
-import { drawnAgainstBox, inUnitBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
+import { drawnAgainstBox, isFlatShape, type Point2, shapeTexts } from "./meshes/shapeOutlines";
 import type { TemplateAnimation } from "./models/animateTemplate";
 import { loadedChunk } from "./models/loadModel";
 import {
@@ -323,9 +323,6 @@ export function collectResizedNodes(work: () => void): Set<Node> {
  * no single radius that describes where its surface is.
  */
 const ROUND_SHAPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
-
-/** The flat shapes an edge ends on without their outline: their box is it, or the ellipse in it is (`surfaceReach`). */
-const BOX_OR_ELLIPSE: ReadonlySet<string> = new Set(["rectangle", "none", "ellipse"]);
 
 /** The shapes whose mesh is its box, see {@link Node.surfaceIsClosedForm}. */
 const CLOSED_FORM_SHAPES: ReadonlySet<string> = new Set(["box", "rectangle"]);
@@ -1916,6 +1913,16 @@ export class Node implements ModelUser {
      */
     get drawnOpacity(): number {
         return this.#mesh?.visibility ?? this.batchOpacity;
+    }
+
+    /**
+     * The opacity its style draws its body at (`node.opacity`), whatever draws it: a line's end shows through a body
+     * drawn under 1, so it stops at the outline (`RowTable.measure`, `Edge.bareEnd`).
+     * @returns The opacity.
+     * @internal
+     */
+    get paintedOpacity(): number {
+        return styleOpacity(this.drawnStyle?.texture);
     }
 
     /**
@@ -3913,20 +3920,11 @@ export class Node implements ModelUser {
 
         const style = this.drawnStyle;
         const shape = style?.shape;
-        const type = shape?.type;
-        const outlined = type !== undefined && isFlatShape(type) && !BOX_OR_ELLIPSE.has(type) && !this.surfaceIsBox;
-        const value = outlined
-            ? inUnitBox(
-                  NodeMesh.faceOf(
-                      {
-                          shape: this.fittedExtent === null ? shape : { ...shape, ...this.fittedExtent },
-                          border: style?.border,
-                      },
-                      this.size,
-                      source,
-                  ).outline,
-              )
-            : null;
+        const value = NodeMesh.reachOutlineOf(
+            { shape: this.fittedExtent === null ? shape : { ...shape, ...this.fittedExtent }, border: style?.border },
+            this.size,
+            source,
+        );
         this.reachOutlineBuilt = { mesh: source, style, fit: this.fittedExtent, value };
         return value;
     }

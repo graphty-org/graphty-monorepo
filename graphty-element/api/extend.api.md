@@ -2416,6 +2416,8 @@ class Node_2 implements ModelUser {
     // @internal
     get paintedColor(): Rgba | null;
     // @internal
+    get paintedOpacity(): number;
+    // @internal
     get paintedSourceMesh(): AbstractMesh;
     // (undocumented)
     parentGraph: Graph | GraphContext;

@@ -66,6 +66,7 @@
  * it, which is what dashing the centre line and then stroking each dash would draw.
  */
 
+import { EDGE_TRIM_GLSL, ROW_EXTENT_ELLIPSE, ROW_EXTENT_ROUND, ROW_EXTENT_SEEN_THROUGH } from "./edgeTrim";
 import { PULLED_CURVE_GLSL } from "./pulledCurve";
 
 /** The longest miter drawn, as a multiple of half the line's width (SVG's and Canvas's limit). */
@@ -186,6 +187,96 @@ const LEAN_CORNERS = LEAN_TEMPLATE_INDICES.map((i) => LEAN_TEMPLATE_OF[i] ?? 0);
  * `perTotal` is 0 and the pattern branch is off). A piece at or past the span's last point draws
  * nothing, so an edge holds as many pieces as its longest cut.
  */
+/**
+ * A straight pulled piece's ends at translucent rows (#8281): a body drawn under opacity 1 shows the line through it,
+ * so the line leaves such a row where `Edge.leaveNode` says, at its drawn outline and border, and leaves any other
+ * row at its centre, which the body hides. Read per row from `rowExtent` (`RowTable.measure`): the seen-through flag,
+ * then the closed forms of `EDGE_TRIM_GLSL` (round, flat ellipse, box) or, for a flat shape with an outline of its
+ * own, its sides in `rowOutline`, as `surfaceReach` reads them. Nothing per edge is written on the CPU.
+ */
+export const PULLED_TRIM_GLSL = `
+uniform highp sampler2D rowExtent;
+uniform highp sampler2D rowOutline;
+${EDGE_TRIM_GLSL}
+
+// one function a table: WebGPU's GLSL takes no sampler as an argument
+vec4 pulledExtent(int i) {
+    return texelFetch(rowExtent, ivec2(i & 1023, i >> 10), 0);
+}
+
+vec4 pulledSide(int i) {
+    return texelFetch(rowOutline, ivec2(i & 1023, i >> 10), 0);
+}
+
+// shapeOutlines.rayReach: the farthest crossing of the outline's sides by a ray from its centre
+float pulledOutlineReach(float code, vec2 u) {
+    int named = int(code + 0.5);
+    int first = named >> 10;
+    int count = named & 1023;
+    float far = 0.0;
+    for (int i = 0; i < 1023; i++) {
+        if (i >= count) {
+            break;
+        }
+        vec4 side = pulledSide(first + i);
+        vec2 e = side.zw - side.xy;
+        float denom = u.x * e.y - u.y * e.x;
+        if (denom != 0.0) {
+            float t = (side.x * e.y - side.y * e.x) / denom;
+            float s = (side.x * u.y - side.y * u.x) / denom;
+            if (s >= 0.0 && s <= 1.0 && t > far) {
+                far = t;
+            }
+        }
+    }
+    return far;
+}
+
+// How far from a row's centre a line leaving it along dir starts: Edge.reachOf for a seen-through row, else 0.
+float pulledReach(int row, float w, vec3 dir) {
+    vec4 a = pulledExtent(row * 3);
+    int flags = int(a.w + 0.5);
+    if ((flags & ${String(ROW_EXTENT_SEEN_THROUGH)}) == 0) {
+        return 0.0;
+    }
+    vec4 b = pulledExtent(row * 3 + 1);
+    vec4 c = pulledExtent(row * 3 + 2);
+    vec3 halfSize = b.xyz * w;
+    if (c.w > 0.0 && halfSize.x > 0.0 && halfSize.y > 0.0 && (dir.x != 0.0 || dir.y != 0.0)) {
+        float reach = pulledOutlineReach(c.w, dir.xy / halfSize.xy);
+        if (reach > 0.0) {
+            return reach + a.z;
+        }
+    }
+    EdgeTrimEnd end;
+    end.radius = (flags & ${String(ROW_EXTENT_ROUND)}) != 0 ? a.y * w : -1.0;
+    end.halfSize = halfSize;
+    end.ellipse = (flags & ${String(ROW_EXTENT_ELLIPSE)}) != 0 ? 1.0 : 0.0;
+    end.border = a.z;
+    end.gap = 0.0;
+    end.measured = -1.0;
+    end.leaves = 0.0;
+    end.group = 0.0;
+    return edgeTrimReach(dir, end) + a.z;
+}
+
+// Edge.leaveNode at both ends: each moves toward the other by its reach, never past the other centre. No name here
+// may be one WGSL reserves ("from"): WebGPU's translation keeps the names, and its pipeline would be invalid.
+void pulledTrim(int fromRow, int toRow, float fromW, float toW, inout vec3 head, inout vec3 tail) {
+    vec3 line = tail - head;
+    float span = length(line);
+    if (span <= 0.0) {
+        return;
+    }
+    vec3 dir = line / span;
+    float fromReach = pulledReach(fromRow, fromW, dir);
+    float toReach = pulledReach(toRow, toW, -dir);
+    vec3 start = head + dir * min(fromReach, span);
+    tail = tail - dir * min(toReach, span);
+    head = start;
+}
+`;
+
 const PULLED_EDGE_GLSL = `
 #ifdef EDGE_PULLED
 uniform highp sampler2D rowPosition;
@@ -220,6 +311,7 @@ ${PULLED_CURVE_GLSL}
 const int PIECE_TEXELS = 4;
 #else
 const int PIECE_TEXELS = 2;
+${PULLED_TRIM_GLSL}
 #endif
 
 void pullEdge() {
@@ -273,6 +365,7 @@ void pullEdge() {
         if (a.w * b.w != 0.0) {
             pA = a.xyz;
             pB = b.xyz;
+            pulledTrim(int(rows.x + 0.5), int(rows.y + 0.5), a.w, b.w, pA, pB);
         }
     }
     pPrev = pA;

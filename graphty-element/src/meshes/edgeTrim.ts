@@ -14,6 +14,13 @@
 import { surfaceReach, type Xyz } from "./edgeRoute";
 import type { Point2 } from "./shapeOutlines";
 
+/** The `rowExtent` flag of a row whose surface is the same distance from its center every way (`RowTable`). */
+export const ROW_EXTENT_ROUND = 1;
+/** The `rowExtent` flag of a row drawn as a flat ellipse, whose box corners are empty. */
+export const ROW_EXTENT_ELLIPSE = 2;
+/** The `rowExtent` flag of a row whose body is drawn translucent: a plain line stops at its outline (#8281). */
+export const ROW_EXTENT_SEEN_THROUGH = 4;
+
 /** {@link TrimEnd.measured} of an end {@link surfaceReach} works out. */
 export const TRIM_CLOSED = -1;
 

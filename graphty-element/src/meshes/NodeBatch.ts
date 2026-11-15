@@ -17,7 +17,9 @@ import type { RowMeasure } from "../render/RowTable";
 import { batchUploadFrames } from "./FrameRoster";
 import { handOverTogether } from "./handOverTogether";
 import type { MeshCache } from "./MeshCache";
+import { NodeMesh, styleOpacity } from "./NodeMesh";
 import { attachRowPull } from "./RowPullPlugin";
+import type { Point2 } from "./shapeOutlines";
 
 /**
  * @file Draw the rows of one source mesh in one draw call (design/rendering/row-renderer.md 4.2).
@@ -491,6 +493,9 @@ const UNLIT_VIEW: BatchView = { flatOutline: false };
 /** The shapes a row can be round from every side as, as `Node` keeps them. */
 const ROUND_TYPES: ReadonlySet<string> = new Set(["sphere", "icosphere"]);
 
+/** Each source mesh's reach outline ({@link ColumnRow.reachOutline}): every row of a look shares it. */
+const REACH_OUTLINES = new WeakMap<Mesh, Point2[] | null>();
+
 /**
  * A row with no `Node`, drawn from its paint alone: the look, color and size the style stack
  * resolved for it, and the source mesh that look draws from. It has no mesh, anchor, label or
@@ -625,6 +630,38 @@ export class ColumnRow implements RowMeasure {
      */
     get outlineHalfExtents(): Readonly<{ x: number; y: number; z: number }> {
         return this.drawnHalfExtents;
+    }
+
+    /**
+     * The opacity its paint draws its body at, as `Node.paintedOpacity` reads a node's.
+     * @returns The opacity.
+     */
+    get paintedOpacity(): number {
+        return styleOpacity(this.paint.style.texture);
+    }
+
+    /**
+     * Its paint's shape.
+     * @returns The shape's type.
+     */
+    get shapeType(): string | undefined {
+        return this.paint.style.shape?.type;
+    }
+
+    /**
+     * The outline a line ends on, as `Node.reachOutline` builds it, once per source mesh: a row has no label to fit.
+     * @returns The outline, or null for a shape whose box or ellipse is its outline.
+     */
+    get reachOutline(): readonly (readonly [x: number, y: number])[] | null {
+        const source = this.paintedSourceMesh;
+        let outline = REACH_OUTLINES.get(source);
+        if (outline === undefined) {
+            const { shape, border } = this.paint.style;
+            outline = NodeMesh.reachOutlineOf({ shape, border }, shape?.size ?? 0, source);
+            REACH_OUTLINES.set(source, outline);
+        }
+
+        return outline;
     }
 
     /**

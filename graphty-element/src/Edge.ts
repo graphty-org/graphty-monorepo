@@ -75,6 +75,7 @@ import { isPositive } from "./meshes/shapeOutlines";
 import { SUPPORT_DEFAULTS, type SupportEdge } from "./meshes/supportPoints";
 import { Node, NodeIdType, XLABEL_UNSHARED } from "./Node";
 import { edgeDrawChanges } from "./render/EdgeIdTarget";
+import type { RowMeasure } from "./render/RowTable";
 import { frozenRecord } from "./session/project/draft";
 import { placeOfUse } from "./session/styles/channels";
 
@@ -1722,13 +1723,36 @@ export class Edge {
      */
     private bareEnd(end: "source" | "target", centre: Vector3, toward: Vector3): Vector3 {
         const gap = this.gapAt(end);
-        // an end drawn in front of edges hides the line's start at its centre, and asks nothing of its node
+        // an end drawn in front of edges hides the line's start at its centre, and asks nothing of its node, unless its
+        // body is translucent and would show the line through it: then the line leaves at its outline, as the batched
+        // path's shader leaves it (`PULLED_TRIM_GLSL`, #8281)
         if (gap <= 0 && !this.endBehindEdges(end)) {
-            return centre;
+            const seen = this.seenThroughEnd(end);
+            return seen === null ? centre : this.leaveNode(seen, centre, toward);
         }
 
         const node = end === "source" ? this.srcNode : this.dstNode;
         return gap > 0 ? this.leaveNode(node, centre, toward, gap) : this.groupEnd(node, centre, toward);
+    }
+
+    /**
+     * One end's node or row when its body is drawn translucent (`node.opacity` under 1), else null. An end stored
+     * with no `Node` and not painted yet holds the bootstrap paint, which is opaque: asking its `Node` would build one.
+     * @param end - Which end.
+     * @returns The node or row, or null.
+     */
+    private seenThroughEnd(end: "source" | "target"): RowMeasure | null {
+        const row = this.columnEnd(end);
+        if (row !== undefined) {
+            return row.paintedOpacity < 1 ? row : null;
+        }
+
+        if (this.unbuiltEnd(end) !== INVALID_INDEX) {
+            return null;
+        }
+
+        const node = end === "source" ? this.srcNode : this.dstNode;
+        return node.paintedOpacity < 1 ? node : null;
     }
 
     /**
@@ -2849,14 +2873,11 @@ export class Edge {
         }
 
         const scene = this.context.getScene();
-        const batch = EdgeMesh.pulledBatch(
-            this.context.getMeshCache(),
-            options,
-            style,
-            scene,
-            () => rows.positionTexture,
-            { loop: this.isLoop, route: this.routeOf(style), lean: this.context.leansLines?.() ?? false },
-        );
+        const batch = EdgeMesh.pulledBatch(this.context.getMeshCache(), options, style, scene, () => rows, {
+            loop: this.isLoop,
+            route: this.routeOf(style),
+            lean: this.context.leansLines?.() ?? false,
+        });
         // As `createStaticLine` hands the plain line's material its look.
         const opacity = EdgeMesh.opacityOf(style);
         const animationSpeed = style.line?.animationSpeed ?? 0;
@@ -4109,7 +4130,7 @@ export class Edge {
      * @param dir - The unit direction.
      * @returns The distance.
      */
-    private static reachOf(node: Node, dir: Xyz): number {
+    private static reachOf(node: RowMeasure, dir: Xyz): number {
         return (
             surfaceReach(
                 dir,
@@ -4525,7 +4546,7 @@ export class Edge {
      * @param gap - How far past the outline the line stops (`line.nodeGap`).
      * @returns The crossing, or the center when the point is the center.
      */
-    private leaveNode(node: Node, centre: Vector3, toward: Vector3, gap = 0): Vector3 {
+    private leaveNode(node: RowMeasure, centre: Vector3, toward: Vector3, gap = 0): Vector3 {
         const dir = toward.subtract(centre);
         const span = dir.length();
         if (span === 0) {

@@ -222,6 +222,7 @@ interface EdgeInternals {
     outlineSlots: number[];
     haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[];
     lineIsCurve: boolean;
+    bareEnd: (end: "source" | "target", centre: Vector3, toward: Vector3) => Vector3;
     drawnStyle: {
         line?: { bezier?: boolean; gradient?: { kind?: string }; taper?: number };
         arrowHead?: { gap?: number; position?: number };
@@ -1884,9 +1885,11 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         ({ opacity } = fields);
         dashPx = elementDashes(pm.elements, p);
     } else if (internal.pulled?.run === null) {
-        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centres, in the
+        // a straight line pulled from the row table (`PulledLineBatch`) runs between its two node centres, stopped at
+        // a translucent end's outline as its shader stops it (`PULLED_TRIM_GLSL`, the object line's bare ends), in the
         // color, opacity and width its piece carries (`PulledLineBatch.setLook`): the batched path's plain lines
-        world = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
+        const [src, dst] = [edge.srcNode.drawnPosition, edge.dstNode.drawnPosition];
+        world = [internal.bareEnd.call(edge, "source", src, dst), internal.bareEnd.call(edge, "target", dst, src)];
         const { batch, piece } = internal.pulled;
         const look = batch as unknown as { rows: Float32Array; pieceFloats: number };
         const at = piece * look.pieceFloats;

@@ -43,6 +43,16 @@
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# How long the whole run and its review took, one line each in <main checkout>/tmp/step-times.jsonl
+# (tools/step-log.mjs). The log never fails or changes the run.
+log_step() { node "$here/step-log.mjs" "$@" >/dev/null 2>&1 || true; }
+run_start=$(date +%s%3N)
+on_exit() {
+    local rc=$?
+    log_step pr-open "$run_start" total "$rc"
+    [ -z "${tmp_files:-}" ] || rm -f $tmp_files
+}
+trap on_exit EXIT
 die() {
     echo "pr-open: $*" >&2
     exit "${code:-1}"
@@ -73,9 +83,8 @@ for v in $(env | sed -n 's/^\(GIT_CONFIG_\(COUNT\|KEY_[0-9]*\|VALUE_[0-9]*\)\)=.
 [ -n "$proof" ] && [ -s "$proof" ] || die "--proof <file> is required and must not be empty: what you ran and what it showed"
 branch=$(git symbolic-ref -q --short HEAD) || die "HEAD is detached; check out the branch"
 case "$branch" in master | golden | golden-cut | golden-verified) die "refusing to open a pull request from $branch" ;; esac
-[ -n "$issue" ] || issue=$(git config "branch.$branch.issue" || true)
-# Only the number right after the type prefix: a date or a commit id elsewhere in the name is not an issue.
-[ -n "$issue" ] || issue=$(printf '%s\n' "$branch" | sed -nE 's#^[a-z0-9-]+/([0-9]{3,})(-[a-zA-Z].*)?$#\1#p')
+# Its branch.<b>.issue setting, else the number right after the type prefix (tools/branch-note.mjs issueInName).
+[ -n "$issue" ] || issue=$(node "$here/branch-note.mjs" issue-of "$branch" || true)
 [[ "$issue" =~ ^[0-9]+$ ]] || die "$branch names no issue (pass --issue N, or name it as in fix/1234-topic)"
 [ -z "$(git status --porcelain)" ] || die "the worktree has uncommitted or untracked changes; commit them first"
 [ ! -e "$(git rev-parse --git-path MERGE_HEAD)" ] || die "a merge is in progress; finish it first"
@@ -111,7 +120,9 @@ fi
 # The fresh-context review, before anything is pushed. It prints its report's path; exit 3 is a blocking finding.
 review="${PR_OPEN_REVIEW:-$here/pr-review.sh}"
 rc=0
+review_start=$(date +%s%3N)
 report=$("$review" --proof "$proof" --issue "$issue" --reuse) || rc=$?
+log_step pr-open-review "$review_start" review "$rc"
 if [ "$rc" = 3 ] && [ "$answered" = 1 ]; then
     echo "pr-open: opening with the review's blocking findings answered in the Proof (--review-answered)" >&2
 elif [ "$rc" = 3 ]; then
@@ -140,7 +151,7 @@ existing=$(gh pr list --head "$branch" --base master --state open --json url,aut
 url=${existing%% *}
 author=${existing#* }
 body=$(mktemp) section=$(mktemp)
-trap 'rm -f "$body" "$section"' EXIT
+tmp_files="$body $section"
 {
     echo "## Proof"
     echo
@@ -197,10 +208,11 @@ fi
 # config, graphty's in-test comparison), the release (approvals, holds, release.yml and the scripts that read
 # them), the agents' credential guard and settings, the quarantine list and its reader, the two safeguards
 # left on an unheld CI change (the fresh review and PR Integrity), and the two that hold breaking changes
-# (this script and pr-title.yml). A change to one waits for the owner; every other CI change merges on green.
+# (this script and pr-title.yml), and the save-file checks with their exceptions list (graphty-element/test/
+# saved-format/ and its push check). A change to one waits for the owner; every other CI change merges on green.
 # Gap the owner accepted: ci.yml's own gate steps are not held, so a pull request can still change a check
 # that judges it; code-owner review closes that when it is turned on.
-GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$)'
+GUARD_PATHS='^(visual-review/|visual-review\.config\.json$|(.*/)?\.storybook/vitest\.setup\.|release-[^/]*\.json$|\.github/workflows/release\.yml$|tools/release-(approvals|hold|not-breaking)\.mjs$|tools/claude-owner-credential-guard\.mjs$|\.claude/settings\.json$|tools/test-quarantine\.(json|mjs)$|tools/pr-open\.sh$|tools/pr-review\.sh$|tools/pr-integrity\.mjs$|tools/check-test-integrity\.mjs$|\.github/workflows/(pr-title|dependabot-automerge)\.yml$|graphty-element/test/saved-format/|tools/check-saved-format-allowlist\.mjs$)'
 hold=""
 # A here-string, not a pipe: grep -q stops at the first match, and pipefail would read git's SIGPIPE as no match.
 # A commit master's release-not-breaking.json lists is the owner's ruling that it is not breaking: skipped.

@@ -108,7 +108,8 @@ export function readInput(path) {
 
 /**
  * Imports a file twice through graph-io's public API: with the writing tool's defaults, and without them (what the
- * file itself states). Returns null when the file does not import or has no styles.
+ * file itself states). When it does not import, returns `{ error }`: the stopping issue's code (an ImportError's
+ * `issue.code`, else the error's `code` or name) and its message.
  */
 export async function importStyled(bytes, format, filename, extra = {}) {
     const opts = { format, filename, errorLimit: Infinity, ...extra };
@@ -116,8 +117,8 @@ export async function importStyled(bytes, format, filename, extra = {}) {
     try {
         all = await importGraph(bytes, { ...opts, styles: true });
         own = await importGraph(bytes, { ...opts, styles: { toolDefaults: false } });
-    } catch {
-        return null;
+    } catch (err) {
+        return { error: { code: err.issue?.code ?? err.code ?? err.name, message: err.issue?.message ?? err.message } };
     }
     if (!all.styles || !own.styles) {
         return { snapshot: all.snapshot, styled: false };
@@ -226,6 +227,18 @@ export class Tally {
 
     skip(file, why) {
         this.skipped.push({ file: shown(file), why });
+    }
+
+    /**
+     * Records a file graph-io does not import: an unexplained difference when the file is expected to import (a
+     * regression), else a file not compared, with the error's code.
+     */
+    importFailed(file, error, expectedToImport = false) {
+        if (expectedToImport) {
+            this.unexplained.push({ key: "import", kind: "failed", file: shown(file), ...error });
+            return;
+        }
+        this.skip(file, `graph-io does not import it: ${error.code}: ${error.message}`);
     }
 
     /**

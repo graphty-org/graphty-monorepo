@@ -37,7 +37,8 @@ export function GraphPlace(): React.JSX.Element {
             ? { name: projectName, hasGraph: false }
             : {
                   name: session.data.source()?.name ?? projectName,
-                  hasGraph: session.data.statistics().nodeCount > 0,
+                  // A graph a filter hides all of is still a graph.
+                  hasGraph: session.data.statistics({ scope: "all" }).nodeCount > 0,
               };
     }, [session, version, projectName]);
 

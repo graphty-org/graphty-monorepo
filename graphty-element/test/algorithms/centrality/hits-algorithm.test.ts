@@ -2,20 +2,9 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { HITSAlgorithm } from "../../../src/algorithms/HITSAlgorithm";
-import { createMockGraph, getNodeResult, type MockGraphOpts } from "../../helpers/mockGraph";
+import { asNumber, createMockGraph, getNodeResult } from "../../helpers/mockGraph";
 
-/**
- * The shared mock, kept behind the name and the loose return type this file already used.
- *
- * It carries a real graph store, which is where an algorithm now reads its input from; the node
- * and edge maps it also exposes are where the results land.
- * @param opts - which fixture to load
- * @returns the mock graph
- */
-
-async function mockGraph(opts: MockGraphOpts = {}): Promise<any> {
-    return createMockGraph(opts);
-}
+const mockGraph = createMockGraph;
 
 describe("HITSAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -45,10 +34,10 @@ describe("HITSAlgorithm", () => {
 
                 assert.isNumber(getNodeResult(algo, node.id, "graphty", "hits", "hubScore"));
                 assert.isNumber(getNodeResult(algo, node.id, "graphty", "hits", "authorityScore"));
-                assert.isAtLeast(getNodeResult(algo, node.id, "graphty", "hits", "hubScorePct"), 0);
-                assert.isAtMost(getNodeResult(algo, node.id, "graphty", "hits", "hubScorePct"), 1);
-                assert.isAtLeast(getNodeResult(algo, node.id, "graphty", "hits", "authorityScorePct"), 0);
-                assert.isAtMost(getNodeResult(algo, node.id, "graphty", "hits", "authorityScorePct"), 1);
+                assert.isAtLeast(asNumber(getNodeResult(algo, node.id, "graphty", "hits", "hubScorePct")), 0);
+                assert.isAtMost(asNumber(getNodeResult(algo, node.id, "graphty", "hits", "hubScorePct")), 1);
+                assert.isAtLeast(asNumber(getNodeResult(algo, node.id, "graphty", "hits", "authorityScorePct")), 0);
+                assert.isAtMost(asNumber(getNodeResult(algo, node.id, "graphty", "hits", "authorityScorePct")), 1);
             }
         });
 
@@ -68,8 +57,8 @@ describe("HITSAlgorithm", () => {
                 assert.isDefined(getNodeResult(algo, node.id, "graphty", "hits", "combinedScore"));
                 assert.isDefined(getNodeResult(algo, node.id, "graphty", "hits", "combinedScorePct"));
                 assert.isNumber(getNodeResult(algo, node.id, "graphty", "hits", "combinedScore"));
-                assert.isAtLeast(getNodeResult(algo, node.id, "graphty", "hits", "combinedScorePct"), 0);
-                assert.isAtMost(getNodeResult(algo, node.id, "graphty", "hits", "combinedScorePct"), 1);
+                assert.isAtLeast(asNumber(getNodeResult(algo, node.id, "graphty", "hits", "combinedScorePct")), 0);
+                assert.isAtMost(asNumber(getNodeResult(algo, node.id, "graphty", "hits", "combinedScorePct")), 1);
             }
         });
     });

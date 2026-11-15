@@ -127,6 +127,50 @@ async function nextReading(session: GraphSession, rule: RuleTree, act: () => unk
 }
 
 describe("watchSteps", () => {
+    it("says how many of a whole-graph reading's members are shown, and hears a filter change", async () => {
+        const session = await lesMis();
+        const staff = IDS.filter((_, at) => ROLE(at) === "staff");
+        const kept = IDS.slice(0, 20);
+        await session.visibility.set({ kind: "member", of: { nodes: kept } });
+        const given = { side: "nodes", within: "graph" } as const;
+        const heard: StepsReading[] = [];
+        const watch = session.scope.watchSteps(STAFF, (reading) => heard.push(reading), given);
+        const shownStaff = staff.filter((id) => kept.includes(id)).length;
+        assert.deepStrictEqual(watch.current.total, { count: staff.length, of: IDS.length, shown: shownStaff });
+
+        const changed = new Promise<void>((resolve) => {
+            const each = session.scope.watchSteps(
+                STAFF,
+                () => {
+                    each.end();
+                    resolve();
+                },
+                given,
+            );
+        });
+        await session.visibility.set(null);
+        await changed;
+        assert.deepStrictEqual(heard.at(-1)?.total, { count: staff.length, of: IDS.length, shown: staff.length });
+        watch.end();
+        session.dispose();
+    });
+
+    it("counts what a filter condition leaves shown, for a whole-graph reading beside it", async () => {
+        const session = await lesMis();
+        await session.visibility.addCondition({ effect: "keep", rule: { kind: "degree", min: 6 } });
+        const shownIds = new Set([...session.visibility.nodes].map(String));
+        assert.isBelow(shownIds.size, IDS.length, "the condition hides some nodes");
+        const staff = IDS.filter((_, at) => ROLE(at) === "staff");
+        const watch = session.scope.watchSteps(STAFF, () => undefined, { side: "nodes", within: "graph" });
+        assert.deepStrictEqual(watch.current.total, {
+            count: staff.length,
+            of: IDS.length,
+            shown: staff.filter((id) => shownIds.has(id)).length,
+        });
+        watch.end();
+        session.dispose();
+    });
+
     it("reads every branch and step: counts, ids, colors, the base and the order icon", async () => {
         const session = await lesMis();
         const rule: UnionLeaf = {
@@ -331,6 +375,38 @@ describe("watchSteps", () => {
                 },
             )?.code,
             "nested-union",
+        );
+    });
+
+    it("checkStep refuses a filter step reading a run over the visible graph, however the rule names it", async () => {
+        const session = await lesMis();
+        await session.visibility.addCondition({ effect: "keep", rule: STAFF });
+        const run = session.runs.start("degree", {}, { scope: "visible", style: false });
+        await run;
+        const field = `results.${run.id}.value`;
+        const rules: RuleTree[] = [
+            { kind: "range", attribute: field, min: 1 },
+            { kind: "threshold", path: field, top: 3 },
+            { kind: "expression", where: `${field} > \`1\`` },
+            { kind: "edges", where: `${field} > \`1\`` },
+            { kind: "member", of: { where: `${field} > \`1\`` } },
+            { kind: "item", item: { result: run.id, key: { field: "group", value: 1 } } },
+            { kind: "not", of: { kind: "any", of: [STAFF, { kind: "expression", where: `${field} > \`1\`` }] } },
+        ];
+        for (const rule of rules) {
+            assert.deepEqual(
+                session.scope.checkStep({ op: "keep", rule }, { side: "nodes", within: "graph", host: "filter" }),
+                { code: "circular-scope", params: {} },
+                rule.kind,
+            );
+        }
+
+        assert.isNull(
+            session.scope.checkStep(
+                { op: "keep", rule: rules[2] },
+                { side: "nodes", within: "graph", host: "selector" },
+            ),
+            "only a filter reads its own output",
         );
     });
 

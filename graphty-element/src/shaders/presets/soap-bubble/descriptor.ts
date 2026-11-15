@@ -15,6 +15,7 @@ export const DESCRIPTOR: ShaderDescriptor = Object.freeze({
     target: "group",
     place: "group",
     categories: Object.freeze(["Bubble"]),
+    tags: Object.freeze(["bubble"]),
     form: "sphere",
     // The bubble clears its outermost members by 2.5 of their radii.
     reach: 6,

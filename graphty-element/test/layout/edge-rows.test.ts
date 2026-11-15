@@ -104,4 +104,40 @@ describe("a force engine takes an edge with no Edge as an edge row", () => {
         simulation.addEdgeRows([{ key: "r1", source: "a", target: "a2" }]);
         assert.strictEqual(simulation.ngraph.getLinksCount(), 1);
     });
+    // An `Edge` built late (the paint loop needs one) takes the row's link over: the layout keeps its
+    // springs and stays settled, where dropping the row and adding the Edge unsettled it.
+    it("hands an Edge built late its row's ngraph link, leaving the layout settled", () => {
+        const a = node("a", 0);
+        const b = node("b", 1);
+        const simulation = new NGraphEngine({});
+        layoutEngineInternals.addNodes(simulation, [a, b]);
+        simulation.addEdgeRows([{ key: "r1", source: "a", target: "b" }]);
+        while (!simulation.isSettled) {
+            simulation.step();
+        }
+
+        const ab = edge(a, b);
+        assert.isTrue(simulation.adoptEdgeRow("r1", ab));
+        assert.isTrue(simulation.isSettled);
+        assert.strictEqual(simulation.ngraph.getLinksCount(), 1);
+        assert.deepStrictEqual([...simulation.edges], [ab]);
+        assert.isFalse(simulation.adoptEdgeRow("r1", ab), "the row has no link left to hand over");
+        simulation.removeEdge(ab);
+        assert.strictEqual(simulation.ngraph.getLinksCount(), 0);
+    });
+
+    it("hands an Edge built late its row's d3 link, without reheating", () => {
+        const a = node("a", 0);
+        const b = node("b", 1);
+        const simulation = new D3GraphEngine({});
+        layoutEngineInternals.addNodes(simulation, [a, b]);
+        simulation.addEdgeRows([{ key: "r1", source: "a", target: "b" }]);
+        simulation.step();
+
+        const ab = edge(a, b);
+        assert.isTrue(simulation.adoptEdgeRow("r1", ab));
+        assert.isFalse(simulation.graphNeedsRefresh);
+        assert.deepStrictEqual([...simulation.edges], [ab]);
+        assert.deepStrictEqual(layoutEngineInternals.edgeProblems(simulation, new Map([["a-b", ab]])), []);
+    });
 });

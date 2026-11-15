@@ -2316,8 +2316,7 @@ const sourceCache = new Map();
  * The source file a package's build output was built from, or null when that is not known for certain:
  *  1. a source map that names exactly one source (tsc's output, file for file, and a one-module chunk);
  *  2. an entry whose type shim only re-exports one module (`export * from "./src/formats/dot/index.js";`,
- *     written beside each entry by graph-io's, graph-samples', graph-format's and webgpu-graph-algorithms'
- *     bundle-types scripts);
+ *     written beside each entry by writeDeclarationShims in tools/build-bundle.mjs);
  *  3. the `"."` export of a package whose build names exactly one entry (`entry: "src/index.ts"` in its Vite
  *     config or scripts/build-bundle.js: compact-mantine, layout).
  * A bundle of many modules with none of these (graphty-element's) stays a build output, so a change to that
@@ -3346,7 +3345,8 @@ async function main(argv) {
     const base = arg("--base") ?? "origin/master";
     const head = arg("--head") ?? "HEAD";
     const changed = changedFiles(root, base, head);
-    // a pull request's selection: the full-run-only On shards are never in it, nor in its import graphs
+    // a pull request's selection: the full-run-only shards are never in it; the On shards are (their selected
+    // files run on a pull request, tools/ci-test-matrix.mjs plan()), with their -features-on import graphs
     const shards = SHARDS.filter((s) => !s["full-run-only"]);
     const selection = await selectChange(root, changed, shards, undefined, argv.includes("--defer-downstream"), {
         base,

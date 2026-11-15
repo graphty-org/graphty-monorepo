@@ -306,7 +306,7 @@ describe("status, row by row of the design's table", () => {
             assert.strictEqual(statusOfSet(f, overKept).freshness, "current", kind);
 
             f.harness.store.builder.removeNode("b");
-            f.harness.store.touch();
+            f.harness.store.account();
             f.harness.session.data.snapshot();
 
             assert.deepStrictEqual(

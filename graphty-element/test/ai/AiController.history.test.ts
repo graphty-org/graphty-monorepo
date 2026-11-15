@@ -103,6 +103,20 @@ describe("AiController history", () => {
         );
     });
 
+    it("says the open conversation changed once it opens a new one, so a host that redraws on it shows it", async () => {
+        const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
+        await assistant.controller.ready();
+
+        const id = assistant.controller.getConversation()?.id;
+        assert.isDefined(id);
+        assert.deepStrictEqual(
+            assistant.events.flatMap((event) =>
+                event.type === "ai-conversation-changed" ? [event.conversationId] : [],
+            ),
+            [id],
+        );
+    });
+
     it("exports the conversation as format 1, and lists nothing after the history is cleared", async () => {
         const assistant = new ScriptedAssistant(await assistantSession(), { history: "memory" });
         await assistant.say("add a node", [ADD_NODE]);
@@ -397,6 +411,36 @@ describe("AiController history", () => {
             (await reopened.controller.listConversations()).map((summary) => summary.id),
             [id],
         );
+    });
+
+    it("byProject: a project that opens while the store is still being read brings back its conversation", async () => {
+        const store = new MemoryStore();
+        const history = { store: "memory", byProject: true } as const;
+        const session = await assistantSession();
+        const first = new ScriptedAssistant(session, { history, store });
+        await first.say("hello");
+        const id = first.controller.getConversation()?.id;
+        const { text } = await session.project.save();
+        first.controller.dispose();
+
+        // A reload whose autosave restore opens the project before the store's first read answers.
+        let release = (): void => undefined;
+        const held = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        const slow = Object.assign(Object.create(store) as MemoryStore, {
+            list: async (key?: string) => {
+                await held;
+                return store.list(key);
+            },
+        });
+        const reloaded = new ScriptedAssistant(await assistantSession(), { history, store: slow });
+        await reloaded.session.project.open(text, { discard: true });
+        release();
+        await reloaded.controller.ready();
+        await vi.waitFor(() => {
+            assert.strictEqual(reloaded.controller.getConversation()?.id, id);
+        });
     });
 
     it("byProject: opening another project swaps out a conversation that has messages", async () => {

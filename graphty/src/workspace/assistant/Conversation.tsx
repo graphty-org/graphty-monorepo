@@ -1,6 +1,6 @@
 import type { AiConversationMessage, AiConversationSnapshot, AiStatus } from "@graphty/graphty-element/ai";
 import type { AiEffect, AiResultCode, AiResultParams } from "@graphty/graphty-element/catalog";
-import type { GraphSession } from "@graphty/graphty-element/session";
+import type { GraphSession, GraphtyErrorCode } from "@graphty/graphty-element/session";
 import { ActionIcon, Button, Collapse, Group, Stack, Text, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
@@ -47,7 +47,7 @@ interface Turn {
 
 /** How a turn ended. */
 interface Ending {
-    readonly code: AiResultCode;
+    readonly code: AiResultCode | GraphtyErrorCode;
     readonly params: AiResultParams;
 }
 

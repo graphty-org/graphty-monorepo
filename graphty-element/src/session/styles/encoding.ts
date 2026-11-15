@@ -58,7 +58,8 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
-import { shaderDescriptor } from "../../catalog/shaderRegistry";
+import { plannedShaderDescriptor, projectShaderDescriptor } from "../../catalog/shaderRegistry";
+import type { ShaderDescriptor } from "../../catalog/shaders";
 import type {
     Binding,
     BindingNumberFormat,
@@ -744,6 +745,11 @@ function settleAutomaticDomain(
     }
 
     if (placesDomain(map, base, [low, high])) {
+        // Every value the same: the scale paints the middle, and the reader is told why.
+        if (low === high) {
+            facts.push({ code: "legend.no-spread", params: { value: low } });
+        }
+
         return { domain: [low, high], notPlottable: 0, clamped, facts };
     }
 
@@ -1238,12 +1244,15 @@ function combineFactor(value: ChannelValue, what: string): number {
  *
  * A channel that carries a measurement reads one; a channel that carries a name, a word or a
  * switch takes the value as it is, because there is nothing between "gene" and a shape to
- * interpolate.
+ * interpolate. A binding that names its values with `map` takes them as they are on every
+ * channel: a map is a list of categories, not a measurement, and reading it through `"linear"`
+ * painted the map's colours while the legend described a ramp nobody drew.
  * @param kind - The kind of value the channel accepts.
+ * @param binding - The binding, read for `map`.
  * @returns The scale's name.
  */
-function defaultScaleFor(kind: ChannelValueKind): string {
-    return kind === "color" || kind === "number" ? "linear" : "passthrough";
+export function defaultScaleFor(kind: ChannelValueKind, binding: RuleBinding): string {
+    return binding.map === undefined && (kind === "color" || kind === "number") ? "linear" : "passthrough";
 }
 
 /**
@@ -1965,7 +1974,7 @@ function prepareRule(
         return prepareStops(descriptor, binding, options);
     }
 
-    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts);
+    const scale = binding.scale ?? defaultScaleFor(descriptor.accepts, binding);
     const map = options.scales.require(scale);
     const described = options.scales.describe(scale);
     if (described === undefined) {
@@ -2888,9 +2897,12 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
     const descriptor = requireChannel(channel);
     const count = Math.max(0, Math.floor(options.count));
     const numeric = descriptor.accepts === "number";
-    // Items are groups for a colour or a list value, amounts for a number.
+    // Items are groups for a colour or a list value, amounts for a number. The scale is named here
+    // because a map keyed by item position would otherwise default a number to "passthrough".
     const binding: RuleBinding =
-        options.binding.scale === undefined && !numeric ? { ...options.binding, scale: "ordinal" } : options.binding;
+        options.binding.scale === undefined
+            ? { ...options.binding, scale: numeric ? "linear" : "ordinal" }
+            : options.binding;
     if (count === 0) {
         return { channel: descriptor.channel, values: [], cue: null, palette: null };
     }
@@ -2926,12 +2938,16 @@ export function sequenceOf(options: SequenceOptions): StyleSequence {
  * The channel a bound shader parameter reads as: a number or a color between the parameter's
  * declared ends, landing on the layer's uses of its shader.
  * @param address - Where the binding points.
+ * @param describe - How the shader is looked up: the project's own, unless planning a write.
  * @returns A descriptor the binding is prepared against.
  * @throws A `GraphtyError`: `E_UNKNOWN_SHADER` when the catalog lists no such shader, and
  *   `E_UNKNOWN_SHADER_PARAM` when it declares no such parameter or does not let it vary.
  */
-export function shaderParamDescriptor(address: ShaderParamTarget): ChannelDescriptor {
-    const shader = shaderDescriptor(address.shader);
+export function shaderParamDescriptor(
+    address: ShaderParamTarget,
+    describe: (id: string) => ShaderDescriptor | undefined = projectShaderDescriptor,
+): ChannelDescriptor {
+    const shader = describe(address.shader);
     if (shader === undefined) {
         throw new GraphtyError({
             code: "E_UNKNOWN_SHADER",
@@ -2988,7 +3004,8 @@ export function shaderParamChannel(address: ShaderParamAddress): ChannelDescript
         });
     }
 
-    return shaderParamDescriptor(target);
+    // A description for a picker, before any write: a catalog shader the write would copy in counts.
+    return shaderParamDescriptor(target, plannedShaderDescriptor);
 }
 
 /**
@@ -3003,7 +3020,8 @@ function prepareParamBinding(address: ShaderParamTarget, options: PrepareBinding
     const descriptor = shaderParamDescriptor(address);
     const { binding } = options;
     const integer =
-        shaderDescriptor(address.shader)?.params.find((entry) => entry.name === address.param)?.type === "integer";
+        projectShaderDescriptor(address.shader)?.params.find((entry) => entry.name === address.param)?.type ===
+        "integer";
     const ranged =
         "by" in binding &&
         binding.range === undefined &&
@@ -3049,4 +3067,15 @@ function prepareParamBinding(address: ShaderParamTarget, options: PrepareBinding
         paint: (value) => patch(prepared.paint(value)),
         paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
     };
+}
+
+/**
+ * The built-in node shapes and edge line patterns an overflow policy steps through, for the saved-name scan: a save file that names one by id depends on this
+ * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.
+ * @returns The kind and its ids.
+ * @public
+ */
+export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
+    return { kind: "overflowLists", ids: [...OVERFLOW_SHAPES, ...OVERFLOW_PATTERNS] };
 }

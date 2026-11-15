@@ -17,8 +17,9 @@ import { userEvent } from "storybook/test";
 import { credentials, type Graphty } from "../../index.ts";
 import { operationQueueOf } from "../../src/Graph";
 import type { SourceExpanded } from "../../src/session/sources/types";
-import { holds } from "../assertions";
+import { doubleClickNode, holds } from "../assertions";
 import expandRecordings from "../fixtures/sources/neo4j-expand.json";
+import { type RealInput, realInput } from "../helpers";
 import {
     installFetchReplay,
     LABEL_STYLE,
@@ -122,13 +123,17 @@ async function loadSeed(element: Graphty): Promise<string> {
 }
 
 /**
- * Double-click a node the way a mouse does: two presses and releases on the canvas, at the spot
- * the element says the node is drawn. Settles once the expansion the click started has landed.
+ * Double-click a node (`doubleClickNode`) and settle once the expansion it started has landed.
  * @param element - The element.
  * @param id - The node.
+ * @param input - The runner's real input (`realInput(parameters)`), if any.
  * @returns What the expansion added.
  */
-async function doubleClickNode(element: Graphty, id: string): Promise<SourceExpanded> {
+async function doubleClickNodeAndSettle(
+    element: Graphty,
+    id: string,
+    input: RealInput | undefined,
+): Promise<SourceExpanded> {
     const expanded = new Promise<SourceExpanded>((resolve, reject) => {
         const offDone = element.session.on("source:expanded", (detail) => {
             offDone();
@@ -141,26 +146,7 @@ async function doubleClickNode(element: Graphty, id: string): Promise<SourceExpa
             reject(new Error(`the expansion failed: ${JSON.stringify(detail)}`));
         });
     });
-    const at = element.nodeScreenPosition(id);
-    await holds(at?.visible === true, `Click to expand: node "${id}" is not on screen to be double-clicked`);
-    const { canvas } = element.graph;
-    const box = canvas.getBoundingClientRect();
-    const pointer = {
-        clientX: box.left + (at?.x ?? 0),
-        clientY: box.top + (at?.y ?? 0),
-        bubbles: true,
-        pointerId: 1,
-        pointerType: "mouse",
-        isPrimary: true,
-    };
-    canvas.dispatchEvent(new PointerEvent("pointermove", { ...pointer, button: -1, buttons: 0 }));
-    for (let press = 1; press <= 2; press++) {
-        canvas.dispatchEvent(new PointerEvent("pointerdown", { ...pointer, button: 0, buttons: 1, detail: press }));
-        canvas.dispatchEvent(new PointerEvent("pointerup", { ...pointer, button: 0, buttons: 0, detail: press }));
-        canvas.dispatchEvent(new MouseEvent("click", { ...pointer, button: 0, detail: press }));
-    }
-    // The browser's own word that the two clicks were one double-click, which the element expands on.
-    canvas.dispatchEvent(new MouseEvent("dblclick", { ...pointer, button: 0, detail: 2 }));
+    await doubleClickNode(element, id, input);
     const detail = await expanded;
     await operationQueueOf(element.graph).waitForCompletion();
     await element.waitForStableFrame();
@@ -196,13 +182,15 @@ function seedFacts(element: Graphty, seed: string): string {
  * @param steps - What the story does after the seed is loaded.
  * @returns The play function.
  */
-function play(steps: (element: Graphty, seed: string, canvasElement: HTMLElement) => Promise<void>): Story["play"] {
-    return async ({ canvasElement, args }) => {
+function play(
+    steps: (element: Graphty, seed: string, canvasElement: HTMLElement, input: RealInput | undefined) => Promise<void>,
+): Story["play"] {
+    return async ({ canvasElement, args, parameters }) => {
         const { element, facts } = await parts(canvasElement);
         const restore = args.live ? () => undefined : installFetchReplay(expandRecordings);
         try {
             const seed = await loadSeed(element);
-            await steps(element, seed, canvasElement);
+            await steps(element, seed, canvasElement, realInput(parameters));
             facts.textContent = seedFacts(element, seed);
         } finally {
             restore();
@@ -291,10 +279,10 @@ await graph.session.data.expand([seed.id]);`,
             "`live`: off, every request is answered from recorded responses; on, the double-clicks reach the " +
             "real demo server. Double-click a node on the canvas yourself to expand it again.",
     }),
-    play: play(async (element, seed) => {
-        const first = await doubleClickNode(element, seed);
+    play: play(async (element, seed, _canvasElement, input) => {
+        const first = await doubleClickNodeAndSettle(element, seed, input);
         await holds(first.params.partial === true, "the first expansion stopped at its limit");
-        await doubleClickNode(element, seed);
+        await doubleClickNodeAndSettle(element, seed, input);
         await holds(
             element.session.data.nodes().length === 7,
             `two expansions of three brought six neighbors; the graph holds ${String(element.session.data.nodes().length)} nodes`,
@@ -353,9 +341,9 @@ await graph.session.data.collapse(seed.id);`,
             "`live`: off, every request is answered from recorded responses; on, the double-clicks reach the " +
             "real demo server. Double-click a node on the canvas yourself to expand it again.",
     }),
-    play: play(async (element, seed, canvasElement) => {
-        await doubleClickNode(element, seed);
-        await doubleClickNode(element, seed);
+    play: play(async (element, seed, canvasElement, input) => {
+        await doubleClickNodeAndSettle(element, seed, input);
+        await doubleClickNodeAndSettle(element, seed, input);
         const button = canvasElement.querySelector<HTMLButtonElement>("[data-role=collapse]");
         await holds(button !== null, "the story rendered no collapse button");
         const collapsed = new Promise<void>((resolve) => {

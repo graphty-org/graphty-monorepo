@@ -235,7 +235,7 @@ hash; `deploy` from the site repositories. It stores and answers, nothing more. 
 from a branch ref is refused. Undo: delete the Worker.
 
 **results-reporter** (#3427) -- agent, M. The pure tools: `tools/results/` (client; `run-group.mjs`: inputs
-key, run, retry failed files once, one record per test group, spool); a Vitest failure reporter
+key, run, retry failed files once, one record per test group); a Vitest failure reporter
 (batched past the 20th); 5 s and 2 s timeouts, fail open; `test-history.mjs` and
 `vitest-time-budget.mjs` reading and writing the store (`vitest-time-budget.mjs` keeps its cache file
 as the fallback). No workflow edit. Done: tests, including a store that never answers.

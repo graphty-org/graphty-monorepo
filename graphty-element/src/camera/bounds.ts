@@ -60,6 +60,7 @@ export function measureBounds(
 
     const min = { ...bounds.min };
     const max = { ...bounds.max };
+    const spots = bounds.points === undefined ? undefined : [...bounds.points];
     let grown = false;
     for (const box of boxes) {
         for (const axis of ["x", "y", "z"] as const) {
@@ -67,10 +68,12 @@ export function measureBounds(
             min[axis] = Math.min(min[axis], box.min[axis]);
             max[axis] = Math.max(max[axis], box.max[axis]);
         }
+
+        spots?.push(...cornersOf(box));
     }
 
     if (!grown) {
-        return bounds;
+        return spots === undefined ? bounds : Object.freeze({ ...bounds, points: spots });
     }
 
     const size = { x: max.x - min.x, y: max.y - min.y, z: max.z - min.z };
@@ -81,7 +84,26 @@ export function measureBounds(
         size,
         maxDimension: Math.max(size.x, size.y, size.z),
         measured: bounds.measured,
+        ...(spots === undefined ? {} : { points: spots }),
     });
+}
+
+/**
+ * The eight corners of a box.
+ * @param box - The box.
+ * @returns Its corners.
+ */
+function cornersOf(box: Pick<GraphBounds, "min" | "max">): Vec3[] {
+    const corners: Vec3[] = [];
+    for (const x of [box.min.x, box.max.x]) {
+        for (const y of [box.min.y, box.max.y]) {
+            for (const z of [box.min.z, box.max.z]) {
+                corners.push({ x, y, z });
+            }
+        }
+    }
+
+    return corners;
 }
 
 /**
@@ -96,17 +118,19 @@ function measurePoints(points: Iterable<Vec3>): GraphBounds {
     let maxX = -Infinity;
     let maxY = -Infinity;
     let maxZ = -Infinity;
-    let measured = 0;
+    const list: Vec3[] = [];
 
     for (const point of points) {
+        list.push(point);
         minX = Math.min(minX, point.x);
         minY = Math.min(minY, point.y);
         minZ = Math.min(minZ, point.z);
         maxX = Math.max(maxX, point.x);
         maxY = Math.max(maxY, point.y);
         maxZ = Math.max(maxZ, point.z);
-        measured++;
     }
+
+    const measured = list.length;
 
     if (measured === 0) {
         return defaultBounds();
@@ -138,5 +162,6 @@ function measurePoints(points: Iterable<Vec3>): GraphBounds {
         size,
         maxDimension: Math.max(size.x, size.y, size.z),
         measured,
+        points: list,
     });
 }

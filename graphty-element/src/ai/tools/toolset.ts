@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 
+import { englishDescription } from "../../catalog/options";
 import type { Graph } from "../../Graph";
 import { channelsFor } from "../../session/styles/channels";
 import type { GraphSession } from "../../session/types";
@@ -28,7 +29,7 @@ import { shadersTool } from "./families/shaders";
 import { styleTool } from "./families/style";
 import { conditionsTool, timeTool } from "./families/timeline";
 import { undoTool } from "./families/undo";
-import { viewTool } from "./families/view";
+import { hiddenTool, viewTool } from "./families/view";
 import { text } from "./fields";
 import { INTENT_FIELD, intentField } from "./inputs";
 import { undescribedPlugins } from "./reach";
@@ -462,6 +463,24 @@ export interface Toolset {
     readonly index: SearchIndex;
 }
 
+/** Common color names, as search words for every color channel. */
+const COLOR_WORDS = [
+    "red",
+    "orange",
+    "yellow",
+    "green",
+    "blue",
+    "purple",
+    "pink",
+    "brown",
+    "black",
+    "white",
+    "gray",
+    "grey",
+    "paint",
+    "colour",
+];
+
 /**
  * The index `catalog search` reads: every catalog entry and every tool, consumer commands too.
  * @param catalog - The catalog.
@@ -479,7 +498,7 @@ function buildIndex(
             kind: "algorithm" as const,
             name: entry.key,
             plainName: entry.plainName,
-            summary: entry.description,
+            summary: englishDescription(entry),
             tool: "run_algorithm",
             words: [entry.technicalName, entry.category, ...((entry as { keywords?: string[] }).keywords ?? [])],
         })),
@@ -496,7 +515,7 @@ function buildIndex(
             kind: "layout" as const,
             name: entry.id,
             plainName: entry.plainName,
-            summary: entry.description,
+            summary: englishDescription(entry),
             tool: "layout",
             action: "set",
             words: [entry.technicalName, entry.family, entry.engine],
@@ -558,13 +577,14 @@ function buildIndex(
             summary: `${entry.plainName}: ${entry.accepts}.`,
             tool: "style",
             action: "add",
-            words: [entry.group, entry.shortName],
+            // A color channel is what "make them red" wants, so a color's name finds it.
+            words: [entry.group, entry.shortName, ...(entry.accepts === "color" ? COLOR_WORDS : [])],
         })),
         ...catalog.cameras.map((entry) => ({
             kind: "camera" as const,
             name: entry.id,
             plainName: entry.plainName,
-            summary: entry.description,
+            summary: englishDescription(entry),
             tool: "view",
             action: "camera",
             words: ["camera", "view"],
@@ -627,6 +647,7 @@ export function buildToolset(session: Pick<GraphSession, "catalog">, consumer: r
         filterTool,
         layoutTool(catalog),
         viewTool(catalog),
+        hiddenTool,
         editDataTool,
         undoTool,
         setsTool,

@@ -23,6 +23,7 @@ import type { GroupOutlinePass } from "../../../src/meshes/GroupOutlinePass";
 import { NodeShaderDrawing } from "../../../src/meshes/NodeShaderDrawing";
 import { groupOutlinesOf } from "../../../src/session/styles/StylesApi";
 import { defineShader } from "../../../src/simple/defineShader";
+import { pixelsAt, rowAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import { click, type Point, wheel } from "../../helpers/real-input";
 
@@ -173,52 +174,6 @@ async function until(element: Graphty, what: string, holds: () => boolean): Prom
 function slots(element: Graphty): number {
     const drawing = NodeShaderDrawing.peek(element.graph.getScene());
     return drawing === undefined ? 0 : [...drawing.stats().slots.values()].reduce((sum, n) => sum + n, 0);
-}
-
-/**
- * Read pixels of the canvas at points in CSS pixels, after the next frames.
- * @param element - The element.
- * @param points - The points.
- * @returns One pixel per point.
- */
-async function pixelsAt(element: Graphty, points: readonly Point[]): Promise<Pixel[]> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 2);
-    const scale = engine.getRenderWidth() / WIDTH;
-    const out: Pixel[] = [];
-    for (const point of points) {
-        const x = Math.round(point.x * scale);
-        const y = Math.round(engine.getRenderHeight() - point.y * scale);
-        const read = (await engine.readPixels(x, y, 1, 1)) as unknown as Uint8Array;
-        out.push([read[0], read[1], read[2], read[3]]);
-    }
-
-    return out;
-}
-
-/**
- * Read one row of the canvas through a point, in CSS pixels, as one pixel per render pixel.
- * @param element - The element.
- * @param y - The row, CSS pixels from the top.
- * @returns The row's pixels and how many render pixels make a CSS pixel.
- */
-async function rowAt(element: Graphty, y: number): Promise<{ row: Pixel[]; scale: number }> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 2);
-    const scale = engine.getRenderWidth() / WIDTH;
-    const width = engine.getRenderWidth();
-    const read = (await engine.readPixels(
-        0,
-        Math.round(engine.getRenderHeight() - y * scale),
-        width,
-        1,
-    )) as unknown as Uint8Array;
-    const row: Pixel[] = [];
-    for (let x = 0; x < width; x++) {
-        row.push([read[x * 4], read[x * 4 + 1], read[x * 4 + 2], read[x * 4 + 3]]);
-    }
-
-    return { row, scale };
 }
 
 /**

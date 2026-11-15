@@ -13,10 +13,9 @@ import { assert, describe, it, vi } from "vitest";
 import { algorithmByKey } from "../../../src/catalog/algorithms";
 import { createGraphSession, type GraphSession } from "../../../src/session";
 import { dispatcherOf } from "../../../src/session/GraphSession";
+import type { ProjectState } from "../../../src/session/project/state";
 import { createRunResult } from "../../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../../src/session/runs";
-
-type Hook = (...args: unknown[]) => unknown;
 
 /**
  * A run that gives every node its number of edges as `value`.
@@ -76,18 +75,32 @@ describe("project:derived", () => {
     it("every derivation hook that runs is followed by a project:derived", async () => {
         const s: GraphSession = createGraphSession({ runs: { execute: (context) => degree(() => s, context) } });
         const { lane } = dispatcherOf(s);
-        // Every hook the session registered, wrapped to note when it finished.
-        const { hooks } = lane as unknown as { hooks: Map<string, Hook[]> };
+        // A marker hook on every slice, registered after the session's own: hooks of one slice run in the
+        // order registered, so the marker finishing means that slice's hooks have all finished. The record
+        // names every slice of the project state, so adding a slice fails to compile until it is listed.
+        const every: Record<keyof ProjectState, true> = {
+            graph: true,
+            layout: true,
+            pins: true,
+            arrangement: true,
+            config: true,
+            attributes: true,
+            valueLabels: true,
+            shaders: true,
+            runs: true,
+            sets: true,
+            notes: true,
+            styles: true,
+            visibility: true,
+            views: true,
+        };
         let seq = 0;
         const finished: { slice: string; at: number }[] = [];
         const published: number[] = [];
-        for (const [slice, list] of hooks) {
-            for (const [index, hook] of list.entries()) {
-                list[index] = async (...args: unknown[]): Promise<void> => {
-                    await hook(...args);
-                    finished.push({ slice, at: seq++ });
-                };
-            }
+        for (const slice of Object.keys(every) as (keyof ProjectState)[]) {
+            lane.register(slice, () => {
+                finished.push({ slice, at: seq++ });
+            });
         }
         s.on("project:derived", () => published.push(seq++));
 

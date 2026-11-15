@@ -8,7 +8,6 @@
 // scripts each catch their planted tier 5 cases.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -41,11 +40,41 @@ test("item 5's list gives a MISS line for each tier 5 screen and planted check l
             assert.ok(BAR5_TIER5.screens.includes(`${host}: ${s}`), `${host}: ${s} is not on item 5's list`);
 });
 
+// The tier's own files the gate reads (criteria.md, answers.md, decided.md), planted in a folder of the
+// test's own (REAL_TIER_FILES) so the verdict never follows the live study's documents. Complete: the
+// frozen build's Build notes, a Path steps number for T70 A, a Reference screenshots section naming a
+// file that exists. Incomplete: an unread "the dry run reads" value, Build notes of another build, no
+// Path steps, and no decided.md.
+const FROZEN = "1e5f0a7e5c";
+const REJECTED = "7ca4cae647";
+async function tierFixture(files, complete) {
+    await rm(files, { recursive: true, force: true });
+    await mkdir(files, { recursive: true });
+    await writeFile(
+        join(files, "criteria.md"),
+        `The study runs on build ${FROZEN} served from /x\n\n` +
+            `T70 A and T70 B each run once on the build the owner rejected (${REJECTED}, built from source).\n`,
+    );
+    if (complete) {
+        await writeFile(
+            join(files, "answers.md"),
+            `# Answer key\n\n## Build notes (${FROZEN})\n\nRead on the frozen build.\n\n## T70. Weak links\n\nDone. Path steps: 12 (A)\n`,
+        );
+        await writeFile(join(files, "ref.png"), "");
+        await writeFile(join(files, "decided.md"), "# Decided\n\n## Reference screenshots\n\n- `ref.png`\n");
+    } else
+        await writeFile(
+            join(files, "answers.md"),
+            "# Answer key\n\n## Build notes (0123456789)\n\n## T70. Weak links\n\nthe dry run reads the count\n",
+        );
+}
+
 test("the gate holds a tier 5 round to tier 5's evidence", async () => {
     const tier = join(studio, "tier5/rounds");
     const rd = join(tier, "round-97");
     const pass = join(tier, "r97");
-    const frozen = readFileSync(join(studio, "tier5/criteria.md"), "utf8").match(/build ([0-9a-f]{7,40})/)[1];
+    const files = await mkdtemp(join(tmpdir(), "tier5-files-"));
+    const frozen = FROZEN;
     const walk = async (half, name, { json = {}, setup = "volunteers.txt", painted = false, setupLog = "" } = {}) => {
         const d = join(pass, "pilot", half, name);
         await rm(d, { recursive: true, force: true });
@@ -106,18 +135,22 @@ test("the gate holds a tier 5 round to tier 5's evidence", async () => {
         await writeFile(join(d, "vocabulary.json"), JSON.stringify({ x: { words: ["Done"] } }));
     };
     const gate = () =>
-        spawnSync(process.execPath, [real, "--gate", rd], { encoding: "utf8", env: { ...process.env, REAL_TIER: "" } });
+        spawnSync(process.execPath, [real, "--gate", rd], {
+            encoding: "utf8",
+            env: { ...process.env, REAL_TIER: "", REAL_TIER_FILES: files },
+        });
     const clean = () => Promise.all([rd, pass].map((d) => rm(d, { recursive: true, force: true })));
     const good = async () => {
         await clean();
+        await tierFixture(files, true);
         await mkdir(rd, { recursive: true });
         await writeFile(join(rd, "plan.md"), "| r97-s01 | T70 | A: volunteers | Grace | `setup:volunteers.txt` |\n");
         await walk("T70A", "success", { painted: true });
         await walk("T70A", "detour-1");
         await walk("T70A", "rating-frozen");
         await walk("T70B", "rating-frozen");
-        await walk("T70A", "rating-rejected", { json: { commit: "7ca4cae647" } });
-        await walk("T70B", "rating-rejected", { json: { commit: "7ca4cae647" } });
+        await walk("T70A", "rating-rejected", { json: { commit: REJECTED } });
+        await walk("T70B", "rating-rejected", { json: { commit: REJECTED } });
         await writeFile(join(rd, "calm-first-rejected.md"), "# Calm-first check on the rejected build\n");
         await bars("bars");
         await bars("bars-light");
@@ -125,20 +158,20 @@ test("the gate holds a tier 5 round to tier 5's evidence", async () => {
     const lines = () => gate().stdout;
     try {
         await good();
+        const r = gate();
+        assert.equal(r.status, 0, `the planted complete tier 5 round was refused: ${r.stdout}${r.stderr}`);
+        assert.match(r.stdout, /^gate passed: /m, r.stdout);
+        // the tier's own documents still owing their evidence (item 2, 6 and 7) hold the round back
+        await good();
+        await tierFixture(files, false);
         let out = lines();
-        // what the studio's own documents still owe (Build notes, decided.md's screenshots) is not this test's
         for (const re of [
-            /FAIL: .*tier 5 run/,
-            /FAIL: setup volunteers\.txt/,
-            /FAIL: no success walk .*painted members/,
-            /FAIL: end-state check/,
-            /FAIL: rating check/,
-            /FAIL: no calm-first check/,
-            /FAIL: .*leaves out/,
-            /FAIL: answers\.md has no "Path steps"/,
+            /FAIL: \S+answers\.md still holds "the dry run reads"/,
+            /FAIL: \S+answers\.md: "Build notes \(0123456789\)" names a build other than the frozen/,
+            /FAIL: answers\.md has no "Path steps" number for T70A/,
+            /FAIL: \S+decided\.md has no "Reference screenshots" section/,
         ])
-            assert.doesNotMatch(out, re, `the planted good tier 5 round was refused: ${out}`);
-        assert.match(out, /^FAIL: /m, "the real answers.md and decided.md owe nothing?");
+            assert.match(out, re, `the incomplete tier 5 files were not refused: ${out}`);
         const refused = async (what, plant, why) => {
             await good();
             await plant();
@@ -185,8 +218,14 @@ test("the gate holds a tier 5 round to tier 5's evidence", async () => {
             () => rm(join(rd, "calm-first-rejected.md")),
             /no calm-first check on the rejected build/,
         );
+        await refused(
+            "a reference screenshot listed in decided.md that is not on disk",
+            () => rm(join(files, "ref.png")),
+            /decided\.md lists reference screenshots that do not exist: ref\.png/,
+        );
     } finally {
         await clean();
+        await rm(files, { recursive: true, force: true });
     }
 });
 
@@ -203,7 +242,11 @@ test("the score, step and end-state scripts each catch their planted tier 5 case
 test("the leak check flags the files a call opens, never the text it writes", async () => {
     const own = await mkdtemp(join(tmpdir(), "leak-check-"));
     const fail = `FAIL: ${studio}/tier5/rounds/round-1/plan.md holds no "Gate evidence" section`;
-    const call = (name, input) => ({ type: "assistant", message: { content: [{ type: "tool_use", name, input }] } });
+    const call = (name, input, cwd) => ({
+        type: "assistant",
+        ...(cwd && { cwd }),
+        message: { content: [{ type: "tool_use", name, input }] },
+    });
     const leaks = async (...calls) => {
         const t = join(own, "t.jsonl");
         await writeFile(t, calls.map((c) => JSON.stringify(c)).join("\n"));
@@ -222,6 +265,12 @@ test("the leak check flags the files a call opens, never the text it writes", as
             [call("Bash", { command: `cat answers.md <<'EOF'\nx\nEOF` }), /a facilitator file, answers\.md/],
             [call("Bash", { command: `cat > x <<EOF\n$(cat ../tasks.md)\nEOF` }), /a facilitator file, tasks\.md/],
             [call("Write", { file_path: `${studio}/tier5/notes.md`, content: "x" }), /a studio file/],
+            // participants run from the repository root, so a path relative to it reaches the studio
+            [call("Bash", { command: "cat design/ui/studio/notes/researcher.md" }), /a studio file/],
+            [call("Read", { file_path: "design/ui/studio/tier5/report.md" }), /a studio file/],
+            [call("Bash", { command: "cat notes/researcher.md" }, `${studio}`), /a studio file/],
+            [call("Grep", { pattern: "x", path: "design/ui/studio" }), /a search outside its folder/],
+            [call("Glob", { pattern: "**/*.md", path: "design" }), /a search outside its folder/],
         ]) {
             r = await leaks(c);
             assert.equal(r.status, 1, `${JSON.stringify(c.message.content[0].input)} was not flagged: ${r.stdout}`);

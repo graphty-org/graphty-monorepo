@@ -187,11 +187,8 @@ describe("cysExporter: the archive Cytoscape reads", () => {
         expect(await sessionOf(graph())).toEqual(bytes);
     });
 
-    it("passes Python's zipfile check", async () => {
-        const python = spawnSync("python3", ["-c", "import zipfile"]);
-        if (python.status !== 0) {
-            return;
-        }
+    // reported as skipped, not passed, where python3 is not installed
+    it.runIf(spawnSync("python3", ["-c", "import zipfile"]).status === 0)("passes Python's zipfile check", async () => {
         const dir = mkdtempSync(join(tmpdir(), "cys-"));
         onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
         const path = join(dir, "out.cys");
@@ -614,5 +611,32 @@ describe("writeZip", () => {
             }
         };
         expect(() => [...writeZip(many())]).toThrow(/zip64/);
+    });
+
+    it("writes 65,534 entries its reader reads and refuses the 65,535th, whose count marks zip64", () => {
+        const empty = new Uint8Array(0);
+        const entries = (n: number): { name: string; data: Uint8Array }[] =>
+            Array.from({ length: n }, (_, i) => ({ name: String(i), data: empty }));
+        const bytes = new Uint8Array([...writeZip(entries(0xfffe))].flatMap((c) => [...c]));
+        expect(readZipDirectory(bytes)).toHaveLength(0xfffe);
+        expect(() => [...writeZip(entries(0xffff))]).toThrow(expect.objectContaining({ code: "E_TOO_LARGE" }));
+    });
+
+    it("writes a 65,535-byte entry name and refuses a longer one instead of truncating its length", () => {
+        const data = new Uint8Array(0);
+        const longest = "n".repeat(0xffff);
+        const bytes = new Uint8Array([...writeZip([{ name: longest, data }])].flatMap((c) => [...c]));
+        expect(readZipDirectory(bytes)[0].name).toBe(longest);
+        expect(() => [...writeZip([{ name: `${longest}n`, data }])]).toThrow(
+            expect.objectContaining({ code: "E_TOO_LARGE" }),
+        );
+    });
+
+    it("refuses a session whose network name escapes past the zip name limit", async () => {
+        const g = build(false, (b) => {
+            b.addNode("1");
+            b.setMeta({ name: "\u00e9".repeat(12000) });
+        });
+        await expect(sessionOf(g)).rejects.toMatchObject({ code: "E_TOO_LARGE" });
     });
 });

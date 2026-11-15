@@ -3,6 +3,10 @@ import { Match, Template } from "aws-cdk-lib/assertions";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { HealthStack } from "../infra/health-stack.ts";
+import { SECRETS } from "../src/alerts/index.js";
+import { APP_PARAMS, DISPATCH_APP_PARAMS } from "../src/collector/github.js";
+import { SLICE_STORE_PARAMS } from "../src/collector/slices.js";
+import { LOCAL_TOKEN_PARAMETER } from "../src/handlers/ingest.js";
 
 let t: Template;
 beforeAll(() => {
@@ -76,10 +80,10 @@ describe("health stack", () => {
         });
     });
 
-    it("allows GET from the page and the dev origin only", () => {
+    it("allows GET from the page and the devOrigin context origin only", () => {
         t.hasResourceProperties("AWS::ApiGatewayV2::Api", {
             CorsConfiguration: Match.objectLike({
-                AllowOrigins: ["https://health.graphty.app", "http://localhost:5173", "https://dev.example:9123"],
+                AllowOrigins: ["https://health.graphty.app", "https://dev.example:9123"],
                 AllowMethods: ["GET"],
             }),
         });
@@ -117,10 +121,10 @@ describe("health stack", () => {
         });
     });
 
-    it("budgets 10 USD and denies the Lambda roles at 100% actual", () => {
+    it("budgets 50 USD and denies the Lambda roles at 100% actual", () => {
         t.hasResourceProperties("AWS::Budgets::Budget", {
             Budget: Match.objectLike({
-                BudgetLimit: { Amount: 10, Unit: "USD" },
+                BudgetLimit: { Amount: 50, Unit: "USD" },
                 TimeUnit: "MONTHLY",
                 CostTypes: Match.objectLike({ IncludeCredit: false }),
             }),
@@ -158,5 +162,47 @@ describe("health stack", () => {
         expect(JSON.stringify(build[0].Resource)).toMatch(
             /:codebuild:us-east-2:494945606241:project\/graphty-health-deploy"/,
         );
+    });
+
+    it("gives each function only the SSM parameters its code reads, and Read none (#7274)", () => {
+        type Statement = { Action: string | string[]; Resource: unknown };
+        const grants = (fn: string): Statement[] =>
+            Object.values(t.findResources("AWS::IAM::Policy"))
+                .filter((p) => JSON.stringify(p.Properties.Roles).includes(`"${fn}ServiceRole`))
+                .flatMap((p) => p.Properties.PolicyDocument.Statement as Statement[]);
+        const ssm = (fn: string): { actions: string[]; params: string[] } => {
+            const statements = grants(fn).filter((s) => [s.Action].flat().some((a) => a.startsWith("ssm:")));
+            return {
+                actions: [...new Set(statements.flatMap((s) => [s.Action].flat()))].sort(),
+                params: statements
+                    .flatMap((s) => [s.Resource].flat())
+                    .map((r) => /:parameter(\/[^"]+)"/.exec(JSON.stringify(r))?.[1] ?? JSON.stringify(r))
+                    .sort(),
+            };
+        };
+        const kms = (fn: string): boolean => grants(fn).some((s) => [s.Action].flat().includes("kms:Decrypt"));
+
+        expect(ssm("Read")).toEqual({ actions: [], params: [] });
+        expect(kms("Read")).toBe(false);
+        expect(ssm("Ingest")).toEqual({ actions: ["ssm:GetParameter"], params: [LOCAL_TOKEN_PARAMETER] });
+        expect(ssm("Collector")).toEqual({
+            actions: ["ssm:GetParameter", "ssm:GetParameters"],
+            params: [
+                ...Object.values(APP_PARAMS),
+                ...Object.values(DISPATCH_APP_PARAMS),
+                ...Object.values(SLICE_STORE_PARAMS),
+                ...Object.values(SECRETS),
+            ].sort(),
+        });
+        expect(ssm("Backfill")).toEqual({ actions: ["ssm:GetParameters"], params: Object.values(APP_PARAMS).sort() });
+        for (const fn of ["Ingest", "Collector", "Backfill"]) {
+            expect(kms(fn)).toBe(true);
+        }
+        const decrypt = Object.values(t.findResources("AWS::IAM::Policy"))
+            .flatMap((p) => p.Properties.PolicyDocument.Statement as (Statement & { Condition?: unknown })[])
+            .filter((s) => [s.Action].flat().includes("kms:Decrypt"));
+        for (const s of decrypt) {
+            expect(s.Condition).toEqual({ StringEquals: { "kms:ViaService": "ssm.us-east-2.amazonaws.com" } });
+        }
     });
 });

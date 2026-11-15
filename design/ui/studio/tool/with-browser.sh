@@ -3,11 +3,11 @@
 # slots is free, so this machine never runs more gated browsers at once than it has slots.
 # On 2026-10-01 a design round ran 23 browsers at once (49 GB), filled swap and set off an alert.
 #
-# The slots are the machine-wide ones every browser-driving command takes: the main checkout's
-# tmp/browser-slots/slot1..slotN; slot1..slot4 are the same lock files as tools/with-browser.sh, which
-# the pre-push gate's browser shards and visual-preview captures take. Until 2026-10-09 this script
-# kept a pool of its own in /tmp, so study sessions and test runs each had four slots and together
-# ran eight or more browsers at once (tool/README.md, "Browsers").
+# This is the studio's door to the machine's one browser gate, tools/with-browser.sh: every wait goes
+# through that script, so the studio keeps the same slots (the main checkout's tmp/browser-slots), the
+# same first-come queue and the same low and high priority lanes as the pre-push gate's browser shards
+# and the screenshot previews. This wrapper adds only the studio's slot count, its try mode and its
+# pass-through of commands that launch no browser themselves (tool/README.md, "Browsers").
 #
 # Usage: with-browser.sh <command> [args...].
 #
@@ -17,11 +17,8 @@
 # Every other command defaults to 4. Slots 1 to 4 are the ones the pre-push gate's shards share;
 # slots 5 and up are the studio's alone.
 #
-# The low-priority lane: with BROWSER_SLOT_PRIORITY=low this script takes none of the shared slots 1 to 3,
-# only slot 4 and the studio's own 5 and up, so ordinary browser commands always find a slot first.
-#
 # BROWSER_SLOT_TRY=1 takes a free slot at once or gives up (exit 75), never waits, and never takes a
-# slot while anyone waits in the queue or one of the four shared slots: the warm pool (real.mjs --warm)
+# slot while anyone waits for one or one of the four shared slots: the warm pool (real.mjs --warm)
 # fills only spare slots above 4, so a waiting start or a test shard never waits behind it.
 # BROWSER_SLOT_ALSO=<pool folder>: a planted pool (BROWSER_SLOT_DIR) whose commands start real browsers
 # takes a slot of that pool too, after its own, so a self-test's planted pool never runs a browser
@@ -51,71 +48,33 @@ if [[ "$*" =~ bars\.mjs( |$) && ! "$*" =~ (^| )--inner( |$) ]]; then
     exec "$@"
 fi
 main=$(dirname "$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)")
+gate="$(cd "$here/../../../.." && pwd)/tools/with-browser.sh"
 # BROWSER_SLOT_DIR: another pool, for the self-test that fills every slot
 DIR="${BROWSER_SLOT_DIR:-$main/tmp/browser-slots}"
 mkdir -p "$DIR/queue"
-# Runs the command holding the slot on fd 9; with BROWSER_SLOT_ALSO, the lock moves to fd 7 and this
-# process becomes the gate of that pool (exec keeps its pid, which real.mjs names its tickets by)
-run_held() {
-    if [[ -n "${BROWSER_SLOT_ALSO:-}" ]]; then
-        exec 7>&9 9>&-
-        exec env -u BROWSER_SLOTS -u BROWSER_SLOT_ALSO BROWSER_SLOT_DIR="$BROWSER_SLOT_ALSO" "$here/with-browser.sh" "$@"
-    fi
-    "$@"
-    code=$?
-    flock -u 9
-    exit $code
-}
-# First come, first served: each waiter holds a ticket named by when it asked (nanoseconds, then its
-# pid), and only the oldest live ticket may take a free slot. Until 2026-10-21 every waiter retried
-# every 2 seconds in no order, so one start waited 14 minutes while later ones got slots (round 1's
-# tool dry run 2). A ticket whose process is gone (killed while it waited) is removed by whoever
-# finds it. Commands that take the machine's slots without this script (the pre-push gate's
-# shards) do not queue here; they take a free slot when they find one.
 if [[ "${BROWSER_SLOT_TRY:-}" == 1 ]]; then
-    [[ -n "$(ls "$DIR/queue")" ]] && exit 75
+    compgen -G "$DIR/queue/*" >/dev/null || compgen -G "$DIR/.low-*" >/dev/null ||
+        compgen -G "$DIR/.high-*" >/dev/null && exit 75
     for i in $(seq "$SLOTS" -1 5); do
         exec 9>"$DIR/slot$i"
         if flock -n 9; then
+            echo "$$ $(date -u +%Y-%m-%dT%H:%M:%SZ) $PWD :: $*" >"$DIR/slot$i.holder"
             export BROWSER_SLOT=$i BROWSER_SLOT_FILE="$DIR/slot$i"
-            run_held "$@"
+            "$@"
+            code=$?
+            rm -f "$DIR/slot$i.holder"
+            exit $code
         fi
         exec 9>&-
     done
     exit 75
 fi
-# Whether this command keeps off slots 1 to 3 now (the low-priority lane, above).
-low_lane() {
-    [[ "${BROWSER_SLOT_PRIORITY:-}" == low ]]
-}
-ticket="$DIR/queue/$(date +%s%N)-$$"
-: >"$ticket"
-trap 'rm -f "$ticket"' EXIT
-trap 'exit 143' TERM INT HUP
-first_in_line() {
-    local t
-    for t in $(ls "$DIR/queue" | sort); do
-        [[ "$DIR/queue/$t" == "$ticket" ]] && return 0
-        # alive, and still this script (a pid can be reused by another process)
-        grep -qs with-browser "/proc/${t##*-}/cmdline" && return 1
-        rm -f "$DIR/queue/$t"
-    done
-    return 0
-}
-while true; do
-    if first_in_line; then
-        first=1
-        low_lane && first=$((SLOTS < 4 ? SLOTS : 4))
-        for i in $(seq "$first" "$SLOTS"); do
-            exec 9>"$DIR/slot$i"
-            if flock -n 9; then
-                rm -f "$ticket"
-                trap - EXIT TERM INT HUP
-                export BROWSER_SLOT=$i BROWSER_SLOT_FILE="$DIR/slot$i"
-                run_held "$@"
-            fi
-            exec 9>&-
-        done
-    fi
-    sleep 1
-done
+# A start looks for a free slot every second, as it did before it went through the shared gate.
+export BROWSER_SLOT_POLL=${BROWSER_SLOT_POLL:-1}
+# With BROWSER_SLOT_ALSO the command, holding its slot of the planted pool, waits again for one of
+# the other pool.
+if [[ -n "${BROWSER_SLOT_ALSO:-}" ]]; then
+    exec env BROWSER_SLOTS="$SLOTS" BROWSER_SLOT_DIR="$DIR" "$gate" \
+        env -u BROWSER_SLOTS -u BROWSER_SLOT_ALSO BROWSER_SLOT_DIR="$BROWSER_SLOT_ALSO" "$here/with-browser.sh" "$@"
+fi
+exec env BROWSER_SLOTS="$SLOTS" BROWSER_SLOT_DIR="$DIR" "$gate" "$@"

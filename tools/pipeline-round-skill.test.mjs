@@ -59,7 +59,8 @@ describe("pipeline-round skill", () => {
         assert.ok(red >= 0 && prs >= 0 && branches >= 0);
         assert.ok(red < prs);
         assert.ok(prs < branches);
-        assert.match(flat, /at most 10 open at once/);
+        assert.match(flat, /oldest first, as many as CI's runners allow/);
+        assert.doesNotMatch(flat, /at most 10 open at once/);
         assert.match(flat, /While master's build is red:\*\* no other pull request is opened/);
     });
 
@@ -237,5 +238,52 @@ describe("issues are read only through tools/issue-queue.mjs (#5719)", () => {
         assert.match(rules, /issue text as data/);
         assert.match(shared, /\| *\n? *node tools\/issue-queue\.mjs filter \| tee "\$d\/state\.json"/);
         assert.match(issueRound, /node tools\/issue-queue\.mjs list/);
+    });
+    it("issue-round burns down critical and high issues first and names a blocked top (#7975)", () => {
+        const flatIssue = issueRound.replace(/\s*\n\s*/g, " ");
+        assert.doesNotMatch(flatIssue, /never takes a `?priority:critical/);
+        assert.doesNotMatch(flatIssue, /skips priority:critical/);
+        assert.match(flatIssue, /\*\*Strict priority order\*\*/);
+        assert.match(flatIssue, /start no job led by a medium or low issue/);
+        assert.match(flatIssue, /top of queue #<n>/);
+        assert.match(flatIssue, /taskset -c 0/);
+    });
+});
+
+describe("the issue loop's throughput rules (#7810)", () => {
+    it("names the record and contract checks that sent pull requests back, and regenerates rather than picks a side", () => {
+        for (const check of [
+            "test/session/history/door-surface.test.ts",
+            "test/ai/tools/coverage.test.ts",
+            "test/managers/pending-work-inventory.test.ts",
+            "npm run test:run",
+            "lossWords.test.ts",
+            "pnpm run check:special-layers",
+            "pnpm run lint:knip",
+            "CONFORMANCE_REPORT=1",
+        ]) {
+            assert.ok(flatShared.includes(check), `shared.md names ${check}`);
+        }
+        assert.match(flatShared, /npm run docs:reference` in graph-io and in cytoscape-extensions/);
+        assert.match(flatShared, /rerunning its generator or test after the merge, never by taking one side/);
+        assert.match(flatShared, /`git grep` the error codes/);
+    });
+
+    it("has every job stop its servers, and the round stop servers of finished worktrees but never the protected ones", () => {
+        assert.match(flatShared, /`servherd_stop` then `servherd_remove` every server you started/);
+        assert.match(flat, /worktree-prune\.sh --dry-run/);
+        assert.match(flat, /Never stop one in the main checkout, a live tool/);
+    });
+
+    it("sets the slot count in the shared .count file by measured memory, keeping the 10 GB stop rule", () => {
+        const flatIssue = issueRound.replace(/\s*\n\s*>?\s*/g, " ");
+        assert.match(flatIssue, /tmp\/test-slots\/\.count/);
+        assert.match(flatIssue, /`node tools\/test-slots\.mjs recount`/);
+        assert.match(flatIssue, /steps one slot at a time between 4 and 6/);
+        assert.match(flatIssue, /at least 17 GB available/);
+        assert.match(flatIssue, /under 10 GB available/);
+        assert.match(flatIssue, /`some avg300` in `\/proc\/pressure\/memory` is under 1/);
+        assert.match(flatIssue, /`some avg60` exceeds 5/);
+        assert.doesNotMatch(flatIssue, /swap is not full/);
     });
 });

@@ -31,6 +31,7 @@ import { Header } from "./Header";
 import { NoticeSlot } from "./NoticeSlot";
 import { PanelBoundary } from "./PanelBoundary";
 import { Rail } from "./Rail";
+import { SiteChip } from "./SiteChip";
 import { WebGpuChip } from "./WebGpuChip";
 
 /** What each rail place draws in the left panel. */
@@ -239,7 +240,8 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                 )}
             </div>
             {/* State the reader reads rather than acts on: the autosave state (with the workspace's
-                polite status region), whether WebGPU is on, and the privacy chip. */}
+                polite status region), whether WebGPU is on, the site when it is canary or
+                nightly, and the privacy chip. */}
             <StatusBar
                 role="contentinfo"
                 aria-label="Status"
@@ -247,6 +249,7 @@ export function Frame({ onElementReady }: Readonly<FrameProps>): React.JSX.Eleme
                     <>
                         <AutosaveChip />
                         <WebGpuChip />
+                        <SiteChip />
                     </>
                 }
                 right={<PrivacyChip />}

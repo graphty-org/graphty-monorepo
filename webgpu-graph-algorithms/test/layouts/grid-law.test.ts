@@ -5,8 +5,8 @@
  * exact tier's (K3 with LAW 1 / 2, the P5 kernels) from the same start on the same adapter -- the whole repulsion
  * (the force after the repulsion stage minus the force after K2: the floored per-node error's RMS and p99) and, on
  * random20k, the far field alone (G6 against an f64 pair sum over the pairs outside the 3x3 on a node sample: the
- * whole-field relative error under the rms cap) -- under the FA2 caps of T11 (grid-exact.rms, grid-exact.p99; the
- * approximation is the same construction, so no new noise row), twice bitwise first; (2) the FR grid run on the story graph is finite and cools (the temperature
+ * whole-field relative error under the rms cap) -- under the spring models' own approximation tolerances
+ * (grid-law.rms, grid-law.p99: ForceAtlas2's caps over the spring-electrical model's floor), twice bitwise first; (2) the FR grid run on the story graph is finite and cools (the temperature
  * trace decreases); the spring grid run on the story graph settles by the shared 7.17 rule within 1,000 iterations
  * and cools rather than diverges (the exact tier's G5 gate item, test/layouts/se-settle.test.ts, on the grid tier;
  * the energy at the stop is printed, not capped: finding G5-F12); (3) the pipeline keys of the two runs carry LAW 1 / 2 on grid-far-field and grid-near-field; (4) "auto"
@@ -150,10 +150,10 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
     for (const model of MODELS) {
         for (const name of LAW_FIXTURES) {
             for (const dim of [2, 3] as const) {
-                it(`(1) ${model}/${name}/${dim}d: the grid tier's repulsion, whole and far field alone, against its own exact tier's (LAW ${LAW_OF[model]}) under grid-exact.rms / grid-exact.p99, twice bitwise`, async (t) => {
+                it(`(1) ${model}/${name}/${dim}d: the grid tier's repulsion, whole and far field alone, against its own exact tier's (LAW ${LAW_OF[model]}) under grid-law.rms / grid-law.p99, twice bitwise`, async (t) => {
                     requireGpu(t);
-                    const rmsTolerance = gridTolerance("grid-exact.rms").value;
-                    const p99Tolerance = gridTolerance("grid-exact.p99").value;
+                    const rmsTolerance = gridTolerance("grid-law.rms").value;
+                    const p99Tolerance = gridTolerance("grid-law.p99").value;
                     const { snapshot: s, start } = lawFixture(name);
                     try {
                         const label = `${model}/${name}/${dim}d/n=${s.nodeCount}`;
@@ -194,7 +194,7 @@ describe("the FR and spring-electrical grid tier through LAW (spec 7.20, 7.8; PD
         }
     }
 
-    it("writes the spring-electrical widening members of grid-exact.rms / grid-exact.p99 on the UNSCALED random20k in 2D (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
+    it("writes the spring-electrical members of grid-law.rms / grid-law.p99 on the UNSCALED random20k in 2D (GRAPHTY_NOISE_FLOOR_WRITE=1 only)", async (t) => {
         if (process.env.GRAPHTY_NOISE_FLOOR_WRITE !== "1") {
             // the unscaled exact tier costs minutes on lavapipe; test/noise-floor.test.ts checks the committed fixtures
             t.skip("noise fixtures are written under GRAPHTY_NOISE_FLOOR_WRITE=1 only");

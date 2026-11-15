@@ -281,6 +281,30 @@ export function aiProviderDescriptor(id: AiProviderId): AiProviderDescriptor {
     return found;
 }
 
+/** The image model a provider makes pictures with (`AI_IMAGE_MODELS`). */
+export interface AiImageModelDescriptor {
+    /** The model id sent to the provider. */
+    readonly id: string;
+    /** The model's own name. */
+    readonly plainName: string;
+    /**
+     * What one picture is expected to cost, in US dollars, at the provider's list price when this
+     * table was written. A host's own price, a discount or a later price change is not known here.
+     */
+    readonly costUsd: number;
+}
+
+/**
+ * The image model each provider that can make pictures uses, by provider id: the assistant's
+ * `project` tool `generate_background` action calls it with the reader's own key. A provider
+ * absent here makes no pictures (the action refuses with `AI_NOT_AVAILABLE`). Entries may be
+ * added in a minor release.
+ */
+export const AI_IMAGE_MODELS: Readonly<Partial<Record<AiProviderId, AiImageModelDescriptor>>> = Object.freeze({
+    // $30 per million output tokens, 1,290 tokens a picture (checked 2026-11-15).
+    google: { id: "gemini-2.5-flash-image", plainName: "Gemini 2.5 Flash Image", costUsd: 0.039 },
+});
+
 /**
  * Every tool the assistant can use beyond its own commands (`AiToolOptions`): a web search and
  * reading a given web page, both run by the provider, and running a program the model writes in a
@@ -551,11 +575,13 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_COMPLETED` -- the model answered, running every tool it called. `{ toolCalls }`: how many ran.
  *   A helper with web tools also states `{ hostedToolUses }` on its `delegate` result: how many
  *   searches and page reads ran, 0 when it answered from the model's own knowledge.
- * - `AI_NO_RESPONSE` -- the model wrote nothing and called no tool.
+ * - `AI_NO_RESPONSE` -- the model wrote nothing and called no tool. After tool results, it is asked once
+ *   to go on; empty again, the message ends with this code and `{ toolCalls }`: how many ran.
  *
  * Failed (`success: false`):
  * - `AI_NOT_ENABLED` -- the assistant is not switched on (`enableAiControl()` not called).
  * - `AI_DISPOSED` -- the assistant was shut down.
+ * - `AI_NO_PREVIOUS_COMMAND` -- `retryLastAiCommand()` was called before any command ran.
  * - `AI_KEY_MISSING` -- the provider needs an API key and has none. `{ provider }`.
  * - `AI_KEY_REJECTED` -- the provider refused the key (HTTP 401 or 403, or 400 from Google, which
  *   answers a wrong key that way). `{ provider, status }`.
@@ -627,7 +653,7 @@ export function checkApiKeyShape(id: AiProviderId, key: string): AiKeyShapeCheck
  * - `AI_TOOL_NOT_RUN` -- a saved tool result: the call did not run, because an earlier call in its
  *   batch failed or the batch was taken back. `{ tool }`, and `reason`: `"held"` when a held batch
  *   of its turn kept it from running, `"limit"` for a hand-off past the turn's
- *   `MAX_HELPERS_PER_TURN`.
+ *   `MAX_HELPERS_PER_TURN`, or for a live call made after the message's tool turns ran out.
  * - `AI_HISTORY_UNAVAILABLE` -- saved history cannot be used. `{ reason }`: `"invalid-record"`
  *   for a saved conversation that is not a valid record (it is skipped, never thrown);
  *   `"storage-unavailable"` when the browser's storage cannot open, and history is kept in memory;
@@ -648,6 +674,7 @@ export const AI_RESULT_CODES = Object.freeze([
     "AI_NO_RESPONSE",
     "AI_NOT_ENABLED",
     "AI_DISPOSED",
+    "AI_NO_PREVIOUS_COMMAND",
     "AI_KEY_MISSING",
     "AI_KEY_REJECTED",
     "AI_PROVIDER_ERROR",

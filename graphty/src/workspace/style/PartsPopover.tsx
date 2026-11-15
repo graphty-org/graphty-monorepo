@@ -1,14 +1,14 @@
-import { PanelField, Popout } from "@graphty/compact-mantine";
+import { FileSource, PanelField, Popout, useFileDrop } from "@graphty/compact-mantine";
 import { type CodedFact, type GraphSession, GraphtyError, type PartAnswer } from "@graphty/graphty-element/session";
 import { Button, Group, Loader, Stack, Text, Tooltip } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import { modelName, useModelStates } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FactChip, ModelChip } from "./ModelChip";
-import { AddressForm, FileInput } from "./ModelsPopover";
 import { countChip, middleCut, PART_CODES, roleWord } from "./modelWords";
+import { CUSTOM_MODEL, logUnexpected } from "./words";
 
 /** The pop-over's width: room for a part's name and its address. */
 const WIDTH = 280;
@@ -23,35 +23,6 @@ const WIDTH = 280;
 function mainFile(session: GraphSession, modelRef: string): string {
     const path = session.assets.find(modelRef)?.path;
     return path === undefined ? modelName(session, modelRef) : (path.split("/").pop() ?? path);
-}
-
-/**
- * Whether files are held over a drop target, and the handlers that tell: the target is drawn as
- * the compact-mantine file drop zone draws itself while files are held over it.
- * @returns the flag and the handlers to spread on the target.
- */
-function useDropOver(): {
-    readonly over: boolean;
-    readonly handlers: Pick<React.HTMLAttributes<HTMLElement>, "onDragOver" | "onDragLeave" | "onDrop">;
-} {
-    const [over, setOver] = useState(false);
-    return {
-        over,
-        handlers: {
-            onDragOver: (event) => {
-                event.preventDefault();
-                setOver(true);
-            },
-            onDragLeave: (event) => {
-                if (!(event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget))) {
-                    setOver(false);
-                }
-            },
-            onDrop: () => {
-                setOver(false);
-            },
-        },
-    };
 }
 
 /**
@@ -92,16 +63,6 @@ interface PartsPopoverProps {
 }
 
 /**
- * The files of a drop. Must be called during the drop: the browser empties the transfer after.
- * @param event - the drop.
- * @returns the files.
- */
-function dropped(event: React.DragEvent): File[] {
-    event.preventDefault();
-    return [...event.dataTransfer.files];
-}
-
-/**
  * What a call to `supply` that threw is, as a chip's fact.
  * @param error - what it threw.
  * @returns the fact.
@@ -118,11 +79,11 @@ function thrown(error: unknown): CodedFact {
  * @param props.role - `params.role`.
  * @returns the glyph.
  */
-function RoleGlyph({ role }: Readonly<{ role: unknown }>): React.JSX.Element {
+export function RoleGlyph({ role }: Readonly<{ role: unknown }>): React.JSX.Element {
     if (role === "texture") {
         return <GLYPHS.picture size={14} aria-hidden />;
     }
-    if (role === "materials") {
+    if (role === "materials" || role === "other") {
         return <GLYPHS.file size={14} aria-hidden />;
     }
     return <GLYPHS.model size={14} aria-hidden />;
@@ -138,6 +99,11 @@ interface PartRowProps {
     readonly supply: (answer: PartAnswer) => Promise<readonly CodedFact[]>;
     /** Says that Escape took back typed text. */
     readonly onDiscard: () => void;
+    /**
+     * The set's files nothing names: for a missing part, Use file comes first and its address
+     * waits behind Address... (the file was most likely renamed). Default: none.
+     */
+    readonly unused?: readonly string[];
 }
 
 /** What a part row's controls need. */
@@ -149,9 +115,9 @@ interface PartControlsProps {
     readonly label: string;
     readonly first: boolean;
     readonly url: string;
-    readonly setUrl: (url: string) => void;
     readonly answer: (given: PartAnswer) => void;
     readonly onDiscard: () => void;
+    readonly unused: readonly string[];
 }
 
 /**
@@ -188,17 +154,18 @@ function WhichFile({ part, name, label, first, answer }: Readonly<PartControlsPr
 }
 
 /**
- * The ways to hand a missing part over: its address, Choose, and Load without it when it may be
- * left out.
+ * The ways to hand a missing part over: compact-mantine's file loader as a row (its address, its
+ * Choose button, and a drop on it), Use file first when files of the set nothing names may be it,
+ * and Load without it when it may be left out.
  * @param props - Component props
  * @param props.part - the part
  * @param props.name - its name, as the model names it
  * @param props.label - the name the reader reads and hears
  * @param props.first - takes focus on open
- * @param props.url - the typed address
- * @param props.setUrl - the typing
+ * @param props.url - the address the field shows
  * @param props.answer - hands the part over
  * @param props.onDiscard - says Escape took the typing back
+ * @param props.unused - the set's files nothing names
  * @returns The controls
  */
 function SupplyPart({
@@ -207,46 +174,43 @@ function SupplyPart({
     label,
     first,
     url,
-    setUrl,
     answer,
     onDiscard,
+    unused,
 }: Readonly<PartControlsProps>): React.JSX.Element {
-    const chooser = useRef<HTMLInputElement | null>(null);
     return (
         <>
-            <AddressForm
-                name={`${label} address`}
-                submitName={`Load ${label} from address`}
-                value={url}
-                busy={false}
-                autofocus={first}
-                onChange={setUrl}
-                onDiscard={onDiscard}
-                onSubmit={() => {
-                    if (url.trim() !== "") {
-                        answer({ name, url: url.trim() });
-                    }
-                }}
-            />
-            <Group gap={4}>
-                <Tooltip label={`Choose ${label}`}>
-                    <Button
-                        size="compact-xs"
-                        variant="default"
-                        leftSection={<GLYPHS.upload size={12} aria-hidden />}
-                        aria-label={`Choose ${label}`}
-                        onClick={() => chooser.current?.click()}
-                    >
-                        Choose
-                    </Button>
-                </Tooltip>
-                <FileInput
-                    chooser={chooser}
-                    onFiles={([file]) => {
-                        answer({ name, file });
+            {unused.length > 0 ? (
+                <PanelField
+                    label={`File for ${label}`}
+                    kind="select"
+                    width="fill"
+                    value={null}
+                    placeholder={CUSTOM_MODEL.useFile}
+                    data={unused.map((file) => ({ value: file, label: file }))}
+                    data-autofocus={first ? true : undefined}
+                    onChange={(next) => {
+                        answer({ name, use: String(next) });
                     }}
                 />
-                {part.params.optional === true ? (
+            ) : null}
+            <FileSource
+                variant="row"
+                url
+                autoFocus={first && unused.length === 0}
+                label={`Choose ${label}`}
+                placeholder={CUSTOM_MODEL.partAddress(label)}
+                defaultValue={url}
+                onDiscard={onDiscard}
+                onFiles={([file]) => {
+                    answer({ name, file });
+                }}
+                onUrl={(address) => {
+                    answer({ name, url: address });
+                }}
+            />
+            {part.params.optional === true ? (
+                <Group gap={4}>
                     <Tooltip label={`Load without ${label}`}>
                         <Button
                             size="compact-xs"
@@ -259,8 +223,8 @@ function SupplyPart({
                             Load without it
                         </Button>
                     </Tooltip>
-                ) : null}
-            </Group>
+                </Group>
+            ) : null}
         </>
     );
 }
@@ -314,21 +278,23 @@ function PartErrors({
 
 /**
  * One part a model is waiting for, as a Figma property row: its name, its kind, and the ways to
- * hand it over (an address, a file, a drop on the row, or drawing without it when it may be left
- * out). An ambiguous part offers the files it could be; a set of several models offers which one.
+ * hand it over (an address, a file, a drop on its file loader, or drawing without it when it may be
+ * left out). An ambiguous part offers the files it could be; a set of several models offers which one.
  * @param props - Component props
  * @param props.part - the part
  * @param props.first - takes focus on open
  * @param props.supply - hands an answer over
  * @param props.onDiscard - says typed text was taken back
+ * @param props.unused - the set's files nothing names, offered as Use file
  * @returns The row
  */
-function PartRow({ part, first, supply, onDiscard }: Readonly<PartRowProps>): React.JSX.Element {
-    const [url, setUrl] = useState("");
+export function PartRow({ part, first, supply, onDiscard, unused = [] }: Readonly<PartRowProps>): React.JSX.Element {
+    // A part the model names by an address graphty-element did not fetch by itself (another site,
+    // or local files) comes with it filled in, so loading it from there is one click.
+    const [url, setUrl] = useState(typeof part.params.url === "string" ? part.params.url : "");
     const [busy, setBusy] = useState(false);
     const [errors, setErrors] = useState<readonly CodedFact[]>([]);
     const [last, setLast] = useState<PartAnswer | null>(null);
-    const drop = useDropOver();
     const main = part.code === "E_MODEL_AMBIGUOUS";
     const name = main ? "Model" : String(part.params.name);
     // The full path is the tooltip; every name the reader hears or reads is the file's own.
@@ -346,7 +312,7 @@ function PartRow({ part, first, supply, onDiscard }: Readonly<PartRowProps>): Re
                 setBusy(false);
             });
     };
-    const controls: PartControlsProps = { part, name, label, first, url, setUrl, answer, onDiscard };
+    const controls: PartControlsProps = { part, name, label, first, url, answer, onDiscard, unused };
 
     return (
         <div // NOSONAR(S6819): an ARIA group naming one part's controls; a fieldset would draw its own border and legend
@@ -354,22 +320,6 @@ function PartRow({ part, first, supply, onDiscard }: Readonly<PartRowProps>): Re
             role="group"
             aria-label={label}
             aria-busy={busy || undefined}
-            data-over={drop.over || undefined}
-            onDragOver={(event) => {
-                // Held over this row, the row is the target, not the pop-over around it.
-                event.stopPropagation();
-                drop.handlers.onDragOver?.(event);
-            }}
-            onDragLeave={drop.handlers.onDragLeave}
-            onDrop={(event) => {
-                // A drop on the row is this part; the pop-over's own drop matches by name.
-                event.stopPropagation();
-                drop.handlers.onDrop?.(event);
-                const [file] = dropped(event);
-                if (file !== undefined && !main) {
-                    answer({ name, file });
-                }
-            }}
         >
             <Group gap={4} wrap="nowrap">
                 <RoleGlyph role={main ? "geometry" : part.params.role} />
@@ -426,8 +376,39 @@ function PartsPopover({
 }: Readonly<PartsPopoverProps>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
     const [unused, setUnused] = useState<readonly CodedFact[]>([]);
-    const drop = useDropOver();
+    // Its content mounts only while open, in a portal: the drop target is the element itself.
+    const [node, setNode] = useState<HTMLDivElement | null>(null);
+    const target = useMemo(() => ({ current: node }), [node]);
     useNewParts(parts, opened);
+    const dropAnywhere = (files: readonly File[]): void => {
+        if (session === null) {
+            return;
+        }
+        setUnused([]);
+        void (async () => {
+            const notes: CodedFact[] = [];
+            for (const file of files) {
+                const after = await session.assets.supply(modelRef, { file }).catch((error: unknown) => {
+                    logUnexpected("assets.supply", error, []);
+                    return undefined;
+                });
+                notes.push(
+                    ...(after?.problems ?? []).filter(
+                        (p) => p.code === "W_MODEL_PART_UNUSED" && p.params.fileName === file.name,
+                    ),
+                );
+            }
+            setUnused(notes);
+        })();
+    };
+    // A drop outside a row's file loader goes to the element, which matches each file by name.
+    const { over } = useFileDrop(
+        target,
+        (files) => {
+            dropAnywhere(files);
+        },
+        { folders: true, disabled: session === null },
+    );
     if (session === null) {
         return null;
     }
@@ -441,21 +422,6 @@ function PartsPopover({
             store.set({ announcement: `${named.split("/").pop() ?? named} added` });
         }
         return after.problems.filter((p) => p.params.part !== undefined && p.params.part === named);
-    };
-    const dropAnywhere = (files: readonly File[]): void => {
-        setUnused([]);
-        void (async () => {
-            const notes: CodedFact[] = [];
-            for (const file of files) {
-                const after = await session.assets.supply(modelRef, { file }).catch(() => undefined);
-                notes.push(
-                    ...(after?.problems ?? []).filter(
-                        (p) => p.code === "W_MODEL_PART_UNUSED" && p.params.fileName === file.name,
-                    ),
-                );
-            }
-            setUnused(notes);
-        })();
     };
 
     return (
@@ -477,14 +443,10 @@ function PartsPopover({
                 <Popout.Content>
                     <Stack
                         gap={8}
+                        ref={setNode}
                         className="ws-parts"
                         data-testid="parts-popover"
-                        data-over={drop.over || undefined}
-                        {...drop.handlers}
-                        onDrop={(event) => {
-                            drop.handlers.onDrop?.(event);
-                            dropAnywhere(dropped(event));
-                        }}
+                        data-over={over || undefined}
                     >
                         {parts.map((part, index) => (
                             <PartRow

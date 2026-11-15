@@ -1,17 +1,13 @@
 import { FileSource } from "@graphty/compact-mantine";
-import { Button, Kbd, Modal, Text, UnstyledButton, useComputedColorScheme } from "@mantine/core";
-import type React from "react";
+import { Modal, UnstyledButton, useComputedColorScheme } from "@mantine/core";
+import React, { useEffect, useRef, useState } from "react";
 
 import { GLYPHS } from "../glyphs";
-import { ariaKey, formatKey } from "../keys/keys";
-import { openServerForm, serverKinds } from "../server/commands";
+import { NETWORK_DIALOG, openServerForm, serverKinds } from "../server/commands";
 import { kindName } from "../server/words";
-import { useCommand, useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
+import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import NETWORK_SAMPLES from "./network-samples.json";
-import { openFiles, openUrl } from "./open";
-
-/** The workspace dialog id of Open network data. */
-export const NETWORK_DIALOG = "network";
+import { addUrl, openFiles } from "./open";
 
 /** The badge on each kind of network's card, and what the kind is. */
 const CARD_WORDS: Readonly<Record<string, { readonly badge: string; readonly what: string }>> = {
@@ -22,18 +18,30 @@ const CARD_WORDS: Readonly<Record<string, { readonly badge: string; readonly wha
 };
 
 /**
- * Open network data, the start page's door to data on the network: one card for each kind of
- * network the start page has a sample of, a web address box and Open a file. A card opens the app
- * on an empty project with the network form popped up on that kind.
+ * Open network data, the door to data on the network from the start page and from the Sources "+"
+ * (Network data...): one card for each kind of network the start page has a sample of, and a Web
+ * address card that shows the address field. From the start page a kind's card opens the app on an
+ * empty project with the network form popped up on that kind, and a web address opens as a new
+ * project; in a project a web address is added as a source, the way Paste of an address is.
  * @returns The chooser, open while the workspace dialog is "network"
  */
 export function NetworkDataDialog(): React.JSX.Element {
     const ctx = useWorkspace();
     const { store } = ctx;
-    const openDoor = useCommand("file.open");
-    const openFileKey = openDoor?.command.keys?.[0];
+    const [address, setAddress] = useState(false);
+    const addressRow = useRef<HTMLDivElement>(null);
     const scheme = useComputedColorScheme("dark");
     const opened = useWorkspaceState((state) => state.dialog === NETWORK_DIALOG);
+    useEffect(() => {
+        if (!opened) {
+            setAddress(false);
+        }
+    }, [opened]);
+    useEffect(() => {
+        if (address) {
+            addressRow.current?.querySelector("input")?.focus();
+        }
+    }, [address]);
     const close = (): void => {
         store.set((state) => (state.dialog === NETWORK_DIALOG ? { dialog: null } : {}));
     };
@@ -71,38 +79,39 @@ export function NetworkDataDialog(): React.JSX.Element {
                                     <small>{card.what}</small>
                                 </UnstyledButton>
                             ))}
+                            <UnstyledButton
+                                className="ws-land-net-source"
+                                aria-expanded={address}
+                                onClick={() => {
+                                    setAddress(true);
+                                }}
+                            >
+                                <span className="ws-land-net-badge" aria-hidden>
+                                    URL
+                                </span>
+                                <b>Web address</b>
+                                <small>A graph file on the web</small>
+                            </UnstyledButton>
                         </div>
-                        {/* The field's accessible name starts with these words (WCAG 2.5.3). */}
-                        <Text size="sm" fw={500} aria-hidden>
-                            Web address
-                        </Text>
-                        <FileSource
-                            variant="row"
-                            url
-                            multiple
-                            placeholder="Web address of a graph file"
-                            openLabel="Open"
-                            onUrl={(url) => {
-                                close();
-                                openUrl(store, url);
-                            }}
-                            onFiles={(files) => {
-                                close();
-                                openFiles(ctx, files);
-                            }}
-                        />
-                        <Button
-                            variant="default"
-                            leftSection={<GLYPHS.openFile size={16} aria-hidden />}
-                            rightSection={openFileKey === undefined ? undefined : <Kbd>{formatKey(openFileKey)}</Kbd>}
-                            aria-keyshortcuts={openFileKey === undefined ? undefined : ariaKey(openFileKey)}
-                            onClick={() => {
-                                close();
-                                openDoor?.run();
-                            }}
-                        >
-                            Open a file
-                        </Button>
+                        {address ? (
+                            <div ref={addressRow}>
+                                <FileSource
+                                    variant="row"
+                                    url
+                                    multiple
+                                    placeholder="Web address of a graph file"
+                                    openLabel="Open"
+                                    onUrl={(url) => {
+                                        close();
+                                        addUrl(ctx, url);
+                                    }}
+                                    onFiles={(files) => {
+                                        close();
+                                        openFiles(ctx, files);
+                                    }}
+                                />
+                            </div>
+                        ) : null}
                     </div>
                 </div>
             </Modal.Content>

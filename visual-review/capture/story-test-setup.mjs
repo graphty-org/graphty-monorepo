@@ -300,6 +300,10 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
         }
     });
 
+    // The confirming hook's job: none when no mode needs a second render, so the clock comes down
+    // with the shooting hook instead of staying the global Date past the test.
+    const confirmation = (job) => (job.modes.length > 0 ? job : null);
+
     // A failed story is recorded as failed, not shot; an excluded one has no modes. Either still
     // finishes here, not in the next story's test. True when the story is not shot.
     const unshot = async (context, plan, fail) => {
@@ -356,8 +360,7 @@ export function installVisualStoryTest({ afterEach, beforeEach, commands }) {
                     throw e;
                 }
             }
-            // With no mode to confirm, the confirming hook has nothing to do, and the clock comes down here.
-            confirm = again.length > 0 ? { story, chromatic, plan, fail, mine, modes: again } : null;
+            confirm = confirmation({ story, chromatic, plan, fail, mine, modes: again });
         } finally {
             if (!confirm) {
                 restoreDate();

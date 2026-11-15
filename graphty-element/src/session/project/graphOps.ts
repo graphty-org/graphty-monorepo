@@ -1974,7 +1974,7 @@ class Writer implements GraphWriter {
         if (edges === null) {
             (this.graph.slice.edges as Map<EdgeId, GraphRecord>).set(edgeIdOf(edgeId), record);
         } else {
-            edges.put(edgeIdOf(edgeId), edges.stored(record), this.graph.touchesRanges);
+            edges.put(edgeIdOf(edgeId), edges.stored(record), this.graph.touchesRanges, edgeId);
         }
         // A new row already reads capacity 1 and the graph's direction: only another costs a write.
         if (needsEdgeColumns(record)) {

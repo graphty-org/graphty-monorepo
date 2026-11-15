@@ -240,10 +240,15 @@ export class RecordMap<K> extends Map<K, GraphRecord> {
      * @param key - The id.
      * @param value - The record or its place.
      * @param dense - Whether an empty map may start a dense run with it (the `"batched"` writer).
+     * @param counter - The key's counter, when the writer already has it; -1 for none.
      * @returns This map.
      */
-    put(key: K, value: GraphRecord | number, dense = false): this {
-        const counter = this.denseKeys === undefined ? -1 : this.denseKeys.counterOf(key);
+    put(
+        key: K,
+        value: GraphRecord | number,
+        dense = false,
+        counter = this.denseKeys === undefined ? -1 : this.denseKeys.counterOf(key),
+    ): this {
         if (this.dense === null) {
             if (dense && counter >= 0 && super.size === 0) {
                 this.dense = [value];

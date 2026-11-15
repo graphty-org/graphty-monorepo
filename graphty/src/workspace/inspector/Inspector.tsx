@@ -44,7 +44,7 @@ import { GroupValues, RunStateBar, RunValues } from "./RunValues";
 import { WhyThisLook } from "./WhyThisLook";
 import { count, edgeName, groupName, KIND_WORDS, nodeName, PATH_WORD, runTime, selectionWords } from "./words";
 
-/** A kind's two tab bodies, or its one body when it has no tabs. */
+/** A kind's two tab bodies (`style` null when it has nothing to style: no Style tab), or its one body when it has no tabs. */
 type Body = { readonly style: React.ReactNode; readonly values: React.ReactNode } | { readonly only: React.ReactNode };
 
 /** The header's two lines. */
@@ -213,7 +213,7 @@ function kindIdOf(run: Run | undefined, resolved: Resolved): InspectedKindId {
 
 /**
  * Whether a run row opens on Values whatever was last chosen: a path, whose answer is its nodes in
- * order, as a single node does, and a finished run with no layer, whose Style tab is empty.
+ * order, as a single node does, and a finished run with no layer, which has no Style tab.
  * @param session - the session.
  * @param run - its run.
  * @param resolved - what is inspected.
@@ -347,6 +347,8 @@ function InspectorBody({
     if (tab === null) {
         return body.values;
     }
+    // Nothing to style (a run with no layer): no Style tab, rather than an empty one.
+    const styled = body.style !== null;
     return (
         // The underline tabs: the pill form drew the chosen tab as a filled button beside a
         // plain word, which read as a label ("Style:") and a button that did nothing.
@@ -354,7 +356,7 @@ function InspectorBody({
         <Tabs
             variant="default"
             keepMounted={false}
-            value={tab}
+            value={tab === "style" && !styled ? "values" : tab}
             onChange={(next) => {
                 if (next === "style" || next === "values" || (next === "notes" && notes !== null)) {
                     onPick(next);
@@ -362,11 +364,11 @@ function InspectorBody({
             }}
         >
             <Tabs.List>
-                <Tabs.Tab value="style">Style</Tabs.Tab>
+                {styled && <Tabs.Tab value="style">Style</Tabs.Tab>}
                 <Tabs.Tab value="values">Values</Tabs.Tab>
                 {notes !== null && <Tabs.Tab value="notes">Notes</Tabs.Tab>}
             </Tabs.List>
-            <Tabs.Panel value="style">{body.style}</Tabs.Panel>
+            {styled && <Tabs.Panel value="style">{body.style}</Tabs.Panel>}
             <Tabs.Panel value="values">{body.values}</Tabs.Panel>
             {notes !== null && <Tabs.Panel value="notes">{notes}</Tabs.Panel>}
         </Tabs>
@@ -586,7 +588,7 @@ export function Inspector(): React.JSX.Element {
                       runCommand("analyze.open");
                   },
     });
-    const body = bodyOf(resolved, run, runDraft, onDraft, version);
+    const body = bodyOf(session, resolved, run, runDraft, onDraft, version);
     const menu = (MENUS[kindId] ?? []).flatMap((id) => registry.built(id) ?? []);
     const attributeActions = dataActionsOf(session, resolved, attributeActionsOf, sourceActionsOf);
     // A style tree row's header carries Select what it paints (Figma's Select matching layers).
@@ -863,6 +865,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
 
 /**
  * The tabs' bodies for what is inspected, or the one body of a kind with no tabs.
+ * @param session - the session.
  * @param resolved - what is inspected.
  * @param run - its run, for a run or group row.
  * @param draft - the reader's changes to the run's settings.
@@ -871,6 +874,7 @@ function headerOf(session: GraphSession, resolved: Resolved, run: Run | undefine
  * @returns the bodies.
  */
 function bodyOf(
+    session: GraphSession,
     resolved: Resolved,
     run: Run | undefined,
     draft: Draft,
@@ -913,7 +917,11 @@ function bodyOf(
         case "run-row":
             return run === undefined
                 ? { only: <Gone /> }
-                : { style: <StylePanel />, values: <RunValues run={run} draft={draft} onDraft={onDraft} /> };
+                : {
+                      // A run that paints nothing (queued, failed, its layers removed) has nothing to style.
+                      style: session.runs.bindings(run.id).length === 0 ? null : <StylePanel />,
+                      values: <RunValues run={run} draft={draft} onDraft={onDraft} />,
+                  };
         case "group-row":
             return run === undefined
                 ? { only: <Gone /> }

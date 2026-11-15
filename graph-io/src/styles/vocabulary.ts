@@ -222,6 +222,7 @@ export const STYLE_PROPERTIES: {
         ["opacity", "opacity"],
         ["width", "number"],
         ["minScreenWidth", "number"],
+        ["taper", "number"],
         ["outlineWidth", "number"],
         ["outlineColor", "color"],
         ["outlineOpacity", "opacity"],

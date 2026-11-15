@@ -220,12 +220,16 @@ interface EdgeInternals {
     outlineSlots: number[];
     haloBands: { kind: "underlay" | "overlay"; batch: EdgeLineBatch; slots: number[] }[];
     lineIsCurve: boolean;
+    /** A widened line's static slot values (`edgeStaticValues`), its taper at TAPER_FLOAT; null for a plain line. */
+    lineStatic: Float32Array | null;
     drawnStyle: {
         line?: { bezier?: boolean; gradient?: { kind?: string } };
         arrowHead?: { gap?: number; position?: number };
         arrowTail?: { gap?: number; position?: number };
     } | null;
 }
+/** Where a widened line's taper sits among its static slot values (`edgeStaticValues`: seed, row, bits, taper). */
+const TAPER_FLOAT = 15;
 interface PatternInternals {
     width: number;
     color: string;
@@ -1571,6 +1575,8 @@ export interface DrawnEdge {
     color: string | null;
     opacity: number;
     pattern: string | null;
+    /** The line's width at its target over its width at its source, as its slots carry it; absent for one width. */
+    taper?: number;
     /**
      * A dashed or dotted line's elements as drawn, in screen pixels along the line: each element's length and the gap
      * after it, alternating, from the drawing's own geometry (a pattern element's outline, a joined line's element length
@@ -1808,6 +1814,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
     let opacity = 1;
     let pattern: string | null = null;
     let dashPx: number[] | null = null;
+    let taper: number | undefined;
     if (batch !== null) {
         const slots = internal.lineSlots;
         const flat = (batch.mesh.metadata as { is2DLine?: boolean } | null)?.is2DLine === true;
@@ -1839,6 +1846,8 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         // a dashed or dotted line through bends or round a loop is a joined line that draws its own pattern
         pattern = meta?.pattern?.kind ?? null;
         dashPx = joinedDashes(batch, slots, meta?.pattern, mid, p);
+        const drawnTaper = internal.lineStatic?.[TAPER_FLOAT];
+        taper = drawnTaper === undefined || drawnTaper === 1 ? undefined : drawnTaper;
         const styled = own?.alpha ?? meta?.lineOpacity;
         // A joined line's shader draws its own `opacity` and never reads the mesh's visibility, which
         // it sets only to be drawn in the transparent pass, so the visibility is not ink.
@@ -1942,6 +1951,7 @@ export function readEdge(edge: Edge, p: Projector): DrawnEdge {
         color,
         opacity,
         pattern,
+        ...(taper === undefined ? {} : { taper }),
         dashPx,
         outline: readOutline(internal, p),
         overlay: readOverlay(internal, p),

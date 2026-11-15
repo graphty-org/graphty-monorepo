@@ -273,6 +273,7 @@ const PLANS: Readonly<Record<StyleTarget, ReadonlyMap<string, PropertyPlan>>> = 
         ["edge.width", plan(number, "width")],
         // Screen pixels: never scaled with the file's lengths.
         ["edge.minScreenWidth", plan(number, "minScreenWidth")],
+        ["edge.taper", plan(number, "taper")],
         ["edge.style", plan(table(LINE_OF), "lineStyle")],
         ["edge.arrowHead", plan(table(ARROW_OF), "targetArrow")],
         ["edge.arrowTail", plan(table(ARROW_OF), "sourceArrow")],

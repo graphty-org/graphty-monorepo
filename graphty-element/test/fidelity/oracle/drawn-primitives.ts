@@ -29,6 +29,7 @@ import {
     type Pt,
     type PText,
     rampAngleOnScreen,
+    TAPER_POINT,
 } from "./primitives";
 import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
 
@@ -908,12 +909,11 @@ export function drawnPrimitives(
         const gradient = edgeGradientOf(d.gradient, d.points);
         // by the pattern graphty drew (the scene folds a dash-dot, a zigzag and a sine wave into "other"), a dashed or
         // dotted one measured off its drawn elements
-        const dashClass = drawnLineClass(
-            e.style,
-            d.pattern,
-            d.dashPx ?? null,
-            d.thicknessPx > 0 ? d.thicknessPx : e.width,
-        );
+        // a line narrowing to a point at one end is read as the oracle reads one: tapered (`taperPaintedAsFill`)
+        const dashClass =
+            d.taper !== undefined && d.taper <= TAPER_POINT
+                ? "tapered"
+                : drawnLineClass(e.style, d.pattern, d.dashPx ?? null, d.thicknessPx > 0 ? d.thicknessPx : e.width);
         return [
             {
                 id: e.id,

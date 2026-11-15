@@ -752,6 +752,11 @@ export interface EdgeStyleValues {
      * line is drawn at its width alone.
      */
     readonly minScreenWidth: number;
+    /**
+     * The line's width at its target as a multiple of its width at its source: 0 narrows it to a point at the target
+     * (Cytoscape.js `curve-style: straight-triangle`), above 1 widens it. Unset, the line is one width all along.
+     */
+    readonly taper: number;
     /** The label's font size. */
     readonly labelSize: number;
     /** The arrow size as a factor: 1 is the writing tool's normal size. With `sourceArrowSize`, the target's alone. */

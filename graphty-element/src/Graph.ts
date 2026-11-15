@@ -35,6 +35,7 @@ import type { LocationMapFrame } from "./layout/locationMap/place";
 import { flatMapReach } from "./layout/locationMap/reach";
 import { GraphtyLogger, type Logger } from "./logging";
 import { BasemapManager, mapCorners } from "./managers/BasemapManager";
+import { CAMERA_LOG_INTERVAL_MS, frameFacts, throttle, viewLog } from "./managers/viewLog";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
@@ -1846,6 +1847,14 @@ export class Graph implements GraphContext {
 
         // The first settlement's framing has landed: that is the camera `resetCamera()` returns to.
         this.eventManager.addListener("zoom-to-fit-complete", () => {
+            if (GraphtyLogger.isEnabled()) {
+                viewLog.info("camera fit", {
+                    layout: this.layoutManager.layoutType ?? null,
+                    ...this.getCameraState(),
+                    ...this.#drawnCounts(),
+                });
+            }
+
             if (this.#initialCameraStateOwed) {
                 this.#initialCameraStateOwed = false;
                 this.initialCameraState = this.getCameraState();
@@ -2565,6 +2574,7 @@ export class Graph implements GraphContext {
             }
         };
         const lost = engine.onContextLostObservable.add(() => {
+            viewLog.info("render lost", { renderer });
             this.#renderLost = true;
             setDrawing(false);
             this.eventManager.emit("render-lost", {
@@ -2573,6 +2583,7 @@ export class Graph implements GraphContext {
             } satisfies Omit<RenderLostEvent, "type">);
         });
         const restored = engine.onContextRestoredObservable.add(() => {
+            viewLog.info("render restored", { renderer });
             this.#renderLost = false;
             setDrawing(true);
             this.settleRestart(null);
@@ -2606,6 +2617,64 @@ export class Graph implements GraphContext {
             },
             { once: true },
         );
+    }
+
+    /**
+     * Logs the page's visibility changes and, at most a few times a second, where a moving camera
+     * is, to the `view` log. The camera is read only while logging is on.
+     */
+    #watchViewForLog(): void {
+        const { signal } = this.#teardown;
+        document.addEventListener(
+            "visibilitychange",
+            () => {
+                viewLog.info("page visibility", { state: document.visibilityState });
+            },
+            { signal },
+        );
+        const due = throttle(CAMERA_LOG_INTERVAL_MS);
+        let last = "";
+        const observer = this.scene.onAfterRenderObservable.add(() => {
+            if (!GraphtyLogger.isEnabled() || !due()) {
+                return;
+            }
+
+            const state = this.getCameraState();
+            const text = JSON.stringify(state);
+            if (text !== last) {
+                last = text;
+                viewLog.info("camera moved", { ...state });
+            }
+        });
+        signal.addEventListener(
+            "abort",
+            () => {
+                this.scene.onAfterRenderObservable.remove(observer);
+            },
+            { once: true },
+        );
+    }
+
+    /**
+     * What is drawn now, for the log: nodes held and drawn, edges held, and the meshes the last
+     * frame drew (nodes, edges and map tiles in view).
+     * @returns The counts.
+     */
+    #drawnCounts(): Record<string, number> {
+        let nodesDrawn = 0;
+        for (const node of this.dataManager.nodes.values()) {
+            if (node.isDrawn) {
+                nodesDrawn++;
+            }
+        }
+
+        return {
+            nodes: this.dataManager.nodes.size,
+            nodesDrawn,
+            edges: this.dataManager.edges.size,
+            meshesInView: this.scene.getActiveMeshes().length,
+            meshes: this.scene.meshes.length,
+        };
     }
 
     /**
@@ -2728,6 +2797,7 @@ export class Graph implements GraphContext {
             }
 
             this.watchRenderLoss();
+            this.#watchViewForLog();
             this.#renderPathOpen = true;
             this.#applyRenderPath();
 
@@ -2843,6 +2913,7 @@ export class Graph implements GraphContext {
                 }
 
                 this.#followedFrame = frame;
+                viewLog.info("map frame", frameFacts(frame));
                 this.#followFrame(frame);
             }
 

@@ -59,6 +59,7 @@ import type { EventManager } from "./EventManager";
 import type { GraphContext } from "./GraphContext";
 import type { Manager } from "./interfaces";
 import { pendingWorkOf } from "./PendingWork";
+import { viewLog } from "./viewLog";
 
 /**
  * The largest batch a pre-step chunk submits.
@@ -1492,6 +1493,8 @@ export class LayoutManager implements Manager {
 
             // Dispose previous engine after successful init
             previousEngine?.dispose();
+
+            viewLog.info("layout changed", { from: previousEngine?.type ?? null, to: type });
 
             // Emit layout changed event
             this.eventManager.emit("layout-changed", {

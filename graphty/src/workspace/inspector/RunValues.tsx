@@ -19,6 +19,7 @@ import { splitOptions } from "../options/splitOptions";
 import { runName } from "../runWords";
 import type { WorkspaceStore } from "../state/store";
 import { useWorkspace } from "../state/WorkspaceContext";
+import { attributeName, valueName } from "../style/words";
 import { unitOf } from "../time/timeActions";
 import { useAsyncValue } from "./hooks";
 import { groupInspected, groupKey, nodeKey } from "./inspected";
@@ -32,6 +33,7 @@ import {
     takePathValuesFocus,
 } from "./reads";
 import {
+    correctionName,
     count,
     formatNumber,
     groupName,
@@ -47,6 +49,9 @@ import {
 
 /** How many top elements and group members a Values tab lists. */
 const TOP = 10;
+
+/** The adjusted p under which a group's value is listed as over-represented. */
+const SIGNIFICANT = 0.05;
 
 /**
  * The state bar (tier1-design.md section 2.7): at most two buttons, only when needed.
@@ -558,7 +563,9 @@ function groupScope(run: RunId, field: string, group: string | number): ScopeInp
 
 /**
  * A group row's Values tab (tier1-design.md section 2.7): Summary (its size, a link that selects
- * its members) and its first members, each a link that selects that node, called by its name.
+ * its members), its first members, each a link that selects that node, called by its name, and the
+ * values over-represented in it (adjusted p under 0.05), headed by the correction graphty-element
+ * applied.
  * @param props - Component props
  * @param props.run - The grouping run
  * @param props.group - The group
@@ -581,10 +588,21 @@ export function GroupValues({
         () => (scope === null ? null : (session?.scope.resolve(scope) ?? null)),
         `${String(version)}:${groupKey(run.id, group)}`,
     );
+    // Read again whenever the element reports a change, not on every render: it walks every node.
+    const profile = useAsyncValue(
+        () =>
+            session === null || field === null
+                ? null
+                : Promise.resolve(session.data.overRepresented(session.results.path(run.id, field))),
+        `${String(version)}:${run.id}:${String(field)}`,
+    );
     if (session === null || scope === null) {
         return null;
     }
     const size = run.result?.summary().groups?.find((g) => g.group === group)?.size;
+    const over = (profile?.groups.find((g) => g.group === group)?.values ?? [])
+        .filter((row) => row.adjustedP < SIGNIFICANT)
+        .slice(0, TOP);
 
     return (
         <>
@@ -610,6 +628,18 @@ export function GroupValues({
                             onClick={() => {
                                 selectNode(session, id);
                             }}
+                        />
+                    ))}
+                </ControlSection>
+            )}
+            {profile !== undefined && over.length > 0 && (
+                <ControlSection label="Over-represented" collapsible={false} headingLevel={3}>
+                    <DataRowHeader label={`Adjusted p (${correctionName(profile.correction)})`} />
+                    {over.map((row) => (
+                        <DataRow
+                            key={`${row.path}:${String(row.value)}`}
+                            name={`${attributeName(session, row.path)}: ${valueName(session, row.path, row.value)}`}
+                            value={formatNumber(row.adjustedP)}
                         />
                     ))}
                 </ControlSection>

@@ -154,6 +154,7 @@ export type {
     NodeRecord,
     NodeRecordInput,
     OverRepresentedGroup,
+    OverRepresentedOptions,
     OverRepresentedValue,
     OverRepresentedValues,
     PageColumn,

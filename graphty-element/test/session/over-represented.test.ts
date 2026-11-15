@@ -6,14 +6,16 @@
 import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
-import { benjaminiHochberg } from "../../src/session/overRepresented";
+import { isGraphtyError } from "../../src/errors";
+import { benjaminiHochberg, bonferroni, holm } from "../../src/session/overRepresented";
 
 /**
  * Ten nodes: group A holds seven (five red, two blue), group B three (all blue). Tags are lists:
  * a1-a3 carry x and y, a4-a7 carry y, B carries z.
+ * @param extra - values every node also carries
  * @returns the session
  */
-async function fixture(): Promise<GraphSession> {
+async function fixture(extra: Readonly<Record<string, unknown>> = {}): Promise<GraphSession> {
     const session = createGraphSession();
     const nodes = [];
     for (let i = 1; i <= 7; i++) {
@@ -22,11 +24,12 @@ async function fixture(): Promise<GraphSession> {
             community: "A",
             team: i <= 5 ? "red" : "blue",
             tags: i <= 3 ? ["x", "y"] : ["y"],
+            ...extra,
         });
     }
 
     for (let i = 1; i <= 3; i++) {
-        nodes.push({ id: `b${String(i)}`, community: "B", team: "blue", tags: ["z"] });
+        nodes.push({ id: `b${String(i)}`, community: "B", team: "blue", tags: ["z"], ...extra });
     }
 
     await session.data.addNodes(nodes);
@@ -107,6 +110,90 @@ describe("over-represented values", () => {
         );
         close(profile.groups[0].values[0].p, 1 / 12, "red p unchanged by the ungrouped node");
         session.dispose();
+    });
+});
+
+describe("over-represented values: corrections and edge cases", () => {
+    // The six raw p of the fixture, smallest first: A-y 1/120, B-z 1/120, A-red 1/12, B-blue 1/12,
+    // A-x 7/24, A-blue 1 (tested, under-represented, not listed).
+    it("corrects by Bonferroni when asked", async () => {
+        const session = await fixture();
+        const profile = session.data.overRepresented("data.community", {
+            columns: ["data.team", "data.tags"],
+            correction: "bonferroni",
+        });
+        assert.strictEqual(profile.correction, "bonferroni");
+        const [a, b] = profile.groups;
+        close(a.values[0].adjustedP, 0.05, "A y: 1/120 * 6");
+        close(a.values[1].adjustedP, 0.5, "A red: 1/12 * 6");
+        close(a.values[2].adjustedP, 1, "A x: 7/24 * 6, capped");
+        close(a.values[1].p, 1 / 12, "raw p unchanged by the method");
+        close(b.values[0].adjustedP, 0.05, "B z");
+        session.dispose();
+    });
+
+    it("corrects by Holm when asked", async () => {
+        const session = await fixture();
+        const profile = session.data.overRepresented("data.community", {
+            columns: ["data.team", "data.tags"],
+            correction: "holm",
+        });
+        assert.strictEqual(profile.correction, "holm");
+        const [a, b] = profile.groups;
+        // Ranks 1-2: 1/120 * 6 = 0.05, 1/120 * 5 held up to 0.05; ranks 3-4: 1/12 * 4, 1/12 * 3 held
+        // up to 1/3; rank 5: 7/24 * 2.
+        close(a.values[0].adjustedP, 0.05, "A y");
+        close(a.values[1].adjustedP, 1 / 3, "A red");
+        close(a.values[2].adjustedP, 7 / 12, "A x");
+        close(b.values[0].adjustedP, 0.05, "B z");
+        close(b.values[1].adjustedP, 1 / 3, "B blue");
+        session.dispose();
+    });
+
+    it("refuses a correction it does not know", async () => {
+        const session = await fixture();
+        const options = JSON.parse('{"correction":"made-up"}') as Parameters<typeof session.data.overRepresented>[1];
+        let thrown: unknown;
+        try {
+            session.data.overRepresented("data.community", options);
+        } catch (error) {
+            thrown = error;
+        }
+        assert.isTrue(isGraphtyError(thrown) && thrown.code === "E_OPTION_RANGE", String(thrown));
+        session.dispose();
+    });
+
+    it("tests a value every node carries but never lists it", async () => {
+        const session = await fixture({ kind: "person" });
+        const profile = session.data.overRepresented("data.community", { columns: ["data.team", "data.kind"] });
+        // A-red, A-blue, B-blue, A-person, B-person.
+        assert.strictEqual(profile.testCount, 5);
+        assert.ok(profile.groups.every((group) => group.values.every((row) => row.path !== "data.kind")));
+        // Two more tests raise A red's adjusted p from 1/12 * 3 / 2 to 1/12 * 5 / 2.
+        close(profile.groups[0].values[0].adjustedP, 5 / 24, "A red over five tests");
+        session.dispose();
+    });
+
+    it("returns no groups and no tests for an empty graph", () => {
+        const session = createGraphSession();
+        const profile = session.data.overRepresented("data.community");
+        assert.deepStrictEqual([profile.groups.length, profile.testCount], [0, 0]);
+        session.dispose();
+    });
+});
+
+describe("Bonferroni and Holm", () => {
+    it("match the textbook values on four p", () => {
+        const p = [0.01, 0.04, 0.03, 0.9];
+        assert.deepStrictEqual(
+            [...bonferroni(p)].map((x) => +x.toFixed(12)),
+            [0.04, 0.16, 0.12, 1],
+        );
+        // Sorted 0.01 * 4, 0.03 * 3, 0.04 * 2, 0.9 * 1, each at least the one before.
+        assert.deepStrictEqual(
+            [...holm(p)].map((x) => +x.toFixed(12)),
+            [0.04, 0.09, 0.09, 0.9],
+        );
     });
 });
 

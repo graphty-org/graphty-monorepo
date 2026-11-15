@@ -913,8 +913,28 @@ export interface OverRepresentedGroup {
     readonly values: readonly OverRepresentedValue[];
 }
 
-/** The multiple-testing correction applied to an {@link OverRepresentedValues} table. */
-export type MultipleTestingCorrection = "benjamini-hochberg";
+/**
+ * The multiple-testing correction applied to an {@link OverRepresentedValues} table.
+ *
+ * - `"benjamini-hochberg"`: controls the false discovery rate, the share of reported values that
+ *   are chance. The default.
+ * - `"bonferroni"`: controls the chance of any false finding; each p times the number of tests.
+ * - `"holm"`: controls the same as Bonferroni, step-down, never larger than Bonferroni's.
+ *
+ * OPEN UNION: methods may be added in a minor release; handle unknown ones.
+ */
+export type MultipleTestingCorrection = "benjamini-hochberg" | "bonferroni" | "holm";
+
+/** What `session.data.overRepresented(groupBy, options)` tests and how it corrects. */
+export interface OverRepresentedOptions {
+    /**
+     * The node columns to test, by path; by default every categorical node column except
+     * `groupBy` and a column that holds the node ids.
+     */
+    readonly columns?: readonly Path[];
+    /** How the p values are corrected for the number of tests; `"benjamini-hochberg"` by default. */
+    readonly correction?: MultipleTestingCorrection;
+}
 
 /**
  * What `session.data.overRepresented(groupBy)` returns: per group, the values of the node's
@@ -1798,8 +1818,8 @@ export interface SessionDataApi {
     /**
      * Per group, the values of the nodes' categorical and list columns that occur in the group
      * more often than chance: count in the group against the expected count, with the
-     * hypergeometric p and that p corrected (Benjamini-Hochberg) over every group, column and
-     * value tested. Group by a community run's `group` field or any node path. Walks the nodes on
+     * hypergeometric p and that p corrected (Benjamini-Hochberg unless `options.correction` names
+     * another method) over every group, column and value tested. Group by a community run's `group` field or any node path. Walks the nodes on
      * every call.
      *
      * ```ts
@@ -1807,12 +1827,11 @@ export interface SessionDataApi {
      * const strong = profile.groups[0].values.filter((row) => row.adjustedP < 0.05);
      * ```
      * @param groupBy - The path holding each node's group; a node with no value there is left out.
-     * @param options - What to test.
-     * @param options.columns - The node columns to test, by path; by default every categorical
-     *     node column except `groupBy` and a column that holds the node ids.
+     * @param options - What to test and how to correct; see {@link OverRepresentedOptions}.
      * @returns Every group, largest first, with its over-represented values.
+     * @throws {GraphtyError} `E_OPTION_RANGE` when `options.correction` names no method.
      */
-    overRepresented(groupBy: Path, options?: { readonly columns?: readonly Path[] }): OverRepresentedValues;
+    overRepresented(groupBy: Path, options?: OverRepresentedOptions): OverRepresentedValues;
     /**
      * One row per group of the nodes -- a community run's `group`, a component, any node path --
      * with its size and the summaries of numeric columns the caller asks for. Write it as a file

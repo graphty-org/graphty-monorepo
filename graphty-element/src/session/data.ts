@@ -216,6 +216,7 @@ import type {
     NodeName,
     NodeRecord,
     NodeRecordInput,
+    OverRepresentedOptions,
     OverRepresentedValues,
     PageColumn,
     RecordPage,
@@ -5269,11 +5270,10 @@ export class SessionData implements SessionDataApi {
     /**
      * Per group, the node values that occur in the group more often than chance.
      * @param groupBy - the path holding each node's group
-     * @param options - which columns to test
-     * @param options.columns - the node column paths; by default every categorical one
+     * @param options - which columns to test and how to correct
      * @returns every group, largest first, with its over-represented values
      */
-    overRepresented(groupBy: Path, options: { readonly columns?: readonly Path[] } = {}): OverRepresentedValues {
+    overRepresented(groupBy: Path, options: OverRepresentedOptions = {}): OverRepresentedValues {
         const snapshot = this.current();
         const paths =
             options.columns ??
@@ -5292,6 +5292,7 @@ export class SessionData implements SessionDataApi {
             (index) => this.pages.valueAt("node", index, groupBy),
             snapshot.nodeCount,
             paths.map((path) => ({ path, valueAt: (index: number) => this.pages.valueAt("node", index, path) })),
+            options.correction,
         );
     }
 

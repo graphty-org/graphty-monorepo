@@ -3836,7 +3836,7 @@ export interface ModelSummary {
 }
 
 // @public
-export type MultipleTestingCorrection = "benjamini-hochberg";
+export type MultipleTestingCorrection = "benjamini-hochberg" | "bonferroni" | "holm";
 
 // @public
 export interface NamedBlob {
@@ -4156,6 +4156,12 @@ export interface OverRepresentedGroup {
     readonly group: string | number | boolean;
     readonly size: number;
     readonly values: readonly OverRepresentedValue[];
+}
+
+// @public
+export interface OverRepresentedOptions {
+    readonly columns?: readonly Path[];
+    readonly correction?: MultipleTestingCorrection;
 }
 
 // @public
@@ -6102,9 +6108,7 @@ export interface SessionDataApi {
     nodePage(options?: RecordPageOptions): RecordPage<NodeRecord>;
     nodes(): readonly NodeRecord[];
     nodeSource(id: NodeId_2): NodeSource | null;
-    overRepresented(groupBy: Path, options?: {
-        readonly columns?: readonly Path[];
-    }): OverRepresentedValues;
+    overRepresented(groupBy: Path, options?: OverRepresentedOptions): OverRepresentedValues;
     pendingSourceLoads(): readonly PendingSourceLoad[];
     prepare(source: DataSourceInput, options?: {
         readonly signal?: AbortSignal;

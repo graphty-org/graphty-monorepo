@@ -592,6 +592,39 @@ function mappingOf(
 }
 
 /**
+ * Find a migrated edge's reference by its ends: by the file's id; else by position among the edges
+ * between those ends; else, for an id the element minted in a session (`graphty:e<n>`, never in
+ * the file), the one edge between those ends.
+ * @param edgeRows - The edge rows, in version 1 order.
+ * @param refs - Each row's reference.
+ * @param edgeId - The edge-id column, if any.
+ * @param directed - Whether the graph is directed.
+ * @returns The finder.
+ */
+function edgeFinderOf(
+    edgeRows: readonly Row[],
+    refs: readonly EdgeRef[],
+    edgeId: string | undefined,
+    directed: boolean,
+): (from: unknown, to: unknown, id?: unknown, ordinal?: number) => EdgeRef | undefined {
+    return (from, to, id, ordinal) => {
+        const ends = endsKey(keyText(from), keyText(to), directed);
+        const between = edgeRows
+            .map((row, at) => ({ row, at }))
+            .filter(({ row }) => endsKey(keyText(row.values.source), keyText(row.values.target), directed) === ends);
+        const byId =
+            id === undefined || id === null || edgeId === undefined
+                ? undefined
+                : between.find(({ row }) => keyText(row.values[edgeId]) === keyText(id));
+        const found =
+            byId ??
+            (ordinal === undefined ? undefined : between[ordinal]) ??
+            (between.length === 1 && ordinal === undefined ? between[0] : undefined);
+        return found === undefined ? undefined : refs[found.at];
+    };
+}
+
+/**
  * The version 1 data, its loads and its column settings, as one embedded `derived` source
  * (data-store-options.md 4.8): its copy is the version 1 merged graph as tables, rows in version 1
  * order, its node ids the key column in its own `source:<id>` space, its `metadata` the version 1
@@ -644,23 +677,7 @@ export function migrateData(inputs: DataInputs): MigratedData {
             ? { space, key: keyText(id) }
             : undefined;
     const byPosition = new Map(edgeRows.map((row, at) => [row.at, refs[at]]));
-    const edgeBetween = (from: unknown, to: unknown, id?: unknown, ordinal?: number): EdgeRef | undefined => {
-        const ends = endsKey(keyText(from), keyText(to), directed);
-        const between = edgeRows
-            .map((row, at) => ({ row, at }))
-            .filter(({ row }) => endsKey(keyText(row.values.source), keyText(row.values.target), directed) === ends);
-        // By the file's id; else by position; else, for an id the element minted in a session
-        // (`graphty:e<n>`, never in the file), the one edge between those ends.
-        const byId =
-            id === undefined || id === null || edgeId === undefined
-                ? undefined
-                : between.find(({ row }) => keyText(row.values[edgeId]) === keyText(id));
-        const found =
-            byId ??
-            (ordinal === undefined ? undefined : between[ordinal]) ??
-            (between.length === 1 && ordinal === undefined ? between[0] : undefined);
-        return found === undefined ? undefined : refs[found.at];
-    };
+    const edgeBetween = edgeFinderOf(edgeRows, refs, edgeId, directed);
 
     const held = {
         "version-1": {

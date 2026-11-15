@@ -140,6 +140,8 @@ color), `bw` (border width), `s_size`, `x_fact` and `y_fact` (size), `lc` (label
 (label size), `font` (label font) and `lr` and `lphi` (label position, the nearest of the nine
 sides) parameters, and on arcs and edges `c` (color), `w` (width), `p` (`Solid`, `Dots`), `l`
 (label), `lc`, `fos` and `font`. Colors are Pajek's color names, and three fractions `r g b`.
+A `cross`, and a shape keyword written in any case but lower (`Box`), are drawn as ellipses, as
+Pajek draws them; the `shape` column keeps the keyword as written.
 
 Lengths are PostScript points, as Pajek's EPS and SVG export draws them, so `units.length` is
 `"px"`: a vertex is 5 points times its `s_size`, `x_fact` and `y_fact`, and `bw`, `w` and `fos` are

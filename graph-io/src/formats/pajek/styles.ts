@@ -325,7 +325,7 @@ function readVertex(get: Param, put: Put, at: At, place: Place | null = null): v
         put("label", canonText(label, at("label")));
     }
     const raw = get(SHAPE_COLUMN);
-    const shape = raw === null ? null : canonEnum("shape", raw, "dvips", at("shape"));
+    const shape = raw === null ? null : canonEnum("shape", drawnKeyword(raw), "dvips", at("shape"));
     if (raw !== null) {
         put("shape", shape);
     }
@@ -355,6 +355,18 @@ function readVertex(get: Param, put: Put, at: At, place: Place | null = null): v
         put("width", 0);
         put("height", 0);
     }
+}
+
+/**
+ * The shape keyword Pajek 6.02's SVG export draws a vertex line's keyword as: a `cross` is drawn as an ellipse, and so
+ * is a keyword in any case but lower (`Box`, `Triangle`), which Pajek reads as no shape (`pajek-specimen-node-shapes`
+ * `shape-cross`, `shape-box-capitalized`, `shape-triangle-capitalized`). The `shape` column keeps the keyword as
+ * written, so a file writes back as it was read.
+ * @param raw - the keyword as written
+ * @returns the keyword Pajek draws
+ */
+function drawnKeyword(raw: unknown): unknown {
+    return raw === "cross" || (typeof raw === "string" && raw !== raw.toLowerCase()) ? "ellipse" : raw;
 }
 
 /**
@@ -399,7 +411,7 @@ const PAJEK_OUTLINES: ReadonlyMap<string, readonly (readonly [number, number])[]
 const PAJEK_DIAMOND_Q = 0.001;
 
 /** The shapes `phi` turns whole, about their center (`shapeRotation`), where it turns no corners. */
-const TURNED_WHOLE: ReadonlySet<string> = new Set(["ellipse", "other:cross", "other:man", "other:woman"]);
+const TURNED_WHOLE: ReadonlySet<string> = new Set(["ellipse", "other:man", "other:woman"]);
 
 /**
  * A vertex's outline where Pajek draws one no named shape is: a diamond is Pajek's six-cornered one, its top and bottom
@@ -1101,9 +1113,9 @@ function hookPort(shape: unknown, hook: number): readonly [number, number] | nul
     if (!Number.isInteger(hook) || hook < 1) {
         return null;
     }
-    const keyword = typeof shape === "string" ? shape.toLowerCase() : "ellipse";
     // Pajek 6.02 draws a cross as an ellipse, with an ellipse's hooks (`h-cross-1-3`: hook 3 at 3 degrees)
-    if (keyword === "ellipse" || keyword === "cross") {
+    const keyword = typeof shape === "string" ? drawnKeyword(shape) : "ellipse";
+    if (keyword === "ellipse") {
         const a = (hook * Math.PI) / 180;
         return [Math.cos(a), Math.sin(a)];
     }
@@ -1525,6 +1537,7 @@ export function pajekStyles(snapshot: GraphSnapshot, context: StyleReadContext):
         drawVertices(draw, snapshot, node);
         drawLines(draw, snapshot, node, edge);
     }
+    unborderFlatEllipses(node, snapshot.nodeCount);
     layLoops(snapshot, loops, node, edge);
     if (block !== null) {
         exactFromBlock(snapshot, block, { node, edge }, labels, runOf, endsOf);
@@ -1625,6 +1638,22 @@ function keptOf(kept: unknown): {
         };
     }
     return { block: null, draw: null, voided: new Set() };
+}
+
+/**
+ * Takes the border off every ellipse drawn with no width or no height, in place: Pajek 6.02's SVG export writes it as an
+ * ellipse of radius 0, which draws nothing, border and all (`pajek-specimen-node-sizes-opacity` `x-fact-0`: `x_fact 0
+ * y_fact 0`; `pajek-specimen-mappings-bypass` `vec-0`: a vector value of 0), where graphty would draw its border as a dot.
+ * @param node - the vertices' values, drawn
+ * @param n - the number of vertices
+ */
+function unborderFlatEllipses(node: ValueColumns, n: number): void {
+    for (let i = 0; i < n; i++) {
+        const shape = node.shape?.[i] ?? "ellipse";
+        if (shape === "ellipse" && (node.width?.[i] === 0 || node.height?.[i] === 0)) {
+            (node.borderWidth ??= new Array<StyleValue | null>(n).fill(null))[i] = 0;
+        }
+    }
 }
 
 /**

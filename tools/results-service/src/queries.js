@@ -129,18 +129,29 @@ async function failingOnBase(db, base, pairs, changed) {
     return rows.filter((r) => !changed.has(r.file)); // rule 1: a changed test file is never excused
 }
 
+// The newest full run's failures are a second SELECT driven from each variant's newest full commit, joined by the
+// inv_sha index. As a third OR term with a correlated subquery, the newest commit was looked up again for every
+// failed master invocation of the variants, and the read held the single-threaded D1 database long enough that
+// half of pull request plan reads answered HTTP 500 (#8208). UNION keeps DISTINCT across both halves.
 async function failingOnBaseChunk(db, base, pairs) {
     const variants = pairs.map(([v]) => v);
     const same = pairs.map(() => " OR (i.variant = ? AND i.inputs = ?)").join("");
+    const columns = "i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue";
     return all(
         db,
-        `SELECT DISTINCT i.variant, i.sha, f.file, f.name, f.key, f.signature, f.invocation, t.number AS issue
+        `SELECT ${columns}
          FROM failure f JOIN invocation i ON i.id = f.invocation
          LEFT JOIN tracked_issue t ON t.signature = f.signature
          WHERE i.kind IN ${MASTER_EVIDENCE} AND i.outcome = 'failed'
-           AND ((i.sha = ? AND i.variant IN (${placeholders(variants)}))${same}
-             OR (i.kind = 'full' AND i.variant IN (${placeholders(variants)}) AND i.sha = (SELECT n.sha FROM invocation n
-                 WHERE n.kind = 'full' AND n.variant = i.variant ORDER BY n.started_at DESC LIMIT 1)))`,
+           AND ((i.sha = ? AND i.variant IN (${placeholders(variants)}))${same})
+         UNION
+         SELECT ${columns}
+         FROM (SELECT variant, sha, max(started_at) FROM invocation
+               WHERE kind = 'full' AND variant IN (${placeholders(variants)}) GROUP BY variant) n
+         JOIN invocation i ON i.sha = n.sha AND i.variant = n.variant
+         JOIN failure f ON f.invocation = i.id
+         LEFT JOIN tracked_issue t ON t.signature = f.signature
+         WHERE i.kind = 'full' AND i.outcome = 'failed'`,
         base ?? "",
         ...variants,
         ...pairs.flat(),

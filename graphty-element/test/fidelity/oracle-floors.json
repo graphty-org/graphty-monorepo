@@ -32517,7 +32517,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.971,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -32563,7 +32563,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.971,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -32691,7 +32691,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.971,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -32737,7 +32737,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.971,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -32777,7 +32777,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.971,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -32823,7 +32823,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.971,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -33091,7 +33091,7 @@
         },
         "pajek-specimen-mappings-bypass": {
             "node.present": 1,
-            "node.extra": 0.984,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -33208,7 +33208,7 @@
         },
         "pajek-specimen-mappings-bypass@matched": {
             "node.present": 1,
-            "node.extra": 0.984,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -33306,7 +33306,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.97,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -33331,7 +33331,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.97,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -33373,7 +33373,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.921,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -33388,7 +33388,7 @@
             "raster.canvas": 0.99,
             "raster.label": 0.87,
             "raster.nodeBody": 0.98,
-            "raster.nodeOutline": 0.95
+            "raster.nodeOutline": 0.96
         },
         "pajek-specimen-node-shapes-p2": {
             "node.present": 1,
@@ -33398,7 +33398,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.921,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -33412,8 +33412,8 @@
             "background": 1,
             "raster.canvas": 0.99,
             "raster.label": 0.87,
-            "raster.nodeBody": 0.97,
-            "raster.nodeOutline": 0.95
+            "raster.nodeBody": 0.98,
+            "raster.nodeOutline": 0.96
         },
         "pajek-specimen-node-shapes-p2@matched": {
             "node.present": 1,
@@ -33423,7 +33423,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.921,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -33444,7 +33444,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.921,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -33459,7 +33459,7 @@
         },
         "pajek-specimen-node-sizes-opacity": {
             "node.present": 1,
-            "node.extra": 0.964,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -33484,7 +33484,7 @@
         },
         "pajek-specimen-node-sizes-opacity-p2": {
             "node.present": 1,
-            "node.extra": 0.964,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -33509,7 +33509,7 @@
         },
         "pajek-specimen-node-sizes-opacity-p2@matched": {
             "node.present": 1,
-            "node.extra": 0.964,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -33530,7 +33530,7 @@
         },
         "pajek-specimen-node-sizes-opacity-p3": {
             "node.present": 1,
-            "node.extra": 0.964,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -33555,7 +33555,7 @@
         },
         "pajek-specimen-node-sizes-opacity-p3@matched": {
             "node.present": 1,
-            "node.extra": 0.964,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -33576,7 +33576,7 @@
         },
         "pajek-specimen-node-sizes-opacity@matched": {
             "node.present": 1,
-            "node.extra": 0.964,
+            "node.extra": 1,
             "node.position": 1,
             "node.width": 1,
             "node.height": 1,
@@ -33719,7 +33719,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.873,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -33772,7 +33772,7 @@
             "node.height": 1,
             "node.sizeToSpacing": 1,
             "node.sizeToExtent": 1,
-            "node.shape": 0.873,
+            "node.shape": 1,
             "node.fill": 1,
             "node.fillOpacity": 1,
             "node.gradient": 1,
@@ -56488,22 +56488,6 @@
                 "floor": 0.989,
                 "to": 0.979,
                 "reason": "vis-network dynamic curves, accepted for now by the owner (#4271): #4587 (bb47a56637) bowed them as deep as vis-network does on files it lays out (route 0.972 to 0.968, curve 0.986 to 0.989), and #5317 (8c00d5c5b6, #5299) settles the support points from a fixed start once the nodes stop, so the curves no longer depend on how frames split (route 0.968 to 0.961, curve 0.989 to 0.979); the earlier rates were where frame timing happened to leave them (bisected in #5332)",
-                "date": "2026-11-01"
-            }
-        },
-        "pajek-1crn": {
-            "node.extra": {
-                "floor": 0.997,
-                "to": 0.991,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
-                "date": "2026-11-01"
-            }
-        },
-        "pajek-1crn@matched": {
-            "node.extra": {
-                "floor": 0.997,
-                "to": 0.991,
-                "reason": "the comparator round 4 merge (#4096, 15f6251c26) lowered these: at their floors on 5f1e113d68 (the merge before it), below on #4096, its branch head (15f6251c26^2) and every merge since (bisected in #5332). Round 4 changed the comparator's readings of curves, arrowheads, labels along lines and extra nodes; cx2-signor-aml's floor of 0.986 was raised by that merge itself to a value no master commit measured (0.978 before, 0.98 after)",
                 "date": "2026-11-01"
             }
         },

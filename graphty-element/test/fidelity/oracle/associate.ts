@@ -5487,10 +5487,11 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
         boxWithin(boxOf(a), boxOf(b), slack) &&
         boxWithin(boxOf(b), boxOf(a), slack);
     // a figure (Pajek's man) hides only what lies under its own outline, not what is in a corner of its box beside his
-    // arm, as graphty's side judges its figures (`coveredBy` in extract-scene.ts): every corner of the box, or every
-    // point round a round node's outline
+    // arm, and a round node only what lies under its ellipse, as graphty's side judges them (`coveredBy` in
+    // extract-scene.ts): every corner of the box, or every point round a round node's outline (`pajek-1crn` v1 pokes
+    // out of v289's circle, though it lies inside its box)
     const underFigure = (n: PNode, c: PNode): boolean => {
-        if (c.figure === undefined) {
+        if (c.figure === undefined && c.shape !== "ellipse") {
             return true;
         }
         const b = boxOf(n);
@@ -5508,6 +5509,10 @@ export function withoutCovered(scene: PScene, guide?: PScene): PScene {
                       [b.x1, b.y1],
                   ];
         const reach = slack + (c.stroke?.width ?? 0) / 2;
+        if (c.figure === undefined) {
+            const [rx, ry] = [c.w / 2 + reach, c.h / 2 + reach];
+            return points.every(([x, y]) => Math.hypot((x - c.cx) / rx, (y - c.cy) / ry) <= 1);
+        }
         return points.every((q) => insideFigure(c.figure ?? [], c, q, reach));
     };
     for (const n of scene.nodes) {

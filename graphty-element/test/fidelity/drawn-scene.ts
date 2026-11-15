@@ -804,7 +804,8 @@ export interface DrawnNode {
     /** The further texts it draws over its face (`shape.texts`). */
     texts?: DrawnLabel[];
     /**
-     * A node with no body (shape "none") that asks for no image: it draws only its label and its glyph, as a program
+     * A node with no body (shape "none", or no width or height and no border) that asks for no image: it draws only
+     * its label and its glyph, as a program
      * draws a text-only or an icon-only node (vis-network's `text` and `icon` shapes).
      */
     faceless?: boolean;
@@ -1543,8 +1544,12 @@ export function readNode(node: Node, p: Projector, rings: readonly Ring[]): Draw
                     ? {}
                     : { fill: hex({ r: piece.fill.rgb[0], g: piece.fill.rgb[1], b: piece.fill.rgb[2] }) }),
             })),
-        // its only picture its glyph, where it asks for no image (an image node that drew none is still a node)
-        faceless: drawnStyle?.shape?.type === "none" && (drawnStyle.image?.src ?? "") === "",
+        // its only picture its glyph, where it asks for no image (an image node that drew none is still a node); a
+        // shape of no width or no height with no border draws no body either (Pajek's `x_fact 0`, an ellipse of radius 0)
+        faceless:
+            (drawnStyle?.shape?.type === "none" ||
+                ((drawnStyle?.shape?.width === 0 || drawnStyle?.shape?.height === 0) && border === null)) &&
+            (drawnStyle?.image?.src ?? "") === "",
         glyph:
             typeof drawnStyle?.glyph?.text === "string" && drawnStyle.glyph.text !== ""
                 ? {

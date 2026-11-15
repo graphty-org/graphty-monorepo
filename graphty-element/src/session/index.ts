@@ -85,6 +85,8 @@ export type {
     DataChangeIds,
     DataSourceDescriptor,
     DataSourceInput,
+    DerivedColumn,
+    DeriveOptions,
     DraftColumn,
     DraftRow,
     DraftRowFilter,

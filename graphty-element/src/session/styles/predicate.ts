@@ -1898,21 +1898,13 @@ export function hoverPredicate(
 }
 
 /**
- * Parse and compile `{match:"expression"}`.
- *
- * The parse happens HERE, once, when the layer is added or updated. An expression that is not in
- * the subset is refused at this call, in front of whoever typed it, rather than failing per
- * element later where nothing would report it.
+ * Parse an expression and refuse one that reads no attribute.
  * @param where - The expression as it was typed.
- * @param columns - Where to read values.
- * @returns The test and the column paths it reads.
- * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the expression does not parse or
- *     uses a JMESPath construct the subset does not implement.
+ * @returns The tree and the column paths it reads.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the expression does not parse, uses a
+ *     JMESPath construct the subset does not implement, or reads no attribute.
  */
-export function compileExpressionPredicate(
-    where: Query,
-    columns: ElementColumns,
-): { readonly paths: readonly Path[]; readonly test: ElementPredicate } {
+function parseReading(where: Query): { readonly parsed: ExpressionNode; readonly paths: readonly Path[] } {
     const parsed = parseExpression(where);
     const paths: Path[] = [];
     collectPaths(parsed, paths);
@@ -1940,5 +1932,42 @@ export function compileExpressionPredicate(
         );
     }
 
-    return { paths: Object.freeze(paths), test: compileTest(parsed, columns) };
+    return { parsed, paths: Object.freeze(paths) };
+}
+
+/**
+ * Parse and compile `{match:"expression"}`.
+ *
+ * The parse happens HERE, once, when the layer is added or updated. An expression that is not in
+ * the subset is refused at this call, in front of whoever typed it, rather than failing per
+ * element later where nothing would report it.
+ * @param where - The expression as it was typed.
+ * @param columns - Where to read values.
+ * @returns The test and the column paths it reads.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` when the expression does not parse or
+ *     uses a JMESPath construct the subset does not implement.
+ */
+export function compileExpressionPredicate(
+    where: Query,
+    columns: ElementColumns,
+): { readonly paths: readonly Path[]; readonly test: ElementPredicate } {
+    const { parsed, paths } = parseReading(where);
+    return { paths, test: compileTest(parsed, columns) };
+}
+
+/**
+ * Parse and compile an expression into what it READS for one element, rather than whether it
+ * matches: `data.nickname || data.name` gives the nickname, else the name, by JMESPath's rules. A
+ * computed column (`session.data.derive`) is one of these. Same subset, same refusals.
+ * @param where - The expression as it was typed.
+ * @param columns - Where to read values.
+ * @returns The reader, which answers null for nothing, and the column paths it reads.
+ * @throws A `GraphtyError` with code `E_BAD_SELECTOR` as {@link compileExpressionPredicate} does.
+ */
+export function compileExpressionValue(
+    where: Query,
+    columns: ElementColumns,
+): { readonly paths: readonly Path[]; readonly value: (index: number) => unknown } {
+    const { parsed, paths } = parseReading(where);
+    return { paths, value: compileValue(parsed, columns) };
 }

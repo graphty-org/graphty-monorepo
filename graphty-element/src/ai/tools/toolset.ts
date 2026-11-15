@@ -7,6 +7,7 @@
 
 import { z } from "zod";
 
+import { englishDescription } from "../../catalog/options";
 import type { Graph } from "../../Graph";
 import { channelsFor } from "../../session/styles/channels";
 import type { GraphSession } from "../../session/types";
@@ -497,7 +498,7 @@ function buildIndex(
             kind: "algorithm" as const,
             name: entry.key,
             plainName: entry.plainName,
-            summary: entry.description,
+            summary: englishDescription(entry),
             tool: "run_algorithm",
             words: [entry.technicalName, entry.category, ...((entry as { keywords?: string[] }).keywords ?? [])],
         })),
@@ -514,7 +515,7 @@ function buildIndex(
             kind: "layout" as const,
             name: entry.id,
             plainName: entry.plainName,
-            summary: entry.description,
+            summary: englishDescription(entry),
             tool: "layout",
             action: "set",
             words: [entry.technicalName, entry.family, entry.engine],
@@ -583,7 +584,7 @@ function buildIndex(
             kind: "camera" as const,
             name: entry.id,
             plainName: entry.plainName,
-            summary: entry.description,
+            summary: englishDescription(entry),
             tool: "view",
             action: "camera",
             words: ["camera", "view"],

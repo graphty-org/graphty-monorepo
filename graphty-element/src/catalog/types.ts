@@ -1494,7 +1494,18 @@ export interface AlgorithmDescriptor {
     key: AlgorithmKey;
     plainName: string;
     technicalName: string;
+    /**
+     * What the algorithm does, in an English sentence.
+     * @deprecated Word the algorithm from {@link AlgorithmDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the algorithm does, which an application keys its own words on, such as
+     * "algorithm.pagerank". Present on every built-in algorithm; an extension that describes its
+     * algorithms supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     category: "centrality" | "community" | "path" | "flow" | "structure" | "prediction" | (string & {});
     /**
      * Other words a reader may search for it by (`union`, `bridges`), so a picker finds it by more
@@ -1560,7 +1571,18 @@ export interface LayoutDescriptor {
     id: LayoutId;
     plainName: string;
     technicalName: string;
+    /**
+     * What the layout does, in an English sentence.
+     * @deprecated Word the layout from {@link LayoutDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the layout does, which an application keys its own words on, such as
+     * "layout.force". Present on every built-in layout; an extension that describes its
+     * layouts supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     family: string;
     kind: "live" | "batch";
     maxDimensions: 2 | 3;
@@ -1652,8 +1674,19 @@ export interface FormatDescriptor {
      * writes one kind of file.
      */
     exportVariants?: readonly FormatExportVariant[];
-    /** What the format is for, when its name does not say, such as which call reads it. */
+    /**
+     * What the format is for, when its name does not say, such as which call reads it, in an
+     * English sentence.
+     * @deprecated Word the format from {@link FormatDescriptor.descriptionId} in the application.
+     */
     description?: string;
+    /**
+     * A stable id for what the format is for, which an application keys its own words on, such as
+     * "format.graphty". Present on every built-in format that has a description; an extension that
+     * describes its formats supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
 }
 
 /**
@@ -1715,7 +1748,18 @@ export type PaletteRegistration = Omit<PaletteDescriptor, "capacity" | "colorbli
 export interface CameraDescriptor {
     id: CameraId;
     plainName: string;
+    /**
+     * What the view does, in an English sentence.
+     * @deprecated Word the view from {@link CameraDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the view does, which an application keys its own words on, such as
+     * "camera.fitToGraph". Present on every built-in view; an extension that describes its
+     * views supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     /** The drawing modes this view can be computed in. The element refuses the others. */
     modes: readonly DrawingMode[];
     options: readonly OptionDescriptor[];
@@ -1732,7 +1776,18 @@ export interface CameraDescriptor {
 export interface LogSinkDescriptor {
     id: LogSinkId;
     plainName: string;
+    /**
+     * What the destination does, in an English sentence.
+     * @deprecated Word the destination from {@link LogSinkDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the destination does, which an application keys its own words on, such as
+     * "logSink.console". Present on every built-in destination; an extension that describes its
+     * destinations supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     options: readonly OptionDescriptor[];
 }
 
@@ -1766,7 +1821,17 @@ export interface FunctionDescriptor {
     name: string;
     /** The smallest and largest argument count accepted. */
     arity: [number, number];
+    /**
+     * What the function does, in an English sentence.
+     * @deprecated Word the function from {@link FunctionDescriptor.descriptionId} in the application.
+     */
     description: string;
+    /**
+     * A stable id for what the function does, which an application keys its own words on, such as
+     * "function.log". An extension supplies its own, prefixed with its namespace.
+     * @since 3.55.0
+     */
+    descriptionId?: string;
     returns: "number" | "boolean" | "string";
 }
 

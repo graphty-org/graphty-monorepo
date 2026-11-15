@@ -2,9 +2,10 @@
  * @file `data.roleCandidate`: the column the element would read a role from, when one is obvious.
  */
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
+import { pageDefaultFeatures, setDefaultFeatures } from "../../src/features/resolve";
 
 /**
  * A session holding one CSV of edges.
@@ -18,10 +19,24 @@ async function edges(csv: string): Promise<GraphSession> {
 }
 
 describe("data.roleCandidate", () => {
+    // The timeline is an experiment: the time tests set it, and the project's default comes back after.
+    const projectDefault = pageDefaultFeatures();
+    afterEach(() => {
+        setDefaultFeatures(projectDefault);
+    });
+
     it("names the edge column whose values read as time, most read first", async () => {
+        setDefaultFeatures(["timeline"]);
         const session = await edges("source,target,note,sent\nA,B,x,2026-01-01\nB,C,y,2026-01-02\n");
         assert.strictEqual(session.data.roleCandidate("edge", "time"), "sent");
         assert.isNull(session.data.roleCandidate("node", "time"));
+        session.dispose();
+    });
+
+    it("names no time with the timeline off", async () => {
+        setDefaultFeatures([]);
+        const session = await edges("source,target,sent\nA,B,2026-01-01\nB,C,2026-01-02\n");
+        assert.isNull(session.data.roleCandidate("edge", "time"));
         session.dispose();
     });
 
@@ -52,6 +67,12 @@ describe("data.roleCandidate", () => {
         const named = await free("source,target,cost,score\nA,B,1,0.4\nB,C,2,0.5\n", ["cost", "score"]);
         assert.strictEqual(named.data.roleCandidate("edge", "weight"), "score", "a strength's name decides");
         named.dispose();
+
+        const nodes = createGraphSession();
+        await nodes.data.import({ type: "csv", config: { data: "id,count\na,1\nb,2\n" } });
+        await nodes.data.setRole({ kind: "node", name: "count" }, null);
+        assert.isNull(nodes.data.roleCandidate("node", "weight"), "a load reads no node weight");
+        nodes.dispose();
     });
 
     it("names the label column by its heading, and nothing once it is the label", async () => {

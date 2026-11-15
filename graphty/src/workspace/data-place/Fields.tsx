@@ -310,9 +310,13 @@ function EntryRow({
     );
 }
 
+/** The load entries whose values are kind names, not columns. */
+const NAMED_LOADS: ReadonlySet<string> = new Set(["kindName", "sourceKind", "targetKind"]);
+
 /**
  * What "+" offers for an entry not listed yet: the entry itself, added with the column the element
- * finds obvious for its role (`data.roleCandidate`), or a submenu of its columns. Each key is the
+ * finds obvious for its role (`data.roleCandidate`) or the only kind name offered, or a submenu of
+ * its columns. Each key is the
  * entry's id and the column, as `id=column`. An entry with no column to offer is left out.
  * @param session - the element's session.
  * @param kind - node or edge.
@@ -327,7 +331,14 @@ function addOption(
     choices: readonly Choice[],
 ): AddOption[] {
     const items = choices.map((choice) => (typeof choice === "string" ? { value: choice, label: choice } : choice));
-    const best = entry.role === undefined ? null : session.data.roleCandidate(kind, entry.role);
+    // A kind's name, not a column: when only one is offered (the file's name), it is the one.
+    const onlyName = entry.load !== undefined && NAMED_LOADS.has(entry.load) && items.length === 1;
+    let best: string | null = null;
+    if (onlyName) {
+        best = items[0].value;
+    } else if (entry.role !== undefined) {
+        best = session.data.roleCandidate(kind, entry.role);
+    }
     if (best !== null && items.some((item) => item.value === best)) {
         return [{ key: `${entry.id}=${best}`, label: entry.name }];
     }
@@ -819,7 +830,8 @@ function SourceFields({
     const held = useWorkspaceState((state) => state.ends);
     const attributes = attributesOf(session, source);
     const fail = (): void => {
-        store.set({ notice: { message: "Field not changed" } });
+        // An entry asked for by "+" will not be listed now: nothing waits to focus it.
+        store.set({ notice: { message: "Field not changed" }, fieldsEntry: null });
     };
     const reload = (choices: Parameters<GraphSession["data"]["reloadSource"]>[1]): void => {
         if (source !== undefined) {

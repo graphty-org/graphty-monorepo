@@ -156,10 +156,13 @@ function drop(file: File): void {
 /**
  * Opens a project on the Data place and drops a CSV onto it.
  * @param csv - the file's text.
+ * @param store - the chrome store, when the test reads it.
  * @returns the session.
  */
-async function dropCsv(csv: string): Promise<GraphSession> {
-    const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+async function dropCsv(
+    csv: string,
+    store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" }),
+): Promise<GraphSession> {
     render(<Workspace store={store} />);
     await openElement();
     const session = await openBy(store, async () => {
@@ -219,8 +222,8 @@ describe("Data > Fields as a + list on the real element", () => {
         await dropCsv("code,count,size\nA,1,10\nB,2,x\nC,3,30\n");
         const section = await fields();
         await userEvent.click(await section.findByRole("button", { name: "Add to node attributes" }));
-        // The only number column is the obvious weight: Weight is added with it.
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Weight" }));
+        // A load reads no node weight, so none is obvious: Weight asks for its column.
+        await pickFromSubmenu("Weight", /^count/);
         await waitFor(() => {
             assert.equal(shown(section, "Node weight"), "count");
         });
@@ -373,6 +376,19 @@ describe("Data > Fields as a + list on the real element", () => {
         assert.notInclude(entries(section, "nodes"), "time");
         assert.isNull(restored.session.time.field);
         second.unmount();
+    });
+
+    it("drops the wait to focus an entry the element refuses, so the row never grabs focus later", async () => {
+        const store = createWorkspaceStore({ project: { name: "Fields", id: 1 }, place: "data" });
+        await dropCsv("code,colour\nA,red\nB,blue\nC,green\n", store);
+        const section = await fields();
+        await userEvent.click(section.getByRole("button", { name: "Add to node attributes" }));
+        await pickFromSubmenu("Time", /^colour/);
+        await waitFor(() => {
+            assert.equal(store.get().notice?.message, "colour has no times");
+        });
+        assert.isNull(store.get().fieldsEntry);
+        assert.notInclude(entries(section, "nodes"), "time");
     });
 
     it("makes a text column of dates a date column when it is set as the time", async () => {

@@ -1692,9 +1692,9 @@ export interface SessionDataApi {
      *   the `timeline` experiment on.
      * - `label`: the first of `label`, `Label`, `name`, `Name`, `title` and `Title` holding text,
      *   as a load names its nodes.
-     * - `weight`: as a load reads one -- a number column named `confidence`, `score` or
-     *   `strength`, else the only number column that does not read as time; null when there are
-     *   several.
+     * - `weight`, for edges: as a load reads one -- a number column named `confidence`, `score`
+     *   or `strength`, else the only number column that does not read as time; null when there
+     *   are several. Nodes: null, as a load reads no node weight.
      * - Any other role (`key`, `source`, `target`, `edgeId`, `kind` and the location kinds, which
      *   `session.layout.locationColumns()` detects): null.
      *

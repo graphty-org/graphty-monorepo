@@ -252,7 +252,8 @@ export function designate(session: GraphSession, store: WorkspaceStore, field: T
         (error: unknown) => {
             const column = field?.edges?.start ?? field?.nodes?.start ?? "";
             const reason = (error as { details?: { reason?: unknown } }).details?.reason;
-            store.set({ notice: { message: refusalWords(column, reason), error: true } });
+            // The Time entry asked for will not be listed now: nothing waits to focus it.
+            store.set({ notice: { message: refusalWords(column, reason), error: true }, fieldsEntry: null });
         },
     );
 }

@@ -103,7 +103,7 @@ import {
     LOAD_ROLES,
     type ReadSource,
     readSource,
-    SIMILARITY_COLUMNS,
+    weightAmong,
 } from "./draft";
 import type { LaneStore } from "./GraphSession";
 import { RESTORE as GROUP_RESTORE } from "./groups";
@@ -4882,16 +4882,17 @@ export class SessionData implements SessionDataApi {
             return LABEL_COLUMNS.find((name) => text.some((a) => a.name === name)) ?? null;
         }
 
-        if (role === "weight") {
-            // As a load reads one: a column named for a strength, else the only number column.
-            const numbers = free
-                .filter(
-                    (a) =>
-                        (a.type === "number" || a.type === "integer") && !times.some((each) => each.column === a.name),
-                )
-                .map((a) => a.name);
-            const named = numbers.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
-            return named ?? (numbers.length === 1 ? numbers[0] : null);
+        if (role === "weight" && kind === "edge") {
+            // As a load reads one, and a load reads a weight for edges only.
+            return weightAmong(
+                free
+                    .filter(
+                        (a) =>
+                            (a.type === "number" || a.type === "integer") &&
+                            !times.some((each) => each.column === a.name),
+                    )
+                    .map((a) => a.name),
+            );
         }
 
         return null;

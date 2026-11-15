@@ -534,7 +534,7 @@ const NEARLY_UNIQUE = 0.95;
 const REPEATING_MIN = 3;
 
 /** Column names whose numbers measure how alike or how strongly tied two ends are. */
-export const SIMILARITY_COLUMNS: ReadonlySet<string> = new Set(["confidence", "score", "strength"]);
+const SIMILARITY_COLUMNS: ReadonlySet<string> = new Set(["confidence", "score", "strength"]);
 
 /** Column names a node's label is read from when no label path is configured. */
 export const LABEL_COLUMNS: readonly string[] = ["label", "Label", "name", "Name", "title", "Title"];
@@ -656,8 +656,18 @@ function guessedWeight(
         .filter((column) => (column.type === "number" || column.type === "integer") && !ends?.includes(column.name))
         .filter((column) => !timeline || timeSpan(held, column, config, "edges") === undefined)
         .map((column) => column.name);
-    const named = numeric.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
-    return named ?? (numeric.length === 1 ? numeric[0] : null);
+    return weightAmong(numeric);
+}
+
+/**
+ * Which of an edge table's number columns is its weight: one named for a strength, else the only
+ * one; null when there are several. The one rule a load and `data.roleCandidate` both read.
+ * @param numbers - The number columns that play no other part.
+ * @returns The column, or null.
+ */
+export function weightAmong(numbers: readonly string[]): string | null {
+    const named = numbers.find((name) => SIMILARITY_COLUMNS.has(name.toLowerCase()));
+    return named ?? (numbers.length === 1 ? numbers[0] : null);
 }
 
 /**

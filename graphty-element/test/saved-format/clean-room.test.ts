@@ -10,7 +10,8 @@
  *
  * The saved-name scan: every string a save holds, and every segment of a dotted key, is compared
  * with every built-in id this build ships. A save that names a built-in fails unless the name is a
- * shader the same file carries, or it sits at a path `saved-format-lists.json` lists as a known
+ * shader the same file carries, an entry of an overflow list the binding carries (still checked as the
+ * shape or pattern it names), or it sits at a path `saved-format-lists.json` lists as a known
  * exception with a tracking issue. Changing that list needs the owner's approval.
  */
 
@@ -169,7 +170,10 @@ function scan(text: string, ids: Map<string, string[]>): Hit[] {
         }
 
         for (const kind of ids.get(id) ?? []) {
-            hits.push({ kind, id, path });
+            // A binding's overflowValues is the overflow list itself, carried; each entry still names a shape or pattern.
+            if (!(kind === "overflowLists" && path.endsWith(".overflowValues[]"))) {
+                hits.push({ kind, id, path });
+            }
         }
     };
     const walk = (value: Json, path: string): void => {
@@ -259,6 +263,7 @@ describe("save files are self-contained", () => {
             assert.isAbove(listed, 0);
             const project = (await a.project.save()).text;
             const styleFile = a.styles.toFile();
+            const drawn = await row.drawn?.(a);
             a.dispose();
 
             vi.resetModules();
@@ -285,6 +290,9 @@ describe("save files are self-contained", () => {
                         withoutVolatile(JSON.parse(bSave) as Json),
                     );
                     assert.deepEqual(shaderParts(bSave), shaderParts(text), "A's and B's shaders, uses and background");
+                    if (text === project && row.drawn !== undefined) {
+                        assert.deepEqual(await row.drawn(b), drawn, `B draws what A drew with the ${row.kind} emptied`);
+                    }
                     b.dispose();
                     c.dispose();
                 }

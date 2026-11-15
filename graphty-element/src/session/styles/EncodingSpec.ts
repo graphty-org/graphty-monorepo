@@ -546,12 +546,13 @@ function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descripto
 
     // The half carries what decides the cycle -- the value, the scale, the palette -- and nothing
     // the colour's own reading of the data adds.
-    const { by, overflow, scale, palette } = colour;
+    const { by, overflow, scale, palette, overflowValues } = colour;
     const half = overflowHalf(descriptor.channel, {
         by,
         overflow,
         ...(scale === undefined ? {} : { scale }),
         ...(palette === undefined ? {} : { palette }),
+        ...(overflowValues === undefined ? {} : { overflowValues }),
     });
 
     return half === null ? {} : { [half[0]]: half[1] };

@@ -341,6 +341,7 @@ export type Binding = {
         value: string | number;
     };
     overflow?: BindingOverflow;
+    overflowValues?: string[];
     missing?: "skip" | {
         value: string | number;
     };

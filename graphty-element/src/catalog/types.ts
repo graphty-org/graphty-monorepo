@@ -1250,6 +1250,15 @@ export type Binding =
            * `E_CAP_EXCEEDED` and one it leaves to the element is chosen large enough.
            */
           overflow?: BindingOverflow;
+          /**
+           * The node shapes (`overflow: "shape"`) or edge line patterns (`overflow: "pattern"`)
+           * the overflow steps through, one per full cycle of the palette. The element writes it
+           * when the layer is stored, from `OVERFLOW_SHAPES` or `OVERFLOW_PATTERNS`, so a saved
+           * file keeps its drawing on a build whose lists differ. Each must be a value of
+           * `node.shape` or `edge.style`. Ignored by every other overflow policy.
+           * @since 3.40.0
+           */
+          overflowValues?: string[];
           missing?: "skip" | { value: string | number };
           /**
            * How a number is written on a channel that carries text (a label, a tooltip, a

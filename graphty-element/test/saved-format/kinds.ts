@@ -11,6 +11,8 @@
 
 import type { ShaderDescriptor } from "../../src/catalog/shaders";
 import type { GraphSession } from "../../src/session";
+import type { RuleBinding } from "../../src/session/styles/encoding";
+import { OVERFLOW_PATTERNS, OVERFLOW_SHAPES } from "../../src/session/styles/overflowLists";
 
 /** What a row's `useEvery` did. */
 export interface UsedEvery {
@@ -30,6 +32,8 @@ export interface SelfContainedKind {
     readonly useEvery: (session: GraphSession) => Promise<UsedEvery>;
     /** Each module that ships the built-ins, relative to this folder, with the exports of its empty stub. */
     readonly builtInModules: Readonly<Record<string, Record<string, unknown>>>;
+    /** What the session draws that depends on the kind, compared between A and B; absent, nothing more is compared. */
+    readonly drawn?: (session: GraphSession) => Promise<unknown>;
 }
 
 /** The fixture's nodes. Their data avoids built-in names, so a hit in a save is a saved reference. */
@@ -122,6 +126,61 @@ async function useEveryShader(session: GraphSession): Promise<UsedEvery> {
     return { used, listed: presets.length, saves };
 }
 
+/** How many groups each overflow layer draws: two colours times six cue values. The nodes hold g1 and g2 already. */
+const OVERFLOW_GROUPS = 12;
+
+/**
+ * Use both overflow lists: a node colour that overflows into shapes and an edge colour that
+ * overflows into patterns, each over two colours and enough groups to reach every value.
+ * @param session - The session.
+ * @returns What was used: the lists the layers store.
+ */
+async function useEveryOverflowList(session: GraphSession): Promise<UsedEvery> {
+    // Groups are text, so a colour binding reads them as categories with no scale named.
+    const extra = Array.from({ length: OVERFLOW_GROUPS - 2 }, (_, at) => ({
+        id: `n${at + FIXTURE_NODES.length + 1}`,
+        grp: `g${at + 3}`,
+        weight: 0,
+    }));
+    await session.data.addNodes(extra);
+    await session.data.addEdges(
+        Array.from({ length: OVERFLOW_GROUPS }, (_, at) => ({ source: `n${at + 2}`, target: "n1", k: `k${at + 1}` })),
+    );
+    const colors = ["#112233", "#445566"];
+    const nodes = await session.styles.add({
+        name: "Shapes",
+        target: "node",
+        selector: { match: "everything" },
+        encode: { "node.color": { by: "data.grp", colors, overflow: "shape" } },
+    });
+    const edges = await session.styles.add({
+        name: "Patterns",
+        target: "edge",
+        selector: { match: "has", path: "data.k" },
+        encode: { "edge.color": { by: "data.k", colors, overflow: "pattern" } },
+    });
+    const carried = (id: string, channel: "node.color" | "edge.color"): readonly string[] =>
+        (session.styles.get(id)?.encode?.[channel] as RuleBinding | undefined)?.overflowValues ?? [];
+
+    return {
+        used: [...carried(nodes.id, "node.color"), ...carried(edges.id, "edge.color")],
+        listed: OVERFLOW_SHAPES.length + OVERFLOW_PATTERNS.length,
+        saves: [],
+    };
+}
+
+/**
+ * The shape of every node and the pattern of every edge.
+ * @param session - The session.
+ * @returns Each element's id and value.
+ */
+async function drawnCues(session: GraphSession): Promise<unknown> {
+    await session.styles.settled();
+    const nodes = session.data.nodes().map((node) => [node.id, session.styles.explain({ node: node.id }).merged]);
+    const edges = session.data.edges().map((edge) => [edge.id, session.styles.explain({ edge: edge.id }).merged]);
+    return { nodes, edges };
+}
+
 /** Every kind a save file carries in full. The census requires each `selfContained` kind of `saved-format-lists.json` here. */
 export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
     {
@@ -131,5 +190,17 @@ export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
             "../../src/shaders/presets/index.ts": { SHADER_PRESETS: [] },
             "../../src/shaders/presets/bodies.ts": { SHADER_PRESET_BODIES: {} },
         },
+    },
+    {
+        kind: "overflowLists",
+        useEvery: useEveryOverflowList,
+        builtInModules: {
+            "../../src/session/styles/overflowLists.ts": {
+                OVERFLOW_SHAPES: [],
+                OVERFLOW_PATTERNS: [],
+                builtInIdsForTesting: () => ({ kind: "overflowLists", ids: [] }),
+            },
+        },
+        drawn: drawnCues,
     },
 ];

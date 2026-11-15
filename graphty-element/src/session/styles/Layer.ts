@@ -94,7 +94,7 @@ import {
     parseShaderParamAddress,
     toColorValue,
 } from "./channels";
-import { type RuleBinding, stopsProblem } from "./encoding";
+import { type RuleBinding, stopsProblem, withOverflowValues } from "./encoding";
 import type { FileStyleOrigin } from "./fileStyles/origin";
 import { parseTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import { colorsProblem } from "./palettes";
@@ -1016,6 +1016,31 @@ function checkOverflow(
 }
 
 /**
+ * Check the list an overflow policy steps through: node shapes for "shape", edge line patterns for
+ * "pattern", at least one.
+ * @param binding - The binding.
+ * @param path - Where the binding sits in the specification.
+ * @param log - Where problems are collected.
+ */
+function checkOverflowValues(binding: RuleBinding, path: string, log: ProblemLog): void {
+    const values: unknown = binding.overflowValues;
+    if (values === undefined) {
+        return;
+    }
+
+    const cue = binding.overflow === "pattern" ? "edge.style" : "node.shape";
+    const allowed: readonly string[] = channelDescriptor(cue)?.values ?? [];
+    if (!Array.isArray(values) || values.length === 0 || values.some((each) => !allowed.includes(each as string))) {
+        report(log, {
+            code: "E_BAD_LAYER",
+            message: `overflowValues is a list of ${cue} values.`,
+            path: `${path}.overflowValues`,
+            candidates: allowed,
+        });
+    }
+}
+
+/**
  * Check a binding's list of values not to paint.
  * @param hidden - The list, as authored.
  * @param path - Where the binding sits in the specification.
@@ -1184,6 +1209,7 @@ function checkBindingOptions(
     }
 
     checkOverflow(descriptor, binding.overflow, path, log);
+    checkOverflowValues(binding, path, log);
 
     if (binding.unmapped !== undefined && binding.unmapped !== "skip") {
         report(log, {
@@ -1834,6 +1860,21 @@ export function checkLayerSpec(given: LayerSpec, options: LayerCheckOptions): La
 }
 
 /**
+ * An encoding with each overflow list it steps through written into its binding, so a save file
+ * carries the order it draws in.
+ * @param encode - The encoding.
+ * @returns The same encoding, its overflow bindings carrying their lists.
+ */
+function withCarriedOverflow(encode: Encoding): Encoding {
+    return Object.fromEntries(
+        Object.entries(encode).map(([key, binding]) => [
+            key,
+            binding === undefined ? binding : withOverflowValues(binding),
+        ]),
+    );
+}
+
+/**
  * Freeze a checked specification into the layer the stack holds.
  * @param spec - The specification, already checked.
  * @param id - The id the layer carries for the rest of its life.
@@ -1863,7 +1904,7 @@ function buildLayer(
         target,
         selector: frozen(spec.selector as Selector),
         ...(spec.set === undefined ? {} : { set: frozen(spec.set) }),
-        ...(spec.encode === undefined ? {} : { encode: frozen(spec.encode) }),
+        ...(spec.encode === undefined ? {} : { encode: frozen(withCarriedOverflow(spec.encode)) }),
         ...(spec.unmatched === undefined ? {} : { unmatched: frozen(spec.unmatched) }),
         // Stored by reference and never copied: "round-trips untouched" is not a figure of speech,
         // and a consumer keeping a live object in here gets the same object back.

@@ -1,5 +1,5 @@
 {
-    "selfContained": ["shaders"],
+    "selfContained": ["shaders", "overflowLists"],
     "exceptions": [
         {
             "kind": "palette",
@@ -35,13 +35,6 @@
             "catalogs": ["edgeArrows", "edgeLines"],
             "issue": 6504,
             "finding": "Arrowheads, edge.style and edge.outlineStyle name built-in arrowheads and line patterns by id."
-        },
-        {
-            "kind": "overflow-lists",
-            "paths": [],
-            "catalogs": ["overflowLists"],
-            "issue": 6505,
-            "finding": "An overflow policy (overflow: shape or pattern) steps through fixed lists in encoding.ts that the file does not carry; changing a list changes old files' drawings."
         },
         {
             "kind": "closed-look-lists",

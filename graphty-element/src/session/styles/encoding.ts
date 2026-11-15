@@ -82,9 +82,7 @@ import {
     type ChannelValueKind,
     type ChannelValues,
     type ColorValue,
-    type EdgeLineValue,
     isEnumCount,
-    type NodeShapeValue,
     OFF_COLOR,
     parseShaderParamAddress,
     prototypeFreeMap,
@@ -94,6 +92,7 @@ import {
 } from "./channels";
 import { parseTemplate, prepareTemplate, TEMPLATE_CHANNELS } from "./labelTemplate";
 import type { LegendFact } from "./legend";
+import { OVERFLOW_PATTERNS, OVERFLOW_SHAPES } from "./overflowLists";
 import { overflowCapacity, type PreparedRamp, prepareRamp, type RampSpec } from "./palettes";
 import {
     BUILT_IN_SCALES,
@@ -104,6 +103,8 @@ import {
     type ScaleFn,
     type ScaleRegistry,
 } from "./scales";
+
+export { OVERFLOW_PATTERNS, OVERFLOW_SHAPES } from "./overflowLists";
 
 // ---------------------------------------------------------------------------------------------
 // What a binding is, and what preparing one produces
@@ -298,41 +299,6 @@ export interface PrepareBindingOptions {
 
 /** How many groups a grouping by equal counts cuts when the binding does not say. */
 const QUANTILE_GROUPS = 4;
-
-/**
- * The node shapes `overflow: "shape"` steps through, one per full cycle of the palette.
- *
- * The first is the element's default node shape, so the groups that fit in the palette look the
- * way they would have without the policy. The rest are chosen for silhouettes that stay apart at
- * a node's size from any angle: a cube, a double pyramid, an upright column, a point and a ring.
- * The Platonic solids with many faces (dodecahedron, icosahedron) are left out because at node
- * size they read as the sphere. A list meant to keep its shapes apart, such as one shape per
- * layer, can start with these.
- * @since 3.30.0
- */
-export const OVERFLOW_SHAPES: readonly NodeShapeValue[] = Object.freeze([
-    "icosphere",
-    "box",
-    "octahedron",
-    "cylinder",
-    "cone",
-    "torus",
-]);
-
-/**
- * The edge line patterns `overflow: "pattern"` steps through, one per full cycle of the palette:
- * the edge counterpart of {@link OVERFLOW_SHAPES}. The first is the element's default, a solid
- * line; the rest are chosen to stay apart at an edge's width.
- * @since 3.27.0
- */
-export const OVERFLOW_PATTERNS: readonly EdgeLineValue[] = Object.freeze([
-    "solid",
-    "dash",
-    "dot",
-    "dash-dot",
-    "sinewave",
-    "diamond",
-]);
 
 /** The counts of a binding that read nothing. */
 const NO_COUNTS: BindingCounts = Object.freeze({
@@ -1632,11 +1598,11 @@ function valuePainter(declared: ChannelDescriptor, binding: RuleBinding, parts: 
     const descriptor = withChoices(declared, binding.choices);
     // A value the binding names itself is checked against every value; slots land on the offered ones.
     const slots = binding.choices === undefined ? (parts.slots ?? descriptor) : descriptor;
-    if (binding.overflow === "shape" && descriptor.channel === "node.shape") {
-        return cyclePainter(binding, parts, OVERFLOW_SHAPES);
-    }
-    if (binding.overflow === "pattern" && descriptor.channel === "edge.style") {
-        return cyclePainter(binding, parts, OVERFLOW_PATTERNS);
+    if (
+        (binding.overflow === "shape" && descriptor.channel === "node.shape") ||
+        (binding.overflow === "pattern" && descriptor.channel === "edge.style")
+    ) {
+        return cyclePainter(binding, parts, overflowValuesOf(binding));
     }
 
     const convert = converterFor(slots, binding.format);
@@ -1775,6 +1741,7 @@ export function overflowHalf(channel: Channel, binding: Binding): readonly [Chan
             ...(binding.colors === undefined ? {} : { colors: binding.colors }),
             ...(binding.other === undefined ? {} : { other: binding.other }),
             ...(binding.hidden === undefined ? {} : { hidden: binding.hidden }),
+            ...(binding.overflowValues === undefined ? {} : { overflowValues: binding.overflowValues }),
         },
     ];
 }
@@ -1826,7 +1793,43 @@ function overflowKeep(descriptor: ChannelDescriptor, binding: RuleBinding, numer
         return capacity;
     }
 
-    return capacity * (overflow === "shape" ? OVERFLOW_SHAPES : OVERFLOW_PATTERNS).length;
+    return capacity * overflowValuesOf(binding).length;
+}
+
+/**
+ * The values `overflow: "shape"` or `"pattern"` steps through: the list the binding carries, else
+ * the build's own.
+ * @param binding - The rule binding.
+ * @returns The node shapes or edge line patterns, in order.
+ */
+function overflowValuesOf(binding: RuleBinding): readonly string[] {
+    return binding.overflowValues ?? (binding.overflow === "pattern" ? OVERFLOW_PATTERNS : OVERFLOW_SHAPES);
+}
+
+/**
+ * A binding that steps through an overflow list, with that list written into it, so a save file
+ * carries the order it draws in and opens the same way on a build whose own list differs.
+ * @param binding - The binding.
+ * @returns The binding, with `overflowValues` set when its overflow policy steps through a list
+ *   and dropped when it does not.
+ */
+export function withOverflowValues(binding: Binding): Binding {
+    if (!("by" in binding)) {
+        return binding;
+    }
+
+    if (binding.overflow !== "shape" && binding.overflow !== "pattern") {
+        if (binding.overflowValues === undefined) {
+            return binding;
+        }
+
+        const { overflowValues: _dropped, ...rest } = binding;
+        return rest;
+    }
+
+    return binding.overflowValues === undefined
+        ? { ...binding, overflowValues: [...overflowValuesOf(binding)] }
+        : binding;
 }
 
 /**
@@ -3067,15 +3070,4 @@ function prepareParamBinding(address: ShaderParamTarget, options: PrepareBinding
         paint: (value) => patch(prepared.paint(value)),
         paintIgnoringHidden: (value) => patch(prepared.paintIgnoringHidden(value)),
     };
-}
-
-/**
- * The built-in node shapes and edge line patterns an overflow policy steps through, for the saved-name scan: a save file that names one by id depends on this
- * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
- * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.
- * @returns The kind and its ids.
- * @public
- */
-export function builtInIdsForTesting(): { kind: string; ids: readonly string[] } {
-    return { kind: "overflowLists", ids: [...OVERFLOW_SHAPES, ...OVERFLOW_PATTERNS] };
 }

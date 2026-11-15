@@ -411,7 +411,6 @@ export const ON_RELOAD = {
     dataTab: "kept",
     timelineOpen: "kept",
     timeSheetOpen: "kept",
-    timeWindowCard: "kept",
     legendShown: "kept",
     keyHasEntries: "fresh: read from the element's legend",
     legendAsked: "kept",

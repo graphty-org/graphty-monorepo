@@ -171,6 +171,42 @@ describe("node size space", () => {
         assert.closeTo(radius("small") / perspective, 1, 0.01);
     });
 
+    it("screen, then removed: the picture comes back, labels included", async () => {
+        await pair();
+        await element.session.styles.add({
+            name: "words",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.label": "WORDS" },
+        });
+        await still();
+        const picture = async (): Promise<Uint8Array> => {
+            await element.waitForStableFrame();
+            const { engine } = element.graph;
+            element.graph.scene.render();
+            return new Uint8Array(
+                (await engine.readPixels(0, 0, engine.getRenderWidth(), engine.getRenderHeight())).buffer,
+            );
+        };
+        const before = await picture();
+        const held = await element.session.styles.add({
+            name: "held",
+            target: "node",
+            selector: { match: "everything" },
+            set: { "node.sizeSpace": "screen" },
+        });
+        await element.waitForStableFrame();
+        await element.session.styles.remove(held.id);
+        const after = await picture();
+        let changed = 0;
+        for (let at = 0; at < before.length; at += 4) {
+            if (before[at] !== after[at] || before[at + 1] !== after[at + 1] || before[at + 2] !== after[at + 2]) {
+                changed++;
+            }
+        }
+        assert.strictEqual(changed, 0, "pixels that differ once the layer is gone");
+    });
+
     it("pivot, in 2D: sizes are left alone (an orthographic view has no depth to undo)", async () => {
         await drawn(true, true);
         await element.setViewMode("2d");

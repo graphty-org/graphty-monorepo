@@ -2701,6 +2701,10 @@ export class UpdateManager implements Manager {
 
         // After the nodes have moved for this pass, so a node's depth is the one it is drawn at.
         const scaled = this.sizeNodesForView();
+        // A node drawn at a new scale is a new picture: its label's texture is fitted to its size on screen again.
+        if (scaled) {
+            this.pending.changed();
+        }
         if (this.viewScaled) {
             this.retrimForNodeScales(scaled);
         } else {

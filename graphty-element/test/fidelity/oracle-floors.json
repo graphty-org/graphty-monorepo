@@ -3735,7 +3735,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -3743,7 +3743,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -3801,7 +3801,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -3809,7 +3809,7 @@
             "edge.dash": 1,
             "edge.dashPeriod": 1,
             "edge.gradient": 1,
-            "edge.arrow": 0.998,
+            "edge.arrow": 1,
             "edge.arrowShape": 1,
             "edge.arrowParts": 1,
             "edge.arrowPlace": 1,
@@ -7040,7 +7040,7 @@
             "label.backgroundBorder": 0.985,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.978,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -7106,7 +7106,7 @@
             "label.backgroundBorder": 0.985,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.978,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -11204,7 +11204,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -11270,7 +11270,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -38907,7 +38907,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -38973,7 +38973,7 @@
             "label.backgroundBorder": 1,
             "edge.present": 1,
             "edge.extra": 0.993,
-            "edge.route": 0.985,
+            "edge.route": 0.986,
             "edge.curve": 1,
             "edge.color": 1,
             "edge.width": 1,
@@ -56179,24 +56179,12 @@
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
             }
         },
         "cx-syn-mappings@matched": {
             "label.alongLine": {
                 "floor": 1,
                 "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
             }
@@ -56223,24 +56211,12 @@
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
             }
         },
         "cys-syn-mappings@matched": {
             "label.alongLine": {
                 "floor": 1,
                 "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
             }
@@ -56507,24 +56483,12 @@
                 "to": 0.971,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
             }
         },
         "xgmml-syn-mappings@matched": {
             "label.alongLine": {
                 "floor": 1,
                 "to": 0.971,
-                "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
-                "date": "2026-11-01"
-            },
-            "edge.route": {
-                "floor": 0.985,
-                "to": 0.978,
                 "reason": "edge.route: #4254 (af97c848cc) sizes Cytoscape desktop's arrowheads as it draws them, which took cx-syn-mappings edge.arrowLength from 236 to 256 of 258 heads; one route's bow (309->312, 0.068 of its chord against 0.05) is past tolerance since. label.alongLine: the floor of 1 came with the round 4 merge (#4096) and no master commit measured it (0.906 on #3246, 0.971 on #4096, its branch head and every merge since); edge 327->333's label is the one off (bisected in #5332)",
                 "date": "2026-11-01"
             }

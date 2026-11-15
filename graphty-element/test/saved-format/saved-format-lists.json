@@ -48,7 +48,7 @@
             "paths": [],
             "catalogs": [],
             "issue": 6506,
-            "finding": "Border styles, chart kinds, stripe directions, route, support model, image fit and repeat, model fit, center and up axis are closed lists saved by name, with no catalog table; the scan does not list their ids yet."
+            "finding": "Border styles, chart kinds, stripe directions, route, support model, image fit and repeat, model fit, center and up axis are closed lists saved by name, with no catalog table; the scan does not list their ids yet. Kept on purpose: the owner decided on 2026-11-13 that closed choices are code-backed built-ins, named in save files, not carried, and the reading build draws them (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "transition",
@@ -69,7 +69,7 @@
             "paths": [],
             "catalogs": ["generators", "datasets"],
             "issue": 6509,
-            "finding": "A project's data source names a generator or dataset by name, resolved against the current generator catalog."
+            "finding": "A project's data source names a generator or dataset by name, resolved against the current generator catalog, and opening the project generates or downloads it again. Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results; the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "row-template",
@@ -125,7 +125,7 @@
             "paths": [],
             "catalogs": [],
             "issue": 6517,
-            "finding": "Graphviz edge routes are not saved; they are computed again on open."
+            "finding": "Graphviz edge routes are not saved; the layout that lays them (edgeRoutes: graphviz) is saved and run again on open, which computes them again. Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results; the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "gazetteer",

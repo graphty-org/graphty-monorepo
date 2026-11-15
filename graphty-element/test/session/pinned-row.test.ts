@@ -39,6 +39,15 @@ function pinnedLayer(session: GraphSession): string | undefined {
 }
 
 /**
+ * The Ghost row, which the starting rows include only with the timeline experiment on.
+ * @param session - The session.
+ * @returns The Ghost row's name and pin, or nothing with the timeline off.
+ */
+function ghost(session: GraphSession): [string, string][] {
+    return session.features.enabled.includes("timeline") ? [["Ghost", "top"]] : [];
+}
+
+/**
  * The halo color a node is drawn with.
  * @param session - The session.
  * @param node - The node.
@@ -54,11 +63,7 @@ describe("the Pinned row", () => {
         assert.isUndefined(session.config.pinnedStyle);
         assert.deepStrictEqual(
             session.styles.tree().map((each) => [each.name, each.pin]),
-            [
-                ["Everything", "bottom"],
-                ["Selected", "top"],
-                ["Hovered", "top"],
-            ],
+            [["Everything", "bottom"], ...ghost(session), ["Selected", "top"], ["Hovered", "top"]],
         );
         // Set later, the setting writes no row: the default rows were written when the project began.
         await session.config.set({ pinnedStyle: LOOK });
@@ -70,7 +75,7 @@ describe("the Pinned row", () => {
         const session = await triangle({ pinnedStyle: LOOK });
         assert.deepStrictEqual(
             session.styles.tree().map((each) => each.name),
-            ["Everything", "Pinned", "Selected", "Hovered"],
+            ["Everything", ...ghost(session).map(([name]) => name), "Pinned", "Selected", "Hovered"],
         );
         assert.deepStrictEqual(session.styles.get(pinnedLayer(session) ?? "")?.set, {
             "node.haloColor": "#868E96",
@@ -159,7 +164,7 @@ describe("the Pinned row", () => {
         await reopened.project.open((await session.project.save()).text, { discard: true });
         assert.deepStrictEqual(
             reopened.styles.tree().map((each) => each.name),
-            ["Everything", "Pinned", "Selected", "Hovered"],
+            ["Everything", ...ghost(reopened).map(([name]) => name), "Pinned", "Selected", "Hovered"],
         );
         assert.deepStrictEqual(reopened.styles.toDocument(), saved);
         session.dispose();

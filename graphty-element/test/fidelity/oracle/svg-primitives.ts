@@ -825,6 +825,23 @@ export function inkedPart(pixels: Pixels, b: Rect, stretched: boolean): Rect | n
     return { x: b.x + x0 * sx, y: b.y + y0 * sy, width: (x1 - x0) * sx, height: (y1 - y0) * sy };
 }
 
+/**
+ * Whether an ellipse or a circle draws nothing, fill and stroke alike: a radius of 0 on either axis disables its
+ * rendering (SVG 1.1 sections 9.3 and 9.4). Pajek 6.02 writes a vertex of `x_fact 0` or a vector value of 0 so
+ * (`pajek-specimen-node-sizes-opacity` `x-fact-0`, `pajek-specimen-mappings-bypass-p3` `vec-0`: `rx="0.00" ry="18.00"`).
+ * @param el - the element
+ * @param tag - its tag name
+ * @returns true when it is not rendered
+ */
+function unrendered(el: Element, tag: string): boolean {
+    // a radius written as a number of 0 or less; `auto` (SVG 2) takes the other axis's
+    const zero = (name: string): boolean => {
+        const v = el.getAttribute(name);
+        return v !== null && /^\s*[+-]?[\d.]/.test(v) && Number.parseFloat(v) <= 0;
+    };
+    return (tag === "ellipse" && (zero("rx") || zero("ry"))) || (tag === "circle" && zero("r"));
+}
+
 /** A box as an image element gives it: its corner and its size. */
 interface Rect {
     x: number;
@@ -1698,7 +1715,7 @@ export function readSvgPrimitives(svgText: string, pictures: ReadonlyMap<string,
             }
             let fill = fillOf(el, cs, opacity, root, m);
             let stroke = strokeOf(el, cs, opacity, scale, root, m);
-            if (fill === null && stroke === null) {
+            if ((fill === null && stroke === null) || unrendered(el, tag)) {
                 continue;
             }
             // vis-network's canvas2svg writes a shape's fill and its outline as two paths of one geometry, the outline

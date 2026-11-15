@@ -682,8 +682,8 @@ Still open, each judged against Pajek's drawing:
   (synth-vertices label size 66/71 -> 68/71, color 65/71 -> 69/71; lin-rel4 v226 to v233 225/234 -> 234/234).
 - LightOrange: Pajek's SVG export draws it #ffd9bc (its default vertex fill), not its EPS dictionary's #ffccb3;
   FIXED (2026-10-19) in graph-io's Pajek color table (graphstream-b node fill 93/111 -> 111/111).
-- Pajek quirks graph-io does not copy: `cross` is drawn as an ellipse in the SVG export (graph-io still draws a
-  cross; `edges-lines-p2` `h-cross-1-3` node.shape fails), `Triangle` (capital T) is not a shape, and an `empty`
+- Pajek quirks graph-io did not copy: `cross` is drawn as an ellipse in the SVG export and `Triangle` (capital T) is
+  not a shape (both copied since 2026-11-15, #8193), and an `empty`
   vertex draws no body, which graphty still sizes (synth-vertices width 48/80). A placed line that names no shape and
   starts its parameters with `bc`, `bw`, `s_size`, `phi`, `r`, `q`, `lc`, `la`, `lr`, `lphi`, `fos` or `font` is drawn
   with none of them; graph-io copies this since the third fix round (2026-10-20). The earlier reading that such a
@@ -1850,10 +1850,10 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
 - Shapes:
     - `cross` is drawn as an ellipse, `empty` draws nothing (and its label at size 1 in white), `r` is ignored on
       box and diamond (`specimen-node-shapes` `r-*`), and a shape keyword with a capital letter (`Box`, `Triangle`)
-      or no shape keyword at all draws an ellipse. Open: graph-io reads a shape keyword in any case and keeps it
-      lower-cased in the `shape` column (`isShapeKeyword`, a published helper), so it draws `Box` and `Triangle`
-      as a box and a triangle (`shape-box-capitalized`, `shape-triangle-capitalized`); keeping the keyword as
-      written changes what an import returns, a breaking change left for the owner.
+      or no shape keyword at all draws an ellipse. FIXED (2026-11-15, #8193): graph-io keeps a shape keyword as
+      written in the `shape` column and draws `cross`, and a keyword in any case but lower (`Box`, `Triangle`), as an
+      ellipse (`shape-cross`, `shape-box-capitalized`, `shape-triangle-capitalized`, `h-cross-1-3`, `bw-4-cross`,
+      synth-vertices' crosses).
     - `man` and `woman` are about 2.5 x 6.5 times the size of the other shapes at the same `x_fact` / `y_fact` (50 x
       130 px at 1, against 20 for an ellipse); the sheets draw them at 0.5.
     - `q` reshapes the diamond: 0.01 is a diamond with cut tips, 0.5 a hexagon, 1 a square, 2 a bow tie. FIXED
@@ -1982,7 +1982,10 @@ What Pajek 6.02's SVG export does with the vocabulary, which the importer must m
     - FIXED (2026-10-19) SVG Vertices 3D Effect (`Form10.effect3d`): each vertex is a linear gradient from its fill
       to half of it, top to bottom, turned with `phi` (`node-shapes-p2` gradient 0/38 -> 38/38).
     - `x_fact 0 y_fact 0` draws nothing; graphty draws a 2 px dot (`x-fact-0`). The same holds for a vertex a vector
-      value of 0 hides (`specimen-mappings-bypass` `vec-0`).
+      value of 0 hides (`specimen-mappings-bypass` `vec-0`). FIXED (2026-11-15, #8193): Pajek writes it as an
+      `<ellipse rx="0.00">`, which SVG does not render; the oracle reader now leaves out an ellipse or circle of radius
+      0, graph-io draws such an ellipse with no border, and the comparator reads a graphty node of no width or height
+      and no border as drawing no body.
     - A vertex line whose parameters start with `s_size` and name no shape (`s_size 2 ic Red`, `s-size-no-shape`) is
       drawn by Pajek with every parameter on the line ignored: default size and fill, and the shape carried from the
       line before (a box on the `node-sizes-opacity` pages, 20 x 20 at the default size, 80 x 80 at Size of Vertices

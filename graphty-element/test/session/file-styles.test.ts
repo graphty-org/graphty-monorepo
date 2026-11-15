@@ -153,7 +153,7 @@ describe("a file's styles drawn by the load", () => {
             Object.values(layer.encode ?? {}).some((binding) => typeof binding === "object" && "map" in binding),
         );
         assert.lengthOf(discrete, 1);
-        assert.strictEqual(discrete[0].name, "node.by.Modularity Class");
+        assert.strictEqual(discrete[0].name, "By Modularity Class");
         assert.deepEqual(Object.keys(discrete[0].encode ?? {}), ["node.color"]);
         assert.deepEqual(namespaces(session), ["values"]);
 
@@ -963,7 +963,7 @@ describe("a file's drawing order", () => {
         assert.strictEqual(order(session, "first"), 0);
         assert.strictEqual(order(session, "second"), 50);
         assert.strictEqual(order(session, "third"), 100);
-        assert.strictEqual(winner(session, "third", "node.drawOrder")?.name, "node.drawOrder");
+        assert.strictEqual(winner(session, "third", "node.drawOrder")?.name, "Draw order");
         session.dispose();
     });
 

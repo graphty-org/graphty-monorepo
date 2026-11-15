@@ -158,6 +158,11 @@ export interface TranslateInput {
     readonly options: FileStyleOptions;
     /** The path a layer reads one of the file's data columns at, or null when it cannot. */
     readonly dataPath: (kind: StyleTarget, column: string) => Path | null;
+    /**
+     * What the element paints every node and edge with before any loaded layer, per kind and channel: a value a rule
+     * of defaults gives every element that the element already paints needs no layer. Absent, every value is drawn.
+     */
+    readonly elementDefaults?: Readonly<Record<StyleTarget, Readonly<Partial<Record<Channel, unknown>>>>>;
     /** Whether the file stored a usable position for any node, so no program's own layout placed it. */
     readonly positionsStored?: boolean;
 }
@@ -517,12 +522,14 @@ function closingQuote(where: string, from: number, quote: string): number {
  * The neutral property each channel of a kind is drawn from, and how.
  * @param kind - Nodes or edges.
  * @param factors - What the file's lengths are multiplied by.
+ * @param screenLabels - Whether the kind's styles fix any label size on screen (`labelScreenSize` and its kin).
  * @param imageBase - The URL a picture's relative path is resolved against, or undefined.
  * @returns The plans per property.
  */
 function channelPlans(
     kind: StyleTarget,
     factors: LengthFactors,
+    screenLabels: boolean,
     imageBase?: string,
 ): ReadonlyMap<string, readonly ChannelPlan[]> {
     const arrows = ARROW_SHAPES;
@@ -594,7 +601,13 @@ function channelPlans(
     // Each size converted on its own: a label's letters are not in proportion to its `sizePx` (see LABEL).
     // The letters' height in the scene, besides the canvas size: `sizePx / 48` scene units is a line of the font's own
     // line height, which differs from one font to the next.
+    // Labels whose styles fix their size on screen are never sized in the scene, which would override the screen size:
+    // every label size of the kind is then drawn as the screen size it is.
     const labelSize = (channel: Channel, letters: Channel): ChannelPlan[] => {
+        if (screenLabels) {
+            return screenSize(channel);
+        }
+
         const px = factors.label;
         const { letter } = factors;
         return px === null || letter === null
@@ -617,7 +630,7 @@ function channelPlans(
     // sizes need it
     // A label box's border width is a whole stroke's width, so it is not halved.
     // label units per file length, as a label's padding and border are drawn
-    const labelScale = factors.label === null ? 1 : factors.label(14) / 14;
+    const labelScale = screenLabels || factors.label === null ? 1 : factors.label(14) / 14;
     const labelLength = (channel: Channel, half = true): ChannelPlan => {
         const ratio = labelScale / (half ? 2 : 1);
         return {
@@ -1197,6 +1210,13 @@ function arrowStackOf(value: StyleValue | null, scene: number): string | null {
     return words.length === 0 ? null : words.join(" ");
 }
 
+/** The neutral properties that fix a label's size on screen. */
+const SCREEN_LABEL_SIZES: readonly StyleProperty[] = [
+    "labelScreenSize",
+    "sourceLabelScreenSize",
+    "targetLabelScreenSize",
+] as StyleProperty[];
+
 /** The properties the element draws nothing for, per kind. */
 const NOT_DRAWN: Readonly<Record<StyleTarget, ReadonlySet<string>>> = {
     node: new Set(),
@@ -1668,9 +1688,13 @@ class KindTranslation {
         this.#columns = columns;
         this.#n = kind === "node" ? input.snapshot.nodeCount : input.snapshot.edgeCount;
         this.#scene = factors.scene ?? 1;
-        this.#plans = channelPlans(kind, factors, input.options.imageBaseUrl);
         this.#keys = new Set(input.extracted.columns[kind].keys());
-        this.#rules = input.extracted.styles.rules.filter((rule) => rule.target === kind);
+        const rules = input.extracted.styles.rules.filter((rule) => rule.target === kind);
+        const screenLabels = rules.some((rule) =>
+            SCREEN_LABEL_SIZES.some((p) => rule.set?.[p] !== undefined || rule.map?.[p] !== undefined),
+        );
+        this.#plans = channelPlans(kind, factors, screenLabels, input.options.imageBaseUrl);
+        this.#rules = rules.filter((rule, at) => !this.#drawnByDefault(rule, rules.slice(0, at)));
     }
 
     /**
@@ -2092,7 +2116,7 @@ class KindTranslation {
             bucket,
             ruleId: rule.id,
             spec: {
-                name: same.length === 0 ? (rule.name ?? rule.id) : `${rule.name ?? rule.id} ${String(same.length + 1)}`,
+                name: same.length === 0 ? layerNameOf(rule) : `${layerNameOf(rule)}#${String(same.length + 1)}`,
                 target: this.#kind,
                 kind,
                 selector,
@@ -2172,7 +2196,14 @@ class KindTranslation {
         }
 
         const ignored = (reason: string): null => {
-            this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.LAYER_SPEC_IGNORED, this.#kind, rule.id, 1, undefined, reason);
+            this.#notes.add(
+                FILE_STYLE_TRANSLATION_ISSUE.LAYER_SPEC_IGNORED,
+                this.#kind,
+                layerNameOf(rule),
+                1,
+                undefined,
+                reason,
+            );
             return null;
         };
         if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
@@ -2233,7 +2264,7 @@ class KindTranslation {
         }
 
         return {
-            name: typeof given.name === "string" ? given.name : rule.id,
+            name: typeof given.name === "string" ? given.name : layerNameOf(rule),
             target: this.#kind,
             ...(given.kind === undefined ? {} : { kind: given.kind }),
             selector: this.#scoped(moved),
@@ -2399,6 +2430,80 @@ class KindTranslation {
     }
 
     /**
+     * Whether a rule of defaults gives every element only values the element already paints by default, so it adds
+     * nothing a layer would draw: a file that recorded its viewer's own defaults (graphty's export does) is drawn
+     * without them. A rule that gives any other value, maps any, or covers a property a rule beneath it gives, is
+     * drawn whole.
+     * @param rule - The rule.
+     * @param beneath - The rules of its kind beneath it.
+     * @returns True for a rule the element already draws.
+     */
+    #drawnByDefault(rule: StyleRule, beneath: readonly StyleRule[]): boolean {
+        const defaults = this.#input.elementDefaults?.[this.#kind];
+        if (
+            defaults === undefined ||
+            rule.role !== "defaults" ||
+            !("all" in rule.where && rule.where.all) ||
+            rule.map !== undefined ||
+            rule.set === undefined
+        ) {
+            return false;
+        }
+
+        const own = Object.keys(rule.set);
+        if (
+            beneath.some((under) =>
+                [...Object.keys(under.set ?? {}), ...Object.keys(under.map ?? {})].some((p) => own.includes(p)),
+            )
+        ) {
+            return false;
+        }
+
+        return Object.entries(rule.set).every(([property, value]) => {
+            const plans = this.#defaultPlansOf(property);
+            return (
+                value !== undefined &&
+                plans !== null &&
+                plans.every((plan) => {
+                    const own = defaults[plan.channel];
+                    return (
+                        own !== undefined &&
+                        same(drawnAs(plan.channel, plan.convert(value)), drawnAs(plan.channel, own))
+                    );
+                })
+            );
+        });
+    }
+
+    /**
+     * The channels a property of a rule of defaults is drawn on, as `#drawnByDefault` compares them: a node's width
+     * and height on its size, its opacities on its opacity, a `graphty:` property on the channel it names.
+     * @param property - The property.
+     * @returns The plans, or null for a property with none.
+     */
+    #defaultPlansOf(property: string): readonly ChannelPlan[] | null {
+        if (this.#kind === "node" && (property === "width" || property === "height")) {
+            return [
+                {
+                    channel: "node.size",
+                    convert: (v) => (typeof v === "number" ? round(v * this.#factor) : null),
+                    identity: false,
+                },
+            ];
+        }
+        if (this.#kind === "node" && (property === "opacity" || property === "fillOpacity")) {
+            return [{ channel: "node.opacity", convert: (v) => v, identity: true }];
+        }
+        const plans = this.#plans.get(property);
+        if (plans !== undefined) {
+            return plans;
+        }
+        return property.startsWith("graphty:")
+            ? [{ channel: property.slice("graphty:".length) as Channel, convert: (v) => v, identity: true }]
+            : null;
+    }
+
+    /**
      * The channels a property is drawn on: its plan, or the channel a `graphty:` property names.
      * @param property - The property.
      * @returns The plans; empty for a property the element has no channel for.
@@ -2504,7 +2609,7 @@ class KindTranslation {
             // elements reads a column the file does not hold.
             const empty = !truth.some((value) => value !== null);
             if (empty && this.#matches(rule.where, source).some(Boolean)) {
-                this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.COLUMN_ABSENT, this.#kind, rule.id, 1, property);
+                this.#notes.add(FILE_STYLE_TRANSLATION_ISSUE.COLUMN_ABSENT, this.#kind, layerNameOf(rule), 1, property);
             }
 
             return;
@@ -3397,6 +3502,15 @@ function listOf(where: Predicate): readonly Predicate[] | null {
     }
 
     return "or" in where ? where.or : null;
+}
+
+/**
+ * The name of the layers a rule makes: the rule's own default name, which says what it does, or its id when it has none.
+ * @param rule - The rule.
+ * @returns The name.
+ */
+function layerNameOf(rule: StyleRule): string {
+    return rule.name ?? rule.id;
 }
 
 /**

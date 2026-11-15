@@ -680,6 +680,7 @@ class KindExport {
         const spec = this.#specOf(entry);
         this.#rules.push({
             id,
+            name: layer.name,
             target: this.#kind,
             role: roleOf(layer.kind, Object.keys(map).length > 0),
             origin: "declared",

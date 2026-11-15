@@ -137,6 +137,22 @@ function fileLayers(session: GraphSession): Layer[] {
 }
 
 /**
+ * What the element's own default layers paint, per kind, as the load's translation reads them.
+ * @param session - The session.
+ * @returns The default values.
+ */
+function elementDefaults(session: GraphSession): Record<"node" | "edge", Record<string, unknown>> {
+    const out: Record<"node" | "edge", Record<string, unknown>> = { node: {}, edge: {} };
+    for (const layer of session.styles.list()) {
+        if (layer.source.by === "element" && layer.source.reason === "default" && layer.target !== undefined) {
+            Object.assign(out[layer.target], layer.set ?? {});
+        }
+    }
+
+    return out;
+}
+
+/**
  * Whether a layer reads a path: in its selector or a binding.
  * @param layer - The layer.
  * @param path - The path.
@@ -197,6 +213,7 @@ function check(session: GraphSession, read: FileStylesRead, result: FileResult):
         namespace: "values",
         options: {},
         dataPath: dataPaths(read.path),
+        elementDefaults: elementDefaults(session),
     });
     const layers = fileLayers(session);
     assert.deepEqual(

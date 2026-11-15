@@ -19,7 +19,7 @@ import {
     readImageAnnotations,
 } from "@graphty/graph-io/styles";
 
-import type { EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../../../catalog/types";
+import type { Channel, EdgeId, LayerId, LayerSpec, NodeId, RuleTree } from "../../../catalog/types";
 import type { LoadReport } from "../../../data/report";
 import type { DataImportCommand } from "../../commands/data";
 import type { UndoableContext } from "../../project/Dispatcher";
@@ -186,6 +186,24 @@ export function asksFileStyles(command: {
 }
 
 /**
+ * What the element paints every node and edge with before any loaded layer: its own default layers, per kind.
+ * @param stack - The layer stack.
+ * @returns The default values.
+ */
+function elementDefaultsOf(
+    stack: readonly CompiledLayer[],
+): Record<"node" | "edge", Partial<Record<Channel, unknown>>> {
+    const out: Record<"node" | "edge", Partial<Record<Channel, unknown>>> = { node: {}, edge: {} };
+    for (const { layer } of stack) {
+        if (layer.source.by === "element" && layer.source.reason === "default" && layer.target !== undefined) {
+            Object.assign(out[layer.target], layer.set ?? {});
+        }
+    }
+
+    return out;
+}
+
+/**
  * Apply the styles of the file an import read, inside the import's step.
  * @param command - The import.
  * @param outcome - What the load left.
@@ -335,6 +353,7 @@ async function applyRead(
         namespace,
         options,
         dataPath: dataPaths(read.path),
+        elementDefaults: elementDefaultsOf(ctx.state.styles),
         positionsStored: read.positionsStored === true,
     });
     const notes = [...translation.notes];

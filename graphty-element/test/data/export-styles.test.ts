@@ -339,7 +339,7 @@ describe("what an export cannot keep", () => {
         const unwritten = result.losses
             .filter((loss) => loss.code === "W_STYLE_NOT_WRITTEN")
             .map((loss) => `${String(loss.params.target)} ${String(loss.params.property)}`);
-        for (const property of ["node fill", "node width", "node opacity", "node borderColor", "edge color"]) {
+        for (const property of ["node fill", "node width", "node opacity", "node graphty:node.outline", "edge color"]) {
             assert.include(unwritten, property);
         }
 

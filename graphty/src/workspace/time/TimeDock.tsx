@@ -600,6 +600,16 @@ function SettingsButton(): React.JSX.Element {
 }
 
 /**
+ * A bin's words with how many of its elements are selected, when there is a selection.
+ * @param words - the bin's words.
+ * @param selected - how many are selected, or undefined with no selection.
+ * @returns the words.
+ */
+function withSelected(words: string, selected: number | undefined): string {
+    return selected === undefined ? words : `${words}, ${formatCount(selected)} selected`;
+}
+
+/**
  * What the line over the bars is, while it is drawn: a swatch of it and its name.
  * @param props - Component props
  * @param props.shown - whether the line is drawn.
@@ -698,11 +708,11 @@ export function TimeDock(): React.JSX.Element | null {
     const selected = profile === null || profile.length === 0 ? null : profile.map(countOf);
     // A bin's words, as its tooltip, its row for a screen reader and a thumb's name: what it holds,
     // and with a selection, how many of those are the selection's.
-    const binWords = (bin: TimeBin): string => {
-        const words = `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`;
-        const mine = selected?.[all.indexOf(bin)];
-        return mine === undefined ? words : `${words}, ${formatCount(mine)} selected`;
-    };
+    const binWords = (bin: TimeBin): string =>
+        withSelected(
+            `${rangeWords(bin.start, bin.end, unit, bin.step, zone)}: ${countWords(countOf(bin), noun)}`,
+            selected?.[all.indexOf(bin)],
+        );
     const readout = readoutWords(drag, window, extent, unit, zone);
     // What the window holds (the window narrows only the drawing); with no window, what the filters keep.
     const { visibleEdges, visibleNodes } = session.visibility.summary;

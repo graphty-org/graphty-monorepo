@@ -2914,6 +2914,7 @@ export class Graph implements GraphContext {
     // @internal
     getNodeBatches(): NodeBatches | null;
     getNodeCount(): number;
+    getNodeIds(): (string | number)[];
     // @internal
     getNodeIdTarget(): NodeIdTarget | null;
     getNodeMesh(nodeId: string): AbstractMesh | null;
@@ -3501,6 +3502,7 @@ export class Graphty extends LitElement {
     getMeshCache(): MeshCache;
     getNode(nodeId: string | number): Node_2 | undefined;
     getNodeCount(): number;
+    getNodeIds(): (string | number)[];
     getNodeMesh(nodeId: string): AbstractMesh_2 | null;
     getNodes(): Node_2[];
     getOverview(options?: OverviewOptions): GraphOverview;

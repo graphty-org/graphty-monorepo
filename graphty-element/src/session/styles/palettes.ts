@@ -43,31 +43,8 @@ import type { BindingOverflow, PaletteDescriptor, PaletteId } from "../../catalo
 import { GraphtyError } from "../../errors";
 import { interpolatePalette } from "../../utils/styleHelpers/color/interpolation";
 import { type ColorValue, toColorValue } from "./channels";
+import { DEFAULT_CATEGORICAL_PALETTE, DEFAULT_PALETTE } from "./defaultPalettes";
 import { groupCount, isScaleMiss, type ScaleContext, type ScaleRegistry } from "./scales";
-
-/**
- * The palette a colour binding uses when it does not name one and reads a measurement.
- *
- * Paul Tol's YlOrBr, one hue family from orange to dark brown, because a ramp inside one hue
- * family reads as "how much". Viridis, the default before it, sweeps from purple through green
- * to yellow, and a hue sweep makes a sparse set of nodes read as separate groups rather than as
- * amounts (Reda & Szafir 2021; Tseng et al. 2024). It is trimmed to the steps that stand off the
- * element's light background by at least 2:1, so the palest node is still visible. Viridis stays
- * in the catalogue for a binding that names it. `test/catalog/default-palette-quality.test.ts`
- * measures whatever this is.
- */
-const DEFAULT_PALETTE: PaletteId = "ylorbr";
-
-/**
- * The palette a colour binding uses when it does not name one and reads groups.
- *
- * Okabe-Ito as published: eight distinct colours, safe for every form of colour blindness the
- * catalogue names, with yellow last because it barely shows on a light background. It is the
- * first choice rather than the only one: a partition with more groups than it has colours gets a
- * larger palette from {@link defaultPaletteFor}, and every partition that fits keeps this one, so
- * a picture that is right today does not change colour because the rule grew a branch.
- */
-const DEFAULT_CATEGORICAL_PALETTE: PaletteId = "okabe-ito";
 
 /** The scale a binding uses when it does not name one. */
 const DEFAULT_SCALE = "linear";

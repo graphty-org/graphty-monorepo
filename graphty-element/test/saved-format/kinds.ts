@@ -122,6 +122,36 @@ async function useEveryShader(session: GraphSession): Promise<UsedEvery> {
     return { used, listed: presets.length, saves };
 }
 
+/**
+ * Paint through the default palettes with bindings that name none -- a measurement, and one with a
+ * midpoint -- and read back the palettes the save names on them, so a save that leaves the choice
+ * to the reading build's defaults uses nothing (issue #6514). The groups' default needs a binding
+ * that names a categorical scale, which the scan counts against the scale exception, so
+ * test/session/styles/saved-default-palette.test.ts checks that one.
+ * @param session - The session.
+ * @returns What was used.
+ */
+async function useEveryDefaultPalette(session: GraphSession): Promise<UsedEvery> {
+    const bindings = [{ by: "data.weight" }, { by: "data.weight", midpoint: 2 }];
+    for (const [at, binding] of bindings.entries()) {
+        await session.styles.add({
+            name: `Default palette ${at}`,
+            target: "node",
+            selector: { match: "everything" },
+            encode: { "node.color": binding },
+        });
+    }
+
+    const { members } = JSON.parse((await session.project.save()).text) as {
+        members: { kind: string; layers?: { name?: string; encode?: Record<string, { palette?: string }> }[] }[];
+    };
+    const layers = members.find((each) => each.kind === "graphty-style")?.layers ?? [];
+    const used = layers
+        .filter((layer) => layer.name?.startsWith("Default palette ") === true)
+        .flatMap((layer) => layer.encode?.["node.color"]?.palette ?? []);
+    return { used, listed: bindings.length, saves: [] };
+}
+
 /** Every kind a save file carries in full. The census requires each `selfContained` kind of `saved-format-lists.json` here. */
 export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
     {
@@ -130,6 +160,17 @@ export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
         builtInModules: {
             "../../src/shaders/presets/index.ts": { SHADER_PRESETS: [] },
             "../../src/shaders/presets/bodies.ts": { SHADER_PRESET_BODIES: {} },
+        },
+    },
+    {
+        kind: "defaultPalettes",
+        useEvery: useEveryDefaultPalette,
+        // A reading build whose defaults differ: the file must paint as it was saved, not as these.
+        builtInModules: {
+            "../../src/session/styles/defaultPalettes.ts": {
+                DEFAULT_PALETTE: "viridis",
+                DEFAULT_CATEGORICAL_PALETTE: "tol-muted",
+            },
         },
     },
 ];

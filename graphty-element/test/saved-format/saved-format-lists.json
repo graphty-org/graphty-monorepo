@@ -1,5 +1,5 @@
 {
-    "selfContained": ["shaders"],
+    "selfContained": ["shaders", "defaultPalettes"],
     "exceptions": [
         {
             "kind": "palette",
@@ -98,13 +98,6 @@
             "catalogs": ["basemaps"],
             "issue": 6513,
             "finding": "A map layout names its basemap by MapSourceId, and no map means the bundled world image."
-        },
-        {
-            "kind": "default-palette",
-            "paths": [],
-            "catalogs": [],
-            "issue": 6514,
-            "finding": "A binding naming no palette paints with the build's default (ylorbr, okabe-ito), which the file does not record."
         },
         {
             "kind": "default-settings",

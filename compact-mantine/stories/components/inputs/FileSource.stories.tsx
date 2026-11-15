@@ -34,7 +34,9 @@ import { FileSource, type FileSourceProps } from "../../../src";
  * - With `folder`, "Choose folder" (`fileChooseFolder`) opens the folder picker, a dropped folder is
  *   walked, and `onFiles` gets each file's path as its second argument.
  * - `error` is shown under the URL field and tied to it (`aria-describedby`); `progress` draws a
- *   progress bar named "Loading" (`fileLoading`); with `onDiscard`, Escape takes a typed address back.
+ *   progress bar named "Loading" (`fileLoading`), with `status` and `onCancel` a line above it with the
+ *   load's stage, how far it has come and Cancel (`fileCancel`); with `onDiscard`, Escape takes a typed
+ *   address back.
  *
  * ## Measurements
  *

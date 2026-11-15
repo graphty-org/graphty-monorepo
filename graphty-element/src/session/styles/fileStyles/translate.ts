@@ -29,7 +29,6 @@ import {
     type Predicate,
     resolveRule,
     resolveStyles,
-    type StyleArrowShape,
     type StyleNote,
     type StyleProperty,
     type StyleRule,
@@ -61,6 +60,12 @@ const CARRIED_INPUT = /^input\.(?:[^.]+\.)?data\.(.+)$/;
 const SHAPE_POINT_LENGTH = /([\d.])([+-](?:\d+\.?\d*|\.\d+))/g;
 /** A mapping table with more keys present than this is kept as values per element. */
 const MAX_TABLE_KEYS = 256;
+/**
+ * The format id a replan of already-settled values is filed under: graph-io keeps it only in the report-only
+ * `source`, so the same values plan the same way whatever file they came from.
+ */
+const REPLANNED = "values";
+
 /** The key `ext` carries graphty-element's own layer under, in a file graphty wrote. */
 export const LAYER_SPEC_EXT = "@graphty/graphty-element";
 
@@ -1528,9 +1533,6 @@ function labelSizePx(em: number): number {
     return (a + Math.sqrt(a * a + 4 * LABEL.perScene * LABEL.margin * em)) / 2;
 }
 
-/** The channels that decide how big a node of a file is drawn. */
-const NODE_EXTENT_CHANNELS: readonly Channel[] = ["node.size", "node.shape", "node.width", "node.height"];
-
 /** What the file's lengths are multiplied by, per kind of channel, and the scene units one file unit is. */
 interface LengthFactors {
     /** Node sizes, widths, heights and border widths. */
@@ -2909,7 +2911,7 @@ class KindTranslation {
         const values = labels.map((label, i) => labelRunsMarkup(runs[i], sizes[i]) ?? label);
         const sub = planStyles(
             {
-                format: extracted.styles.source.format,
+                format: REPLANNED,
                 units: "px",
                 [this.#kind]: { values: { label: values } },
                 fingerprint: extracted.fingerprint,
@@ -2918,7 +2920,6 @@ class KindTranslation {
                 node: this.#kind === "node" ? extracted.features.node : [],
                 edge: this.#kind === "edge" ? extracted.features.edge : [],
             },
-            { toolDefaults: false },
         );
         const channel: Channel = this.#kind === "node" ? "node.label" : "edge.label";
         const identity: ChannelPlan = { channel, convert: (value) => value, identity: true };
@@ -3124,13 +3125,12 @@ class KindTranslation {
         // Planned in the element's own units, so each rule of the plan is drawn as it is.
         const sub = planStyles(
             {
-                format: extracted.styles.source.format,
+                format: REPLANNED,
                 units: "px",
                 node: { values: { [planned]: values } },
                 fingerprint: extracted.fingerprint,
             },
             { node: extracted.features.node, edge: [] },
-            { toolDefaults: false },
         );
         const identity: ChannelPlan = { channel, convert: (value) => value, identity: true };
         // The replanned rules are named apart from the file's: under the file's own id

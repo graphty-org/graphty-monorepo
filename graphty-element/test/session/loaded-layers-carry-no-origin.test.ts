@@ -107,11 +107,11 @@ describe("a replacing load", () => {
         await session.styles.update(first[0].id, { name: "Mine now" });
 
         await session.data.import({ type: "json", config: { data: CYTOSCAPE } }, { styles: "file" });
-        const names = session.styles.list().map((layer) => `${String(layer.target)} ${layer.name}`);
-        assert.include(names, `${String(first[0].target)} Mine now`);
+        const names = session.styles.list().map((layer) => `${layer.target} ${layer.name}`);
+        assert.include(names, `${first[0].target} Mine now`);
         // Each untouched layer went: the second load's copy of it is the only one left.
         for (const layer of first.slice(1)) {
-            const key = `${String(layer.target)} ${layer.name}`;
+            const key = `${layer.target} ${layer.name}`;
             assert.lengthOf(
                 names.filter((name) => name === key),
                 1,

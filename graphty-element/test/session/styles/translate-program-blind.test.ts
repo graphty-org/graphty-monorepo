@@ -50,7 +50,7 @@ function namingTool(extracted: ExtractedStyles, tool: string | null): ExtractedS
         ...extracted,
         styles: {
             ...extracted.styles,
-            source: { ...extracted.styles.source, tool: tool as ExtractedStyles["styles"]["source"]["tool"] },
+            source: { ...extracted.styles.source, tool },
         },
     };
 }

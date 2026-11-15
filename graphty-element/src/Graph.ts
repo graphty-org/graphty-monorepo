@@ -5401,22 +5401,29 @@ export class Graph implements GraphContext {
     }
 
     /**
-     * The row table a layout on the drawing device fills on the card: only under renderPath
-     * "batched" on a device shared with the accelerator.
+     * The row table an accelerated layout fills: only under renderPath "batched". On a device shared
+     * with the accelerator it copies each landing on the card; on any other renderer `device` is null and
+     * it sends each landing's drawn rows as its readback brought them.
      * @returns The table and the device, or null.
      * @internal
      */
     getDrawnTarget(): DrawnTarget | null {
         const { engine } = this;
         const table = this.#rowTable;
-        if (this.#renderPath !== "batched" || table === null || !(engine instanceof RecoveringWebGPUEngine)) {
+        if (this.#renderPath !== "batched" || table === null) {
             return null;
         }
 
-        const device = engine.sharesDevice ? engine.deviceNow() : null;
+        const shared = engine instanceof RecoveringWebGPUEngine && engine.sharesDevice;
+        const device = shared ? engine.deviceNow() : null;
+        if (shared && device === null) {
+            return null;
+        }
+
         // A transition draws its movers off their lanes, every frame, so the ring would only be overwritten.
         const suspended = transitionsOf(this.layoutManager)?.active === true;
-        return device === null ? null : { table, device, suspended };
+        // On a device of its own (WebGL, or WebGPU not shared) the layout reads its drawn rows back instead.
+        return { table, device, suspended };
     }
 
     // ============================================================================

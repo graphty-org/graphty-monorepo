@@ -69,6 +69,12 @@ import { pendingWorkOf } from "./PendingWork";
 const MAX_ITERATIONS_PER_STEP_CHUNK = 256;
 
 /**
+ * Under reduced motion, the most steps a running layout takes unseen before it is drawn anyway, so
+ * a layout that never settles still shows its progress -- in jumps, never a glide.
+ */
+const MAX_UNSEEN_STEPS = 600;
+
+/**
  * The published option schema each simulation type is configured through.
  *
  * ONE DECLARATION, not two. Each of the three engines used to carry a second, stricter Zod object
@@ -1228,6 +1234,15 @@ export class LayoutManager implements Manager {
 
         if (engine instanceof StaticLayoutEngine) {
             engine.reload(event, this.dataManager.isLoading);
+            // The re-run is read lazily, so the pass that moves the nodes has to run: with the
+            // layout stopped a pass only walks the edges, whose first read re-ran the layout after
+            // the nodes had been placed. A removal then left every Node and edge on the old
+            // arrangement while the batched rows, drawn from the array, moved to the new one. An
+            // empty graph has nothing to move and never settles, so it would stay running for good.
+            if (event.next.nodeCount > 0 && !this.restoring()) {
+                this.running = true;
+            }
+
             return;
         }
 
@@ -3146,6 +3161,12 @@ export class LayoutManager implements Manager {
         const engine = this.layoutEngine;
         if (engine && this.running && !engine.isSettled) {
             engine.step();
+            // Under reduced motion the layout runs unseen and is drawn once, settled.
+            if (this.reducedMotion && !engine.isSettled && ++this.#unseenSteps < MAX_UNSEEN_STEPS) {
+                return;
+            }
+
+            this.#unseenSteps = 0;
             // See the note in `_setLayoutInternal`: the element publishes, not the engine.
             engine.publishPositions();
             this.steppedPublishes++;
@@ -3156,6 +3177,24 @@ export class LayoutManager implements Manager {
             engine.publishPositions();
             this.steppedPublishes++;
         }
+    }
+
+    /**
+     * Whether motion is reduced: a running layout is stepped without being drawn until it settles,
+     * then drawn once. Set by the graph from its `reducedMotion` setting.
+     */
+    reducedMotion = false;
+
+    /** Steps taken unseen under reduced motion since the last publish; see `MAX_UNSEEN_STEPS`. */
+    #unseenSteps = 0;
+
+    /**
+     * Whether the frame should leave the nodes where they are drawn: motion is reduced and the
+     * running layout has stepped since it was last drawn, unsettled.
+     * @returns True while the layout runs unseen.
+     */
+    get drawingHeld(): boolean {
+        return this.reducedMotion && this.running && this.#unseenSteps > 0 && this.layoutEngine?.isSettled === false;
     }
 
     /**

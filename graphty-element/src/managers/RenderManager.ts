@@ -36,6 +36,7 @@ import { batchUploadFrames } from "../meshes/FrameRoster";
 import type { GroupOutlinePass, GroupOutlinePick, OutlineMember } from "../meshes/GroupOutlinePass";
 import { isNodeMaterial, lightNodeMaterial, outlineNodeMesh } from "../meshes/NodeLighting";
 import { isRowBatch } from "../meshes/RowPullPlugin";
+import { drawOnlyEnabledMeshes } from "../render/enabledMeshCandidates";
 import { reportCaught } from "../session/project/strict";
 import { idsNamedBy, shadersControllerOf } from "../session/shaders";
 import { placeOfUse } from "../session/styles/channels";
@@ -384,6 +385,8 @@ const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set([
     "graph-frame-stable",
     "graph-first-frame",
     "stats-update",
+    // Announced after a frame that moved the view or a node: that frame is already drawn.
+    "overview-changed",
 ]);
 
 /**
@@ -979,6 +982,7 @@ export class RenderManager implements Manager {
         }
 
         useBundledStandardShaders(this.scene);
+        drawOnlyEnabledMeshes(this.scene);
         this.scene.preventDefaultOnPointerDown = false;
         this.scene.preventDefaultOnPointerUp = false;
         this.canvas.addEventListener("pointerdown", this.focusOnPointer);
@@ -1917,9 +1921,10 @@ export class RenderManager implements Manager {
      * skybox already shown is left alone, so drawing the same background again (a redo, a repeat)
      * builds nothing.
      * @param background - The background, parsed.
-     * @param onSkyboxLoaded - Called with the image once a new skybox's texture has arrived.
+     * @param onSkybox - Called once per new skybox, with its image and whether its texture loaded
+     *     (true) or failed to (false).
      */
-    applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void {
+    applyBackground(background: GraphBackgroundConfig, onSkybox: (url: string, loaded: boolean) => void): void {
         const color = backgroundColorOf(background);
         this.setBackgroundColor(color);
         if (background.backgroundType === "skybox") {
@@ -1928,7 +1933,10 @@ export class RenderManager implements Manager {
                 this.dome?.dome.dispose();
                 const dome = new PhotoDome("testdome", url, { resolution: 32, size: 500 }, this.scene);
                 dome.texture.onLoadObservable.addOnce(() => {
-                    onSkyboxLoaded(url);
+                    onSkybox(url, true);
+                });
+                dome.onLoadErrorObservable.addOnce(() => {
+                    onSkybox(url, false);
                 });
                 this.dome = { url, dome };
             }

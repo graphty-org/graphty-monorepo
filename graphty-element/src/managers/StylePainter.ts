@@ -13,6 +13,7 @@ import {
     type NodeStyleConfig,
     RichTextStyle,
 } from "../config";
+import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
 import { gradientColorList, gradientStopList } from "../meshes/edgeGradient";
 import {
@@ -45,6 +46,11 @@ export interface NodePaint {
     readonly style: NodeStyleConfig;
     /** The colour to write into this node's instance, or null when no layer painted one. */
     readonly color: Rgba | null;
+    /**
+     * Set on a plain paint ({@link plainNodePaint}) whose row's own paint draws a label: label sampling
+     * may still pick the row, and then builds it a `Node` for the label.
+     */
+    readonly labelled?: boolean;
 }
 
 /**
@@ -133,7 +139,26 @@ export function plainNodePaint(paint: NodePaint): NodePaint {
         texture: only(style.texture, PLAIN_TEXTURE_KEYS),
         effect: only(style.effect, BATCHABLE_EFFECT_KEYS),
     };
-    return { meshKey: `plain|${paint.meshKey}`, style: plain, color: paint.color };
+    const labelled = drawnText(style.label) !== undefined;
+    return {
+        meshKey: `${PLAIN_PREFIX}${paint.meshKey}`,
+        style: plain,
+        color: paint.color,
+        ...(labelled ? { labelled } : {}),
+    };
+}
+
+/** What a plain paint's mesh key starts with ({@link plainNodePaint}, {@link plainEdgePaint}). */
+const PLAIN_PREFIX = "plain|";
+
+/**
+ * Whether a paint is a plain one, drawn for a row past an object budget.
+ * @param paint - The paint.
+ * @param paint.meshKey - Its mesh key: a plain paint's starts with {@link PLAIN_PREFIX}.
+ * @returns True for {@link plainNodePaint}'s and {@link plainEdgePaint}'s.
+ */
+export function isPlainPaint(paint: { readonly meshKey: string }): boolean {
+    return paint.meshKey.startsWith(PLAIN_PREFIX);
 }
 
 /** The line keys a plain line keeps. */
@@ -152,7 +177,7 @@ export function plainEdgePaint(paint: EdgePaint): EdgePaint {
         ...(style.visible === undefined ? {} : { visible: style.visible }),
         line,
     } as EdgeStyleConfig;
-    return { meshKey: `plain|${paint.meshKey}`, style: plain };
+    return { meshKey: `${PLAIN_PREFIX}${paint.meshKey}`, style: plain };
 }
 
 /** The texture a plain body keeps: its color, never a picture. */

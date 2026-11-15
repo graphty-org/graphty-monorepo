@@ -30,6 +30,8 @@ export type {
     PartAnswer,
 } from "./assets/AssetsApi";
 export { DEFAULT_MODEL_LIMITS, isAssetId } from "./assets/AssetsApi";
+export type { BackgroundImageProblem, PrepareBackgroundImageOptions, PreparedBackgroundImage } from "./backgroundImage";
+export { DEFAULT_BACKGROUND_IMAGE_SIZE, prepareBackgroundImage } from "./backgroundImage";
 export type { BrowserProjects, BrowserProjectSaveOptions, StoredProject } from "./browserProjects";
 export { browserProjects } from "./browserProjects";
 export { COLUMN_ROLES } from "./data";
@@ -66,6 +68,7 @@ export type {
 } from "./styles/fileStyles/origin";
 export { FILE_STYLE_REASONS, fileStyleOf } from "./styles/fileStyles/origin";
 export type { FileStyleKind } from "./styles/fileStyles/path";
+export { fileStyleWords } from "./styles/fileStyles/path";
 export type { FileStyleShapeTable } from "./styles/fileStyles/shapes";
 export { FILE_STYLE_SHAPES } from "./styles/fileStyles/shapes";
 export type { FileStyleColumnValues, FileStyleLoadValues, FileStyleScalar } from "./styles/fileStyles/store";

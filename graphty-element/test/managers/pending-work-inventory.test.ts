@@ -75,6 +75,12 @@ const INVENTORY: Record<string, Covered> = {
             "to its caller, drawing nothing) and InputManager's playback file (the input it replays moves the " +
             "camera like a reader)",
     },
+    "src/session/backgroundImage.ts": {
+        count: 1,
+        reason:
+            "prepareBackgroundImage decodes a chosen picture and hands its data URL to the caller; it draws " +
+            "nothing itself; the skybox the caller then writes is drawn by the render manager",
+    },
     "src/session/assets/unzip.ts": { count: 1, kind: "load", reason: "unzipping a file being loaded" },
     "src/session/assets/AssetsApi.ts": {
         count: 3,

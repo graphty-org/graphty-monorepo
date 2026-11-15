@@ -559,7 +559,8 @@ logic is unchanged, so a non-gating job still never fails a lane.
   lists in its warning period, read hourly from master's ci.yml -- with its runs, failures and pass
   rate over 7 days in every run kind, pull requests included (`ci.job_outcome`), worst first, marked
   red at half or more failed. It makes the class visible; the chronic member is what judges it.
-- **Benchmark regressions** (`ci.bench_regressions`). The Performance Benchmarks job (algorithms)
+- **Benchmark regressions** (`ci.bench_regressions`). The Performance Benchmarks job (algorithms, and
+  `graphty-load`: the graphty app's landing page and graphty-element's connect-to-settled times, tools/load-time.mjs)
   and the T4 lane (webgpu-graph-algorithms) post each benchmark's result after the benchmark passed
   (`tools/results/post-benchmarks.mjs`, `POST /v1/benchmarks`, OIDC like the flaky feed, fire and
   forget), only from master's workflows. Each result names the machine that measured it (the

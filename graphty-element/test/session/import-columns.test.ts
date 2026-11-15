@@ -13,6 +13,7 @@ import type { GraphStore } from "../../src/data/GraphStore";
 import type { GraphSession } from "../../src/session";
 import { createElementSession, dispatcherOf } from "../../src/session/GraphSession";
 import { dataDigest } from "../../src/session/project/digest";
+import { RecordMap, recordsBuilt } from "../../src/session/project/recordMap";
 import { assertScalesLinearly } from "../helpers/cost";
 
 /**
@@ -115,6 +116,137 @@ describe("session.data.importColumns", () => {
             assert.strictEqual(digest(session), loaded);
         });
     }
+
+    for (const batched of [false, true]) {
+        it(`seeds each node's file position again when redo puts the nodes back, on the ${batched ? "batched" : "objects"} path`, async () => {
+            const session = createElementSession({}, { batched: () => batched });
+            await byColumns(session);
+            await session.undo();
+            const { store } = dispatcherOf(session).graph as unknown as { store: GraphStore };
+            const seeded: unknown[] = [];
+            const set = store.builder.setNodeValue.bind(store.builder);
+            store.builder.setNodeValue = (column, index, value) => {
+                if (column === store.seedColumn) {
+                    seeded[index] = [...(value as number[])];
+                }
+
+                set(column, index, value);
+            };
+            await session.redo();
+            assert.deepStrictEqual(
+                seeded,
+                IDS.map((_, row) => [POSITIONS[row * 3], POSITIONS[row * 3 + 1], POSITIONS[row * 3 + 2]]),
+            );
+        });
+    }
+
+    it("holds a batched importColumns' records as columns, built on each read (stage 29)", async () => {
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            const before = recordsBuilt.count;
+            await byColumns(session);
+            // The batched load builds short-lived records as it reads its rows (the objects path
+            // builds its records up front, untagged); none is kept: the slice holds places.
+            const built = recordsBuilt.count - before;
+            assert.strictEqual(built > 0, batched, `records built by the load: ${String(batched)}`);
+            const slice = dispatcherOf(session).state.graph;
+            assert.instanceOf(slice.nodes, RecordMap);
+            assert.instanceOf(slice.edges, RecordMap);
+            const keptNodes = (slice.nodes as RecordMap<unknown>).heldRecords();
+            const keptEdges = (slice.edges as RecordMap<unknown>).heldRecords();
+            assert.deepStrictEqual(
+                [keptNodes, keptEdges],
+                batched ? [0, 0] : [IDS.length, SOURCES.length],
+                `records the slice keeps: ${String(batched)}`,
+            );
+            const added = (kind: string): readonly unknown[] => {
+                for (const { command } of session.journal.entries) {
+                    if (
+                        command.op === "data.apply" &&
+                        command.mutation.kind === kind &&
+                        "records" in command.mutation
+                    ) {
+                        return command.mutation.records;
+                    }
+                }
+
+                return [];
+            };
+            const nodes = added("add-nodes");
+            const edges = added("add-edges");
+            assert.strictEqual(nodes.length, IDS.length);
+            assert.strictEqual(edges.length, SOURCES.length);
+            // The batched journal builds its records when read and keeps them only while they are held.
+            assert.strictEqual(nodes[1], nodes[1]);
+            const { graph } = dispatcherOf(session).state;
+            const node = graph.nodes.get("b");
+            assert.deepStrictEqual(node, { id: "b", position: [1, 0, 0], group: 1 });
+            assert.deepStrictEqual(nodes[1], node);
+            assert.deepStrictEqual([...graph.edges.values()][1], edges[1]);
+            // A record from columns is built afresh on each read and never kept by the slice:
+            // reading every record (a style pass does) must not hold a million of them.
+            assert.strictEqual(graph.nodes.get("b") === node, !batched, `slice keeps the record: ${String(batched)}`);
+            assert.deepStrictEqual(graph.nodes.get("b"), node);
+            assert.isTrue(Object.isFrozen(node));
+            // Each read after the load builds the record again: the journal's two record lists, read
+            // once each, three node reads and one edge iteration from the slice.
+            assert.strictEqual(
+                recordsBuilt.count - before - built,
+                batched ? IDS.length + SOURCES.length + 3 + SOURCES.length : 0,
+            );
+        }
+    });
+
+    it("keeps the journal's commands as plain data on both paths, the batched one building its records on read", async () => {
+        const commands: unknown[] = [];
+        for (const batched of [false, true]) {
+            const session = createElementSession({}, { batched: () => batched });
+            await byColumns(session);
+            const entries = session.journal.entries.map((entry) => entry.command);
+            // What a consumer does with plain data: clone it to a worker or IndexedDB, freeze it.
+            const cloned = structuredClone(entries);
+            const deepFreeze = (value: unknown): void => {
+                if (typeof value === "object" && value !== null && !ArrayBuffer.isView(value)) {
+                    Object.freeze(value);
+                    Object.values(value).forEach(deepFreeze);
+                }
+            };
+            deepFreeze(entries);
+            for (const command of entries) {
+                if (command.op === "data.apply" && "records" in command.mutation) {
+                    const { records } = command.mutation;
+                    assert.isTrue(Array.isArray(records));
+                    assert.strictEqual(records[0], records[0], `the same record twice: ${String(batched)}`);
+                    // The batched journal holds the columns: its records are built on each read.
+                    const held = Object.getOwnPropertyDescriptor(command.mutation, "records");
+                    assert.strictEqual(held?.get !== undefined, batched, `records built on read: ${String(batched)}`);
+                }
+            }
+
+            commands.push(cloned);
+        }
+
+        assert.deepStrictEqual(commands[1], commands[0]);
+    });
+
+    it("builds the records again from columns after undo and redo on the batched path", async () => {
+        const session = createElementSession({}, { batched: () => true });
+        await byColumns(session);
+        const loaded = digest(session);
+        await session.undo();
+        await session.redo();
+        assert.strictEqual(digest(session), loaded);
+    });
+
+    it("copies the columns, so writing the caller's arrays after the call changes no record", async () => {
+        const session = createElementSession({}, { batched: () => true });
+        const ids = [...IDS];
+        const positions = POSITIONS.slice();
+        await session.data.importColumns({ sources: SOURCES, targets: TARGETS, nodeCount: 5, ids, positions });
+        ids[1] = "changed";
+        positions[3] = 99;
+        assert.deepStrictEqual(dispatcherOf(session).state.graph.nodes.get("b"), { id: "b", position: [1, 0, 0] });
+    });
 
     it("numbers the nodes by row when no ids are given", async () => {
         const session = createElementSession({});

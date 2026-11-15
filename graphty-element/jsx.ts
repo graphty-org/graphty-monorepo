@@ -29,6 +29,18 @@ import type { EventOfType } from "./src/events";
  */
 export interface GraphtyElementJSXProps {
     /**
+     * Sets the wording function and words the description again.
+     */
+    accessibleDescription?: Graphty["accessibleDescription"];
+    /**
+     * Sets the announcement's wording function.
+     */
+    accessibleAnnouncement?: Graphty["accessibleAnnouncement"];
+    /**
+     * Adds or removes the node list.
+     */
+    accessibleNodeList?: Graphty["accessibleNodeList"];
+    /**
      * Sets the ids: an array, or a space-separated string as the attribute carries them.
      */
     features?: Graphty["features"];
@@ -151,6 +163,14 @@ export interface GraphtyElementJSXProps {
      * Switches label decluttering on or off.
      */
     labelDeclutter?: Graphty["labelDeclutter"];
+    /**
+     * Shows or hides the minimap.
+     */
+    minimap?: Graphty["minimap"];
+    /**
+     * Sets the minimap's accessible name.
+     */
+    minimapLabel?: Graphty["minimapLabel"];
     /**
      * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
      */
@@ -291,6 +311,10 @@ export interface GraphtyElementJSXProps {
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     "aria-label"?: string;
     /**
+     * Adds or removes the node list.
+     */
+    "accessible-node-list"?: boolean;
+    /**
      * Sets the restore mode; anything but `"manual"` is `"auto"`.
      */
     "autosave-restore"?: string;
@@ -384,6 +408,10 @@ export interface GraphtyElementJSXProps {
      * Switches label decluttering on or off.
      */
     "label-declutter"?: boolean;
+    /**
+     * Sets the minimap's accessible name.
+     */
+    "minimap-label"?: string;
     /**
      * Sets how fast the 3D view turns on its own; a negative or non-finite speed is read as 0.
      */
@@ -596,6 +624,8 @@ export interface GraphtyElementJSXProps {
     "ongraphty-project-status"?: (event: GraphtyElementEventMap["graphty-project-status"]) => void;
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
+    "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
@@ -685,10 +715,23 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-active"?: (event: CustomEvent<EventOfType<"operation-queue-active">>) => void;
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
+    /**
+     * What `getOverview()` returns has changed: the camera, the graph root or a node moved. Fired at most once per drawn frame, never per node; read `getOverview()` in the listener.
+     */
+    "onoverview-changed"?: (event: CustomEvent<EventOfType<"overview-changed">>) => void;
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
+    /**
+     * Emitted when the browser takes away the graphics device the graph is drawn with: the WebGL context or the WebGPU device is lost, by a driver reset, a GPU process crash or the browser reclaiming it. Nothing is drawn until it comes back, and `rendererStatus.drawing` is false meanwhile. The data, the session, the styles, the camera and the undo history are untouched.
+     */
+    "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
+    /**
+     * Emitted when the graph is drawn again after `render-lost`: the device came back, by itself or through `restartRenderer()`, and every buffer, texture and shader was rebuilt from the graph held in memory. `rendererStatus.drawing` is true again.
+     */
+    "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
+    "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     /**
      * Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns.

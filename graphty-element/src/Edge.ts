@@ -5422,6 +5422,11 @@ export class Edge {
      * @internal
      */
     get trimInput(): EdgeTrimInput {
+        const toward = (from: Xyz, to: Xyz): Xyz => {
+            const [dx, dy, dz] = [to.x - from.x, to.y - from.y, to.z - from.z];
+            const span = Math.hypot(dx, dy, dz);
+            return span > 0 ? { x: dx / span, y: dy / span, z: dz / span } : { x: 0, y: 0, z: 0 };
+        };
         const trimEnd = (node: Node, gap: number, other: Node): TrimEnd => {
             const leaves = node.surfaceIsBox || node.shapeType === "none";
             const closed =
@@ -5430,7 +5435,7 @@ export class Edge {
                 radius: node.roundRadius,
                 half: node.drawnHalfExtents,
                 flat: node.shapeType === "ellipse" || (node.reachOutline ?? false),
-                border: node.borderReach,
+                border: node.borderReachAlong(toward(node.drawnPosition, other.drawnPosition)),
                 gap,
                 measured: closed ? TRIM_CLOSED : TRIM_NO_HIT,
                 leaves,
@@ -5454,15 +5459,23 @@ export class Edge {
      * @param dstPoint - Where it meets the destination node's surface; moved in place.
      */
     private pastBorders(srcPoint: Vector3, dstPoint: Vector3): void {
-        const srcReach = this.srcNode.borderReach + this.gapAt("source");
-        const dstReach = this.dstNode.borderReach + this.gapAt("target");
+        const direction = dstPoint.subtract(srcPoint);
+        const span = direction.length();
+        // along the line: a polygon's border drawn in from its outline reaches less far at a slant (issue #7566)
+        const along = (node: Node, sign: number): number =>
+            node.borderReach === 0 || span === 0
+                ? 0
+                : node.borderReachAlong({
+                      x: (sign * direction.x) / span,
+                      y: (sign * direction.y) / span,
+                      z: (sign * direction.z) / span,
+                  });
+        const srcReach = along(this.srcNode, 1) + this.gapAt("source");
+        const dstReach = along(this.dstNode, -1) + this.gapAt("target");
 
         if (srcReach === 0 && dstReach === 0) {
             return;
         }
-
-        const direction = dstPoint.subtract(srcPoint);
-        const span = direction.length();
 
         if (span <= srcReach + dstReach) {
             return;

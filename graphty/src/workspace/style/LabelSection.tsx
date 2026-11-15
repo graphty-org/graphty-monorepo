@@ -127,9 +127,23 @@ function channelsOf(kind: TextKindSpec): Channel[] {
  * value. Nothing from the layers beneath is drawn.
  * @param props - Component props
  * @param props.ctx - the row and side
+ * @param props.configured - whether the row writes text, drawn as a dot after the title
+ * @param props.actions - more header buttons, before its "+"
+ * @param props.loose - more text properties drawn as their own lines when the row sets them and no
+ *   entry of this section draws them (a file's label size with no label words)
  * @returns The section
  */
-export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.Element {
+export function LabelSection({
+    ctx,
+    configured,
+    actions,
+    loose = [],
+}: Readonly<{
+    ctx: RowContext;
+    configured?: boolean;
+    actions?: React.ReactNode;
+    loose?: readonly Channel[];
+}>): React.JSX.Element {
     const { store } = useWorkspace();
     // The kind picked from "+" whose source list is open, and the kind whose fixed words are being typed.
     const [picking, setPicking] = useState<string | null>(null);
@@ -262,15 +276,29 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
     }, [asked, askedHas, store]);
     const shown = kinds.filter((kind) => hasEntry(kind) || picking === kind.id || typing === kind.id);
     const partial = kinds.filter((kind) => !shown.includes(kind) && partlySet(ctx, kind.words, kind.style));
+    // No value is invisible: a text property the row sets that no entry draws gets a line of its own.
+    const drawn = new Set(shown.flatMap(channelsOf));
+    const looseLines = loose.flatMap((channel) => {
+        const held =
+            !drawn.has(channel) && (lineIn(ctx, channel) !== undefined || partlySet(ctx, channel) !== undefined);
+        const descriptor = held ? shownChannel(session, target, channel, true) : undefined;
+        return descriptor?.renderable === true ? [descriptor] : [];
+    });
 
     return (
         <div ref={list} data-section={`${target}-text`} className="ws-section">
             <ControlSection
                 label="Text"
                 headingLevel={3}
-                empty={shown.length === 0 && partial.length === 0}
+                empty={shown.length === 0 && partial.length === 0 && looseLines.length === 0}
+                hasConfiguredValues={configured}
                 collapsible={false}
-                actions={<AddButton kind={target} title="Text" options={options} onAdd={onAdd} />}
+                actions={
+                    <>
+                        {actions}
+                        <AddButton kind={target} title="Text" options={options} onAdd={onAdd} />
+                    </>
+                }
             >
                 {kinds.map((kind) => {
                     if (picking === kind.id) {
@@ -377,6 +405,9 @@ export function LabelSection({ ctx }: Readonly<{ ctx: RowContext }>): React.JSX.
                         </Group>
                     );
                 })}
+                {looseLines.map((descriptor) => (
+                    <Field key={descriptor.channel} ctx={ctx} descriptor={descriptor} />
+                ))}
             </ControlSection>
         </div>
     );

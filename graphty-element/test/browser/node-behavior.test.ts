@@ -1,9 +1,16 @@
-import { ActionManager, Vector3 } from "@babylonjs/core";
+/**
+ * @file A node under the real mouse: dragged, hovered and double-clicked through the browser's own
+ * input pipeline (test/helpers/real-input.ts), with the outcome read through the graph's public
+ * API -- where the node is drawn, the drag events, whether the layout runs, what the expansion
+ * added.
+ */
+
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { type Graph, operationQueueOf } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
-import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
+import { doubleClick, drag, hover, nodePoint, type Point } from "../helpers/real-input";
+import { cleanupTestGraph, configureGraph, createTestGraph } from "../helpers/testSetup";
 
 /**
  * Record every command the graph's session dispatches from here on.
@@ -18,12 +25,53 @@ function watchDispatches(graph: Graph): Readonly<Record<string, unknown>>[] {
     return seen;
 }
 
-describe("Node Behavior Tests", () => {
+/**
+ * Add one node at the origin and wait until it is drawn.
+ * @param graph - The graph.
+ * @param id - The node's id.
+ * @returns Where it is drawn.
+ */
+async function placed(graph: Graph, id: string): Promise<Point> {
+    await graph.addNodes([{ id, label: id, position: { x: 0, y: 0, z: 0 } }]);
+    await operationQueueOf(graph).waitForCompletion();
+    await graph.waitForStableFrame();
+    return nodePoint(graph, id);
+}
+
+/**
+ * Whether each drag that ended left its node pinned, as the drag-end events say.
+ * @param graph - The graph.
+ * @returns The `pinned` of every drag-end event from here on.
+ */
+function watchDrops(graph: Graph): boolean[] {
+    const drops: boolean[] = [];
+    graph.addListener("node-drag-end", (event) => {
+        drops.push(event.pinned);
+    });
+    return drops;
+}
+
+/**
+ * Drag a node 60 pixels to the right with the real mouse.
+ * @param graph - The graph.
+ * @param from - Where the node is drawn.
+ * @param held - Run with the button still down at the end of the move.
+ * @returns Where the pointer let go.
+ */
+async function dragRight(graph: Graph, from: Point, held?: () => Promise<void>): Promise<Point> {
+    const to = { x: from.x + 60, y: from.y };
+    await drag(graph.canvas, from, to, 8, held);
+    await operationQueueOf(graph).waitForCompletion();
+    await graph.waitForStableFrame();
+    return to;
+}
+
+describe("a node under the real mouse", () => {
     let graph: Graph;
 
     beforeEach(async () => {
-        // Create test graph using the helper
         graph = await createTestGraph();
+        await configureGraph(graph, { viewMode: "2d", layout: "fixed", layoutOptions: { dim: 2 } });
     });
 
     afterEach(() => {
@@ -31,152 +79,69 @@ describe("Node Behavior Tests", () => {
         cleanupTestGraph(graph);
     });
 
-    test("drag behavior with pinOnDrag enabled", () => {
-        // Add a node using DataManager
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node", label: "Test Node" });
+    test("a drag with pinOnDrag on moves the node to the pointer and pins it", async () => {
+        const from = await placed(graph, "test-node");
+        assert.isTrue(graph.getNode("test-node")?.pinOnDrag, "pinOnDrag is on by default");
+        const drops = watchDrops(graph);
 
-        const node = dataManager.getNode("test-node");
-        assert.isDefined(node);
+        const to = await dragRight(graph, from);
 
-        // Check that default behaviors were applied
-        assert.isDefined(node.dragHandler);
-        assert.equal(node.pinOnDrag, true); // Default is true
-        assert.equal(node.mesh.isPickable, true);
-
-        // Mock the pin method
-        const pinSpy = vi.spyOn(node, "pin").mockImplementation(() => undefined);
-
-        // Simulate drag start
-        node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
-        // A drop pins what the pointer PLACED, so the drag moves the node.
-        node.dragHandler?.onDragUpdate(new Vector3(1, 0, 0));
-        assert.equal(node.dragging, true);
-
-        // Simulate drag end
-        node.dragHandler?.onDragEnd();
-        assert.equal(node.dragging, false);
-
-        // Node should call pin() method when pinOnDrag is true
-        assert.equal(pinSpy.mock.calls.length, 1);
+        assert.deepEqual(drops, [true], "the drop pinned the node");
+        assert.closeTo(nodePoint(graph, "test-node").x, to.x, 2, "the node is drawn where it was dropped");
     });
 
-    test("drag behavior observables work correctly", () => {
-        // Add a node using DataManager
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-2", label: "Test Node 2" });
+    test("a drag runs a settled layout again so neighbours respond", async () => {
+        const from = await placed(graph, "test-node-2");
+        assert.isFalse(graph.isRunning(), "the fixed layout has settled");
+        const runningAtPickUp: boolean[] = [];
+        graph.addListener("node-drag-start", () => {
+            runningAtPickUp.push(graph.isRunning());
+        });
 
-        const node = dataManager.getNode("test-node-2");
-        assert.isDefined(node);
-        assert.isDefined(node.dragHandler);
+        await dragRight(graph, from);
 
-        const pinSpy = vi.spyOn(node, "pin").mockImplementation(() => undefined);
-        graph.getLayoutManager().running = false;
-
-        // Test drag start: a stopped (not paused) layout runs again so neighbours respond
-        node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
-        // A drop pins what the pointer PLACED, so the drag moves the node.
-        node.dragHandler?.onDragUpdate(new Vector3(1, 0, 0));
-        assert.equal(node.dragging, true);
-        assert.isTrue(graph.isRunning());
-
-        // Test drag end
-        node.dragHandler?.onDragEnd();
-        assert.equal(node.dragging, false);
-
-        // Node should call pin() method by default
-        assert.equal(pinSpy.mock.calls.length, 1);
+        assert.deepEqual(runningAtPickUp, [true], "picking the node up ran the layout");
     });
 
-    test("a drag while the consumer has paused the layout leaves it paused", () => {
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "held", label: "Held" });
-        const node = dataManager.getNode("held");
-        assert.isDefined(node);
-        vi.spyOn(node, "pin").mockImplementation(() => undefined);
-
+    test("a drag while the consumer has paused the layout leaves it paused", async () => {
+        const from = await placed(graph, "held");
         graph.setRunning(false);
 
-        node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
-        assert.isFalse(graph.isRunning(), "picking a node up does not resume the layout");
-        node.dragHandler?.onDragEnd();
+        let runningWhileHeld = true;
+        await dragRight(graph, from, () => {
+            runningWhileHeld = graph.isRunning();
+            return Promise.resolve();
+        });
+
+        assert.isFalse(runningWhileHeld, "picking a node up does not resume the layout");
         assert.isFalse(graph.isRunning(), "and neither does dropping it");
 
         graph.setRunning(true);
         assert.isTrue(graph.isRunning());
     });
 
-    test("position changed during drag updates layout engine", () => {
-        // Add a node using DataManager
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-3", label: "Test Node 3" });
+    test("the layout follows the node while the pointer drags it", async () => {
+        const from = await placed(graph, "test-node-3");
 
-        const node = dataManager.getNode("test-node-3");
-        assert.isDefined(node);
-
-        // Mock layout manager
-        const layoutManager = graph.getLayoutManager();
-        // The add's derivation pass places the newcomer and strict state checks the engine's
-        // edges, both through this stand-in.
-        vi.spyOn(layoutManager, "layoutEngine", "get").mockReturnValue({
-            setNodePosition: vi.fn(),
-            updatePositions: vi.fn(),
-            publishPositions: vi.fn(),
-            edgeProblems: () => [],
-        } as any);
-        const mockLayoutEngine = layoutManager.layoutEngine;
-        const spyTarget = mockLayoutEngine as unknown as {
-            setNodePosition: (node: unknown, position: unknown) => void;
-        };
-        const mockSetNodePosition = vi.spyOn(spyTarget, "setNodePosition");
-
-        // Start dragging
-        node.dragHandler?.onDragStart(new Vector3(0, 0, 0));
-
-        // Simulate position change while dragging
-        const newPosition = new Vector3(10, 20, 30);
-        node.dragHandler?.onDragUpdate(newPosition);
-
-        // Should update layout engine position
-        assert.equal(mockSetNodePosition.mock.calls.length, 1);
-        assert.equal(mockSetNodePosition.mock.calls[0][0], node);
-        // Check that the position was updated (exact values depend on delta calculations)
-        assert.isDefined(mockSetNodePosition.mock.calls[0][1]);
+        const target = from.x + 60;
+        await dragRight(graph, from, async () => {
+            await vi.waitFor(() => {
+                assert.closeTo(nodePoint(graph, "test-node-3").x, target, 2, "drawn under the pointer before the drop");
+            });
+        });
     });
 
-    test("position changed when not dragging does not update layout engine", () => {
-        // Add a node using DataManager
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-4", label: "Test Node 4" });
+    test("moving the mouse over a node with no button held does not move it", async () => {
+        const from = await placed(graph, "test-node-4");
 
-        const node = dataManager.getNode("test-node-4");
-        assert.isDefined(node);
+        await hover(graph.canvas, from);
+        await hover(graph.canvas, { x: from.x + 60, y: from.y });
+        await graph.waitForStableFrame();
 
-        // Mock layout manager
-        const layoutManager = graph.getLayoutManager();
-        // The add's derivation pass places the newcomer and strict state checks the engine's
-        // edges, both through this stand-in.
-        vi.spyOn(layoutManager, "layoutEngine", "get").mockReturnValue({
-            setNodePosition: vi.fn(),
-            updatePositions: vi.fn(),
-            publishPositions: vi.fn(),
-            edgeProblems: () => [],
-        } as any);
-        const mockLayoutEngine = layoutManager.layoutEngine;
-        const spyTarget = mockLayoutEngine as unknown as {
-            setNodePosition: (node: unknown, position: unknown) => void;
-        };
-        const mockSetNodePosition = vi.spyOn(spyTarget, "setNodePosition");
-
-        // Simulate position change without dragging (node.dragging should be false)
-        const newPosition = new Vector3(10, 20, 30);
-        node.dragHandler?.onDragUpdate(newPosition);
-
-        // Should NOT update layout engine position (because dragging is false)
-        assert.equal(mockSetNodePosition.mock.calls.length, 0);
+        assert.deepEqual(nodePoint(graph, "test-node-4"), from);
     });
 
-    test("double-click expansion triggers fetch when fetchNodes/fetchEdges exist", () => {
+    test("double-click expansion fetches the neighbourhood when fetchNodes/fetchEdges exist", async () => {
         const fetchNodes = vi.fn().mockReturnValue([
             { id: "node2", data: {} },
             { id: "node3", data: {} },
@@ -187,51 +152,28 @@ describe("Node Behavior Tests", () => {
                 { src: "test-node-5", dst: "node3" },
             ]),
         );
+        graph.setLayoutBehavior({ fetchNodes, fetchEdges });
 
-        // Add fetch functions to graph
-        (graph as { fetchNodes?: typeof fetchNodes; fetchEdges?: typeof fetchEdges }).fetchNodes = fetchNodes;
-        (graph as { fetchNodes?: typeof fetchNodes; fetchEdges?: typeof fetchEdges }).fetchEdges = fetchEdges;
-
-        // Add a node using DataManager
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-5", label: "Test Node 5" });
-
-        const node = dataManager.getNode("test-node-5");
-        assert.isDefined(node);
-
+        const at = await placed(graph, "test-node-5");
+        const node = graph.getNode("test-node-5");
         const dispatched = watchDispatches(graph);
 
-        assert.isDefined(node.mesh.actionManager);
+        await doubleClick(graph.canvas, at);
+        await vi.waitFor(() => {
+            assert.isDefined(graph.getNode("node3"), "what was fetched was added");
+        });
 
-        // Find the double-click action
-        const { actions } = node.mesh.actionManager ?? { actions: [] };
-        const doubleClickAction = actions.find((action) => action.trigger === ActionManager.OnDoublePickTrigger);
-
-        assert.isDefined(doubleClickAction);
-
-        // Trigger the double-click action
-        // ExecuteCodeAction stores the function in the execute property
-        if ("execute" in doubleClickAction) {
-            (doubleClickAction as { execute?: (event: unknown) => void }).execute?.({ source: node.mesh });
-        } else {
-            // Try accessing the function property directly
-            (doubleClickAction as { _executionCallback?: (event: unknown) => void })._executionCallback?.({
-                source: node.mesh,
-            });
-        }
-
-        // Verify fetch functions were called
         assert.equal(fetchEdges.mock.calls.length, 1);
         assert.equal(fetchEdges.mock.calls[0][0], node);
         assert.equal(fetchEdges.mock.calls[0][1], graph);
 
-        // Verify nodes were fetched (excluding the current node)
+        // The nodes fetched are the neighbours, not the node itself
         assert.equal(fetchNodes.mock.calls.length, 1);
         const nodeIds = fetchNodes.mock.calls[0][0];
         assert.equal(nodeIds.size, 2);
         assert.isTrue(nodeIds.has("node2"));
         assert.isTrue(nodeIds.has("node3"));
-        assert.isFalse(nodeIds.has("test-node-5")); // Should exclude current node
+        assert.isFalse(nodeIds.has("test-node-5"));
 
         // What was fetched is added as one step
         assert.deepEqual(
@@ -240,7 +182,7 @@ describe("Node Behavior Tests", () => {
         );
     });
 
-    test("double-click expansion reads the endpoints a canonical fetchEdges returns", () => {
+    test("double-click expansion reads the endpoints a canonical fetchEdges returns", async () => {
         // The handler used to read `e.src` and `e.dst` off whatever `fetchEdges` returned, so a
         // consumer following the guides -- which teach `source`/`target` everywhere -- collected a
         // set of `undefined` neighbours, fetched nothing, and left the edges pending for ever.
@@ -254,38 +196,21 @@ describe("Node Behavior Tests", () => {
                 { source: "test-node-7", target: "node3" },
             ]),
         );
+        graph.setLayoutBehavior({ fetchNodes, fetchEdges });
 
-        graph.fetchNodes = fetchNodes;
-        graph.fetchEdges = fetchEdges;
-
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" });
-
-        const node = dataManager.getNode("test-node-7");
-        assert.isDefined(node);
-
+        const at = await placed(graph, "test-node-7");
         const dispatched = watchDispatches(graph);
 
-        const { actions } = node.mesh.actionManager ?? { actions: [] };
-        const doubleClickAction = actions.find((action) => action.trigger === ActionManager.OnDoublePickTrigger);
-
-        assert.isDefined(doubleClickAction);
-        if ("execute" in doubleClickAction) {
-            // The action is the scene's, shared by every node, and reads which node was
-            // double-clicked from the event's source mesh, as Babylon passes it.
-            (doubleClickAction as unknown as { execute?: (event: unknown) => void }).execute?.({ source: node.mesh });
-        } else {
-            (doubleClickAction as unknown as { _executionCallback?: (event: unknown) => void })._executionCallback?.({
-                source: node.mesh,
-            });
-        }
+        await doubleClick(graph.canvas, at);
+        await vi.waitFor(() => {
+            assert.lengthOf(dispatched, 1, "the double-click dispatched the expansion");
+        });
 
         const nodeIds = fetchNodes.mock.calls[0][0];
         assert.deepStrictEqual([...nodeIds].sort(), ["node2", "node3"], "the handler found the neighbours to fetch");
 
         // The spelling the handler resolved is passed on, so the edges are read by the same columns
         // rather than probed a second time and possibly answered differently.
-        assert.lengthOf(dispatched, 1);
         assert.deepInclude(dispatched[0], {
             op: "data.expand",
             seed: "test-node-7",
@@ -294,42 +219,22 @@ describe("Node Behavior Tests", () => {
         });
     });
 
-    test("double-click expansion does nothing when fetchNodes/fetchEdges don't exist", () => {
-        // Add a node using DataManager (no fetch functions on graph)
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-6", label: "Test Node 6" });
+    test("double-click expansion does nothing when fetchNodes/fetchEdges don't exist", async () => {
+        const at = await placed(graph, "test-node-6");
+        const session = graph.getSession();
+        const steps = session.history.steps.length;
 
-        const node = dataManager.getNode("test-node-6");
-        assert.isDefined(node);
+        await doubleClick(graph.canvas, at);
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
 
-        // The handler is registered on every node and reads the fetchers when the reader
-        // double-clicks, so that expansion switched on AFTER a graph is drawn reaches the nodes
-        // already on screen. "Does nothing" is therefore about what the double-click DOES, which
-        // is what this test was always for: with no fetchers, no records reach the graph.
-        const addNodesSpy = vi.spyOn(dataManager, "addNodes");
-        const addEdgesSpy = vi.spyOn(dataManager, "addEdges");
-
-        const actions = node.mesh.actionManager?.actions ?? [];
-        const doubleClickAction = actions.find((action) => action.trigger === ActionManager.OnDoublePickTrigger);
-
-        assert.isDefined(doubleClickAction);
-        assert.doesNotThrow(() => {
-            (doubleClickAction as unknown as { execute?: (event: unknown) => void }).execute?.({ source: node.mesh });
-        });
-
-        assert.equal(addNodesSpy.mock.calls.length, 0);
-        assert.equal(addEdgesSpy.mock.calls.length, 0);
+        assert.strictEqual(session.data.store.getSnapshot().nodeCount, 1, "no records reached the graph");
+        assert.lengthOf(session.history.steps, steps, "and nothing was recorded");
     });
 
-    test("mesh is made pickable", () => {
-        // Add a node using DataManager
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "test-node-7", label: "Test Node 7" });
+    test("mesh is made pickable", async () => {
+        await placed(graph, "test-node-8");
 
-        const node = dataManager.getNode("test-node-7");
-        assert.isDefined(node);
-
-        // NodeBehavior should have made the mesh pickable
-        assert.equal(node.mesh.isPickable, true);
+        assert.equal(graph.getNode("test-node-8")?.mesh.isPickable, true);
     });
 });

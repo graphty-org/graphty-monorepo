@@ -152,7 +152,7 @@ names and defaults as the CPU port in `@graphty/layout`) plus the GPU tuning:
 | `nodeMass`                        | `null`           | `null`: the node column with the role `mass` when present, else `outDegree + 1`; a `Float32Array` of length n; a numeric node column name (a `Record` is `E_UNSUPPORTED`)                                                                                                                                |
 | `nodeSize`                        | `null`           | `E_UNSUPPORTED` when non-null (no overlap prevention)                                                                                                                                                                                                                                                    |
 | `weight`                          | unset            | `true`: the snapshot's arc weights; an edge column name: that numeric column; unset / `false` / `null`: every edge weighs 1                                                                                                                                                                              |
-| `dissuadeHubs`                    | `false`          | accepted and ignored                                                                                                                                                                                                                                                                                     |
+| `dissuadeHubs`                    | `false`          | each node's attraction divided by its degree + 1 (on top of `distributedAction`)                                                                                                                                                                                                                         |
 | `settleThreshold`, `settleWindow` | `0.001`, `10`    | settled when the mean displacement stayed below `settleThreshold x rmsRadius` AND below an absolute floor (a fraction of the model's length unit: 0.003 `springLength` x (2000 / n)^(1/4) for spring-electrical, 0.002 `k` for Fruchterman-Reingold; ForceAtlas2 has none) for `settleWindow` iterations |
 | `iterationsPerStep`               | `1`              | iterations per `step()` (the Node `run()` uses its own `batch`)                                                                                                                                                                                                                                          |
 | `maxInFlight`                     | `2`              | batches in flight before `step()` coalesces; `1` for the strictest freshness                                                                                                                                                                                                                             |
@@ -314,8 +314,8 @@ seedPositions(s, positions, 42, 2, 1, null, "fa2");
 ```
 
 The arguments are positional and all required: the snapshot, the owner's stride-3 scene-unit array (modified
-in place, length `3 * nodeCount`), the LCG seed (`0` or `null` draws a random one, the CPU port's quirk kept
-bit for bit), `dim` (`2` or `3`), the scene `scale` (> 0), the scene `center` (an `ArrayLike<number>`, or
+in place, length `3 * nodeCount`), the LCG seed (an integer >= 0, or `null` for a random one; any other value
+throws `E_INVALID_ARGUMENT`), `dim` (`2` or `3`), the scene `scale` (> 0), the scene `center` (an `ArrayLike<number>`, or
 `null` for the origin), and the draw range: `"fa2"` is `[-1, 1)` in layout units, `"fr"` is `[0, 1)`.
 ForceAtlas2 and the spring preset seed with `"fa2"`, Fruchterman-Reingold with `"fr"`.
 
@@ -528,9 +528,9 @@ ctx.release(s); // when the graph goes away; ctx.dispose() at the end of the pro
 
 | Option          | Default | Meaning                                                                                                              |
 | --------------- | ------- | -------------------------------------------------------------------------------------------------------------------- |
-| `dampingFactor` | `0.85`  | the probability of following an arc; the rest teleports                                                              |
+| `dampingFactor` | `0.85`  | the probability of following an arc, in [0, 1]; the rest teleports. Anything else is `E_INVALID_ARGUMENT`            |
 | `maxIterations` | `100`   | an integer >= 1; anything else is `E_INVALID_ARGUMENT`                                                               |
-| `tolerance`     | `1e-6`  | converged when the L1 change of the whole vector falls below `tolerance * nodeCount` (NetworkX's rule)               |
+| `tolerance`     | `1e-6`  | a finite number >= 0; converged when the summed (L1) change of the scores falls below `tolerance`, at any node count |
 | `weighted`      | `true`  | arc weights are the transition mass; `false` weighs every arc 1. A snapshot with no weights is unweighted either way |
 
 `GpuPageRankResult` comes back: `scores` (one f32 per node, summing to 1 up to f32 rounding), `iterations`
@@ -585,8 +585,9 @@ console.log(r.hubs, r.authorities); // [0.5, 0.5] and [0.5, 0.5]
 ctx.release(cycle);
 ```
 
-The options are `maxIterations` (`100`), `tolerance` (`1e-6`) and `weighted` (`true`), with PageRank's
-meanings. `GpuHitsResult` carries `hubs` and `authorities` (both f32, index-aligned, each summing to 1),
+The options are `maxIterations` (`100`), `tolerance` (`1e-6`) and `weighted` (`true`). A chain stops at the
+first pass whose summed (L1) change is below `tolerance` times the summed size of the pass, as eigenvector
+centrality does, so the error it leaves does not grow with the node count. `GpuHitsResult` carries `hubs` and `authorities` (both f32, index-aligned, each summing to 1),
 `iterations` (the larger of the two chains'), `converged` (both chains) and `precision`. `dest` receives the
 hubs; the authorities always come back in a fresh array.
 
@@ -606,8 +607,11 @@ const r = await eigenvectorCentrality(ctx, s, { maxIterations: 100, tolerance: 1
 console.log(r.scores, r.converged); // f32, index-aligned, L2 norm 1
 ```
 
-The options are `maxIterations` (`100`), `tolerance` (`1e-6`) and `weighted` (`true`); convergence is
-PageRank's L1 rule, a delta below `tolerance * nodeCount`. It returns `GpuScoresResult` -- `scores`,
+The options are `maxIterations` (`100`), `tolerance` (`1e-6`) and `weighted` (`true`). A run stops at the first
+pass whose summed (L1) change is below `tolerance` times the summed size of the pass, so the error it leaves does
+not grow with the node count. On an undirected graph each pass adds a multiple of the scores themselves (at least
+1, larger around a hub), which leaves the eigenvector alone and lets stars and other bipartite graphs converge; it
+stops at the same pass as `@graphty/algorithms`' `eigenvectorCentrality` on a graph without parallel edges. It returns `GpuScoresResult` -- `scores`,
 `iterations`, `converged`, `precision` -- which is PageRank's result without `danglingMass`.
 
 Directed or undirected both work. When a graph's components have different spectral radii the power iteration
@@ -636,7 +640,8 @@ console.log(r.scores); // f32, index-aligned, L2-normalised
 | `tolerance`     | `1e-6`  | as above                                                                                                                                 |
 | `weighted`      | `true`  | as above                                                                                                                                 |
 
-A non-finite `alpha` or `beta` is `E_INVALID_ARGUMENT`. The result is `GpuScoresResult`, L2-normalised on the
+A run stops at the first pass whose summed (L1) change is below `tolerance` times the summed size of the pass,
+as eigenvector centrality does. A non-finite `alpha` or `beta` is `E_INVALID_ARGUMENT`. The result is `GpuScoresResult`, L2-normalised on the
 host with no per-iteration normaliser on the device. Walks arrive along the reverse adjacency, so direction
 matters. `nodeCount: 0` is empty; with no arcs every node holds `beta` alone, which after normalisation is
 `1 / sqrt(nodeCount)` each.
@@ -813,8 +818,7 @@ empty-submit round trip in Node meets its target at the working clock, but a ses
 `upload` group reads about 0.15-0.18 ms, because the group's CPU-heavy setup lets the SM clock fall to its idle state
 (finding G3-F2 of `docs/decisions/G3.md` section 10). T-9 times WCC with the core already resident (issue #469): the
 upload is T-1's row, so the end-to-end cost is T-1 + T-9, and the end-to-end WCC rows are recorded beside it. The `pagerank` rows run all
-100 iterations (`tolerance: 0`): at the NetworkX tolerance of 1e-6 the seeded G(n, m) input converges from the uniform
-start in one to four iterations, which would time one pull and call it a hundred. The Chromium round trip (T-3, issue
+100 iterations (`tolerance: 0`), so every row times the same hundred pulls whatever the input's convergence. The Chromium round trip (T-3, issue
 #278) is what every interactive frame of a browser layout pays; its figure is the mean of batches of 20 round trips,
 because Chromium quantises `performance.now()` to 100 us, and it was measured on 2026-09-27 at a load average near 70,
 so it is an upper bound.

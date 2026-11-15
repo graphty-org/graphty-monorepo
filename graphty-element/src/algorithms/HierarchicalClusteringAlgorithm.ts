@@ -93,7 +93,7 @@ export class HierarchicalClusteringAlgorithm extends DeclaredAlgorithm<Hierarchi
         const { snapshot } = input.derived();
         const { clusters, linkage } = this.schemaOptions;
 
-        context.report({ phase: "Merging clusters", total: null });
+        context.report({ phase: "merging-clusters", total: null });
         const tree = hierarchicalClustering(snapshot, { linkage });
         context.signal.throwIfAborted();
 
@@ -102,7 +102,7 @@ export class HierarchicalClusteringAlgorithm extends DeclaredAlgorithm<Hierarchi
         const value = tree.cutAt({ clusters: cut });
 
         const nodes: ResultElementValues[] = [];
-        await forEachChunked(context, "Grouping nodes", nodeIds, (nodeId) => {
+        await forEachChunked(context, "grouping-nodes", nodeIds, (nodeId) => {
             nodes.push({ id: nodeId, values: { group: value.labels[snapshot.ids.indexOf(nodeId)] ?? 0 } });
         });
 

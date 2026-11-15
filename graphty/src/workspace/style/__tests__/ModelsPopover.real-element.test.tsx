@@ -1,9 +1,9 @@
 /**
  * Models in the Style tab's Shape field with the node models experiment on (issue #3396), on the
  * real graphty-element, by real input: the Shape list's Model... opens the Models pop-over; a
- * sample or a chosen .glb becomes the field's value; a built-in shape takes the model off in one
- * undo step; Model settings writes the model's channels; the minus removes the model; a lone
- * picture is offered as the layer's picture. Every assertion
+ * sample, or a .glb chosen in the Load custom model dialog its Add custom model... opens, becomes the
+ * field's value and a picture tile; a built-in shape takes the model off in one undo step; Model
+ * settings writes the model's channels, and its Pose holds a clip at a moment; the minus removes the model. Every assertion
  * reads what the element reports: its layers, its assets and its model states.
  */
 
@@ -13,9 +13,24 @@ import "@graphty/graphty-element";
 import { afterEach, assert, describe, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { screen, waitFor, within } from "../../../test/test-utils";
-import { dropOn, fileInput, openModels, openShapes, reaches, shapeField, written } from "./modelHarness";
-import { dotPng, quadGlb } from "./quadGlb";
+import {
+    addModel,
+    choose,
+    openCustom,
+    openModels,
+    openShapes,
+    previewOf,
+    reaches,
+    shapeField,
+    written,
+} from "./modelHarness";
+import { quadGlb } from "./quadGlb";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Waits until focus is on a tile of the pop-over, by its name.
@@ -46,10 +61,11 @@ describe("models in the Shape field, on the real element", () => {
         assert.isNull(screen.queryByRole("dialog", { name: "Models" }), "picking closes the pop-over");
         await reaches(session, "asset:sample/box");
 
-        // Choose model files: a .glb from the file chooser, drawn on the layer's nodes.
-        let models = await openModels(tab);
-        assert.isNotNull(within(models).getByRole("button", { name: "Choose model files" }));
-        await userEvent.upload(fileInput(models), [new File([quadGlb()], "quad.glb", { type: "model/gltf-binary" })]);
+        // Add custom model...: a .glb from the dialog's file chooser, drawn on the layer's nodes.
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", [new File([quadGlb()], "quad.glb", { type: "model/gltf-binary" })]);
+        await previewOf(dialog, "quad");
+        await addModel(dialog);
         await waitFor(() => {
             assert.match(String(written(session, "node.model")), /^asset:/);
             assert.notEqual(written(session, "node.model"), "asset:sample/box");
@@ -58,10 +74,14 @@ describe("models in the Shape field, on the real element", () => {
         await reaches(session, quad);
         assert.isNotNull(await within(tab).findByRole("combobox", { name: "Node shape, quad" }));
 
-        // The Models pop-over marks quad, in this project, as the one in force.
-        models = await openModels(tab);
+        // The Models pop-over marks quad, in this project, as the one in force, drawn as its picture.
+        const models = await openModels(tab);
         const own = within(models).getByRole("group", { name: "In this project" });
-        assert.equal(within(own).getByRole("button", { name: "quad" }).getAttribute("aria-pressed"), "true");
+        const tile = within(own).getByRole("button", { name: "quad" });
+        assert.equal(tile.getAttribute("aria-pressed"), "true");
+        await waitFor(() => {
+            assert.match(tile.querySelector("img")?.src ?? "", /^data:image\/png;base64,/);
+        });
         await userEvent.keyboard("{Escape}");
         await waitFor(() => {
             assert.isNull(screen.queryByRole("dialog", { name: "Models" }));
@@ -92,6 +112,30 @@ describe("models in the Shape field, on the real element", () => {
         });
     });
 
+    it("offers a Pose under Animation in Model settings, holding the clip at the moment chosen", async () => {
+        const { session, tab } = await openShapes();
+        const dialog = await openCustom(tab);
+        await choose(dialog, "Choose file", ["../babylonjs-models/test/fixtures/variants/gltf-animated/cube.glb"]);
+        await previewOf(dialog, "cube");
+        await addModel(dialog);
+        await waitFor(() => {
+            assert.match(String(written(session, "node.model")), /^asset:/);
+        });
+        await userEvent.click(within(tab).getByRole("button", { name: "Model settings" }));
+        const panel = await screen.findByRole("dialog", { name: "Model settings" });
+        assert.isNull(within(panel).queryByRole("slider", { name: "Pose" }), "no pose while the model is still");
+        await userEvent.click(within(panel).getByRole("combobox", { name: /^Animation, / }));
+        await userEvent.click(await screen.findByRole("option", { name: /^spin, / }));
+        const pose = await within(panel).findByRole("slider", { name: "Pose" });
+        pose.focus();
+        await userEvent.keyboard("{End}");
+        await waitFor(() => {
+            assert.equal(written(session, "node.modelAnimationOffset"), 1, "the end of the one-second clip");
+            assert.equal(written(session, "node.modelAnimationSpeed"), 0, "held there");
+        });
+        assert.equal(written(session, "node.modelAnimation"), "spin");
+    });
+
     it("walks the samples as one Tab stop with the arrows, stopping at the edges", async () => {
         const { tab } = await openShapes();
         const models = await openModels(tab);
@@ -105,10 +149,10 @@ describe("models in the Shape field, on the real element", () => {
         assert.equal(document.activeElement, tiles[1]);
         await userEvent.keyboard("{End}{ArrowRight}");
         assert.equal(document.activeElement, tiles.at(-1), "the last tile is an edge");
-        // One Tab leaves the grid.
+        // One Tab leaves the grid, for Add custom model....
         await userEvent.tab();
         assert.isFalse(samples.contains(document.activeElement));
-        assert.equal(document.activeElement?.getAttribute("aria-label"), "Model address");
+        assert.equal(document.activeElement?.textContent, "Add custom model...");
     });
 
     it("removes the model with the Shape line's minus, and says so", async () => {
@@ -127,56 +171,13 @@ describe("models in the Shape field, on the real element", () => {
         assert.isUndefined(written(session, "node.shape"), "the shape kept under the model goes with it");
     });
 
-    it("offers a lone picture as the layer's picture, never refusing it as a model", async () => {
-        const { session, tab } = await openShapes();
+    it("opens the Load custom model dialog in its place from Add custom model...", async () => {
+        const { tab } = await openShapes();
         const models = await openModels(tab);
-        dropOn(within(models).getByTestId("models-popover"), [new File([dotPng()], "colormap.png")]);
-
-        const use = await within(models).findByRole("button", { name: "Use colormap as picture" });
-        assert.isNotNull(within(models).getByText("Not a model"));
-        await userEvent.click(use);
+        await userEvent.click(within(models).getByRole("button", { name: "Add custom model..." }));
+        assert.isNotNull(await screen.findByRole("dialog", { name: "Load custom model" }));
         await waitFor(() => {
-            assert.match(String(written(session, "node.texture")), /^asset:/);
+            assert.isNull(screen.queryByRole("dialog", { name: "Models" }), "the pop-over closed");
         });
-        assert.isUndefined(written(session, "node.model"), "nothing names the picture as a model");
-    });
-
-    it("writes nothing for an address that finishes loading after the pop-over closed", async () => {
-        const url = "https://models.example.com/late/panel.glb";
-        const asked: string[] = [];
-        let answer: (response: Response) => void = () => undefined;
-        const original = globalThis.fetch.bind(globalThis);
-        vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
-            const to = input instanceof Request ? input.url : String(input);
-            if (to !== url) {
-                return original(input, init);
-            }
-            asked.push(to);
-            return new Promise<Response>((resolve) => {
-                answer = resolve;
-            });
-        });
-        const { session, tab } = await openShapes();
-        let models = await openModels(tab);
-        await userEvent.type(within(models).getByRole("textbox", { name: "Model address" }), url);
-        await userEvent.click(within(models).getByRole("button", { name: "Add model address" }));
-        await waitFor(() => {
-            assert.include(asked, url);
-        });
-        await userEvent.keyboard("{Escape}");
-        await waitFor(() => {
-            assert.isNull(screen.queryByRole("dialog", { name: "Models" }));
-        });
-
-        answer(new Response(quadGlb(), { status: 200 }));
-        // Open again: once the add has finished, its button is no longer loading.
-        models = await openModels(tab);
-        await waitFor(() => {
-            assert.isNull(
-                within(models).getByRole("button", { name: "Add model address" }).getAttribute("data-loading"),
-            );
-        });
-        assert.isUndefined(written(session, "node.model"), "the reader closed it before it loaded");
-        assert.isNull(screen.queryByRole("dialog", { name: "Parts" }));
     });
 });

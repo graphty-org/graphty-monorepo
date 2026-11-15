@@ -13,16 +13,20 @@ import type { Node } from "../../src/Node";
 /**
  * Run bipartite on the path "1"-"2"-"3"-"4", node ids held as text, and read every coordinate.
  * @param top - the nodes the option names as one side
+ * @param held - the node ids the path holds
  * @returns x, y, z of every node in order
  */
-function bipartite(top: readonly (string | number)[]): number[] {
+function bipartite(
+    top: readonly (string | number)[],
+    held: readonly (string | number)[] = ["1", "2", "3", "4"],
+): number[] {
     const engine = LayoutEngine.get("bipartite", { nodes: top });
     assert.isNotNull(engine);
     if (engine === null) {
         return [];
     }
 
-    const nodes = ["1", "2", "3", "4"].map((id) => ({ id }) as unknown as Node);
+    const nodes = held.map((id) => ({ id }) as unknown as Node);
     const edges = nodes
         .slice(1)
         .map((dst, i) => ({ srcId: nodes[i].id, dstId: dst.id, srcNode: nodes[i], dstNode: dst }) as unknown as Edge);
@@ -39,5 +43,13 @@ describe("either spelling of an integer id in a layout option", () => {
     it("bipartite's nodes find the node by the number it spells", () => {
         assert.deepEqual(bipartite([1, 3]), bipartite(["1", "3"]));
         assert.notDeepEqual(bipartite(["1", "3"]), bipartite([]), "naming the side changes the arrangement");
+    });
+
+    it("bipartite's nodes find no node by text that only reads as its number", () => {
+        const numbers = [1, 2, 3, 4];
+        assert.notDeepEqual(bipartite([1, 3], numbers), bipartite([3], numbers), "naming node 1 moves it");
+        for (const loose of [" 1", "1e0", "0x1", "01"]) {
+            assert.deepEqual(bipartite([loose, 3], numbers), bipartite([3], numbers), JSON.stringify(loose));
+        }
     });
 });

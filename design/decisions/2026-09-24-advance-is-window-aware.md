@@ -102,3 +102,11 @@ Three conditions, counted:
   filter; the sweep needs a per-window claim pass).
 - The owner rules that `sssp`'s unit-weight route inherits the lift. That is one line -- the
   route's `assertWholeCore` -- and a record of its own that links back here.
+
+## Update 2026-11-10: the first condition holds
+
+Issue #471 added the windowed reverse view: `GraphResidency.reverseWindowed(s)` uploads a directed snapshot's reverse
+`colIdx` as arc windows (the same `planWindowLayout` the forward core uses) when it exceeds one binding, and
+`breadthFirstSearch` runs the bottom-up sweep once per reverse window. The directed refusal is gone, so the lift is
+whole for directed snapshots too. `sssp`'s unit-weight route runs the BFS directly, with no whole-core check of its
+own, so it inherits the lift; a test runs it on a windowed core.

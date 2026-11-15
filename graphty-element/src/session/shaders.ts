@@ -15,6 +15,7 @@
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
 
+import REVOKED_SHADER_HASHES from "../catalog/revoked-shader-hashes.json";
 import {
     addPastedShaderSource,
     describePastedShader,
@@ -43,6 +44,7 @@ import {
     type ShaderTextOptions,
     splitShaderText,
 } from "../catalog/shaderText";
+import SHIPPED_SHADER_HASHES from "../catalog/shipped-shader-hashes.json";
 import type { LayerId, LayerSpec } from "../catalog/types";
 import { GraphtyError, isGraphtyError } from "../errors/GraphtyError";
 import { sha256Hex } from "../utils/sha256";
@@ -54,6 +56,26 @@ import type { SessionEventMap } from "./types";
 
 /** The most shaders one project holds. */
 const PROJECT_SHADER_LIMIT = 64;
+
+/** The content hash of every canonical preset text ever shipped: trusted wherever it arrives. */
+const SHIPPED = new Set<string>(SHIPPED_SHADER_HASHES);
+
+/** Content hashes never trusted, even after approve: a shipped text later found unsafe. */
+const REVOKED = new Set<string>(REVOKED_SHADER_HASHES);
+
+/**
+ * The content hash of a stored shader text: SHA-256 over the text with its header's `id` value
+ * left out, so the same code is the same content under any key a file gives it.
+ * ponytail: blanks the first `"id": "..."` before the body; header keys other than the top-level
+ * id are never named `id`, and a body is GLSL, so the first match is the header's.
+ * @param text - The stored text.
+ * @returns The hex digest.
+ */
+export function shaderContentHash(text: string): string {
+    const { body } = splitShaderText(text);
+    const head = text.slice(0, text.length - body.length);
+    return sha256Hex(head.replace(/("id"\s*:\s*)"[^"]*"/, '$1""') + body);
+}
 
 /** The side of a drawn thumbnail, in pixels. */
 export const SHADER_THUMBNAIL_SIZE = 128;
@@ -95,7 +117,7 @@ export interface ProjectShader {
     readonly target: ShaderTarget;
     /** Where a use draws when it names none; absent for the background. */
     readonly place?: ShaderPlace;
-    /** The SHA-256 of its text, as 64 hex digits. */
+    /** The content hash of its text, as 64 hex digits: SHA-256 with the header's id left out, so the same code hashes the same under any id. */
     readonly hash: string;
     /** What it is doing. */
     readonly state: ShaderState;
@@ -217,7 +239,8 @@ export interface SessionShaders {
      * @param options - What to write.
      * @param options.params - Parameter values the copy carries as its defaults, such as the ones a
      *   layer sets; a name the shader does not declare, or a value of the wrong type, is skipped.
-     * @param options.duplicate - Give a preset or a registered shader a `user/` id.
+     * @param options.duplicate - Give any shader whose id is outside the `user/` namespace (a preset, a
+     *   registered shader, or a project copy of one) a `user/` id.
      * @param options.derived - `"omit"` leaves out what the element computes from a body (`reads`,
      *   `cost`, a still `motion`), so an edited copy has them computed again from its new body.
      *   Absent, they are written.
@@ -271,6 +294,27 @@ export interface SessionShaders {
      * @throws A `GraphtyError` with `E_UNKNOWN_SHADER` for an id nothing holds.
      */
     thumbnail(id: string, params?: ShaderParams): Promise<Blob | ShaderProblem>;
+    /**
+     * One shader by id: the project's own when it holds the id, with `copyOf` when its text is a
+     * catalog entry's; else the catalog's entry, for a gallery.
+     * @param id - Any shader id.
+     * @returns Its descriptor, or undefined when neither holds it.
+     * @since 3.50.0
+     */
+    describe(id: string): ShaderDescriptor | undefined;
+    /**
+     * The project id to write for a gallery pick. A layer use, an encode key and the background
+     * name the project's own shaders; writing a catalog id copies that shader's text into the
+     * project in the same step. This returns the id that keeps the pick's look: a project shader
+     * with the same content under any id, else the catalog id -- or, when the project holds that id
+     * with other text (a file's own), a fresh id the catalog text is copied in under.
+     * @param id - A preset or a registered shader.
+     * @returns The id to write.
+     * @throws A `GraphtyError` with `E_UNKNOWN_SHADER` for an id the catalog does not list, or the
+     *   load's refusal when its body does not load.
+     * @since 3.50.0
+     */
+    fromCatalog(id: string): Promise<string>;
 }
 
 /**
@@ -290,7 +334,7 @@ export interface ShaderSettings {
      * run, or refused.
      */
     readonly untrusted?: "hold" | "run" | "refuse";
-    /** SHA-256 hashes of shader texts the application remembers the reader approved. */
+    /** Content hashes of shader texts the application remembers the reader approved (SHA-256 with the header's id left out). */
     readonly trustedHashes?: readonly string[];
 }
 
@@ -353,7 +397,7 @@ export interface HostRenderSettings {
 export interface HostShader {
     /** The shader's id. */
     readonly id: string;
-    /** The SHA-256 of its text. */
+    /** The content hash of its text. */
     readonly hash: string;
     /** Its registration: the descriptor and the GLSL bodies, loaded. */
     readonly registration: LoadedRegistration;
@@ -476,9 +520,9 @@ export interface ShadersController {
     /** The project's shaders as the catalog lists them. */
     descriptors(): readonly ShaderDescriptor[];
     /**
-     * A shader the element may draw now, for the node and edge batches: a preset or a registered
-     * shader at once, a project shader once it is trusted and has compiled and passed its test
-     * frame here. A project shader's state changing is published as `shader:status`, which is when
+     * A shader the element may draw now, for the node and edge batches: one of the project's own
+     * shaders, once it is trusted and has compiled and passed its test frame here. A catalog id the
+     * project does not hold draws nothing. A project shader's state changing is published as `shader:status`, which is when
      * to ask again.
      * @param id - The shader's id.
      * @returns The shader, or null when it may not draw (unknown, held, failed, compiling, off).
@@ -516,18 +560,20 @@ export function shadersControllerOf(session: object): ShadersController | undefi
 }
 
 /**
- * Every shader id a layer names on its shader lists.
+ * Every shader id a layer names on its shader lists, `off: true` uses included: a use switched off
+ * still names a shader the project keeps and its file carries.
  * @param spec - The layer.
+ * @param drawn - Leave out the uses switched off, for what is drawn now.
  * @returns The ids.
  */
-export function idsNamedBy(spec: LayerSpec): Set<string> {
+export function idsNamedBy(spec: LayerSpec, drawn = false): Set<string> {
     const ids = new Set<string>();
     const set = (spec.set ?? {}) as Record<string, unknown>;
     for (const channel of ["node.shaders", "edge.shaders"]) {
         const list = set[channel];
         if (Array.isArray(list)) {
             for (const use of list as readonly ShaderUse[]) {
-                if (use.off !== true && typeof use.shader === "string") {
+                if ((!drawn || use.off !== true) && typeof use.shader === "string") {
                     ids.add(use.shader);
                 }
             }
@@ -674,6 +720,8 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     const read = new Map<string, ReadText | readonly ShaderProblem[]>();
     /** The hashes approved in this session: the reader's own, and those `approve` ran. */
     const approved = new Set<string>();
+    /** The hashes a call refused (`applyTemplate(..., { shaders: "refuse" })`): held until `approve`, whatever the settings. */
+    const refused = new Set<string>();
     /** The hashes whose shader was drawing when the GPU was lost while the page was visible. */
     const quarantined = new Set<string>();
     /** What compiling and testing each hash found: pending, null for a pass, or the problem. */
@@ -682,8 +730,6 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     const published = new Map<string, string>();
     /** The ids last seen held, so `shader:held` names only newcomers. */
     let heldBefore = new Set<string>();
-    /** The text hash of each preset and registered shader drawn, by id: what the guard sees of it. */
-    const catalogHashes = new Map<string, string>();
     /** The thumbnails drawn or supplied, by what they show (see `thumbnailKey`). */
     const thumbnails = new Map<string, Promise<Blob | ShaderProblem>>();
 
@@ -697,16 +743,22 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
      * @param text - The text.
      * @param place - Where it is being added: its target, and the place text that names none takes.
      * @param id - An id to give it in place of its header's.
+     * @param namespaced - Whether its header's id must carry a namespace; a project's own may be bare.
      * @returns What it read into, or the problems.
      */
-    const readText = (text: string, place?: ShaderTextOptions, id?: string): ReadText | readonly ShaderProblem[] => {
-        const key = `${place?.target ?? ""} ${place?.place ?? ""}\u0000${id ?? ""}\u0000${text}`;
+    const readText = (
+        text: string,
+        place?: ShaderTextOptions,
+        id?: string,
+        namespaced = true,
+    ): ReadText | readonly ShaderProblem[] => {
+        const key = `${place?.target ?? ""} ${place?.place ?? ""} ${String(namespaced)}\u0000${id ?? ""}\u0000${text}`;
         const cached = read.get(key);
         if (cached !== undefined) {
             return cached;
         }
 
-        const parsed = parseShaderText(text, place);
+        const parsed = parseShaderText(text, { ...place, namespaced });
         let result: ReadText | readonly ShaderProblem[];
         if (parsed.ok) {
             const registration = id === undefined ? parsed.registration : renamed(parsed.registration, id);
@@ -714,24 +766,24 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 text.includes(SHADER_TEXT_MAGIC) && registration.descriptor.id === parsed.registration.descriptor.id;
             // A place the options supplied is written into the stored text, so it reads back the same
             // with no options: a saved project is opened with none.
-            const alone = place === undefined ? parsed : parseShaderText(text);
+            const alone = place === undefined ? parsed : parseShaderText(text, { namespaced });
             const keepsPlace = alone.ok && alone.registration.descriptor.place === registration.descriptor.place;
             const stored = headed && keepsPlace ? text : formatShaderText(registration);
-            const hash = sha256Hex(stored);
+            const hash = shaderContentHash(stored);
             try {
                 result = {
                     text: stored,
                     registration,
                     hash,
                     bodyLine: splitShaderText(text).bodyLine,
-                    descriptor: describePastedShader(registration, hash),
+                    descriptor: describePastedShader(registration, hash, namespaced),
                 };
             } catch (error) {
                 const details = (error as GraphtyError).details as { problems?: readonly ShaderProblem[] } | undefined;
                 result = details?.problems ?? [{ code: "shader.id-invalid", params: { id: id ?? "" } }];
             }
         } else {
-            result = catalogCopy(text, place, id, parsed.problems) ?? parsed.problems;
+            result = (namespaced ? bareCopy(text, place, id, parsed.problems) : undefined) ?? parsed.problems;
         }
 
         read.set(key, result);
@@ -739,15 +791,16 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     };
 
     /**
-     * Text whose header names a preset's bare id, which pasted text may not take: a copy from
-     * `source`, read under the `user/` id a duplicate would have.
+     * Text whose header names a bare id, which pasted text may not take (a copy from `source`):
+     * the project's own shader when it holds that id with this text, else read under the `user/`
+     * id a duplicate would have. Nothing here asks the catalog.
      * @param text - The text.
      * @param place - Where it is being added.
      * @param id - An id the caller gives it, which leaves the header alone.
      * @param problems - What parsing found.
      * @returns The copy read, or undefined when the text is not one.
      */
-    const catalogCopy = (
+    const bareCopy = (
         text: string,
         place: ShaderTextOptions | undefined,
         id: string | undefined,
@@ -758,8 +811,9 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return undefined;
         }
 
-        if (shaderDescriptor(named) === undefined) {
-            return undefined;
+        if (state().shaders.get(named)?.text === text) {
+            const own = readText(text, place, undefined, false);
+            return Array.isArray(own) ? undefined : (own as ReadText);
         }
 
         const renamedText = text.replace(new RegExp(String.raw`("id"\s*:\s*)"${named}"`), `$1"user/${named}"`);
@@ -778,14 +832,67 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return undefined;
         }
 
-        let result = readText(entry.text);
+        let result = readText(entry.text, undefined, undefined, false);
         // A document's text whose header names another id is the shader under the document's id.
         if (!Array.isArray(result) && (result as ReadText).descriptor.id !== id) {
-            result = readText(entry.text, undefined, id);
+            result = readText(entry.text, undefined, id, false);
         }
 
-        return Array.isArray(result) ? undefined : (result as ReadText);
+        if (Array.isArray(result)) {
+            return undefined;
+        }
+
+        const shader = result as ReadText;
+        const match = catalogMatch(shader.hash);
+        if (match === undefined) {
+            // A shipped text under its preset's id is matched once that body loads: start it, so
+            // a copy a file carried in shows as the preset's copy, with its tags.
+            if (SHIPPED.has(shader.hash) && shaderDescriptor(id) !== undefined && shaderSourceNow(id) === undefined) {
+                void loadShaderSource(id)?.catch(() => undefined);
+            }
+
+            return shader;
+        }
+
+        // Tags are not part of the text: a copy shows its catalog entry's while that is listed.
+        const tags = match.tags === undefined ? {} : { tags: match.tags };
+        return { ...shader, descriptor: Object.freeze({ ...shader.descriptor, ...tags, copyOf: match.id }) };
     };
+
+    /** The content hash of each catalog entry whose body has loaded, by the descriptor list it was built from. */
+    let catalogByHash:
+        { readonly from: readonly ShaderDescriptor[]; readonly byHash: Map<string, ShaderDescriptor> } | undefined;
+
+    /**
+     * The catalog entry whose canonical text (what `source(id)` writes) has this content hash.
+     * ponytail: rebuilt when the catalog's descriptor list changes, which a loaded body does; a
+     * preset whose body has not loaded yet is not matched until it has.
+     * @param hash - A content hash.
+     * @returns The entry, or undefined.
+     */
+    const catalogMatch = (hash: string): ShaderDescriptor | undefined => {
+        const all = shaderDescriptors();
+        if (catalogByHash?.from !== all) {
+            const byHash = new Map<string, ShaderDescriptor>();
+            for (const descriptor of all) {
+                const text = canonicalText(descriptor);
+                if (text !== undefined) {
+                    byHash.set(shaderContentHash(text), descriptor);
+                }
+            }
+
+            catalogByHash = { from: all, byHash };
+        }
+
+        return catalogByHash.byHash.get(hash);
+    };
+
+    /**
+     * Whether a content hash is a catalog text: one ever shipped, or a body loaded here.
+     * @param hash - A content hash.
+     * @returns True when it is.
+     */
+    const catalogContent = (hash: string): boolean => SHIPPED.has(hash) || catalogMatch(hash) !== undefined;
 
     const stopCatalog = addPastedShaderSource({
         descriptor: (id) => projectShader(id)?.descriptor,
@@ -794,32 +901,140 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
     /**
      * Whether a text may run without asking.
-     * @param hash - Its hash.
-     * @returns True when it was approved here, or the application trusts it and no crash marked it.
+     * @param hash - Its content hash.
+     * @param text - Its stored text, when known: an application may remember the SHA-256 of the
+     *   whole text, the trust key before content hashes, and that still trusts it.
+     * @param runAll - Whether the settings' `untrusted: "run"` counts; a refusing call's trust leaves it out.
+     * @returns True when the reader approved it here; else when the application trusts it and no
+     *   crash marked it and no call refused it. An explicit approval outranks a crash marker and a
+     *   refusal, never a revocation.
      */
-    const trusted = (hash: string): boolean => {
+    const trusted = (hash: string, text?: string, runAll = true): boolean => {
+        if (REVOKED.has(hash)) {
+            return false;
+        }
+
         if (approved.has(hash)) {
             return true;
+        }
+
+        if (refused.has(hash)) {
+            return false;
         }
 
         if (host?.crashMarked.has(hash) === true) {
             return false;
         }
 
-        return settings.untrusted === "run" || (settings.trustedHashes ?? []).includes(hash);
+        if (SHIPPED.has(hash) || catalogMatch(hash)?.origin === "registered") {
+            return true;
+        }
+
+        const remembered = settings.trustedHashes ?? [];
+        return (
+            (runAll && settings.untrusted === "run") ||
+            remembered.includes(hash) ||
+            (text !== undefined && remembered.includes(sha256Hex(text)))
+        );
     };
+
+    /**
+     * The content hash of a document's entry, read as the project stores it.
+     * @param id - Its id in the document.
+     * @param text - Its text.
+     * @returns The hash, or undefined when the text does not parse.
+     */
+    const entryHash = (id: string, text: string): string | undefined => {
+        let result = readText(text, undefined, undefined, false);
+        if (!Array.isArray(result) && (result as ReadText).descriptor.id !== id) {
+            result = readText(text, undefined, id, false);
+        }
+
+        return Array.isArray(result) ? undefined : (result as ReadText).hash;
+    };
+
+    dispatcher.services.shaderReadable = (id) => projectShader(id) !== undefined;
+    dispatcher.services.shaderIsCopy = (id) => projectShader(id)?.descriptor.copyOf === id;
 
     setShaderTrust(styles, {
         mode: () => settings.untrusted ?? "hold",
-        trusted: (text) => trusted(sha256Hex(text)),
-        trust: (texts) => {
-            for (const text of texts) {
-                approved.add(sha256Hex(text));
+        readable: (id, text) => entryHash(id, text) !== undefined,
+        trusted: (id, text, refusing = false) => {
+            const hash = entryHash(id, text);
+            return hash !== undefined && trusted(hash, text, !refusing);
+        },
+        refuse: (entries) => {
+            for (const { id, text } of entries) {
+                const hash = entryHash(id, text);
+                if (hash !== undefined && !trusted(hash, text, false)) {
+                    refused.add(hash);
+                }
             }
         },
-        embedded: (layers) => registeredTexts(layers),
-        pageOwns: (id) => !state().shaders.has(id) && shaderDescriptor(id)?.origin === "registered",
+        trust: (entries) => {
+            for (const { id, text } of entries) {
+                const hash = entryHash(id, text);
+                if (hash !== undefined) {
+                    approved.add(hash);
+                }
+            }
+        },
     });
+
+    // A file saved before files carried their shaders named presets by id alone: opening one
+    // copies in what that id meant, so it keeps its look.
+    dispatcher.services.legacyShaderText = async (id) => {
+        const descriptor = shaderDescriptor(id);
+        const loaded = descriptor === undefined ? undefined : await loadShaderSource(id)?.catch(() => undefined);
+        return descriptor === undefined || loaded === undefined
+            ? undefined
+            : copyText(descriptor, loaded.glsl, id, {}, loaded.lowDetail);
+    };
+
+    /**
+     * Why a catalog entry cannot be copied into the project now: shader text carries GLSL only,
+     * so a registration with its own WGSL (`webgpu: "native"`) has no text that reads; and a
+     * project holds at most {@link PROJECT_SHADER_LIMIT} shaders.
+     * @param descriptor - The entry.
+     * @returns The problem, or undefined when it can be copied.
+     */
+    const copyRefusal = (descriptor: ShaderDescriptor): ShaderProblem | undefined => {
+        if (descriptor.webgpu === "native") {
+            return { code: "shader.not-copyable", params: { id: descriptor.id } };
+        }
+
+        const count = state().shaders.size + 1;
+        return count > PROJECT_SHADER_LIMIT
+            ? { code: "shader.too-many", params: { count, limit: PROJECT_SHADER_LIMIT } }
+            : undefined;
+    };
+
+    // A write that names a catalog shader the project does not hold copies its text in, in the
+    // write's own step (the style and config executors call this).
+    dispatcher.services.shaderCopy = (id) => {
+        if (state().shaders.has(id)) {
+            return undefined;
+        }
+
+        const descriptor = shaderDescriptor(id);
+        if (descriptor === undefined) {
+            return undefined;
+        }
+
+        const refused = copyRefusal(descriptor);
+        if (refused !== undefined) {
+            return refused;
+        }
+
+        const text = canonicalText(descriptor);
+        if (text !== undefined) {
+            return text;
+        }
+
+        // An executor cannot wait for a body; start it, so the next write finds it.
+        void loadShaderSource(id)?.catch(() => undefined);
+        return shaderLoadProblem(id) ?? { code: "shader.not-loaded", params: { id } };
+    };
 
     /**
      * Run work on a host, and again on the host that replaced it when the replacing cut it off:
@@ -891,7 +1106,11 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return { state: "off", problem: { code: "shader.quarantined", params: { id } } };
         }
 
-        if (!trusted(shader.hash)) {
+        if (REVOKED.has(shader.hash)) {
+            return { state: "held", problem: { code: "shader.revoked", params: { id } } };
+        }
+
+        if (!trusted(shader.hash, shader.text)) {
             return { state: "held", problem: { code: "shader.held", params: { id } } };
         }
 
@@ -901,6 +1120,14 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
         if (shader.descriptor.webgpu === "none" && host.renderer === "webgpu") {
             return { state: "off", problem: { code: "shader.webgpu-unsupported", params: {} } };
+        }
+
+        // A text the catalog shipped, or the page registered, draws at once as the catalog's own
+        // entry does: decided by its content, never by its id, and never compiled per hash first.
+        if (catalogContent(shader.hash)) {
+            return (
+                drawnStatusOf(shader.descriptor, shader.hash) ?? noDataStatus(shader.descriptor) ?? { state: "ready" }
+            );
         }
 
         const result = compiled.get(shader.hash);
@@ -986,42 +1213,9 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             return { state: "failed", problem: failed };
         }
 
-        const hash = catalogHashes.get(descriptor.id);
-        if (hash !== undefined && quarantined.has(hash)) {
-            return { state: "off", problem: { code: "shader.quarantined", params: { id: descriptor.id } } };
-        }
-
-        const drawn = host === null ? null : drawnStatusOf(descriptor, hash ?? "");
+        const drawn = host === null ? null : drawnStatusOf(descriptor, "");
         return drawn ?? noDataStatus(descriptor) ?? { state: host === null ? "not-checked" : "ready" };
     };
-
-    /**
-     * The text of every page-registered shader the layers name, so a saved look carries it.
-     * ponytail: a registration whose body is a loader is carried once that body has loaded (the
-     * first time it draws); its load is started here, so the next save has it.
-     * @param layers - The layers being saved.
-     * @returns The ids and texts.
-     */
-    function registeredTexts(layers: readonly LayerSpec[]): { readonly id: string; readonly text: string }[] {
-        const texts: { id: string; text: string }[] = [];
-        const ids = new Set(layers.flatMap((layer) => [...idsNamedBy(layer)]));
-        for (const id of ids) {
-            const descriptor = state().shaders.has(id) ? undefined : shaderDescriptor(id);
-            if (descriptor?.origin !== "registered") {
-                continue;
-            }
-
-            const source = shaderSourceNow(id);
-            if (source === undefined) {
-                void loadShaderSource(id)?.catch(() => undefined);
-            } else if (source.wgsl === undefined) {
-                // A native WGSL body cannot be written as text, the one documented exception.
-                texts.push({ id, text: copyText(descriptor, source.glsl, id, {}, source.lowDetail) });
-            }
-        }
-
-        return texts;
-    }
 
     /**
      * Start compiling one project shader when it may run (a host, a trusted text, not quarantined)
@@ -1030,7 +1224,13 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
      * @param shader - The shader, read.
      */
     function startCompile(id: string, shader: ReadText): void {
-        if (host === null || !trusted(shader.hash) || quarantined.has(shader.hash) || compiled.has(shader.hash)) {
+        if (
+            host === null ||
+            catalogContent(shader.hash) ||
+            !trusted(shader.hash, shader.text) ||
+            quarantined.has(shader.hash) ||
+            compiled.has(shader.hash)
+        ) {
             return;
         }
 
@@ -1078,15 +1278,8 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             publishStatus(id, status);
         }
 
-        for (const id of catalogHashes.keys()) {
-            const descriptor = ids.has(id) ? undefined : shaderDescriptor(id);
-            if (descriptor !== undefined) {
-                publishStatus(id, catalogStatus(descriptor));
-            }
-        }
-
         for (const id of published.keys()) {
-            if (!ids.has(id) && !catalogHashes.has(id)) {
+            if (!ids.has(id)) {
                 published.delete(id);
             }
         }
@@ -1107,18 +1300,15 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
     };
 
     /**
-     * Whether an id is taken: a preset, a registered shader, or another text in the project.
+     * Whether an id is taken by another text in the project. Only the project's ids count: a
+     * catalog id equal to a project id means nothing.
      * @param id - The id.
      * @param text - The text it would hold; the same text is not a clash.
      * @returns True when it is.
      */
     const taken = (id: string, text?: string): boolean => {
         const entry = state().shaders.get(id);
-        if (entry !== undefined) {
-            return entry.text !== text;
-        }
-
-        return shaderDescriptors().some((descriptor) => descriptor.id === id);
+        return entry !== undefined && entry.text !== text;
     };
 
     /**
@@ -1170,6 +1360,11 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
      * @returns Null when it passes, else the problem.
      */
     const fullCheck = async (shader: ReadText, risky: boolean): Promise<ShaderProblem | null> => {
+        // A revoked text never reaches the GPU, not even for its test frame.
+        if (REVOKED.has(shader.hash)) {
+            return { code: "shader.revoked", params: { id: shader.descriptor.id } };
+        }
+
         if (host === null) {
             return null;
         }
@@ -1275,7 +1470,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             }
         }
 
-        if (options.source === "content" && settings.untrusted === "refuse" && !trusted(shader.hash)) {
+        if (options.source === "content" && settings.untrusted === "refuse" && !trusted(shader.hash, shader.text)) {
             problems.push({ code: "shader.held", params: { id: shader.descriptor.id } });
         }
 
@@ -1333,7 +1528,9 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
         const layer = options.apply?.layer;
         if (layer !== undefined) {
-            const patch = applyPatch(applyLayer(layer), descriptor, copy.params);
+            // The pick's own project id: a copy the project already holds, else the catalog's id.
+            const id = await api.fromCatalog(copy.id);
+            const patch = applyPatch(applyLayer(layer), { ...descriptor, id }, copy.params);
             await dispatcher.dispatch({ op: "style.patch", action: "update", id: layer, patch });
         }
 
@@ -1357,13 +1554,13 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         // Content that is not trusted is written at once, held: nothing of it runs, so there is
         // nothing to compile. Kept synchronous up to the dispatch, so an AI command's
         // transaction takes it as one of its members.
-        if (content && !trusted(shader.hash)) {
+        if (content && !trusted(shader.hash, shader.text)) {
             const done = write(shader, options.apply?.layer);
             return done.then(() => passed(shader, options.asNew));
         }
 
         const { id } = shader.descriptor;
-        return fullCheck(shader, !trusted(shader.hash)).then(async (problem) => {
+        return fullCheck(shader, !trusted(shader.hash, shader.text)).then(async (problem) => {
             if (problem !== null) {
                 return { ok: false, problems: [problem] };
             }
@@ -1435,9 +1632,9 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             }
 
             const { shader, problems } = admit(read, text, options);
-            const held = options.source === "content" && !trusted(shader.hash);
+            const held = options.source === "content" && !trusted(shader.hash, shader.text);
             if ((options.compile ?? host !== null) && !held) {
-                const problem = await fullCheck(shader, !trusted(shader.hash));
+                const problem = await fullCheck(shader, !trusted(shader.hash, shader.text));
                 if (problem !== null) {
                     problems.push(problem);
                 }
@@ -1468,7 +1665,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             }
 
             const shader = result as ReadText;
-            const problem = await fullCheck(shader, !trusted(shader.hash));
+            const problem = await fullCheck(shader, !trusted(shader.hash, shader.text));
             if (problem !== null) {
                 return { ok: false, problems: [problem] };
             }
@@ -1490,14 +1687,19 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         async source(id, options = {}) {
             const params = options.params ?? {};
             const entry = state().shaders.get(id);
+            // A duplicate of anything outside the user namespace, project copies included, is
+            // named apart from it.
+            const copyId =
+                options.duplicate === true && !id.startsWith("user/") ? `user/${id.slice(id.indexOf("/") + 1)}` : id;
             if (entry !== undefined) {
                 const shader = projectShader(id);
-                return shader === undefined || (Object.keys(params).length === 0 && options.derived === undefined)
+                const same = Object.keys(params).length === 0 && options.derived === undefined && copyId === id;
+                return shader === undefined || same
                     ? entry.text
                     : copyText(
                           shader.descriptor,
                           shader.registration.glsl,
-                          id,
+                          copyId,
                           params,
                           shader.registration.lowDetail,
                           options.derived,
@@ -1512,8 +1714,6 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 throw unknownShader(id, [...state().shaders.keys(), ...shaderDescriptors().map((each) => each.id)]);
             }
 
-            const name = id.includes("/") ? id.slice(id.indexOf("/") + 1) : id;
-            const copyId = options.duplicate === true ? `user/${name}` : id;
             return copyText(descriptor, loaded.glsl, copyId, params, loaded.lowDetail, options.derived);
         },
 
@@ -1561,7 +1761,7 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         },
 
         availability(id) {
-            const descriptor = shaderDescriptor(id);
+            const descriptor = projectShader(id)?.descriptor ?? shaderDescriptor(id);
             if (descriptor === undefined) {
                 return { ok: false, problem: { code: "shader.unknown", params: { id } } };
             }
@@ -1570,12 +1770,12 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
                 return { ok: false, problem: { code: "shader.webgpu-unsupported", params: {} } };
             }
 
-            const failed = shaderLoadProblem(id);
+            const shader = projectShader(id);
+            const failed = shader === undefined ? shaderLoadProblem(id) : undefined;
             if (failed !== undefined) {
                 return { ok: false, problem: failed };
             }
 
-            const shader = projectShader(id);
             if (shader !== undefined) {
                 const status = statusOf(shader);
                 if (status.state === "held" || status.state === "off" || status.state === "failed") {
@@ -1626,10 +1826,12 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
             // A supplied picture is the picture: fetched once, never drawn. Only the page's own
             // shaders supply one; a project's text is drawn, so text that arrived in a file never
             // makes the page fetch a URL it names.
-            if (project === undefined && descriptor.thumbnail !== undefined) {
-                return cached(`url\u0000${descriptor.thumbnail}`, () =>
-                    suppliedPicture(descriptor.thumbnail as string),
-                );
+            // A project copy of a catalog text shows the catalog's picture: matched by content.
+            const copyOf = project?.descriptor.copyOf;
+            const pictured = project === undefined ? descriptor : copyOf && shaderDescriptor(copyOf);
+            const supplied = pictured ? pictured.thumbnail : undefined;
+            if (supplied !== undefined) {
+                return cached(`url\u0000${supplied}`, () => suppliedPicture(supplied));
             }
 
             // Held, failed, or off for a reason other than the frame guard's (quarantined, or a body
@@ -1650,7 +1852,61 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
 
             return drawnFor(id, project).then((drawn) => picture(drawer, id, drawn, descriptor, params));
         },
+
+        describe(id) {
+            return projectShader(id)?.descriptor ?? shaderDescriptor(id);
+        },
+
+        async fromCatalog(id) {
+            const descriptor = shaderDescriptor(id);
+            const loaded = descriptor === undefined ? undefined : await loadShaderSource(id);
+            if (descriptor === undefined || loaded === undefined) {
+                throw unknownShader(
+                    id,
+                    shaderDescriptors().map((each) => each.id),
+                );
+            }
+
+            if (descriptor.webgpu === "native") {
+                throw new GraphtyError({
+                    code: "E_BAD_COMMAND",
+                    message: `The shader "${id}" brings its own WGSL, which shader text cannot carry, so it cannot be copied into the project.`,
+                    source: "style",
+                    details: { id, code: "shader.not-copyable" },
+                });
+            }
+
+            const hash = shaderContentHash(copyText(descriptor, loaded.glsl, id, {}, loaded.lowDetail));
+            for (const held of state().shaders.keys()) {
+                if (projectShader(held)?.hash === hash) {
+                    return held;
+                }
+            }
+
+            if (!state().shaders.has(id)) {
+                return id;
+            }
+
+            // The project holds the id with other text (a file's own): the pick gets the catalog
+            // text under a fresh id, never the file's.
+            const free = freeId(id, (candidate) => state().shaders.has(candidate));
+            const text = copyText(descriptor, loaded.glsl, free, {}, loaded.lowDetail);
+            await dispatcher.dispatch({ op: "shader.set", id: free, text });
+            return free;
+        },
     };
+
+    /**
+     * The canonical text of a catalog entry whose body has loaded: what `source(id)` writes.
+     * @param descriptor - The entry.
+     * @returns The text, or undefined before its body loads.
+     */
+    function canonicalText(descriptor: ShaderDescriptor): string | undefined {
+        const source = shaderSourceNow(descriptor.id);
+        return source === undefined
+            ? undefined
+            : copyText(descriptor, source.glsl, descriptor.id, {}, source.lowDetail);
+    }
 
     /**
      * A shader's still picture drawn in the host's engine, at its preview's values and time, cached.
@@ -1786,56 +2042,24 @@ export function createSessionShaders(sources: ShadersSources): ShadersController
         onRisk(hook) {
             riskHook = hook;
         },
-        async drawable(id) {
+        drawable(id) {
+            // Uses name the project's own shaders only: a catalog id the project does not hold draws nothing.
             const project = projectShader(id);
-            if (project !== undefined) {
-                const { state: now } = statusOf(project);
-                return now === "ready" || now === "still"
-                    ? {
-                          id,
-                          hash: project.hash,
-                          // The described descriptor: the parsed one leaves out the defaults the
-                          // catalog fills in (the places a use may move it to), and the drawing
-                          // refuses a place its shader does not list.
-                          registration: { ...project.registration, descriptor: project.descriptor },
-                          bodyLine: project.bodyLine,
-                          heavy: project.descriptor.cost === "heavy",
-                      }
-                    : null;
+            const now = project === undefined ? undefined : statusOf(project).state;
+            if (project === undefined || (now !== "ready" && now !== "still")) {
+                return Promise.resolve(null);
             }
 
-            const known = shaderDescriptor(id);
-            if (known === undefined || (known.webgpu === "none" && host?.renderer === "webgpu")) {
-                return null;
-            }
-
-            const source = await loadShaderSource(id)?.catch(() => undefined);
-            // A loaded body fills in what its registration left out, so read the descriptor again.
-            const descriptor = shaderDescriptor(id);
-            if (source === undefined || descriptor === undefined) {
-                return null;
-            }
-
-            const { glsl, lowDetail } = source;
-            const hash = sha256Hex(`${id}\n${glsl}`);
-            catalogHashes.set(id, hash);
-            const now = catalogStatus(descriptor);
-            // Recorded as published, so the first refresh after it does not announce it again.
-            if (!published.has(id)) {
-                published.set(id, JSON.stringify(now));
-            }
-
-            if (now.state === "off" || now.state === "failed") {
-                return null;
-            }
-
-            return {
+            return Promise.resolve({
                 id,
-                hash,
-                registration: { descriptor, glsl, ...(lowDetail === undefined ? {} : { lowDetail }) },
-                bodyLine: 1,
-                heavy: descriptor.cost === "heavy",
-            };
+                hash: project.hash,
+                // The described descriptor: the parsed one leaves out the defaults the catalog fills
+                // in (the places a use may move it to), and the drawing refuses a place its shader
+                // does not list.
+                registration: { ...project.registration, descriptor: project.descriptor },
+                bodyLine: project.bodyLine,
+                heavy: project.descriptor.cost === "heavy",
+            });
         },
         descriptors() {
             return [...state().shaders.keys()].flatMap((id) => {

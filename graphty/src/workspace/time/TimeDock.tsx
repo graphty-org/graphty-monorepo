@@ -40,10 +40,10 @@ import { useWorkspace, useWorkspaceState } from "../state/WorkspaceContext";
 import { useBoxSize } from "../useBoxSize";
 import {
     announceWindow,
+    changeSpeed,
     jumpToSelection,
     openTimeSheet,
     PHONE_WIDTH,
-    playAt,
     reportTimeError,
     selectionSpan,
     stepWindow,
@@ -540,8 +540,7 @@ function SpeedButton({
                     store.set({ timeSpeed: nextSpeed });
                     // A play in progress goes on at the new speed.
                     if (session.time.playing) {
-                        session.time.pause();
-                        playAt(session, nextSpeed);
+                        changeSpeed(session, store, nextSpeed);
                     }
                 }}
             >
@@ -620,8 +619,9 @@ export function TimeDock(): React.JSX.Element | null {
     const noun = onEdges ? "edge" : "node";
     const window: TimeWindow | null = time.current;
     const { timeZone: zone } = time;
-    const whole = time.bins({ maxCount }) ?? [];
-    const all = time.bins({ ...view, maxCount }) ?? [];
+    // The track counts every timed element; the bars over it, what the filter passes.
+    const whole = time.bins({ maxCount, scope: "all" }) ?? [];
+    const all = time.bins({ ...view, maxCount, scope: "all" }) ?? [];
     const visible = time.bins({ ...view, maxCount, scope: "visible" }) ?? [];
     const first = all.at(0);
     const last = all.at(-1);

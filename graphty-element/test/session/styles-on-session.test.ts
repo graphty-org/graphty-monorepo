@@ -6,7 +6,7 @@ import { isGraphtyError } from "../../src/errors";
 import { createRunResult } from "../../src/session/results";
 import { createLocalRunQueue, type RunExecutionContext, type RunOutcome, type RunQueue } from "../../src/session/runs";
 import type { StyleChange } from "../../src/session/styles";
-import type { SessionRunsOptions } from "../../src/session/types";
+import type { ElementSession, SessionRunsOptions } from "../../src/session/types";
 import { edgeBetween, type Harness, makeSession } from "./helpers";
 
 /**
@@ -461,6 +461,38 @@ describe("session.styles", () => {
         stop();
 
         assert.strictEqual(seen.at(-1)?.painted?.nodes, 0, "the ring ties all five, and five do not fit in three");
+        harness.session.dispose();
+    });
+
+    it("repaints a top-n layer when its run alone re-runs (#809)", async () => {
+        // As above, but nothing touches the layer: the re-run itself must take the top again, and
+        // what is checked is the paint the canvas is handed, not a fresh reading of the selector.
+        const runner = degreeRunner();
+        const harness = harnessOf({ execute: runner.execute });
+        runner.store = harness.store;
+        await harness.session.runs.start("degree", {}, { style: false, as: "degree" });
+        await harness.session.styles.add({
+            name: "Top 3",
+            target: "node",
+            selector: { match: "top", path: "results.degree.value", n: 3 },
+            set: { "node.color": "#ff9900" },
+        });
+        const { paint } = harness.session as ElementSession;
+        const orange = (): string[] =>
+            ["a", "b", "c", "d", "e"].filter((id) => {
+                const index = harness.session.data.snapshot().ids.indexOf(id);
+                return paint.styleOf("node", index)["node.color"]?.hex === "#ff9900";
+            });
+        assert.deepStrictEqual(orange(), ["b", "c", "d"]);
+
+        // Through the session, as a consumer writes it, so the paint follows the graph change.
+        await harness.session.data.addEdges([{ src: "e", dst: "a" }]);
+        await harness.session.styles.settled();
+        assert.deepStrictEqual(orange(), ["b", "c", "d"], "the run still holds the line's values");
+        await harness.session.runs.start("degree", {}, { style: false, as: "degree" });
+        await harness.session.styles.settled();
+
+        assert.deepStrictEqual(orange(), [], "the ring ties all five, and five do not fit in three");
         harness.session.dispose();
     });
 

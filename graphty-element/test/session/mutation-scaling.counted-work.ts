@@ -4,6 +4,7 @@ import type { CountedWork } from "../cost-coverage/counted-work";
 export default {
     file: "test/session/mutation-scaling.test.ts",
     methods: [
+        "FilterDraft.commit",
         "GraphSession.execute",
         "GraphSession.redo",
         "NotesApi.mergeDocument",

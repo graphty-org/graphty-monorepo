@@ -170,6 +170,8 @@ export interface GpuLayoutSimulation<Options, Stats extends LayoutStatsBase> ext
     readonly landedDrawn?: GPUBuffer | null;
     /** The transform the batch of `landedDrawn` drew with, or null with it. */
     readonly landedDrawnTransform?: DrawnTransform | null;
+    /** The rows of `landedDrawn` read back to the host (stride 4), when `setDrawn` asked for `readBack`; else null. */
+    readonly landedDrawnRows?: Float32Array | null;
     /** Makes every batch also write the renderer's drawn positions into a ring of `slots` buffers; null stops it. */
     setDrawn?(output: DrawnOutput | null): void;
     /** The transform the next batches draw with. */
@@ -190,6 +192,11 @@ export interface DrawnOutput {
     readonly slots: number;
     /** The owner's stride-4 rows (x, y, z, w per node) that seed every slot. */
     readonly rows: Float32Array;
+    /**
+     * Also read each landed slot back to the host, in the batch's one mapped readback, as `landedDrawnRows`: for a
+     * renderer on another device, which cannot copy the slot on the card. False by default.
+     */
+    readonly readBack?: boolean;
 }
 
 /**

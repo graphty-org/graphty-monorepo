@@ -37,7 +37,7 @@ export const EMPTY_SUM: LanePair = { a: 0, b: 0 };
  * Invocation counts the complexity tests read: member hashes computed, and member hashes added to
  * a sum. Internal; never reset by this module.
  */
-export const hashCounters = { memberHashes: 0, sums: 0 };
+export const hashCounters = { memberHashes: 0, sums: 0, nodeIdHashes: 0 };
 
 const BASIS_A = 0x811c9dc5;
 const PRIME_A = 0x01000193;
@@ -165,6 +165,7 @@ function end(): LanePair {
  * @returns `H` of its one part.
  */
 function nodeHash(id: NodeId): LanePair {
+    hashCounters.nodeIdHashes++;
     begin();
     idPart(id);
 

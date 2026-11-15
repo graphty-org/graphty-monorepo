@@ -70,8 +70,8 @@ interface ShaderRowProps {
 
 /**
  * Duplicate and edit: opens the code dialog on a copy of the row's shader, named apart from it
- * ("Pearl copy"), at the row's place. None for a project shader, an unknown one, or with no
- * dialog to open.
+ * ("Pearl copy"), at the row's place, for every shader the row names. None for an unknown one,
+ * or with no dialog to open.
  * @param ctx - the row
  * @param entry - the row's use
  * @param name - the row's name
@@ -87,7 +87,7 @@ function duplicateAction(
     fail: Fail,
 ): (() => void) | undefined {
     const { descriptor } = entry;
-    if (onCode === undefined || descriptor === undefined || descriptor.origin === "pasted") {
+    if (onCode === undefined || descriptor === undefined) {
         return undefined;
     }
     return (): void => {

@@ -8,7 +8,7 @@ import React from "react";
 import { assert, describe, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { act, render, screen } from "../../../test/test-utils";
+import { act, render, screen, waitFor } from "../../../test/test-utils";
 import { createRegistry } from "../../commands/registry";
 import { REGISTRATIONS } from "../../registrations";
 import { Workspace } from "../../Workspace";
@@ -84,7 +84,10 @@ describe("the status line", () => {
 
         await userEvent.keyboard("{Tab}");
 
+        // Emptied once the key's own listeners have run.
+        await waitFor(() => {
+            assert.equal(store.get().announcement, "");
+        });
         assert.isNull(screen.queryByText(words));
-        assert.equal(store.get().announcement, "");
     });
 });

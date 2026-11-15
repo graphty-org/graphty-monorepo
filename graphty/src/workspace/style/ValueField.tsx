@@ -1,9 +1,13 @@
 import { ComboInput, CompactColorInput, PanelField } from "@graphty/compact-mantine";
 import type { ChannelDescriptor } from "@graphty/graphty-element/catalog";
+import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
+import type { GraphSession } from "@graphty/graphty-element/session";
 import { Text, TextInput } from "@mantine/core";
 import React from "react";
 
+import { useModelPicture } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
+import { ValueListbox } from "./parts/ValueListbox";
 import { channelWord, colorName, enumWords, GLYPH_TABLES, hexOf, isPercent, TWO_WORDS, valueFieldKind } from "./words";
 
 /**
@@ -86,6 +90,8 @@ interface ValueFieldProps {
      * field shows its picture (else the cube) and its name, and its list checks no shape.
      */
     readonly model?: { readonly name: string; readonly thumbnail?: string };
+    /** Given, a choice property picks from {@link ValueListbox}, read from this session. */
+    readonly listbox?: GraphSession;
 }
 
 /**
@@ -118,6 +124,7 @@ function ModelGlyph({ thumbnail }: Readonly<{ thumbnail?: string }>): React.JSX.
  * @param props.extraChoices - choices a select lists after its own
  * @param props.onChange - writes a value
  * @param props.model - the model a Shape field holds
+ * @param props.listbox - given, a choice property picks from a searchable list read from this session
  * @returns The field, or a dash for a property no field draws
  */
 export function ValueField({
@@ -132,9 +139,23 @@ export function ValueField({
     extraChoices = [],
     onChange,
     model,
+    listbox,
 }: Readonly<ValueFieldProps>): React.JSX.Element {
     const kind = valueFieldKind(descriptor);
-    const props = { descriptor, label, value, shown, mixed, waiting, compact, swatches, extraChoices, onChange, model };
+    const props = {
+        descriptor,
+        label,
+        value,
+        shown,
+        mixed,
+        waiting,
+        compact,
+        swatches,
+        extraChoices,
+        onChange,
+        model,
+        listbox,
+    };
     if (kind === "color") {
         return <ColorValueField {...props} />;
     }
@@ -266,7 +287,21 @@ function choiceName(
  * @returns The field
  */
 function ChoiceValueField(props: KindFieldProps): React.JSX.Element {
-    const { descriptor, label, value, shown, mixed, extraChoices = [], onChange, model } = props;
+    const { descriptor, label, value, shown, mixed, extraChoices = [], onChange, model, listbox } = props;
+    if (listbox !== undefined && descriptor.accepts === "enum" && model === undefined) {
+        return (
+            <ValueListbox
+                session={listbox}
+                descriptor={descriptor}
+                label={label}
+                value={mixed ? undefined : value}
+                shown={shown}
+                mixed={mixed}
+                extraChoices={extraChoices}
+                onPick={onChange}
+            />
+        );
+    }
     const boolean = descriptor.accepts === "boolean";
     const options = choiceOptions(descriptor, value);
     // Nothing set here: the value shown is the one in force by default, and is read as that.
@@ -357,6 +392,49 @@ function TextValueField(props: KindFieldProps): React.JSX.Element {
                     event.currentTarget.blur();
                 }
             }}
+        />
+    );
+}
+
+/**
+ * The Shape field holding a model: its name, and its picture drawn by graphty-element.
+ * @param props - Component props
+ * @param props.descriptor - the Shape property
+ * @param props.label - the field's name
+ * @param props.model - what the layer's `node.model` names
+ * @param props.style - the layer's color and model settings, so the picture is drawn as its nodes are
+ * @param props.name - the model's name
+ * @param props.extraChoices - the list's Model... entry
+ * @param props.onChange - a choice from the list
+ * @returns The field
+ */
+export function ModelValueField({
+    descriptor,
+    label,
+    model,
+    style,
+    name,
+    extraChoices,
+    onChange,
+}: Readonly<{
+    descriptor: ChannelDescriptor;
+    label: string;
+    model: string;
+    style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
+    name: string;
+    extraChoices: React.ComponentProps<typeof ValueField>["extraChoices"];
+    onChange: (value: ChannelValue) => void;
+}>): React.JSX.Element {
+    const thumbnail = useModelPicture(model, 16, style);
+    return (
+        <ValueField
+            descriptor={descriptor}
+            label={label}
+            value={undefined}
+            shown={undefined}
+            model={{ name, ...(thumbnail === undefined ? {} : { thumbnail }) }}
+            extraChoices={extraChoices}
+            onChange={onChange}
         />
     );
 }

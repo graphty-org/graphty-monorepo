@@ -7,6 +7,7 @@
 import { ASSISTANT_TOOLS } from "../../catalog/assistant";
 import { registeredCameraDescriptors } from "../../catalog/cameraRegistry";
 import { registeredLayoutDescriptors } from "../../catalog/layoutRegistry";
+import { englishDescription } from "../../catalog/options";
 import {
     registeredAlgorithmByKey,
     registeredAlgorithmDescriptors,
@@ -90,7 +91,7 @@ export function assistantReach(
     };
 
     for (const entry of registeredAlgorithmDescriptors()) {
-        check(entry.key, entry.options, entry.description);
+        check(entry.key, entry.options, englishDescription(entry));
     }
 
     for (const address of undescribedPlugins()) {
@@ -98,11 +99,11 @@ export function assistantReach(
     }
 
     for (const entry of registeredLayoutDescriptors()) {
-        check(entry.id, entry.options, entry.description);
+        check(entry.id, entry.options, englishDescription(entry));
     }
 
     for (const entry of registeredCameraDescriptors()) {
-        check(entry.id, entry.options, entry.description);
+        check(entry.id, entry.options, englishDescription(entry));
     }
 
     // Registered readers and writers, which the built-in formats are not.

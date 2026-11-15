@@ -23,9 +23,9 @@ describe("the selection editor on 50,000 nodes", () => {
             "Busy",
             oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
         );
-        const row = document.querySelector<HTMLElement>('.sel-rest [data-row="com"] .sel-value');
+        const row = document.querySelector<HTMLElement>(".sel-rest [data-edit]");
         if (row === null) {
-            throw new Error("the step's row is drawn");
+            throw new Error("the Style Nodes... line is drawn");
         }
         const opened = await firstFrameAfter(session, () => userEvent.click(row));
         assert.isTrue(opened.drawing, `opening: Drawing in the first frame (${String(opened.after)} ms)`);
@@ -80,9 +80,9 @@ describe("the selection editor on 50,000 nodes", () => {
             oneStep("com", { kind: "categories", attribute: "data.community", values: [] }),
             { "node.size": 2 },
         );
-        const row = document.querySelector<HTMLElement>('.sel-rest [data-row="com"] .sel-value');
+        const row = document.querySelector<HTMLElement>(".sel-rest [data-edit]");
         if (row === null) {
-            throw new Error("the step's row is drawn");
+            throw new Error("the Style Nodes... line is drawn");
         }
         await userEvent.click(row);
         const values = await screen.findByRole("group", { name: "community values" });
@@ -154,7 +154,7 @@ describe("the selection editor on 50,000 nodes", () => {
         await userEvent.click(await screen.findByRole("menuitem", { name: "Layer" }));
         await screen.findByRole("textbox", { name: "Layer name" });
         const tab = await screen.findByTestId("style-tab");
-        const edit = await within(tab).findByRole("button", { name: /^Edit Which nodes/ });
+        const edit = await within(tab).findByRole("button", { name: /^Style Nodes\.\.\./ });
         await session.styles.settled();
         // The walks done from the press to the first frame drawn after it.
         let pressed = -1;

@@ -37,6 +37,7 @@
  */
 
 import { scaleDescriptor } from "../../catalog/scales";
+import { plannedShaderDescriptor } from "../../catalog/shaderRegistry";
 import type {
     AlgorithmKey,
     AttributeDescriptor,
@@ -565,7 +566,8 @@ function overflowCompanion(spec: EncodingOptions, colour: RuleBinding, descripto
  */
 function requireEncodable(name: string): ChannelDescriptor {
     const address = parseShaderParamAddress(name);
-    return address === null ? requireChannel(name) : shaderParamDescriptor(address);
+    // A plan for a write: the write that adds its layer copies a catalog shader it names in.
+    return address === null ? requireChannel(name) : shaderParamDescriptor(address, plannedShaderDescriptor);
 }
 
 /**

@@ -114,7 +114,7 @@ function unionOf(session: GraphSession, id: string): UnionLeaf | undefined {
  * closed, and Done or Cancel closes it once the canvas has painted.
  * @returns it.
  */
-const editButton = (): Promise<HTMLElement> => screen.findByRole("button", { name: /^Edit Which nodes/ });
+const editButton = (): Promise<HTMLElement> => screen.findByRole("button", { name: /^Style Nodes\.\.\./ });
 
 /**
  * Picks a value in the open value picker by typing its name.
@@ -207,12 +207,12 @@ describe("the sidebar outline at rest and the workspace (check 39)", () => {
         // The drawing settles first: a layout still running moves the camera on its own.
         await element.waitForStableFrame();
         const before = element.getCameraState();
-        // At rest the sidebar outline has one control: Edit.
+        // At rest the sidebar has one control: the Style Nodes... line.
         const rest = document.querySelector<HTMLElement>(".sel-rest");
         const controls = [...(rest?.querySelectorAll<HTMLElement>("button, input, [role=checkbox]") ?? [])];
         assert.deepEqual(
             controls.map((each) => each.getAttribute("aria-label") ?? each.textContent),
-            ["Edit Which nodes"],
+            ["Style Nodes..."],
         );
         await userEvent.click(await editButton());
         const ws = await opened();
@@ -660,7 +660,7 @@ describe("the workspace as a region (check 47)", () => {
             assert.isUndefined(workspace());
             assert.strictEqual(
                 document.activeElement,
-                screen.getByRole("button", { name: /^Edit Which nodes/ }),
+                screen.getByRole("button", { name: /^Style Nodes\.\.\./ }),
                 "focus is back on Edit",
             );
         });

@@ -16,7 +16,7 @@ import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import { edgeSpaceOf } from "../../src/session/scope/ScopeApi";
 import type { GraphSession } from "../../src/session/types";
 import { assertScalesLinearly, type Growth, visitsDuring } from "../helpers/cost";
-import { makeSession } from "./helpers";
+import { makeSession, withConsumerStrictState } from "./helpers";
 
 // The timeline is an experiment: this file's sessions switch it on.
 beforeAll(() => {
@@ -64,23 +64,16 @@ function partitionOf(size: number): (context: RunExecutionContext) => Promise<Ru
 
 /**
  * A session over a path of `size` nodes, each with a weight and one of five groups, whose runs
- * publish that partition. Strict state is off, as it is for a consumer.
+ * publish that partition. Build it inside `withConsumerStrictState`.
  * @param size - The node count.
  * @returns The session.
  */
 function pathSession(size: number): GraphSession {
-    const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
-    const strict = scope.__GRAPHTY_STRICT_STATE__;
-    scope.__GRAPHTY_STRICT_STATE__ = false;
-    try {
-        const harness = makeSession({ runs: { execute: partitionOf(size) } });
-        const nodes = ids(size).map((id, at) => ({ id, weight: at, group: at % 5 }));
-        const edges = nodes.slice(1).map((node, at) => ({ src: `n${String(at)}`, dst: node.id, w: at }));
-        harness.add(nodes, edges);
-        return harness.session;
-    } finally {
-        scope.__GRAPHTY_STRICT_STATE__ = strict;
-    }
+    const harness = makeSession({ runs: { execute: partitionOf(size) } });
+    const nodes = ids(size).map((id, at) => ({ id, weight: at, group: at % 5 }));
+    const edges = nodes.slice(1).map((node, at) => ({ src: `n${String(at)}`, dst: node.id, w: at }));
+    harness.add(nodes, edges);
+    return harness.session;
 }
 
 /**
@@ -109,11 +102,6 @@ interface Case {
     readonly method: string;
     /** `linear` when the call reaches every node, `constant` when it reaches one record. */
     readonly growth: Growth;
-    /**
-     * The issue recording that the method does more work than its reach today. Its test is
-     * expected to fail until the issue is fixed, and the method stays out of the registry.
-     */
-    readonly superlinear?: number;
     /**
      * Build the state the call needs and return the call.
      * @param session - A fresh session over a path of `size` nodes.
@@ -302,6 +290,15 @@ const CASES: readonly Case[] = [
         prepare: async (session, size) => {
             await session.selection.apply({ nodes: ids(size) });
             return () => session.selection.clear();
+        },
+    },
+    {
+        method: "SelectionApi.restore",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.selection.apply({ nodes: ids(size) });
+            session.selection.clear();
+            return () => session.selection.restore();
         },
     },
     {
@@ -610,15 +607,6 @@ const CASES: readonly Case[] = [
         },
     },
     {
-        method: "StylesApi.restoreStartingRows",
-        growth: "linear",
-        prepare: (session) =>
-            Promise.resolve(async () => {
-                await session.styles.restoreStartingRows();
-                await session.styles.settled();
-            }),
-    },
-    {
         method: "StylesApi.deleteRow",
         growth: "linear",
         prepare: async (session) => {
@@ -771,6 +759,15 @@ const CASES: readonly Case[] = [
         prepare: async (session) => {
             await session.visibility.addCondition({ id: "c", effect: "keep", rule: { kind: "degree", min: 2 } });
             return () => session.visibility.updateCondition("c", { effect: "select" });
+        },
+    },
+    {
+        method: "FilterDraft.commit",
+        growth: "linear",
+        prepare: (session) => {
+            const draft = session.visibility.draft({ effect: "keep", rule: { kind: "degree", min: 2 } });
+            draft.update({ rule: { kind: "degree", min: 1 } });
+            return Promise.resolve(() => draft.commit());
         },
     },
     {
@@ -957,6 +954,17 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "RunsApi.rename",
+        growth: "constant",
+        prepare: async (session) => {
+            const run = await session.runs.start("louvain", {});
+            await session.styles.settled();
+            return async () => {
+                await session.runs.rename(run.runId, "Groups");
+            };
+        },
+    },
+    {
         method: "StylesApi.setHighlightColor",
         growth: "constant",
         prepare: (session) =>
@@ -1051,6 +1059,23 @@ const CASES: readonly Case[] = [
             };
         },
     },
+    {
+        method: "SessionShaders.fromCatalog",
+        growth: "linear",
+        prepare: async (session) => {
+            // The project holds pearl's id with other text, so the pick copies pearl in under a fresh id.
+            await session.styles.applyTemplate({
+                version: 1,
+                layers: [],
+                shaders: [{ id: "pearl", text: TINT.replace('"user/tint"', '"pearl"') }],
+            });
+            await session.styles.settled();
+            return async () => {
+                assert.notStrictEqual(await session.shaders.fromCatalog("pearl"), "pearl");
+                await session.styles.settled();
+            };
+        },
+    },
 ];
 
 describe("the session's mutating methods do work in proportion to their reach", () => {
@@ -1059,19 +1084,18 @@ describe("the session's mutating methods do work in proportion to their reach", 
         // Put back this file's default (the timeline on) after a case that switched more on.
         setDefaultFeatures(["timeline"]);
     });
-    for (const { method, growth, superlinear, prepare } of CASES) {
+    for (const { method, growth, prepare } of CASES) {
         const reach = growth === "linear" ? "no more than linear in the graph" : "about the same at any size";
-        // A method with an open superlinear issue is expected to fail, so the fix turns it green.
-        const test = superlinear === undefined ? it : it.fails;
-        test(`${method}: ${reach}${superlinear === undefined ? "" : ` (not yet: #${String(superlinear)})`}`, async () => {
+        it(`${method}: ${reach}`, async () => {
             await assertScalesLinearly(
-                async (size) => {
-                    const session = pathSession(size);
-                    const call = await prepare(session, size);
-                    const visits = await visitsDuring(call);
-                    session.dispose();
-                    return visits;
-                },
+                (size) =>
+                    withConsumerStrictState(async () => {
+                        const session = pathSession(size);
+                        const call = await prepare(session, size);
+                        const visits = await visitsDuring(call);
+                        session.dispose();
+                        return visits;
+                    }),
                 { sizes: SIZES, growth, counter: `elements visited by ${method}` },
             );
         });

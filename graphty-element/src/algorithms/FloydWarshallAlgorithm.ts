@@ -72,7 +72,7 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
             });
         }
 
-        context.report({ phase: "Measuring every pair", total: null });
+        context.report({ phase: "measuring-every-pair", total: null });
         const { value, precision } = await run((dispatch, s) => dispatch.allPairsShortestPath(s));
         const { dist, n, hasNegativeCycle } = value;
         const { ids } = snapshot;
@@ -90,7 +90,7 @@ export class FloydWarshallAlgorithm extends DeclaredAlgorithm {
             // Eccentricity: how far the furthest reachable node is, read along the node's row.
             // Unreachable nodes are skipped rather than counted as infinitely far, which is what
             // makes the diameter finite on a graph that comes in several pieces.
-            await forEachChunked(context, "Measuring reach", nodeIds, (nodeId) => {
+            await forEachChunked(context, "measuring-reach", nodeIds, (nodeId) => {
                 const row = ids.indexOf(nodeId) * n;
                 let furthest = 0;
                 for (let j = 0; j < n; j++) {

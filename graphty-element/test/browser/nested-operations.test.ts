@@ -13,7 +13,7 @@ import { afterEach, assert, beforeEach, describe, it } from "vitest";
 
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { nextFrame } from "../helpers/real-input";
-import { isDisposed, styleEveryNode, type TestGraph } from "../helpers/testSetup";
+import { isDisposed, styleEveryNode } from "../helpers/testSetup";
 
 // Test data constants (matching the stories)
 const TEST_NODES = [
@@ -135,7 +135,7 @@ describe("Nested Operations", () => {
      * Verify all edge meshes exist and are not disposed.
      */
     function verifyEdgeMeshesExist(): void {
-        for (const edge of (graph as unknown as TestGraph).dataManager.edges.values()) {
+        for (const edge of graph.getDataManager().edges.values()) {
             assert.isDefined(edge.mesh, "Edge should have a mesh");
             if ("isDisposed" in edge.mesh && typeof edge.mesh.isDisposed === "function") {
                 assert.isFalse(edge.mesh.isDisposed(), "Edge mesh should not be disposed");
@@ -148,7 +148,7 @@ describe("Nested Operations", () => {
      * This ensures the rendering pipeline correctly synced positions from layout to meshes.
      */
     async function verifyNodePositionsMatchLayout(): Promise<void> {
-        const { layoutManager } = graph as unknown as TestGraph;
+        const layoutManager = graph.getLayoutManager();
         const { layoutEngine } = layoutManager;
 
         // Verify layout engine exists
@@ -626,8 +626,25 @@ describe("Nested Operations", () => {
                 );
             }
 
-            // Completes without stack overflow; infinite recursion throws here or times the test out.
+            // Completes without stack overflow; infinite recursion throws here.
             await operationQueueOf(graph).waitForCompletion();
+
+            // Nothing was dropped: the last iteration (i = 9) is what is drawn.
+            assert.equal(graph.getViewMode(), "3d", "Should end in the last mode set");
+            assert.equal(graph.getNodeCount(), 3, "Should have 3 nodes");
+            assert.equal(graph.getEdgeCount(), 2, "Should have 2 edges");
+            // hsl(324, 50%, 50%) is rgb(191.25, 63.75, 140.25)
+            for (const node of graph.getNodes()) {
+                const paint = graph.getStylePainter().nodePaint(node.index);
+                assert.isNotNull(paint, `Node ${node.id} should have been painted`);
+                assert.closeTo(paint?.color?.r ?? -1, 191.25, 1, `Node ${node.id} red`);
+                assert.closeTo(paint?.color?.g ?? -1, 63.75, 1, `Node ${node.id} green`);
+                assert.closeTo(paint?.color?.b ?? -1, 140.25, 1, `Node ${node.id} blue`);
+                assert.equal(paint?.style.shape?.type, "sphere");
+                assert.equal(paint?.style.shape?.size, 10);
+            }
+            // The material check expects NODE_STYLE's green; the colour is asserted above.
+            await verifyMeshState(true);
         });
     });
 

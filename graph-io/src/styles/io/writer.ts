@@ -6,6 +6,7 @@
 
 import type { GraphSnapshot } from "@graphty/graph-format";
 
+import { COLUMN_DROPPED_CODE } from "../../common/codes.js";
 import { agree, plural } from "../../common/plural.js";
 import type { GraphExporter, LossNote } from "../../types.js";
 import { STYLE_ISSUE } from "../codes.js";
@@ -770,6 +771,41 @@ function setTagAttributes(
  */
 function isStyleTagName(name: string): boolean {
     return name.startsWith("graphty.style.") || name.startsWith("graphty_style_");
+}
+
+/**
+ * The note for a node column named like the label a styled export writes what graphty draws into: its values on the
+ * nodes graphty draws another label for, or none, are not written (a label drawn with the column's value is written).
+ * @param snapshot - the graph handed to the exporter
+ * @param name - the column the drawn labels replace
+ * @param drawn - each node's drawn label, null where graphty draws none
+ * @param where - what the drawn label is written as, for the message
+ * @returns the note, or null when nothing is lost
+ */
+export function replacedLabelNote(
+    snapshot: GraphSnapshot,
+    name: string,
+    drawn: readonly unknown[],
+    where: string,
+): LossNote | null {
+    const column = snapshot.nodes.get(name);
+    const text = (v: unknown): string => (typeof v === "string" ? v : JSON.stringify(v));
+    let n = 0;
+    for (let i = 0; column !== null && i < column.length; i++) {
+        const cell = column.isSet(i) ? plainCell(column.value(i)) : null;
+        if (cell !== null && ((drawn[i] ?? null) === null || text(drawn[i]) !== text(cell))) {
+            n++;
+        }
+    }
+    if (n === 0) {
+        return null;
+    }
+    return Object.freeze({
+        code: COLUMN_DROPPED_CODE,
+        message: `node column "${name}" is not written: ${where} holds what graphty draws (${String(n)} node${plural(n)} ${agree(n, "differs", "differ")})`,
+        column: name,
+        count: n,
+    });
 }
 
 /**

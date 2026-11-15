@@ -1,7 +1,31 @@
 import { assert, beforeEach, describe, it } from "vitest";
 
 import { EventManager } from "../../src/managers/EventManager";
-import { OperationQueueManager } from "../../src/managers/OperationQueueManager";
+import { type OperationContext, OperationQueueManager } from "../../src/managers/OperationQueueManager";
+
+/**
+ * A promise the test settles by hand. Each scenario holds an operation open on one of these, so
+ * the obsoleting operation arrives at a known point -- while the earlier work is running or
+ * queued -- instead of whenever the clock happens to put it.
+ * @returns The promise and the function that resolves it.
+ */
+function deferred(): { promise: Promise<void>; resolve: () => void } {
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => {
+        resolve = r;
+    });
+    return { promise, resolve };
+}
+
+/**
+ * Throw if the queue cancelled this operation, as a real operation body does after an await.
+ * @param context - The operation's context.
+ */
+function stopIfCancelled(context: OperationContext): void {
+    if (context.signal.aborted) {
+        throw new Error("AbortError");
+    }
+}
 
 describe("Obsolescence Scenarios", () => {
     let eventManager: EventManager;
@@ -27,70 +51,58 @@ describe("Obsolescence Scenarios", () => {
     it("should handle rapid data updates efficiently", async () => {
         const executedLayouts: string[] = [];
         const executedDataOps: string[] = [];
+        const layoutIds: string[] = [];
+        const firstDataStarted = deferred();
+        const releaseFirstData = deferred();
 
-        // Simulate rapid data updates that trigger layout recalculations
+        // Five data updates arrive while the first one is still running. Each obsoletes the
+        // layouts queued before it, so only the layout for the last batch is left to run. The
+        // data operations skip their own triggered layout, which would obsolete that one too.
         for (let i = 0; i < 5; i++) {
-            // Add data operation
             queueManager.queueOperation(
                 "data-add",
                 async () => {
                     executedDataOps.push(`data-${i}`);
-                    // Simulate data processing
-                    await new Promise((resolve) => setTimeout(resolve, 10));
+                    if (i === 0) {
+                        firstDataStarted.resolve();
+                        await releaseFirstData.promise;
+                    }
                 },
                 {
                     description: `Data batch ${i}`,
-                    obsoletes: ["layout-update"], // Each data update obsoletes pending layouts
+                    obsoletes: ["layout-update"],
+                    skipTriggers: true,
                 },
             );
 
-            // Queue layout update that will likely be obsoleted by next data update
-            queueManager.queueOperation(
-                "layout-update",
-                async (context) => {
-                    // Check for abort at start
-                    if (context.signal.aborted) {
-                        throw new Error("AbortError");
-                    }
-
-                    // Simulate layout calculation
-                    for (let j = 0; j < 10; j++) {
-                        context.progress.setProgress(j * 10);
-                        await new Promise((resolve) => setTimeout(resolve, 5));
-                    }
-                    executedLayouts.push(`layout-${i}`);
-                },
-                { description: `Layout for batch ${i}` },
+            layoutIds.push(
+                queueManager.queueOperation(
+                    "layout-update",
+                    (context) => {
+                        stopIfCancelled(context);
+                        executedLayouts.push(`layout-${i}`);
+                    },
+                    { description: `Layout for batch ${i}` },
+                ),
             );
 
-            // Let this batch start before the next one arrives
-            await new Promise((resolve) => setTimeout(resolve, 0));
+            if (i === 0) {
+                await firstDataStarted.promise;
+            }
         }
 
+        releaseFirstData.resolve();
         await queueManager.waitForCompletion();
 
-        // All data operations should complete
-        assert.equal(executedDataOps.length, 5, "All data operations should complete");
-
-        // Most layout updates should be obsoleted, only the last one might complete
-        assert.isTrue(
-            executedLayouts.length <= 2,
-            `Only 1-2 layout updates should complete, got ${executedLayouts.length}`,
-        );
-
-        // Should have obsoleted some operations
-        assert.isTrue(obsoletedOperations.length > 0, "Should have obsoleted some operations");
+        assert.deepEqual(executedDataOps, ["data-0", "data-1", "data-2", "data-3", "data-4"]);
+        assert.deepEqual(executedLayouts, ["layout-4"]);
+        assert.deepEqual(obsoletedOperations, layoutIds.slice(0, 4));
     });
 
     it("should not cancel near-complete operations (>90% progress)", async () => {
         const results: string[] = [];
-
-        // Use a Promise to synchronize when layout reaches 90%+ progress
-        // This eliminates timing-based race conditions
-        let resolveProgressReached: () => void;
-        const progressReached = new Promise<void>((resolve) => {
-            resolveProgressReached = resolve;
-        });
+        const progressReached = deferred();
+        const releaseLayout = deferred();
 
         // First queue a layout-set so layout-update has its dependency satisfied
         queueManager.queueOperation(
@@ -100,40 +112,23 @@ describe("Obsolescence Scenarios", () => {
             },
             { description: "Set layout" },
         );
-
-        // Wait for layout-set to complete
         await queueManager.waitForCompletion();
 
         const layoutOpId = queueManager.queueOperation(
             "layout-update",
             async (context) => {
-                // Progress through to 95%
-                for (let i = 0; i <= 95; i += 5) {
-                    if (context.signal.aborted) {
-                        throw new Error("AbortError");
-                    }
-
-                    context.progress.setProgress(i);
-
-                    // Signal when we've reached 90%+ progress
-                    if (i >= 90) {
-                        resolveProgressReached();
-                    }
-
-                    await new Promise((resolve) => setTimeout(resolve, 2));
-                }
-
-                // At 95% progress - should not be cancelled
+                context.progress.setProgress(95);
+                progressReached.resolve();
+                await releaseLayout.promise;
+                stopIfCancelled(context);
                 results.push("layout-completed");
-                context.progress.setProgress(100);
             },
             { description: "Nearly complete layout" },
         );
 
-        // Wait for layout to ACTUALLY reach 90%+ progress (deterministic, not timing-based)
-        await progressReached;
+        await progressReached.promise;
 
-        // Queue a data operation that would normally obsolete the layout
+        // A data operation that would obsolete the layout, were it not at 95%
         queueManager.queueOperation(
             "data-add",
             () => {
@@ -142,78 +137,97 @@ describe("Obsolescence Scenarios", () => {
             {
                 description: "New data",
                 obsoletes: ["layout-update"],
-                respectProgress: true, // Don't cancel operations >90% complete
+                respectProgress: true,
+                skipTriggers: true,
             },
         );
 
+        releaseLayout.resolve();
         await queueManager.waitForCompletion();
 
-        // Both operations should complete since layout was near completion
-        assert.include(results, "layout-completed", "Layout should complete");
-        assert.include(results, "data-added", "Data operation should complete");
+        assert.deepEqual(results, ["layout-set", "layout-completed", "data-added"]);
+        assert.deepEqual(obsoletedOperations, []);
+        assert.include(completedOperations, layoutOpId);
+    });
 
-        // Layout should not be in obsoleted list
-        assert.isFalse(obsoletedOperations.includes(layoutOpId), "Near-complete layout should not be obsoleted");
+    it("should cancel a running operation below 90% progress", async () => {
+        const results: string[] = [];
+        const progressReached = deferred();
+        const releaseLayout = deferred();
+
+        queueManager.queueOperation("layout-set", () => undefined, { description: "Set layout" });
+        await queueManager.waitForCompletion();
+
+        const layoutOpId = queueManager.queueOperation(
+            "layout-update",
+            async (context) => {
+                context.progress.setProgress(50);
+                progressReached.resolve();
+                await releaseLayout.promise;
+                stopIfCancelled(context);
+                results.push("layout-completed");
+            },
+            { description: "Half-done layout" },
+        );
+
+        await progressReached.promise;
+
+        queueManager.queueOperation(
+            "data-add",
+            () => {
+                results.push("data-added");
+            },
+            {
+                description: "New data",
+                obsoletes: ["layout-update"],
+                respectProgress: true,
+                skipTriggers: true,
+            },
+        );
+
+        releaseLayout.resolve();
+        await queueManager.waitForCompletion();
+
+        assert.deepEqual(results, ["data-added"]);
+        assert.deepEqual(obsoletedOperations, [layoutOpId]);
     });
 
     it("should cancel cascading obsolete operations", async () => {
         const executed: string[] = [];
+        const dataStarted = deferred();
+        const releaseData = deferred();
 
-        // Queue a chain of dependent operations
+        // Queue a chain of dependent operations; the data operation holds the queue open
         queueManager.queueOperation(
             "data-add",
             async (context) => {
-                await new Promise((resolve) => setTimeout(resolve, 50));
-                if (context.signal.aborted) {
-                    throw new Error("AbortError");
-                }
-
+                dataStarted.resolve();
+                await releaseData.promise;
+                stopIfCancelled(context);
                 executed.push("data");
             },
-            { description: "Add initial data" },
+            { description: "Add initial data", skipTriggers: true },
         );
 
-        queueManager.queueOperation(
-            "layout-update",
-            async (context) => {
-                await new Promise((resolve) => setTimeout(resolve, 50));
-                if (context.signal.aborted) {
-                    throw new Error("AbortError");
-                }
-
-                executed.push("layout");
-            },
-            { description: "Calculate layout" },
+        const dependentIds = (
+            [
+                ["layout-update", "layout"],
+                ["algorithm-run", "algorithm"],
+                ["render-update", "render"],
+            ] as const
+        ).map(([category, name]) =>
+            queueManager.queueOperation(
+                category,
+                (context) => {
+                    stopIfCancelled(context);
+                    executed.push(name);
+                },
+                { description: name },
+            ),
         );
 
-        queueManager.queueOperation(
-            "algorithm-run",
-            async (context) => {
-                await new Promise((resolve) => setTimeout(resolve, 50));
-                if (context.signal.aborted) {
-                    throw new Error("AbortError");
-                }
-
-                executed.push("algorithm");
-            },
-            { description: "Run algorithm on layout" },
-        );
-
-        queueManager.queueOperation(
-            "render-update",
-            async (context) => {
-                await new Promise((resolve) => setTimeout(resolve, 50));
-                if (context.signal.aborted) {
-                    throw new Error("AbortError");
-                }
-
-                executed.push("render");
-            },
-            { description: "Render results" },
-        );
-
-        // Once the first operation is running, add new data that obsoletes everything
-        await eventManager.waitFor("operation-start");
+        // While the first operation runs, new data obsoletes everything queued behind it
+        await dataStarted.promise;
 
         queueManager.queueOperation(
             "data-remove",
@@ -223,221 +237,158 @@ describe("Obsolescence Scenarios", () => {
             {
                 description: "Remove all data",
                 obsoletes: ["layout-update", "algorithm-run", "render-update"],
-                cascading: true, // Obsolete all dependent operations
+                cascading: true,
+                skipTriggers: true,
             },
         );
 
+        releaseData.resolve();
         await queueManager.waitForCompletion();
 
-        // Original data op might complete if it started
-        // New data op should definitely complete
-        assert.include(executed, "new-data", "New data operation should complete");
-
-        // Most dependent operations should be obsoleted
-        const dependentOpsCompleted = ["layout", "algorithm", "render"].filter((op) => executed.includes(op));
-        assert.isTrue(
-            dependentOpsCompleted.length <= 1,
-            `Most dependent operations should be cancelled, but ${dependentOpsCompleted.length} completed`,
-        );
+        assert.deepEqual(executed, ["data", "new-data"]);
+        assert.deepEqual(obsoletedOperations, dependentIds);
     });
 
     it("should handle mixed operation priorities correctly", async () => {
-        const results: { operation: string; timestamp: number }[] = [];
+        const results: string[] = [];
 
-        // Queue operations with different priorities and obsolescence rules
-
-        // Low priority operation
-        queueManager.queueOperation(
+        // All three arrive in one batch. The data operation obsoletes the render queued before
+        // it, and the style initialization runs first because data depends on it.
+        const renderId = queueManager.queueOperation(
             "render-update",
-            async (context) => {
-                if (context.signal.aborted) {
-                    throw new Error("AbortError");
-                }
-
-                await new Promise((resolve) => setTimeout(resolve, 30));
-                results.push({ operation: "render", timestamp: Date.now() });
+            (context) => {
+                stopIfCancelled(context);
+                results.push("render");
             },
             { description: "Low priority render" },
         );
 
-        // High priority data operation
         queueManager.queueOperation(
             "data-add",
-            async () => {
-                await new Promise((resolve) => setTimeout(resolve, 10));
-                results.push({ operation: "data", timestamp: Date.now() });
+            () => {
+                results.push("data");
             },
             {
                 description: "High priority data",
                 obsoletes: ["render-update"],
+                skipTriggers: true,
             },
         );
 
-        // Critical style initialization
         queueManager.queueOperation(
             "style-init",
             () => {
-                results.push({ operation: "style", timestamp: Date.now() });
+                results.push("style");
             },
             { description: "Critical style init" },
         );
 
         await queueManager.waitForCompletion();
 
-        // Style should execute first due to dependencies
-        // Data should execute and obsolete render
-        assert.isTrue(
-            results.some((r) => r.operation === "style"),
-            "Style should execute",
-        );
-        assert.isTrue(
-            results.some((r) => r.operation === "data"),
-            "Data should execute",
-        );
-
-        // Render might be obsoleted
-        const renderCompleted = results.some((r) => r.operation === "render");
-        if (!renderCompleted) {
-            assert.isTrue(obsoletedOperations.length > 0, "Render should be obsoleted if it didn't complete");
-        }
+        assert.deepEqual(results, ["style", "data"]);
+        assert.deepEqual(obsoletedOperations, [renderId]);
     });
 
     it("should respect custom obsolescence conditions", async () => {
         const completed: string[] = [];
+        const ids: string[] = [];
+        const firstStarted = deferred();
+        const releaseFirst = deferred();
 
-        // Queue operations with timestamp-based obsolescence
-        const startTime = Date.now();
-
+        // Each algorithm obsoletes every algorithm queued before it. The second and third arrive
+        // while the first is running at 0% progress, so the first and second are both cancelled.
         for (let i = 0; i < 3; i++) {
-            queueManager.queueOperation(
-                "algorithm-run",
-                (context) => {
-                    if (context.signal.aborted) {
-                        throw new Error("AbortError");
-                    }
-
-                    completed.push(`algo-${i}`);
-                },
-                {
-                    description: `Algorithm ${i}`,
-                    timestamp: startTime + i * 100,
-                    shouldObsolete: (operation) => {
-                        // Obsolete older algorithms of the same type
-                        if (operation.category !== "algorithm-run") {
-                            return false;
+            ids.push(
+                queueManager.queueOperation(
+                    "algorithm-run",
+                    async (context) => {
+                        if (i === 0) {
+                            firstStarted.resolve();
+                            await releaseFirst.promise;
                         }
 
-                        const opTime = operation.metadata?.timestamp ?? 0;
-                        const myTime = startTime + i * 100;
-                        return opTime < myTime;
+                        stopIfCancelled(context);
+                        completed.push(`algo-${i}`);
                     },
-                },
+                    {
+                        description: `Algorithm ${i}`,
+                        shouldObsolete: (operation) =>
+                            operation.category === "algorithm-run" && ids.includes(operation.id),
+                    },
+                ),
             );
 
-            await new Promise((resolve) => setTimeout(resolve, 0));
+            if (i === 0) {
+                await firstStarted.promise;
+            }
         }
 
+        releaseFirst.resolve();
         await queueManager.waitForCompletion();
 
-        // Since obsolescence only applies to queued/pending operations when new ones arrive,
-        // all 3 may complete if they start quickly
-        assert.isTrue(
-            completed.length >= 1 && completed.length <= 3,
-            `Expected 1-3 algorithms to complete, got ${completed.length}`,
-        );
-
-        // The last algorithm should definitely complete
-        if (completed.length > 0) {
-            const lastCompleted = completed[completed.length - 1];
-            assert.isTrue(
-                lastCompleted.includes("2") || lastCompleted.includes("1"),
-                "Latest algorithm should complete",
-            );
-        }
+        assert.deepEqual(completed, ["algo-2"]);
+        assert.deepEqual(obsoletedOperations, [ids[0], ids[1]]);
     });
 
     it("should handle operation batches with obsolescence", async () => {
         const results: string[] = [];
+        const dataStarted = deferred();
+        const releaseData = deferred();
 
-        // Simulate a batch of related operations
-        const batch1 = [
-            () =>
-                queueManager.queueOperation(
-                    "data-add",
-                    () => {
-                        results.push("batch1-data");
-                    },
-                    { description: "Batch 1 data" },
-                ),
-            () =>
-                queueManager.queueOperation(
-                    "layout-update",
-                    async (context) => {
-                        if (context.signal.aborted) {
-                            throw new Error("AbortError");
-                        }
+        // Batch 1: data, then the layout and render that depend on it
+        queueManager.queueOperation(
+            "data-add",
+            async () => {
+                dataStarted.resolve();
+                await releaseData.promise;
+                results.push("batch1-data");
+            },
+            { description: "Batch 1 data", skipTriggers: true },
+        );
+        const layoutId = queueManager.queueOperation(
+            "layout-update",
+            (context) => {
+                stopIfCancelled(context);
+                results.push("batch1-layout");
+            },
+            { description: "Batch 1 layout" },
+        );
+        const renderId = queueManager.queueOperation(
+            "render-update",
+            (context) => {
+                stopIfCancelled(context);
+                results.push("batch1-render");
+            },
+            { description: "Batch 1 render" },
+        );
 
-                        await new Promise((resolve) => setTimeout(resolve, 30));
-                        results.push("batch1-layout");
-                    },
-                    { description: "Batch 1 layout" },
-                ),
-            () =>
-                queueManager.queueOperation(
-                    "render-update",
-                    async (context) => {
-                        if (context.signal.aborted) {
-                            throw new Error("AbortError");
-                        }
+        // While batch 1's data runs, batch 2 clears the data and obsoletes batch 1's layout and render
+        await dataStarted.promise;
 
-                        await new Promise((resolve) => setTimeout(resolve, 20));
-                        results.push("batch1-render");
-                    },
-                    { description: "Batch 1 render" },
-                ),
-        ];
+        queueManager.queueOperation(
+            "data-remove",
+            () => {
+                results.push("batch2-data");
+            },
+            {
+                description: "Batch 2 data - clear all",
+                obsoletes: ["layout-update", "render-update"],
+                skipTriggers: true,
+            },
+        );
+        queueManager.queueOperation(
+            "style-init",
+            () => {
+                results.push("batch2-style");
+            },
+            { description: "Batch 2 style reset" },
+        );
 
-        // Queue first batch
-        batch1.forEach((op) => op());
-
-        // Once the first batch is running, queue a second batch that obsoletes it
-        await eventManager.waitFor("operation-start");
-
-        const batch2 = [
-            () =>
-                queueManager.queueOperation(
-                    "data-remove",
-                    () => {
-                        results.push("batch2-data");
-                    },
-                    {
-                        description: "Batch 2 data - clear all",
-                        obsoletes: ["layout-update", "render-update"],
-                    },
-                ),
-            () =>
-                queueManager.queueOperation(
-                    "style-init",
-                    () => {
-                        results.push("batch2-style");
-                    },
-                    { description: "Batch 2 style reset" },
-                ),
-        ];
-
-        batch2.forEach((op) => op());
-
+        releaseData.resolve();
         await queueManager.waitForCompletion();
 
-        // Batch 1 data should complete (it's quick)
-        assert.include(results, "batch1-data");
-
-        // Batch 2 operations should complete
-        assert.include(results, "batch2-data");
-        assert.include(results, "batch2-style");
-
-        // Batch 1 layout and render should likely be obsoleted
-        const batch1Obsoleted = !results.includes("batch1-layout") || !results.includes("batch1-render");
-        assert.isTrue(batch1Obsoleted, "At least one batch 1 operation should be obsoleted");
+        assert.equal(results[0], "batch1-data");
+        assert.sameMembers(results, ["batch1-data", "batch2-data", "batch2-style"]);
+        assert.deepEqual(obsoletedOperations, [layoutId, renderId]);
     });
 });

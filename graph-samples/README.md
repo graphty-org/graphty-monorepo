@@ -69,7 +69,8 @@ element.nodeData = nodes; // { id, label, conference }
 element.edgeData = edges; // { source, target }
 ```
 
-graphty-element also loads them itself: `session.data.loadDataset("football")` and
+graphty-element also loads them itself, from the address you give it:
+`session.data.loadDataset("football", { baseUrl: DEFAULT_DATASET_BASE_URL })` and
 `session.data.generate("barabasi-albert", { n: 500 })`, with `session.catalog.datasets()` and
 `session.catalog.generators()` listing what it can load.
 

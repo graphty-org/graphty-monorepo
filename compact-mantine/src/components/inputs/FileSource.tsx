@@ -1,9 +1,10 @@
-import { ActionIcon, Button, TextInput } from "@mantine/core";
+import { ActionIcon, Button, Group, Progress, Text, TextInput } from "@mantine/core";
 import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useLabels } from "../../i18n";
 import { UiGlyph } from "../../icons";
 import { pickFiles } from "./pickFiles";
+import { chosenFiles } from "./readDrop";
 import { useFileDrop } from "./useFileDrop";
 
 /**
@@ -28,8 +29,11 @@ export interface FileSourceProps {
     multiple?: boolean;
     /** Whether to show the URL field (`row` and `drop`). @default true when `onUrl` is set */
     url?: boolean;
-    /** Called with the chosen or dropped files (never empty). */
-    onFiles: (files: File[]) => void;
+    /**
+     * Called with the chosen or dropped files (never empty), and, when a folder was chosen or
+     * dropped (`folder`), each file by its path from the folder ("kit/car.obj").
+     */
+    onFiles: (files: File[], paths?: ReadonlyMap<string, File>) => void;
     /** Called with the address typed into the URL field when Enter is pressed and it is a valid URL. */
     onUrl?: (url: string) => void;
     /**
@@ -48,6 +52,44 @@ export interface FileSourceProps {
      * (`row` and `drop`). No button when absent.
      */
     openLabel?: string;
+    /**
+     * Whether a folder may be given too (`drop` and `button`): a "Choose folder" button beside
+     * "Choose file", and a folder dropped on it is walked. A folder's files are not filtered by
+     * `accept`. @default false
+     */
+    folder?: boolean;
+    /** The folder button's text. Defaults to the `fileChooseFolder` label ("Choose folder"). */
+    folderLabel?: string;
+    /** A caption under the drop target's buttons (`drop`): what it takes, such as its formats. */
+    hint?: string;
+    /**
+     * How far a load has come, drawn as a thin bar under it: a fraction from 0 to 1, or null for a
+     * load whose size is not known (a full moving bar). No bar when absent.
+     */
+    progress?: number | null;
+    /**
+     * What a load under way is doing, drawn above its bar (with `progress`): a word for its stage
+     * ("Downloading") and, at the end of the line, how far it has come ("3.2 of 12.4 MB").
+     */
+    status?: { readonly label: string; readonly detail?: string };
+    /** Called by a Cancel button drawn beside the status line while a load is under way (with `progress`). */
+    onCancel?: () => void;
+    /** The Cancel button's text. Defaults to the `fileCancel` label ("Cancel"). */
+    cancelLabel?: string;
+    /** Why the address in the URL field was refused, shown under the field and tied to it. */
+    error?: string;
+    /**
+     * Called when Escape takes back an address typed into the URL field. Escape in an empty field,
+     * or with no `onDiscard`, is left to the page (a dialog closes).
+     */
+    onDiscard?: () => void;
+    /** Whether the drop target grows to fill the height its parent gives it (`drop`). @default false */
+    fill?: boolean;
+    /**
+     * Whether its first control (the "Choose file" button, or the row's URL field) takes focus when
+     * the Mantine Modal or Popover around it opens (`data-autofocus`). @default false
+     */
+    autoFocus?: boolean;
 }
 
 /**
@@ -76,6 +118,65 @@ function useWidth(ref: React.RefObject<HTMLElement | null>, on: boolean): number
 }
 
 /**
+ * A load's bar, with its status line and Cancel when given. A load whose size is not known draws a
+ * full moving bar announced with no value (ARIA's indeterminate progress bar), never as 100%.
+ * @param props - Component props
+ * @param props.progress - a fraction from 0 to 1, or null when the size is not known
+ * @param props.label - the bar's accessible name
+ * @param props.status - the stage and how far it has come
+ * @param props.onCancel - stops the load
+ * @param props.cancelLabel - the Cancel button's text
+ * @returns The bar
+ */
+function LoadBar({
+    progress,
+    label,
+    status,
+    onCancel,
+    cancelLabel,
+}: Readonly<{
+    progress: number | null;
+    label: string;
+    status: FileSourceProps["status"];
+    onCancel: (() => void) | undefined;
+    cancelLabel: string;
+}>): React.JSX.Element {
+    const bar =
+        progress === null ? (
+            <Progress.Root size="xs" role="progressbar" aria-label={label}>
+                <Progress.Section value={100} animated striped withAria={false} />
+            </Progress.Root>
+        ) : (
+            <Progress size="xs" value={Math.round(Math.min(1, Math.max(0, progress)) * 100)} aria-label={label} />
+        );
+    if (status === undefined && onCancel === undefined) {
+        return bar;
+    }
+    return (
+        <div className="cm-file-progress">
+            <Group gap={4} justify="space-between" wrap="nowrap">
+                <Text size="xs" span>
+                    {status?.label}
+                </Text>
+                <Group gap={4} wrap="nowrap">
+                    {status?.detail === undefined ? null : (
+                        <Text size="xs" span className="cm-file-hint">
+                            {status.detail}
+                        </Text>
+                    )}
+                    {onCancel === undefined ? null : (
+                        <Button size="compact-xs" variant="default" onClick={onCancel}>
+                            {cancelLabel}
+                        </Button>
+                    )}
+                </Group>
+            </Group>
+            {bar}
+        </div>
+    );
+}
+
+/**
  * One way to get a file: a URL, a drop or the file picker, drawn to fit the space it has.
  *
  * Built from Mantine's TextInput, ActionIcon and Button at their compact sizes. The URL field is a
@@ -101,6 +202,17 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         disabled = false,
         defaultValue = "",
         openLabel,
+        folder = false,
+        folderLabel,
+        hint,
+        progress,
+        status,
+        onCancel,
+        cancelLabel,
+        error,
+        onDiscard,
+        fill = false,
+        autoFocus = false,
     } = props;
     const labels = useLabels();
     const root = useRef<HTMLDivElement>(null);
@@ -111,6 +223,7 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
         accept,
         single: !multiple,
         disabled: disabled || drawn === "button",
+        folders: folder,
     });
     const [address, setAddress] = useState(defaultValue);
     // The address in effect changed (written, undone, another project): the field shows it.
@@ -122,10 +235,11 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
     const chooseText = label ?? labels.fileChoose;
     const urlName = placeholder ?? labels.fileUrl;
 
-    const choose = (): void => {
-        void pickFiles({ accept, multiple }).then((files) => {
+    const choose = (inFolder = false): void => {
+        void pickFiles({ accept, multiple, folder: inFolder }).then((files) => {
             if (files.length > 0) {
-                onFiles(files);
+                const { paths } = chosenFiles(files);
+                onFiles(files, paths);
             }
         });
     };
@@ -143,23 +257,34 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
     };
     const urlInput = useRef<HTMLInputElement>(null);
 
-    const urlField = (rightSection?: React.ReactNode): React.JSX.Element => {
+    const urlField = (rightSection?: React.ReactNode, rightSectionWidth?: number): React.JSX.Element => {
         const field = (
             <TextInput
                 ref={urlInput}
                 type="url"
+                data-autofocus={autoFocus && drawn === "row" ? true : undefined}
                 value={address}
                 disabled={disabled}
                 placeholder={urlName}
                 aria-label={urlName}
-                error={invalid}
+                error={error ?? invalid}
                 className="cm-file-url"
                 rightSection={rightSection}
+                rightSectionWidth={rightSectionWidth}
                 onChange={(event) => {
                     setAddress(event.currentTarget.value);
                     setInvalid(false);
                 }}
                 onKeyDown={(event) => {
+                    if (event.key === "Escape" && onDiscard !== undefined && address !== "") {
+                        // Takes the typing back; the page's own Escape (closing a dialog) waits for the next one.
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setAddress("");
+                        setInvalid(false);
+                        onDiscard();
+                        return;
+                    }
                     if (event.key !== "Enter") {
                         return;
                     }
@@ -192,23 +317,73 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
             variant="default"
             disabled={disabled}
             leftSection={withGlyph ? uploadGlyph : undefined}
-            onClick={choose}
+            data-autofocus={autoFocus ? true : undefined}
+            onClick={() => {
+                choose();
+            }}
         >
             {chooseText}
         </Button>
     );
+    const folderButton = (withGlyph: boolean): React.JSX.Element | null =>
+        folder ? (
+            <Button
+                variant="default"
+                disabled={disabled}
+                leftSection={withGlyph ? <UiGlyph name="folder" size={16} /> : undefined}
+                onClick={() => {
+                    choose(true);
+                }}
+            >
+                {folderLabel ?? labels.fileChooseFolder}
+            </Button>
+        ) : null;
+    const buttons = (withGlyph: boolean): React.JSX.Element =>
+        folder ? (
+            <div className="cm-file-buttons">
+                {chooseButton(withGlyph)}
+                {folderButton(withGlyph)}
+            </div>
+        ) : (
+            chooseButton(withGlyph)
+        );
 
     let body: React.ReactNode;
     if (drawn === "button") {
-        body = chooseButton(true);
+        body = buttons(true);
     } else if (drawn === "row") {
-        body = showUrl
-            ? urlField(
-                  <ActionIcon disabled={disabled} title={chooseText} aria-label={chooseText} onClick={choose}>
-                      {uploadGlyph}
-                  </ActionIcon>,
-              )
-            : chooseButton(true);
+        const chooseIcon = (
+            <ActionIcon
+                disabled={disabled}
+                title={chooseText}
+                aria-label={chooseText}
+                onClick={() => {
+                    choose();
+                }}
+            >
+                {uploadGlyph}
+            </ActionIcon>
+        );
+        // A row that also takes a folder carries its icon beside the file icon; a row that does not looks as before.
+        const folderText = folderLabel ?? labels.fileChooseFolder;
+        const icons = folder ? (
+            <Group gap={0} wrap="nowrap">
+                {chooseIcon}
+                <ActionIcon
+                    disabled={disabled}
+                    title={folderText}
+                    aria-label={folderText}
+                    onClick={() => {
+                        choose(true);
+                    }}
+                >
+                    <UiGlyph name="folder" size={16} />
+                </ActionIcon>
+            </Group>
+        ) : (
+            chooseIcon
+        );
+        body = showUrl ? urlField(icons, folder ? 48 : undefined) : chooseButton(true);
     } else {
         body = (
             <>
@@ -216,7 +391,12 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
                     <span className="cm-file-drop-glyph">
                         <UiGlyph name="upload" size={24} />
                     </span>
-                    {chooseButton(false)}
+                    {buttons(false)}
+                    {hint === undefined ? null : (
+                        <Text className="cm-file-hint" span>
+                            {hint}
+                        </Text>
+                    )}
                 </div>
                 {showUrl && urlField()}
             </>
@@ -230,8 +410,18 @@ export function FileSource(props: Readonly<FileSourceProps>): React.JSX.Element 
             data-variant={drawn}
             data-over={over || undefined}
             data-disabled={disabled || undefined}
+            data-fill={fill || undefined}
         >
             {body}
+            {progress === undefined ? null : (
+                <LoadBar
+                    progress={progress}
+                    label={labels.fileLoading}
+                    status={status}
+                    onCancel={onCancel}
+                    cancelLabel={cancelLabel ?? labels.fileCancel}
+                />
+            )}
         </div>
     );
 }

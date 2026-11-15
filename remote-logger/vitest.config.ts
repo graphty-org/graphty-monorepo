@@ -20,10 +20,10 @@ const config = defineConfig({
             exclude: ["**/*.d.ts", "**/*.test.ts", "**/*.spec.ts", "**/index.ts"],
             ignoreEmptyLines: true,
             thresholds: {
-                lines: 80,
-                functions: 80,
-                branches: 75,
-                statements: 80,
+                lines: 90,
+                functions: 90,
+                branches: 90,
+                statements: 90,
             },
         },
         projects: [

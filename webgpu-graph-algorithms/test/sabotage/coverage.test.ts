@@ -3,15 +3,29 @@
  * listed in SABOTAGE_PHASES that is not exempt has at least three rows, every `find` string occurs exactly once in the
  * entry's NORMATIVE body (so a mutation is a well-defined textual edit of 4.5), every `test` names an existing test
  * file, and the splice helper rejects an absent or duplicated `find`. P2-T2, P3-T5, M8b-T10, P4-T12, P8-T15 and P11
- * extended SABOTAGE_PHASES when their rows landed; the pinned list below is the only line that changes.
+ * extended SABOTAGE_PHASES when their rows landed; the pinned list below is the only line that changes. Every row of
+ * every table also compiles on the device, so a mutant is killed only by a wrong result, never by a compile error.
  */
 
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { type KernelId, KERNELS } from "../../src/kernels.js";
-import { type Mutation, SABOTAGE, SABOTAGE_EXEMPT, SABOTAGE_PHASES, sabotagedBody } from "../helpers/sabotage.js";
+import { PipelineCache } from "../../src/kernel/pipeline-cache.js";
+import { type KernelId, KERNELS, kernelSpec, setKernelBodyOverride } from "../../src/kernels.js";
+import { OVERRIDE_MATRIX } from "../helpers/override-matrix.js";
+import {
+    type Mutation,
+    SABOTAGE,
+    SABOTAGE_EXEMPT,
+    SABOTAGE_P3_ADDENDUM,
+    SABOTAGE_P4_LAW,
+    SABOTAGE_P4_TIERS,
+    SABOTAGE_P5,
+    SABOTAGE_PHASES,
+    sabotagedBody,
+} from "../helpers/sabotage.js";
+import { acquire, requireGpu } from "../setup/gpu.js";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -98,6 +112,43 @@ describe("sabotage coverage (spec 11.9 item 1, 13 rule f)", () => {
                 );
             }
         }
+    });
+
+    it("every row of every table compiles: a mutant that does not compile would be counted as caught", async (t) => {
+        requireGpu(t);
+        const tables = [SABOTAGE, SABOTAGE_P3_ADDENDUM, SABOTAGE_P5, SABOTAGE_P4_TIERS, SABOTAGE_P4_LAW];
+        const ctx = await acquire({ label: "sabotage-compile" });
+        const failures: string[] = [];
+        let compiled = 0;
+        try {
+            for (const table of tables) {
+                for (const [id, rows] of Object.entries(table) as [KernelId, readonly Mutation[]][]) {
+                    const base = OVERRIDE_MATRIX.find((c) => c.id === id);
+                    if (base === undefined) {
+                        failures.push(`${id}: no OVERRIDE_MATRIX case to compile it with`);
+                        continue;
+                    }
+                    for (const m of rows) {
+                        // a fresh cache per mutant: the pipeline key does not include the body
+                        const cache = new PipelineCache(ctx.device, ctx.caps);
+                        setKernelBodyOverride(id, sabotagedBody(id, m));
+                        try {
+                            await cache.get(kernelSpec(id, base.overrides, base.snippets));
+                            compiled++;
+                        } catch (err) {
+                            failures.push(`${id}/${m.name}: ${String(err)}`);
+                        } finally {
+                            setKernelBodyOverride(id, null);
+                            cache.dispose();
+                        }
+                    }
+                }
+            }
+        } finally {
+            ctx.dispose();
+        }
+        expect(failures).toEqual([]);
+        expect(compiled).toBeGreaterThanOrEqual(300);
     });
 
     it("sabotagedBody throws on an absent find and on a duplicated find", () => {

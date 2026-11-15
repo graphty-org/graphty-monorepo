@@ -26,6 +26,7 @@ import React, { useEffect, useState } from "react";
 import { type Meaning, weightName, weightRead } from "../analyze/words";
 import { selectionWorkspaceOn } from "../features";
 import { GLYPHS } from "../glyphs";
+import { drawnYet } from "./notYetDrawn";
 import { splitOptions } from "./splitOptions";
 
 /** One name for one idea across the algorithms and layouts, by option (the `selection-workspace` forms). */
@@ -507,7 +508,7 @@ function NodeOption({
     if (id === undefined && !offer) {
         return null;
     }
-    const name = id === undefined ? "None" : (session.data.name(id) ?? String(id));
+    const name = id === undefined ? "None" : session.data.nodeName(id).name;
     // A node is a fact of the run, drawn as the same label and value row as the others.
     return (
         <DataRow
@@ -732,7 +733,7 @@ export function OptionsForm({
     rows = [],
     ...rest
 }: Readonly<OptionsFormProps>): React.JSX.Element {
-    const { key, advanced } = splitOptions(options);
+    const { key, advanced } = splitOptions(options.filter((option) => drawnYet(rest.algorithm, option.name)));
     const list = [...key, ...advanced];
     const field = (option: OptionDescriptor): React.JSX.Element => {
         const own = <OptionField key={option.name} option={option} value={values[option.name]} {...rest} />;

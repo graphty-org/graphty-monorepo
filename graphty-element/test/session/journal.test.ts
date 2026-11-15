@@ -3,12 +3,13 @@
  * run's `journalId`, `journal:appended`, batches, refusals, the cap and gesture coalescing.
  */
 
-import { assert, describe, it } from "vitest";
+import { assert, describe, it, vi } from "vitest";
 
 import { createGraphSession, type JournalEntry as PublishedEntry } from "../../session";
 import { isGraphtyError } from "../../src/errors";
 import type { JournalEntry } from "../../src/session/journal";
 import type { SessionCommand } from "../../src/session/planning";
+import { takeCaughtErrors } from "../helpers/caught-errors";
 import { notesHarness } from "./notes/harness";
 import { finishAtOnce } from "./runs/harness";
 
@@ -230,6 +231,45 @@ describe("session.journal", () => {
         const ops = session.journal.entries.map((each) => each.command.op);
         assert.deepEqual(ops, ["data.apply", "algo.run"]);
         assert.deepEqual(heard, session.journal.entries.slice(1), "heard from when it subscribed");
+        session.dispose();
+    });
+
+    it("reports a throwing subscriber or event handler and still tells the others", async () => {
+        const { session } = notesHarness();
+        const journalBug = new Error("a bug in a journal subscriber");
+        const eventBug = new Error("a bug in an event handler");
+        const heard: string[] = [];
+        session.journal.subscribe(() => {
+            throw journalBug;
+        });
+        session.journal.subscribe(() => heard.push("journal"));
+        session.on("journal:appended", () => {
+            throw eventBug;
+        });
+        session.on("journal:appended", () => heard.push("event"));
+        // Catch what a microtask rethrows unhandled, so it can be checked instead of ending the run.
+        const rethrown: unknown[] = [];
+        const queue = globalThis.queueMicrotask.bind(globalThis);
+        const spy = vi.spyOn(globalThis, "queueMicrotask").mockImplementation((callback) => {
+            queue(() => {
+                try {
+                    callback();
+                } catch (error) {
+                    rethrown.push(error);
+                }
+            });
+        });
+
+        try {
+            session.notes.add({ text: "hub", targets: [{ node: "a" }] });
+        } finally {
+            spy.mockRestore();
+        }
+        await Promise.resolve();
+
+        assert.deepEqual(heard, ["journal", "event"], "the others were told");
+        assert.deepEqual(takeCaughtErrors(), [journalBug, eventBug], "both reported");
+        assert.deepEqual(rethrown, [journalBug, eventBug], "both rethrown unhandled");
         session.dispose();
     });
 });

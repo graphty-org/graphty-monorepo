@@ -8,13 +8,14 @@
  * reference from the picker; selecting a row draws the picking view until Escape. In a filter
  * card: the verb segment writes the verb and Hovered or selected is not offered. The title pane's
  * Table opens the table on Matches only; a group pane's count selects its members (a style layer)
- * or opens the table (a filter); the style tree's Hover highlight makes four hover layers.
+ * or opens the table (a filter). The start page's hover look is four layers built in the editor,
+ * drawing what the built-in hover layers draw; the Style Layers + menu has no template for it.
  */
 
 // Registers the real <graphty-element>, as main.tsx does.
 import "@graphty/graphty-element";
 
-import type { GraphSession, Layer, RuleTree, Selector, UnionLeaf } from "@graphty/graphty-element/session";
+import type { GraphSession, Layer, LayerSpec, RuleTree, Selector, UnionLeaf } from "@graphty/graphty-element/session";
 import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -22,6 +23,7 @@ import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
 import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { REGISTRATIONS } from "../../registrations";
+import { EDGE_WIDTH, HIGHLIGHT_OPACITY, LOOK } from "../../start/heroLook";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 
@@ -42,7 +44,9 @@ async function startCondition(scope?: HTMLElement): Promise<void> {
         return;
     }
     if (document.querySelector(".sel-ws") === null) {
-        await userEvent.click(within(where).getAllByRole("button", { name: /^Edit / })[0] ?? document.body);
+        await userEvent.click(
+            within(where).getAllByRole("button", { name: /^(Edit |Style (Nodes|Edges)\.\.\.)/ })[0] ?? document.body,
+        );
     }
     const control = await waitFor(() => {
         const ws = document.querySelector<HTMLElement>(".sel-ws");
@@ -104,7 +108,7 @@ async function openLayer(session: GraphSession, name: string, selector: Selector
  * @returns the workspace.
  */
 async function openWs(): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which / }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
     return waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the workspace is open");
@@ -192,9 +196,9 @@ describe("the selection editor in a style layer", () => {
     it("a fresh layer: And... adds a Keep step and opens its picker; a value with no test is kept and reads No test", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Busy", { match: "everything" });
-        // A layer of every node reads as what it paints: All nodes, and only the verbs that narrow.
-        assert.isNotNull(screen.queryByRole("treeitem", { name: "Which nodes" }));
-        assert.isNotNull(screen.queryByRole("treeitem", { name: "All nodes" }));
+        // At rest the layer's selection is its Style Nodes... line alone (issue #6810).
+        assert.isNotNull(screen.queryByRole("button", { name: "Style Nodes..." }));
+        assert.isNull(screen.queryByRole("treeitem", { name: "All nodes" }));
         await startCondition();
         const search = await screen.findByRole("combobox", { name: "Find attributes, results" });
         await waitFor(() => {
@@ -278,6 +282,7 @@ describe("the selection editor in a style layer", () => {
         const session = await openSample();
         const layer = await openLayer(session, "Degree card", { match: "rule", where: DEGREE_6_TO_10 });
         const expected = await counted(session, DEGREE_6_TO_10);
+        await openWs();
         await waitFor(() => {
             assert.match(stepRows()[0] ?? "", new RegExp(`^Degree 6 to 10, ${String(expected)} of 77 nodes so far$`));
         });
@@ -293,6 +298,7 @@ describe("the selection editor in a style layer", () => {
         };
         const expected = await counted(session, saved);
         const layer = await openLayer(session, "Saved", { match: "rule", where: saved });
+        await openWs();
         await waitFor(() => {
             const rows = stepRows();
             assert.lengthOf(rows, 2);
@@ -377,10 +383,29 @@ describe("the selection editor in a style layer", () => {
         assert.isAbove(expected, 1);
     });
 
+    it("Enter takes the row named exactly what was typed, then one that starts with it, over a word match in an earlier group (issue #7858)", async () => {
+        const session = await openSample();
+        await openLayer(session, "Near Valjean", { match: "everything" });
+        for (const [index, typed] of ["Is in", "Is i"].entries()) {
+            await startCondition();
+            await screen.findByRole("combobox", { name: "Find attributes, results" });
+            await userEvent.keyboard(typed);
+            // Katz, found by its words "Influence at a distance", is listed before Relative to.
+            await screen.findByRole("option", { name: /^Katz/ });
+            await screen.findByRole("option", { name: /^Is in/ });
+            await userEvent.keyboard("{Enter}");
+            await waitFor(() => {
+                assert.lengthOf(stepRows(), index + 1);
+                assert.match(stepRows()[index] ?? "", /^Is in, /);
+            });
+        }
+    });
+
     it("selecting a step row draws the picking view; Escape ends it, the layer list unchanged", async () => {
         const session = await openSample();
         await openLayer(session, "Picked", { match: "rule", where: DEGREE_6_TO_10 });
         assert.isFalse(session.styles.showingBranches);
+        await openWs();
         const step = document.querySelector<HTMLElement>(".sel-step-row[data-row]");
         if (step === null) {
             throw new Error("a step row is drawn");
@@ -497,6 +522,7 @@ describe("the selection editor and the table", () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
         const expected = await counted(session, DEGREE_6_TO_10);
+        await openWs();
         await userEvent.click(row("a"));
         const chip = await screen.findByRole("button", { name: `Select ${String(expected)} of 77 nodes` });
         await userEvent.click(chip);
@@ -522,40 +548,201 @@ describe("the selection editor and the table", () => {
     });
 });
 
-describe("the hover highlight template", () => {
-    it("adds four layers built from selections that match nothing until a node is in focus", async () => {
-        const session = await openSample();
-        const before = session.styles.list().length;
-        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
-        await userEvent.click(await screen.findByRole("menuitem", { name: "Hover highlight" }));
-        await waitFor(() => {
-            assert.equal(session.styles.list().length, before + 4);
-        });
-        const names = ["Fade nodes", "Fade edges", "Its edges", "Halo"];
-        const made = session.styles.list().filter((layer) => names.includes(layer.name));
-        assert.deepEqual(
-            made.map((layer) => layer.name),
-            names,
-        );
-        for (const layer of made) {
-            assert.equal(layer.selector.match === "rule" ? layer.selector.where.kind : "", "union", layer.name);
+/** An empty group of none: what Start with None holds before its first step. */
+function startNone(side: UnionLeaf["side"]): Selector {
+    return {
+        match: "rule",
+        where: { kind: "union", side, within: "visible", branches: [{ start: "none", steps: [] }] },
+    };
+}
+
+/**
+ * Adds a step through the editor: And..., the preset typed in the value picker and its row clicked, its reference
+ * picked as Hovered or selected, then its hops and its Except switch when asked.
+ * @param preset - what is typed in the value picker, and the start of the row clicked.
+ * @param options - the step's hops and whether it excludes.
+ * @param options.hops - its hops, for Within hops of.
+ * @param options.except - whether to switch it to Except.
+ */
+async function addFocusStep(preset: string, options: { hops?: number; except?: boolean } = {}): Promise<void> {
+    await startCondition();
+    await screen.findByRole("combobox", { name: "Find attributes, results" });
+    await userEvent.keyboard(preset);
+    await screen.findByRole("option", { name: new RegExp(`^${preset}`) });
+    await userEvent.keyboard("{Enter}");
+    const pane = await waitFor(() => {
+        const found = document.querySelector<HTMLElement>(".sel-ws [data-step-pane]");
+        assert.isNotNull(found, "the new step's pane");
+        return found ?? document.body;
+    });
+    await userEvent.click(await within(pane).findByRole("button", { name: "Reference" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Hovered or selected" }));
+    await within(pane).findByRole("button", { name: "Reference: Hovered or selected" });
+    if (options.hops !== undefined) {
+        const hops = within(pane).getByRole("textbox", { name: "Hops" });
+        await userEvent.clear(hops);
+        await userEvent.type(hops, `${String(options.hops)}{Enter}`);
+    }
+    if (options.except === true) {
+        await userEvent.click(within(pane).getByRole("switch", { name: /^Except/ }));
+    }
+}
+
+/**
+ * A layer added for the reader, its steps then built in the editor, which then closes.
+ * @param session - the session.
+ * @param spec - the layer, started as All or None.
+ * @param build - the steps, written through the editor.
+ * @returns the layer's id.
+ */
+async function buildLayer(session: GraphSession, spec: LayerSpec, build: () => Promise<void>): Promise<string> {
+    const layer = await session.styles.add(spec);
+    await session.styles.settled();
+    const tree = await screen.findByRole("tree", { name: "Style layers" });
+    await userEvent.click(await within(tree).findByRole("treeitem", { name: new RegExp(`^${spec.name}, `) }));
+    await build();
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    await waitFor(() => {
+        assert.isNull(document.querySelector(".sel-ws"), "the workspace closed");
+    });
+    return layer.id;
+}
+
+/**
+ * What every node and edge is drawn with, as the element merges its layers.
+ * @param session - the session.
+ * @returns each element's merged style, by id.
+ */
+async function drawn(session: GraphSession): Promise<Record<string, unknown>> {
+    await session.styles.settled();
+    const picture: Record<string, unknown> = {};
+    for (const node of session.data.nodes()) {
+        picture[`n${String(node.id)}`] = session.styles.explain({ node: node.id }).merged;
+    }
+    for (const edge of session.data.edges()) {
+        picture[`e${edge.id}`] = session.styles.explain({ edge: edge.id }).merged;
+    }
+    return picture;
+}
+
+/**
+ * The drawing with nothing in focus, with a node under the real pointer, and with a lone node
+ * selected by a real click on the canvas.
+ * @param session - the session.
+ * @returns the three pictures.
+ */
+async function threePictures(session: GraphSession): Promise<Record<string, unknown>[]> {
+    const element = document.querySelector("graphty-element");
+    if (element === null) {
+        throw new Error("the element is drawn");
+    }
+    const away = screen.getByRole("tree", { name: "Style layers" });
+    await userEvent.hover(away);
+    await waitFor(() => {
+        assert.isNull(session.selection.hovered);
+        assert.deepEqual(session.selection.nodes, []);
+    });
+    const neither = await drawn(session);
+    await element.waitForSettled();
+    await element.waitForStableFrame();
+    const at = (name: string): { x: number; y: number } => {
+        const id = session.data.nodes().find((each) => session.data.name(each.id) === name)?.id;
+        const point = id === undefined ? undefined : element.nodeScreenPosition(id);
+        if (point === undefined) {
+            throw new Error(`${name} is drawn`);
         }
+        return point;
+    };
+    await userEvent.hover(element, { position: at("Valjean") });
+    await waitFor(() => {
+        assert.isNotNull(session.selection.hovered, "a node is under the pointer");
+    });
+    const hovered = await drawn(session);
+    await userEvent.click(element, { position: at("Javert") });
+    await userEvent.hover(away);
+    await waitFor(() => {
+        assert.isNull(session.selection.hovered);
+        assert.lengthOf(session.selection.nodes, 1, "a lone node is selected");
+    });
+    const selected = await drawn(session);
+    await session.selection.apply({ nodes: [] });
+    return [neither, hovered, selected];
+}
+
+describe("the start page's hover look, built with the editor (spec 7, acceptance 14)", () => {
+    it("the Style Layers + menu offers no Hover highlight template", async () => {
+        await openSample();
+        await userEvent.click(await screen.findByRole("button", { name: "Add a layer or a folder" }));
+        await screen.findByRole("menuitem", { name: "Folder" });
+        assert.isNull(screen.queryByRole("menuitem", { name: /hover highlight/i }));
+        await userEvent.keyboard("{Escape}");
+    });
+
+    it("four layers of Keep, Except and Add steps draw what the built-in hover layers draw", async () => {
+        const session = await openSample();
+        const look = LOOK.light;
+        const fadeNodes = { "node.opacity": 0.3 };
+        const fadeEdges = { "edge.opacity": 0.15 };
+        const itsEdges = { "edge.color": look.hot, "edge.opacity": 1, "edge.width": EDGE_WIDTH * 1.25 };
+        const halo = { "node.haloColor": look.ring, "node.haloOpacity": HIGHLIGHT_OPACITY };
+        const built = [
+            await buildLayer(
+                session,
+                { name: "Fade nodes", target: "node", selector: { match: "everything" }, set: fadeNodes },
+                async () => {
+                    await addFocusStep("While");
+                    await addFocusStep("Within hops", { hops: 1, except: true });
+                },
+            ),
+            await buildLayer(
+                session,
+                { name: "Fade edges", target: "edge", selector: { match: "everything" }, set: fadeEdges },
+                async () => {
+                    await addFocusStep("While");
+                    await addFocusStep("Edges touching", { except: true });
+                },
+            ),
+            await buildLayer(
+                session,
+                { name: "Its edges", target: "edge", selector: startNone("edges"), set: itsEdges },
+                async () => {
+                    await addFocusStep("Edges touching");
+                },
+            ),
+            await buildLayer(
+                session,
+                { name: "Halo", target: "node", selector: startNone("nodes"), set: halo },
+                async () => {
+                    await addFocusStep("Is in");
+                },
+            ),
+        ];
         await session.styles.settled();
         assert.deepEqual(
-            made.map((layer) => session.styles.counts(layer.id).matched),
+            built.map((id) => session.styles.counts(id).matched),
             [0, 0, 0, 0],
-            "nothing hovered or selected",
+            "nothing hovered or selected: all four match nothing",
         );
-        const valjean = session.data.nodes().find((each) => session.data.name(each.id) === "Valjean")?.id;
-        if (valjean === undefined) {
-            throw new Error("Valjean is in the sample");
+        const fromEditor = await threePictures(session);
+
+        for (const id of built) {
+            await session.styles.remove(id);
         }
-        await session.selection.apply({ nodes: [valjean] });
-        const near = await counted(session, { kind: "neighborhood", seeds: [valjean], depth: 1 });
-        await waitFor(() => {
-            assert.equal(session.styles.counts(made[3].id).matched, 1, "the halo rings Valjean");
-            assert.equal(session.styles.counts(made[0].id).matched, 77 - near, "the rest fade");
-        });
+        for (const [selector, target, set] of [
+            [{ match: "hover", reach: "neighbors", invert: true, orSelected: true }, "node", fadeNodes],
+            [{ match: "hover", invert: true, orSelected: true }, "edge", fadeEdges],
+            [{ match: "hover", orSelected: true }, "edge", itsEdges],
+            [{ match: "hover", orSelected: true }, "node", halo],
+        ] as const) {
+            await session.styles.add({ name: "Built-in", target, selector, set });
+        }
+        const fromBuiltIns = await threePictures(session);
+
+        assert.deepEqual(fromEditor[0], fromBuiltIns[0], "with nothing in focus");
+        assert.deepEqual(fromEditor[1], fromBuiltIns[1], "with a node hovered");
+        assert.deepEqual(fromEditor[2], fromBuiltIns[2], "with a lone node selected");
+        assert.notDeepEqual(fromEditor[0], fromEditor[1], "hovering changes the drawing");
+        assert.notDeepEqual(fromEditor[0], fromEditor[2], "selecting changes the drawing");
     });
 });
 
@@ -610,6 +797,7 @@ describe("the selection editor's keys, names and limits", () => {
     it("Escape in a pane's box takes focus to its row and keeps the text; Escape again is Done", async () => {
         const session = await openSample();
         const layer = await openLayer(session, "Picked", { match: "rule", where: DEGREE_6_TO_10 });
+        await openWs();
         await userEvent.click(document.querySelector(".sel-step-row .sel-value") ?? document.body);
         const from = await screen.findByRole("textbox", { name: "Degree from, number" });
         await userEvent.clear(from);
@@ -644,35 +832,24 @@ describe("the selection editor's keys, names and limits", () => {
     });
 });
 
-describe("the outline at rest (the owner's review of 2026-11-01)", () => {
-    it("draws no button, box or input at rest, one 32 px line per row, every value at one x", async () => {
+describe("a style layer's selection at rest (the owner, 2026-11-11, issue #6810)", () => {
+    it("is one line, Style Nodes... with the open-in-new-window icon, and no outline rows", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
-        // The pointer leaves the editor: nothing is hovered, nothing selected.
-        await userEvent.hover(screen.getByRole("tree", { name: "Style layers" }));
         const editor = document.querySelector<HTMLElement>(".sel-rest");
         if (editor === null) {
             throw new Error("the editor is drawn");
         }
-        // The read-only outline's one control is the title row's Edit (spec 3.0).
-        await waitFor(() => {
-            const shown = [...editor.querySelectorAll<HTMLElement>("button, input, [role=checkbox]")].filter(
-                (each) => each.getClientRects().length > 0,
-            );
-            assert.deepEqual(
-                shown.map((each) => each.getAttribute("aria-label") ?? each.textContent),
-                ["Edit Which nodes"],
-            );
-        });
-        for (const each of editor.querySelectorAll<HTMLElement>(".sel-row")) {
-            assert.isAtMost(each.getBoundingClientRect().height, 32, each.textContent ?? "");
-        }
-        const x = [...editor.querySelectorAll<HTMLElement>(".sel-step-row .sel-value")].map(
-            (each) => each.getBoundingClientRect().left,
+        const shown = [...editor.querySelectorAll<HTMLElement>("button, input, [role=checkbox]")].filter(
+            (each) => each.getClientRects().length > 0,
         );
-        assert.lengthOf(new Set(x), 1, "every value name starts at the same x");
-        // No "+" inside a selection: "+" adds only in a section header.
-        assert.notInclude(editor.textContent ?? "", "+");
+        assert.deepEqual(
+            shown.map((each) => each.textContent),
+            ["Style Nodes..."],
+        );
+        assert.isNotNull(shown[0]?.querySelector("svg"), "the open-in-new-window icon");
+        assert.lengthOf(editor.querySelectorAll(".sel-row, [role=tree]"), 0, "no Which nodes title or All nodes row");
+        assert.notMatch(editor.textContent ?? "", /Which nodes|All nodes/);
     });
 });
 
@@ -725,6 +902,7 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
     it("every control in the outline is inside a tree item, and Done ends picking in one click", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
+        await openWs();
         await userEvent.click(row("deg").querySelector(".sel-value") ?? row("deg"));
         await waitFor(() => {
             assert.isTrue(session.styles.showingBranches);
@@ -757,7 +935,7 @@ describe("the outline under the pointer (the owner's review, repolish 1)", () =>
     it("Start with is in a group's Advanced, drawn with its caption, and never in the title pane", async () => {
         const session = await openSample();
         await openLayer(session, "Two", { match: "rule", where: TWO_GROUPS });
-        await userEvent.click(screen.getByRole("treeitem", { name: "Which nodes" }));
+        await userEvent.click(screen.getByRole("button", { name: "Style Nodes..." }));
         await waitFor(() => {
             assert.isNotNull(document.querySelector(".sel-pane-box"));
         });

@@ -2310,7 +2310,7 @@
         "edges": ["gexfId", "source", "target", "weight"]
     },
     "gexf/gexfjs-miserables.gexf": {
-        "nodes": ["Modularity Class", "color", "id", "label", "position", "size"],
+        "nodes": ["Modularity Class", "color", "id", "image", "label", "position", "size", "url"],
         "edges": ["label", "source", "target", "weight"]
     },
     "gexf/glxxyz_hskhsk.com__HSK1-3_chars_v09.gexf.gz": {

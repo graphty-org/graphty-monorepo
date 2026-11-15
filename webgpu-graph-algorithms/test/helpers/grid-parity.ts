@@ -285,9 +285,10 @@ export interface GridNoiseFixtureName {
  * where random20k's reads 2.4e-6 -- the same rounding on a worse-conditioned total, not a kernel defect (without
  * the floor clumpy100 reads 1.5e-5, as it did before #89). And `exactRmsSe` / `exactP99Se`, the exact-vs-grid
  * repulsion of the SPRING-ELECTRICAL model (LAW 2) on the UNSCALED random20k in 2D, written by grid-law.test.ts:
- * grid-law.test.ts and the LAW sabotage rows hold that model to grid-exact.rms / grid-exact.p99 too, and its RMS
- * reads 2.5e-2 on the RTX 4070 SUPER where the ForceAtlas2 member reads 2.4e-3, so a floor from ForceAtlas2 alone
- * derived a tolerance the spring model does not meet.
+ * they are NOT widening members of ForceAtlas2's grid-exact rows but the basis of their own ids, grid-law.rms /
+ * grid-law.p99, which grid-law.test.ts and the LAW sabotage rows hold the two spring models (FR and spring-electrical)
+ * to. The spring model's RMS reads 3.5e-2 where ForceAtlas2's reads 2.4e-3, so one shared row derived ForceAtlas2's
+ * tolerance from the spring model's error, about twice the 10x rule's bound (issue #7210).
  */
 export const GRID_NOISE_FIXTURES: Readonly<
     Record<
@@ -385,6 +386,12 @@ export const P4_TOLERANCE_CAPS: Readonly<Record<string, { readonly cap: number; 
         "grid-exact.rms.cross": { cap: 1e-4, basis: "grid-exact.rms.cross" },
         "grid-exact.p99": { cap: 0.25, basis: "grid-exact.p99.oracle-f64" },
         "grid-exact.p99.cross": { cap: 1e-4, basis: "grid-exact.p99.cross" },
+        // the same two approximation caps for the spring models' grid tier (LAW 1 / 2, grid-law.test.ts): their own
+        // basis rows, the spring-electrical members, so ForceAtlas2's grid-exact rows stay ForceAtlas2's own floor
+        "grid-law.rms": { cap: 0.05, basis: "grid-law.rms.oracle-f64" },
+        "grid-law.rms.cross": { cap: 1e-4, basis: "grid-law.rms.cross" },
+        "grid-law.p99": { cap: 0.25, basis: "grid-law.p99.oracle-f64" },
+        "grid-law.p99.cross": { cap: 1e-4, basis: "grid-law.p99.cross" },
         "grid-expansion": { cap: 0.25, basis: "grid-expansion.oracle-f64" },
         "grid-expansion.cross": { cap: 0.5, basis: "grid-expansion.cross" },
         "grid-distributional": { cap: 0.15, basis: "grid-distributional.oracle-f64" },

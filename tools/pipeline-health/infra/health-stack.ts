@@ -41,11 +41,11 @@ export const CI_ROUTES = [
     "/v1/sites",
     "/v1/benchmarks",
 ];
-/** The page's Vite dev server, allowed beside the live origin. */
-export const DEV_ORIGIN = "http://localhost:5173";
-
 export interface HealthStackProps extends StackProps {
-    /** An extra CORS origin for a local dev server of the page (cdk context `devOrigin`). */
+    /**
+     * An extra CORS origin (cdk context `devOrigin`), for `vite preview` of the page, which has no proxy. The dev
+     * server proxies the API and needs none.
+     */
     devOrigin?: string;
 }
 
@@ -167,7 +167,7 @@ export class HealthStack extends Stack {
         const api = new apigw.HttpApi(this, "Api", {
             apiName: "graphty-health",
             corsPreflight: {
-                allowOrigins: [PAGE_ORIGIN, DEV_ORIGIN, ...(props.devOrigin ? [props.devOrigin] : [])],
+                allowOrigins: [PAGE_ORIGIN, ...(props.devOrigin ? [props.devOrigin] : [])],
                 allowMethods: [apigw.CorsHttpMethod.GET],
                 maxAge: Duration.hours(1),
             },

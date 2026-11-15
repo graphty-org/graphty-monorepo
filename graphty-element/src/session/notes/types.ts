@@ -217,12 +217,19 @@ export interface NotesDocument {
     readonly extensions?: Readonly<Record<string, unknown>>;
 }
 
-/** One thing a report says about a document: where, why, and its code. */
+/**
+ * One thing a report says about a document: where, its code, and the facts behind it.
+ *
+ * - `W_FUTURE_TIME`: a note's time is more than a day after it was opened; kept as written.
+ *   `details.field` names it (`"time"`, `"edited"`, `"done"`).
+ * - `W_UNKNOWN_MEMBER`: a field this release does not know. `details.field` names it; under
+ *   `/notes/<n>/` it is kept and written back, at the member's top level it is ignored.
+ * - `E_BAD_DOCUMENT`: the note at `what` is skipped. `details` are the refusal's own: its `code`
+ *   and the details it carried.
+ */
 export interface Problem {
     /** Where: a JSON pointer into the document (`/notes/3/time`). */
     readonly what: string;
-    /** One sentence a person can act on. */
-    readonly reason: string;
     /** More about it, by code. */
     readonly details?: Readonly<Record<string, unknown>>;
     /** The error or warning code. */

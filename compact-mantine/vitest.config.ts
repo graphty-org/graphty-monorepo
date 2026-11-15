@@ -1,5 +1,6 @@
-import { appendFileSync, existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 import react from "@vitejs/plugin-react";
 import { playwright } from "@vitest/browser-playwright";
@@ -19,7 +20,7 @@ import { baseTest } from "../vitest.base.mjs";
  */
 function figmaStudyDir(): string | null {
     if (process.env.FIGMA_STUDY_DIR) {
-        return process.env.FIGMA_STUDY_DIR;
+        return resolve(process.env.FIGMA_STUDY_DIR);
     }
     for (let dir = __dirname; dir !== dirname(dir); dir = dirname(dir)) {
         const candidate = join(dir, "design/ui/figma");
@@ -48,7 +49,8 @@ const readFigmaCapture: BrowserCommand<[path: string]> = (_ctx, path) => {
         throw new Error("the Figma study (design/ui/figma) is not in this checkout; set FIGMA_STUDY_DIR");
     }
     const file = resolve(root, `${path}.styles.json`);
-    if (!file.startsWith(root)) {
+    const inside = relative(root, file);
+    if (inside.startsWith("..") || isAbsolute(inside)) {
         throw new Error(`${path} is outside the Figma study`);
     }
     return JSON.parse(readFileSync(file, "utf8")) as unknown;
@@ -282,7 +284,9 @@ const dropFiles: BrowserCommand<[selector: string, files: TestFile[]]> = async (
 
 /**
  * Click the first element `selector` names with the real mouse and answer the file picker it opens
- * with `files`, as a reader choosing them in the browser's dialog.
+ * with `files`, as a reader choosing them in the browser's dialog. Files named by a path
+ * ("kit/car.obj") are written to a fresh folder on disk and that folder ("kit") is chosen, as the
+ * folder picker gives them.
  * @param ctx - the browser command context
  * @param selector - CSS selector of the control that opens the picker, inside the test frame
  * @param files - the files to choose
@@ -293,6 +297,15 @@ const chooseFiles: BrowserCommand<[selector: string, files: TestFile[]]> = async
         ctx.page.waitForEvent("filechooser"),
         frame.locator(selector).first().click(),
     ]);
+    if (files.some((file) => file.name.includes("/"))) {
+        const root = mkdtempSync(join(tmpdir(), "cm-folder-"));
+        for (const file of files) {
+            mkdirSync(dirname(join(root, file.name)), { recursive: true });
+            writeFileSync(join(root, file.name), file.text);
+        }
+        await chooser.setFiles(join(root, files[0].name.split("/")[0]));
+        return;
+    }
     await chooser.setFiles(
         files.map((file) => ({ name: file.name, mimeType: file.type, buffer: Buffer.from(file.text) })),
     );
@@ -340,6 +353,9 @@ const config = defineConfig({
                 test: {
                     name: "default",
                     globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
                     environment: "jsdom",
                     setupFiles: ["./tests/setup.ts"],
                     include: ["tests/**/*.test.{ts,tsx}", "src/**/*.test.{ts,tsx}"],
@@ -360,6 +376,9 @@ const config = defineConfig({
                 test: {
                     name: "browser",
                     globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.browser.test.{ts,tsx}"],
@@ -385,6 +404,9 @@ const config = defineConfig({
                 test: {
                     name: "touch",
                     globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.touch.browser.test.{ts,tsx}"],
                     fileParallelism: false,
@@ -405,6 +427,9 @@ const config = defineConfig({
                 test: {
                     name: "scrollbars",
                     globals: true,
+                    // Every vi.spyOn is undone before the next test, even when a test fails before
+                    // its own restore (#6851).
+                    restoreMocks: true,
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.scrollbars.browser.test.{ts,tsx}"],
                     fileParallelism: false,
@@ -423,6 +448,7 @@ const config = defineConfig({
                 optimizeDeps: browserOptimizeDeps,
                 test: {
                     name: "storybook",
+                    restoreMocks: true,
                     // First: frees earlier files' pages, which v8 coverage keeps alive (issue #2247).
                     setupFiles: ["../vitest.browser-coverage-setup.ts", "./tests/setup.browser.ts"],
                     include: ["tests/**/*.storybook.test.{ts,tsx}"],

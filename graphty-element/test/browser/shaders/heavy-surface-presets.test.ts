@@ -36,6 +36,7 @@ import {
 import { GLASS_MARBLE } from "../../../src/shaders/presets/glass-marble/descriptor";
 import { BODY as LANTERN_BODY, LOW_DETAIL as LANTERN_LOW } from "../../../src/shaders/presets/lantern/body";
 import { LANTERN } from "../../../src/shaders/presets/lantern/descriptor";
+import { pixelAt } from "../../helpers/canvas-pixels";
 import { drawnFrames } from "../../helpers/drawn-frames";
 import type { Point } from "../../helpers/real-input";
 
@@ -141,22 +142,6 @@ function drawsReady(element: Graphty, count: number): boolean {
         [...drawing.stats().slots.values()].includes(count) &&
         mesh?.material?.isReady(mesh) === true
     );
-}
-
-/**
- * Read one pixel of the canvas at a point in CSS pixels, after the next frame.
- * @param element - The element.
- * @param point - The point.
- * @returns r, g, b, a.
- */
-async function pixelAt(element: Graphty, point: Point): Promise<[number, number, number, number]> {
-    const { engine } = element.graph;
-    await drawnFrames(element.graph.getScene(), 2);
-    const scale = engine.getRenderWidth() / WIDTH;
-    const x = Math.round(point.x * scale);
-    const y = Math.round(engine.getRenderHeight() - point.y * scale);
-    const read = (await engine.readPixels(x, y, 1, 1)) as unknown as Uint8Array;
-    return [read[0], read[1], read[2], read[3]];
 }
 
 /**

@@ -756,9 +756,17 @@ function channelJsonMain(env) {
 
 function releaseOf(tag) {
     try {
-        return JSON.parse(gh("api", `repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${tag}`));
-    } catch {
-        return null; // 404: none (a draft is not listed here either)
+        return JSON.parse(
+            execFileSync("gh", ["api", `repos/${process.env.GITHUB_REPOSITORY}/releases/tags/${tag}`], {
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "pipe"],
+            }),
+        );
+    } catch (e) {
+        // Only a 404 means none (a draft is not listed here either); a 5xx or rate limit is not "create" (#7275).
+        if (/HTTP 404/.test(String(e.stderr))) return null;
+        process.stderr.write(String(e.stderr ?? ""));
+        throw e;
     }
 }
 

@@ -38,7 +38,7 @@ import {
     toRecords,
     withoutStyleSlots,
 } from "./graph-io-import.js";
-import { type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
+import { readOrRefuse, type SourceData, type SourceInput, toSourceInput } from "./source-bytes.js";
 
 /** What every reader is configured with, whatever its format. */
 export interface BaseDataSourceConfig {
@@ -377,13 +377,20 @@ export interface DeclaredDirection {
  * @param attempt - The zero-based attempt number
  * @param last - Receives the status of a response that came back but was not ok
  * @param last.status - The status of the last response that came back but was not ok
+ * @param last.timeoutMs - The timeout of the last attempt, when it ran out of time
  */
-function checkResponse(response: Response, url: string, attempt: number, last: { status?: number }): void {
+function checkResponse(
+    response: Response,
+    url: string,
+    attempt: number,
+    last: { status?: number; timeoutMs?: number },
+): void {
     if (response.ok) {
         return;
     }
 
     last.status = response.status;
+    delete last.timeoutMs;
     const { status } = response;
     // A client error (404, 401, 403...) will answer the same on every retry,
     // so fail at once and say the same call cannot succeed. 408 and 429 are
@@ -405,11 +412,19 @@ function checkResponse(response: Response, url: string, attempt: number, last: {
  * The coded failure of a fetch whose every attempt failed.
  * @param url - URL fetched from
  * @param retries - The number of attempts made
- * @param status - The status of the last response that came back but was not ok
+ * @param last - The status of the last response that came back but was not ok, and the timeout
+ *     of the last attempt when it ran out of time
+ * @param last.status - The status of the last response that came back but was not ok
+ * @param last.timeoutMs - The timeout of the last attempt, when it ran out of time
  * @param error - What the last attempt threw
  * @returns The error
  */
-function retriesExhausted(url: string, retries: number, status: number | undefined, error: unknown): GraphtyError {
+function retriesExhausted(
+    url: string,
+    retries: number,
+    last: { status?: number; timeoutMs?: number },
+    error: unknown,
+): GraphtyError {
     const errorMsg = error instanceof Error ? error.message : String(error);
     return new GraphtyError({
         code: "E_FETCH_FAILED",
@@ -418,7 +433,7 @@ function retriesExhausted(url: string, retries: number, status: number | undefin
         // A server that was down, a network that dropped: the same call unchanged
         // could succeed later, which is exactly what this flag is for.
         recoverable: true,
-        details: { url, attempts: retries, status },
+        details: { url, attempts: retries, ...last },
         cause: error,
     });
 }
@@ -427,10 +442,13 @@ function retriesExhausted(url: string, retries: number, status: number | undefin
  * The error an attempt stops with: an aborted attempt is reported as its timeout.
  * @param error - What the attempt threw
  * @param timeout - Timeout in milliseconds for the attempt
+ * @param last - Records the timeout when the attempt ran out of time
+ * @param last.timeoutMs - The timeout of the last attempt, when it ran out of time
  * @returns The error to throw
  */
-function attemptError(error: unknown, timeout: number): unknown {
+function attemptError(error: unknown, timeout: number, last: { timeoutMs?: number }): unknown {
     if (error instanceof Error && error.name === "AbortError") {
+        last.timeoutMs = timeout;
         return new Error(`Request timeout after ${timeout}ms`);
     }
 
@@ -484,6 +502,12 @@ export abstract class DataSource {
     nodeSchema: z.core.$ZodObject | null = null;
     protected errorAggregator: ErrorAggregator;
     protected chunkSize: number;
+    /**
+     * Bytes of the file read so far, for load progress: set once the inline data, file or URL
+     * has been read (text counts its UTF-8 bytes). Undefined until then, and for a source that
+     * reads its input some other way.
+     */
+    bytesRead: number | undefined = undefined;
     /** Backing field of {@link declaredDirection}; written only by {@link declareDirection}. */
     private declaration: DeclaredDirection | null = null;
     /** Backing field of {@link declaredTime}; written only by {@link declareTime}. */
@@ -513,31 +537,6 @@ export abstract class DataSource {
     protected abstract getConfig(): BaseDataSourceConfig;
 
     /**
-     * Standardized error message templates
-     * @returns Object containing error message template functions
-     */
-    protected get errorMessages(): {
-        missingInput: () => string;
-        fetchFailed: (url: string, attempts: number, error: string) => string;
-        parseFailed: (error: string) => string;
-        invalidFormat: (reason: string) => string;
-        extractionFailed: (path: string, error: string) => string;
-    } {
-        return {
-            missingInput: () => `${this.type}DataSource requires data, file, or url`,
-
-            fetchFailed: (url: string, attempts: number, error: string) =>
-                `Failed to fetch ${this.type} from ${url} after ${attempts} attempts: ${error}`,
-
-            parseFailed: (error: string) => `Failed to parse ${this.type}: ${error}`,
-
-            invalidFormat: (reason: string) => `Invalid ${this.type} format: ${reason}`,
-
-            extractionFailed: (path: string, error: string) => `Failed to extract data using path '${path}': ${error}`,
-        };
-    }
-
-    /**
      * Fetch with retry logic and timeout
      * Protected method for use by all DataSources
      * @param url - URL to fetch from
@@ -548,13 +547,13 @@ export abstract class DataSource {
     protected async fetchWithRetry(url: string, retries = 3, timeout = 30000): Promise<Response> {
         // Data URLs don't need retries or timeouts
         if (url.startsWith("data:")) {
-            return await fetch(url);
+            return await readOrRefuse(fetch(url), { url });
         }
 
         // The status of the last response that came back but was not ok, so the coded failure can
         // carry it: a consumer that wants to tell "not found" from "forbidden" reads details.status
         // rather than parsing the message.
-        const last: { status?: number } = {};
+        const last: { status?: number; timeoutMs?: number } = {};
 
         for (let attempt = 0; attempt < retries; attempt++) {
             try {
@@ -571,7 +570,7 @@ export abstract class DataSource {
                     return response;
                 } catch (error) {
                     clearTimeout(timeoutId);
-                    throw attemptError(error, timeout);
+                    throw attemptError(error, timeout, last);
                 }
             } catch (error) {
                 if (error instanceof GraphtyError) {
@@ -581,7 +580,7 @@ export abstract class DataSource {
                 const isLastAttempt = attempt === retries - 1;
 
                 if (isLastAttempt) {
-                    throw retriesExhausted(url, retries, last.status, error);
+                    throw retriesExhausted(url, retries, last, error);
                 }
 
                 // Exponential backoff: wait 1s, 2s, 4s...
@@ -654,6 +653,16 @@ export abstract class DataSource {
      * @throws An `Error` naming the reader when the configuration has no data, file or URL.
      */
     protected async getInput(): Promise<SourceInput> {
+        const input = await this.readInput();
+        this.bytesRead = typeof input === "string" ? new Blob([input]).size : input.byteLength;
+        return input;
+    }
+
+    /**
+     * The source's contents, read from inline data, a file or a URL.
+     * @returns The text or the bytes.
+     */
+    private async readInput(): Promise<SourceInput> {
         const config = this.getConfig();
 
         if (config.data !== undefined) {
@@ -661,15 +670,21 @@ export abstract class DataSource {
         }
 
         if (config.file) {
-            return new Uint8Array(await config.file.arrayBuffer());
+            const { file } = config;
+            return new Uint8Array(await readOrRefuse(file.arrayBuffer(), { file: file.name }));
         }
 
         if (config.url) {
             const response = await this.fetchWithRetry(config.url);
-            return new Uint8Array(await response.arrayBuffer());
+            return new Uint8Array(await readOrRefuse(response.arrayBuffer(), { url: config.url }));
         }
 
-        throw new Error(this.errorMessages.missingInput());
+        throw new GraphtyError({
+            code: "E_OPTION_RANGE",
+            source: "data",
+            message: `${this.type}DataSource requires data, file, or url`,
+            details: { option: "data|file|url", format: this.type },
+        });
     }
 
     /**

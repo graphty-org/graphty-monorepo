@@ -1,6 +1,7 @@
 import { type RefObject, useEffect, useRef, useState } from "react";
 
 import { acceptsFile } from "./pickFiles";
+import { readDrop } from "./readDrop";
 
 /** Options for `useFileDrop`. */
 export interface UseFileDropOptions {
@@ -10,6 +11,12 @@ export interface UseFileDropOptions {
     single?: boolean;
     /** Whether dropping is off. The browser then handles a drop as it would without the hook. */
     disabled?: boolean;
+    /**
+     * Whether a dropped folder is taken: every file under it, unfiltered by `accept` (as the
+     * folder picker gives them), with each file's path handed to `onFiles` as its second argument.
+     * @default false (a folder is not a file, so a drop of only folders hands over nothing)
+     */
+    folders?: boolean;
 }
 
 /** What `useFileDrop` reports. */
@@ -34,7 +41,8 @@ function carriesFiles(event: DragEvent): boolean {
  * (`preventDefault`) and every outer hook, including a `"window"` one, leaves a handled drop alone.
  * A drop with no accepted file still stops the browser from opening the file in the tab.
  * @param target - the element that takes the drop, or `"window"` for the whole page.
- * @param onFiles - called with the accepted files of each drop (never empty).
+ * @param onFiles - called with the accepted files of each drop (never empty), and with `folders`,
+ *   each file by its path when a folder was dropped.
  * @param options - which files, and whether dropping is off.
  * @returns whether files are being dragged over the target.
  * @example
@@ -46,13 +54,13 @@ function carriesFiles(event: DragEvent): boolean {
  */
 export function useFileDrop(
     target: RefObject<HTMLElement | null> | "window",
-    onFiles: (files: File[]) => void,
+    onFiles: (files: File[], paths?: ReadonlyMap<string, File>) => void,
     options: UseFileDropOptions = {},
 ): FileDropState {
-    const { accept, single = false, disabled = false } = options;
+    const { accept, single = false, disabled = false, folders = false } = options;
     const [over, setOver] = useState(false);
-    const latest = useRef({ onFiles, accept, single });
-    latest.current = { onFiles, accept, single };
+    const latest = useRef({ onFiles, accept, single, folders });
+    latest.current = { onFiles, accept, single, folders };
 
     useEffect(() => {
         const node: HTMLElement | Window | null = target === "window" ? globalThis.window : target.current;
@@ -96,7 +104,18 @@ export function useFileDrop(
                 return;
             }
             event.preventDefault();
-            const { onFiles: take, accept: wanted, single: one } = latest.current;
+            const { onFiles: take, accept: wanted, single: one, folders: walks } = latest.current;
+            if (walks && event.dataTransfer !== null) {
+                // Read during the drop: the browser empties the transfer after.
+                void readDrop(event.dataTransfer).then(({ files, paths }) => {
+                    const taken = paths === undefined ? files.filter((file) => acceptsFile(file, wanted)) : files;
+                    if (taken.length > 0) {
+                        // A folder is one choice: all of it is taken.
+                        take(one && paths === undefined ? taken.slice(0, 1) : taken, paths);
+                    }
+                });
+                return;
+            }
             const files = [...(event.dataTransfer?.files ?? [])].filter((file) => acceptsFile(file, wanted));
             if (files.length > 0) {
                 take(one ? files.slice(0, 1) : files);

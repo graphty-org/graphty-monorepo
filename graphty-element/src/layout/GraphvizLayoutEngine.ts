@@ -31,6 +31,7 @@ import { graphvizStructure } from "./graphviz/structure";
 import { type DotStructure, POINTS_PER_UNIT, toDot } from "./graphviz/toDot";
 import { type GroupMargins, laidGroupMargins } from "./groupMargins";
 import type { EdgePosition } from "./LayoutEngine";
+import { seedSchema } from "./seedOption";
 import { SnapshotLayoutEngine, type SnapshotLayoutInput } from "./SnapshotLayoutEngine";
 
 /**
@@ -104,7 +105,7 @@ const DOT_OPTIONS: OptionsSchema = {
 /** The options of the force engines. */
 const FORCE_OPTIONS: OptionsSchema = {
     seed: {
-        schema: z.number().int().nonnegative().optional(),
+        schema: seedSchema,
         meta: { label: "Seed", description: "The start seed; the same seed gives the same drawing" },
     },
     overlap: {

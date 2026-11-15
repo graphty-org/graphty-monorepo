@@ -14,10 +14,13 @@
 
 2. **VR/AR availability UI**:
     - Button(s) in bottom-left corner by default
-    - If XR not available: display "VR / AR NOT AVAILABLE" message briefly (5 seconds)
+    - If XR not available: display a "not available" message briefly (5 seconds)
     - If available: display separate VR and AR buttons
     - Clicking button enters corresponding XR mode
     - Button style and location must be configurable/disableable
+    - Every word drawn is configuration (`xr.ui.vrLabel`, `arLabel`, `unavailableLabel`), so a consumer
+      can translate or reword it; the English text is only the default. Availability itself is a
+      fact (`isVRSupported()`, `isARSupported()`), for a consumer that draws its own UI
 
 3. **XR camera behavior**:
     - Should behave similarly to Orbit camera (zoom, rotate, pan capabilities)

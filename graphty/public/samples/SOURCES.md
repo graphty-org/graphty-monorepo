@@ -6,9 +6,6 @@ byte-for-byte copies of the graphty-element test corpus
 (`graphty-element/test/helpers/corpus/gml/`), not retyped or reformatted; the source and
 license fields below are copied from that corpus's `manifest.json`.
 
-The third sample the Welcome state offers, the cat social network, needs no file here:
-it is bundled in `graphty/src/data/sampleGraphs.ts` and loads inline.
-
 ## karate.gml
 
 - Nodes: 34

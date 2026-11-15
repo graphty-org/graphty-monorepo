@@ -731,6 +731,41 @@ describe("fromCsr: validation levels and flag claims", () => {
         expect(count.details.invariant).toBe("I6");
     });
 
+    it("rejects a rowPtr ending past colIdx (I1) before walking the rows", () => {
+        const err = thrown(() =>
+            fromCsr({
+                directed: true,
+                nodeCount: 1,
+                rowPtr: new Uint32Array([0, 0xffffffff]),
+                colIdx: new Uint32Array(0),
+            }),
+        );
+        expect(err.code).toBe("E_INVALID_SNAPSHOT");
+        expect(err.details).toMatchObject({ invariant: "I1", found: 0xffffffff, expected: 0 });
+    });
+
+    it("rejects an edgeCount above the arc count (I3) before allocating by it, at every level", () => {
+        const input = csrOf(spec);
+        for (const validate of ["none", "structure", "full"] as const) {
+            const err = thrown(() => fromCsr({ ...input, edgeToArc: undefined, edgeCount: 2 ** 40 }, { validate }));
+            expect(err.code).toBe("E_INVALID_SNAPSHOT");
+            expect(err.details).toMatchObject({ invariant: "I3", edgeCount: 2 ** 40 });
+        }
+    });
+
+    it("rejects an undirected arcToEdge holding INVALID_INDEX (I5) instead of deriving a huge edgeCount", () => {
+        const input = csrOf(spec);
+        const arcToEdge = (input.arcToEdge as U32).slice();
+        arcToEdge[0] = INVALID_INDEX;
+        for (const validate of ["none", "structure", "full"] as const) {
+            const err = thrown(() =>
+                fromCsr({ ...input, arcToEdge, edgeToArc: undefined, edgeCount: undefined }, { validate }),
+            );
+            expect(err.code).toBe("E_INVALID_SNAPSHOT");
+            expect(err.details).toMatchObject({ invariant: "I5", array: "arcToEdge", found: INVALID_INDEX });
+        }
+    });
+
     it("rejects a wrong undirected arc count (I7) and a missing undirected arcToEdge (I5)", () => {
         const input = csrOf(spec);
         const count = thrown(() =>

@@ -2,6 +2,7 @@ import {
     type Column,
     type ColumnHandle,
     type DerivedGraph,
+    edgeIsDirected,
     type FreezeReport,
     GraphBuilder,
     type GraphSnapshot,
@@ -17,12 +18,14 @@ import type { DirectionProvenance } from "../session/types";
 import {
     completeLoad,
     createEdgeCounter,
+    DEFERRED_HASH_COLUMN,
     EDGE_ID_COLUMN,
     type EdgeCounter,
     IDENTITY_COLUMNS,
     type IdentityGraph,
     PAIRS_ORDERED_ATTRIBUTE,
     sessionEdgeHash,
+    withNodeHashes,
 } from "./edgeIdentity";
 import { ElementPositions, isStorableCoordinate, POSITION_COMPONENTS } from "./positions";
 
@@ -116,6 +119,17 @@ const PINNED_COLUMN = "graphty.pinned";
 export const CAPACITY_COLUMN = "graphty.capacity";
 
 /**
+ * The edge column holding an edge's own direction, read from its record at ingest by
+ * `resolveEdgeDirected`, with graph-format's role `"directed"`: a set cell overrides the graph's
+ * direction for that edge, an unset one takes it. Declared the first time an edge states one, so a
+ * graph whose edges never do carries no such column.
+ */
+export const EDGE_DIRECTED_COLUMN = "graphty.edgeDirected";
+
+/** What the tests read: how many undirected views the stores have derived (one per snapshot at most). */
+export const storeCounters = { undirectedDerivations: 0 };
+
+/**
  * A freeze already committed to the store whose consumer callbacks have not all returned yet.
  *
  * `stage` is the NEXT callback to deliver, so a retry after a consumer threw resumes there instead
@@ -163,10 +177,14 @@ function identityIn(snapshot: GraphSnapshot, edgeId: number): EdgeIdentityCells 
         ? undefined
         : identityOf(
               new Map(
-                  [IDENTITY_COLUMNS.edgeHash, IDENTITY_COLUMNS.edgeOrdinal, IDENTITY_COLUMNS.edgeAmong].map((name) => [
-                      name,
-                      snapshot.edges.value(name, row),
-                  ]),
+                  [
+                      IDENTITY_COLUMNS.edgeHash,
+                      IDENTITY_COLUMNS.edgeOrdinal,
+                      IDENTITY_COLUMNS.edgeAmong,
+                      DEFERRED_HASH_COLUMN,
+                  ]
+                      .filter((name) => snapshot.edges.has(name))
+                      .map((name) => [name, snapshot.edges.value(name, row)]),
               ),
           );
 }
@@ -177,8 +195,11 @@ function identityIn(snapshot: GraphSnapshot, edgeId: number): EdgeIdentityCells 
  * @returns The cells, or undefined when it has no hash yet.
  */
 function identityOf(values: RowValues): EdgeIdentityCells | undefined {
+    // A session edge whose hash was deferred (renderPath "batched") is completed again, from its
+    // counter, like a new one. Unset reads undefined from a row's values and null from a snapshot.
+    const deferred = values.get(DEFERRED_HASH_COLUMN);
     const hash = values.get(IDENTITY_COLUMNS.edgeHash) as readonly number[] | undefined;
-    if (hash === undefined) {
+    if (hash === undefined || (deferred !== undefined && deferred !== null)) {
         return undefined;
     }
 
@@ -541,6 +562,16 @@ export class GraphStore {
     private nodeMark = 0;
     /** Edges ingested outside a load and not yet completed: row, counter, file id. */
     private sessionEdges: { row: number; counter: number; fileId: string | number | undefined }[] = [];
+    /**
+     * Whether a session edge was left uncompleted since the last completion pass (renderPath
+     * "batched", see {@link GraphStore.recordIngestedEdge}): the pass still latches for it, as it
+     * would had it hashed the edge.
+     */
+    private mintedDeferred = false;
+    /** The {@link DEFERRED_HASH_COLUMN} handle and the builder it belongs to, declared on first use. */
+    private deferredHash: { builder: GraphBuilder; handle: ColumnHandle } | null = null;
+    /** The {@link EDGE_DIRECTED_COLUMN} handle and the builder it belongs to, declared on first use. */
+    private edgeDirection: { builder: GraphBuilder; handle: ColumnHandle } | null = null;
     /** Rows of the open load, in ingest order, remapped by every compacting freeze. */
     private loadRows = new Uint32Array(64);
     private loadLength = 0;
@@ -931,15 +962,40 @@ export class GraphStore {
     }
 
     /**
+     * Whether an edge may be given back an id the element assigned before: one the counter has
+     * handed out, that no live edge holds now.
+     * @param edgeId - the counter
+     * @returns true when it may
+     */
+    mayReuseEdgeId(edgeId: number): boolean {
+        return (
+            Number.isSafeInteger(edgeId) &&
+            edgeId >= 0 &&
+            edgeId < this.counter.next &&
+            this.edgeIndexOf(edgeId) === INVALID_INDEX
+        );
+    }
+
+    /**
      * Record an ingested edge for the completion pass. `ingestEdge` calls this for every edge it
      * stamps; an edge added to the builder directly (a test fixture) gets no identity values.
      * @param row - the edge row
      * @param counter - the counter stamped into its `graphty.edgeId` cell
      * @param fileId - the file id read at the configured `edgeIdPath`, if any
+     * @param deferMinted - true (renderPath "batched") to leave a session edge with no file id
+     *   uncompleted: its ordinal and among already read -1, and it is marked in
+     *   `DEFERRED_HASH_COLUMN` so `identityColumnsOf` computes its hash from the counter on first
+     *   read, and a freeze hashes no minted id
      */
-    recordIngestedEdge(row: number, counter: number, fileId?: string | number): void {
+    recordIngestedEdge(row: number, counter: number, fileId?: string | number, deferMinted = false): void {
         if (this.loadDepth === 0) {
-            this.sessionEdges.push({ row, counter, fileId });
+            if (deferMinted && fileId === undefined) {
+                this.mintedDeferred = true;
+                this.current.setEdgeValue(this.deferredHashHandle(), row, 1);
+            } else {
+                this.sessionEdges.push({ row, counter, fileId });
+            }
+
             return;
         }
 
@@ -1378,6 +1434,10 @@ export class GraphStore {
             builder.removeEdge(row);
         }
 
+        if (nodeRowList.length > 0) {
+            // Rows added row-numbered (no id map) keep their ids through the freeze that compacts them.
+            builder.keepIds();
+        }
         for (const row of nodeRowList) {
             builder.removeNodeByIndex(row);
         }
@@ -1704,6 +1764,7 @@ export class GraphStore {
 
         for (const node of nodes) {
             if (builder.hasNode(node.id)) {
+                builder.keepIds();
                 builder.removeNode(node.id);
             }
         }
@@ -1839,6 +1900,10 @@ export class GraphStore {
     ): GraphBuilder {
         const builder = this.createBuilder(directed ?? base?.directed ?? this.emptyDirected());
         this.current = builder;
+        if (base?.edges.has(EDGE_DIRECTED_COLUMN) === true) {
+            // Declared before the base's cells are copied by name, so the column keeps its role.
+            this.edgeDirectedHandle();
+        }
         if (replace !== null) {
             // A graph put back keeps the latch its edge hashes were made under; an emptied one
             // latches afresh, as a new dataset does.
@@ -1936,7 +2001,9 @@ export class GraphStore {
      */
     private writeEdge(index: number, edgeId: number, values: RowValues): void {
         for (const [name, value] of values) {
-            this.current.setEdgeValue(name, index, value);
+            // By handle, so a builder that has not declared the direction column yet declares it
+            // with its role rather than inferring a plain bool from the name.
+            this.current.setEdgeValue(name === EDGE_DIRECTED_COLUMN ? this.edgeDirectedHandle() : name, index, value);
         }
 
         this.stampEdgeId(index, edgeId);
@@ -1974,6 +2041,7 @@ export class GraphStore {
         this.requireAlive("undirected");
         let derived = this.undirectedCache.get(s);
         if (derived === undefined) {
+            storeCounters.undirectedDerivations++;
             derived = s.directed
                 ? s.toUndirected()
                 : {
@@ -2210,6 +2278,81 @@ export class GraphStore {
     }
 
     /**
+     * Complete the session edges when they are every live edge in the store (a graph added
+     * through a door rather than a load): the three columns are written whole, as typed arrays,
+     * as a covering load's are, instead of three checked cell writes per edge.
+     * @param graph - where endpoints and ids are read
+     * @param ordered - whether pairs are ordered
+     * @param completingLoad - whether a load's edges are being completed too
+     * @returns false, writing nothing, when a load or another edge is live beside them
+     */
+    private writeSessionColumnsWhole(graph: IdentityGraph, ordered: boolean, completingLoad: boolean): boolean {
+        if (completingLoad) {
+            return false;
+        }
+
+        const builder = this.current;
+        let live = 0;
+        for (const { row } of this.sessionEdges) {
+            if (builder.hasEdge(row)) {
+                live++;
+            }
+        }
+
+        if (live !== builder.edgeCount) {
+            return false;
+        }
+
+        const bound = builder.edgeBound;
+        const hashes = new Uint32Array(2 * bound);
+        const minusOnes = new Int32Array(bound).fill(-1);
+        const ends = withNodeHashes(graph, builder.nodeBound);
+        for (const { row, counter, fileId } of this.sessionEdges) {
+            if (builder.hasEdge(row)) {
+                const { a, b } = sessionEdgeHash(ends, row, counter, fileId, ordered);
+                hashes[2 * row] = a;
+                hashes[2 * row + 1] = b;
+            }
+        }
+
+        this.sessionEdges = [];
+        builder.setEdgeColumn(IDENTITY_COLUMNS.edgeHash, hashes, { dtype: "u32", components: 2 });
+        builder.setEdgeColumn(IDENTITY_COLUMNS.edgeOrdinal, minusOnes, { dtype: "i32", default: -1 });
+        builder.setEdgeColumn(IDENTITY_COLUMNS.edgeAmong, minusOnes.slice(), { dtype: "i32", default: -1 });
+        return true;
+    }
+
+    /**
+     * The current builder's {@link DEFERRED_HASH_COLUMN}, declared the first time it is needed.
+     * @returns the handle
+     */
+    private deferredHashHandle(): ColumnHandle {
+        const builder = this.current;
+        if (this.deferredHash?.builder !== builder) {
+            // A rebuild copies the column by name, which declares it inferred: reuse it as it is.
+            const known = builder.edgeColumn(DEFERRED_HASH_COLUMN);
+            const handle =
+                known === INVALID_INDEX
+                    ? builder.declareEdgeColumn({ name: DEFERRED_HASH_COLUMN, dtype: "u8" })
+                    : known;
+            this.deferredHash = { builder, handle };
+        }
+
+        return this.deferredHash.handle;
+    }
+
+    /**
+     * Latch the pair order for the session edges left uncompleted since the last pass, as the pass
+     * would had it hashed them.
+     */
+    private latchForDeferred(): void {
+        if (this.mintedDeferred) {
+            this.mintedDeferred = false;
+            this.latchPairsOrdered();
+        }
+    }
+
+    /**
      * The completion pass (design 12.2, 12.3): hash new nodes, complete session edges, and, when
      * no load is open, complete the load's edges -- ordinal and among per pair over the load's
      * surviving edges, and the edge hash, in one sorted pass.
@@ -2218,6 +2361,7 @@ export class GraphStore {
         const builder = this.current;
         const bulkNodes = this.hashNewNodes();
 
+        this.latchForDeferred();
         const completingLoad = this.loadDepth === 0 && this.loadLength > 0;
         if (this.sessionEdges.length === 0 && !completingLoad) {
             return;
@@ -2232,6 +2376,10 @@ export class GraphStore {
         };
         const ordered = this.latchPairsOrdered();
         const noSessionEdges = this.sessionEdges.length === 0;
+        if (this.writeSessionColumnsWhole(graph, ordered, completingLoad)) {
+            return;
+        }
+
         for (const { row, counter, fileId } of this.sessionEdges) {
             if (builder.hasEdge(row)) {
                 builder.setEdgeValue(this.edgeOrdinalColumn, row, -1);
@@ -2390,6 +2538,51 @@ export class GraphStore {
      */
     get directed(): boolean {
         return this.current.directed;
+    }
+
+    /**
+     * Whether one edge is directed: its own direction when its record stated one, the graph's
+     * otherwise. Cheap while no edge has stated a direction, which is every graph but a mixed one.
+     * @param row - The edge's row in the snapshot.
+     * @returns true when the edge is directed
+     */
+    edgeDirected(row: number): boolean {
+        if (this.current.edgeColumn(EDGE_DIRECTED_COLUMN) === INVALID_INDEX) {
+            return this.current.directed;
+        }
+
+        return edgeIsDirected(this.getSnapshot(), row);
+    }
+
+    /**
+     * Write one edge's own direction, or unset it so the edge takes the graph's.
+     * @param row - The edge's builder row.
+     * @param directed - The direction its record states, or undefined for none.
+     */
+    writeEdgeDirected(row: number, directed: boolean | undefined): void {
+        if (directed === undefined && this.current.edgeColumn(EDGE_DIRECTED_COLUMN) === INVALID_INDEX) {
+            return;
+        }
+
+        this.current.setEdgeValue(this.edgeDirectedHandle(), row, directed ?? null);
+    }
+
+    /**
+     * The current builder's {@link EDGE_DIRECTED_COLUMN}, declared the first time it is needed.
+     * @returns the handle
+     */
+    private edgeDirectedHandle(): ColumnHandle {
+        const builder = this.current;
+        if (this.edgeDirection?.builder !== builder) {
+            const known = builder.edgeColumn(EDGE_DIRECTED_COLUMN);
+            const handle =
+                known === INVALID_INDEX
+                    ? builder.declareEdgeColumn({ name: EDGE_DIRECTED_COLUMN, dtype: "bool", role: "directed" })
+                    : known;
+            this.edgeDirection = { builder, handle };
+        }
+
+        return this.edgeDirection.handle;
     }
 
     /**

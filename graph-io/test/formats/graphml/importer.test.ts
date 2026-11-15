@@ -394,7 +394,9 @@ describe("graphmlImporter keys and data", () => {
         expect(snapshot.nodes.require("x").meta.dtype).toBe("string");
         expect(snapshot.nodes.require("x").meta.origin?.type).toBe("date");
         expect(column(snapshot, "nodes", "x")).toEqual(["2024-01-01"]);
-        expect(report.errorCount).toBe(2);
+        // the undeclared key's value is kept as text under the key id
+        expect(column(snapshot, "nodes", "nope")).toEqual(["1"]);
+        expect(report.errorCount).toBe(1);
     });
 
     it("reports keys without an id, duplicate keys, invalid and unsupported domains", async () => {
@@ -543,8 +545,8 @@ describe("graphmlImporter keys and data", () => {
     it("says where a misplaced GraphML element belongs instead of calling it foreign", async () => {
         const message = async (body: string): Promise<string | undefined> =>
             (await load(doc(body))).report.issues.find((i) => i.code === GRAPHML_ISSUE.UNKNOWN_ELEMENT)?.message;
-        expect(await message(`<key id="k" for="node" attr.name="k"/><node id="a"/>`)).toBe(
-            "element <key> is only allowed as a child of <graphml>, before the first <graph>; it was skipped",
+        expect(await message(`<node id="a"><key id="k" for="node" attr.name="k"/></node>`)).toBe(
+            "element <key> is only allowed as a child of <graphml> or <graph>; it was skipped",
         );
         expect(await message(`<node id="a"><bogus/></node>`)).toBe("element <bogus> is not GraphML and was skipped");
     });
@@ -618,20 +620,20 @@ describe("graphmlImporter ids and endpoints", () => {
         expect(codes(report)).toEqual([GRAPHML_ISSUE.DUPLICATE_NODE]);
     });
 
-    it("reports edges without a target, with a bad directed flag, or a duplicate id, and skips them", async () => {
+    it("reports edges without a target or with a duplicate id and skips them; a bad directed flag keeps its edge", async () => {
         const body = `<node id="a"/><node id="b"/>
 <edge source="a"/>
 <edge source="a" target="b" directed="maybe"/>
 <edge id="e" source="a" target="b"/>
 <edge id="e" source="b" target="a"/>`;
         const { snapshot, report } = await load(doc(body));
-        expect(snapshot.edgeCount).toBe(1);
+        expect(snapshot.edgeCount).toBe(2);
         expect(codes(report)).toEqual([
             GRAPHML_ISSUE.MISSING_ENDPOINT,
             GRAPHML_ISSUE.INVALID_DIRECTED,
             "E_DUPLICATE_EDGE_ID",
         ]);
-        expect(report.counts).toMatchObject({ edges: 1, skippedEdges: 3 });
+        expect(report.counts).toMatchObject({ edges: 2, skippedEdges: 2 });
         expect(report.issues[2]).toMatchObject({ element: "e", line: 8 });
     });
 

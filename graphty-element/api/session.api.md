@@ -5612,6 +5612,15 @@ export interface RunScopeRecord {
     readonly dataDigest?: string;
     readonly digest: string;
     readonly edges: number;
+    readonly live?: {
+        readonly visible?: {
+            readonly filter: RuleTree | null;
+            readonly conditions: readonly FilterCondition[];
+            readonly window: TimeWindow | null;
+            readonly windowRaw?: true;
+        };
+        readonly selection?: readonly NodeId[];
+    };
     readonly nodes: number;
     readonly reading?: EdgeReading;
     readonly set?: {

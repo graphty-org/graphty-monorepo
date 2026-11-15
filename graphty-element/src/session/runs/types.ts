@@ -20,10 +20,13 @@ import type {
     AlgorithmKey,
     EdgeReading,
     FieldDescriptor,
+    FilterCondition,
     LayerId,
+    NodeId,
     OptionDescriptor,
     PaletteId,
     ResultShape,
+    RuleTree,
     RunId,
     Scope,
     ScopeInput,
@@ -36,6 +39,7 @@ import type { ResultSummary, RunResult } from "../results/types";
 import type { ResolvedScope } from "../scope/ScopeApi";
 import type { CodedFact, CodedFactParam } from "../shared";
 import type { StyleSuggestion } from "../styles/derive";
+import type { TimeWindow } from "../visibility/filter";
 import type { CaveatCode, PartialCode } from "./caveatFacts";
 
 // ---------------------------------------------------------------------------------------------
@@ -385,10 +389,30 @@ export interface RunScopeRecord {
      * @beta
      */
     readonly window?: RunWindow | null;
+    /**
+     * What the live keywords in the scope stood for when it resolved, so the same scope can be
+     * resolved again later (a project open computes a saved run again under it). Absent for a
+     * scope that names neither `"visible"` nor `"selection"`.
+     */
+    readonly live?: {
+        /** For `"visible"`: the filter, its conditions and the time window in force. */
+        readonly visible?: {
+            readonly filter: RuleTree | null;
+            readonly conditions: readonly FilterCondition[];
+            readonly window: TimeWindow | null;
+            /** Whether the window's bounds are values compared as they stand rather than instants. */
+            readonly windowRaw?: true;
+        };
+        /** For `"selection"`: the selected node ids, sorted. */
+        readonly selection?: readonly NodeId[];
+    };
 }
 
+/** What a scope's live keywords stood for when a run resolved it. */
+export type RunLiveScope = NonNullable<RunScopeRecord["live"]>;
+
 /** What a run records about the set its scope named, beside the resolution. */
-export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "dataDigest" | "window">;
+export type RunScopeFacts = Pick<RunScopeRecord, "set" | "reading" | "dataDigest" | "window" | "live">;
 
 /** Which versions of which packages produced a result. */
 export interface EngineVersions {

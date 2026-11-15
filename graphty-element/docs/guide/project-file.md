@@ -5,7 +5,9 @@ every node stands, each finished algorithm run, the style layers, the filter, th
 kept sets, the notes, the saved camera views and the selection. Save one, send it to a colleague,
 and open it later to pick up where you left off. A run is saved as the algorithm and options that
 started it, not as its result: opening the file computes it again. Pass a `seed` to a randomized
-algorithm (community detection, for one) when a reopened project must give the same answer.
+algorithm (community detection, for one) when a reopened project must give the same answer. A run
+over the visible graph or the selection is computed again under the filter, time window or
+selection it ran under, even when the project's own changed after it.
 
 A project file is a [graphty document](#the-file) named `<name>.graphty.json`, the same kind of
 file graphty-element already writes for styles and notes.

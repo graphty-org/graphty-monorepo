@@ -50,6 +50,7 @@ import { loadLineOf } from "./loadLine";
 import { projectBoundary } from "./project/boundary";
 import type { Dispatcher, TransactionOptions } from "./project/Dispatcher";
 import { ENGINE_VERSIONS } from "./runs";
+import type { RunLiveScope } from "./runs/types";
 import { edgeSpaceOf } from "./scope/spaces";
 import type { CodedFact } from "./shared";
 import { SOURCE_RECORD_MEMBER, sourceLoadsOf, SOURCES_MEMBER_VERSION } from "./sources/ids";
@@ -989,6 +990,8 @@ export function runEntry(sources: ProjectSources, id: RunId): Record<string, unk
         id,
         derived: sources.isDerived(id),
         ...command,
+        // What "visible" or "selection" stood for when it ran, so an open computes it under the same.
+        ...(entry.record.scope.live === undefined ? {} : { live: entry.record.scope.live }),
         // The reader's own name (`runs.rename`); a run without one writes no key.
         ...(entry.name === undefined ? {} : { name: entry.name }),
     };
@@ -1999,14 +2002,15 @@ async function readProject(
 
     await restoreHidden(opening, state.visibility, nodeIds);
 
-    // Before the runs: a run over the selection reads it. The selection is not project state.
+    // Before the runs: a run saved without its live scope reads the selection. The selection is
+    // not project state.
     const view = doc.members.get("graphty-view-state")?.[0]?.selection as
         { nodes?: NodeId[]; edges?: number[] } | undefined;
-    if (view !== undefined) {
+    const restoreSelection = async (): Promise<void> => {
         try {
             await tx.selection.apply({
-                nodes: (view.nodes ?? []).filter((node) => nodeIds.has(node)),
-                edges: (view.edges ?? []).flatMap((at) => edgeIds[at] ?? []),
+                nodes: (view?.nodes ?? []).filter((node) => nodeIds.has(node)),
+                edges: (view?.edges ?? []).flatMap((at) => edgeIds[at] ?? []),
             });
         } catch (error) {
             problems.push({
@@ -2014,6 +2018,9 @@ async function readProject(
                 params: { kind: "graphty-view-state" },
             });
         }
+    };
+    if (view !== undefined) {
+        await restoreSelection();
     }
 
     // Sets before the runs, so a run over a set finds it. A set is minted a new id when the session
@@ -2038,20 +2045,39 @@ async function readProject(
         }
     });
 
-    // The filter and window before the runs: a run over the visible graph is computed again on open,
-    // so it must read the filter it was saved under. A filter that needs what only the runs bring
-    // back (a set that reads a result) is tried again after them.
+    // The filter and window before the runs, for a run saved without its live scope. Each run
+    // saved with one is computed under the filter or selection it ran under, and the project's own
+    // are restored after them all, where a failure is reported.
     const visibility = state.visibility as Record<string, unknown> | undefined;
-    const restoreFilter = (): Promise<void> => readFilter(opening, visibility, remap);
-    const filterBack = await restoreFilter().then(
-        () => true,
-        // Tried again after the runs, where a failure is reported.
-        () => false,
-    );
+    // Its problems are reported by that restore, so this try keeps none.
+    await readFilter({ ...opening, problems: [] }, visibility ?? {}, remap).catch(() => undefined);
+
+    let selectionMoved = false;
+    const underLive = async (run: SavedRun): Promise<void> => {
+        const { live, id } = run;
+        try {
+            if (live?.visible !== undefined) {
+                const conditions = { version: CONDITIONS_VERSION, list: live.visible.conditions };
+                await readFilter(opening, { ...live.visible, conditions }, remap);
+            }
+
+            if (live?.selection !== undefined) {
+                selectionMoved = true;
+                await tx.selection.apply({ nodes: live.selection.filter((node) => nodeIds.has(node)), edges: [] });
+            }
+        } catch (error) {
+            // The run is still computed, under what is in force, and the reader is told.
+            problems.push({ code: isGraphtyError(error) ? error.code : "E_INTERNAL", params: { slice: "runs", id } });
+        }
+    };
 
     const results = first("graphty-results");
     for (const run of (results.runs ?? []) as SavedRun[]) {
-        await attempt(opening, "runs", () => readRun(opening, run, remap), run.id);
+        await attempt(opening, "runs", () => readRun(opening, run, remap, underLive), run.id);
+    }
+
+    if (selectionMoved) {
+        await restoreSelection();
     }
 
     // After the runs, whose results a computed column may read; before what may read it.
@@ -2072,7 +2098,7 @@ async function readProject(
     // The collapses, made again once the runs they group by are back, inside the open's own step.
     await readGroups(opening, state.groups);
 
-    await readPlayback(opening, visibility, filterBack, restoreFilter);
+    await readPlayback(opening, visibility, () => readFilter(opening, visibility ?? {}, remap));
 
     await addStylesAndNotes(opening, doc.members, remap, name);
 
@@ -2128,61 +2154,53 @@ async function readGroups(opening: Opening, saved: unknown): Promise<void> {
 }
 
 /**
- * Restore a `graphty-session` member's filter, time window and filter conditions. An open runs it
- * before the saved runs, which read the visible graph, and again after them when it failed.
+ * Put in force the filter, time window and filter conditions a `graphty-session` member's
+ * `visibility` (or a saved run's live scope) holds, clearing each it does not hold.
  * @param opening - The open.
- * @param visibility - The member's `visibility`, or undefined for none.
+ * @param visibility - The member's `visibility`.
  * @param remap - Rewrites the set ids a rule names to the ones this session gave.
  */
 async function readFilter(
     opening: Opening,
-    visibility: Record<string, unknown> | undefined,
+    visibility: Readonly<Record<string, unknown>>,
     remap: <T>(value: T) => T,
 ): Promise<void> {
-    if (visibility === undefined) {
-        return;
-    }
-
-    const { tx } = opening;
-    if (visibility.filter !== null && visibility.filter !== undefined) {
-        await tx.visibility.set(remap(visibility.filter) as never);
+    const shown = opening.tx.visibility as SessionVisibilityApi;
+    const filter = visibility.filter ?? null;
+    if (filter !== null || shown.filter !== null) {
+        await shown.set(remap(filter) as never);
     }
 
     if (visibility.window !== null && visibility.window !== undefined) {
-        await (tx.visibility as SessionVisibilityApi).restoreWindow(
-            visibility.window as TimeWindow,
-            visibility.windowRaw === true,
-        );
+        await shown.restoreWindow(visibility.window as TimeWindow, visibility.windowRaw === true);
+    } else if (shown.window !== null) {
+        await shown.setWindow(null);
     }
 
     await readFilterConditions(opening, visibility, remap);
 }
 
 /**
- * Finish a `graphty-session` member's `visibility` after the runs: the filter again when the first
- * try failed, then the playback and context, read on their own so a filter that cannot be read
- * never loses them.
+ * Finish a `graphty-session` member's `visibility` after the runs: the project's own filter, which
+ * the runs may have moved, then the playback and context, read on their own so a filter that
+ * cannot be read never loses them.
  * @param opening - The open.
  * @param visibility - The member's `visibility`, or undefined for none.
- * @param filterBack - Whether the filter is already back.
- * @param retryFilter - Restores the filter.
+ * @param restoreFilter - Restores the filter, or clears it for none.
  */
 async function readPlayback(
     opening: Opening,
     visibility: Record<string, unknown> | undefined,
-    filterBack: boolean,
-    retryFilter: () => Promise<void>,
+    restoreFilter: () => Promise<void>,
 ): Promise<void> {
     if (visibility === undefined) {
+        // Cleared, should a run have put its own in force.
+        await restoreFilter();
         return;
     }
 
     const { tx } = opening;
-    if (filterBack) {
-        opening.restored.add("visibility");
-    } else {
-        await attempt(opening, "visibility", retryFilter);
-    }
+    await attempt(opening, "visibility", restoreFilter);
 
     await attempt(opening, "visibility", async () => {
         if (typeof visibility.playback === "object" && visibility.playback !== null) {
@@ -2225,6 +2243,8 @@ async function readFilterConditions(
         await (tx.visibility as SessionVisibilityApi).restoreConditions(read.conditions);
     } else if (steps.length > 0) {
         await tx.visibility.setSteps(steps);
+    } else if (tx.visibility.conditions.length > 0) {
+        await (tx.visibility as SessionVisibilityApi).restoreConditions([]);
     }
 }
 
@@ -2422,9 +2442,16 @@ function edgeOf(at: unknown, edgeIds: readonly (EdgeId | undefined)[]): EdgeId |
  * @param opening - The open.
  * @param run - The saved run.
  * @param remap - Rewrites the set ids a run names to the ones this session gave.
+ * @param underLive - Puts in force the filter or selection the run ran under, when it saved one.
  */
-async function readRun(opening: Opening, run: SavedRun, remap: <T>(value: T) => T): Promise<void> {
+async function readRun(
+    opening: Opening,
+    run: SavedRun,
+    remap: <T>(value: T) => T,
+    underLive: (run: SavedRun) => Promise<void>,
+): Promise<void> {
     const { tx } = opening;
+    await underLive(run);
     const { algorithm, params, scope, seed, sample, exact } = remap(run);
     const restoring = tx.runs.start(algorithm, params, {
         as: run.id,
@@ -2460,6 +2487,8 @@ interface SavedRun {
     readonly exact?: boolean;
     /** The reader's own name for the run (`runs.rename`); absent in older files and unnamed runs. */
     readonly name?: string;
+    /** What its live keywords stood for when it ran; absent in older files and other scopes. */
+    readonly live?: RunLiveScope;
 }
 
 export { PROJECT_FILE } from "../catalog/types";

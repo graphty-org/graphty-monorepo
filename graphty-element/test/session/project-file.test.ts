@@ -164,7 +164,15 @@ describe("the project file", () => {
         const members = file.members as { kind: string; runs?: Record<string, unknown>[] }[];
         assert.deepStrictEqual(
             members.find((member) => member.kind === "graphty-results")?.runs,
-            [{ id: "links", derived: false, algorithm: "degree" }],
+            [
+                {
+                    id: "links",
+                    derived: false,
+                    algorithm: "degree",
+                    // What "visible" stood for when it ran, so the open computes it under the same.
+                    live: { visible: { filter: null, conditions: [], window: null } },
+                },
+            ],
             "a run is saved as what started it, never as its result",
         );
 
@@ -252,6 +260,90 @@ describe("the project file", () => {
         assert.strictEqual(after?.scope.nodes, 3, "the run read the filtered graph, not the whole one");
         assert.strictEqual(after?.scope.edges, before?.scope.edges);
         assert.isNull(after?.stale, "the restored filter is the one the run read");
+
+        session.dispose();
+        target.session.dispose();
+    });
+
+    it("computes a reopened run under the filter it ran under, though the project's filter changed after", async () => {
+        const { harness } = withDegree();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }]);
+        await session.data.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
+        await session.visibility.set({ kind: "degree", min: 1 });
+        await session.runs.start("degree", undefined, { as: "links", style: false });
+        // The project's filter moves on: the run was computed over three nodes, now four show.
+        await session.visibility.set(null);
+        const before = session.runs.get("links")?.record;
+        const staleBefore = session.runs.get("links")?.stale;
+        assert.strictEqual(before?.scope.nodes, 3);
+        const { text } = await session.project.save();
+
+        const { harness: target } = withDegree();
+        assert.deepStrictEqual((await target.session.project.open(text)).problems, []);
+        const run = target.session.runs.get("links");
+        assert.strictEqual(run?.record.scope.nodes, 3, "computed under the filter it ran under");
+        assert.strictEqual(run?.record.scope.digest, before?.scope.digest);
+        assert.deepStrictEqual(run?.stale, staleBefore, "as stale as it was before the save");
+        assert.isNull(target.session.visibility.filter, "the project's own filter is back after the runs");
+        assert.strictEqual(target.session.visibility.nodes.size, 4);
+
+        session.dispose();
+        target.session.dispose();
+    });
+
+    it("computes a reopened run before a filter that reads its own result hides anything", async () => {
+        const { harness } = withDegree();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }]);
+        await session.data.addEdges([
+            { src: "a", dst: "b" },
+            { src: "b", dst: "c" },
+        ]);
+        await session.runs.start("degree", undefined, { as: "links", style: false });
+        // Keeps the nodes with two links or more: b.
+        await session.visibility.set({ kind: "range", attribute: "results.links.value", min: 2 });
+        const before = session.runs.get("links")?.record;
+        const staleBefore = session.runs.get("links")?.stale;
+        assert.deepStrictEqual([...session.visibility.nodes], ["b"]);
+        const { text } = await session.project.save();
+
+        const { harness: target } = withDegree();
+        assert.deepStrictEqual((await target.session.project.open(text)).problems, []);
+        const run = target.session.runs.get("links");
+        assert.strictEqual(run?.record.scope.nodes, 4, "computed over the graph it ran over, not an empty one");
+        assert.strictEqual(target.session.results.get("links")?.node("b")?.value, 2);
+        assert.deepStrictEqual(run?.stale, staleBefore, "as stale as it was before the save");
+        assert.strictEqual(run?.record.scope.digest, before?.scope.digest);
+        assert.deepStrictEqual([...target.session.visibility.nodes], ["b"], "the filter shows what it showed");
+
+        session.dispose();
+        target.session.dispose();
+    });
+
+    it("computes a reopened run over the selection it was made under, then restores the saved selection", async () => {
+        const { harness } = withDegree();
+        const { session } = harness;
+        await session.data.addNodes([{ id: "a" }, { id: "b" }, { id: "c" }, { id: "d" }]);
+        await session.data.addEdges([{ src: "a", dst: "b" }]);
+        await session.selection.apply({ nodes: ["a", "b"] });
+        await session.runs.start("degree", undefined, { as: "picked", style: false, scope: "selection" });
+        await session.selection.apply({ nodes: ["c"] });
+        const before = session.runs.get("picked")?.record;
+        const staleBefore = session.runs.get("picked")?.stale;
+        assert.strictEqual(before?.scope.nodes, 2);
+        const { text } = await session.project.save();
+
+        const { harness: target } = withDegree();
+        assert.deepStrictEqual((await target.session.project.open(text)).problems, []);
+        const run = target.session.runs.get("picked");
+        assert.strictEqual(run?.record.scope.nodes, 2, "computed over the two nodes it was made under");
+        assert.strictEqual(run?.record.scope.digest, before?.scope.digest);
+        assert.deepStrictEqual(run?.stale, staleBefore, "as stale as it was before the save");
+        assert.deepStrictEqual([...target.session.selection.nodes], ["c"], "the saved selection is back");
 
         session.dispose();
         target.session.dispose();

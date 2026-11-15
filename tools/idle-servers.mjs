@@ -1,11 +1,11 @@
-// Stops servherd dev servers nobody has used for 2 hours (owner, 2026-11-14), so their memory goes back to the
+// Stops servherd dev servers nobody has used for 12 hours (owner, 2026-11-14; 12 hours since 2026-11-15), so their memory goes back to the
 // local test slots. tools/worktree-cleanup.mjs calls it on every --apply pass (every 15 minutes from the servherd
 // server `worktree-cleanup`).
 //
 // A server is in use while anything holds an established TCP connection to its port: an open browser tab keeps
 // Vite's HMR websocket open, and a test run connects while it runs. Each pass records, per server, the last time
 // one was seen; a server never seen connected counts from the first pass that saw it running (or from its restart,
-// a new pid). One idle for --idle hours (default 2) is stopped with pm2 under servherd's PM2 home, which is what
+// a new pid). One idle for --idle hours (default 12) is stopped with pm2 under servherd's PM2 home, which is what
 // servherd's own stop does, so servherd_list shows it stopped and servherd_restart brings it back.
 //
 // Only servers inside the repository's .worktrees/ are candidates. Never stopped: anything in the main checkout
@@ -123,7 +123,7 @@ function pm2Stop(pm2Name, home) {
 export function stopIdleServers(o) {
     const home = o.home ?? process.env.HOME;
     const now = o.now ?? Date.now();
-    const idleMs = (o.idleHours ?? 2) * 3600e3;
+    const idleMs = (o.idleHours ?? 12) * 3600e3;
     const stop = o.stop ?? ((n) => pm2Stop(n, home));
     const stateFile = join(o.root, "tmp/idle-servers/seen.json");
     const seen = readJson(stateFile) ?? {};

@@ -95,7 +95,7 @@ function digestOf(value: unknown): string {
 export const ULID = /^[0-9A-HJKMNP-TV-Z]{26}$/;
 
 /** A source id: `src_` plus a ULID, the same one a file-style path names. */
-export { SOURCE_ID };
+export { SOURCE_ID } from "../../styles/fileStyles/path";
 
 /**
  * A value as key text (spec 11): a string as it is (NFC), a number as ECMAScript writes it, a

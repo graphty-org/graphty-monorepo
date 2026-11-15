@@ -1,4 +1,8 @@
-import { Color3, Mesh, Scene, StandardMaterial, Vector3 } from "@babylonjs/core";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { Scene } from "@babylonjs/core/scene.js";
 
 import { animatesEveryFrame } from "../managers/everyFrameAnimations";
 import { FrameRoster } from "./FrameRoster";

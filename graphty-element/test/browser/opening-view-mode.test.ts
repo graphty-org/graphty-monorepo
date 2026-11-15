@@ -26,6 +26,7 @@ import "../../src/graphty-element";
 import { Camera } from "@babylonjs/core";
 import { afterEach, assert, describe, test, vi } from "vitest";
 
+import { isGraphtyError } from "../../src/errors";
 import { Graph } from "../../src/Graph";
 import { assertPlaced } from "../helpers/placed-position";
 
@@ -268,7 +269,11 @@ describe("a graph that opens in 2D", () => {
 
         graphs.push(graph);
         await graph.init();
-        await graph.setViewMode("vr");
+        const refused: unknown = await graph.setViewMode("vr").then(
+            () => undefined,
+            (error: unknown) => error,
+        );
+        assert.isTrue(isGraphtyError(refused) && refused.code === "E_UNSUPPORTED", "the entry did not reject, coded");
         await settle(graph);
 
         // There is no WebXR here, so the switch falls back. What matters beyond the fallback is

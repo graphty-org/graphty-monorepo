@@ -17,6 +17,7 @@ import { defineOptions, type OptionsSchema } from "../config";
 import type { ElementPositions } from "../data/positions";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
+import { wholeGraph } from "../session/working/graphs";
 import {
     clusterByOption,
     clusterCentroids,
@@ -24,7 +25,7 @@ import {
     readCommunities,
     sameCommunities,
 } from "./clusterForce";
-import { EdgePosition, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
+import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 import { nodeGapOption } from "./nodeGapOptions";
 
 /**
@@ -82,16 +83,6 @@ const d3LayoutOptionsSchema = defineOptions({
 export interface D3RowSource {
     getSnapshot(): GraphSnapshot;
     readonly positions: ElementPositions;
-}
-
-/**
- * An edge stored with no `Edge`, under renderPath "batched": its id and its two nodes' ids. A
- * freeze renumbers rows, the ids stay.
- */
-export interface EdgeRow {
-    readonly key: string;
-    readonly source: NodeIdType;
-    readonly target: NodeIdType;
 }
 
 interface D3InputNode extends Partial<D3Node> {
@@ -544,7 +535,7 @@ export class D3GraphEngine extends LayoutEngine {
             return;
         }
 
-        const snapshot = source.getSnapshot();
+        const snapshot = wholeGraph(source);
         const { rows, coords } = this.publishScratch(this.rowBodies.size);
         let count = 0;
         for (const [id, body] of this.rowBodies as Map<NodeIdType, D3Node>) {
@@ -568,7 +559,7 @@ export class D3GraphEngine extends LayoutEngine {
      * @param followers - The follower ids, which this adds to.
      */
     private holdRowBodies(followers: Set<NodeIdType>): void {
-        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowBodies.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row === INVALID_INDEX) {
@@ -610,7 +601,21 @@ export class D3GraphEngine extends LayoutEngine {
     addRows(ids: readonly NodeIdType[], source: D3RowSource): void {
         this.rowSource = source;
         for (const id of ids) {
-            this.rowBodies.set(id, this.dim === 2 ? { id, z: 0, vz: 0 } : { id });
+            const fresh: D3InputNode = this.dim === 2 ? { id, z: 0, vz: 0 } : { id };
+            const held = this.rowBodies.get(id);
+            if (held === undefined) {
+                this.rowBodies.set(id, fresh);
+                continue;
+            }
+
+            // A row added again (an undo that brings it back) keeps its body OBJECT, reset: a link
+            // d3 has already resolved points at that object, and a new one would leave the link
+            // pulling on a body the simulation no longer holds.
+            for (const key of Object.keys(held)) {
+                Reflect.deleteProperty(held, key);
+            }
+
+            Object.assign(held, fresh);
         }
 
         this.rowsAdded = ids.length > 0 || this.rowsAdded;
@@ -655,6 +660,46 @@ export class D3GraphEngine extends LayoutEngine {
         }
 
         this.rowsAdded = rows.length > 0 || this.rowsAdded;
+    }
+
+    /**
+     * Hand an `Edge` built late for an edge stored with no `Edge` the link its row already has, so
+     * the simulation keeps its links and is not reheated by an edge it already pulls on.
+     * @param key - The edge's id.
+     * @param e - Its `Edge`.
+     * @returns False when no link carries that id, and the `Edge` must be added instead.
+     * @internal
+     */
+    adoptEdgeRow(key: string, e: Edge): boolean {
+        const link = this.rowLinks.get(key);
+        if (link === undefined) {
+            return false;
+        }
+
+        this.rowLinks.delete(key);
+        for (const end of [link.source, link.target]) {
+            this.rowLinksByNode.get(endIdOf(end))?.delete(key);
+        }
+
+        if (isD3Edge(link)) {
+            this.edgeMapping.set(e, link);
+            this.edgeList = null;
+        } else {
+            // Not yet handed to the simulation: it goes with the next refresh, which the row already asked for.
+            this.newEdgeMap.set(e, link);
+        }
+
+        for (const id of [e.srcId, e.dstId]) {
+            let incident = this.edgesByNode.get(id);
+            if (!incident) {
+                incident = new Set();
+                this.edgesByNode.set(id, incident);
+            }
+
+            incident.add(e);
+        }
+
+        return true;
     }
 
     /**
@@ -807,7 +852,7 @@ export class D3GraphEngine extends LayoutEngine {
         this.refresh();
         super.loadArrangement();
         // and each row's body with no `Node`, which a `Node` built later takes where it is
-        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowBodies.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
             if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
@@ -897,31 +942,6 @@ export class D3GraphEngine extends LayoutEngine {
         this.holdRowBodies(followers);
 
         this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
-        // A link to a node the layout leaves out, or one the filter hides, pulls nothing (see
-        // `LayoutEngine.setLeftOut`).
-        const leftOut = new Set<NodeIdType>();
-        for (const node of this.nodeMapping.keys()) {
-            if (this.isLeftOut(node.index)) {
-                leftOut.add(node.id);
-            }
-        }
-
-        const hiddenLinks = new Set<unknown>();
-        for (const [edge, link] of [...this.edgeMapping, ...this.newEdgeMap]) {
-            if (this.isEdgeLeftOut(edge)) {
-                hiddenLinks.add(link);
-            }
-        }
-
-        const endId = (end: unknown): unknown =>
-            typeof end === "object" && end !== null ? (end as D3InputNode).id : end;
-        this.linkForce.strength((l) =>
-            hiddenLinks.has(l) ||
-            leftOut.has(endId(l.source) as NodeIdType) ||
-            leftOut.has(endId(l.target) as NodeIdType)
-                ? 0
-                : LINK_STRENGTH,
-        );
         for (const [node, d3node] of this.nodeMapping) {
             if (this.isHeld(node.index)) {
                 fixAt(d3node);

@@ -159,3 +159,18 @@ export const NEPTUNE_DESCRIPTOR: SourceDescriptor = Object.freeze({
     // Neptune sends no CORS headers (Database), or is not shown to (Analytics)
     runtimes: { browser: { supported: false, reason: "cors" }, worker: { supported: false, reason: "cors" } },
 });
+
+/**
+ * The descriptor of the `memgraph` preset: a Memgraph on this machine, over Bolt. Experimental.
+ * @category Network sources
+ */
+export const MEMGRAPH_DESCRIPTOR: SourceDescriptor = Object.freeze({
+    plainName: "Memgraph on this computer",
+    kind: "database",
+    version: 1,
+    auth: ["basic", "bearer"],
+    authRequired: "optional",
+    features: CYPHER_FEATURES,
+    params: CYPHER_PARAMS,
+    defaultEndpoint: "bolt://localhost:7687",
+});

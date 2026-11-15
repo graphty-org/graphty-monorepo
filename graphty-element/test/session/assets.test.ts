@@ -9,9 +9,9 @@
 
 import { createHash } from "node:crypto";
 
+import { detectModelFormat } from "babylonjs-models/detect";
 import { afterEach, assert, describe, it, vi } from "vitest";
 
-import { detectModelFormat } from "../../src/catalog/detectModel";
 import { isGraphtyError } from "../../src/errors";
 import { type AssetRecord, type AssetsApi, createAssetsApi, isAssetId } from "../../src/session/assets/AssetsApi";
 import { canonicalFileSet, sha256Fallback, sha256Hex } from "../../src/session/assets/digest";
@@ -287,9 +287,14 @@ describe("session.assets: hostile files, each refused with its code", () => {
         });
     }
 
-    it("refuses an image reference outside the set, and names a missing file", async () => {
+    it("reports an image at a web address as a missing part carrying the address, and names a missing file", async () => {
         const external = triangleGltf({ textures: [{ source: 0 }], images: [{ uri: "https://host/x.png" }] });
-        assertRejected(await add({ files: gltfPair(external) }), "E_MODEL_EXTERNAL_URL", { url: "https://host/x.png" });
+        assertRejected(await add({ files: gltfPair(external) }), "E_MODEL_MISSING_FILE", {
+            name: "host/x.png",
+            url: "https://host/x.png",
+            role: "texture",
+            optional: true,
+        });
         const missing = triangleGltf({ textures: [{ source: 0 }], images: [{ uri: "bark.png" }] });
         assertRejected(await add({ files: gltfPair(missing) }), "E_MODEL_MISSING_FILE", {
             name: "bark.png",
@@ -297,12 +302,34 @@ describe("session.assets: hostile files, each refused with its code", () => {
         });
     });
 
-    it("refuses a map_Kd line whose file is a URL behind -o flags", async () => {
+    it("reports a map_Kd line whose file is a URL behind -o flags as a missing part with its address", async () => {
         assertRejected(
             await add({ files: objSet("newmtl x\nmap_Kd -o 1 1 1 http://host/x.png\n") }),
-            "E_MODEL_EXTERNAL_URL",
-            { url: "http://host/x.png" },
+            "E_MODEL_MISSING_FILE",
+            { name: "host/x.png", url: "http://host/x.png", referencedBy: "quad.mtl" },
         );
+    });
+
+    it("reports a path above the folder of local files as a missing part with no address", async () => {
+        for (const uri of ["../shared/tri.bin", "%2e%2e/shared/tri.bin"]) {
+            const json = triangleGltf({ buffers: [{ uri, byteLength: 36 }] });
+            const record = await add({ files: new Map([["tri.gltf", utf8(JSON.stringify(json))]]) });
+            assertRejected(record, "E_MODEL_MISSING_FILE", { name: "shared/tri.bin", role: "geometry" });
+            assert.isUndefined(record.problems[0].params.url, uri);
+        }
+    });
+
+    it("takes a part outside the folder from local files once the set holds it under its key", async () => {
+        const json = triangleGltf({ buffers: [{ uri: "//cdn.example.org/kit/tri.bin", byteLength: 36 }] });
+        const files = new Map([["tri.gltf", utf8(JSON.stringify(json))]]);
+        const assets = createAssetsApi();
+        const waiting = await assets.add({ files });
+        assertRejected(waiting, "E_MODEL_MISSING_FILE", {
+            name: "cdn.example.org/kit/tri.bin",
+            url: "https://cdn.example.org/kit/tri.bin",
+        });
+        const done = await assets.supply(waiting.id, { name: "cdn.example.org/kit/tri.bin", file: TRIANGLE_BIN });
+        assert.strictEqual(done.state, "accepted", JSON.stringify(done.problems));
     });
 
     it("refuses an accessor of 2e8 elements with no buffer view", async () => {
@@ -388,16 +415,43 @@ describe("session.assets: hostile files, each refused with its code", () => {
         assertRejected(await add({ files: gltfPair(shortBuffer) }), "E_MODEL_STRUCTURE", { rule: "accessor" });
     });
 
-    it("refuses compression with no decoder and GPU instancing", async () => {
+    it("accepts compression it bundles a decoder for and GPU instancing, and refuses an unknown required extension", async () => {
         const draco = triangleGltf({
             extensionsUsed: ["KHR_draco_mesh_compression"],
             extensionsRequired: ["KHR_draco_mesh_compression"],
         });
-        assertRejected(await add({ files: gltfPair(draco) }), "E_MODEL_DECODER_UNAVAILABLE", {
-            extension: "KHR_draco_mesh_compression",
+        const assets = createAssetsApi();
+        const accepted = await assets.add({ files: gltfPair(draco) });
+        assert.strictEqual(accepted.state, "accepted", JSON.stringify(accepted.problems));
+        assert.deepStrictEqual(assets.inspect(accepted.id).compression, ["draco"]);
+        const unknown = triangleGltf({ extensionsUsed: ["EXT_unknown"], extensionsRequired: ["EXT_unknown"] });
+        assertRejected(await add({ files: gltfPair(unknown) }), "E_MODEL_FORMAT_UNSUPPORTED", {
+            extension: "EXT_unknown",
         });
-        const instanced = triangleGltf({ extensionsUsed: ["EXT_mesh_gpu_instancing"] });
-        assertRejected(await add({ files: gltfPair(instanced) }), "E_MODEL_STRUCTURE", { rule: "instancing" });
+        // Three instances of the one-triangle mesh count three triangles; attributes that disagree
+        // on the instance count are damaged.
+        const gpuInstancing = "EXT_mesh_gpu_instancing";
+        const instancing = (counts: number[]): Record<string, unknown> =>
+            triangleGltf({
+                extensionsUsed: [gpuInstancing],
+                extensionsRequired: [gpuInstancing],
+                nodes: [
+                    {
+                        mesh: 0,
+                        extensions: {
+                            [gpuInstancing]: { attributes: { TRANSLATION: 1, SCALE: counts.length > 1 ? 2 : 1 } },
+                        },
+                    },
+                ],
+                accessors: [
+                    { bufferView: 0, componentType: 5126, count: 3, type: "VEC3", min: [0, 0, 0], max: [1, 1, 0] },
+                    ...counts.map((count) => ({ bufferView: 0, componentType: 5126, count, type: "VEC3" })),
+                ],
+            });
+        const instanced = await assets.add({ files: gltfPair(instancing([3])) });
+        assert.strictEqual(instanced.state, "accepted", JSON.stringify(instanced.problems));
+        assert.strictEqual(assets.inspect(instanced.id).triangles, 3);
+        assertRejected(await add({ files: gltfPair(instancing([3, 2])) }), "E_MODEL_STRUCTURE", { rule: "instancing" });
     });
 
     it("names formats it recognizes but does not load, and refuses what it does not know", async () => {
@@ -407,8 +461,15 @@ describe("session.assets: hostile files, each refused with its code", () => {
         assertRejected(await add(file(utf8("hello"), "notes.txt")), "E_MODEL_FORMAT_UNKNOWN", {
             fileName: "notes.txt",
         });
-        const points = utf8("ply\nformat ascii 1.0\nelement vertex 1\nproperty float x\nend_header\n0\n");
-        assertRejected(await add(file(points, "cloud.ply")), "E_MODEL_FORMAT_UNSUPPORTED", { format: "points" });
+        assertRejected(await add(file(utf8("HIERARCHY\nROOT Hips\n"), "walk.bvh")), "E_MODEL_FORMAT_UNSUPPORTED", {
+            format: "bvh",
+        });
+        const points = utf8(
+            "ply\nformat ascii 1.0\nelement vertex 1\nproperty float x\nproperty float y\nproperty float z\nend_header\n0 0 0\n",
+        );
+        const cloud = await add(file(points, "cloud.ply"));
+        assert.strictEqual(cloud.state, "accepted", JSON.stringify(cloud.problems));
+        assert.deepInclude(cloud.problems, { code: "W_MODEL_POINTS_APPROXIMATED", params: { points: 1, drawn: 1 } });
     });
 
     it("asks which file when two different candidates tie, and takes the caller's choice", async () => {
@@ -483,6 +544,20 @@ describe("session.assets: fetching a URL", () => {
             what: "bytes",
             found: 64,
         });
+    });
+
+    it("keeps a failed sample's status and does not cache the failure", async () => {
+        stubFetch(500, new Uint8Array(0));
+        const assets = createAssetsApi();
+        assertRejected(await assets.ready("asset:sample/box"), "E_MODEL_FETCH", {
+            url: "asset:sample/box",
+            status: 500,
+            offline: false,
+        });
+        const spy = stubFetch(200, glb(triangleGltf({ buffers: [{ byteLength: 36 }] }), TRIANGLE_BIN));
+        const again = await assets.ready("asset:sample/box");
+        assert.strictEqual(spy.mock.calls.length, 1);
+        assert.strictEqual(again.state, "accepted", JSON.stringify(again.problems));
     });
 });
 
@@ -598,9 +673,9 @@ describe("session.assets: tolerant matching (design 12.5)", () => {
         });
     });
 
-    it("still refuses a web address, even when a file of its base name is in the set", async () => {
+    it("never matches a web address by base name: it stays a missing part with its address", async () => {
         const record = await add({ files: objNaming("http://host/x.png", { "x.png": PNG_1X1 }) });
-        assertRejected(record, "E_MODEL_EXTERNAL_URL", { url: "http://host/x.png" });
+        assertRejected(record, "E_MODEL_MISSING_FILE", { name: "host/x.png", url: "http://host/x.png" });
     });
 });
 
@@ -850,7 +925,7 @@ describe("detectModelFormat", () => {
             supported: false,
         });
         assert.deepStrictEqual(detectModelFormat({ filename: "rig.fbx" }), { format: "fbx", supported: false });
-        assert.deepStrictEqual(detectModelFormat({ filename: "a.splat" }), { format: "splat", supported: false });
+        assert.deepStrictEqual(detectModelFormat({ filename: "a.splat" }), { format: "splat", supported: true });
     });
 
     it("says nothing about graph data", () => {

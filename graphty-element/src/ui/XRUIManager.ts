@@ -5,6 +5,9 @@ interface XRUIConfig {
     position: "bottom-left" | "bottom-right" | "top-left" | "top-right";
     unavailableMessageDuration: number;
     showAvailabilityWarning: boolean;
+    vrLabel: string;
+    arLabel: string;
+    unavailableLabel: string;
 }
 
 /**
@@ -48,11 +51,11 @@ export class XRUIManager {
             }
         } else {
             if (vrAvailable) {
-                this.createButton("VR", "immersive-vr");
+                this.createButton(config.vrLabel, "immersive-vr");
             }
 
             if (arAvailable) {
-                this.createButton("AR", "immersive-ar");
+                this.createButton(config.arLabel, "immersive-ar");
             }
         }
     }
@@ -93,13 +96,13 @@ export class XRUIManager {
     }
 
     /**
-     * Show the "not available" message
+     * Show the "not available" message (`unavailableLabel`)
      */
     private showUnavailableMessage(): void {
         const message = document.createElement("div");
         message.className = "webxr-button webxr-not-available";
         message.setAttribute("part", "xr-button xr-unavailable-message");
-        message.textContent = "VR / AR NOT AVAILABLE";
+        message.textContent = this.config.unavailableLabel;
 
         this.overlay?.appendChild(message);
 
@@ -131,14 +134,6 @@ export class XRUIManager {
         .webxr-available {
             background: var(--xr-available-bg, black);
             box-shadow: var(--xr-available-box-shadow, 0 0 0 0px white, 0 0 0 2px black);
-        }
-
-        .webxr-presenting {
-            background: var(--xr-presenting-bg, red);
-        }
-
-        .webxr-presenting::before {
-            content: var(--xr-presenting-prefix, "EXIT ");
         }
 
         .webxr-not-available {

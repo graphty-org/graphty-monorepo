@@ -30,6 +30,8 @@ import { isRowBatch } from "../../src/meshes/RowPullPlugin";
 import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
 import { defineLayout } from "../../src/simple/defineLayout";
+import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
+import { meshAnnouncementsDelivered } from "../helpers/mesh-announcements";
 import { click, drag, hover, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 import { nextModelEvent } from "./models/helpers";
@@ -112,16 +114,20 @@ async function layer(element: Graphty, ids: number[], set: Record<string, unknow
  * Load the nodes and paint them by their data, in a view.
  * @param element - The element.
  * @param view - The view.
+ * @param sized - Whether half the nodes are drawn bigger.
  */
-async function loaded(element: Graphty, view: "2d" | "3d"): Promise<void> {
+async function loaded(element: Graphty, view: "2d" | "3d", sized = true): Promise<void> {
     await element.session.data.addNodes(NODES);
     await element.graph.setLayout("fixed", { dim: 3 });
     await element.setViewMode(view);
-    await layer(
-        element,
-        NODES.filter((node) => node.big).map((node) => node.id),
-        { "node.size": 1.6 },
-    );
+    if (sized) {
+        await layer(
+            element,
+            NODES.filter((node) => node.big).map((node) => node.id),
+            { "node.size": 1.6 },
+        );
+    }
+
     for (const [tone, color] of Object.entries(TONES)) {
         await layer(
             element,
@@ -145,6 +151,23 @@ async function frameOn(graph: Graph, path: "objects" | "batched"): Promise<Frame
     const frame = await readFrame(graph);
     assert.isAbove(drawn(frame), 500, "the frame holds a graph");
     return frame;
+}
+
+/**
+ * The bytes a batch sends the GPU for each row: its per-instance vertex buffers.
+ * @param mesh - The batch.
+ * @returns The bytes.
+ */
+function bytesPerRow(mesh: Mesh): number {
+    let bytes = 0;
+    for (const kind of mesh.getVerticesDataKinds()) {
+        const buffer = mesh.getVertexBuffer(kind);
+        if (buffer?.getIsInstanced() === true) {
+            bytes += buffer.getSize() * 4;
+        }
+    }
+
+    return bytes;
 }
 
 /**
@@ -174,6 +197,28 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(objects, batched), 0);
         // One draw per shape: the two sizes share a batch, each row scaled in its matrix.
         assert.equal(batches(graph.getScene()).filter((mesh) => mesh.isEnabled()).length, 1);
+    });
+
+    it("send 20 bytes a row while no row of a batch is scaled, 84 once one is, with the object rows' picture", async () => {
+        const element = await mounted(renderer);
+        await loaded(element, "3d", false);
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        const batched = await frameOn(graph, "batched");
+        assert.equal(overBar(objects, batched), 0);
+        const [batch] = batches(graph.getScene()).filter((mesh) => mesh.isEnabled());
+        assert.equal(bytesPerRow(batch), 20, "a row color and a row number, no matrix");
+
+        const big = await layer(element, [0, 5], { "node.size": 1.6 });
+        await element.waitForStableFrame();
+        assert.equal(bytesPerRow(batch), 84, "a scaled row brings the matrices back");
+        const scaled = await readFrame(graph);
+        assert.notEqual(overBar(batched, scaled), 0);
+        assert.equal(overBar(scaled, await frameOn(graph, "objects")), 0);
+
+        await element.session.styles.remove(big);
+        await operationQueueOf(element.graph).waitForCompletion();
+        assert.equal(overBar(objects, await frameOn(graph, "batched")), 0);
     });
 
     it("keep no mesh for a batched row, and give each row its mesh back on the object path", async () => {
@@ -622,6 +667,74 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
+    it("lay a circle out again when a row is removed, moving every Node and edge with the batched rows", async () => {
+        // A removal re-runs a static layout. Nothing moved the nodes to the re-run, so the first edge
+        // to read the layout ran it after the nodes were placed: Nodes and edges kept the old circle
+        // while batched rows, drawn from the array, took the new one (AiControl's Approvals, #8020).
+        const ring = Array.from({ length: 12 }, (_, i) => ({ id: `r${String(i)}` }));
+        const links = ring.map((_, i) => ({ src: `r${String(i)}`, dst: `r${String((i + 1) % 12)}` }));
+        let before: Vector3 | undefined;
+        const removedFrom = async (path: "objects" | "batched"): Promise<{ element: Graphty; frame: Frame }> => {
+            const element = await mounted(renderer);
+            element.graph.setRenderPath(path);
+            await element.graph.setLayout("circular");
+            await element.session.data.addNodes(ring);
+            await element.session.data.addEdges(links);
+            await operationQueueOf(element.graph).waitForCompletion();
+            await readFrame(element.graph);
+            before = element.graph.getNode("r0")?.mesh.position.clone();
+            await element.session.data.removeNodes(["r11"]);
+            await operationQueueOf(element.graph).waitForCompletion();
+            return { element, frame: await readFrame(element.graph) };
+        };
+
+        const objects = await removedFrom("objects");
+        const after = objects.element.graph.getNode("r0")?.mesh.position;
+        assert.isDefined(before);
+        assert.isDefined(after);
+        assert.isAbove(Vector3.Distance(before, after), 0.1, "the Node moved to the eleven-node circle");
+
+        objects.element.remove();
+        const batched = await removedFrom("batched");
+        // r0's mesh was read, so r0 alone is an object row (#8038).
+        assert.equal(batched.element.graph.rowCounts.batchedNodes, 10);
+        assert.equal(batched.element.graph.rowCounts.objectNodes, 1);
+        assert.equal(overBar(objects.frame, batched.frame), 0);
+    });
+
+    it("keep the rest of a look on the batch when a consumer reads one row's mesh", async () => {
+        // A batch hides its whole source mesh, so a held row drawn from the shared source took every row
+        // of its look off the batch: one `getNode(id).mesh` emptied a one-look graph's batch (#8038).
+        const element = await mounted(renderer);
+        await loaded(element, "3d", false);
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+
+        const mesh = graph.getNode(0)?.mesh;
+        assert.isDefined(mesh);
+        assert.isFalse(mesh.isDisposed(), "the consumer gets the node's own mesh");
+        const batched = await readFrame(graph);
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length - 1, "its three look-mates stay on the batch");
+        assert.equal(graph.rowCounts.objectNodes, 1);
+        assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
+    });
+
+    it("keep the rest of a look on the batch when a row's mesh was read before the switch to it", async () => {
+        // A mesh read on the objects path left the held row on its look's shared source, which the batch
+        // hides: the switch took every row of that look off the batch (#8073).
+        const element = await mounted(renderer);
+        await loaded(element, "3d", false);
+        const { graph } = element;
+        const objects = await frameOn(graph, "objects");
+        assert.isFalse(graph.getNode(0)?.mesh.isDisposed(), "the consumer gets the node's own mesh");
+
+        const batched = await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length - 1, "the rest of its look stays on the batch");
+        assert.equal(graph.rowCounts.objectNodes, 1);
+        assert.equal(overBar(objects, batched), 0);
+    });
+
     it.each(["2d", "3d"] as const)("batch a screen-scaled map's rows through a zoom in %s", async (view) => {
         const element = await mounted(renderer);
         await loaded(element, view);
@@ -872,6 +985,8 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         });
         try {
             await loaded(element, "3d");
+            // a mesh built during the load is announced from a timer after it
+            await meshAnnouncementsDelivered();
         } finally {
             onNode.remove();
             onMesh.remove();
@@ -886,6 +1001,51 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const styles = new Set(NODES.map((node) => batches?.lookOf(node.id)?.paint.style));
         assert.isFalse(styles.has(undefined), "every row is drawn with no Node");
         assert.equal(styles.size, 2);
+    });
+
+    it("keep no Map entry per row for a batched graph with no Node, through a repaint and a removal", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await loaded(element, "3d");
+        const batches = graph.getNodeBatches();
+        assert.isNotNull(batches);
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+        // A row's group and slot are read from its row, not from a Map entry each (89 B a row at 1M).
+        assert.equal(batches?.rowMapEntries, 0);
+
+        const paint = graph.getStylePainter().nodePaint(4);
+        assert.isNotNull(paint);
+        if (batches === null || paint === null) {
+            return;
+        }
+
+        batches.unpaintRow(4);
+        assert.equal(batches.batchedNodes, NODES.length - 1);
+        assert.isTrue(batches.paintRow(4, paint));
+        assert.equal(batches.batchedNodes, NODES.length);
+        assert.equal(batches.rowMapEntries, 0);
+    });
+
+    it("keep no Map entry per stored row in the data manager but the id lookup of a node (G11)", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        await loaded(element, "3d", false);
+        await element.session.data.addEdges(NODES.slice(1).map((node) => ({ src: node.id - 1, dst: node.id })));
+        const dm = graph.getDataManager();
+        assert.equal(dataManagerInternals.nodesBuilt(dm), 0);
+        assert.equal(dataManagerInternals.edgesBuilt(dm), 0);
+        // Each Map's own entries: a lazy view of the rows counts rows it does not hold in its size.
+        const ownSize = Object.getOwnPropertyDescriptor(Map.prototype, "size")?.get;
+        let entries = 0;
+        for (const value of Object.values(dm)) {
+            entries += value instanceof Map ? (ownSize?.call(value) as number) : 0;
+        }
+
+        // Node ids are any value, so a node keeps one entry from id to row; its id and record by row,
+        // and an edge's row by its counter, sit in arrays (35 B and 15 B a Map entry at 1M rows).
+        assert.equal(entries, NODES.length);
     });
 
     it("draw a row with no Node from its paint, the picture its Node drew, and build no Node", async () => {
@@ -1274,6 +1434,51 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         );
     });
 
+    // A simulation handed the frame loop the store's every node, so the first frame after a layout started built a
+    // Node for every row and painted each: at 100k rows, seconds before the first layout frame (#6389).
+    it("start and switch a simulation layout building no Node and repainting nothing", async () => {
+        const element = await mounted(renderer);
+        const { graph } = element;
+        graph.setRenderPath("batched");
+        graph.acceleration.setAccelerator(createFakeAccelerator());
+        await element.session.data.addNodes(NODES);
+        await element.session.data.addEdges(NODES.slice(1).map((node) => ({ source: node.id - 1, target: node.id })));
+        await operationQueueOf(graph).waitForCompletion();
+        await nextFrame();
+        const manager = graph.getDataManager();
+        const table = graph.getRowTable();
+        assert.isNotNull(table);
+        if (table === null) {
+            return;
+        }
+
+        assert.equal(dataManagerInternals.nodesBuilt(manager), 0, "loaded with no Node");
+        const snapshot = manager.getSnapshot();
+        const paints = vi.spyOn(NodeBatches.prototype, "paintRow");
+        cleanups.push(() => {
+            paints.mockRestore();
+        });
+
+        for (const layout of ["spring-electrical", "ngraph", "spring-electrical"]) {
+            const before = table.centerOf(3).clone();
+            await graph.setLayout(layout, { dim: 2, seed: 5 });
+            await operationQueueOf(graph).waitForCompletion();
+            // The layout draws: its rows move with no Node, frame by frame.
+            while (table.centerOf(3).equals(before)) {
+                await nextFrame();
+            }
+
+            const engine = graph.getLayoutManager().layoutEngine;
+            assert.isTrue(
+                layout === "ngraph" ? engine instanceof NGraphEngine : engine instanceof SimulationLayoutEngine,
+                `${layout}: the engine it names`,
+            );
+            assert.equal(dataManagerInternals.nodesBuilt(manager), 0, `${layout}: no row has a Node`);
+            assert.equal(paints.mock.calls.length, 0, `${layout}: no row was repainted`);
+            assert.strictEqual(manager.getSnapshot(), snapshot, `${layout}: the snapshot was reused`);
+        }
+    });
+
     // Removing a row with no Node used to forget it everywhere but the simulation: its d3 or
     // ngraph body stayed in and kept pushing every other node.
     it("take a removed row with no Node out of a d3 or ngraph simulation", async () => {
@@ -1550,6 +1755,8 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         const rows = vi.spyOn(PulledLineBatch.prototype, "setRows");
         cleanups.push(() => rows.mockRestore());
 
+        // The edge gets its `Edge`, whose pull this reads: a batched load would store it with none.
+        dataManagerInternals.storeEdgesUnbuilt(manager, false);
         // The graph is directed, so the edge would start with a head, and a capped line is never pulled.
         await element.session.styles.add({
             name: "uncapped",

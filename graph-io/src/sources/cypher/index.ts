@@ -1,5 +1,5 @@
 /**
- * `@graphty/graph-io/sources/cypher`: the Cypher source and its `neo4j` and `neptune` presets
+ * `@graphty/graph-io/sources/cypher`: the Cypher source and its `neo4j`, `neptune` and `memgraph` presets
  * (design sections 10, 11, 12.2 and 12.4). One query builder, one result flattener and one type
  * mapper over four transports: Neo4j's Query API, Bolt (through the optional peer neo4j-driver),
  * Neptune Database over HTTPS and Neptune Analytics. The presets fix the transports and the server
@@ -13,6 +13,7 @@ import { throwIfAborted } from "../../common/input.js";
 import { type ImportReportBuilder } from "../../common/report.js";
 import { ImportError, type ImportReport } from "../../types.js";
 import { SOURCE_ISSUE } from "../codes.js";
+import { isLoopback } from "../context.js";
 import { defineSource } from "../define.js";
 import { failOn } from "../fail.js";
 import { CYPHER_SOURCE_ID, NEO4J_SOURCE_ID, NEPTUNE_SOURCE_ID } from "../ids.js";
@@ -28,7 +29,7 @@ import {
     type SourceTotal,
     type SourceValidators,
 } from "../types.js";
-import { CYPHER_DESCRIPTOR, NEO4J_DESCRIPTOR, NEPTUNE_DESCRIPTOR } from "./descriptor.js";
+import { CYPHER_DESCRIPTOR, MEMGRAPH_DESCRIPTOR, NEO4J_DESCRIPTOR, NEPTUNE_DESCRIPTOR } from "./descriptor.js";
 import { canonicalRows, Collector, compareText, type QueryResult, requireGraph, writeCollected } from "./flatten.js";
 import { type CypherParams } from "./params.js";
 import { type CypherProfile, neo4jProfile, neptuneProfile, serverFacts } from "./profiles.js";
@@ -52,7 +53,7 @@ import { neptuneHttpsTransport } from "./transports/neptune-https.js";
 import { queryApiTransport } from "./transports/query-api.js";
 import { type Transport, type TransportInput } from "./transports/transport.js";
 
-export { CYPHER_DESCRIPTOR, NEO4J_DESCRIPTOR, NEPTUNE_DESCRIPTOR } from "./descriptor.js";
+export { CYPHER_DESCRIPTOR, MEMGRAPH_DESCRIPTOR, NEO4J_DESCRIPTOR, NEPTUNE_DESCRIPTOR } from "./descriptor.js";
 export { type CypherParams } from "./params.js";
 export { cypherIdentifier } from "./query-builder.js";
 
@@ -67,6 +68,8 @@ interface Preset {
     readonly descriptor: SourceDescriptor;
     /** The transport used when neither the params nor the endpoint's scheme picks one. */
     readonly transport: TransportName;
+    /** Only an endpoint on this machine (localhost, 127.0.0.0/8, ::1) is accepted. */
+    readonly loopbackOnly?: boolean;
 }
 
 /** One page a read produced. */
@@ -134,6 +137,25 @@ function transportName(params: CypherParams, ctx: SourceContext, preset: Preset)
         return "neptune-analytics";
     }
     return preset.transport;
+}
+
+/**
+ * Seed ids as the server compares them. A server keyed by `id(n)` (Neo4j before 5, Memgraph) has
+ * integer ids, which a snapshot holds as text ("12"), and `id(n) IN ["12"]` matches nothing, so a
+ * decimal integer is sent as a number. Ids keyed by a property, `elementId` or Neptune's `~id`
+ * string are sent as given.
+ * @param ids - the seeds
+ * @param profile - the server's profile
+ * @param filters - the filters (the id property)
+ * @returns the seeds to send
+ */
+function seedIds(ids: readonly NodeId[], profile: CypherProfile, filters: QueryFilters): readonly NodeId[] {
+    if (profile.elementIds || profile.name === "neptune" || filters.idProperty !== null) {
+        return ids;
+    }
+    return ids.map((id) =>
+        typeof id === "string" && /^-?\d+$/.test(id) && Number.isSafeInteger(Number(id)) ? Number(id) : id,
+    );
 }
 
 /** One load's connection, filters and profile. */
@@ -242,7 +264,9 @@ class Reader {
                         ? null
                         : checkedInteger(ctx.limits.maxNodes, "maxNodes", 1, Number.MAX_SAFE_INTEGER, report),
             };
-            const { collected } = await this.generated((d) => neighborhood(profile, this.filters, shape, d), { ids });
+            const { collected } = await this.generated((d) => neighborhood(profile, this.filters, shape, d), {
+                ids: seedIds(ids, profile, this.filters),
+            });
             yield { collected, next: null };
             return;
         }
@@ -455,6 +479,12 @@ function nextCursor(
  */
 async function open(params: CypherParams, ctx: SourceContext, preset: Preset): Promise<Reader> {
     throwIfAborted(ctx.signal);
+    if (preset.loopbackOnly === true && !isLoopback(ctx.endpoint?.hostname ?? "")) {
+        failOn(ctx.report, "E_SOURCE_PARAM", `the ${preset.id} source reads only a server on this machine`, {
+            name: "endpoint",
+            reason: "not-loopback",
+        });
+    }
     const input: TransportInput = { ctx, params, m: { long: params.long ?? "f64", report: ctx.report } };
     const name = transportName(params, ctx, preset);
     let transport: Transport;
@@ -583,7 +613,7 @@ async function expand(reader: Reader, request: ExpandRequest<CypherParams>, sink
               };
     const profile = await reader.profile();
     const { collected, rows, fields } = await reader.generated((d) => neighborhood(profile, filters, shape, d), {
-        ids: request.ids,
+        ids: seedIds(request.ids, profile, filters),
         ...(after === null ? {} : { after }),
         ...(after === null || filters.idProperty === null ? {} : { afterByServer: ctx.cursor?.byServer === true }),
     });
@@ -602,7 +632,7 @@ async function expand(reader: Reader, request: ExpandRequest<CypherParams>, sink
 
 /**
  * The generic Cypher source, for any openCypher server: Neo4j over its Query API or Bolt, Neptune
- * over HTTPS. The transport comes from `params.transport`, else the endpoint (`bolt+s://` is Bolt,
+ * over HTTPS. The transport comes from `params.transport`, else the endpoint (`bolt+s://` or `neo4j+s://` is Bolt,
  * a `neptune-graph` host is Neptune Analytics), else the Query API. Experimental.
  * @category Network sources
  */
@@ -613,8 +643,9 @@ export const cypherSource: GraphSource<CypherParams> = cypher({
 });
 
 /**
- * The Neo4j preset: the Query API (Neo4j 5.26 and later, Aura), or Bolt for a `bolt:` or
- * `bolt+s:` endpoint (any Neo4j; needs the optional peer neo4j-driver). Experimental.
+ * The Neo4j preset: the Query API (Neo4j 5.26 and later, Aura), or Bolt for a `bolt:`, `bolt+s:`,
+ * `neo4j:` or `neo4j+s:` endpoint, connected directly to the named host (any Neo4j; needs the
+ * optional peer neo4j-driver). Experimental.
  * @category Network sources
  */
 export const neo4jSource: GraphSource<CypherParams> = cypher({
@@ -632,4 +663,19 @@ export const neptuneSource: GraphSource<CypherParams> = cypher({
     id: NEPTUNE_SOURCE_ID,
     descriptor: NEPTUNE_DESCRIPTOR,
     transport: "neptune-https",
+});
+
+/**
+ * The Memgraph preset, for a Memgraph on this machine (`bolt://localhost:7687` unless you name
+ * another loopback endpoint): Bolt with encryption off, through the optional peer neo4j-driver.
+ * Works from Node, from an `http:` page and, after the reader allows the browser's one-time local
+ * network prompt, from an `https:` page. Not in the default registry: pass it to `loadFromSource`
+ * as the source, or `registerSource` it. Experimental.
+ * @category Network sources
+ */
+export const memgraphSource: GraphSource<CypherParams> = cypher({
+    id: "memgraph",
+    descriptor: MEMGRAPH_DESCRIPTOR,
+    transport: "bolt",
+    loopbackOnly: true,
 });

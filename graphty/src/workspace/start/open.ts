@@ -149,12 +149,12 @@ export function preferLocalDatasets(prefer: boolean): void {
 
 /**
  * Where the datasets are read from: this machine's copy where there is one, else the site's own
- * (its site.json's `datasets`), else graph-samples' default.
- * @returns the options naming it, or none for graph-samples' default.
+ * (its site.json's `datasets`), else graph-samples' default. graphty-element has no default of
+ * its own, so every load names one.
+ * @returns the options naming it.
  */
-export function datasetBase(): { readonly baseUrl?: string } {
-    const baseUrl = localDatasets ?? siteConfig().datasets;
-    return baseUrl === undefined ? {} : { baseUrl };
+export function datasetBase(): { readonly baseUrl: string } {
+    return { baseUrl: localDatasets ?? siteConfig().datasets ?? DEFAULT_DATASET_BASE_URL };
 }
 
 /**
@@ -165,9 +165,7 @@ export function datasetBase(): { readonly baseUrl?: string } {
  * @returns the address, or undefined when it has no picture.
  */
 export function pictureOf(entry: Pick<DatasetMeta | GeneratorDescriptor, "thumbnail">): string | undefined {
-    return entry.thumbnail === undefined
-        ? undefined
-        : new URL(entry.thumbnail, datasetBase().baseUrl ?? DEFAULT_DATASET_BASE_URL).href;
+    return entry.thumbnail === undefined ? undefined : new URL(entry.thumbnail, datasetBase().baseUrl).href;
 }
 
 /** The graph-samples dataset each of the app's own four sample files is a copy of, by sample id. */
@@ -423,6 +421,16 @@ export function openUrl(workspace: WorkspaceStore, url: string): void {
 }
 
 /**
+ * The graph file at a web address, added as any source is (Paste of an address, the Web address
+ * box): on the start screen it opens as a new project; in a project it is added to it.
+ * @param ctx - the command context.
+ * @param url - the address.
+ */
+export function addUrl(ctx: CommandContext, url: string): void {
+    addSource(ctx, urlSource(url));
+}
+
+/**
  * Loads a source the reader brought by any door (drop, File..., Paste, Samples): from the start
  * screen as a new project named after it; into an empty project as its first source; into a graph
  * that holds data as a replacement or a join.
@@ -621,12 +629,11 @@ export async function pasteSource(ctx: CommandContext): Promise<void> {
         ctx.workspace.set({ notice: { message: "Clipboard empty" } });
         return;
     }
-    addSource(
-        ctx,
-        pasted.kind === "url"
-            ? urlSource(pasted.url)
-            : { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } },
-    );
+    if (pasted.kind === "url") {
+        addUrl(ctx, pasted.url);
+        return;
+    }
+    addSource(ctx, { name: "Pasted data", source: { config: { data: pasted.text }, name: "Pasted data" } });
 }
 
 /**

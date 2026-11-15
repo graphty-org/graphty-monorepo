@@ -158,12 +158,11 @@
     line-height: 16px;
 }
 
-/* The Node and Edge tabs, the other kind's line and the kind's switch, on the tab's gutter. */
+/* The Node and Edge tabs and the kind's switch, on the tab's gutter. */
 .ws-style-tabs > [role="tablist"] {
     padding: 8px 8px 4px var(--ws-gutter);
 }
 
-.ws-other-line,
 .ws-kind-switch {
     padding: 2px 8px 2px var(--ws-gutter);
 }
@@ -640,4 +639,126 @@
 
 .ws-part-name {
     white-space: nowrap;
+}
+
+/* A project model's tile while graphty-element draws its picture, or when it cannot: the cube. */
+.ws-gallery-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--cm-text-secondary);
+}
+
+/* The Load custom model dialog (node-models design 14.2). */
+
+/* Its body: the shared two-column dialog (.ws-dialog-columns), here the settings on the left and
+   the model on the right in a 240 px column (blank until a model is loaded), the footer across both.
+   The whole body takes a drop, and shows it while files are held over it. */
+.ws-dialog-columns.ws-model-body {
+    grid-template-columns: minmax(0, 1fr) 240px;
+    grid-template-rows: minmax(0, 1fr) auto;
+    row-gap: 12px;
+    height: min(480px, calc(100dvh - 184px));
+    border-radius: var(--mantine-radius-sm);
+}
+
+.ws-model-body[data-over] {
+    outline: 1px solid var(--cm-border-selected);
+    outline-offset: 4px;
+}
+
+.ws-model-main {
+    min-height: 0;
+}
+
+.ws-model-side {
+    min-height: 0;
+    overflow: hidden auto;
+}
+
+.ws-model-footer {
+    grid-column: 1 / -1;
+    margin-top: 0;
+}
+
+@media (max-width: 720px) {
+    .ws-dialog-columns.ws-model-body {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+
+    .ws-model-side {
+        order: -1;
+        align-items: center;
+    }
+}
+
+/* The model drawn alone, 240 px square, on the panel's ground. */
+.ws-model-preview {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 240px;
+    height: 240px;
+    border: 1px solid var(--cm-border);
+    border-radius: var(--mantine-radius-sm);
+    background: var(--cm-bg-secondary);
+    color: var(--cm-text-secondary);
+}
+
+/* Files, More options and Details: a chevron and a word that open their rows, as the selection pane's Advanced. */
+.ws-disclosure {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+}
+
+/* A part's answers sit under its name, in the name's column. */
+.ws-model-files .ws-part-row {
+    padding-left: 18px;
+}
+
+.ws-model-files .ws-part-row > :first-child {
+    margin-left: -18px;
+}
+
+/* The Style panel by part of the drawing (the file-styles experiment). */
+
+/* A setting's name wraps rather than cut, so settings that differ only at the end ("Shadow offset
+   X", "Shadow offset Y") can be told apart. */
+[data-style-parts] .ws-field-name,
+[data-item-settings] .ws-field-name {
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+/* Find a setting's results keep the sections' gutter (compact-mantine's section content, 16 and 8). */
+[data-find-results] {
+    padding-inline: 16px 8px;
+}
+
+/* A value picker's button keeps its picture clear of its border, as a field keeps its text. */
+.ws-value-listbox {
+    padding-inline: 6px;
+}
+
+/* A value picker's picture, at the size of the field's text. */
+.ws-value-glyph {
+    display: inline-flex;
+    flex: none;
+    width: 14px;
+    height: 14px;
+}
+
+.ws-value-glyph svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* A value picker with nothing set: the default in force, read as that. */
+.ws-value-listbox[data-unset] {
+    font-style: italic;
+    color: var(--cm-text-secondary);
 }

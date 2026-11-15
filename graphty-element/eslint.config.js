@@ -15,7 +15,11 @@ import tseslint from "typescript-eslint";
 
 import { aiEngineBoundary } from "./eslint-rules/ai-engine-boundary.mjs";
 import nodeMeshFunnel from "./eslint-rules/node-mesh-funnel.mjs";
+import noPrivateManagerCast from "./eslint-rules/no-private-manager-cast.mjs";
+import { savedFormatLint } from "./test/saved-format/eslint-saved-format.js";
 import nodePositionFunnel from "./eslint-rules/node-position-funnel.mjs";
+import wholeGraphByName from "./eslint-rules/whole-graph-by-name.mjs";
+import wholeReaders from "./working-graph-whole-readers.json" with { type: "json" };
 
 /** Prevent architectural violations - don't mutate layers directly. */
 const LAYERS_MUTATION = {
@@ -24,7 +28,13 @@ const LAYERS_MUTATION = {
     message: "Do not mutate layers directly. Use StyleManager.addLayer() or StyleManager.insertLayer().",
 };
 
-const local = { rules: { "node-mesh-funnel": nodeMeshFunnel, "node-position-funnel": nodePositionFunnel } };
+const local = {
+    rules: {
+        "node-mesh-funnel": nodeMeshFunnel,
+        "node-position-funnel": nodePositionFunnel,
+        "whole-graph-by-name": wholeGraphByName,
+    },
+};
 
 export default tseslint.config(
     // Inherit all rules from root config (includes JSDoc). All but one block: this package's
@@ -39,10 +49,8 @@ export default tseslint.config(
         ignores: [
             "index.d.ts",
             "index.js",
-            // Ad-hoc debugging scripts, never run by a test or a gate. Not linted yet: the test block
-            // below applies @typescript-eslint rules to test/**/*.js, where that plugin is not
-            // registered, so ESLint refuses these files outright. Scope that block to .ts and fix
-            // the findings to remove this line.
+            // Ad-hoc debugging scripts, never run by a test or a gate. Not linted yet: fix their
+            // findings to remove this line.
             "test/helpers/scripts/**/*.js",
             // The lifecycle tests' Chrome extension: a service worker Chrome loads, two lines.
             "test/lifecycle/discard-extension/**",
@@ -98,6 +106,34 @@ export default tseslint.config(
     },
 
     // ============================================
+    // THE WHOLE GRAPH IS READ ONLY BY NAME
+    // ============================================
+    // Every reader reads the working graph (what the filters show). The whole graph, hidden nodes
+    // included, is read only through wholeGraph(), in a function working-graph-whole-readers.json
+    // lists under `accessors` with its agreed case. The rule: eslint-rules/whole-graph-by-name.mjs.
+    {
+        files: ["src/**/*.ts"],
+        plugins: { local },
+        rules: {
+            "local/whole-graph-by-name": [
+                "error",
+                {
+                    accessors: wholeReaders.accessors.map(({ file, function: name }) => ({ file, function: name })),
+                    owners: wholeReaders.accessorOwners,
+                    mints: wholeReaders.workingMints,
+                },
+            ],
+        },
+    },
+
+    // ============================================
+    // NOTHING READS THE PRESET CATALOG BY A SHADER ID
+    // ============================================
+    // A save file carries its shaders, so a shader id is a key into the project's own shaders.
+    // The rule and the files allowed to read the catalog: test/saved-format/eslint-saved-format.js.
+    savedFormatLint,
+
+    // ============================================
     // NOTHING REACHES THROUGH A NODE TO ITS MESH
     // ============================================
     // The row renderer draws a node with no mesh of its own, so readers use Node's drawn*
@@ -118,6 +154,55 @@ export default tseslint.config(
     },
 
     // ============================================
+    // THE ELEMENT KEEPS WRITING ITS OWN DEPRECATED FIELDS
+    // ============================================
+    // Each type below carries a field the element deprecated for its consumers and still fills in
+    // until the next major removes it. Writing that field is the element keeping its promise, not a
+    // use of deprecated code; reading or passing anything else deprecated is still an error.
+    {
+        files: ["src/**/*.ts"],
+        ignores: ["**/*.test.ts", "**/__tests__/**"],
+        rules: {
+            "@typescript-eslint/no-deprecated": [
+                "error",
+                {
+                    allow: [
+                        {
+                            from: "file",
+                            name: [
+                                "Caveats",
+                                "FieldInterpretation",
+                                "FieldBand",
+                                "LayoutImplementationSpec",
+                                "LayoutImplementation",
+                                "OptionDescriptor",
+                                "ExportResult",
+                                "OperationCancelledEvent",
+                                "CostEstimate",
+                                "RunRecord",
+                                "ScopeApi",
+                                "StyleChannelDescriptor",
+                                "UnboundLayer",
+                                "ScopeResolver",
+                                "ChannelDescriptor",
+                                "LegendSwatch",
+                                "LegendBlock",
+                                "AlgorithmDescriptor",
+                                "BuiltInAlgorithmDescriptor",
+                                "LayoutDescriptor",
+                                "CameraDescriptor",
+                                "LogSinkDescriptor",
+                                "FormatDescriptor",
+                                "FunctionDescriptor",
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+
+    // ============================================
     // ALGORITHM FILES - RELAXED REQUIRE-AWAIT
     // ============================================
     {
@@ -131,7 +216,7 @@ export default tseslint.config(
     // TEST FILES - ALLOW TS-EXPECT-ERROR
     // ============================================
     {
-        files: ["**/*.test.ts", "test/**/*.ts", "test/**/*.js"],
+        files: ["**/*.test.ts", "test/**/*.ts"],
         rules: {
             // Allow ts-expect-error in tests
             "@typescript-eslint/ban-ts-comment": [
@@ -144,5 +229,14 @@ export default tseslint.config(
                 },
             ],
         },
+    },
+    // A test reaches the graph's data, layout and update managers through their public getters, never by casting
+    // the graph to a hand-written shape that TypeScript cannot check against the private fields (issue #6988).
+    {
+        files: ["**/*.test.ts", "test/**/*.ts"],
+        // Still casts for its update manager; another open pull request changes this file.
+        ignores: ["test/interactions/filter-keeps-camera.test.ts"],
+        plugins: { cast: { rules: { "no-private-manager-cast": noPrivateManagerCast } } },
+        rules: { "cast/no-private-manager-cast": "error" },
     },
 );

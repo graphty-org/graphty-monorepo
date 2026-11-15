@@ -452,8 +452,10 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
 }
 
 /**
- * An unfinished pull_request run of the home repository whose pull request is no longer open (merged or closed):
- * GitHub can leave it queued for hours (run 40441556963, "Lint PR Title" queued 21 h after #3940 merged). It holds no
+ * An unfinished pull request run (any `pull_request*` event: pull_request, pull_request_target,
+ * pull_request_review, ...) of the home repository whose pull request is no longer open (merged or closed): GitHub can
+ * leave it queued for hours (run 40441556963, "Lint PR Title" queued 21 h after #3940 merged; #6729's six runs of
+ * three such events queued a day after it merged, issue #7358). It holds no
  * runner and nobody waits on it, so runner use leaves it out. GitHub empties a merged pull request's runs'
  * pull_requests, so a run is matched to an open pull request by number or head branch. `open` must be every open pull
  * request: with a truncated list nothing is called a ghost.
@@ -463,7 +465,7 @@ export function runnerUse(jobs: GhJob[], runsWithoutJobs: GhRun[], nowMs: number
  * @returns true when the run is a ghost
  */
 export function isGhostRun(run: GhRun, open: GqlPr[], complete: boolean): boolean {
-    if (!complete || run.event !== "pull_request" || run.status === "completed") {
+    if (!complete || !run.event.startsWith("pull_request") || run.status === "completed") {
         return false;
     }
     const listed = new Set((run.pull_requests ?? []).map((p) => p.number));
@@ -531,6 +533,8 @@ export interface GqlCheck {
 }
 
 export interface GqlPr {
+    /** GraphQL node id (only on the open list, to ask for its checks). */
+    id?: string;
     number: number;
     title: string;
     state: string;
@@ -795,7 +799,7 @@ function screenshotWaitMs(p: GqlPr, nowMs: number): number {
 
 /**
  * The "now" members of 4.2 and "Red on the same check" of 4.1, from the open pull requests.
- * ponytail: reads the first 50 open pull requests; past 50 the counts stop growing, which is already red.
+ * ponytail: reads at most OPEN_CAP (300) open pull requests; past that the counts stop growing, already red.
  * @param open - the open pull requests
  * @param nowMs - the current epoch ms
  * @param masterFailing - the checks (families folded) master's newest build failed
@@ -1475,7 +1479,7 @@ export function releaseTags(
 export const NOT_ON_NPM = new Set(["graphty", "githerd"]);
 
 /** Projects published to npm without the @graphty scope (test/collector/parse.test.ts checks the package.json names). */
-export const UNSCOPED_ON_NPM = new Set(["babylonjs-map"]);
+export const UNSCOPED_ON_NPM = new Set(["babylonjs-map", "babylonjs-models"]);
 
 export const npmName = (project: string): string =>
     project.startsWith("@") || UNSCOPED_ON_NPM.has(project) ? project : `@graphty/${project}`;

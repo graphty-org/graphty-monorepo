@@ -14,6 +14,7 @@ export const GEMSTONE: ShaderDescriptor = Object.freeze({
     target: "node",
     place: "paint",
     categories: Object.freeze(["Sparkle"]),
+    tags: Object.freeze(["shiny", "3D", "glass"]),
     params: Object.freeze<ShaderParamDescriptor[]>([
         { name: "facets", plainName: "Facets", type: "integer", default: 22, min: 6, max: 64, primary: true },
         { name: "ior", plainName: "Refraction", type: "number", default: 2, min: 1.2, max: 2.6 },

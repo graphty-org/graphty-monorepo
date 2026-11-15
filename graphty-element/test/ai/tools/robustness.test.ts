@@ -388,6 +388,22 @@ describe("the catalog leads a model to a diverging encoding", () => {
             encode: { channel: "node.color", attribute: "<attribute>", palette: "red-blue", midpoint: 0 },
         });
     });
+
+    it("finds the data setting, which holds direction, when a model searches for undirected or directed", async () => {
+        const assistant = new ScriptedAssistant(await assistantSession());
+        await assistant.say(
+            "treat it as undirected",
+            [{ tool: "catalog", args: { action: "search", text: "undirected" } }],
+            [{ tool: "catalog", args: { action: "search", text: "directed", kind: "setting" } }],
+        );
+        for (const found of assistant.lastResults()) {
+            const rows = found.data as { kind: string; name: string }[];
+            assert.isTrue(
+                rows.some((row) => row.kind === "setting" && row.name === "data"),
+                JSON.stringify(rows),
+            );
+        }
+    });
 });
 
 describe("a call's values are read the way the catalog says", () => {

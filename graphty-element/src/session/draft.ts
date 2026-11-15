@@ -39,6 +39,7 @@ import type {
     EdgeEnd,
     Endpoint,
     JoinChoices,
+    JoinLookup,
     JoinReport,
     JoinShape,
     JoinSuggestion,
@@ -48,6 +49,8 @@ import type {
     LoadMappingRead,
     ProjectConfigPatch,
     RecordPage,
+    RowReason,
+    RowReasonCode,
     SessionDataConfig,
     TableMapping,
     TableMappingRead,
@@ -1037,18 +1040,17 @@ export class Draft implements LoadDraft {
         const read = this.live("rows");
         const held = this.table(read, table);
         const { offset = 0, limit = 100, only, choices = {} } = options;
-        const missing = new Map<number, readonly EdgeEnd[]>();
-        const picked = only === undefined ? null : this.filter(read, held, only, choices, missing);
+        const reasons = new Map<number, RowFacts>();
+        const picked = only === undefined ? null : this.filter(read, held, only, choices, reasons);
         const total = picked?.length ?? held.rows.length;
         const records: DraftRow[] = [];
         for (let i = offset; i < Math.min(total, offset + limit); i++) {
             const index = picked?.[i] ?? i;
-            const missingEnds = only === "unmatched" ? missing.get(index) : undefined;
             records.push(
                 Object.freeze({
                     line: held.lines?.[index] ?? index + 1,
                     values: held.rows[index],
-                    ...(missingEnds === undefined ? {} : { missingEnds }),
+                    ...(only === "loaded" ? {} : reasons.get(index)),
                 }),
             );
         }
@@ -1104,6 +1106,16 @@ export class Draft implements LoadDraft {
         const host = this.joinHost("joinReport");
         const { table, shape } = this.joinTable("joinReport", choices);
         return joinReport(table, host.joinGraph?.() ?? NO_GRAPH, choices, shape);
+    }
+
+    /**
+     * The table read as a mapping table for a join's `lookup`, held apart from the graph.
+     * @returns The table.
+     */
+    lookup(): JoinLookup {
+        const read = this.live("lookup");
+        const { name, columns, rows } = tableOf(read, joinedHeld(read));
+        return Object.freeze({ name, columns: Object.freeze([...columns]), rows: Object.freeze([...rows]) });
     }
 
     /**
@@ -1339,6 +1351,8 @@ export class Draft implements LoadDraft {
             nodes,
             edges,
             edgeLines: edgeTable?.lines ?? null,
+            // The node table's rows come first, in order; the rows made for ends after them have no line.
+            ...(nodeTable?.lines ? { nodeLines: nodeTable.lines } : {}),
             declaredDirection: readGephiTypeColumn(edges),
             errors: read.errors,
             errorLimit: read.errorLimit,
@@ -1360,7 +1374,7 @@ export class Draft implements LoadDraft {
      * @param held - The table.
      * @param only - Which rows.
      * @param choices - The choices `report` and `load` take.
-     * @param missing - Filled, by row index, with the ends of each unmatched edge row that name no node.
+     * @param reasons - Filled, by row index, with why each rejected or unmatched row is so.
      * @returns Their indexes.
      */
     private filter(
@@ -1368,7 +1382,7 @@ export class Draft implements LoadDraft {
         held: HeldTable,
         only: DraftRowFilter,
         choices: LoadChoices,
-        missing: Map<number, readonly EdgeEnd[]>,
+        reasons: Map<number, RowFacts>,
     ): number[] {
         // Only this table need be ready: another table's missing role does not stop reading this one.
         const { mapping, held: rows } = this.plan(read, choices, held.table.id);
@@ -1385,6 +1399,9 @@ export class Draft implements LoadDraft {
                 held.rows.forEach((row, index) => {
                     const id = roles.key === null ? index : value(row, idPath);
                     const rejected = !isStorableId(id);
+                    if (rejected) {
+                        reasons.set(index, { reason: rowReason("refused-row", { rowsAre: "nodes" }) });
+                    }
                     // A row repeating an earlier row's id makes no node of its own.
                     const loaded = !rejected && !seen.has(id);
                     seen.add(id);
@@ -1410,14 +1427,19 @@ export class Draft implements LoadDraft {
         const matching = known.size > 0 || graph.size > 0;
         held.rows.forEach((row, index) => {
             const ends = expressions === null ? [null, null] : expressions.map((each) => value(row, each));
-            const rejected = !ends.every(isStorableId);
-            const missingEnds = EDGE_ENDS.filter((_, at) => {
+            const unusable = EDGE_ENDS.filter((_, at) => !isStorableId(ends[at]));
+            const rejected = unusable.length > 0;
+            const missingAt = [0, 1].filter((at) => {
                 const end = ends[at];
                 return isStorableId(end) && !known.has(end) && !graph.has(end);
             });
-            const unmatched = matching && !rejected && missingEnds.length > 0;
-            if (unmatched) {
-                missing.set(index, Object.freeze(missingEnds));
+            const unmatched = matching && !rejected && missingAt.length > 0;
+            if (rejected) {
+                reasons.set(index, { reason: rowReason("refused-row", { rowsAre: "edges", ends: unusable }) });
+            } else if (unmatched) {
+                const missingEnds = Object.freeze(missingAt.map((at) => EDGE_ENDS[at]));
+                const ids = Object.freeze(missingAt.map((at) => ends[at]));
+                reasons.set(index, { missingEnds, reason: rowReason("unknown-end", { ends: missingEnds, ids }) });
             }
             // ponytail: "loaded" counts every repeat as its own edge, as the default `keep` policy
             // does; a folding policy would have to fold repeats here too.
@@ -1430,8 +1452,21 @@ export class Draft implements LoadDraft {
     }
 }
 
+/** Why a rejected or unmatched draft row is so: the fields `LoadDraft.rows` adds to it. */
+type RowFacts = Pick<DraftRow, "missingEnds" | "reason">;
+
+/**
+ * A frozen row reason.
+ * @param code - The reason's code.
+ * @param params - Its facts.
+ * @returns The reason.
+ */
+function rowReason(code: RowReasonCode, params: Readonly<Record<string, unknown>>): RowReason {
+    return Object.freeze({ code, params: Object.freeze(params) });
+}
+
 /** A graph with nothing in it, for a host that lends none. */
-const NO_GRAPH: JoinGraph = { nodes: [], edges: [], joins: new Map(), directed: true };
+const NO_GRAPH: JoinGraph = { nodes: [], edges: [], table: () => undefined, directed: true };
 
 /**
  * The table a join reads: the first table with rows, a table of the reader's own before a

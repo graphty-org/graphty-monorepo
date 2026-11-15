@@ -2,7 +2,7 @@ import { assert, describe, it } from "vitest";
 
 import { Algorithm } from "../../../src/algorithms/Algorithm";
 import { LouvainAlgorithm } from "../../../src/algorithms/LouvainAlgorithm";
-import { createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
+import { asNumber, createMockGraph, getGraphResult, getNodeResult } from "../../helpers/mockGraph";
 
 describe("LouvainAlgorithm", () => {
     describe("Algorithm Registration", () => {
@@ -30,7 +30,7 @@ describe("LouvainAlgorithm", () => {
             const groupCount = getGraphResult(algo, "graphty", "louvain", "groupCount");
 
             assert.isNumber(groupCount);
-            assert.isAtLeast(groupCount, 1);
+            assert.isAtLeast(asNumber(groupCount), 1);
         });
 
         it("publishes the modularity the method reported, not a recomputed one", async () => {
@@ -44,8 +44,8 @@ describe("LouvainAlgorithm", () => {
             assert.isNumber(modularity);
             assert.isTrue(Number.isFinite(modularity));
             // Modularity is bounded on [-0.5, 1] for any partition of any graph.
-            assert.isAtLeast(modularity, -0.5);
-            assert.isAtMost(modularity, 1);
+            assert.isAtLeast(asNumber(modularity), -0.5);
+            assert.isAtMost(asNumber(modularity), 1);
         });
 
         it("counts the groups it actually assigned nodes to", async () => {

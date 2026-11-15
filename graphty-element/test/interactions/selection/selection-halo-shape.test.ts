@@ -148,10 +148,13 @@ function reach(points: Vector3[], center: Vector3, direction: Vector3): number {
 /**
  * Assert the highlight reaches past the node in every direction the node reaches: along each
  * axis and out through every one of the node's own vertices (a box's corners).
+ * In 2D the highlight is a sheet just in front of the edges (issue #7453), so only the directions
+ * across the view count there.
  * @param element - The element.
  * @param id - The selected node.
+ * @param viewMode - The view mode.
  */
-function assertHaloSurrounds(element: Graphty, id: string): void {
+function assertHaloSurrounds(element: Graphty, id: string, viewMode: "2d" | "3d" = "3d"): void {
     const node = element.graph.getNode(id);
     assert.isDefined(node, `node ${id} exists`);
     const nodePoints = worldVertices(node.mesh);
@@ -165,7 +168,10 @@ function assertHaloSurrounds(element: Graphty, id: string): void {
         new Vector3(0, 0, 1),
         new Vector3(0, 0, -1),
         ...nodePoints.map((point) => point.subtract(center)).filter((offset) => offset.length() > 1e-6),
-    ].map((direction) => direction.normalize());
+    ]
+        .map((direction) => (viewMode === "2d" ? new Vector3(direction.x, direction.y, 0) : direction))
+        .filter((direction) => direction.length() > 1e-6)
+        .map((direction) => direction.normalize());
 
     for (const direction of directions) {
         const nodeReach = reach(nodePoints, center, direction);
@@ -186,7 +192,7 @@ describe.each(["2d", "3d"] as const)("the selection highlight in %s", (viewMode)
         await applied(element);
 
         assert.strictEqual(element.getSelectedNode()?.id, "box", "the click selected the box");
-        assertHaloSurrounds(element, "box");
+        assertHaloSurrounds(element, "box", viewMode);
     });
 
     it("is still a sphere at the configured scale around a sphere node", async () => {
@@ -196,12 +202,12 @@ describe.each(["2d", "3d"] as const)("the selection highlight in %s", (viewMode)
         await applied(element);
 
         assert.strictEqual(element.getSelectedNode()?.id, "ball", "the click selected the sphere");
-        assertHaloSurrounds(element, "ball");
+        assertHaloSurrounds(element, "ball", viewMode);
         const node = element.graph.getNode("ball");
         assert.isDefined(node);
         const nodeExtent = node.mesh.getBoundingInfo().boundingBox.extendSizeWorld;
         const haloExtent = drawnHalo(element).getBoundingInfo().boundingBox.extendSizeWorld;
-        for (const axis of ["x", "y", "z"] as const) {
+        for (const axis of viewMode === "2d" ? (["x", "y"] as const) : (["x", "y", "z"] as const)) {
             assert.closeTo(haloExtent[axis] / nodeExtent[axis], DEFAULT_SCALE, 1e-3, `round on ${axis}`);
         }
     });

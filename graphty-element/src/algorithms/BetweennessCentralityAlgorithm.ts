@@ -91,12 +91,10 @@ export class BetweennessCentralityAlgorithm extends MetricAlgorithm<BetweennessO
         const sampled = drawn !== undefined;
 
         context.report({
-            phase: "tracing shortest paths",
+            phase: "tracing-shortest-paths",
             completed: 0,
             total: nodeIds.length,
-            message: sampled
-                ? "Brandes runs a breadth-first search from every sampled source."
-                : "Brandes runs a breadth-first search from every node.",
+            params: { sampled },
         });
         // Brandes is one synchronous call into `@graphty/algorithms` and cannot be interrupted
         // from here. The element's own half -- reading the scores back out -- is chunked below.
@@ -106,7 +104,7 @@ export class BetweennessCentralityAlgorithm extends MetricAlgorithm<BetweennessO
         context.signal.throwIfAborted();
 
         const nodes: ResultElementValues[] = [];
-        await walkInChunks(nodeIds, context, "reading scores", (nodeId) => {
+        await walkInChunks(nodeIds, context, "reading-scores", (nodeId) => {
             const score = value.scores[snapshot.ids.indexOf(nodeId)];
             nodes.push({ id: nodeId, values: score === undefined ? {} : { value: score } });
         });

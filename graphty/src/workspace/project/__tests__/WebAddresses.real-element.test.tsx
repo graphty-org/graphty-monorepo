@@ -14,13 +14,18 @@ import { browserProjects, createGraphSession, type GraphSession } from "@graphty
 import { afterEach, assert, beforeAll, beforeEach, describe, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { withoutFeatures } from "../../../test/features";
 import { cleanup, render, screen, waitFor, within } from "../../../test/test-utils";
 import { OPEN_PROJECT_URLS, PROJECT_HOSTS_KEY, readPreference, readProjectHosts } from "../../settings/preferences";
 import { createWorkspaceStore } from "../../state/store";
-import { openModels, openShapes, written } from "../../style/__tests__/modelHarness";
+import { addModel, openCustom, openShapes, written } from "../../style/__tests__/modelHarness";
 import { dotPng, quadGlb } from "../../style/__tests__/quadGlb";
 import { Workspace } from "../../Workspace";
 import { clearRecent } from "../recent";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 const MODEL = "https://models.example.com/kit/panel.glb";
 const PICTURE = "https://pictures.example.com/dot.png";
@@ -181,14 +186,14 @@ describe("web addresses a project names, from the app", () => {
 });
 
 /**
- * Pastes MODEL in the Models pop-over by real input, and waits until graphty-element draws it.
+ * Pastes MODEL in the Load custom model dialog by real input, and waits until graphty-element draws it.
  * @param session - the element's session.
  * @param tab - the Style tab.
  */
 async function pasteModel(session: GraphSession, tab: HTMLElement): Promise<void> {
-    const models = await openModels(tab);
-    await userEvent.type(within(models).getByRole("textbox", { name: "Model address" }), MODEL);
-    await userEvent.click(within(models).getByRole("button", { name: "Add model address" }));
+    const dialog = await openCustom(tab);
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${MODEL}{Enter}`);
+    await addModel(dialog);
     await reaches(session, MODEL, "drawn");
 }
 
@@ -210,7 +215,7 @@ async function keptEntries(): Promise<Record<string, unknown>[]> {
 }
 
 describe("web addresses in the Style tab, with the node models experiment", () => {
-    it("draws a model pasted by URL in the Models pop-over, asking nothing", async () => {
+    it("draws a model pasted by URL in the Load custom model dialog, asking nothing", async () => {
         const { session, tab } = await openShapes();
         await pasteModel(session, tab);
         assert.equal(written(session, "node.model"), MODEL);
@@ -225,8 +230,7 @@ describe("web addresses in the Style tab, with the node models experiment", () =
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Picture" }));
         const picture = await screen.findByRole("dialog", { name: "Picture" });
-        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), PICTURE);
-        await userEvent.click(within(picture).getByRole("button", { name: "Add picture address" }));
+        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), `${PICTURE}{Enter}`);
         await reaches(session, PICTURE, "drawn");
         assert.equal(written(session, "node.texture"), PICTURE);
     });

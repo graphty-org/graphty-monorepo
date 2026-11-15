@@ -4,16 +4,17 @@
 
 ```ts
 
-import { AbstractEngine } from '@babylonjs/core';
-import { AbstractMesh } from '@babylonjs/core';
+import type { AbstractEngine } from '@babylonjs/core';
+import { AbstractMesh } from '@babylonjs/core/Meshes/abstractMesh.js';
+import { AbstractMesh as AbstractMesh_2 } from '@babylonjs/core';
 import { AcceleratedAlgorithms } from '@graphty/algorithms';
-import { ActionManager } from '@babylonjs/core';
+import type { ActionManager } from '@babylonjs/core/Actions/actionManager.js';
 import { AwsCredentials } from '@graphty/graph-io';
-import { BaseTexture } from '@babylonjs/core';
-import { BoundingBox } from '@babylonjs/core';
-import { BoundingInfo } from '@babylonjs/core';
-import { Camera } from '@babylonjs/core';
-import { Color3 } from '@babylonjs/core';
+import type { BaseTexture } from '@babylonjs/core';
+import type { BoundingBox } from '@babylonjs/core/Culling/boundingBox.js';
+import { BoundingInfo } from '@babylonjs/core/Culling/boundingInfo.js';
+import { Camera } from '@babylonjs/core/Cameras/camera.js';
+import { Color3 } from '@babylonjs/core/Maths/math.color.js';
 import { Column } from '@graphty/graph-format';
 import { ColumnHandle } from '@graphty/graph-format';
 import { CommonExportOptions } from '@graphty/graph-io';
@@ -33,9 +34,9 @@ import { DerivedGraph } from '@graphty/graph-format';
 import { DOT_LOSS } from '@graphty/graph-io';
 import { DuplicatePolicy } from '@graphty/graph-format';
 import { EdgeMask } from '@graphty/graph-format';
-import { Effect } from '@babylonjs/core';
-import { Engine } from '@babylonjs/core';
-import { EngineInstrumentation } from '@babylonjs/core';
+import type { Effect } from '@babylonjs/core/Materials/effect.js';
+import { Engine } from '@babylonjs/core/Engines/engine.js';
+import { EngineInstrumentation } from '@babylonjs/core/Instrumentation/engineInstrumentation.js';
 import { ExpandRequest } from '@graphty/graph-io';
 import { ExtractedStyles } from '@graphty/graph-io/styles';
 import { F32 } from '@graphty/graph-format';
@@ -45,7 +46,7 @@ import type { GeneratorDescriptor } from '@graphty/graph-samples';
 import type { GeneratorParams } from '@graphty/graph-samples/generators';
 import type { GeoBounds } from 'babylonjs-map/projection';
 import { GEXF_LOSS } from '@graphty/graph-io';
-import { GlowLayer } from '@babylonjs/core';
+import { GlowLayer } from '@babylonjs/core/Layers/glowLayer.js';
 import { GML_LOSS } from '@graphty/graph-io';
 import { GraphAnnotation } from '@graphty/graph-io/styles';
 import { GraphBuilder } from '@graphty/graph-format';
@@ -57,7 +58,7 @@ import { GRAPHML_LOSS } from '@graphty/graph-io';
 import { GraphSnapshot } from '@graphty/graph-format';
 import { GraphSource } from '@graphty/graph-io';
 import { ImportReport as ImportReport_2 } from '@graphty/graph-io';
-import { InstancedMesh } from '@babylonjs/core';
+import type { InstancedMesh } from '@babylonjs/core';
 import { JSON_LOSS } from '@graphty/graph-io';
 import { LayoutResult } from '@graphty/layout';
 import { LazySource } from '@graphty/graph-io';
@@ -68,24 +69,24 @@ import type { LocationFormat } from 'babylonjs-map/location';
 import { LOSS } from '@graphty/graph-io';
 import { LossNote } from '@graphty/graph-io';
 import type { MapSourceId } from 'babylonjs-map';
-import { Matrix } from '@babylonjs/core';
-import { Mesh } from '@babylonjs/core';
+import { Matrix } from '@babylonjs/core/Maths/math.vector.js';
+import { Mesh } from '@babylonjs/core/Meshes/mesh.js';
+import { ModelFormat } from 'babylonjs-models/detect';
 import { NEO4J_LOSS } from '@graphty/graph-io';
 import { NodeId as NodeId_2 } from '@graphty/graph-format';
 import { NodeMask } from '@graphty/graph-format';
-import { Observable } from '@babylonjs/core';
-import { Observable as Observable_2 } from '@babylonjs/core/Misc/observable.js';
+import { Observable } from '@babylonjs/core/Misc/observable.js';
 import { PAJEK_LOSS } from '@graphty/graph-io';
-import { PerfCounter } from '@babylonjs/core';
-import { PhotoDome } from '@babylonjs/core';
-import { Plane } from '@babylonjs/core';
-import { PointerInfoPre } from '@babylonjs/core';
+import { PerfCounter } from '@babylonjs/core/Misc/perfCounter.js';
+import { PhotoDome } from '@babylonjs/core/Helpers/photoDome.js';
+import type { Plane } from '@babylonjs/core';
+import type { PointerInfoPre } from '@babylonjs/core';
 import type { ProjectionId } from 'babylonjs-map/projection';
 import { PropertyValues } from 'lit';
-import { Quaternion } from '@babylonjs/core';
+import { Quaternion } from '@babylonjs/core/Maths/math.vector.js';
 import { QueryLanguage } from '@graphty/graph-io';
-import { RawTexture } from '@babylonjs/core';
-import { Ray } from '@babylonjs/core';
+import { RawTexture } from '@babylonjs/core/Materials/Textures/rawTexture.js';
+import { Ray } from '@babylonjs/core/Culling/ray.js';
 import { RecordBatch } from '@graphty/graph-io';
 import { Recording } from '@graphty/graph-io';
 import { recordingFrom } from '@graphty/graph-io';
@@ -94,8 +95,9 @@ import { ReplayFetch } from '@graphty/graph-io';
 import { replayFetch } from '@graphty/graph-io';
 import { ReplayOptions } from '@graphty/graph-io';
 import { RetryOptions } from '@graphty/graph-io';
-import { Scene } from '@babylonjs/core';
-import { SceneInstrumentation } from '@babylonjs/core';
+import { Scene } from '@babylonjs/core/scene.js';
+import { Scene as Scene_2 } from '@babylonjs/core';
+import { SceneInstrumentation } from '@babylonjs/core/Instrumentation/sceneInstrumentation.js';
 import { SOURCE_ISSUE } from '@graphty/graph-io';
 import { SourceContext } from '@graphty/graph-io';
 import { SourceCredentialSlot } from '@graphty/graph-io';
@@ -130,14 +132,14 @@ import type { StyleRuleOrigin } from '@graphty/graph-io/styles';
 import type { StyleRuleReason } from '@graphty/graph-io/styles';
 import type { StyleRuleRole } from '@graphty/graph-io/styles';
 import type { StyleTool } from '@graphty/graph-io/styles';
-import { TransformNode } from '@babylonjs/core';
+import { TransformNode } from '@babylonjs/core/Meshes/transformNode.js';
 import { U32 } from '@graphty/graph-format';
 import { U8 } from '@graphty/graph-format';
-import { UniformBuffer } from '@babylonjs/core';
+import { UniformBuffer } from '@babylonjs/core/Materials/uniformBuffer.js';
 import { Vector2 } from '@babylonjs/core/Maths/math.vector.js';
-import { Vector3 } from '@babylonjs/core';
-import { WebGPUEngine } from '@babylonjs/core';
-import { WebXRDefaultExperience } from '@babylonjs/core';
+import { Vector3 } from '@babylonjs/core/Maths/math.vector.js';
+import { WebGPUEngine } from '@babylonjs/core/Engines/webgpuEngine.js';
+import type { WebXRDefaultExperience } from '@babylonjs/core/XR/webXRDefaultExperience.js';
 import { XGMML_LOSS } from '@graphty/graph-io';
 import { z } from 'zod';
 
@@ -201,6 +203,28 @@ export interface AcceleratorFactoryOptions {
 }
 
 // @public
+export interface AccessibleAnnouncement {
+    readonly code: "selection";
+    readonly params: AccessibleSelection;
+}
+
+// @public
+export interface AccessibleGraphFacts {
+    readonly edges: number;
+    readonly legend: readonly LegendBlock[];
+    readonly nodes: number;
+    readonly selection: AccessibleSelection;
+}
+
+// @public
+export interface AccessibleSelection {
+    readonly count: number;
+    readonly neighborCount: number;
+    readonly neighbors: readonly NodeName[];
+    readonly nodes: readonly NodeName[];
+}
+
+// @public
 export type ActiveRenderer = "webgl" | "webgpu";
 
 // @public
@@ -235,12 +259,16 @@ abstract class Algorithm_2<TOptions extends Record<string, unknown> = Record<str
     static hasZodOptions(): boolean;
     // @internal
     protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput;
+    // @internal
+    static readonly loadedWeightByDefault: boolean;
     // (undocumented)
     static namespace: string;
     get namespace(): string;
     protected nodeIndex(snapshot: GraphSnapshot, option: string, id: NodeId): number;
     // @deprecated
     static optionsSchema: OptionsSchema_2;
+    // @internal
+    parallelEdgePolicy(): SimplifyPolicy | undefined;
     // @internal
     static parallelEdges?: SimplifyPolicy;
     publishResult(_context: RunControls, runId: string, _fields?: readonly FieldDescriptor[]): Promise<RunResult | undefined>;
@@ -303,7 +331,7 @@ export interface AnimationOptions {
         preset: string;
     };
     cameraMode: "stationary" | "animated";
-    cameraPath?: CameraWaypoint[];
+    cameraPath?: (CameraWaypoint | ViewWaypoint)[];
     download?: boolean;
     downloadFilename?: string;
     duration: number;
@@ -312,7 +340,6 @@ export interface AnimationOptions {
     fps?: number;
     height?: number;
     tour?: readonly string[];
-    transparentBackground?: boolean;
     videoBitrate?: number;
     width?: number;
 }
@@ -625,16 +652,15 @@ export interface CameraStateChangedEvent {
 // @public
 export type CameraViewExtent = "centers" | "drawn";
 
-// @public (undocumented)
+// @public
 export interface CameraWaypoint {
     duration?: number;
-    // (undocumented)
+    hold?: number;
     position: {
         x: number;
         y: number;
         z: number;
     };
-    // (undocumented)
     target: {
         x: number;
         y: number;
@@ -652,16 +678,14 @@ export interface Capabilities {
     readonly xr: XrCapability;
 }
 
-// @public (undocumented)
+// @public
 export interface CapabilityCheck {
     // (undocumented)
     estimatedMemoryMB: number;
-    // (undocumented)
-    reason?: string;
+    reason?: CodedFact<GraphtyErrorCode>;
     // (undocumented)
     supported: boolean;
-    // (undocumented)
-    warnings?: string[];
+    warnings?: CodedFact<ScreenshotWarningCode>[];
 }
 
 // @public
@@ -692,8 +716,8 @@ export interface CaptureEstimate {
 // @public
 export const CARBON_COLORS: readonly ["#6929C4", "#1192E8", "#005D5D", "#9F1853", "#FA4D56"];
 
-// @public (undocumented)
-export type ClipboardStatus = "success" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
+// @public
+export type ClipboardStatus = "success" | "not-requested" | "not-supported" | "permission-denied" | "not-secure-context" | "failed";
 
 // @public
 export interface CodedFact<Code extends string = string> {
@@ -792,20 +816,19 @@ export interface DataLoadingErrorEvent {
     type: "data-loading-error";
 }
 
-// @public (undocumented)
+// @public
 export interface DataLoadingErrorSummaryEvent {
-    // (undocumented)
-    detailedReport: string;
+    code: "load-errors";
+    errors: readonly LoadError[];
     // (undocumented)
     format: string;
     loadId?: number;
-    // (undocumented)
-    message: string;
-    // (undocumented)
+    params: {
+        totalErrors: number;
+        byCategory: Readonly<Record<string, number>>;
+        fields: readonly string[];
+    };
     primaryCategory?: string;
-    // (undocumented)
-    suggestion?: string;
-    // (undocumented)
     totalErrors: number;
     // (undocumented)
     type: "data-loading-error-summary";
@@ -813,7 +836,6 @@ export interface DataLoadingErrorSummaryEvent {
 
 // @public (undocumented)
 export interface DataLoadingProgressEvent {
-    // (undocumented)
     bytesProcessed: number;
     // (undocumented)
     chunksProcessed: number;
@@ -822,9 +844,7 @@ export interface DataLoadingProgressEvent {
     format: string;
     loadId?: number;
     nodeRecordsLoaded: number;
-    // (undocumented)
     percentage?: number;
-    // (undocumented)
     totalBytes?: number;
     // (undocumented)
     type: "data-loading-progress";
@@ -840,6 +860,7 @@ export class DataManager implements Manager {
         generation?: number;
         coalesce?: string;
         setup?: boolean;
+        signal?: AbortSignal;
     }): Promise<void>;
     addEdge(edge: AdHocData, options?: AddEdgesOptions): void;
     addEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void;
@@ -858,6 +879,8 @@ export class DataManager implements Manager {
     // @internal
     get drawHeld(): boolean;
     drawnBundle(edge: Edge): EdgeBundle;
+    // @internal
+    edgeDirected(row: number): boolean;
     get edges(): ReadonlyMap<string, Edge>;
     get edgesByIndex(): readonly (Edge | undefined)[];
     edgeVersion: number;
@@ -890,6 +913,8 @@ export class DataManager implements Manager {
     nodeAtRow(row: number): Node_2 | undefined;
     // (undocumented)
     nodeCache: Map<NodeIdType, Node_2>;
+    // @internal
+    nodeIdAtRow(row: number): NodeIdType | undefined;
     get nodes(): ReadonlyMap<string | number, Node_2>;
     // @internal
     get nodesByIndex(): readonly (Node_2 | undefined)[];
@@ -910,6 +935,9 @@ export class DataManager implements Manager {
     renderLimits: {
         ceilings(): Readonly<Ceilings> | undefined;
         batched(): boolean;
+        objectRows?(): number;
+        objectEdges?(): number;
+        objectCap?(of: "nodes" | "edges", wanted: number, cap: number): void;
     } | null;
     get seededNodeCount(): number;
     setEdges(edges: Record<string | number, unknown>[], options?: AddEdgesOptions): void;
@@ -932,6 +960,7 @@ export class DataManager implements Manager {
 // @public
 export abstract class DataSource {
     constructor(errorLimit?: number, chunkSize?: number);
+    bytesRead: number | undefined;
     protected chunkData(nodes: AdHocData[], edges: AdHocData[]): Generator<DataSourceChunk, void, unknown>;
     // (undocumented)
     protected chunkSize: number;
@@ -954,13 +983,6 @@ export abstract class DataSource {
     edgeSchema: z.core.$ZodObject | null;
     // (undocumented)
     protected errorAggregator: ErrorAggregator;
-    protected get errorMessages(): {
-        missingInput: () => string;
-        fetchFailed: (url: string, attempts: number, error: string) => string;
-        parseFailed: (error: string) => string;
-        invalidFormat: (reason: string) => string;
-        extractionFailed: (path: string, error: string) => string;
-    };
     protected fetchWithRetry(url: string, retries?: number, timeout?: number): Promise<Response>;
     // @internal
     fileStyles(options?: {
@@ -1090,6 +1112,7 @@ export class Edge {
         width: number;
         visibility: number;
         centre: Vector3;
+        pattern: JoinedPatternKind | null;
     } | null;
     get drawnPattern(): readonly ArrowCap[];
     // (undocumented)
@@ -1288,6 +1311,7 @@ export const EdgeStyle: z.ZodObject<{
         gap: z.ZodOptional<z.ZodNumber>;
         stack: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         image: z.ZodOptional<z.ZodString>;
         text: z.ZodOptional<z.ZodObject<{
@@ -1565,6 +1589,7 @@ export const EdgeStyle: z.ZodObject<{
         gap: z.ZodOptional<z.ZodNumber>;
         stack: z.ZodOptional<z.ZodString>;
         color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         opacity: z.ZodOptional<z.ZodDefault<z.ZodNumber>>;
         image: z.ZodOptional<z.ZodString>;
         text: z.ZodOptional<z.ZodObject<{
@@ -1842,6 +1867,7 @@ export const EdgeStyle: z.ZodObject<{
             right: "right";
         }>>;
         outlineWidth: z.ZodOptional<z.ZodNumber>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     }, z.core.$strict>>;
     arrowMiddleTail: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodDefault<z.ZodEnum<{
@@ -1892,6 +1918,7 @@ export const EdgeStyle: z.ZodObject<{
             right: "right";
         }>>;
         outlineWidth: z.ZodOptional<z.ZodNumber>;
+        fillColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
     }, z.core.$strict>>;
     line: z.ZodOptional<z.ZodObject<{
         type: z.ZodOptional<z.ZodEnum<{
@@ -2482,21 +2509,19 @@ export class ErrorAggregator {
     constructor(maxErrors?: number);
     addError(error: DataLoadingError): boolean;
     clear(): void;
-    getDetailedReport(): string;
     getErrorCount(): number;
     getErrorLimit(): number;
     getErrors(): DataLoadingError[];
     getSummary(): ErrorSummary;
-    getUserFriendlyMessage(): string;
     hasReachedLimit(): boolean;
 }
 
 // @public
 export interface ErrorSummary {
+    byCategory: Record<string, number>;
     categories: Map<string, DataLoadingError[]>;
-    message: string;
+    fields: string[];
     primaryCategory?: string;
-    suggestion?: string;
     totalErrors: number;
 }
 
@@ -2518,7 +2543,7 @@ export class EventManager implements Manager {
         canContinue: boolean;
         loadId?: number;
     }): void;
-    emitDataLoadingErrorSummary(format: string, totalErrors: number, message: string, detailedReport: string, primaryCategory?: string, suggestion?: string, loadId?: number): void;
+    emitDataLoadingErrorSummary(format: string, errors: ErrorAggregator, loadId?: number): void;
     emitDataLoadingProgress(format: string, bytesProcessed: number, totalBytes: number | undefined, nodeRecordsLoaded: number, edgeRecordsLoaded: number, chunksProcessed: number, loadId?: number): void;
     emitEdgeEvent(type: EdgeEvent["type"], eventData: object): void;
     emitElementsRemoved(nodes: NodeId[], edges: EdgeId[], cause?: HistoryCause): void;
@@ -2569,7 +2594,13 @@ export { ExpandRequest }
 export type ExportGraphOptions = Readonly<Record<string, unknown>> & CommonExportOptions & {
     readonly scope?: ExportScope;
     readonly columns?: readonly string[];
+    readonly groupTable?: ExportGroupTable;
 };
+
+// @public
+export interface ExportGroupTable extends GroupTableOptions {
+    readonly groupBy: string;
+}
 
 // @public
 export type ExportLoss = CodedFact<ExportLossCode | (string & {})>;
@@ -2588,7 +2619,7 @@ export interface ExportResult {
 }
 
 // @public
-export type ExportScope = RuleTree | "shown" | "selection" | {
+export type ExportScope = RuleTree | "all" | "shown" | "selection" | {
     readonly set: SetId;
 } | {
     readonly nodes: readonly NodeId[];
@@ -2599,6 +2630,23 @@ export type ExportStyleLossCode = (typeof EXPORT_STYLE_LOSS_CODES)[number];
 
 // @public
 export type FeatureId = "assistant" | "data-management" | "timeline" | "location-map" | "selection-workspace" | "cosmograph" | "file-styles" | "node-models";
+
+// @public
+export interface FigureOptions {
+    download?: boolean;
+    downloadFilename?: string;
+    format?: "svg";
+    legend?: ScreenshotOptions["legend"];
+    transparentBackground?: boolean;
+}
+
+// @public
+export interface FigureResult {
+    blob: Blob;
+    downloaded: boolean;
+    height: number;
+    width: number;
+}
 
 // @public
 export interface FindAtLeastRow {
@@ -2755,6 +2803,7 @@ export class Graph implements GraphContext {
     readonly acceleration: AccelerationController;
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -2780,10 +2829,15 @@ export class Graph implements GraphContext {
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
     cancelAiCommand(): void;
     cancelAnimationCapture(): boolean;
+    cancelCameraAnimation(): boolean;
     // (undocumented)
     canvas: HTMLCanvasElement;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
+    centerOnOverview(point: {
+        x: number;
+        y: number;
+    }, options?: CameraAnimationOptions): Promise<void>;
     clearAiHistory(options?: {
         readonly database?: string;
     }): Promise<void>;
@@ -2860,12 +2914,15 @@ export class Graph implements GraphContext {
     // @internal
     getNodeBatches(): NodeBatches | null;
     getNodeCount(): number;
+    getNodeIds(): (string | number)[];
     // @internal
     getNodeIdTarget(): NodeIdTarget | null;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
+    getOverview(options?: OverviewOptions): GraphOverview;
     getPendingAiApprovals(): readonly AiApprovalRequest[];
     getPendingAiQuestions(): readonly AiQuestionRequest[];
+    getReducedMotion(): boolean | "auto";
     // @internal
     getRowTable(): RowTable | null;
     getScene(): Scene;
@@ -2926,6 +2983,7 @@ export class Graph implements GraphContext {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -2940,10 +2998,12 @@ export class Graph implements GraphContext {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
+    modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
     // @deprecated
     needRays: boolean;
     // @deprecated
@@ -2961,6 +3021,9 @@ export class Graph implements GraphContext {
     // (undocumented)
     pinOnDrag?: boolean;
     get pixelRatio(): PixelRatio;
+    playTour(path: readonly (CameraWaypoint | ViewWaypoint)[], options?: {
+        easing?: CameraAnimationOptions["easing"];
+    }): Promise<void>;
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
     removeListener(id: symbol): boolean;
@@ -2979,6 +3042,7 @@ export class Graph implements GraphContext {
         params?: Readonly<Record<string, unknown>>;
         extent?: CameraViewExtent;
     }): CameraState;
+    restartRenderer(): Promise<void>;
     retryLastAiCommand(): Promise<ExecutionResult>;
     get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
@@ -3002,7 +3066,6 @@ export class Graph implements GraphContext {
     } | null;
     select(target: SelectionTarget, op?: SelectionOp): Promise<SelectionDelta>;
     selectNode(nodeId: string | number): boolean;
-    setAttributionOffset(pixels: number): void;
     setAutoFrame(on: boolean): void;
     setBackground(background: GraphBackgroundConfig): void;
     setCameraMode(mode: CameraKey, options?: QueueableOptions): Promise<void>;
@@ -3039,6 +3102,7 @@ export class Graph implements GraphContext {
     setLimits(value: LimitsOption): void;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setPixelRatio(ratio: PixelRatio): void;
+    setReducedMotion(value: boolean | "auto"): void;
     setRenderer(request: RendererRequest): void;
     setRenderPath(path: RenderPath): void;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
@@ -3161,6 +3225,8 @@ export interface GraphContext {
     leansLines?(): boolean;
     // @deprecated
     needsRayUpdate(): boolean;
+    // @internal
+    nodeScreenPosition?(nodeId: string | number): NodeScreenPosition | undefined;
     readonly onNodeLabelCounts?: Observable<NodeLabelCounts>;
     setRunning(running: boolean): void;
 }
@@ -3224,7 +3290,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -3234,7 +3300,7 @@ export interface GraphGenericEvent {
     // (undocumented)
     [key: string]: unknown;
     // (undocumented)
-    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
+    type: "render-initialized" | "manager-initialized" | "lifecycle-initialized" | "lifecycle-disposed" | "skybox-loaded" | "skybox-failed" | "operation-queue-active" | "operation-queue-idle" | "operation-batch-complete" | "operation-start" | "operation-complete" | "operation-progress" | "layout-progress" | "operation-obsoleted" | "animation-progress" | "animation-cancelled" | "screenshot-enhancing" | "screenshot-ready" | "zoom-to-fit-complete" | "graph-frame-stable" | "graph-first-frame";
 }
 
 // @public (undocumented)
@@ -3245,6 +3311,17 @@ export interface GraphLayoutInitializedEvent {
     shouldZoomToFit: boolean;
     // (undocumented)
     type: "layout-initialized";
+}
+
+// @public
+export interface GraphOverview {
+    density: {
+        size: number;
+        counts: Uint32Array;
+    } | null;
+    kind: "points" | "density";
+    points: Float32Array;
+    viewport: OverviewRect;
 }
 
 // @public (undocumented)
@@ -3271,8 +3348,16 @@ export class Graphty extends LitElement {
     set acceleration(value: AccelerationPolicy);
     get accelerationMinNodes(): number;
     set accelerationMinNodes(value: number);
+    get accessibleAnnouncement(): ((announcement: AccessibleAnnouncement) => string) | undefined;
+    set accessibleAnnouncement(value: ((announcement: AccessibleAnnouncement) => string) | undefined);
+    get accessibleDescription(): ((facts: AccessibleGraphFacts) => string) | undefined;
+    set accessibleDescription(value: ((facts: AccessibleGraphFacts) => string) | undefined);
+    accessibleFacts(): AccessibleGraphFacts;
+    get accessibleNodeList(): boolean;
+    set accessibleNodeList(value: boolean);
     addDataFromSource(type: string, opts?: object, options?: {
         replace?: boolean;
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -3299,8 +3384,6 @@ export class Graphty extends LitElement {
     applySuggestedStyles(algorithmKey: string | string[]): boolean;
     asyncFirstUpdated(): Promise<void>;
     attributeChangedCallback(name: string, old: string | null, value: string | null): void;
-    get attributionOffset(): number;
-    set attributionOffset(value: number);
     get autoFrame(): boolean;
     set autoFrame(value: boolean);
     get autoRotate(): number;
@@ -3322,8 +3405,13 @@ export class Graphty extends LitElement {
     canCaptureScreenshot(options?: ScreenshotOptions): Promise<CapabilityCheck>;
     cancelAiCommand(): void;
     cancelAnimationCapture(): boolean;
+    cancelCameraAnimation(): boolean;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
+    centerOnOverview(point: {
+        x: number;
+        y: number;
+    }, options?: CameraAnimationOptions): Promise<void>;
     clearAiHistory(options?: {
         readonly database?: string;
     }): Promise<void>;
@@ -3381,6 +3469,7 @@ export class Graphty extends LitElement {
     exitXR(): Promise<void>;
     exportAiConversation(id: string): Promise<string | null>;
     exportCameraPresets(): Record<string, CameraState>;
+    exportFigure(options?: FigureOptions): Promise<FigureResult>;
     exportGraph(format: FormatId, options?: ExportGraphOptions): Promise<ExportResult>;
     get features(): readonly string[] | undefined;
     set features(value: readonly string[] | string | null | undefined);
@@ -3402,16 +3491,19 @@ export class Graphty extends LitElement {
     getCameraState(): CameraState;
     getDataManager(): DataManager;
     getEdgeCount(): number;
+    getEdges(): Edge[];
     getEventManager(): EventManager;
     getLayoutManager(): LayoutManager;
     getMeshCache(): MeshCache;
     getNode(nodeId: string | number): Node_2 | undefined;
     getNodeCount(): number;
-    getNodeMesh(nodeId: string): AbstractMesh | null;
+    getNodeIds(): (string | number)[];
+    getNodeMesh(nodeId: string): AbstractMesh_2 | null;
     getNodes(): Node_2[];
+    getOverview(options?: OverviewOptions): GraphOverview;
     getPendingAiApprovals(): readonly AiApprovalRequest[];
     getPendingAiQuestions(): readonly AiQuestionRequest[];
-    getScene(): Scene;
+    getScene(): Scene_2;
     getSelectedNode(): Node_2 | null;
     getSelectionManager(): SelectionManager;
     getStatsManager(): StatsManager;
@@ -3459,6 +3551,12 @@ export class Graphty extends LitElement {
     set layoutConfig(value: Record<string, unknown> | undefined);
     get layoutScope(): Scope | undefined;
     set layoutScope(value: ScopeInput | undefined);
+    get legend(): boolean;
+    set legend(value: boolean);
+    get legendLabel(): string | undefined;
+    set legendLabel(value: string | undefined);
+    get legendPosition(): ScreenshotLegendPosition;
+    set legendPosition(value: ScreenshotLegendPosition);
     get lighting(): Lighting;
     set lighting(value: Lighting);
     get limits(): Readonly<LimitsOption>;
@@ -3479,6 +3577,7 @@ export class Graphty extends LitElement {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
@@ -3496,10 +3595,16 @@ export class Graphty extends LitElement {
         styles?: "file" | "none";
         styleOptions?: FileStyleOptions;
         layout?: "recommended" | "keep";
+        signal?: AbortSignal;
     }): Promise<{
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
+    get minimap(): boolean;
+    set minimap(value: boolean);
+    get minimapLabel(): string;
+    set minimapLabel(value: string);
+    modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
     newAiConversation(): Promise<AiConversationSnapshot | null>;
     get nodeData(): Record<string, unknown>[] | undefined;
     set nodeData(value: Record<string, unknown>[] | undefined);
@@ -3533,8 +3638,13 @@ export class Graphty extends LitElement {
     get pinnedNodes(): ReadonlySet<string | number>;
     get pixelRatio(): PixelRatio;
     set pixelRatio(value: PixelRatio);
+    playTour(path: readonly (CameraWaypoint | ViewWaypoint)[], options?: {
+        easing?: "linear" | "easeIn" | "easeOut" | "easeInOut";
+    }): Promise<void>;
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
+    get reducedMotion(): boolean | "auto";
+    set reducedMotion(value: boolean | "auto");
     get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
@@ -3561,6 +3671,7 @@ export class Graphty extends LitElement {
         params?: Readonly<Record<string, unknown>>;
         extent?: CameraViewExtent;
     }): CameraState;
+    restartRenderer(): Promise<void>;
     retryLastAiCommand(): Promise<ExecutionResult>;
     get rowCounts(): RowCounts;
     run(algorithm: AlgorithmKey, params?: Record<string, unknown>, options?: StartOptions): Run;
@@ -3607,7 +3718,7 @@ export class Graphty extends LitElement {
     }): void;
     setDefaultPalettes(palettes: DefaultPalettes, options?: {
         readonly reapply?: boolean;
-    }): void;
+    }): Promise<void>;
     setInputEnabled(enabled: boolean): void;
     setLayout(type: string, opts?: object, options?: SetLayoutOptions): Promise<void>;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
@@ -3647,7 +3758,11 @@ export class Graphty extends LitElement {
     // @beta
     waitForPainted(): Promise<void>;
     waitForSettled(): Promise<void>;
-    waitForStableFrame(options?: StableFrameOptions): Promise<void>;
+    waitForStableFrame(options?: {
+        timeoutMs?: number;
+    }): Promise<void>;
+    get workingGraph(): boolean;
+    set workingGraph(value: boolean);
     worldToScreen(worldPos: {
         x: number;
         y: number;
@@ -3878,6 +3993,13 @@ export type GraphtyErrorCode =
 */
 | "E_UNKNOWN_ELEMENT"
 /**
+* A graph was constructed with the id of a page element that the document does not hold, so
+* there is nowhere to draw. `details.id` carries the id. The caller creates the element first,
+* or passes the element itself.
+* @since 3.40.0
+*/
+| "E_HOST_NOT_FOUND"
+/**
 * A saved document's content is malformed: not the kind it claims, a required member missing
 * or of the wrong type, a member named `__proto__`, or nesting past the limit. `details` name
 * what is wrong. Nothing in the session changed. The document is fixed at its source; reading
@@ -3906,6 +4028,15 @@ export type GraphtyErrorCode =
 * `details.id` names it. The caller lists the entries again.
 */
 | "E_AUTOSAVE_UNKNOWN_ENTRY"
+/**
+* Autosave's kept work could not be listed, or an entry could not be reopened: another tab
+* holds the browser's database and did not let go within `details.afterMs` (a tab the browser
+* suspended in the middle of a write), or the browser's storage stalled. `details.step` is
+* `"list"` (listing), `"read"` (reading the entry) or `"restore"` (writing the restore). For a
+* listing nothing is known about the kept work; the caller offers none and asks again later.
+* A refused restore leaves the entry as it was; the caller may restore it again later.
+*/
+| "E_AUTOSAVE_STALLED"
 /**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
@@ -3944,15 +4075,19 @@ export type GraphtyErrorCode =
 | "E_LOCKED"
 /**
 * A source could not be fetched: a network failure, a non-2xx status, a CORS refusal or an
-* unreadable file. `details` carry the url and the status where there was one, and `cause`
+* unreadable file. `details` carry the url (or the file's name), the status where there was
+* one and `timeoutMs` when the last request ran out of time, and `cause`
 * carries the original failure. Recoverable by retrying, except a client error (a 4xx other
 * than 408 and 429), which fails after one request with `recoverable: false`.
 */
 | "E_FETCH_FAILED"
 /**
 * A source was fetched but could not be parsed as the format it claimed to be. `details`
-* carry the format, the line and, where the parser reported one, the column. The caller
-* corrects the file, or re-imports naming the true format.
+* carry the format, the line and, where the parser reported one, the column; when graph-io
+* read it, `details.issue` is graph-io's code for what stopped it (`"E_XML_SYNTAX"`,
+* `"E_CSV_UNCLOSED_QUOTE"`...) and `details.element` where. A reader that threw without a
+* code of its own is reported as this too, with its error as `cause`. The caller corrects
+* the file, or re-imports naming the true format.
 */
 | "E_PARSE_FAILED"
 /**
@@ -4156,6 +4291,13 @@ export type GraphtyErrorCode =
 */
 | "E_DEVICE_LOST"
 /**
+* The graphics device the graph is drawn with was lost: the WebGL context or the WebGPU
+* device. `params.renderer` (on the `render-lost` event) or `details.renderer` names which.
+* The session and its data are untouched; the element asks for the device back, and
+* `restartRenderer()` asks again. Thrown by `restartRenderer()` when the browser refuses.
+*/
+| "E_RENDER_LOST"
+/**
 * No WebGL context could be created, so nothing can be rendered. `details` carry what the
 * canvas reported. The session's data and results still work; only the view is unavailable.
 */
@@ -4168,6 +4310,14 @@ export type GraphtyErrorCode =
 * leaves empty. Reported as `graph-error`.
 */
 | "E_SHADER_REFUSED"
+/**
+* The browser or the headset would not start an immersive (VR or AR) session: the reader
+* refused permission, the device was busy, or the session could not be set up. `details.mode`
+* is `"vr"` or `"ar"`, `details.reason` is `"active"` when another session was already running,
+* and `cause` carries what the browser rejected with. Nothing was left half built: the graph
+* stays in 3D and the next attempt starts clean. Recoverable: asking again can succeed.
+*/
+| "E_XR_SESSION_FAILED"
 /**
 * A feature the caller asked for needs an optional peer package that is not installed.
 * `details.package` names the package to install and `details.feature` the feature that
@@ -4317,11 +4467,11 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_TOO_LARGE"
 /**
-* A model's structure is unsafe or broken, found before anything decodes it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`).
+* A model's structure is unsafe or broken, found before anything decodes it or by graphty-element's own reader while drawing it. `params.rule` (`index`, `cycle`, `parent`, `depth`, `accessor`, `json`, `instancing`, `image`, `length`, `header`, `path`; a reader's damaged-file refusals `ply`, `splat`, `babylon`, and `delayLoad` for a `.babylon` whose meshes load from other files).
 */
 | "E_MODEL_STRUCTURE"
 /**
-* A recognized 3D format graphty-element does not load (FBX, USDZ, DAE, .blend, 3MF, splats, .babylon, a point cloud). `params.format`, `params.fileName`.
+* A recognized 3D format graphty-element does not load (FBX, USD and USDZ, DAE, .blend, 3MF, BVH animation). `params.format`, `params.fileName`; `params.extension` for a glTF that requires an extension graphty-element does not read.
 * `params.assetKind` is `"image"` when `node.model` names a picture and `"model"` when `node.texture` names a model.
 */
 | "E_MODEL_FORMAT_UNSUPPORTED"
@@ -4363,7 +4513,7 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_EXTERNAL_URL"
 /**
-* A model is compressed (Draco, meshopt, KTX2) and no decoder is bundled. `params.extension`, `params.package`.
+* A model's compressed data could not be decoded. `params.reason`: `missing` when this build of graphty-element leaves the decoder out (the single-file `./bundle` carries no Draco or KTX2 decoder), `load` when the decoder's files could not be loaded, `decode` when the data is damaged. `params.extension` names the glTF extension when known. Every other build ships the Draco, meshopt and KTX2 decoders; nothing is fetched from a CDN.
 */
 | "E_MODEL_DECODER_UNAVAILABLE"
 /**
@@ -4388,9 +4538,28 @@ export type GraphtyErrorCode =
 */
 | "E_MODEL_DIGEST_MISMATCH"
 /**
-* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed".
+* A picture a node draws (`node.image`) could not be loaded, nor the one it gives way to (`node.imageFallback`): the node is drawn without it. `params.url` (the first 256 characters of the URL that failed last). Reported in `model:changed` under the URL the layer named, `state` "failed". Also a skybox background image that could not be loaded, as the detail of the element's `graphty-skybox-failed` event, `params.url` its first 256 characters.
 */
-| "E_IMAGE_LOAD" | "E_INTERNAL";
+| "E_IMAGE_LOAD"
+/**
+* A picture the browser cannot decode, so it cannot be drawn (`prepareBackgroundImage`): HEIC in a browser without HEIC support, a damaged file, or a file that is not a picture. `params.format` (its media type, or "" when unknown), `params.fileName` when it is a file.
+*/
+| "E_IMAGE_DECODE"
+/**
+* A screenshot, a video or a clipboard copy was started and could not be finished: the
+* renderer, the image encoder, the media recorder or the clipboard write failed, or there was
+* no camera to draw from. `details.media` is `"image"`, `"video"` or `"figure"` (`exportFigure`), `details.destination` is
+* `"clipboard"` for a failed copy, and `cause` carries the original failure. Retrying may work.
+* @since 3.40.0
+*/
+| "E_CAPTURE_FAILED"
+/**
+* A screenshot waited for the layout to stop moving and it was still moving when the wait ran
+* out. `details.timeoutMs` is the wait. The caller captures again later, raises
+* `timing.settleTimeoutMs`, or captures without waiting (`timing.waitForSettle: false`).
+* @since 3.40.0
+*/
+| "E_NOT_SETTLED" | "E_INTERNAL";
 
 // @public
 export type GraphtyErrorDetails<C extends GraphtyErrorCode = GraphtyErrorCode> = Readonly<Record<string, unknown>> & (C extends keyof GraphtyErrorDetailsMap ? GraphtyErrorDetailsMap[C] : unknown);
@@ -4400,9 +4569,20 @@ export interface GraphtyErrorDetailsMap {
     E_DUPLICATE_ID: {
         readonly id?: string | number;
     };
+    E_FETCH_FAILED: {
+        readonly url?: string;
+        readonly file?: string;
+        readonly status?: number;
+        readonly attempts?: number;
+        readonly timeoutMs?: number;
+    };
     E_PARSE_FAILED: {
         readonly format?: string;
         readonly line?: number;
+        readonly rowErrors?: number;
+        readonly limit?: number;
+        readonly issue?: string;
+        readonly element?: string;
     };
     E_TOO_LARGE: {
         readonly limit?: number;
@@ -4496,6 +4676,11 @@ export type GraphtyNoteChangeDetail = Pick<NoteChange, "id" | "change" | "fields
 export type GraphtyRunChangeDetail = Pick<RunChange, "run" | "phase">;
 
 // @public
+export interface GraphtySkyboxLoadedDetail {
+    readonly url: string;
+}
+
+// @public
 export type GraphtyWarningCode =
 /** An object member this reader does not know: kept or ignored, as the document's rules say; the JSON pointer names it. */
 "W_UNKNOWN_MEMBER"
@@ -4550,6 +4735,14 @@ export type GraphtyWarningCode =
 */
 | "W_LIMITS_IGNORED"
 /**
+* More rows ask to be drawn as objects of their own (a look no batch draws, such as a border)
+* than `limits.objectRows` allows, on `render-path="batched"`: the rows past it are drawn as
+* plain bodies and plain lines. `params.of` is `"nodes"` or `"edges"`, `params.wanted` how
+* many asked, `params.cap` the budget.
+* @experimental cosmograph
+*/
+| "W_OBJECT_CAP"
+/**
 * A style layer writes a text size under 1 (a label's, a tooltip's or an arrow caption's),
 * which draws no text. `params.channel` is the channel, `params.path` where in the layer the
 * size sits, and `params.value` the size.
@@ -4597,6 +4790,34 @@ export type GraphtyWarningCode =
 | "W_MODEL_UP_GUESSED"
 /** A model holds animation clips and is drawn in its rest pose. `params.clips` names them. */
 | "W_MODEL_HAS_ANIMATIONS"
+/**
+* A glTF uses an extension that is drawn without: the transmission family
+* (`KHR_materials_transmission`, `_volume`, `_dispersion`, `_diffuse_transmission`,
+* `_volume_scatter`), whose parts are drawn opaque. `params.extension` names it; one fact per
+* extension.
+*/
+| "W_MODEL_EXTENSION_IGNORED"
+/**
+* `node.modelAnimation` names a clip the model does not have: its nodes hold the first frame
+* of its first clip. `params.name` is the name asked for, `params.available` every clip's name.
+*/
+| "W_MODEL_ANIMATION_UNKNOWN"
+/**
+* A model's clips were sampled at fewer frames a second than 30 to keep their texture within
+* 16 MB: they play less smoothly. `params.fps`, `params.clips`.
+*/
+| "W_MODEL_ANIMATION_REDUCED"
+/**
+* Part of a model's animation is not played: `params.reason` is `"morph"` for shape keys
+* (morph targets), whose parts keep their rest shape while the rest moves.
+*/
+| "W_MODEL_ANIMATION_PARTIAL"
+/**
+* A point cloud or Gaussian splat model is drawn as small solids, one per point: a splat's
+* size, opacity falloff and rotation are not drawn, and more points than are drawn were thinned
+* evenly. `params.points` is the count in the file, `params.drawn` how many are drawn at most.
+*/
+| "W_MODEL_POINTS_APPROXIMATED"
 /**
 * A layer colors model nodes whose `node.modelTint` is off, so the color is not drawn.
 * `params.layerIds` names the layers that write `node.color`.
@@ -4764,6 +4985,14 @@ export interface GroupOutlineAtResult {
 }
 
 // @public
+export type GroupSummary = "count" | "sum" | "min" | "max" | "mean" | "median";
+
+// @public
+export interface GroupTableOptions {
+    readonly summaries?: Readonly<Record<Path, readonly GroupSummary[]>>;
+}
+
+// @public
 export interface HighlightSuggestion {
     readonly as: "highlight";
     readonly channels: readonly Channel[];
@@ -4813,23 +5042,23 @@ export class InputManager implements Manager {
     init(): Promise<void>;
     isPointerDown(button?: MouseButton): boolean;
     // (undocumented)
-    readonly onKeyDown: Observable_2<KeyboardInfo>;
+    readonly onKeyDown: Observable<KeyboardInfo>;
     // (undocumented)
-    readonly onKeyUp: Observable_2<KeyboardInfo>;
+    readonly onKeyUp: Observable<KeyboardInfo>;
     // (undocumented)
-    readonly onPointerDown: Observable_2<PointerInfo>;
+    readonly onPointerDown: Observable<PointerInfo>;
     // (undocumented)
-    readonly onPointerMove: Observable_2<PointerInfo>;
+    readonly onPointerMove: Observable<PointerInfo>;
     // (undocumented)
-    readonly onPointerUp: Observable_2<PointerInfo>;
+    readonly onPointerUp: Observable<PointerInfo>;
     // (undocumented)
-    readonly onTouchEnd: Observable_2<number[]>;
+    readonly onTouchEnd: Observable<number[]>;
     // (undocumented)
-    readonly onTouchMove: Observable_2<TouchPoint[]>;
+    readonly onTouchMove: Observable<TouchPoint[]>;
     // (undocumented)
-    readonly onTouchStart: Observable_2<TouchPoint[]>;
+    readonly onTouchStart: Observable<TouchPoint[]>;
     // (undocumented)
-    readonly onWheel: Observable_2<WheelInfo>;
+    readonly onWheel: Observable<WheelInfo>;
     // @internal
     rebind(context: ManagerContext): void;
     requestPointerLock(): Promise<void>;
@@ -4944,20 +5173,22 @@ export abstract class LayoutEngine {
     static getRegisteredTypes(): string[];
     static getZodOptionsSchema(): OptionsSchema;
     static hasZodOptions(): boolean;
+    // @internal
+    protected hidesRow(index: number): boolean;
     get holdMask(): NodeMask | null;
     protected get holdsAny(): boolean;
     static honoursWeights: boolean;
     // (undocumented)
     abstract init(): Promise<void>;
-    protected isEdgeLeftOut(edge: Edge): boolean;
     protected isFollower(index: number): boolean;
     protected isHeld(index: number): boolean;
-    protected isLeftOut(index: number): boolean;
     isNodeXlabelLeftOut(_n: Node_2): boolean;
     // (undocumented)
     abstract get isSettled(): boolean;
-    protected keptEdges(graph: GraphSnapshot): EdgeMask | null;
-    protected keptRows(rows: number): NodeMask | null;
+    // @internal
+    protected keepInPublishedBox(n: Node_2 | ElementPositions | undefined, rows: ReadonlySet<number>): void;
+    // @internal
+    protected lastPublishedBox(): Readonly<Float64Array> | null;
     loadArrangement(): void;
     // (undocumented)
     static maxDimensions: number;
@@ -4971,6 +5202,8 @@ export abstract class LayoutEngine {
     protected abstract pin(n: Node_2): void;
     // @internal
     protected publishColumn(n: Node_2 | ElementPositions | undefined, rows: Float64Array, coords: Float64Array, count: number, firstPlacement?: boolean): void;
+    // @internal
+    publishedBounds(): Readonly<Float64Array> | null;
     protected publishOnRead(n: Node_2, x: number, y: number, z: number): Position | null;
     publishPositions(): void;
     // @internal
@@ -4994,8 +5227,9 @@ export abstract class LayoutEngine {
     static scoped: boolean;
     protected setFollowers(rows: ReadonlySet<number> | null, members?: ReadonlyMap<number, readonly number[]>): void;
     setHoldMask(mask: NodeMask | null, rows: number): void;
-    protected setLeftOut(mask: NodeMask | null, rows: number, edges?: ReadonlySet<Edge> | null): void;
     protected abstract setNodePosition(n: Node_2, p: Position): void;
+    // @internal
+    protected get shownView(): WorkingView | null;
     // @internal
     get spacesBySize(): boolean;
     // (undocumented)
@@ -5009,6 +5243,8 @@ export abstract class LayoutEngine {
     wakeForClusters(): boolean;
     // @internal
     wakeForResize(): boolean;
+    // @internal
+    protected get workingGraph(): WorkingView | null;
     protected writeNodePosition(n: Node_2, x: number, y: number, z: number, intent?: "layout" | "placement"): boolean;
     static zodOptionsSchema?: OptionsSchema;
 }
@@ -5017,12 +5253,16 @@ export abstract class LayoutEngine {
 export class LayoutManager implements Manager {
     constructor(eventManager: EventManager, dataManager: DataManager, styles: Styles);
     get building(): boolean;
+    checkMotion(): void;
     // @internal
     clustersChanged(): void;
     get dimension(): 2 | 3 | undefined;
     dispose(): void;
     drawArrivedPaint: (() => void) | null;
+    get drawingHeld(): boolean;
     get edges(): Iterable<Edge>;
+    // @internal
+    followView(atRest?: boolean): Promise<void>;
     getNodePosition(node: Node_2): [number, number, number] | undefined;
     getStats(): {
         layoutType: string | undefined;
@@ -5042,13 +5282,14 @@ export class LayoutManager implements Manager {
     get layoutEngine(): LayoutEngine | undefined;
     get layoutType(): string | undefined;
     loadArrangement(restoring: boolean, wrote?: boolean, byReader?: boolean): void;
+    get motion(): LayoutMotion;
     get nodes(): Iterable<Node_2>;
+    onMotion: ((motion: LayoutMotion) => void) | null;
     onRest: (() => void) | null;
     placeGroups(): void;
     // @internal
     get preStepsInFlight(): boolean;
-    // @internal
-    relayoutForVisibility(): void;
+    reducedMotion: boolean;
     // @internal
     releaseDetachedScope(): void;
     replacing: () => boolean;
@@ -5076,6 +5317,8 @@ export class LayoutManager implements Manager {
     steppedPublishes: number;
     updatePositions(nodes: Node_2[]): Promise<void>;
     updateStyles(styles: Styles): void;
+    // @internal
+    viewChanged(): boolean;
 }
 
 // @public
@@ -5104,6 +5347,8 @@ export interface Limits {
     edgesDrawn: number;
     graphMemoryBudgetBytes: number;
     largeGraphThreshold: number;
+    objectEdges: number;
+    objectRows: number;
     renderCeiling: number;
     selectionCap: number;
 }
@@ -5184,6 +5429,13 @@ export interface MarkSuggestion {
 }
 
 // @public
+export interface ModelThumbnailOptions {
+    readonly size?: number;
+    readonly standInMissing?: boolean;
+    readonly style?: Readonly<Partial<Record<Channel, ChannelValue>>>;
+}
+
+// @public
 export interface Neighbor {
     readonly edgeCount: number;
     readonly excludedBy?: {
@@ -5226,6 +5478,8 @@ class Node_2 implements ModelUser {
     get batchLook(): string;
     // @internal
     get borderReach(): number;
+    // @internal
+    borderReachAlong(dir: Xyz): number;
     get data(): AdHocData<string | number>;
     // @internal
     get decorationPieces(): readonly NodeDecorationPiece[];
@@ -5304,6 +5558,8 @@ class Node_2 implements ModelUser {
     // @internal
     get groupSizing(): NodeStyleConfig["group"];
     hideTooltip(): void;
+    // @internal
+    holdOffBatch(): void;
     // (undocumented)
     readonly id: NodeIdType;
     // @internal
@@ -5331,6 +5587,7 @@ class Node_2 implements ModelUser {
         readonly template: ModelTemplate | null;
         readonly tinted: boolean;
         readonly colored: boolean;
+        readonly clip: string | null;
     };
     // (undocumented)
     opts: NodeOpts;
@@ -5716,7 +5973,11 @@ export const NodeStyle: z.ZodObject<{
             "-x": "-x";
         }>>;
         modelTurn: z.ZodOptional<z.ZodNumber>;
-        modelTint: z.ZodOptional<z.ZodUnion<readonly [z.ZodBoolean, z.ZodLiteral<"replace">]>>;
+        modelTint: z.ZodOptional<z.ZodUnion<readonly [z.ZodBoolean, z.ZodLiteral<"replace">, z.ZodLiteral<"untextured">]>>;
+        modelAnimation: z.ZodOptional<z.ZodString>;
+        modelAnimationSpeed: z.ZodOptional<z.ZodNumber>;
+        modelAnimationOffset: z.ZodOptional<z.ZodNumber>;
+        modelDoubleSided: z.ZodOptional<z.ZodUnion<readonly [z.ZodBoolean, z.ZodLiteral<"file">]>>;
         modelFit: z.ZodOptional<z.ZodEnum<{
             contain: "contain";
             stretch: "stretch";
@@ -5756,6 +6017,7 @@ export const NodeStyle: z.ZodObject<{
         }, z.core.$strict>>;
         outline: z.ZodOptional<z.ZodObject<{
             color: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+            width: z.ZodOptional<z.ZodNumber>;
         }, z.core.$strict>>;
         halo: z.ZodOptional<z.ZodObject<{
             enabled: z.ZodOptional<z.ZodBoolean>;
@@ -6027,6 +6289,8 @@ export const NodeStyle: z.ZodObject<{
         lineWidth: z.ZodOptional<z.ZodNumber>;
         borderColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
         borderWidth: z.ZodOptional<z.ZodNumber>;
+        backgroundColor: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<string | undefined, string>>>;
+        backgroundOpacity: z.ZodOptional<z.ZodNumber>;
     }, z.core.$strict>>;
     glyph: z.ZodOptional<z.ZodObject<{
         text: z.ZodOptional<z.ZodString>;
@@ -6971,10 +7235,58 @@ export const ORANGES_COLORS: readonly ["#fff5eb", "#fee6ce", "#fdd0a2", "#fdae6b
 export const OTHER_GROUP_COLOR = "#686868";
 
 // @public
+export interface OverviewChangedEvent {
+    // (undocumented)
+    type: "overview-changed";
+}
+
+// @public
+export interface OverviewOptions {
+    gridSize?: number;
+    maxPoints?: number;
+}
+
+// @public
+export interface OverviewRect {
+    height: number;
+    width: number;
+    x: number;
+    y: number;
+}
+
+// @public
 export type PartialXRConfig = z.input<typeof xrConfigSchema>;
 
 // @public
 export const PASTEL_COLORS: readonly ["#FFD699", "#A8D8F0", "#66C9B2", "#FFF099", "#669DD6", "#FF9980", "#EBB8D2", "#CCCCCC"];
+
+// @public
+export class PatternedLineMesh {
+    constructor(pattern: PatternType, start: Vector3, end: Vector3, scene: Scene, options: PatternedLineOptions);
+    // @internal
+    dispose(): void;
+    // @internal
+    drawnEnds(): [Vector3, Vector3] | null;
+    // @internal
+    drawnRoute(): Vector3[] | null;
+    elements: ArrowCap[];
+    isDisposed(): boolean;
+    lineDirection: Vector3;
+    // @internal
+    park(): void;
+    pattern: PatternType;
+    // @internal
+    routeMiddle(): Vector3;
+    // @internal
+    setDrawn(drawn: boolean): void;
+    // @internal
+    unpark(): boolean;
+    // @internal
+    update(start: Vector3, end: Vector3): void;
+    // @internal
+    updatePath(route: readonly Vector3[]): void;
+    readonly wave: WaveShape | undefined;
+}
 
 // @public
 export interface PendingSourceLoad {
@@ -7042,12 +7354,15 @@ export interface Position {
 export interface Problem {
     readonly code: GraphtyErrorCode | GraphtyWarningCode;
     readonly details?: Readonly<Record<string, unknown>>;
-    readonly reason: string;
     readonly what: string;
 }
 
 // @public
 export interface ProgressChange {
+    readonly asset?: {
+        readonly stage: "downloading" | "reading" | "unpacking";
+        readonly part?: string;
+    };
     readonly completed: number;
     readonly error?: {
         readonly code: string;
@@ -7061,8 +7376,9 @@ export interface ProgressChange {
         readonly name?: string;
         readonly url?: string;
     };
-    readonly task: "load" | "prepare" | "run";
+    readonly task: "load" | "prepare" | "run" | "asset";
     readonly total: number | null;
+    readonly unit?: "bytes";
 }
 
 // @public
@@ -7124,7 +7440,7 @@ export interface ProjectOpenReport {
 }
 
 // @public
-export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode>;
+export type ProjectProblem = CodedFact<GraphtyErrorCode | GraphtyWarningCode | "shader.unknown" | "shader.not-saved">;
 
 // @public
 export interface ProjectSaveOptions {
@@ -7216,9 +7532,19 @@ export interface RendererStatus {
 }
 
 // @public
+export interface RenderLostEvent {
+    code: "E_RENDER_LOST";
+    params: {
+        readonly renderer: "webgl" | "webgpu";
+    };
+    // (undocumented)
+    type: "render-lost";
+}
+
+// @public
 export class RenderManager implements Manager {
     constructor(canvas: HTMLCanvasElement, eventManager: EventManager, config?: RenderManagerConfig);
-    applyBackground(background: GraphBackgroundConfig, onSkyboxLoaded: (url: string) => void): void;
+    applyBackground(background: GraphBackgroundConfig, onSkybox: (url: string, loaded: boolean) => void): void;
     applyLighting(lighting: Lighting): void;
     set backgroundOverride(color: string | null);
     // @internal
@@ -7286,6 +7612,13 @@ export interface RenderQualityChange {
 
 // @public
 export type RenderQualityCode = "guard.slow-gpu" | "guard.paused" | "guard.long-frame" | "guard.recovered";
+
+// @public
+export interface RenderRestoredEvent {
+    renderer: "webgl" | "webgpu";
+    // (undocumented)
+    type: "render-restored";
+}
 
 export { ReplayFetch }
 
@@ -7558,49 +7891,13 @@ export interface SavedProject {
 }
 
 // @public
-export class ScreenshotError extends Error {
-    constructor(message: string, code: ScreenshotErrorCode, details?: unknown | undefined);
-    // (undocumented)
-    code: ScreenshotErrorCode;
-    // (undocumented)
-    details?: unknown | undefined;
+export interface ScreenshotLegendOptions {
+    position?: ScreenshotLegendPosition;
+    title?: string;
 }
 
-// @public (undocumented)
-export enum ScreenshotErrorCode {
-    // (undocumented)
-    ASPECT_RATIO_MISMATCH = "ASPECT_RATIO_MISMATCH",
-    // (undocumented)
-    CANVAS_ALLOCATION_FAILED = "CANVAS_ALLOCATION_FAILED",
-    // (undocumented)
-    CLIPBOARD_NOT_SECURE_CONTEXT = "CLIPBOARD_NOT_SECURE_CONTEXT",
-    // (undocumented)
-    CLIPBOARD_NOT_SUPPORTED = "CLIPBOARD_NOT_SUPPORTED",
-    // (undocumented)
-    CLIPBOARD_PERMISSION_DENIED = "CLIPBOARD_PERMISSION_DENIED",
-    // (undocumented)
-    CLIPBOARD_WRITE_FAILED = "CLIPBOARD_WRITE_FAILED",
-    // (undocumented)
-    DIMENSION_TOO_LARGE = "DIMENSION_TOO_LARGE",
-    // (undocumented)
-    ENGINE_NOT_CONFIGURED = "ENGINE_NOT_CONFIGURED",
-    // (undocumented)
-    INVALID_DIMENSIONS = "INVALID_DIMENSIONS",
-    // (undocumented)
-    LAYOUT_SETTLE_TIMEOUT = "LAYOUT_SETTLE_TIMEOUT",
-    // (undocumented)
-    PRESET_NOT_FOUND = "PRESET_NOT_FOUND",
-    // (undocumented)
-    RESOLUTION_TOO_HIGH = "RESOLUTION_TOO_HIGH",
-    // (undocumented)
-    SCREENSHOT_CAPTURE_FAILED = "SCREENSHOT_CAPTURE_FAILED",
-    // (undocumented)
-    TRANSPARENT_REQUIRES_PNG = "TRANSPARENT_REQUIRES_PNG",
-    // (undocumented)
-    UNSUPPORTED_FORMAT = "UNSUPPORTED_FORMAT",
-    // (undocumented)
-    VIDEO_CAPTURE_FAILED = "VIDEO_CAPTURE_FAILED"
-}
+// @public
+export type ScreenshotLegendPosition = "top-left" | "top-right" | "bottom-left" | "bottom-right";
 
 // @public
 export interface ScreenshotLegendSection {
@@ -7637,7 +7934,7 @@ export interface ScreenshotOptions {
     format?: "png" | "jpeg" | "webp";
     // (undocumented)
     height?: number;
-    legend?: readonly ScreenshotLegendSection[];
+    legend?: boolean | "auto" | ScreenshotLegendOptions | readonly ScreenshotLegendSection[];
     // (undocumented)
     multiplier?: number;
     // (undocumented)
@@ -7683,6 +7980,9 @@ export interface ScreenshotResult {
 }
 
 // @public
+export type ScreenshotWarningCode = "W_LARGE_CAPTURE" | "W_HIGH_MEMORY";
+
+// @public
 export class SelectionManager implements Manager {
     constructor(eventManager: EventManager);
     add(node: Node_2): void;
@@ -7693,7 +7993,7 @@ export class SelectionManager implements Manager {
     getSelectedNodes(): Node_2[];
     // @internal
     highlightedNodes(): IterableIterator<Node_2>;
-    hover(id: NodeIdType | null): void;
+    hover(id: NodeIdType | null, drawn?: HoverDrawn): void;
     init(): Promise<void>;
     isHovered(id: NodeIdType): boolean;
     isSelected(node: Node_2): boolean;
@@ -8177,7 +8477,11 @@ export class UpdateManager implements Manager {
     autoTurning: boolean;
     bindViewMasks(masks: ViewMasks | null): void;
     // @internal
+    buildPlainRow(id: NodeIdType_2): void;
+    // @internal
     columnFraming(): ColumnFraming | undefined;
+    // @internal
+    dataCleared(): void;
     deriving: () => boolean;
     disableZoomToFit(): void;
     dispose(): void;
@@ -8197,6 +8501,8 @@ export class UpdateManager implements Manager {
     init(): Promise<void>;
     invalidateViewMasks(): void;
     isZoomToFitEnabled(): boolean;
+    // @internal
+    limitsChanged(): void;
     meshesAdded(): void;
     meshesShownOrHidden(): void;
     get nodesScaledByView(): boolean;
@@ -8205,8 +8511,14 @@ export class UpdateManager implements Manager {
     operationsPending: (() => boolean) | null;
     readonly pending: PendingWork;
     picturesLoading: (() => boolean) | null;
+    // @internal
+    plainLabelRows(): {
+        row: number;
+        id: NodeIdType_2;
+    }[];
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
+    reducedMotion: boolean;
     renderFrames(count: number): void;
     // @internal
     repaintNodes(nodes: readonly Node_2[]): void;
@@ -8242,6 +8554,13 @@ export interface ViewInsets {
 
 // @public
 export type ViewMode = (typeof VIEW_MODE_VALUES)[number];
+
+// @public
+export interface ViewWaypoint {
+    duration?: number;
+    hold?: number;
+    view: string | CameraState;
+}
 
 // @public
 export const VIRIDIS_COLORS: readonly ["#440154", "#482878", "#3e4989", "#31688e", "#26828e", "#1f9e89", "#35b779", "#6ece58", "#b5de2b", "#fde724"];
@@ -8294,7 +8613,6 @@ export interface XRConfig {
     ar: XRModeConfig;
     enabled: boolean;
     input: XRInputConfig;
-    teleportation: XRTeleportationConfig;
     ui: XRUIConfig;
     vr: XRModeConfig;
 }
@@ -8304,11 +8622,9 @@ export type XRControllerButton = "a" | "b" | "x" | "y";
 
 // @public
 export interface XRInputConfig {
-    controllers: boolean;
     enableZAmplificationInDesktop?: boolean;
     handTracking: boolean;
     nearInteraction: boolean;
-    physics: boolean;
     zAxisAmplification?: number;
 }
 
@@ -8337,17 +8653,14 @@ export interface XRSessionStartedEvent {
 }
 
 // @public
-export interface XRTeleportationConfig {
-    easeTime: number;
-    enabled: boolean;
-}
-
-// @public
 export interface XRUIConfig {
+    arLabel: string;
     enabled: boolean;
     position: "bottom-left" | "bottom-right" | "top-left" | "top-right";
     showAvailabilityWarning: boolean;
+    unavailableLabel: string;
     unavailableMessageDuration: number;
+    vrLabel: string;
 }
 
 // @public

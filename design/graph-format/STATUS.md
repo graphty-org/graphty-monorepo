@@ -186,7 +186,7 @@ invariants, adding a view / a dtype). Benchmarks: `graph-format/benchmarks/` (`r
 
 Test counts by directory: builder 131 (7 files), columns 159 (7), ids 118 (3), populate 126 (3),
 snapshot 139 (6), wire 65 (3), util 42 (2), root 52 (errors, invariants, index, build-output),
-audit 477 (24 files under test/audit: the eight audit lenses' suites plus `round1-fixes.test.ts`).
+audit 477 (24 files under test/audit: the eight audit lenses' suites plus `audit-regressions.test.ts`).
 The graph-io audit added the widening, column-index and detachString tests, and the
 verification pass fixed a latent bug of the Map-of-Maps test model (`test/helpers/model-graph.ts`
 dropped self-loops before it could refuse a duplicate edge, so a refused freeze left the model

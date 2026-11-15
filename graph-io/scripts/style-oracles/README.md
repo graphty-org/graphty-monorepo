@@ -30,7 +30,8 @@ files or directories as arguments to check only those.
 
 Each script prints, per property, how many values agree and how many differ, then every explained
 difference grouped by its reason, then every unexplained difference, then the files it could not
-compare and why. It exits with 1 when any difference is unexplained, 0 otherwise. With
+compare and why (a file graph-io does not import is listed with the error's code; for a DOT conformance
+fixture expected to import, with no known failure, the failure counts as unexplained). It exits with 1 when any difference is unexplained, 0 otherwise. With
 `STYLE_ORACLE_OUT=<directory>` it also writes the report as JSON there, one file per check, with every
 unexplained difference in full.
 

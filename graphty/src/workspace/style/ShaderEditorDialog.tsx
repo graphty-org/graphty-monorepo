@@ -20,7 +20,12 @@ import {
     type ShaderTextDraft,
     splitShaderText,
 } from "@graphty/graphty-element/catalog";
-import { type GraphSession, GraphtyError, type ShaderAddResult } from "@graphty/graphty-element/session";
+import {
+    type GraphSession,
+    GraphtyError,
+    type ShaderAddResult,
+    type TransactionScope,
+} from "@graphty/graphty-element/session";
 import { Anchor, Button, Group, Modal, Stack, Text, Textarea, Tooltip, UnstyledButton } from "@mantine/core";
 import React, { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
@@ -30,7 +35,8 @@ import { useWorkspace } from "../state/WorkspaceContext";
 import type { ShaderCodeEditor, ShaderCodeEditorHandle, ShaderCodeMark } from "./ShaderCodeEditor";
 import { PlaceDiagram } from "./ShaderGallery";
 import { shaderAddedNotice } from "./shaderNotice";
-import { GEAR_FIELDS, NumberTextField, ShaderParamRows } from "./ShaderParamRows";
+import { NumberTextField, ShaderParamRows } from "./ShaderParamRows";
+import { GEAR_FIELDS, pickedShader } from "./shaderSlots";
 import {
     DIALOG_PLACES,
     dialogPlaceWords,
@@ -431,7 +437,7 @@ interface ShaderEditorDialogProps {
      * the background), through the scope given, so the add and the write are one undo step. Used
      * only while the switch is on that list's tab; absent from the menu.
      */
-    readonly put?: (scope: GraphSession, id: string, params: ShaderParams) => Promise<void>;
+    readonly put?: (scope: TransactionScope, id: string, params: ShaderParams) => Promise<void>;
     readonly init: PasteInit;
     readonly onClose: () => void;
 }
@@ -792,11 +798,12 @@ export function ShaderEditorDialog({
             if (same !== undefined) {
                 if (put !== undefined && onList) {
                     // At its own place: the text's header names it, or the field gave it to text that names none.
-                    await put(session, same.id, same.params);
+                    // A catalog shader is written through fromCatalog, so the save carries its text.
+                    await put(session, await pickedShader(session, same.id), same.params);
                     store.set({ announcement: `${checked.descriptor.plainName} added` });
                 } else {
                     // No list to write to, and the text is a shader already known: nothing joins.
-                    const known = session.catalog.shaders().find((each) => each.id === same.id) ?? checked.descriptor;
+                    const known = session.shaders.describe(same.id) ?? checked.descriptor;
                     store.set({ notice: shaderAddedNotice(store, session, known) });
                 }
                 close(true);
@@ -819,8 +826,7 @@ export function ShaderEditorDialog({
             const step = history.steps[history.position - 1]?.id;
             await session.transaction(
                 `Add the shader ${id}`,
-                // The writes reach only the parts a transaction scope has, never its history.
-                (tx) => put(tx as GraphSession, id, {}),
+                (tx) => put(tx, id, {}),
                 step === undefined ? undefined : { after: step },
             );
             store.set({ announcement: `${added.descriptor.plainName} added` });

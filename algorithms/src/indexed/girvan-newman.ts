@@ -9,7 +9,7 @@ import {
     type U32,
 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { checkNumber, withCode } from "../errors.js";
 import { edgeBetweennessCentrality } from "./betweenness.js";
 import { type LabelResult, withGroups } from "./components.js";
 import { arcWeightsOf, exactEdgeWeights } from "./label-propagation.js";
@@ -130,7 +130,9 @@ function bestScoreLevel(scores: readonly number[]): number {
  * @param s - An undirected snapshot
  * @param options - Stopping rules
  * @returns The levels and their modularity
- * @throws Error on a directed snapshot
+ * @throws Error on a directed snapshot; RangeError (code `E_BAD_OPTION`) for a count that is not a
+ *   non-negative integer (minCommunitySize at least 1), or (code `E_BAD_WEIGHT`) for a NaN, infinite
+ *   or negative weight
  * @public
  */
 export function girvanNewman(s: GraphSnapshot, options: GirvanNewmanOptions = {}): GirvanNewmanResult {
@@ -143,6 +145,9 @@ export function girvanNewman(s: GraphSnapshot, options: GirvanNewmanOptions = {}
     const maxCommunities = options.maxCommunities ?? 0;
     const minCommunitySize = options.minCommunitySize ?? 1;
     const maxIterations = options.maxIterations ?? 100;
+    checkNumber("girvanNewman", "maxCommunities", maxCommunities, { min: 0, integer: true });
+    checkNumber("girvanNewman", "minCommunitySize", minCommunitySize, { min: 1, integer: true });
+    checkNumber("girvanNewman", "maxIterations", maxIterations, { min: 0, integer: true });
     const { nodeCount: n, edgeCount } = s;
     const weights = arcWeightsOf(s, exactEdgeWeights(s));
     const alive = makeMask(edgeCount, true);

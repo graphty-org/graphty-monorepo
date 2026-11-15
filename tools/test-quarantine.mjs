@@ -210,14 +210,58 @@ export const shQuote = (s) => `'${s.replaceAll("'", ESCAPED_QUOTE)}'`;
  *   blocked before it sent its test's start shows as its file
  */
 export function stillRunning(file) {
-    const open = new Set();
+    const ids = [...readRecord(file).open.keys()];
+    return ids.filter((id) => !ids.some((other) => other.startsWith(`${id} > `)));
+}
+
+/**
+ * The record of tools/running-tests.mjs: `+ <id>\t<ms>` when a file or test starts, `- <id>\t<ms>` when it ends.
+ * @param file the record
+ * @returns `open`, each id started and not ended with when it started; `took`, each ended id with how long it ran
+ */
+function readRecord(file) {
+    const open = new Map();
+    const took = [];
     const lines = existsSync(file) ? readFileSync(file, "utf8").split("\n") : [];
     for (const line of lines) {
-        if (line.startsWith("+ ")) open.add(line.slice(2));
-        else open.delete(line.slice(2));
+        const [id, at] = line.slice(2).split("\t");
+        if (line.startsWith("+ ")) {
+            open.set(id, Number(at));
+        } else if (open.has(id)) {
+            took.push({ id, ms: Number(at) - open.get(id) });
+            open.delete(id);
+        }
     }
-    const ids = [...open];
-    return ids.filter((id) => !ids.some((other) => other.startsWith(`${id} > `)));
+    return { open, took };
+}
+
+const seconds = (ms) => `${Math.round(ms / 1000)} s`;
+
+/**
+ * What a run stopped at its deadline spent its time on (#6567): the test still running is often innocent, one that
+ * started just before the deadline after a slow file or a test stopped by the hang guard used the time up.
+ * @param file the record of tools/running-tests.mjs
+ * @param deadline when the run was stopped, in ms
+ * @returns the report: what was still running and since when, then the slowest files and tests that ended
+ */
+export function hangReport(file, deadline) {
+    const { open, took } = readRecord(file);
+    const started = (id) => deadline - open.get(id);
+    const running = stillRunning(file).map((id) =>
+        Number.isFinite(started(id)) ? `${id} (started ${seconds(started(id))} before the deadline)` : id,
+    );
+    const slowest = (tests) =>
+        took
+            .filter(({ id, ms }) => Number.isFinite(ms) && id.includes(" > ") === tests)
+            .sort((a, b) => b.ms - a.ms)
+            .slice(0, 3)
+            .map(({ id, ms }) => `${id} ${seconds(ms)}`)
+            .join("; ");
+    return [
+        running.length > 0 ? `still running: ${running.join("; ")}` : "no test running",
+        `slowest files: ${slowest(false) || "none ended"}`,
+        `slowest tests: ${slowest(true) || "none ended"}`,
+    ].join(". ");
 }
 
 /** The failure name of a hung file no test of which had started, or of a run no test of which is named. */
@@ -249,14 +293,16 @@ export function hangFailures(names, pkg) {
  * a job it cancels, which is why this stops the run before the job's limit does.
  * @param running the record of tools/running-tests.mjs
  * @param chunks the run's output so far
+ * @param deadline when the run was stopped, in ms
  * @returns the ids still running
  */
-function reportHang(running, chunks) {
+function reportHang(running, chunks, deadline) {
     const names = stillRunning(running);
     const output = stripVTControlCharacters(Buffer.concat(chunks).toString("utf8")).trim().split("\n");
-    const what =
-        names.length > 0 ? `still running: ${names.join("; ")}` : `no test running; last output: ${output.at(-1)}`;
-    console.log(`::error::[HANG] the run reached the job's deadline and was stopped; ${what}`);
+    const last = names.length > 0 ? "" : `. Last output: ${output.at(-1)}`;
+    console.log(
+        `::error::[HANG] the run reached the job's deadline and was stopped; ${hangReport(running, deadline)}${last}`,
+    );
     return names;
 }
 
@@ -314,7 +360,7 @@ function sh(command, env, cwd) {
             timers.forEach(clearTimeout);
             child.stdout.destroy();
             child.stderr.destroy();
-            const names = hung ? reportHang(running, chunks) : undefined;
+            const names = hung ? reportHang(running, chunks, deadline) : undefined;
             if (running) rmSync(running, { force: true });
             const own = code ?? (signal ? 128 : 1);
             resolve({ code: hung ? HANG_CODE : own, text: Buffer.concat(chunks).toString("utf8"), hung: names });

@@ -11,24 +11,32 @@
  * page's code and are never saved.
  */
 
-import type { ModelFormat } from "../../catalog/detectModel";
+import {
+    baseName,
+    cutParam,
+    detectModelFormat,
+    ModelError,
+    type ModelFormat,
+    normalizePath,
+    roleOfName,
+} from "babylonjs-models/detect";
+import type { ModelProgress, ModelProgressListener, RedirectGate } from "babylonjs-models/files";
+
 import type { LayerId } from "../../catalog/types";
 import { GraphtyError } from "../../errors";
 import { isPrivateHost, type NetworkApiInternal } from "../network";
-import type { CodedFact } from "../shared";
+import type { CodedFact, ProgressChange } from "../shared";
 import type { SessionStylesApi } from "../styles";
 import type { ModelChange } from "../types";
 import { type AssetId, isAssetId, SAMPLE_PREFIX } from "./assetId";
 import { digestFileSet, sha256Fallback } from "./digest";
-import type { RedirectGate } from "./intake";
-import { baseName, cut, normalizePath, Refusal, roleOfName } from "./references";
 
 /**
  * The intake checks, loaded on the first add, so a page that never adds a model never
  * downloads them.
  * @returns The intake module.
  */
-const loadIntake = (): Promise<typeof import("./intake")> => import("./intake");
+const loadIntake = (): Promise<typeof import("babylonjs-models/files")> => import("babylonjs-models/files");
 
 /**
  * Where the sample models' files are, loaded when a layer first names a sample.
@@ -36,8 +44,8 @@ const loadIntake = (): Promise<typeof import("./intake")> => import("./intake");
  */
 const loadSamples = (): Promise<typeof import("./samples")> => import("./samples");
 
-export type { BuiltInModelFormat, ModelFormat } from "../../catalog/detectModel";
 export { type AssetId, isAssetId } from "./assetId";
+export type { BuiltInModelFormat, ModelFormat } from "babylonjs-models/detect";
 
 /** A File, or anything shaped like one: a name and its bytes. No DOM type is named. */
 export interface NamedBlob {
@@ -84,7 +92,18 @@ export interface AddAssetOptions {
      * Default: none.
      */
     readonly skipped?: readonly string[];
+    /**
+     * Stops waiting. A URL's download stops too once every caller waiting for it has stopped
+     * (one that passed no signal keeps it going); the next `add` of that URL fetches it again.
+     */
     readonly signal?: AbortSignal;
+    /**
+     * Hears how far the files have been read: changes with `task: "asset"`, `unit: "bytes"` and
+     * `asset.stage` (`"downloading"`, `"reading"` or `"unpacking"`), then one `phase: "end"` change
+     * with its `outcome` (`"succeeded"` when the record is accepted, `"failed"` with the first
+     * problem's code otherwise, `"cancelled"` when the signal stopped it).
+     */
+    readonly onProgress?: (change: ProgressChange) => void;
 }
 
 /**
@@ -96,7 +115,12 @@ export type PartAnswer =
     | { readonly name: string; readonly url: string }
     /** This file is the part. With no name, it is matched to a missing part by its path, then by its base name. */
     | { readonly name?: string; readonly file: NamedBlob | Uint8Array }
-    /** Use a file the set already holds for an ambiguous reference (`E_MODEL_PART_AMBIGUOUS`). */
+    /**
+     * Use a file the set already holds: one of an ambiguous reference's candidates
+     * (`E_MODEL_PART_AMBIGUOUS`), or any file of the set for a missing part (`E_MODEL_MISSING_FILE`),
+     * as when a picture's name differs from the one the model names. A file nothing else names is
+     * moved to the part's name.
+     */
     | { readonly name: string; readonly use: string }
     /** Draw without this part. Pictures and `.mtl` files only; never a `.bin` or other geometry. */
     | { readonly name: string; readonly skip: true }
@@ -113,6 +137,25 @@ export interface AssetOffer {
 
 /** Where an asset stands. */
 export type AssetState = "pending" | "accepted" | "rejected";
+
+/** What a part is to its model: the main file, a buffer, an `.mtl`, a picture, or a file nothing names. */
+export type ModelPartRole = "model" | "geometry" | "materials" | "texture" | "other";
+
+/**
+ * Where a part stands: in the set as named, found by case or base name, missing, matched by more
+ * than one file, drawn without, or a file of the set the model never names.
+ */
+export type ModelPartState = "found" | "substituted" | "missing" | "ambiguous" | "skipped" | "unused";
+
+/** One file of a model, or one file it names (`AssetRecord.parts`). */
+export interface ModelPart {
+    /** The path as the model names it; for an `"unused"` file, its path in the set. */
+    readonly name: string;
+    readonly role: ModelPartRole;
+    readonly state: ModelPartState;
+    /** The set's file used for it, when found or substituted. */
+    readonly file?: string;
+}
 
 /** One asset of the session. */
 export interface AssetRecord {
@@ -142,6 +185,13 @@ export interface AssetRecord {
     readonly url?: string;
     /** The parts it is drawn without (`supply`'s `skip`, `add`'s `skipped`), by their path in the set. */
     readonly skipped?: readonly string[];
+    /**
+     * The model's files, accepted or waiting: the main file, each file it names, then the set's
+     * files nothing names. Absent for a picture and for a set whose main file cannot be told.
+     */
+    readonly parts?: readonly ModelPart[];
+    /** The reader's name for it (`assets.rename`), saved with the project. */
+    readonly plainName?: string;
 }
 
 /** What a model holds, read from its files without drawing it. */
@@ -160,15 +210,48 @@ export interface ModelSummary {
         readonly min: readonly [number, number, number];
         readonly max: readonly [number, number, number];
     };
-    /** The axis that points up in the file: fixed for glTF, assumed for the others. */
-    readonly upAxis: "y" | "z" | "unknown";
+    /**
+     * The axis that points up in the file: fixed for glTF, assumed for the others (`"-y"` for
+     * Gaussian splats, which store Y pointing down). `node.modelSourceUp: "detected"` draws it up.
+     */
+    readonly upAxis: "y" | "z" | "-y" | "unknown";
     readonly animations: readonly { readonly name: string; readonly seconds: number }[];
     readonly skinned: boolean;
     readonly morphTargets: number;
     readonly transparent: boolean;
     /** glTF only. */
     readonly extensionsRequired: readonly string[];
+    /**
+     * What the file draws: triangles (`mesh`), a point cloud (`points`) or Gaussian splats
+     * (`splats`). Points and splats are drawn as small solids, one per point, and earn
+     * `W_MODEL_POINTS_APPROXIMATED`. Absent for a picture.
+     */
+    readonly geometry?: ModelGeometry;
+    /** Points or splats in the file, before thinning. Points and splats only. */
+    readonly points?: number;
+    /** STL and PLY: how the file is stored. */
+    readonly encoding?: ModelEncoding;
+    /** The file carries per-vertex or per-face colors, and they are drawn. */
+    readonly vertexColors?: boolean;
+    /** glTF only: the compression its data uses, from `extensionsUsed`. */
+    readonly compression?: readonly ModelCompression[];
+    /** glTF only: `"1.0"` for a glTF 1.0 file, upgraded to 2.0 on reading. */
+    readonly gltfVersion?: "1.0" | "2.0";
+    /** glTF only: every extension the file uses, beside `extensionsRequired`. */
+    readonly extensionsUsed?: readonly string[];
 }
+
+/** What a model file draws: see {@link ModelSummary.geometry}. */
+export type ModelGeometry = "mesh" | "points" | "splats";
+
+/** How an STL or PLY file is stored: see {@link ModelSummary.encoding}. */
+export type ModelEncoding = "ascii" | "binary" | "binaryBigEndian";
+
+/**
+ * A compression a glTF's data uses: Draco or meshopt geometry, KTX2 / Basis Universal, WebP or
+ * AVIF pictures. See {@link ModelSummary.compression}.
+ */
+export type ModelCompression = "draco" | "meshopt" | "ktx2" | "webp" | "avif";
 
 /** The limits that protect the tab. Only the page's code sets them; a document never does. */
 export interface ModelLimits {
@@ -178,7 +261,7 @@ export interface ModelLimits {
     readonly maxTextBytes: number;
     /** Per model, counted per use. Default 1,000,000. */
     readonly maxTriangles: number;
-    /** Decoded texture bytes per model. Default 64 MB. */
+    /** Decoded texture bytes per model (a KTX2 picture counts 1 byte a pixel, others 4). Default 128 MB. */
     readonly maxTextureBytes: number;
     /** What every glTF accessor decodes to, together. Default 256 MB. */
     readonly maxDecodedBytes: number;
@@ -201,7 +284,7 @@ export const DEFAULT_MODEL_LIMITS: ModelLimits = Object.freeze({
     maxBytes: 32 * MB,
     maxTextBytes: 8 * MB,
     maxTriangles: 1_000_000,
-    maxTextureBytes: 64 * MB,
+    maxTextureBytes: 128 * MB,
     maxDecodedBytes: 256 * MB,
     maxTextureSize: 2048,
     sceneTextureBytes: 256 * MB,
@@ -366,6 +449,19 @@ export interface AssetsApi {
      * ```
      */
     usedBy(ref: string): readonly LayerId[];
+    /**
+     * Give an asset the reader's own name, or clear it. The name is saved with the project and is
+     * not undone (assets are not commands).
+     * @param ref - An asset id, a waiting model's id, or a URL the session holds.
+     * @param plainName - The name, cut to 256 characters; empty or left out clears it.
+     * @returns The renamed record.
+     * @throws A `GraphtyError` coded `E_MODEL_UNKNOWN_ASSET` for a ref the session does not hold.
+     * @example
+     * ```ts
+     * graph.session.assets.rename(record.id, "Cruiser");
+     * ```
+     */
+    rename(ref: string, plainName?: string): AssetRecord;
 }
 
 /** A model missing parts, held for `supply` (design 12.4). */
@@ -390,6 +486,71 @@ interface Entry {
     assembled?: boolean;
     /** The `supply` calls for it, one at a time. */
     chain?: Promise<unknown>;
+    /** A URL's download while it runs: who hears its progress, and what stops it. */
+    fetch?: UrlFetch;
+}
+
+/** A URL's download, shared by every caller of `add` asking for it. */
+interface UrlFetch {
+    /** The URL, as the session keys it. */
+    readonly href: string;
+    readonly controller: AbortController;
+    readonly listeners: Set<ModelProgressListener>;
+    /** Callers waiting with a signal that has not aborted. */
+    callers: number;
+    /** A caller waits with no signal, so nothing stops the download. */
+    pinned: boolean;
+}
+
+/**
+ * A model's progress as a session progress change.
+ * @param progress - What babylonjs-models reported.
+ * @param source - What is being read.
+ * @returns The change.
+ */
+function progressChange(progress: ModelProgress, source: ProgressChange["source"]): ProgressChange {
+    const { loaded, total, stage, part } = progress;
+    return Object.freeze({
+        task: "asset",
+        phase: "progress",
+        completed: loaded,
+        total,
+        fraction: total === null || total <= 0 ? null : Math.min(1, loaded / total),
+        asset: Object.freeze({ stage, ...(part === undefined ? {} : { part }) }),
+        unit: "bytes",
+        ...(source === undefined ? {} : { source }),
+    });
+}
+
+/**
+ * The last change of an asset's progress.
+ * @param outcome - The record it settled to, or the error that stopped the wait.
+ * @param source - What was read.
+ * @returns The change.
+ */
+function progressEnd(outcome: unknown, source: ProgressChange["source"]): ProgressChange {
+    const record = outcome as Partial<AssetRecord> | undefined;
+    const settled = typeof record?.state === "string";
+    const [problem] = settled ? (record.problems ?? []) : [];
+    const failed = settled && record.state !== "accepted";
+    let ended: ProgressChange["outcome"] = "succeeded";
+    if (!settled) {
+        ended = "cancelled";
+    } else if (failed) {
+        ended = "failed";
+    }
+
+    return Object.freeze({
+        task: "asset",
+        phase: "end",
+        completed: settled ? (record.byteLength ?? 0) : 0,
+        total: null,
+        fraction: null,
+        unit: "bytes",
+        ...(source === undefined ? {} : { source }),
+        outcome: ended,
+        ...(failed && problem !== undefined ? { error: { code: problem.code, details: problem.params } } : {}),
+    });
 }
 
 /** The codes a held model can be supplied for. */
@@ -468,6 +629,21 @@ export interface AssetsApiInternal extends AssetsApi {
      * @returns Stops calling it.
      */
     watchSupplied(listener: (names: readonly string[]) => void): () => void;
+    /**
+     * What a model still waiting for parts draws with its missing parts stood in for, as `supply`'s
+     * skip would draw it: the files held so far, the main file, its format and the parts to skip.
+     * @param id - The waiting model's id.
+     * @returns The draw input, or undefined when it is not waiting or waits for its geometry or for
+     *     an answer a stand-in cannot give (which file is the model, an ambiguous part).
+     */
+    standIn(id: AssetId):
+        | {
+              readonly files: ReadonlyMap<string, Uint8Array>;
+              readonly main: string;
+              readonly format: ModelFormat;
+              readonly skipped: readonly string[];
+          }
+        | undefined;
 }
 
 /**
@@ -686,7 +862,13 @@ interface Decided {
 type Step =
     | { readonly unused: string }
     | { readonly refused: CodedFact }
-    | { readonly main?: string; readonly skip?: string; readonly part?: readonly [string, Uint8Array] };
+    | {
+          readonly main?: string;
+          readonly skip?: string;
+          readonly part?: readonly [string, Uint8Array];
+          /** A file of the set moved to the part's name, when nothing else names it. */
+          readonly moved?: string;
+      };
 
 /**
  * The step of a skip: a picture or `.mtl` the model is missing.
@@ -699,14 +881,15 @@ function skipStep(missing: readonly CodedFact[], name: string): Step {
     const part = partNamed(missing, name);
     const role = String(part?.params.role ?? roleOfName(name));
     if (role === "geometry") {
-        throw supplyError("E_MODEL_PART_REQUIRED", { name: cut(name), role });
+        throw supplyError("E_MODEL_PART_REQUIRED", { name: cutParam(name), role });
     }
 
     return part?.code === "E_MODEL_MISSING_FILE" ? { skip: String(part.params.name) } : { unused: name };
 }
 
 /**
- * The step of a `use`: one of an ambiguous reference's candidates, stored under the name the model uses.
+ * The step of a `use`: one of an ambiguous reference's candidates, or any file of the set for a
+ * missing part, stored under the name the model uses.
  * @param missing - The missing and ambiguous parts.
  * @param answer - The answer.
  * @param answer.name - The ambiguous part.
@@ -722,6 +905,19 @@ function useStep(
     const part = partNamed(missing, answer.name);
     const candidates = (part?.params.candidates ?? []) as readonly string[];
     const bytes = given.get(answer.use);
+    if (part?.code === "E_MODEL_MISSING_FILE") {
+        if (bytes === undefined) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                source: "data",
+                message: "The model's files hold no file by that path.",
+                details: { name: cutParam(answer.name), use: cutParam(answer.use) },
+            });
+        }
+
+        return { part: [String(part.params.name), bytes], moved: answer.use };
+    }
+
     if (part?.code !== "E_MODEL_PART_AMBIGUOUS" || !candidates.includes(answer.use) || bytes === undefined) {
         return { unused: answer.name };
     }
@@ -794,7 +990,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         try {
             return await (await loadIntake()).unpackZip(given, limits);
         } catch (error) {
-            if (!(error instanceof Refusal)) {
+            if (!(error instanceof ModelError)) {
                 throw error;
             }
 
@@ -857,17 +1053,21 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         at: Settling,
     ): Promise<{ settled: AssetRecord; summary?: ModelSummary }> => {
         const { id, digest, byteLength } = at;
-        let checked: Awaited<ReturnType<Awaited<ReturnType<typeof loadIntake>>["checkAsset"]>>;
+        const intakeModule = await loadIntake();
+        const listed = intakeModule.listParts(files, options, limits);
+        const parts = listed === undefined ? {} : { parts: Object.freeze(listed) };
+        let checked: Awaited<ReturnType<Awaited<ReturnType<typeof loadIntake>>["checkModelFiles"]>>;
         try {
-            checked = await (await loadIntake()).checkAsset(files, options, limits);
+            const base = at.extra.url === undefined ? undefined : parseUrl(at.extra.url)?.href;
+            checked = await intakeModule.checkModelFiles(files, options, limits, base);
         } catch (error) {
-            if (!(error instanceof Refusal)) {
+            if (!(error instanceof ModelError)) {
                 throw error;
             }
 
             const problems = error.facts;
             // A model waiting for parts is named by its main file, as an accepted one is.
-            const main = onlyParts(problems) ? (await loadIntake()).mainPathOf(files, options) : undefined;
+            const main = onlyParts(problems) ? intakeModule.mainFileOf(files, options) : undefined;
             const path = main === undefined ? {} : { path: main.slice(0, 256) };
             return {
                 settled: record({
@@ -879,6 +1079,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     problems,
                     ...path,
                     ...at.extra,
+                    ...parts,
                 }),
             };
         }
@@ -902,6 +1103,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             state: "accepted",
             problems: checked.warnings,
             ...at.extra,
+            ...(checked.kind === "model" ? parts : {}),
         });
         return { settled, summary: checked.summary };
     };
@@ -983,36 +1185,45 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
         const rejected = (fact: CodedFact): AssetRecord =>
             record({ id, digest: "", byteLength: 0, format: "", state: "rejected", problems: [fact] });
-        const entry: Entry = {
-            record: record({ id, digest: "", byteLength: 0, format: "", state: "pending", problems: [] }),
-            settled: Promise.resolve(undefined as unknown as AssetRecord),
-        };
-        samples.set(id, entry);
-        entry.settled = (async () => {
-            const name = id.slice(SAMPLE_PREFIX.length);
-            const table = (await loadSamples()).SAMPLE_MODEL_URLS;
-            const url = Object.hasOwn(table, name) ? table[name] : undefined;
-            if (url === undefined) {
-                samples.delete(id);
-                return rejected({ code: "E_MODEL_UNKNOWN_ASSET", params: { id } });
-            }
-
+        const name = id.slice(SAMPLE_PREFIX.length);
+        // Any failure forgets the entry, so a later call tries again instead of reading a cached failure.
+        const settled = (async (): Promise<AssetRecord> => {
+            let status: number | null = null;
             let bytes: Uint8Array;
             try {
+                const table = (await loadSamples()).SAMPLE_MODEL_URLS;
+                const url = Object.hasOwn(table, name) ? table[name] : undefined;
+                if (url === undefined) {
+                    samples.delete(id);
+                    return rejected({ code: "E_MODEL_UNKNOWN_ASSET", params: { id } });
+                }
+
                 const response = await fetch(url);
                 if (!response.ok) {
-                    throw new Error(String(response.status));
+                    ({ status } = response);
+                    throw new Error(String(status));
                 }
 
                 bytes = new Uint8Array(await response.arrayBuffer());
             } catch {
-                samples.delete(id); // A later call tries again.
-                return rejected({ code: "E_MODEL_FETCH", params: { url: id, status: null, offline: false } });
+                samples.delete(id);
+                const offline =
+                    status === null && (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
+                return rejected({ code: "E_MODEL_FETCH", params: { url: id, status, offline } });
             }
 
-            return intake(new Map([[`${name}.glb`, bytes]]), { name: id }, undefined, true);
+            try {
+                return await intake(new Map([[`${name}.glb`, bytes]]), { name: id }, undefined, true);
+            } catch (error) {
+                samples.delete(id);
+                throw error;
+            }
         })();
-        return entry.settled;
+        samples.set(id, {
+            record: record({ id, digest: "", byteLength: 0, format: "", state: "pending", problems: [] }),
+            settled,
+        });
+        return settled;
     };
 
     /**
@@ -1050,13 +1261,25 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             ...(options.main === undefined ? {} : { main: options.main }),
             ...(options.format === undefined ? {} : { format: options.format }),
         };
+        const fetch: UrlFetch = {
+            href: url.href,
+            controller: new AbortController(),
+            listeners: new Set(),
+            callers: 0,
+            pinned: false,
+        };
+        entry.fetch = fetch;
         entry.settled = (async () => {
             let settled: AssetRecord;
             try {
                 const kind = roleOfName(url.pathname) === "texture" ? "texture" : "model";
                 const fetched = await (
                     await loadIntake()
-                ).fetchModelSet(url, limits, undefined, redirectGate(kind, "file"));
+                ).fetchModelSet(url, limits, fetch.controller.signal, redirectGate(kind, "file"), (progress) => {
+                    for (const listener of fetch.listeners) {
+                        listener(progress);
+                    }
+                });
                 settled = await intake(fetched.given, shared, fetched.main, false, named);
                 const expected = expectedDigests.get(url.href);
                 if (settled.state === "accepted" && expected !== undefined && expected !== settled.digest) {
@@ -1078,7 +1301,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     }
                 }
             } catch (error) {
-                if (!(error instanceof Refusal)) {
+                if (!(error instanceof ModelError)) {
                     throw error;
                 }
 
@@ -1086,8 +1309,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 if (error.held !== undefined) {
                     // Missing parts only: held, so the reader can supply them (design 12.4).
                     entry.held = { ...error.held, skipped: [], options: shared, url: named };
-                    const main = (await loadIntake()).mainPathOf(error.held.given, { main: error.held.main });
-                    settled = record({ ...settled, url: named, ...(main === undefined ? {} : { path: main }) });
+                    settled = await heldRecord(settled, error.held, named);
                     entry.record = settled;
                     settled = await fillFromProject(entry);
                 }
@@ -1095,9 +1317,96 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
             entry.record = settled;
             return settled;
-        })();
+        })().finally(() => {
+            entry.fetch = undefined;
+            // Stopped by every caller: forgotten, so the next add fetches it again.
+            if (fetch.controller.signal.aborted && urls.get(url.href) === entry) {
+                urls.delete(url.href);
+            }
+        });
+        // Nobody may be left waiting for a download every caller stopped.
+        entry.settled.catch(() => undefined);
         urls.set(url.href, entry);
         return entry;
+    };
+
+    /**
+     * Have a caller of `add` hear a URL's download and, with a signal, stop it once every caller
+     * has stopped.
+     * @param entry - The URL's entry.
+     * @param options - The caller's options.
+     * @param source - What is read, for the caller's changes.
+     * @returns What to call when the caller is done.
+     */
+    const followUrl = (entry: Entry, options: AddAssetOptions, source: ProgressChange["source"]): (() => void) => {
+        const { fetch } = entry;
+        if (fetch === undefined) {
+            return () => undefined;
+        }
+
+        const { onProgress, signal } = options;
+        const listener: ModelProgressListener | undefined =
+            onProgress === undefined
+                ? undefined
+                : (progress) => {
+                      onProgress(progressChange(progress, source));
+                  };
+        if (listener !== undefined) {
+            fetch.listeners.add(listener);
+        }
+
+        const onAbort = (): void => {
+            fetch.callers--;
+            if (fetch.callers === 0 && !fetch.pinned) {
+                // Forgotten at once, so an add right after the stop fetches it again.
+                if (urls.get(fetch.href) === entry) {
+                    urls.delete(fetch.href);
+                }
+
+                fetch.controller.abort(signal?.reason);
+            }
+        };
+        if (signal === undefined) {
+            fetch.pinned = true;
+        } else {
+            fetch.callers++;
+            signal.addEventListener("abort", onAbort, { once: true });
+        }
+
+        return () => {
+            if (listener !== undefined) {
+                fetch.listeners.delete(listener);
+            }
+
+            signal?.removeEventListener("abort", onAbort);
+        };
+    };
+
+    /**
+     * Wait for an asset on a caller's terms: its signal stops the wait, and its listener hears the
+     * last change.
+     * @param work - The record on its way.
+     * @param options - The caller's options.
+     * @param source - What is read.
+     * @param done - What to call when the wait ends.
+     * @returns The record.
+     */
+    const waitFor = async (
+        work: Promise<AssetRecord>,
+        options: AddAssetOptions,
+        source: ProgressChange["source"],
+        done: () => void = () => undefined,
+    ): Promise<AssetRecord> => {
+        try {
+            const settled = await abortable(work, options.signal);
+            options.onProgress?.(progressEnd(settled, source));
+            return settled;
+        } catch (error) {
+            options.onProgress?.(progressEnd(error, source));
+            throw error;
+        } finally {
+            done();
+        }
     };
 
     /**
@@ -1125,7 +1434,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                     ? undefined
                     : {
                           code: "E_MODEL_URL_BLOCKED",
-                          params: { hosts: [cut(to.host)], redirected: true, denied: true },
+                          params: { hosts: [cutParam(to.host)], redirected: true, denied: true },
                       },
             );
         };
@@ -1230,7 +1539,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
      * @returns Why not, or undefined to fetch.
      */
     const refusalFor = async (held: Held, target: URL, part: CodedFact): Promise<CodedFact | undefined> => {
-        const params = { hosts: [cut(target.host)], part: cut(String(part.params.name)) };
+        const params = { hosts: [cutParam(target.host)], part: cutParam(String(part.params.name)) };
         // Refused before anyone is asked: only a web address is fetched, and never with a login.
         if (target.protocol !== "https:" && target.protocol !== "http:") {
             return { code: "E_MODEL_URL_BLOCKED", params: { ...params, scheme: target.protocol } };
@@ -1279,10 +1588,10 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         signal?: AbortSignal,
         decided?: Decided,
     ): Promise<Uint8Array | CodedFact> => {
-        const name = cut(String(part.params.name));
+        const name = cutParam(String(part.params.name));
         const target = parseUrl(address, held.url === undefined ? undefined : parseUrl(held.url)?.href);
         if (target === undefined) {
-            const url = cut(address.split(/[?#]/)[0]);
+            const url = cutParam(address.split(/[?#]/)[0]);
             return { code: "E_MODEL_FETCH", params: { url, status: null, offline: false, part: name } };
         }
 
@@ -1301,7 +1610,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             const gate = redirectGate(part.params.role === "texture" ? "texture" : "model", "supplied");
             [bytes] = (await intakeModule.fetchModel(target, { ...limits, maxBytes: room }, signal, gate)).values();
         } catch (error) {
-            if (!(error instanceof Refusal)) {
+            if (!(error instanceof ModelError)) {
                 throw error;
             }
 
@@ -1395,6 +1704,41 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
     };
 
     /**
+     * The record of a model fetched by URL that waits for parts: its address, its main file and
+     * its parts, as `assets.parts` lists them.
+     * @param settled - The refusal's record.
+     * @param held - The files fetched so far.
+     * @param url - The address it was added by.
+     * @returns The record.
+     */
+    const heldRecord = async (
+        settled: AssetRecord,
+        held: NonNullable<ModelError["held"]>,
+        url: string,
+    ): Promise<AssetRecord> => {
+        const intakeModule = await loadIntake();
+        const main = intakeModule.mainFileOf(held.given, { main: held.main });
+        const parts = intakeModule.listParts(held.given, { main: held.main }, limits);
+        return record({
+            ...settled,
+            url,
+            ...(main === undefined ? {} : { path: main }),
+            ...(parts === undefined ? {} : { parts: Object.freeze(parts) }),
+        });
+    };
+
+    /**
+     * Why a part handed over was refused, naming the part it was for when the reason does not.
+     * @param why - The refusal.
+     * @param part - The part's name, when the answer named one.
+     * @returns The fact.
+     */
+    const partRefusal = (why: CodedFact, part: string | undefined): CodedFact =>
+        part === undefined || why.params.part !== undefined
+            ? why
+            : { code: why.code, params: { ...why.params, part: cutParam(part) } };
+
+    /**
      * One `supply` call, run in its model's turn.
      * @param entry - The held model.
      * @param answer - The part.
@@ -1422,7 +1766,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
         };
         const step = await stepFor(held, parts, answer, signal, decided);
         if ("unused" in step) {
-            const fact = { code: "W_MODEL_PART_UNUSED", params: { fileName: cut(step.unused) } };
+            const fact = { code: "W_MODEL_PART_UNUSED", params: { fileName: cutParam(step.unused) } };
             return record({ ...entry.record, problems: [...entry.record.problems, fact] });
         }
 
@@ -1435,19 +1779,24 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             given.set(...step.part);
         }
 
+        // A file nothing else names, taken for a missing part, goes under the part's name only.
+        if (
+            step.moved !== undefined &&
+            entry.record.parts?.some((p) => p.state === "unused" && p.name === step.moved)
+        ) {
+            given.delete(step.moved);
+        }
+
         const main = step.main ?? held.main;
         const skipped = step.skip === undefined ? held.skipped : [...held.skipped, step.skip];
-        const settled = await intake(given, { ...held.options, skipped }, main, false, held.url, entry);
+        const checked = await intake(given, { ...held.options, skipped }, main, false, held.url, entry);
+        // The reader's name stays through every part handed over.
+        const { plainName } = entry.record;
+        const settled = plainName === undefined ? checked : record({ ...checked, plainName });
         if (settled.state === "rejected" && !onlyParts(settled.problems)) {
             // The part itself was refused (a picture that is not one, a size over a limit): keep
             // what was held, and say why beside what is still missing, naming the part it was for.
-            const [why] = settled.problems;
-            const part = step.part?.[0];
-            return refused(
-                part === undefined || why.params.part !== undefined
-                    ? why
-                    : { code: why.code, params: { ...why.params, part: cut(part) } },
-            );
+            return refused(partRefusal(settled.problems[0], step.part?.[0]));
         }
 
         entry.assembled = true;
@@ -1530,7 +1879,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             const after = await supplyOne(entry, { name, file: found.bytes });
             if (
                 after === before ||
-                after.problems.some((p) => p.params.part === cut(name) && p.code.startsWith("E_"))
+                after.problems.some((p) => p.params.part === cutParam(name) && p.code.startsWith("E_"))
             ) {
                 // The picture would not do: the model waits for the reader as before.
                 entry.record = before;
@@ -1541,7 +1890,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             if (found.base) {
                 substituted.push({
                     code: "W_MODEL_PART_SUBSTITUTED",
-                    params: { name: cut(name), used: cut(found.used) },
+                    params: { name: cutParam(name), used: cutParam(found.used) },
                 });
             }
         }
@@ -1576,7 +1925,7 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
             const geometry = (options.skipped ?? []).find((name) => roleOfName(name) === "geometry");
             if (geometry !== undefined) {
-                throw supplyError("E_MODEL_PART_REQUIRED", { name: cut(geometry), role: "geometry" });
+                throw supplyError("E_MODEL_PART_REQUIRED", { name: cutParam(geometry), role: "geometry" });
             }
 
             options.signal?.throwIfAborted();
@@ -1592,22 +1941,37 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
                 const known = urls.get(url.href);
                 const entry =
                     known !== undefined && options.name === undefined ? known : startUrl(url, options, source);
-                return abortable(entry.settled, options.signal);
+                const shown = { name: baseName(url.pathname) || url.host, url: url.href };
+                return waitFor(entry.settled, options, shown, followUrl(entry, options, shown));
             }
 
-            let read: Awaited<ReturnType<typeof import("./intake").readSource>>;
-            try {
-                read = await (await loadIntake()).readSource(source, limits);
-            } catch (error) {
-                if (!(error instanceof Refusal)) {
-                    throw error;
+            const reading = (async (): Promise<AssetRecord> => {
+                let read: Awaited<ReturnType<typeof import("babylonjs-models/files").readModelFiles>>;
+                const { onProgress } = options;
+                try {
+                    read = await (
+                        await loadIntake()
+                    ).readModelFiles(
+                        source,
+                        limits,
+                        onProgress === undefined
+                            ? undefined
+                            : (progress) => {
+                                  onProgress(progressChange(progress, undefined));
+                              },
+                    );
+                } catch (error) {
+                    if (!(error instanceof ModelError)) {
+                        throw error;
+                    }
+
+                    return early(error.fact, `asset:rejected-${syncHex(JSON.stringify(error.fact))}`);
                 }
 
-                return early(error.fact, `asset:rejected-${syncHex(JSON.stringify(error.fact))}`);
-            }
-
-            options.signal?.throwIfAborted();
-            return intake(read.given, options, read.main);
+                options.signal?.throwIfAborted();
+                return intake(read.given, options, read.main);
+            })();
+            return waitFor(reading, options, undefined);
         },
 
         ready(ref, options = {}) {
@@ -1735,6 +2099,35 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
             return Object.freeze(waitingEntries().map((entry) => entry.record));
         },
 
+        rename(ref, plainName) {
+            const entry = findEntry(ref);
+            if (entry === undefined) {
+                throw new GraphtyError({
+                    code: "E_MODEL_UNKNOWN_ASSET",
+                    source: "data",
+                    message: `No model is held as ${ref}.`,
+                    details: { id: ref },
+                });
+            }
+
+            const name = (plainName ?? "").slice(0, 256);
+            const renamed = (before: AssetRecord): AssetRecord => {
+                const fields: { -readonly [K in keyof AssetRecord]: AssetRecord[K] } = { ...before };
+                delete fields.plainName;
+                return record(name === "" ? fields : { ...fields, plainName: name });
+            };
+            // A URL's entry and its accepted id's entry are two records of one asset: both are renamed.
+            const { id } = entry.record;
+            for (const each of allEntries()) {
+                if (each === entry || each.record.id === id) {
+                    each.record = renamed(each.record);
+                    each.settled = Promise.resolve(each.record);
+                }
+            }
+
+            return entry.record;
+        },
+
         usedBy(ref) {
             const id = api.find(ref)?.id;
             const names = (value: unknown): boolean =>
@@ -1757,6 +2150,32 @@ export function createAssetsApi(network?: NetworkApiInternal, styles?: () => Ses
 
         assembled(id) {
             return lookup(id)?.assembled === true;
+        },
+
+        standIn(id) {
+            const entry = lookup(id);
+            const main = entry?.record.path;
+            if (entry?.held === undefined || entry.record.state !== "rejected" || main === undefined) {
+                return undefined;
+            }
+
+            const { problems } = entry.record;
+            const stoodIn = problems.every(
+                (fact) =>
+                    fact.code === "E_MODEL_MISSING_FILE" &&
+                    String(fact.params.role ?? roleOfName(String(fact.params.name))) !== "geometry",
+            );
+            const format = entry.held.options.format ?? detectModelFormat({ filename: main })?.format;
+            if (!stoodIn || format === undefined) {
+                return undefined;
+            }
+
+            return {
+                files: new Map(entry.held.given),
+                main,
+                format,
+                skipped: [...entry.held.skipped, ...problems.map((fact) => String(fact.params.name))],
+            };
         },
 
         watchSupplied(listener) {

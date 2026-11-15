@@ -13,6 +13,7 @@ import type { z } from "zod";
 
 import type {
     AiHostedToolId,
+    AiImageModelDescriptor,
     AiPageRetrieval,
     AiProviderId,
     AiReasoningEffort,
@@ -27,11 +28,14 @@ export type { ProviderState, SavedMessage, SavedPart } from "../conversation/for
 /** A JSON Schema object, as a provider's tool declaration takes it. */
 export type JsonSchema = Readonly<Record<string, unknown>>;
 
-/** Each envelope's own tags, in any case and spacing, which text inside it may not carry. */
-const ENVELOPE_TAGS = {
-    "graph-data": /<[\s/]*graph-data\s*>/gi,
-    "web-content": /<[\s/]*web-content\s*>/gi,
-} as const;
+/**
+ * Every tag a reader could take as opening or closing an envelope: either envelope's name after
+ * `<` and any spaces, slashes or backslashes (`</x>`, `< / x>`, `<\/x>`), in any case, with
+ * anything up to the next `>` (attributes, a trailing slash, newlines); an unterminated one loses
+ * its `<` and name, which is all that makes it a tag. Both names are taken out of both envelopes,
+ * so web text cannot carry a `<graph-data>` tag either.
+ */
+const ENVELOPE_TAG = /<[\s/\\]*(?:graph-data|web-content)(?![\w-])(?:[^<>]*>)?/gi;
 
 /**
  * Text in a fixed envelope the system prompt names as data, with every tag that would open or
@@ -41,12 +45,12 @@ const ENVELOPE_TAGS = {
  * @param text - The text.
  * @returns It, enveloped.
  */
-function envelope(tag: keyof typeof ENVELOPE_TAGS, text: string): string {
+function envelope(tag: "graph-data" | "web-content", text: string): string {
     let inside = text;
     let before: string;
     do {
         before = inside;
-        inside = inside.replaceAll(ENVELOPE_TAGS[tag], "");
+        inside = inside.replaceAll(ENVELOPE_TAG, "");
     } while (inside !== before);
 
     return `<${tag}>\n${inside}\n</${tag}>`;
@@ -334,6 +338,14 @@ export type SpokenAudio =
     | { readonly code: "AI_COMPLETED"; readonly params: AiResultParams; readonly audio: Blob }
     | { readonly code: Exclude<AiResultCode, "AI_COMPLETED">; readonly params: AiResultParams };
 
+/**
+ * What generating a picture produced: `AI_COMPLETED` with the picture (a `Blob` of the provider's
+ * content type), or the code it failed with and no picture. Never thrown.
+ */
+export type GeneratedImage =
+    | { readonly code: "AI_COMPLETED"; readonly params: AiResultParams; readonly image: Blob }
+    | { readonly code: Exclude<AiResultCode, "AI_COMPLETED">; readonly params: AiResultParams };
+
 /** One attempt at a provider's speech call: its value, or a coded error like a turn's. */
 export type VoiceAttempt<T> = { readonly type: "done"; readonly value: T } | TurnError;
 
@@ -405,6 +417,8 @@ export interface LiveConnection {
     interrupt(): void;
     /** Answer one response's tool calls, all of them, in one call. */
     sendToolResults(results: readonly LiveToolResult[]): void;
+    /** Send graphty's own words as a turn of text, which the provider answers. */
+    sendText(text: string): void;
     /** The microphone's level now, from 0 (silence) to 1. */
     level(): number;
     /**
@@ -452,6 +466,13 @@ export interface AiEngine {
     speak?(text: string, options: SpeakOptions, signal: AbortSignal): Promise<SpokenAudio>;
     /** A live conversation with the provider; absent, like `transcribe`, where it has none. */
     openLive?(options: LiveOptions, signal: AbortSignal): Promise<LiveOpened>;
+    /**
+     * Make a picture from a prompt with the provider's image model. Absent, like `transcribe`, on
+     * an engine whose provider makes none; present together with `imageModel`.
+     */
+    generateImage?(prompt: string, signal: AbortSignal): Promise<GeneratedImage>;
+    /** The model `generateImage` uses and what one picture costs. */
+    readonly imageModel?: AiImageModelDescriptor;
     /**
      * Whether `openLive` can open now: a key is set, and a custom `baseUrl` (which live cannot
      * reach) is not. Absent, it can whenever `openLive` exists.

@@ -21,7 +21,6 @@
 
 import { type F32, type GraphSnapshot, makeMask, maskSet, type NodeMask } from "@graphty/graph-format";
 
-import { MAX_ITERATIONS_PER_STEP } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { createForceAtlas2 } from "../../src/layouts/forceatlas2.js";
 import { type ForceAtlas2Stats, type GpuLayoutSimulation, type RunOptions } from "../../src/types/layout.js";
@@ -460,159 +459,6 @@ function lcgUnit(seed: number): number {
 }
 
 /**
- * One macrotask, the helper's tick primitive.
- * @returns a promise resolved by a zero-delay timer
- */
-function nextTick(): Promise<void> {
-    return new Promise<void>((resolve) => {
-        setTimeout(() => {
-            resolve();
-        }, 0);
-    });
-}
-
-/**
- * The typical length of one tick on this runtime (Node clamps setTimeout 0 to about 1 ms; Chromium to 4 ms once
- * timers nest): the MEDIAN of 20 measured ticks, so a stall of the event loop under a loaded box (parallel test
- * workers) does not inflate the estimate; never reported below 0.5 ms.
- * @returns milliseconds per tick
- */
-async function measureTickMs(): Promise<number> {
-    const ticks: number[] = [];
-    for (let i = 0; i < 20; i++) {
-        const start = performance.now();
-        await nextTick();
-        ticks.push(performance.now() - start);
-    }
-    ticks.sort((a, b) => a - b);
-    return Math.max(ticks[ticks.length / 2], 0.5);
-}
-
-/**
- * Runs one batch of k iterations and returns its wall time (submit to readback landed).
- * @param sim - the simulation
- * @param k - iterations per step
- * @returns milliseconds
- */
-async function timedStep(sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>, k: number): Promise<number> {
-    const start = performance.now();
-    await sim.step(k);
-    return performance.now() - start;
-}
-
-/**
- * The UNCONTENDED wall time of one batch of k iterations: the minimum of three timings. A single timing can be
- * queued behind another process's GPU work (a parallel test worker of the node project, a sibling run on the dev
- * box) and come out several times too long, which would under-size k and let the flight-dependent runs' batches
- * land inside a tick; contention only ever lengthens a batch, so the minimum is the estimate the premise needs.
- * @param sim - the simulation
- * @param k - iterations per step
- * @returns milliseconds
- */
-async function minTimedStep(
-    sim: GpuLayoutSimulation<ForceAtlas2Options, ForceAtlas2Stats>,
-    k: number,
-): Promise<number> {
-    let best = Infinity;
-    for (let i = 0; i < 3; i++) {
-        best = Math.min(best, await timedStep(sim, k));
-    }
-    return best;
-}
-
-/**
- * The tier of every calibrated flight: the exact tile, whose per-iteration cost grows with n^2 so a larger fixture is
- * a longer batch (calibrateFlight's remedy). Stated because the default `"auto"` runs the grid tier above
- * EXACT_MAX_NODES (32768 by owner decision G4-D1; calibrateFlight's 16x fixture at 4x the scale is 65,536 nodes), and
- * the grid's near-constant cost would let such a batch land inside one tick gap.
- */
-const FLIGHT_TIER = { repulsion: "exact" } as const;
-
-/**
- * Picks iterationsPerStep so that one batch outlasts at least `targetTicks` ticks (default four) on the running
- * adapter -- otherwise a batch lands inside the tick gap and inFlight === maxInFlight is never observable at a
- * tick start (the pause case of spec 7.19 and a setPosition "during flight" both need it). A step(8) timing on a
- * throwaway simulation gives the linear estimate, which under-shoots: a small batch is dominated by the fixed
- * submit / mapAsync latency (spec 10.4 T-3), not by the per-iteration cost. The estimate is therefore VERIFIED:
- * step(k) is timed (the minimum of three runs, see minTimedStep) and k doubled until one batch measures >=
- * targetTicks ticks, clamped to [8, MAX_ITERATIONS_PER_STEP]; when even
- * MAX_ITERATIONS_PER_STEP iterations stay under two ticks the adapter cannot host the flight-dependent runs and
- * the helper throws with the measured ratio (a legible finding, not "pause never started"). Side effect relied on
- * by every caller: ctx.pipelines is warm afterwards (compile-once per context, contract 3.9).
- * @param ctx - the context
- * @param snapshot - the graph of the run
- * @param tickMs - measureTickMs()
- * @param targetTicks - the batch length aimed at, in ticks (default 4; the promise-identity test asks for 64, which
- * clamps at MAX_ITERATIONS_PER_STEP on a fast adapter: its premises hold only while a batch is in flight, and on a
- * loaded box a batch of a few ticks can land inside one stalled tick gap -- a longer batch is the only margin)
- * @returns the iterations per step
- */
-async function calibrateHeavyStep(
-    ctx: GpuContext,
-    snapshot: GraphSnapshot,
-    tickMs: number,
-    targetTicks = 4,
-): Promise<number> {
-    const scratch = createForceAtlas2(ctx, { ...FLIGHT_TIER, seed: 7, maxIter: 1_000_000, settleThreshold: 0 });
-    const positions = new Float32Array(3 * snapshot.nodeCount).fill(NaN);
-    scratch.load(snapshot, positions);
-    await scratch.step(8); // warm-up: pipeline compile, first submit
-    const batchMs = Math.max(await minTimedStep(scratch, 8), 0.05);
-    let k = Math.min(MAX_ITERATIONS_PER_STEP, Math.max(1, Math.ceil((8 * targetTicks * tickMs) / batchMs)));
-    let measuredMs = await minTimedStep(scratch, k);
-    while (measuredMs < targetTicks * tickMs && k < MAX_ITERATIONS_PER_STEP) {
-        k = Math.min(MAX_ITERATIONS_PER_STEP, k * 2);
-        measuredMs = await minTimedStep(scratch, k);
-    }
-    scratch.dispose();
-    if (measuredMs < 2 * tickMs) {
-        throw new Error(
-            `calibrateHeavyStep: step(${k}) measured ${measuredMs.toFixed(3)} ms against ${tickMs.toFixed(3)} ms ticks ` +
-                `(${(measuredMs / tickMs).toFixed(2)} ticks per batch): even MAX_ITERATIONS_PER_STEP iterations cannot ` +
-                "keep a batch in flight across two tick starts on this adapter",
-        );
-    }
-    return k;
-}
-
-/**
- * The graph and iterations-per-step of a flight-dependent run: calibrateHeavyStep on random1k at `scale` and, when
- * even MAX_ITERATIONS_PER_STEP cannot outlast `targetTicks` there (a fast adapter behind slow timers -- the macOS
- * runner's Chromium is the measured case, test/browser/forceatlas2.test.ts), on the fixture at twice and four times
- * the scale -- each doubling of the node count quadruples the exact repulsion tile's work -- before giving up with
- * the last measurement. An abandoned fixture is released again.
- * @param ctx - the context
- * @param scale - the fixture scale of the first attempt
- * @param tickMs - measureTickMs()
- * @param targetTicks - the batch length aimed at (calibrateHeavyStep)
- * @returns the graph and the iterations per step
- */
-async function calibrateFlight(
-    ctx: GpuContext,
-    scale: number,
-    tickMs: number,
-    targetTicks?: number,
-): Promise<{ readonly snapshot: GraphSnapshot; readonly k: number }> {
-    let failure: unknown = null;
-    for (const factor of [1, 2, 4]) {
-        const { snapshot } = fixture("random1k", scale * factor);
-        try {
-            const k = await calibrateHeavyStep(ctx, snapshot, tickMs, targetTicks);
-            if (factor > 1) {
-                console.warn(
-                    `[frame-loop] calibrated on random1k at ${factor}x the scale (${snapshot.nodeCount} nodes): step(${k}) against ${tickMs.toFixed(1)} ms ticks`,
-                );
-            }
-            return { snapshot, k };
-        } catch (err: unknown) {
-            failure = err;
-            ctx.release(snapshot);
-        }
-    }
-    throw failure;
-}
-
-/**
  * Asserts a tick series never decreases, except across the ticks in `except` (a reheat resets iterationsDone).
  * @param values - the per-tick series
  * @param except - ticks after which a drop is allowed
@@ -635,7 +481,7 @@ function expectMonotone(values: readonly number[], except: ReadonlySet<number> =
  * @param snapshot - the graph of the run
  */
 async function warmPipelines(ctx: GpuContext, snapshot: GraphSnapshot): Promise<void> {
-    const scratch = createForceAtlas2(ctx, { ...FLIGHT_TIER, seed: 7, maxIter: 1_000_000, settleThreshold: 0 });
+    const scratch = createForceAtlas2(ctx, { seed: 7, maxIter: 1_000_000, settleThreshold: 0 });
     scratch.load(snapshot, new Float32Array(3 * snapshot.nodeCount).fill(NaN));
     await scratch.step(1);
     scratch.dispose();
@@ -645,19 +491,17 @@ describe("frame loop on the GPU ForceAtlas2 simulation (spec 7.19; 11.4 last bul
     it("a coalesced step() returns the same promise object: the OLDEST pending batch's (spec 7.19 item 3, 9.4 item 4)", async (t) => {
         requireGpu(t);
         const ctx = await acquire();
-        // Every coalescing assertion below is made in the SAME synchronous block as the step() calls it depends on.
-        // inFlight counts a batch from its step() call, not from its submission (PLAN DECISION 7), and the element
-        // calls step() several times per frame synchronously (spec 7.19 facts), so nothing here needs a batch to
-        // still be on the GPU a tick later. An earlier version awaited a setTimeout(0) tick between p2 and the
-        // inFlight === 2 check: whenever that one tick outlasted batch 1 (a starved event loop -- WARP computes on
-        // the same four vCPUs as the parallel test forks) batch 1 had landed and the check read 1 instead of 2
-        // (Hosts run 35934011990, Windows, D3D12 WARP). The heaviest batch the adapter offers (64 ticks asked for)
-        // keeps the one timing-dependent state below common; ctx.pipelines is warm afterwards.
-        const { snapshot, k } = await calibrateFlight(ctx, 16 * gpuScale(), await measureTickMs(), 64);
+        // Every coalescing assertion below is made in the SAME synchronous block as the step() calls it depends on:
+        // inFlight counts a batch from its step() call, not from its submission (PLAN DECISION 7). The one state no
+        // synchronous block can reach -- the oldest batch landed, the next one still pending -- is reached by holding
+        // every readback after the first: batch 1 lands, batch 2 waits on the test's gate whatever the batch length
+        // or the tick rate (sizing the batch from measured timings made it a race, issue #7211).
+        const { snapshot } = fixture("random1k", gpuScale());
         const n = snapshot.nodeCount;
+        await warmPipelines(ctx, snapshot); // before the hold: the warm-up's own readback is not counted
+        const k = 4;
         const positions = new Float32Array(3 * n).fill(NaN);
         const sim = createForceAtlas2(ctx, {
-            ...FLIGHT_TIER,
             seed: 7,
             maxIter: 1_000_000,
             settleThreshold: 0,
@@ -666,47 +510,53 @@ describe("frame loop on the GPU ForceAtlas2 simulation (spec 7.19; 11.4 last bul
         });
         const counters = sim as unknown as { readonly coalesced: number }; // the @internal counter (contract 3.13)
         sim.load(snapshot, positions);
-        // the helper's `submissions` (distinct promises) and the element's once-per-distinct-promise .catch
-        // (9.4 item 4) both hinge on this identity; an async step() that returns the oldest batch's promise from
-        // inside the async function would hand back a fresh wrapper per call and only show up in this suite as an
-        // opaque iterationsDone !== submissions * k mismatch
-        const p1 = sim.step(k);
-        expect(sim.inFlight).toBe(1);
-        const p2 = sim.step(k); // inFlight 1 < 2: a second batch
-        expect(p2).not.toBe(p1);
-        expect(sim.inFlight).toBe(2);
-        expect(counters.coalesced).toBe(0);
-        const p3 = sim.step(k);
-        const p4 = sim.step(k);
-        expect(p3).toBe(p1); // the OLDEST pending batch's promise: the very object the first call returned
-        expect(p4).toBe(p3); // and the same object again on the next call
-        expect(counters.coalesced).toBe(2);
-        expect(sim.inFlight).toBe(2); // a coalesced call queues nothing
-        // The one state no synchronous block can reach: the oldest batch landed, the next one still pending. Batch 2
-        // starts on the GPU only once batch 1 is done, so it normally lands a whole batch later; but a worker whose
-        // event loop did not run for that long (a starved CPU) sees both maps resolve in ONE poll, and the state
-        // never existed. That is not the contract under test, so such a pair is let go and another one issued.
-        let [older, newer] = [p1, p2];
-        let batches = 2;
-        for (let pair = 1; ; pair++) {
-            await older;
-            if (sim.inFlight === 1) {
-                break;
-            }
-            expect(pair, "no pair left its second batch in flight when the first landed").toBeLessThan(4);
-            [older, newer] = [sim.step(k), sim.step(k)];
-            batches += 2;
+        const ring = ctx.readback;
+        const mapSlot = ring.mapSlot.bind(ring);
+        let maps = 0;
+        let release: () => void = (): void => undefined;
+        const gate = new Promise<void>((resolve) => {
+            release = resolve;
+        });
+        ring.mapSlot = (slot, byteLength): Promise<void> => {
+            maps += 1;
+            const mapped = mapSlot(slot, byteLength);
+            return maps === 1 ? mapped : mapped.then(() => gate);
+        };
+        try {
+            // the helper's `submissions` (distinct promises) and the element's once-per-distinct-promise .catch
+            // (9.4 item 4) both hinge on this identity; an async step() that returns the oldest batch's promise from
+            // inside the async function would hand back a fresh wrapper per call and only show up in this suite as an
+            // opaque iterationsDone !== submissions * k mismatch
+            const p1 = sim.step(k);
+            expect(sim.inFlight).toBe(1);
+            const p2 = sim.step(k); // inFlight 1 < 2: a second batch
+            expect(p2).not.toBe(p1);
+            expect(sim.inFlight).toBe(2);
+            expect(counters.coalesced).toBe(0);
+            const p3 = sim.step(k);
+            const p4 = sim.step(k);
+            expect(p3).toBe(p1); // the OLDEST pending batch's promise: the very object the first call returned
+            expect(p4).toBe(p3); // and the same object again on the next call
+            expect(counters.coalesced).toBe(2);
+            expect(sim.inFlight).toBe(2); // a coalesced call queues nothing
+            await p1;
+            expect(sim.inFlight).toBe(1); // batch 2's readback is held
+            const p5 = sim.step(k); // a slot is free again: a new batch, a new promise
+            expect(p5).not.toBe(p1);
+            expect(p5).not.toBe(p2);
+            expect(sim.inFlight).toBe(2);
+            const p6 = sim.step(k);
+            expect(p6).toBe(p2); // the oldest PENDING batch is now the second one, not the first ever
+            expect(counters.coalesced).toBe(3);
+            release();
+            await sim.flush();
+        } finally {
+            ring.mapSlot = mapSlot;
+            release();
         }
-        const p5 = sim.step(k); // a slot is free again: a new batch, a new promise
-        expect(p5).not.toBe(older);
-        expect(p5).not.toBe(newer);
-        expect(sim.inFlight).toBe(2);
-        const p6 = sim.step(k);
-        expect(p6).toBe(newer); // the oldest PENDING batch is now the second one, not the first ever
-        expect(counters.coalesced).toBe(3);
-        await sim.flush();
+        expect(maps).toBe(3);
         expect(sim.inFlight).toBe(0);
-        expect(sim.iterationsDone).toBe((batches + 1) * k); // every pair and p5 submitted; p3, p4 and p6 ran nothing
+        expect(sim.iterationsDone).toBe(3 * k); // p1, p2 and p5 submitted; p3, p4 and p6 ran nothing
         sim.dispose();
         ctx.release(snapshot);
     });
@@ -765,11 +615,13 @@ describe("frame loop on the GPU ForceAtlas2 simulation (spec 7.19; 11.4 last bul
     it("a setPosition during flight lands in the following batch and is never overwritten by an older one", async (t) => {
         requireGpu(t);
         const ctx = await acquire();
-        const { snapshot, k } = await calibrateFlight(ctx, gpuScale(), await measureTickMs());
+        const { snapshot } = fixture("random1k", gpuScale());
         const n = snapshot.nodeCount;
+        await warmPipelines(ctx, snapshot); // the loop's own simulation below is never stepped before the loop
+        // any batch length: every write's flight is constructed (submitBeforeWrites), never sized from timings
+        const k = 4;
         const positions = new Float32Array(3 * n).fill(NaN);
         const sim = createForceAtlas2(ctx, {
-            ...FLIGHT_TIER,
             seed: 7,
             maxIter: 1_000_000,
             settleThreshold: 0,
@@ -793,6 +645,7 @@ describe("frame loop on the GPU ForceAtlas2 simulation (spec 7.19; 11.4 last bul
             iterationsPerStep: k,
             maxInFlight: 2,
             setPositionAt: writes,
+            submitBeforeWrites: ctx.device.queue,
             onTick: (tick) => {
                 const write = writes.find((w) => w.tick === tick);
                 if (write !== undefined) {
@@ -810,7 +663,7 @@ describe("frame loop on the GPU ForceAtlas2 simulation (spec 7.19; 11.4 last bul
             expect(hold.held, `write at tick ${hold.tick} on node ${hold.index}`).toBe(true);
         }
         expect(inFlightAtWrite).toHaveLength(WRITES);
-        expect(Math.max(...inFlightAtWrite)).toBeGreaterThanOrEqual(1); // at least one write was issued with a batch in flight
+        expect(inFlightAtWrite).toEqual(writes.map(() => 1)); // every write met the one batch submitted before it
         expect(report.maxObservedInFlight).toBeLessThanOrEqual(2);
         expect(report.settledAtTick).toBeNull();
         // monotone except across a write tick: setPosition reheats, iterationsDone -> 0 (D8), visible at the next sample

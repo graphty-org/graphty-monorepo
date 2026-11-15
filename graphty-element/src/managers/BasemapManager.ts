@@ -7,6 +7,7 @@ import type { FlatMap, Globe, MapCredit, MapSource } from "babylonjs-map";
 import type { BasemapConfig, BasemapStatus, GlobeLook } from "../config/Basemap";
 import type { BasemapStatusEvent } from "../events";
 import type { LocationMapFrame } from "../layout/locationMap/place";
+import { viewLog } from "./viewLog";
 
 type MapModule = typeof import("babylonjs-map");
 
@@ -379,6 +380,7 @@ export class BasemapManager {
                 frame.surface === "globe"
                     ? new m.Globe(this.getScene(), { sources, radius: frame.radius, name: "graphty-globe" })
                     : new m.FlatMap(this.getScene(), { sources, frame: frame.mapFrame, name: "graphty-flat-map" });
+            viewLog.info("map surface", { surface: frame.surface, source: name, layers: sources.length });
             surface.onChangedObservable.add(() => {
                 this.#changed();
             });
@@ -479,6 +481,14 @@ export class BasemapManager {
         }
 
         this.#told = text;
+        const counts = this.#surface?.status;
+        viewLog.info("map tiles", {
+            source: status.source,
+            state: status.state,
+            unknownSource: this.#unknown,
+            ready: counts?.ready ?? 0,
+            failed: counts?.failed ?? 0,
+        });
         this.emit({
             source: status.source,
             state: status.state,

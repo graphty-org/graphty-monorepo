@@ -5,7 +5,7 @@
  */
 import { screen } from "@testing-library/react";
 import React, { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, assert, describe, expect, it, vi } from "vitest";
 import { commands, userEvent } from "vitest/browser";
 
 import { FileSource, StatusBar } from "../../../src";
@@ -145,6 +145,77 @@ describe("FileSource", () => {
         expect(screen.getByRole("button", { name: "Choose file" })).toBeDisabled();
         await commands.dropFiles(".cm-file-drop-target", [CSV]);
         expect(onFiles).not.toHaveBeenCalled();
+    });
+
+    it("hands a folder chosen in the folder picker to onFiles with each file's path", async () => {
+        const onFiles = vi.fn();
+        await renderThemed(<FileSource variant="drop" folder onFiles={onFiles} />);
+        await commands.chooseFiles("button:has-text('Choose folder')", [
+            { name: "kit/car.obj", type: "", text: "o car" },
+            { name: "kit/parts/car.mtl", type: "", text: "newmtl red" },
+        ]);
+        await vi.waitFor(() => {
+            assert.equal(onFiles.mock.calls.length, 1);
+        });
+        const [files, paths] = onFiles.mock.calls[0] as [File[], ReadonlyMap<string, File>];
+        assert.sameMembers(
+            files.map((file) => file.name),
+            ["car.obj", "car.mtl"],
+        );
+        assert.sameMembers([...paths.keys()], ["kit/car.obj", "kit/parts/car.mtl"]);
+    });
+
+    it("hands no paths for files chosen one by one", async () => {
+        const onFiles = vi.fn();
+        await renderThemed(<FileSource variant="drop" folder onFiles={onFiles} />);
+        await commands.chooseFiles("button:has-text('Choose file')", [CSV]);
+        await vi.waitFor(() => {
+            assert.equal(onFiles.mock.calls.length, 1);
+        });
+        assert.isUndefined(onFiles.mock.calls[0][1]);
+    });
+
+    it("draws no folder button, hint or bar unless asked", async () => {
+        await renderThemed(<FileSource variant="drop" onFiles={() => undefined} />);
+        assert.isNull(screen.queryByRole("button", { name: "Choose folder" }));
+        assert.isNull(screen.queryByRole("progressbar"));
+        assert.isNull(document.querySelector(".cm-file-hint"));
+    });
+
+    it("shows its hint under the buttons and a bar for a load under way", async () => {
+        await renderThemed(<FileSource variant="drop" hint="GLB, OBJ, STL" progress={0.4} onFiles={() => undefined} />);
+        assert.equal(document.querySelector(".cm-file-hint")?.textContent, "GLB, OBJ, STL");
+        const bar = screen.getByRole("progressbar", { name: "Loading" });
+        assert.equal(bar.getAttribute("aria-valuenow"), "40");
+    });
+
+    it("draws a full moving bar for a load whose size is not known", async () => {
+        await renderThemed(<FileSource variant="drop" progress={null} onFiles={() => undefined} />);
+        assert.equal(screen.getByRole("progressbar", { name: "Loading" }).getAttribute("aria-valuenow"), "100");
+    });
+
+    it("says why an address was refused under the field, tied to it", async () => {
+        await renderThemed(
+            <FileSource variant="row" error="Not reached" onFiles={() => undefined} onUrl={() => undefined} />,
+        );
+        const field = screen.getByRole("textbox", { name: "URL" });
+        assert.equal(field.getAttribute("aria-invalid"), "true");
+        const described = field.getAttribute("aria-describedby") ?? "";
+        assert.include(document.getElementById(described.split(" ")[0])?.textContent ?? "", "Not reached");
+    });
+
+    it("takes a typed address back on Escape and says so through onDiscard", async () => {
+        const onDiscard = vi.fn();
+        await renderThemed(
+            <FileSource variant="row" onDiscard={onDiscard} onFiles={() => undefined} onUrl={() => undefined} />,
+        );
+        const field = screen.getByRole<HTMLInputElement>("textbox", { name: "URL" });
+        await userEvent.click(field);
+        await userEvent.keyboard("https://graphty.app/x.glb{Escape}");
+        assert.equal(field.value, "");
+        assert.equal(onDiscard.mock.calls.length, 1);
+        await userEvent.keyboard("{Escape}");
+        assert.equal(onDiscard.mock.calls.length, 1, "an empty field leaves Escape to the page");
     });
 
     it("draws a drop target in a wide space and a row once the space narrows (auto)", async () => {

@@ -31,6 +31,10 @@ import { FileSource, type FileSourceProps } from "../../../src";
  * - The upload button and the "Choose file" button (`fileChoose`, or `label`) open the browser's
  *   file picker.
  * - A drop is taken by the innermost `FileSource` or `useFileDrop` target, never twice.
+ * - With `folder`, "Choose folder" (`fileChooseFolder`) opens the folder picker, a dropped folder is
+ *   walked, and `onFiles` gets each file's path as its second argument.
+ * - `error` is shown under the URL field and tied to it (`aria-describedby`); `progress` draws a
+ *   progress bar named "Loading" (`fileLoading`); with `onDiscard`, Escape takes a typed address back.
  *
  * ## Measurements
  *
@@ -60,8 +64,8 @@ function Reporting(props: Omit<FileSourceProps, "onFiles" | "onUrl">): React.JSX
         <>
             <FileSource
                 {...props}
-                onFiles={(files) => {
-                    setGot(files.map((file) => file.name).join(", "));
+                onFiles={(files, paths) => {
+                    setGot((paths === undefined ? files.map((file) => file.name) : [...paths.keys()]).join(", "));
                 }}
                 onUrl={setGot}
             />
@@ -112,6 +116,41 @@ export const Disabled: Story = {
     render: () => (
         <div style={{ width: 320 }}>
             <Reporting variant="drop" url disabled />
+        </div>
+    ),
+};
+
+/** `folder`, `hint` and `fill`: files or a folder, with what it takes under the buttons, filling a 200px box. */
+export const DropWithFolder: Story = {
+    render: () => (
+        <div style={{ width: 360, height: 200, display: "flex", flexDirection: "column" }}>
+            <Reporting
+                variant="drop"
+                multiple
+                folder
+                fill
+                url
+                hint="GLB, glTF, OBJ, STL, PLY or a .zip"
+                openLabel="Load"
+            />
+        </div>
+    ),
+};
+
+/** `progress`: a load under way, 40% of the way. */
+export const Loading: Story = {
+    render: () => (
+        <div style={{ width: 320 }}>
+            <Reporting variant="drop" url progress={0.4} disabled />
+        </div>
+    ),
+};
+
+/** `error`: why the address was refused, under the field. */
+export const RowWithError: Story = {
+    render: () => (
+        <div style={{ width: 240 }}>
+            <Reporting variant="row" url defaultValue="https://example.com/page" error="Web page, not a model" />
         </div>
     ),
 };

@@ -1734,6 +1734,21 @@ function visNodeOpacityAndDashes(layer: VisLayer, put: PutRow, site: (property: 
 }
 
 /**
+ * A dashed vis.js edge's dash array as the dash and gap it draws with vis-network's round caps.
+ * @param dashes - the dash array
+ * @param width - the line's width
+ * @param put - the row's setter
+ */
+function visDashLengths(dashes: unknown, width: number, put: PutRow): void {
+    const lengths = Array.isArray(dashes) ? dashes.filter((d): d is number => typeof d === "number") : [];
+    const pair = lengths.every((d) => Number.isFinite(d)) ? drawnDash(lengths, width) : null;
+    if (pair !== null) {
+        put("dashLength", pair.dash);
+        put("dashGap", pair.gap);
+    }
+}
+
+/**
  * The edge values of a vis.js layer besides its color.
  * @param layer - the layer
  * @param put - the row's setter
@@ -1753,11 +1768,8 @@ function visEdgeValues(layer: VisLayer, put: PutRow, site: (property: string) =>
         // vis-network draws an edge with round caps (EdgeBase: lineCap "round"), each dash a width longer
         const style = layer.dashes === "false" ? "solid" : visDashStyle(dashes, width, true);
         put("lineStyle", style);
-        const lengths = Array.isArray(dashes) ? dashes.filter((d): d is number => typeof d === "number") : [];
-        const pair = style === "solid" ? null : drawnDash(lengths, width);
-        if (pair !== null && lengths.every((d) => Number.isFinite(d))) {
-            put("dashLength", pair.dash);
-            put("dashGap", pair.gap);
+        if (style !== "solid") {
+            visDashLengths(dashes, width, put);
         }
     }
     if (layer.arrows !== undefined) {
@@ -3432,7 +3444,10 @@ const VIS_WRITTEN: Written = {
         lineStyle: (want) => {
             const dashes = visDashesOut(want);
             // written as `dashes: true`, vis-network's [5, 5], or its own array, which a wide edge's round caps close up
-            return dashes === null ? null : visDashStyle(dashes === true ? [5, 5] : dashes, visWidthOut(want), true);
+            if (dashes === null) {
+                return null;
+            }
+            return visDashStyle(dashes === true ? [5, 5] : dashes, visWidthOut(want), true);
         },
         dashLength: (want) => visDashBack(want)?.dash ?? null,
         dashGap: (want) => visDashBack(want)?.gap ?? null,

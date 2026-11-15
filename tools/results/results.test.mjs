@@ -1187,6 +1187,18 @@ describe("the pull request rules", () => {
         assert.deepEqual(tags(judge(elsewhere, report(fail("known")), report(fail("known")))), ["warn [UNRELATED]"]);
     });
 
+    it("#8051: says [KNOWN] for a touched test master fails the same way; a touched test's own failure still fails", () => {
+        const { key } = failureHashes("AssertionError: known", "a.test.ts");
+        const row = { variant: `${FAMILY}|flags=off|whole`, sha: "m1", file: "a.test.ts", name: "known", key };
+        const plan = { quarantine: [], failingOnBase: [row], affected: ["a.test.ts"] };
+        const known = report(fail("known"));
+        assert.deepEqual(tags(judge(plan, known, known)), ["warn [KNOWN]"]);
+        assert.equal(judge(plan, known, known).pass, true);
+        // the same test failing another way (another key) is this pull request's: it fails
+        const other = { ...plan, failingOnBase: [{ ...row, key: "nope" }] };
+        assert.deepEqual(tags(judge(other, known, known)), ["fail [FAIL]"]);
+    });
+
     it("#3925: passes an untouched failure as [UNRELATED] with a summary line; never a touched, GPU or crashed one", () => {
         const dir = mkdtempSync(join(tmpdir(), "unrelated-"));
         const env = { GITHUB_STEP_SUMMARY: join(dir, "summary.md") };

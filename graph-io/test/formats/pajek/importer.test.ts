@@ -403,6 +403,12 @@ describe("pajekImporter: vertex lines", () => {
         expect(snapshot.directed).toBe(true);
         expect(snapshot.edgeList().weights?.[0]).toBe(3);
     });
+
+    it("reads an infinite line value (as the exporter writes it) as the weight", async () => {
+        const { snapshot, report } = await load("*Vertices 2\n*Arcs\n1 2 Infinity\n2 1 -INF\n");
+        expect(report.issues).toEqual([]);
+        expect(Array.from(snapshot.edgeList().weights ?? [])).toEqual([Infinity, -Infinity]);
+    });
 });
 
 describe("pajekImporter: numbering and ids", () => {
@@ -954,12 +960,12 @@ describe("pajekImporter: the manual's line forms", () => {
         expect(label(snapshot, 2)).toBe("a&#99999999;");
     });
 
-    it("reads shape keywords in any case, including house, man and woman", async () => {
+    it("reads shape keywords in any case, as written, including house, man and woman", async () => {
         const text = "*Vertices 4\n1 a 0 0 Ellipse ic Red\n2 b house\n3 c MAN\n4 d woman\n*Edges\n1 2\n";
         const { snapshot, report } = await load(text);
         expect(report.issues).toEqual([]);
         const shape = snapshot.nodes.require("shape");
-        expect([0, 1, 2, 3].map((i) => shape.value(i))).toEqual(["ellipse", "house", "man", "woman"]);
+        expect([0, 1, 2, 3].map((i) => shape.value(i))).toEqual(["Ellipse", "house", "MAN", "woman"]);
         expect(snapshot.nodes.require("ic").value(0)).toBe("Red");
     });
 

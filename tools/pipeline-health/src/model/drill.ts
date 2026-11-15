@@ -67,6 +67,9 @@ function jobOf(t: TestItem): { job?: string; shard?: string } {
     return { ...(parts[2] ? { job: parts[2] } : {}), ...(shard ? { shard } : {}) };
 }
 
+/** How many invocations' shard and run lookups testHistory runs at once. */
+const LOOKUP_BATCH = 25;
+
 /**
  * A file's (or one test's) failed and flaky results in the range, newest first, joined to their shard runs (else
  * their workflow run) for the pull request, commit and kind; an empty list when there are none.
@@ -90,13 +93,16 @@ export async function testHistory(
         .sort((a, b) => b.seenAt - a.seenAt);
     // A story bin's flaky post and a backfilled annotation have no shard run: the workflow run names the commit.
     const shards = new Map<string, { sha: string; pr?: number; full?: boolean } | undefined>();
-    for (const t of tests) {
-        if (!shards.has(t.invocation)) {
-            const shard = ((await store.query(`R#shard_run#${t.invocation}`)) as unknown as ShardRunItem[]).at(-1);
-            const run = /^(\d+)\./.exec(t.invocation)?.[1];
-            const runs = shard || !run ? [] : ((await store.query(`RUN#${run}`)) as unknown as RunItem[]);
-            shards.set(t.invocation, shard ?? runs.find((r) => r.kind === "run"));
-        }
+    const lookup = async (invocation: string): Promise<void> => {
+        const shard = ((await store.query(`R#shard_run#${invocation}`)) as unknown as ShardRunItem[]).at(-1);
+        const run = /^(\d+)\./.exec(invocation)?.[1];
+        const runs = shard || !run ? [] : ((await store.query(`RUN#${run}`)) as unknown as RunItem[]);
+        shards.set(invocation, shard ?? runs.find((r) => r.kind === "run"));
+    };
+    // Lookups run LOOKUP_BATCH at a time, so a flaky file's hundreds of invocations fit in the Read Lambda's timeout.
+    const invocations = [...new Set(tests.map((t) => t.invocation))];
+    for (let i = 0; i < invocations.length; i += LOOKUP_BATCH) {
+        await Promise.all(invocations.slice(i, i + LOOKUP_BATCH).map(lookup));
     }
     return {
         generated: iso(nowMs),

@@ -7,8 +7,9 @@
  * budget itself is asserted next door, in `repaint.bench.test.ts`.
  */
 
-import { assert, describe, it } from "vitest";
+import { afterEach, assert, describe, it } from "vitest";
 
+import { addPastedShaderSource, shaderDescriptor } from "../../../src/catalog/shaderRegistry";
 import type { LayerSpec, Path } from "../../../src/catalog/types";
 import {
     type CompiledLayer,
@@ -148,7 +149,16 @@ function paintedNodes(harness: Harness): number {
 }
 
 describe("a layer a pass already painted (issue #5897)", () => {
+    // A layer's use names a project shader; this harness has no session, so it stands in for a
+    // project that holds a copy of the catalog's uncertainty-aura.
+    let stopProject: (() => void) | undefined;
+    afterEach(() => stopProject?.());
+
     it("is not applied a second time by the repaint its own add asks for", async () => {
+        stopProject = addPastedShaderSource({
+            descriptor: (id) => (id === "uncertainty-aura" ? shaderDescriptor(id) : undefined),
+            ids: () => ["uncertainty-aura"],
+        });
         const h = makeHarness();
         await h.paintAll();
         await h.styles.add({

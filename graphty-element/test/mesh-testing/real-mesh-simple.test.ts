@@ -11,6 +11,7 @@ import { afterEach, assert, beforeEach, describe, test } from "vitest";
 import { EdgeMesh } from "../../src/meshes/EdgeMesh";
 import { MeshCache } from "../../src/meshes/MeshCache";
 import { NodeMesh } from "../../src/meshes/NodeMesh";
+import { labelAnimationFrames } from "../../src/meshes/RichTextAnimator";
 import { RichTextLabel } from "../../src/meshes/RichTextLabel";
 import { edgeLineFor } from "../helpers/edgeLine";
 
@@ -493,7 +494,7 @@ describe("Simple Real Mesh Tests", () => {
             assert.isNotNull(label.labelMesh);
         });
 
-        test("starts and stops animation", () => {
+        test("starts animation, and dispose stops it", () => {
             const options = {
                 text: "Animation Control",
                 animation: "pulse" as const,
@@ -501,12 +502,15 @@ describe("Simple Real Mesh Tests", () => {
             };
 
             const label = RichTextLabel.createLabel(scene, options);
+            const frames = labelAnimationFrames.callbacksOf(scene);
+            const before = frames.size;
 
-            // Test animation control
             label.startAnimation();
-            // TODO: RichTextLabel doesn't have stopAnimation method, only dispose stops it
+            assert.strictEqual(frames.size, before + 1);
 
-            assert.isNotNull(label.labelMesh);
+            // RichTextLabel has no stopAnimation: dispose is what ends the per-frame work.
+            label.dispose();
+            assert.strictEqual(frames.size, before);
         });
     });
 

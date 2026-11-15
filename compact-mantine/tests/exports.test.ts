@@ -694,7 +694,7 @@ describe("Package exports", () => {
             it("exports the closed glyph registers", () => {
                 expect(mainExports.FIELD_GLYPH_NAMES).toHaveLength(8);
                 expect(mainExports.FIELD_LETTERS).toEqual(["N", "E", "W", "D", "K"]);
-                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(45);
+                expect(mainExports.UI_GLYPH_NAMES).toHaveLength(46);
             });
 
             it("exports the guards that read the registers", () => {

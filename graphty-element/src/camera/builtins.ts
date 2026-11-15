@@ -65,8 +65,8 @@ const ISOMETRIC_BETA = Math.acos(1 / Math.sqrt(3));
 /**
  * Frame everything from the direction the camera looks from now (`fitToGraph`'s `keepAngle`).
  *
- * The distance puts every corner of the box, padded 10 percent off the view axis, inside the
- * narrower of the two fields of view, so every node is in shot from any angle. The pivot
+ * The distance puts every point the box was measured over, padded 10 percent off the view axis,
+ * inside the narrower of the two fields of view, so every node is in shot whatever the roll. The pivot
  * rotation is carried over, so a turn the reader gave the drawing (roll included) is kept.
  * @param input - The box to frame and where the camera is now.
  * @param fov - The vertical field of view in radians.
@@ -121,10 +121,30 @@ function screenAxes(toViewer: Direction): { right: Direction; up: Direction } | 
 }
 
 /**
- * Frame everything from one direction: every corner of the box, padded 10 percent, inside the
- * view. With no turn to keep, the screen's axes are known, so each corner is held to the
+ * The eight corners of a box, for bounds that carry no points (the default box, or one handed in
+ * by a caller that measured no points).
+ * @param bounds - The box.
+ * @returns Its corners.
+ */
+function boxCorners(bounds: CameraViewInput["bounds"]): Direction[] {
+    const corners: Direction[] = [];
+    for (const x of [bounds.min.x, bounds.max.x]) {
+        for (const y of [bounds.min.y, bounds.max.y]) {
+            for (const z of [bounds.min.z, bounds.max.z]) {
+                corners.push({ x, y, z });
+            }
+        }
+    }
+
+    return corners;
+}
+
+/**
+ * Frame everything from one direction: every point the box was measured over (or, with none, every
+ * corner of the box), padded 10 percent, inside the view. With no turn to keep, the screen's axes
+ * are known, so each point is held to the
  * horizontal field of view across and the vertical one up and down, at its own depth. A kept
- * turn (`keepTurn`) may roll the screen, so each corner's distance off the view axis is held to
+ * turn (`keepTurn`) may roll the screen, so each point's distance off the view axis is held to
  * the narrower field instead, which fits whatever the roll. The current pivot rotation is carried
  * over only when `keepTurn` is set.
  * @param input - The box to frame and where the camera is now.
@@ -153,21 +173,20 @@ function fromDirection(
     const { center } = bounds;
     const dot = (a: Direction, b: Direction): number => a.x * b.x + a.y * b.y + a.z * b.z;
 
-    // A corner `along` units toward the viewer stands `distance - along` in front of the camera,
-    // where the frame's half-width is `tanX` and its half-height `tanY` times that.
+    // A point `along` units toward the viewer stands `distance - along` in front of the camera,
+    // where the frame's half-width is `tanX` and its half-height `tanY` times that. The points
+    // themselves, not the box's corners: seen from the diagonal, the box's nearest corner stands
+    // far in front of a round graph and out to the side of it, and fitting the corners drew the
+    // graph about half the height of the view (#6644).
     let distance = 0;
-    for (const x of [bounds.min.x, bounds.max.x]) {
-        for (const y of [bounds.min.y, bounds.max.y]) {
-            for (const z of [bounds.min.z, bounds.max.z]) {
-                const c = { x: x - center.x, y: y - center.y, z: z - center.z };
-                const along = dot(c, u);
-                const reach =
-                    axes === undefined
-                        ? Math.hypot(c.x - along * u.x, c.y - along * u.y, c.z - along * u.z) / Math.min(tanX, tanY)
-                        : Math.max(Math.abs(dot(c, axes.right)) / tanX, Math.abs(dot(c, axes.up)) / tanY);
-                distance = Math.max(distance, along + reach * PERSPECTIVE_PADDING);
-            }
-        }
+    for (const point of bounds.points ?? boxCorners(bounds)) {
+        const c = { x: point.x - center.x, y: point.y - center.y, z: point.z - center.z };
+        const along = dot(c, u);
+        const reach =
+            axes === undefined
+                ? Math.hypot(c.x - along * u.x, c.y - along * u.y, c.z - along * u.z) / Math.min(tanX, tanY)
+                : Math.max(Math.abs(dot(c, axes.right)) / tanX, Math.abs(dot(c, axes.up)) / tanY);
+        distance = Math.max(distance, along + reach * PERSPECTIVE_PADDING);
     }
 
     return {
@@ -240,8 +259,8 @@ function fitToGraph(input: CameraViewInput): CameraState {
         return farther(faced, room);
     }
 
-    // Otherwise from the diagonal, every corner held inside both fields of view at its own depth
-    // (#5349): the old distance, the longest side over the field of view times a tuned 0.65,
+    // Otherwise from the diagonal, every point held inside both fields of view at its own depth
+    // (#5349, #6644): the old distance, the longest side over the field of view times a tuned 0.65,
     // stood too close for a box that is not a cube, and cut a framed node off.
     const diagonal = fromDirection(input, fov, { x: 1, y: 1, z: 1 }, false);
     return diagonal === undefined ? { type: "arcRotate", target: center } : farther(diagonal, room);

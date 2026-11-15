@@ -52,6 +52,29 @@ describe("session arrows and parallel edges", () => {
         // desktop draws the newest of a pair's edges straight and bends the ones before it, curved or not
         const uncurved = ["curved-false-parallel-a", "curved-false-parallel-b", "curved-false-parallel-c"];
         expect(get("curved", uncurved)).toEqual([false, true, true]);
-        expect(get("fanSpacing", uncurved).map((v) => typeof v)).toEqual(["object", "number", "number"]);
+        // each bent one at desktop's own anchor: desktop creates a session's nodes in file order, so its side is known
+        expect(get("bends", uncurved).map((v) => typeof v)).toEqual(["object", "string", "string"]);
+        expect(get("fanSpacing", uncurved)).toEqual([null, null, null]);
+    });
+});
+
+describe("session parallel edges fanned by Cytoscape desktop", () => {
+    it("bows a lone fanned edge to desktop's side, the nodes created as the network file lists them", async () => {
+        // cys-annotation-example: desktop bows GAL4 -> GAL80's fanned edge to the left of its direction (y up)
+        const bytes = new Uint8Array(
+            readFileSync(
+                resolve(import.meta.dirname, "../../corpus/styles/cys/cytoscape-tutorials-AnnotationExample.cys"),
+            ),
+        );
+        const { snapshot, styles } = await registry.importGraph(bytes, { format: "cys", styles: true });
+        const bends = resolveStyles(styles as ExtractedStyles, "edge", "bends", snapshot);
+        const { src, dst } = snapshot.edgeList();
+        const pair = Array.from({ length: snapshot.edgeCount }, (_, i) => i).filter(
+            (i) => snapshot.ids.idOf(src[i]) === "169329" && snapshot.ids.idOf(dst[i]) === "169196",
+        );
+        const across = pair.map((i) =>
+            typeof bends[i] === "string" ? Math.sign(Number(bends[i].split(",")[1])) : null,
+        );
+        expect(across).toEqual([1, null]);
     });
 });

@@ -17,8 +17,10 @@ import {
     type AutosaveLocks,
     Autosaver,
     entryError,
+    LIST_TIMEOUT_MS,
     lockName,
     noLocks,
+    ownAmong,
     realClock,
     type RecoverOptions,
 } from "./Autosaver";
@@ -28,6 +30,7 @@ import type {
     AutosaveApi,
     AutosaveAvailable,
     AutosaveEntry,
+    AutosaveEntryMeta,
     AutosaveOptions,
     AutosaveRestored,
     AutosaveStatus,
@@ -314,11 +317,20 @@ const listening = new WeakSet<AutosaveEnvironment>();
 /** The entries elements of this tab write, by key, so an element remounted later finds its own. */
 const ownEntries = new Map<string, string>();
 
+/**
+ * The entry this tab named before its current one, by key, while the current one is not written
+ * yet and was started by an element that never wrote the one before (a page reopening it).
+ */
+const ownBefore = new Map<string, string>();
+
 /** The final writes of elements that left, by entry: a remount waits for them. */
 const departing = new Map<string, Promise<void>>();
 
 /** The session storage name of this tab's own entry of a key. */
 const OWN_ITEM = "graphty-autosave:own:";
+
+/** The session storage name of the entry this tab named before its current one (`ownBefore`). */
+const OWN_BEFORE_ITEM = "graphty-autosave:own-before:";
 
 /** The session storage name of the entry a page was writing when it left for good. */
 const LEAVING_ITEM = "graphty-autosave:leaving:";
@@ -360,8 +372,28 @@ function navigationType(): string | null {
  * @returns The entry id, or null.
  */
 function readOwnItem(env: AutosaveEnvironment, key: string): string | null {
+    return ownEntries.get(key) ?? readItem(env, OWN_ITEM + key);
+}
+
+/**
+ * The entry this tab named before its own entry of a key, kept while the own one is unwritten.
+ * @param env - The page.
+ * @param key - The key.
+ * @returns The entry id, or null.
+ */
+function readOwnBefore(env: AutosaveEnvironment, key: string): string | null {
+    return ownBefore.get(key) ?? readItem(env, OWN_BEFORE_ITEM + key);
+}
+
+/**
+ * One session storage item.
+ * @param env - The page.
+ * @param name - The item.
+ * @returns Its value, or null.
+ */
+function readItem(env: AutosaveEnvironment, name: string): string | null {
     try {
-        return env.sessionStorage()?.getItem(OWN_ITEM + key) ?? null;
+        return env.sessionStorage()?.getItem(name) ?? null;
     } catch {
         return null;
     }
@@ -473,6 +505,10 @@ export class ElementAutosave {
     #guarding = false;
     #estimatedAt = Number.NEGATIVE_INFINITY;
     #lastSaved: string | null = null;
+    /** The last entry this element committed to, or null. */
+    #wrote: string | null = null;
+    /** The revision committed when autosave had started; changes after it are the reader's. */
+    #startRevision = Number.POSITIVE_INFINITY;
     #departed = false;
     #reloadPage: () => Promise<void> = () => Promise.resolve();
     #camera: AutosaveCamera | undefined;
@@ -654,14 +690,14 @@ export class ElementAutosave {
 
         // This tab's own entry: an element of this tab that just left (a remount), else what
         // session storage kept across a reload or a discard.
-        const own = ownEntries.get(key) ?? this.#readOwn(key);
-        if (own !== null) {
-            await this.#waitForOwn(key, own);
-        }
+        const own = this.#readOwn(key);
+        const before = readOwnBefore(this.#env, key);
+        await this.#waitForOwns(key, [own, before]);
 
         saver.setFacts(await this.#gatherFacts(), true);
         const recover: RecoverOptions = {
             own,
+            ownBefore: before,
             restore: options.restore ?? start.restore,
             pageConfig: start.pageConfig,
         };
@@ -679,7 +715,7 @@ export class ElementAutosave {
             this.#lastSaved = commitOf(saver.status);
         }
 
-        this.#noteOwn(key, saver.status.entry);
+        this.#noteOwn(key, saver.status.entry, saver.status);
         this.#stops.push(
             saver.onStatus((status) => {
                 this.#onStatus(status);
@@ -697,8 +733,24 @@ export class ElementAutosave {
             this.#dispatch("graphty-autosave-restored", restored);
         }
 
+        // Every change made so far is the page's setup, not the reader's new work.
+        this.#startRevision = saver.status.revision;
         this.#finish(restored);
         this.#checkAtRisk(saver.status);
+    }
+
+    /**
+     * Wait, one after another, for each of this tab's own entries (the one it names, and the one
+     * it named before) to be let go of.
+     * @param key - The autosave key.
+     * @param ids - The entries, null where there is none.
+     */
+    async #waitForOwns(key: string, ids: readonly (string | null)[]): Promise<void> {
+        for (const id of ids) {
+            if (id !== null) {
+                await this.#waitForOwn(key, id);
+            }
+        }
     }
 
     /**
@@ -859,7 +911,7 @@ export class ElementAutosave {
             return;
         }
 
-        this.#noteOwn(saver.key, status.entry);
+        this.#noteOwn(saver.key, status.entry, status);
         this.#updateGuard(status);
         if (status.state === "pending" && this.#env.document.visibilityState === "hidden") {
             // Timers are throttled or stopped while hidden: a change made then is written at once.
@@ -926,11 +978,34 @@ export class ElementAutosave {
 
     /**
      * Remember this tab's own entry of a key, for a remount and for the next load.
+     *
+     * An entry this element starts over one it never wrote (the work a reload left, which the page
+     * is about to reopen) holds only the page's own setup until the page reopens the work, yet it
+     * is written first. The work it was started over stays named as the entry before, and is this
+     * tab's own while it is open, until this element writes the work itself or the reader's new
+     * work: a reload in between reopens the work, never the setup (issue #6484).
      * @param key - The key.
      * @param entry - The entry, or null before its first write.
+     * @param commit - The status the entry was committed with; absent when the entry was just
+     *     started and holds nothing yet.
      */
-    #noteOwn(key: string, entry: string | null): void {
-        if (entry === null || ownEntries.get(key) === entry) {
+    #noteOwn(key: string, entry: string | null, commit?: AutosaveStatus): void {
+        if (entry === null) {
+            return;
+        }
+
+        const noted = readOwnItem(this.#env, key);
+        const before = readOwnBefore(this.#env, key);
+        if (commit !== undefined) {
+            this.#wrote = entry;
+            if (before !== null && (before === entry || this.#holdsNewWork(commit))) {
+                this.#keepBefore(key, null);
+            }
+        } else if (noted !== null && noted !== entry && noted !== this.#wrote && before === null) {
+            this.#keepBefore(key, noted);
+        }
+
+        if (noted === entry) {
             return;
         }
 
@@ -943,11 +1018,46 @@ export class ElementAutosave {
     }
 
     /**
+     * Whether a commit holds the reader's new work: changes never saved to a file, made after
+     * autosave started. A page's setup, made while autosave starts, is not.
+     * @param commit - The status the entry was committed with.
+     * @returns True for new work.
+     */
+    #holdsNewWork(commit: AutosaveStatus): boolean {
+        return commit.unexported && commit.state === "saved" && commit.revision > this.#startRevision;
+    }
+
+    /**
+     * Keep, or with null drop, the entry this tab named before its current one.
+     * @param key - The key.
+     * @param entry - The entry, or null.
+     */
+    #keepBefore(key: string, entry: string | null): void {
+        if (entry === null) {
+            ownBefore.delete(key);
+        } else {
+            ownBefore.set(key, entry);
+        }
+
+        try {
+            const storage = this.#env.sessionStorage();
+            if (entry === null) {
+                storage?.removeItem(OWN_BEFORE_ITEM + key);
+            } else {
+                storage?.setItem(OWN_BEFORE_ITEM + key, entry);
+            }
+        } catch {
+            // No session storage here: the registry still serves a remount.
+        }
+    }
+
+    /**
      * Forget this tab's own entry of a key: it was discarded.
      * @param key - The key.
      */
     #forgetOwn(key: string): void {
         ownEntries.delete(key);
+        this.#keepBefore(key, null);
         try {
             this.#env.sessionStorage()?.removeItem(OWN_ITEM + key);
         } catch {
@@ -1133,9 +1243,39 @@ async function withLookupStore<T>(
         return await act(store, env);
     } finally {
         if (options.store === undefined) {
-            await store?.close?.();
+            // Not awaited: closing waits for the reads in flight, and a read another tab holds up
+            // (`listWithin`) would hold this lookup with it. The connection closes once it is free.
+            void store?.close?.();
         }
     }
+}
+
+/**
+ * The key's entries, or null when the store did not answer within {@link LIST_TIMEOUT_MS}: another
+ * tab holds a read-write transaction on the database and has not finished it (a tab the browser
+ * suspended in the middle of a write, as Safari does to a tab in the background), and IndexedDB
+ * queues this read behind it for as long as that tab stays suspended.
+ * @param store - The store.
+ * @param key - The autosave key.
+ * @returns The entries, or null.
+ */
+function listWithin(store: AutosaveStore, key: string): Promise<readonly AutosaveEntryMeta[] | null> {
+    return new Promise((resolve, reject) => {
+        // ponytail: a timer, because a transaction held by a suspended tab sends no event until it resumes.
+        const timer = setTimeout(() => {
+            resolve(null);
+        }, LIST_TIMEOUT_MS);
+        store.list(key).then(
+            (metas) => {
+                clearTimeout(timer);
+                resolve(metas);
+            },
+            (error: unknown) => {
+                clearTimeout(timer);
+                reject(error instanceof Error ? error : new Error(String(error)));
+            },
+        );
+    });
 }
 
 /**
@@ -1147,12 +1287,18 @@ async function withLookupStore<T>(
  * `own` is true for the one entry this tab was writing (after a reload, or after the browser
  * discarded the tab and loaded it again) once this tab holds its lock: the call takes the lock and
  * keeps it for the element this page mounts next with the same key. After a reload it waits, up
- * to two seconds, for the page that left to let go of the lock. A duplicated tab inherits the
+ * to two seconds, for the page that left to let go of the lock. A reload that comes while a page
+ * is reopening that entry (after the page wrote its own setup, before it restored the entry) still
+ * gets the entry as `own`. A duplicated tab inherits the
  * session storage naming the entry, but while the original tab holds the lock it gets `own: false`
  * at once, and its element writes to a copy.
  * @param key - The autosave key.
  * @param options - Where to look.
  * @returns The entries.
+ * @throws A `GraphtyError` (as a rejection): `E_AUTOSAVE_STALLED` (`details: { afterMs, step: "list" }`)
+ *     when another tab holds the browser's database for three seconds and does not let go (a tab
+ *     the browser suspended in the middle of a write). Nothing is known about the kept work then:
+ *     not that there is none.
  */
 export function listAutosaves(key: string, options: AutosaveLookupOptions = {}): Promise<readonly AutosaveEntry[]> {
     return withLookupStore(options, async (store, env) => {
@@ -1160,20 +1306,37 @@ export function listAutosaves(key: string, options: AutosaveLookupOptions = {}):
             return [];
         }
 
-        const candidate = ownEntries.get(key) ?? readOwnItem(env, key);
+        const noted = readOwnItem(env, key);
+        const before = readOwnBefore(env, key);
         const leaving = takeLeaving(env, key);
-        const waited = candidate !== null && leaving === candidate;
+        const waited = noted !== null && leaving === noted;
         // Before the list: the page that left may still be writing this entry's final commit.
         if (waited) {
-            await env.locks.own?.(lockName(key, candidate), LEAVING_WAIT_MS);
+            await env.locks.own?.(lockName(key, noted), LEAVING_WAIT_MS);
         }
 
-        const metas = await store.list(key);
+        const metas = await listWithin(store, key);
+        if (metas === null) {
+            // Refused rather than answered empty: an empty list says nothing is kept, and a page
+            // that read it so opened again work another tab was writing (issue #6583). The page
+            // still starts; the element lists again itself.
+            logger.warn("kept work not listed: another tab holds the database", { afterMs: LIST_TIMEOUT_MS });
+            throw new GraphtyError({
+                code: "E_AUTOSAVE_STALLED",
+                message: `Autosave could not list key ${key} within ${String(LIST_TIMEOUT_MS)} ms.`,
+                source: "data",
+                details: { afterMs: LIST_TIMEOUT_MS, step: "list" },
+            });
+        }
+
+        // The entry named before, when the named one was never written or was replaced.
+        const candidate = ownAmong(metas, noted, before);
         const exists = metas.some((meta) => meta.id === candidate);
         const owned = candidate !== null && exists && ((await env.locks.own?.(lockName(key, candidate))) ?? true);
         const held = await env.locks.held();
         logger.info("kept work listed", {
-            noted: candidate !== null,
+            noted: noted !== null,
+            before: candidate !== noted,
             exists,
             own: owned,
             waited,

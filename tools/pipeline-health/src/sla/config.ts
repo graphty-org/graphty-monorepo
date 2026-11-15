@@ -23,6 +23,8 @@ export type Measure =
     | { type: "last"; metric: string; scale?: number } // a stock's newest value
     // Dimensions whose median (from the events) passes `over`, or without it each dimension's own budget (sum / n).
     | { type: "dims_median_over"; metric: string; over?: number; minPerDim: number }
+    // Test groups in full runs (model/groups.ts): the slowest group's newest summed time over its deadline.
+    | { type: "group_deadline"; metric: string }
     // Month to date, or projected to month end. With `redOnSpent` a projection past the limit is yellow, and only
     // what is already spent past it is red.
     | { type: "month"; metric: string; dim?: string; projected: boolean; redOnSpent?: boolean }

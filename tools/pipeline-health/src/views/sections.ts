@@ -6,6 +6,7 @@ import type {
     BarsSection,
     Cell,
     Fact,
+    GroupRow,
     JobsSection,
     Member,
     PageId,
@@ -25,6 +26,7 @@ import {
     SNAPSHOT,
     type SupersededSnapshot,
 } from "../collector/snapshots.js";
+import { GROUP_WARN_SHARE, type GroupTimes, groupTimes } from "../model/groups.js";
 import { quantile } from "../model/histogram.js";
 import { type Agg, type Bucket, DAY, floorTo, HOUR, type LoadKind, MIN, STEP_MS } from "../model/items.js";
 import { fileRunKey, hotspotFamily } from "../model/metrics.js";
@@ -218,6 +220,34 @@ function shardRow(shard: string, a: Agg, full: boolean, minRuns: number): ShardR
 }
 
 /**
+ * The test groups' rows of the full-run Shard times (model/groups.ts), in seconds and %.
+ * @param dims - ci.full_group_member_time's dimensions over the range
+ * @returns one row per group, slowest newest run first
+ */
+function groupRows(dims: Map<string, Agg>): GroupRow[] {
+    const s = (ms: number): number => Math.round(ms / 1000);
+    const run = (r: GroupTimes["newest"]): GroupRow["newest"] => ({
+        runId: r.runId,
+        totalS: s(r.totalMs),
+        pct: Math.round(r.share * 1000) / 10,
+    });
+    return groupTimes(dims).map((g) => ({
+        group: g.group,
+        limitS: s(g.limitMs),
+        runs: g.runs,
+        newest: run(g.newest),
+        worst: run(g.worst),
+        warnPct: GROUP_WARN_SHARE * 100,
+        members: g.members.map((m) => ({
+            member: m.member,
+            maxS: s(m.maxMs),
+            tableS: m.tableMs === undefined ? null : s(m.tableMs),
+            stale: m.stale,
+        })),
+    }));
+}
+
+/**
  * Shard times (section 6): full-run shards against their budgets, or pull request bins against 8 minutes.
  * @param reads - the store reads shared by this build
  * @param range - the 7 d or 28 d range
@@ -237,6 +267,7 @@ export async function shards(reads: Reads, range: SlowRange, runKind: "full" | "
     }
     rows.sort((x, y) => y.medianS / y.budgetS - x.medianS / x.budgetS);
     const rest = rows.slice(SHOWN);
+    const groups = full ? groupRows(await dimsOver(reads, "ci.full_group_member_time", daysOf(range))) : [];
     return {
         kind: "shards",
         id: "shards",
@@ -244,6 +275,7 @@ export async function shards(reads: Reads, range: SlowRange, runKind: "full" | "
         runKind,
         rows: rows.slice(0, SHOWN),
         ...(rest.length ? { more: { count: rest.length, allWithin: rest.every((r) => r.medianS <= r.budgetS) } } : {}),
+        ...(groups.length ? { groups } : {}),
     };
 }
 
@@ -654,15 +686,13 @@ export async function holders(reads: Reads): Promise<Section> {
     const groups = [group("running", "runners.running_now"), group("queued", "runners.queued_now")].filter(
         (g) => g.items.length,
     );
-    const notes = Object.entries(snap.noJobs).map(([key, q]) => {
-        const at = key.lastIndexOf(", ");
-        return f("runners.queued_runs", {
-            runs: q.runs,
-            workflow: key.slice(0, at),
-            event: key.slice(at + 2),
-            since: iso(q.since),
+    const note = (code: string, runs: HoldersSnapshot["noJobs"]): Fact[] =>
+        Object.entries(runs).map(([key, q]) => {
+            const at = key.lastIndexOf(", ");
+            return f(code, { runs: q.runs, workflow: key.slice(0, at), event: key.slice(at + 2), since: iso(q.since) });
         });
-    });
+    // Runs stuck at GitHub on a pull request no longer open count nowhere above, so they get their own note (#7358).
+    const notes = [...note("runners.queued_runs", snap.noJobs), ...note("runners.stuck_runs", snap.stuck ?? {})];
     if (!groups.length && !notes.length) {
         return { kind: "empty", id: "holders", fact: f("runners.no_holders") };
     }
@@ -836,15 +866,17 @@ export async function unitCosts(reads: Reads, range: SlowRange): Promise<Section
 }
 
 /**
- * Money and list-price value by workflow, this month so far (section 7): two sorted-bar lists, never summed.
+ * Money and list-price value by workflow, this month so far (section 7): two sorted-bar lists, never summed; and
+ * the AWS line by AWS service once Cost Explorer has split it.
  * @param reads the store reads
- * @returns the two bar lists, or empty
+ * @returns the bar lists, or empty
  */
 export async function byWorkflow(reads: Reads): Promise<Section> {
     const days = monthDaysSoFar(reads.now);
-    const [money, minutes] = await Promise.all([
+    const [money, minutes, aws] = await Promise.all([
         dimsOver(reads, "cost.by_workflow", days),
         dimsOver(reads, "ci.job_minutes", days),
+        dimsOver(reads, "cost.aws_by_service", days),
     ]);
     const sorted = (xs: [string, number][], tone?: "value"): BarsSection["groups"][number]["items"] =>
         xs
@@ -858,7 +890,8 @@ export async function byWorkflow(reads: Reads): Promise<Section> {
             .sort((a, b) => b.n - a.n);
     const moneyItems = sorted([...money].map(([w, a]) => [w, a.sum]));
     const valueItems = sorted([...valueByWorkflow(minutes)], "value");
-    if (!moneyItems.length && !valueItems.length) {
+    const awsItems = sorted([...aws].map(([s, a]) => [s, a.sum]));
+    if (!moneyItems.length && !valueItems.length && !awsItems.length) {
         return { kind: "empty", id: "by-workflow", fact: f("section.no_events") };
     }
     return {
@@ -867,6 +900,7 @@ export async function byWorkflow(reads: Reads): Promise<Section> {
         groups: [
             { head: f("costs.money_by_workflow"), items: moneyItems },
             { head: f("costs.value_by_workflow"), items: valueItems },
+            ...(awsItems.length ? [{ head: f("costs.aws_by_service"), items: awsItems }] : []),
         ],
     };
 }
@@ -879,11 +913,12 @@ export async function byWorkflow(reads: Reads): Promise<Section> {
  */
 export async function stressTable(reads: Reads): Promise<Section> {
     let runs: StressCursorRun[] = [];
+    // A failed store read throws (the page shows no data); only a corrupt cursor reads as no runs (#7275).
+    const raw = await getCursor(reads.store, "stress");
     try {
-        const raw = await getCursor(reads.store, "stress");
         runs = Object.values(raw ? (JSON.parse(raw) as Record<string, StressCursorRun>) : {});
     } catch {
-        // an unreadable cursor is no runs, never a guess
+        // a corrupt cursor is no runs, never a guess
     }
     const sub = f("data.stress.sub", { workflow: "restricted-cpu-stress.yml" });
     runs = runs.filter((r) => r.at !== undefined).sort((a, b) => b.at - a.at);

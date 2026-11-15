@@ -64,6 +64,8 @@ export interface TransitionHost {
     edges(): Iterable<Pick<Edge, "srcNode" | "dstNode">>;
     /** The selected nodes. */
     selected(): readonly TransitionSubject[];
+    /** Whether the graph reduces motion, which draws a new layout in one frame. */
+    reducedMotion?(): boolean;
     /** Whether the layout is still running. */
     layoutRunning(): boolean;
 }
@@ -383,7 +385,7 @@ export class LayoutTransitionRunner {
      */
     snapshot(): TransitionSnapshot | null {
         const config = this.host.config();
-        if (config === undefined || this.host.quality().motion === "still") {
+        if (config === undefined || this.host.quality().motion === "still" || this.host.reducedMotion?.() === true) {
             return null;
         }
 

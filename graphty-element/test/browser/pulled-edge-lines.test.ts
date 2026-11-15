@@ -158,12 +158,15 @@ describe("pulled edge lines", () => {
                         return [p, q];
                     };
                     const name = `seed ${String(seed)} ${JSON.stringify(look)}`;
-                    // The lean program draws a piece's rectangle alone: 6 indices, not the join template's 30.
+                    // The lean program draws a piece's rectangle alone: 6 corners, not the join template's 30.
                     assert.strictEqual(
-                        pulled.mesh.subMeshes[0].indexCount,
+                        pulled.mesh.subMeshes[0].verticesCount,
                         EDGES * (lean ? 6 : 30),
-                        `${name}: indices drawn`,
+                        `${name}: corners drawn`,
                     );
+                    // Drawn unindexed: no index list at all, on the CPU or the GPU (it was 120 B an edge).
+                    assert.isTrue(pulled.mesh.isUnIndexed, `${name}: drawn unindexed`);
+                    assert.strictEqual(pulled.mesh.getTotalIndices(), 0, `${name}: index list kept`);
 
                     placeAll();
                     const [still, stillPulled] = await both();

@@ -10,7 +10,8 @@
  * design/undo/undo-design.md sections 3.4, 9.2 and 11.3.
  */
 
-import type { FilterCondition, FilterStep } from "../../catalog/types";
+import type { FilterCondition, FilterStep, NodeId } from "../../catalog/types";
+import { otherIdSpelling } from "../../data/nodeIdSpelling";
 import { GraphtyError } from "../../errors";
 import type { UndoableDefinition } from "../project/Dispatcher";
 import type { CodedFact } from "../shared";
@@ -19,6 +20,7 @@ import type { HistoryCode } from "../types";
 import { assertConditions, conditionsOfSteps, listFact, stepsOf } from "../visibility/conditions";
 import { assertVisibility, type RuleTree, type TimePlayback, type TimeWindow } from "../visibility/filter";
 import { assertSteps } from "../visibility/steps";
+import type { LayoutService } from "./layout";
 
 /** `visibility.set`: apply a filter, or clear it with null. */
 interface VisibilitySetCommand {
@@ -64,8 +66,16 @@ interface VisibilityPlaybackCommand {
     readonly playback: TimePlayback | null;
 }
 
+/** `visibility.hide`: hide nodes from the drawing only, or show them again (`session.hidden`). */
+interface VisibilityHideCommand {
+    readonly op: "visibility.hide";
+    readonly ids: readonly NodeId[];
+    readonly hidden: boolean;
+}
+
 /** Every visibility op. */
 export type VisibilityCommand =
+    | VisibilityHideCommand
     | VisibilitySetCommand
     | VisibilityWindowCommand
     | VisibilityContextCommand
@@ -106,8 +116,20 @@ function filterKey(filter: VisibilitySetCommand["filter"]): string | null {
 /** Shared by the three ops. */
 const COMMON = { moves: false, draws: true, lane: { kind: "immediate" } } as const;
 
-const visibilitySet: UndoableDefinition<VisibilitySetCommand> = {
+/**
+ * Shared by the ops that change what the filters keep: while a layout follows them (the working
+ * graph, `layout.visibleOnly`) it lays the graph out again after one, so each then takes the
+ * arrangement it began from, and its undo puts every node back where it was. A session with no
+ * such layout takes none. The time window never moves a layout, so its op takes none.
+ */
+const FILTERS = {
     ...COMMON,
+    movesWhen: (_command: unknown, services: { readonly layout?: LayoutService }): boolean =>
+        services.layout?.followsFilters?.() === true,
+} as const;
+
+const visibilitySet: UndoableDefinition<VisibilitySetCommand> = {
+    ...FILTERS,
     op: "visibility.set",
     keys: () => ["visibility/filter"],
     undo: {
@@ -181,7 +203,7 @@ function checkRules(
 }
 
 const visibilitySteps: UndoableDefinition<VisibilityStepsCommand> = {
-    ...COMMON,
+    ...FILTERS,
     op: "visibility.steps",
     keys: () => ["visibility/conditions"],
     undo: {
@@ -203,7 +225,7 @@ const visibilitySteps: UndoableDefinition<VisibilityStepsCommand> = {
 };
 
 const visibilityConditions: UndoableDefinition<VisibilityConditionsCommand> = {
-    ...COMMON,
+    ...FILTERS,
     op: "visibility.conditions",
     keys: () => ["visibility/conditions"],
     undo: {
@@ -297,8 +319,60 @@ const visibilityPlayback: UndoableDefinition<VisibilityPlaybackCommand> = {
     },
 };
 
+/**
+ * The hidden list after hiding or showing some nodes. An integer id matches either spelling.
+ * @param before - The list now.
+ * @param ids - The nodes.
+ * @param hidden - Hide, or show again.
+ * @returns The list after, sorted.
+ */
+function hiddenAfter(before: readonly NodeId[], ids: readonly NodeId[], hidden: boolean): readonly NodeId[] {
+    const list = new Set(before);
+    for (const id of ids) {
+        const other = otherIdSpelling(id);
+        if (!hidden) {
+            list.delete(id);
+            if (other !== undefined) {
+                list.delete(other);
+            }
+        } else if (!list.has(id) && (other === undefined || !list.has(other))) {
+            list.add(id);
+        }
+    }
+
+    return Object.freeze([...list].sort((a, b) => String(a).localeCompare(String(b))));
+}
+
+const visibilityHide: UndoableDefinition<VisibilityHideCommand> = {
+    ...COMMON,
+    op: "visibility.hide",
+    keys: () => ["visibility/hidden"],
+    undo: {
+        kind: "undoable",
+        label: (command) =>
+            `${command.hidden ? "Hid" : "Showed"} ${String(command.ids.length)} node${command.ids.length === 1 ? "" : "s"}`,
+        fact: (command) => ({
+            code: command.hidden ? "visibility.hide-nodes" : "visibility.show-nodes",
+            params: { count: command.ids.length },
+        }),
+    },
+    execute: (command, ctx) => {
+        if (!Array.isArray(command.ids)) {
+            throw new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message: "visibility.hide takes a list of node ids.",
+                source: "data",
+                details: { field: "ids" },
+            });
+        }
+
+        ctx.draft.visibility.set("hidden", hiddenAfter(ctx.state.visibility.hidden ?? [], command.ids, command.hidden));
+    },
+};
+
 /** The visibility ops' definitions. */
 export const VISIBILITY_DEFINITIONS = [
+    visibilityHide,
     visibilitySet,
     visibilityWindow,
     visibilityContext,

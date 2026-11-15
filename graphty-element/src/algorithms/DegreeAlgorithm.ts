@@ -79,7 +79,7 @@ export class DegreeAlgorithm extends MetricAlgorithm {
         const inDegree = new Float64Array(nodeIds.length);
         const outDegree = new Float64Array(nodeIds.length);
 
-        await walkInChunks(nodeIds, context, "counting connections", (nodeId) => {
+        await walkInChunks(nodeIds, context, "counting-connections", (nodeId) => {
             const index = ids.indexOf(nodeId);
 
             // A node the snapshot does not hold is left out, so it reads as unmeasured.

@@ -423,7 +423,7 @@ function pushFutureTimes(
             notices.push(
                 Object.freeze({
                     what: `${at}/${field}`,
-                    reason: `The note's ${field} is more than a day after it was opened; it is kept as written.`,
+                    details: Object.freeze({ field }),
                     code: "W_FUTURE_TIME" as const,
                 }),
             );
@@ -475,7 +475,7 @@ function readNote(raw: unknown, at: string, now: number, notices: Problem[]): No
         notices.push(
             Object.freeze({
                 what: `${at}/${pointerSegment(key)}`,
-                reason: `The note field ${JSON.stringify(key.slice(0, 256))} is not one this release knows; it is kept and written back.`,
+                details: Object.freeze({ field: key.slice(0, 256) }),
                 code: "W_UNKNOWN_MEMBER" as const,
             }),
         );
@@ -547,7 +547,7 @@ function unknownMemberNotices(document: Readonly<Record<string, unknown>>): Prob
             notices.push(
                 Object.freeze({
                     what: `/${pointerSegment(key)}`,
-                    reason: `The member field ${JSON.stringify(key.slice(0, 256))} is not one this release knows; it is ignored.`,
+                    details: Object.freeze({ field: key.slice(0, 256) }),
                     code: "W_UNKNOWN_MEMBER" as const,
                 }),
             );
@@ -616,9 +616,13 @@ export function readMember(input: unknown, now: number): ReadMember {
             read.push(readNote(raw, at, now, own));
             notices.push(...own);
         } catch (error) {
-            const why = (error instanceof Error ? error.message : String(error)).replace(/\.$/, "");
+            const refusal = GraphtyError.wrap(error, { code: "E_BAD_DOCUMENT", source: "data" });
             skipped.push(
-                Object.freeze({ what: at, reason: `The note is skipped: ${why}.`, code: "E_BAD_DOCUMENT" as const }),
+                Object.freeze({
+                    what: at,
+                    details: Object.freeze({ code: refusal.code, ...refusal.details }),
+                    code: "E_BAD_DOCUMENT" as const,
+                }),
             );
         }
     });

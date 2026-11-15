@@ -6,6 +6,7 @@
 
 import { assert, describe, it } from "vitest";
 
+import { isGraphtyError } from "../../../src/errors";
 import { makeSession } from "../helpers";
 
 describe("styles.counts: a top N a tie stopped short", () => {
@@ -82,7 +83,7 @@ describe("styles.counts: a top N a tie stopped short", () => {
     it("refuses a tie policy it does not know", async () => {
         const { session } = makeSession();
         await session.data.addNodes([{ id: "a", size: 1 }]);
-        let refused = false;
+        let refused: unknown = null;
         try {
             await session.styles.add({
                 name: "Top",
@@ -93,10 +94,10 @@ describe("styles.counts: a top N a tie stopped short", () => {
                 },
                 set: { "node.color": "#ff0000" },
             });
-        } catch {
-            refused = true;
+        } catch (error) {
+            refused = error;
         }
-        assert.isTrue(refused);
+        assert.strictEqual(isGraphtyError(refused) ? refused.code : refused, "E_BAD_SELECTOR");
         session.dispose();
     });
 });

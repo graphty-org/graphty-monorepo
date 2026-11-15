@@ -14,7 +14,6 @@
 
 import { type GraphSnapshot, makeMask, maskSet } from "@graphty/graph-format";
 
-import { MAX_ITERATIONS_PER_STEP } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { createFruchtermanReingold } from "../../src/layouts/fruchterman-reingold.js";
 import { createSpringElectrical } from "../../src/layouts/spring-electrical.js";
@@ -42,8 +41,6 @@ import {
     requireBrowserGpu,
 } from "../setup/browser.js";
 
-type FrSim = GpuLayoutSimulation<FruchtermanReingoldOptions, FruchtermanReingoldStats>;
-
 /** A stats record with a per-iteration trace (both P5 models have one; the smoke reads its length). */
 type TracedStats = LayoutStatsBase & { readonly trace: ReadonlyArray<unknown> };
 
@@ -63,98 +60,17 @@ function expectAdapterMatchesFlagSet(ctx: GpuContext): void {
     }
 }
 
-function nextTick(): Promise<void> {
-    return new Promise<void>((resolve) => {
-        setTimeout(() => {
-            resolve();
-        }, 0);
-    });
-}
-
-/** Chromium clamps nested zero-delay timers to 4 ms; measured (the median of 20 ticks), never assumed. */
-async function measureTickMs(): Promise<number> {
-    const ticks: number[] = [];
-    for (let i = 0; i < 20; i++) {
-        const start = performance.now();
-        await nextTick();
-        ticks.push(performance.now() - start);
-    }
-    ticks.sort((a, b) => a - b);
-    return Math.max(ticks[ticks.length / 2], 0.5);
-}
-
-/** One batch of k iterations, timed from the call to the readback landing. */
-async function timedStep(sim: FrSim, k: number): Promise<number> {
-    const start = performance.now();
-    await sim.step(k);
-    return performance.now() - start;
-}
-
-/** The UNCONTENDED wall time of one batch: the minimum of three timings (see test/layouts/fr-frame-loop.test.ts). */
-async function minTimedStep(sim: FrSim, k: number): Promise<number> {
-    let best = Infinity;
-    for (let i = 0; i < 3; i++) {
-        best = Math.min(best, await timedStep(sim, k));
-    }
-    return best;
-}
-
 /**
- * iterationsPerStep that makes one FR batch outlast at least four ticks here (the calibration idiom of
- * test/layouts/fr-frame-loop.test.ts): the step(8) estimate VERIFIED and k doubled until a batch measures >= 4 ticks;
- * throws with the measured ratio when even MAX_ITERATIONS_PER_STEP stays under two ticks. Leaves ctx.pipelines warm
- * for the FR override set.
+ * Warms ctx.pipelines for the FR override set on a throwaway simulation, so the loop's own simulation starts with
+ * untouched counters and a bind promise that resolves inside its first tick (contract 3.13).
+ * @param ctx - the context
+ * @param snapshot - the graph of the run
  */
-async function calibrateHeavyStep(ctx: GpuContext, snapshot: GraphSnapshot, tickMs: number): Promise<number> {
+async function warmPipelines(ctx: GpuContext, snapshot: GraphSnapshot): Promise<void> {
     const scratch = createFruchtermanReingold(ctx, { seed: 7, iterations: NEVER, settleThreshold: 0 });
-    const positions = new Float32Array(3 * snapshot.nodeCount).fill(NaN);
-    scratch.load(snapshot, positions);
-    await scratch.step(8);
-    const batchMs = Math.max(await minTimedStep(scratch, 8), 0.05);
-    let k = Math.min(MAX_ITERATIONS_PER_STEP, Math.max(8, Math.ceil((8 * 4 * tickMs) / batchMs)));
-    let measuredMs = await minTimedStep(scratch, k);
-    while (measuredMs < 4 * tickMs && k < MAX_ITERATIONS_PER_STEP) {
-        k = Math.min(MAX_ITERATIONS_PER_STEP, k * 2);
-        measuredMs = await minTimedStep(scratch, k);
-    }
+    scratch.load(snapshot, new Float32Array(3 * snapshot.nodeCount).fill(NaN));
+    await scratch.step(1);
     scratch.dispose();
-    if (measuredMs < 2 * tickMs) {
-        throw new Error(
-            `calibrateHeavyStep: step(${k}) measured ${measuredMs.toFixed(3)} ms against ${tickMs.toFixed(3)} ms ticks ` +
-                `(${(measuredMs / tickMs).toFixed(2)} ticks per batch): even MAX_ITERATIONS_PER_STEP iterations cannot ` +
-                "keep a batch in flight across two tick starts on this adapter",
-        );
-    }
-    return k;
-}
-
-/**
- * The graph and iterations-per-step of a flight-dependent run: calibrateHeavyStep on random1k at `scale`, then at
- * twice and four times the scale when a fast adapter behind slow timers cannot outlast the ticks there (the macOS
- * runner's Chromium, test/browser/forceatlas2.test.ts). An abandoned fixture is released again.
- */
-async function calibrateFlight(
-    ctx: GpuContext,
-    scale: number,
-    tickMs: number,
-): Promise<{ readonly snapshot: GraphSnapshot; readonly k: number }> {
-    let failure: unknown = null;
-    for (const factor of [1, 2, 4]) {
-        const { snapshot } = fixture("random1k", scale * factor);
-        try {
-            const k = await calibrateHeavyStep(ctx, snapshot, tickMs);
-            if (factor > 1) {
-                console.warn(
-                    `[spring-layouts] calibrated on random1k at ${factor}x the scale (${snapshot.nodeCount} nodes): step(${k}) against ${tickMs.toFixed(1)} ms ticks`,
-                );
-            }
-            return { snapshot, k };
-        } catch (err: unknown) {
-            failure = err;
-            ctx.release(snapshot);
-        }
-    }
-    throw failure;
 }
 
 function expectMonotone(values: readonly number[]): void {
@@ -336,16 +252,18 @@ describe("createSpringElectrical in Chromium: the 11.6 item 3 smoke", () => {
 });
 
 describe("the FR frame loop in Chromium (spec 11.4 last bullet through the widened helper, PD-18)", () => {
-    it("600 ticks on random1k with the calibrated iterationsPerStep: at most maxInFlight in flight, iterationsDone monotone, settled reported", async (t) => {
+    it("600 ticks on random1k: at most maxInFlight in flight, iterationsDone monotone, settled reported", async (t) => {
         await requireBrowserGpu(t);
         const ctx = await acquireBrowser();
         expectAdapterMatchesFlagSet(ctx);
-        const { snapshot, k } = await calibrateFlight(ctx, browserScale(), await measureTickMs());
+        const { snapshot } = fixture("random1k", browserScale());
         const n = snapshot.nodeCount;
+        await warmPipelines(ctx, snapshot); // the loop's own simulation below is never stepped before the loop
+        const k = 4;
         const BATCHES = 12;
         const positions = new Float32Array(3 * n).fill(NaN);
-        // the budget is BATCHES batches of the calibrated k, so every batch outlasts the ticks and the budget
-        // settles the run inside the spec's 600 ticks (further rounds of 600 on an adapter whose batches outlast it)
+        // the budget is BATCHES batches of k, so the budget settles the run (further rounds of 600 on an adapter
+        // whose batches outlast the spec's 600 ticks)
         const sim = createFruchtermanReingold(ctx, {
             seed: 7,
             iterations: BATCHES * k,
@@ -395,8 +313,11 @@ describe("the FR frame loop in Chromium (spec 11.4 last bullet through the widen
         await requireBrowserGpu(t);
         const ctx = await acquireBrowser();
         expectAdapterMatchesFlagSet(ctx);
-        const { snapshot, k } = await calibrateFlight(ctx, browserScale(), await measureTickMs());
+        const { snapshot } = fixture("random1k", browserScale());
         const n = snapshot.nodeCount;
+        await warmPipelines(ctx, snapshot); // the loop's own simulation below is never stepped before the loop
+        // any batch length: every write's flight is constructed (submitBeforeWrites), never sized from timings
+        const k = 4;
         const positions = new Float32Array(3 * n).fill(NaN);
         const sim = createFruchtermanReingold(ctx, {
             seed: 7,
@@ -421,6 +342,7 @@ describe("the FR frame loop in Chromium (spec 11.4 last bullet through the widen
             iterationsPerStep: k,
             maxInFlight: 2,
             setPositionAt: writes,
+            submitBeforeWrites: ctx.device.queue,
             onTick: (tick) => {
                 const write = writes.find((w) => w.tick === tick);
                 if (write !== undefined) {
@@ -435,7 +357,7 @@ describe("the FR frame loop in Chromium (spec 11.4 last bullet through the widen
         for (const hold of report.positionHolds) {
             expect(hold.held, `write at tick ${hold.tick} on node ${hold.index}`).toBe(true);
         }
-        expect(Math.max(...inFlightAtWrite)).toBeGreaterThanOrEqual(1);
+        expect(inFlightAtWrite).toEqual(writes.map(() => 1)); // every write met the one batch submitted before it
         expect(report.maxObservedInFlight).toBeLessThanOrEqual(2);
         await sim.flush();
         for (const w of writes) {

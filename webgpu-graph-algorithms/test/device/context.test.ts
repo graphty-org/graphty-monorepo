@@ -20,11 +20,20 @@ import {
 } from "../../src/device/acquire.js";
 import { assertPlanLimits, capsFromDevice, captureCaps, workgroupSizeFor } from "../../src/device/caps.js";
 import { BufferUsage, ShaderStage } from "../../src/device/webgpu-constants.js";
-import { isWebGpuGraphError, type WebGpuGraphError, type WebGpuGraphErrorCode } from "../../src/errors.js";
+import { isWebGpuGraphError, WebGpuGraphError, type WebGpuGraphErrorCode } from "../../src/errors.js";
 import { type PassTiming, Profiler } from "../../src/kernel/profiler.js";
 import type { GpuCaps, PlanLimits, RaisableLimit } from "../../src/types/context.js";
 import type { GpuRunOptions } from "../../src/types/run.js";
-import { acquire, acquireNullBackend, acquireRaw, isSoftware, requireGpu, uncapturedErrors } from "../setup/gpu.js";
+import {
+    acquire,
+    acquireNullBackend,
+    acquireRaw,
+    assertNoUncapturedErrors,
+    isSoftware,
+    requireGpu,
+    takeUncapturedErrors,
+    uncapturedErrors,
+} from "../setup/gpu.js";
 
 const SPEC_DEFAULT_LIMITS: PlanLimits = {
     maxBufferSize: 268_435_456,
@@ -707,24 +716,33 @@ describe("GpuContext: uncaptured errors, loss, disposers, release", () => {
         }
     });
 
-    // The one test that exercises the setup's failure path (spec 11.2: "an uncapturederror listener fails the
-    // current test"; spec 11.5). Vitest 3.2.7 runs the afterEach hooks BEFORE it flips an `it.fails` result
-    // (@vitest/runner chunk-hooks.js: callSuiteHook(..., "afterEach") precedes the `if (test.fails)` flip), so the
-    // hook's throw is what makes this test pass; a setup whose hook never throws, or whose acquire() forgot the
-    // onError sink, turns it RED with "Expect test to fail". A skipped test stays skipped (the runner returns
-    // before the flip), so requireGpu(t) keeps its policy semantics here.
-    it.fails(
-        "the setup's afterEach hook fails a test whose acquire()d context delivered an uncaptured error",
-        async (t) => {
-            requireGpu(t);
-            const ctx = await acquire({ label: "hook" });
-            brokenBindGroup(ctx.device, "hook/broken");
-            await ctx.device.queue.onSubmittedWorkDone();
-            expect(uncapturedErrors()).toHaveLength(1);
-            expect(uncapturedErrors()[0].code).toBe("E_VALIDATION");
-            expect(ctx.takePendingError()).toBeNull();
-        },
-    );
+    // The sink half of spec 11.2 ("an uncaptured error is never a pass"): an acquire()d context routes an uncaptured
+    // validation error into the setup's list, and nowhere else (takePendingError stays empty). The test drains the list
+    // itself, so a broken sink fails it here instead of passing silently; the hook's own throw is tested below.
+    it("an acquire()d context delivers an uncaptured error to the setup's sink, which the afterEach hook would fail on", async (t) => {
+        requireGpu(t);
+        const ctx = await acquire({ label: "hook" });
+        brokenBindGroup(ctx.device, "hook/broken");
+        await ctx.device.queue.onSubmittedWorkDone();
+        expect(ctx.takePendingError()).toBeNull();
+        const errors = takeUncapturedErrors();
+        expect(errors.map((e) => e.code)).toEqual(["E_VALIDATION"]);
+        expect(String(errors[0].details.message)).toMatch(/1024|binding/i);
+        expect(() => {
+            assertNoUncapturedErrors(errors);
+        }).toThrow(/uncaptured GPU errors during the test[\s\S]*E_VALIDATION/);
+        expect(uncapturedErrors()).toEqual([]);
+    });
+
+    it("the afterEach check throws on any uncaptured error and passes on none", () => {
+        expect(() => {
+            assertNoUncapturedErrors([]);
+        }).not.toThrow();
+        const error = new WebGpuGraphError("E_VALIDATION", "x: broken bind group", { label: "x", message: "broken" });
+        expect(() => {
+            assertNoUncapturedErrors([error]);
+        }).toThrow("E_VALIDATION: x: broken bind group");
+    });
 
     it("device loss: state lost, residency cleared, every onLost listener runs once, assertReady throws E_DEVICE_LOST, dispose still works", async (t) => {
         requireGpu(t);

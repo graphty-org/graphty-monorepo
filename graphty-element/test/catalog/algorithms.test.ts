@@ -276,7 +276,7 @@ describe("built-in algorithm catalogue", () => {
         it("classifies every built-in option, leaving none unknown", () => {
             const unclassified = everyOption()
                 .filter(({ option }) => option.type === "unknown")
-                .map(({ key, option }) => `${key}.${option.name}: ${option.unsupportedReason ?? ""}`);
+                .map(({ key, option }) => `${key}.${option.name}: ${option.unsupported?.code ?? ""}`);
 
             assert.deepEqual(unclassified, []);
         });
@@ -294,7 +294,7 @@ describe("built-in algorithm catalogue", () => {
 
             assert.deepEqual(
                 pagerank.options.map((option) => option.name),
-                ["dampingFactor", "maxIterations", "tolerance", "useDelta", "weight"],
+                ["dampingFactor", "maxIterations", "tolerance", "directed", "useDelta", "weight"],
             );
             assert.deepInclude(pagerank.options[0], {
                 type: "number",

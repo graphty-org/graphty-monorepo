@@ -7,6 +7,7 @@ import { type RegisterOptions, SharedImplementationMap } from "../catalog/plugin
 import { noteDescribedAlgorithm, noteUndescribedAlgorithm, publishAlgorithmDescriptor } from "../catalog/registry";
 import type { AlgorithmDescriptor, FieldDescriptor, NodeId, SuggestedName } from "../catalog/types";
 import { type OptionsSchema as ZodOptionsSchema } from "../config";
+import { writableLane } from "../data/lane";
 import { rowOfEitherSpelling } from "../data/nodeIdSpelling";
 import { GraphtyError } from "../errors";
 import { Graph } from "../Graph";
@@ -341,6 +342,15 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      */
     static readonly weightMeaning: WeightReads | null = null;
 
+    /**
+     * Whether a run whose `weight` option is absent reads the weight the graph was loaded with
+     * (true, the default) or no weight at all (false). False is for a class whose weighted form
+     * came after its unweighted one, so a run that names no weight computes exactly as it always
+     * did. The catalogue publishes false as the `weight` option's `default: null`.
+     * @internal
+     */
+    static readonly loadedWeightByDefault: boolean = true;
+
     protected graph: Graph;
 
     /** The `weight` option as passed, before any schema dropped it. */
@@ -393,13 +403,30 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @internal
      */
     protected weightReading(): WeightReading {
+        const cls = this.constructor as typeof Algorithm;
+        if (this.#weightAsked === undefined && !cls.loadedWeightByDefault) {
+            // Reads no weight, over the same input as before the class had a weighted form.
+            this.#weightReading ??= { weight: null, input: undefined };
+        }
+
         this.#weightReading ??= resolveRunWeight(
-            (this.constructor as typeof Algorithm).weightMeaning,
+            cls.weightMeaning,
             this.#weightAsked,
             loadedWeightOf(this.graph),
             this.graph.getDataManager().lastImport?.weights.attribute ?? null,
         );
         return this.#weightReading;
+    }
+
+    /**
+     * How this run's input merges a group of parallel edges: the class's
+     * {@link Algorithm.parallelEdges} unless a subclass reads a repeat differently per run (a
+     * weighted distance takes the cheapest edge of the group, an unweighted run the class's own).
+     * @returns The policy, or undefined for `"sum"`.
+     * @internal
+     */
+    parallelEdgePolicy(): SimplifyPolicy | undefined {
+        return (this.constructor as typeof Algorithm).parallelEdges;
     }
 
     /**
@@ -437,7 +464,7 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
      * @internal
      */
     protected input(orientation: InputOrientation, options?: ScopedInputOptions): ElementScopedInput {
-        const simplify = options?.simplify ?? (this.constructor as typeof Algorithm).parallelEdges;
+        const simplify = options?.simplify ?? this.parallelEdgePolicy();
         // The weight this run reads, unless the caller asked its input for one itself.
         const weight = options?.weight === undefined ? this.weightReading().input : options.weight;
         const merged = {
@@ -446,7 +473,11 @@ export abstract class Algorithm<TOptions extends Record<string, unknown> = Recor
             ...(weight === undefined ? {} : { weight }),
         };
 
-        return createScopedInput(this.graph.getDataManager(), orientation, merged, runInputOf(this), this.columns());
+        const data = this.graph.getDataManager();
+        // The store's snapshot lends the lane by reference, so a layout's owed publish
+        // (design/rendering/row-renderer.md 4.5) is written before the run reads its positions.
+        writableLane(data)?.settle();
+        return createScopedInput(data, orientation, merged, runInputOf(this), this.columns());
     }
 
     /**

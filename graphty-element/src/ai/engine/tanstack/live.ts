@@ -345,6 +345,11 @@ function wrap(connection: RealtimeConnection, provider: string, cumulative: bool
                 }
             }
         },
+        sendText(text) {
+            if (open) {
+                connection.sendText(text);
+            }
+        },
         level() {
             return open ? connection.getAudioVisualization().inputLevel : 0;
         },

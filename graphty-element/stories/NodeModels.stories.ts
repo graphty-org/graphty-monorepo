@@ -9,6 +9,8 @@ import { assertGraphLoaded, drawn, holds, renderedElement } from "./assertions";
 // fetches a model from, so the built story drew placeholder shapes (#4365).
 import columnStlPath from "./fixtures/models/column-y-up.stl?url&no-inline";
 import damagedGlbPath from "./fixtures/models/damaged.glb?url";
+import plainObjPath from "./fixtures/models/plain-cube.obj?url&no-inline";
+import spinningGlbPath from "./fixtures/models/spinning-cube.glb?url&no-inline";
 import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./helpers";
 
 /**
@@ -23,6 +25,8 @@ import { eventWaitingDecorator, renderFn, type StoryArgs, storySetup } from "./h
 /** Served files, made absolute against the page as the element requires of a URL. */
 const COLUMN_STL = new URL(columnStlPath, document.baseURI).href;
 const DAMAGED_GLB = new URL(damagedGlbPath, document.baseURI).href;
+const PLAIN_OBJ = new URL(plainObjPath, document.baseURI).href;
+const SPINNING_GLB = new URL(spinningGlbPath, document.baseURI).href;
 
 /** Every model event each story element has fired, from its creation. */
 const changes = new WeakMap<Element, ModelChange[]>();
@@ -387,5 +391,112 @@ export const ModelAndTextureByUrl: Story = {
         );
         const scene = await drawn(canvasElement, "Styles/Node Models ModelAndTextureByUrl");
         await assertGraphLoaded(scene, { nodes: 5, edges: 3 });
+    },
+};
+
+/**
+ * A model whose file gives it no material (an OBJ with no `.mtl`) states no color of its own, so
+ * it is drawn in each node's color with no `node.modelTint` set: red, green and blue cubes.
+ */
+export const PlainModelTakesNodeColor: Story = {
+    args: {
+        setup: storySetup({
+            viewMode: "3d",
+            node: { "node.model": PLAIN_OBJ },
+            layers: [
+                {
+                    name: "Colors by kind",
+                    target: "node",
+                    selector: { match: "everything" },
+                    encode: {
+                        "node.color": {
+                            by: "data.kind",
+                            scale: "passthrough",
+                            map: { red: "#E53E3E", green: "#38A169", blue: "#3182CE" },
+                            unmapped: "skip",
+                        },
+                    },
+                },
+            ],
+        }),
+        nodeData: [at("r", "red", -4), at("g", "green", 0), at("b", "blue", 4)],
+        edgeData: [],
+    },
+    play: async ({ canvasElement }) => {
+        const change = await settled(canvasElement, PLAIN_OBJ, ["drawn", "rejected", "failed"]);
+        await holds(change.state === "drawn", `the cube ended ${change.state}: ${JSON.stringify(change.problems)}`);
+        const scene = await drawn(canvasElement, "Styles/Node Models PlainModelTakesNodeColor");
+        await assertGraphLoaded(scene, { nodes: 3, edges: 0 });
+        const codes = codesOf(canvasElement, PLAIN_OBJ);
+        await holds(!codes.includes("W_MODEL_COLOR_IGNORED"), `no color is ignored; codes ${JSON.stringify(codes)}`);
+    },
+};
+
+/**
+ * A clip held at three moments: the file's clip turns its cube a quarter turn in a second, and
+ * each node holds it (`node.modelAnimationSpeed` 0) at another start (`node.modelAnimationOffset`
+ * 0, 0.25 and 0.5 seconds), so the three cubes stand at three turns.
+ */
+export const AnimationPoses: Story = {
+    args: {
+        setup: storySetup({
+            viewMode: "3d",
+            node: {
+                "node.model": SPINNING_GLB,
+                "node.modelAnimation": "spin",
+                "node.modelAnimationSpeed": 0,
+            },
+            layers: [
+                {
+                    name: "A quarter second in",
+                    target: "node",
+                    selector: { match: "expression", where: "data.kind == 'quarter'" },
+                    set: { "node.modelAnimationOffset": 0.25 },
+                },
+                {
+                    name: "Half a second in",
+                    target: "node",
+                    selector: { match: "expression", where: "data.kind == 'half'" },
+                    set: { "node.modelAnimationOffset": 0.5 },
+                },
+            ],
+        }),
+        nodeData: [at("a", "start", -4), at("b", "quarter", 0), at("c", "half", 4)],
+        edgeData: [],
+    },
+    play: async ({ canvasElement }) => {
+        const change = await settled(canvasElement, SPINNING_GLB, ["drawn", "rejected", "failed"]);
+        await holds(change.state === "drawn", `the cube ended ${change.state}: ${JSON.stringify(change.problems)}`);
+        const scene = await drawn(canvasElement, "Styles/Node Models AnimationPoses");
+        await assertGraphLoaded(scene, { nodes: 3, edges: 0 });
+    },
+};
+
+/**
+ * A halo on a model node is a band around the model's outline on screen, not a copy of the model
+ * laid over it: the middle rack has a gold halo; the racks beside it draw the same model unmarked.
+ */
+export const ModelHaloHugsSilhouette: Story = {
+    args: {
+        setup: storySetup({
+            viewMode: "3d",
+            node: { "node.model": "asset:sample/server" },
+            layers: [
+                {
+                    name: "Halo on the middle rack",
+                    target: "node",
+                    selector: { match: "expression", where: "data.kind == 'marked'" },
+                    set: { "node.haloColor": "#FFD700", "node.haloScale": 1.45 },
+                },
+            ],
+        }),
+        nodeData: [at("l", "plain", -4), at("m", "marked", 0), at("r", "plain", 4)],
+        edgeData: [],
+    },
+    play: async ({ canvasElement }) => {
+        const change = await settled(canvasElement, "asset:sample/server", ["drawn", "rejected", "failed"]);
+        await holds(change.state === "drawn", `the racks ended ${change.state}: ${JSON.stringify(change.problems)}`);
+        const scene = await drawn(canvasElement, "Styles/Node Models ModelHaloHugsSilhouette");
+        await assertGraphLoaded(scene, { nodes: 3, edges: 0 });
     },
 };

@@ -7,6 +7,11 @@ export interface PickFilesOptions {
     accept?: string;
     /** Whether the reader may choose more than one file. @default false */
     multiple?: boolean;
+    /**
+     * Whether the reader chooses a folder (`webkitdirectory`): every file under it, each carrying its
+     * path in `webkitRelativePath`. `accept` is then not applied. @default false
+     */
+    folder?: boolean;
 }
 
 /**
@@ -15,18 +20,21 @@ export interface PickFilesOptions {
  * @param options - which files, and whether more than one.
  * @param options.accept - the files offered, in the `accept` attribute's form.
  * @param options.multiple - whether the reader may choose more than one.
+ * @param options.folder - whether the reader chooses a folder.
  * @returns the chosen files; empty when the reader cancels.
  * @example
  * ```ts
  * const [file] = await pickFiles({ accept: ".csv,.json" });
  * ```
  */
-export function pickFiles({ accept, multiple = false }: PickFilesOptions = {}): Promise<File[]> {
+export function pickFiles({ accept, multiple = false, folder = false }: PickFilesOptions = {}): Promise<File[]> {
     return new Promise((resolve) => {
         const input = document.createElement("input");
         input.type = "file";
-        input.multiple = multiple;
-        if (accept !== undefined) {
+        input.multiple = multiple || folder;
+        if (folder) {
+            input.webkitdirectory = true;
+        } else if (accept !== undefined) {
             input.accept = accept;
         }
         input.addEventListener("change", () => {

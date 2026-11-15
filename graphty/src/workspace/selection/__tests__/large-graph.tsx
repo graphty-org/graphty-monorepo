@@ -110,6 +110,10 @@ export const oneStep = (id: string, stepRule: UnionLeaf["branches"][number]["ste
  * @param id - the step's id.
  */
 export async function selectStep(id: string): Promise<void> {
+    // At rest a style layer's selection is its Style Nodes... line alone; it opens the rows (issue #6810).
+    if (document.querySelector(`[data-row="${id}"]`) === null) {
+        await userEvent.click(await screen.findByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ }));
+    }
     const row = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(`[data-row="${id}"]`);
         assert.isNotNull(found);
@@ -163,7 +167,10 @@ export async function firstFrameAfter(session: GraphSession, input: () => Promis
             at = performance.now();
         }
     };
-    globalThis.addEventListener("pointerdown", arm, { capture: true });
+    // Armed by the click, the event the controls act on, not by pointerdown: a real click is a
+    // pointerdown and a pointerup sent as separate inputs, and when they land in different frames
+    // the frame between them has not seen the click yet.
+    globalThis.addEventListener("click", arm, { capture: true });
     globalThis.addEventListener("keydown", arm, { capture: true });
     const seen = new Promise<FirstFrame>((resolve) => {
         const look = (now: number): void => {
@@ -183,7 +190,7 @@ export async function firstFrameAfter(session: GraphSession, input: () => Promis
     });
     await input();
     const frame = await seen;
-    globalThis.removeEventListener("pointerdown", arm, { capture: true });
+    globalThis.removeEventListener("click", arm, { capture: true });
     globalThis.removeEventListener("keydown", arm, { capture: true });
     return frame;
 }

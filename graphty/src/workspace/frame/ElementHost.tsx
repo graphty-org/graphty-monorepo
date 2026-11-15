@@ -1,11 +1,12 @@
 import type { Graphty as GraphtyElement } from "@graphty/graphty-element";
 import type { GraphSession } from "@graphty/graphty-element/session";
+import { Button, Stack, Text } from "@mantine/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { APP_GLOBE_LOOK } from "../../constants/globe";
 import { APP_HIGHLIGHT_COLOR } from "../../constants/highlight";
-import { loadGraphtyElement } from "../../elementLoader";
 import { siteConfig } from "../../siteConfig";
+import { useElementDefined } from "../../useElementDefined";
 import { WORKSPACE_AUTOSAVE_KEY, WORKSPACE_AUTOSAVE_OPTIONS } from "../autosave/autosave";
 import { cosmographOn } from "../features";
 import { LAYOUT_SEED } from "../layout/methods";
@@ -28,8 +29,16 @@ const LAYOUT_CONFIG = { seed: LAYOUT_SEED } as const;
  */
 const XR_CONFIG = { enabled: true, ui: { enabled: false } } as const;
 
-/** The room between the canvas toolbar and the map's credits under it, in pixels. */
-const TOOLBAR_GAP = 12;
+/**
+ * The element's limits under the Cosmograph-inspired rendering experiment (#6389): a million nodes
+ * and a million edges may load, and each may draw as an object of its own, on the batched path.
+ */
+const COSMOGRAPH_LIMITS = {
+    renderCeiling: 1_000_000,
+    edgesDrawn: 1_000_000,
+    objectRows: 1_000_000,
+    objectEdges: 1_000_000,
+} as const;
 
 /** How fast Camera > Auto-rotate turns the 3D view, in radians per second: the start page's turn. */
 const AUTO_ROTATE_SPEED = 0.15;
@@ -43,6 +52,8 @@ interface ElementHostProps {
     onReady: (element: GraphtyElement | null, session: GraphSession | null) => void;
     /** Whether the element keeps the reader's work in the browser (graphty-element's autosave). */
     autosave?: boolean;
+    /** Loads graphty-element's code; the app's loader unless a test hands in one that fails. */
+    loadElement?: () => Promise<void>;
 }
 
 /**
@@ -51,12 +62,13 @@ interface ElementHostProps {
  * @param props - Component props
  * @param props.onReady - Called with the element and its session, and with nulls on unmount
  * @param props.autosave - Whether the element autosaves
+ * @param props.loadElement - Loads graphty-element's code (the app's loader by default)
  * @returns The element, filling its region
  */
-export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostProps>): React.JSX.Element {
+export function ElementHost({ onReady, autosave = false, loadElement }: Readonly<ElementHostProps>): React.JSX.Element {
     const ref = useRef<GraphtyElement>(null);
-    // Labels that would land on each other are thinned out until the reader turns on Show all
-    // labels (tier1-design.md section 2.7), and a still graph is not drawn again on every animation
+    // Every label a style asks for is drawn, overlapping or not, unless the reader turns on Graph
+    // settings' "Hide overlapping labels" (owner 2026-11-11), and a still graph is not drawn again on every animation
     // frame: the workspace never changes the Babylon scene behind the element's back, so nothing it
     // shows needs those frames, and on a software GPU each one holds the page's main thread for
     // tens of milliseconds (issue #1943). View settings written on the tag; they record no step.
@@ -73,12 +85,11 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
     const sameSize = useWorkspaceState((state) => state.sameSizeAtAnyDepth) ?? sizeBound;
     const lighting = useWorkspaceState((state) => state.lighting);
     const autoRotate = useWorkspaceState((state) => state.autoRotate);
-    const outlineWidth = useWorkspaceState((state) => state.outlineWidth);
     const layoutShownOnly = useWorkspaceState((state) => state.layoutShownOnly);
     const layoutBehavior = useMemo<NonNullable<GraphtyElement["layoutBehavior"]>>(
         () => ({
             labels: { declutter: !allLabelsShown, avoidNodesAndEdges: labelsAvoid },
-            node: { depthIndependentSize: sameSize, ...(outlineWidth === null ? {} : { outlineWidth }) },
+            node: { depthIndependentSize: sameSize },
             rendering: { onDemand: true },
             layout: { visibleOnly: layoutShownOnly },
             // A pick moves the camera; a filter card's Select or an undo does not. The inspector
@@ -86,12 +97,11 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             // framing again on a resize draws the same picture either way (#5097).
             camera: { pivotOnSelection: true, pivotOnSelectionCauses: ["user", "api"], refitOnResize: true },
         }),
-        [allLabelsShown, labelsAvoid, sameSize, outlineWidth, layoutShownOnly],
+        [allLabelsShown, labelsAvoid, sameSize, layoutShownOnly],
     );
-    // The map's credits sit above the canvas toolbar, measured from its dock; and a reader who
-    // prefers less motion gets camera moves without the glide; and the globe is drawn as the earth
-    // from space (constants/globe.ts). View settings, written on the
-    // element; they record no step.
+    // A reader who prefers less motion gets camera moves without the glide, and the globe is drawn
+    // as the earth from space (constants/globe.ts). View settings, written on the element; they
+    // record no step.
     const still = useReducedMotion();
     useEffect(() => {
         const element = ref.current;
@@ -101,49 +111,14 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
 
         element.cameraTransitionDuration = still ? 0 : undefined;
         element.globeLook = APP_GLOBE_LOOK;
-        const canvas = element.closest<HTMLElement>(".ws-canvas");
-        const dock = canvas?.querySelector<HTMLElement>(".ws-toolbar-dock");
-        if (canvas === null || canvas === undefined || dock === null || dock === undefined) {
-            element.attributionOffset = 0;
-            return undefined;
-        }
-
-        const place = (): void => {
-            // A hidden toolbar (under the selection workspace) leaves the attribution at the edge.
-            element.attributionOffset = dock.hidden
-                ? 0
-                : Math.max(0, canvas.clientHeight - dock.offsetTop + TOOLBAR_GAP);
-        };
-        place();
-        const observer = new ResizeObserver(place);
-        observer.observe(canvas);
-        observer.observe(dock);
-        return () => {
-            observer.disconnect();
-        };
+        return undefined;
     }, [hosted, still]);
 
     // React 19 writes a prop onto a custom element as a property only when the tag is defined at
     // commit time; before that it writes `String(value)` as an attribute, or drops a `false`, and
     // never tries again (issue #3375). The frame's code can arrive before the element's, so the tag
     // is rendered only once it is defined, as graphty-element's React guide asks.
-    const [defined, setDefined] = useState(() => customElements.get("graphty-element") !== undefined);
-    useEffect(() => {
-        if (defined) {
-            return undefined;
-        }
-        let live = true;
-        void loadGraphtyElement()
-            .then(() => customElements.whenDefined("graphty-element"))
-            .then(() => {
-                if (live) {
-                    setDefined(true);
-                }
-            });
-        return () => {
-            live = false;
-        };
-    }, [defined]);
+    const { defined, failed, retry } = useElementDefined("workspace", loadElement);
 
     useEffect(() => {
         const element = ref.current;
@@ -154,6 +129,7 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             // The Cosmograph-inspired rendering experiment draws with the batched render path (#3247).
             if (cosmographOn(session)) {
                 element.renderPath = "batched";
+                element.limits = COSMOGRAPH_LIMITS;
             }
             // The reader's shader preferences and remembered approvals (Graph settings).
             const unbindShaders = bindShaderSettings(element);
@@ -179,6 +155,19 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
         };
     }, [onReady, defined]);
 
+    if (failed) {
+        // The element's code could not be fetched (a network error, or a chunk gone after a
+        // deploy): said, with Retry, the start page's words for the same failure.
+        return (
+            <Stack gap={8} p="md" align="center" justify="center" h="100%" role="alert">
+                <Text size="sm">The graph could not load.</Text>
+                <Button variant="default" size="xs" onClick={retry}>
+                    Retry
+                </Button>
+            </Stack>
+        );
+    }
+
     if (!defined) {
         return <div data-element-host="loading" style={{ display: "block", width: "100%", height: "100%" }} />;
     }
@@ -197,6 +186,9 @@ export function ElementHost({ onReady, autosave = false }: Readonly<ElementHostP
             // The app's own Undo and Redo take these keys everywhere, the drawing included, so
             // every step taken back is named in a notice.
             historyKeys={false}
+            // Every reader -- layouts, counts, algorithms -- reads what the filter and the time
+            // window leave shown (design/working-graph/design.md).
+            workingGraph
             zoomToPointer
             xr={XR_CONFIG}
             {...(autosave ? { autosave: WORKSPACE_AUTOSAVE_KEY, autosaveOptions: WORKSPACE_AUTOSAVE_OPTIONS } : {})}

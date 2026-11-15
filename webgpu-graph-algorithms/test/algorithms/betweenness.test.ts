@@ -31,8 +31,10 @@ import {
     betweennessWithTuning,
     edgeBetweennessCentrality,
     edgeBetweennessWithTuning,
+    edgeParallelEligible,
     planBatchSize,
 } from "../../src/algorithms/betweenness.js";
+import { BC_EDGE_PARALLEL_MIN_NODES } from "../../src/constants.js";
 import { type GpuContext } from "../../src/context.js";
 import { type WebGpuGraphError } from "../../src/errors.js";
 import { type BetweennessAcceleratorOptions } from "../../src/types/accelerator.js";
@@ -306,12 +308,24 @@ describe("betweennessCentrality and edgeBetweennessCentrality (design 8.4 / 9.7)
         expect(scoreError(norm.scores, want)).toBeLessThanOrEqual(TOLERANCE);
     });
 
-    it("the three forward forms give bitwise identical scores; auto runs edge-parallel on a shallow graph and frontier on a deep one", async (t) => {
+    it("edgeParallelEligible (issue #776): only a snapshot of at least BC_EDGE_PARALLEL_MIN_NODES nodes whose largest degree is within BC_EDGE_PARALLEL_MAX_SKEW times the mean", () => {
+        const n = BC_EDGE_PARALLEL_MIN_NODES;
+        expect(edgeParallelEligible(snapshotOf(randomEdges(n, 2 * n, 5))), "G(n, 2n) at the threshold").toBe(true);
+        expect(edgeParallelEligible(snapshotOf(randomEdges(n - 1, 2 * n, 5))), "one node below").toBe(false);
+        expect(edgeParallelEligible(snapshotOf(rmatEdges(15, 8, 3))), "R-MAT 2^15 x8 (skewed)").toBe(false);
+        const star = snapshotOf(starEdges(n));
+        expect(edgeParallelEligible(star), "a star (max degree n - 1)").toBe(false);
+        expect(edgeParallelEligible(snapshotOf([], { nodeCount: n })), "no arcs").toBe(false);
+    });
+
+    it("the three forward forms give bitwise identical scores; auto runs edge-parallel on a shallow eligible graph and frontier on a deep one and on a skewed shallow one (issue #776)", async (t) => {
         const ctx = await context(t);
-        const shallow = snapshotOf(rmatEdges(gpuScale() < 1 ? 9 : 12, 8, 3));
+        const shallow = snapshotOf(randomEdges(BC_EDGE_PARALLEL_MIN_NODES, 2 * BC_EDGE_PARALLEL_MIN_NODES, 3));
+        const skewed = snapshotOf(rmatEdges(gpuScale() < 1 ? 9 : 12, 8, 3));
         const deep = snapshotOf(gridEdges(300, 3));
         for (const [name, s] of [
-            ["rmat", shallow],
+            ["random", shallow],
+            ["rmat", skewed],
             ["grid(300, 3)", deep],
         ] as const) {
             const sources = [0, 1, 2, 3, 4, 5];

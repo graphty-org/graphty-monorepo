@@ -38,7 +38,9 @@ describe("the hosted datasets", () => {
 });
 
 // The .gsnp.gz files are build output of scripts/build-hosted.mjs (npm run datasets:hosted), not
-// committed; each check runs only where that script has been run.
+// committed; each check runs only where that script has been run. The deploy, which runs the script with
+// no workspace install, checks the same things in the script itself: every file's metadata, bytes and
+// sha256 against hosted.ts (hostedDrift) and every column in the decoded snapshot.
 describe.each(HOSTED_DATASETS.map((meta) => [meta.name, meta] as const))("hosted file %s", (name, meta) => {
     const file = path.join(publicData, `${name}.gsnp.gz`);
 

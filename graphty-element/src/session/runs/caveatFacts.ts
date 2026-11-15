@@ -28,6 +28,12 @@ import type { CodedFact, CodedFactParam } from "../shared";
  * - `partition.unscored` -- the algorithm does not score its own partition, so it reports no
  *   modularity: `{ algorithm }`, its catalog key.
  * - `community.resolution` -- the resolution the partition was found at: `{ resolution }`.
+ * - `groups.split` -- on a re-run, which keeps each group's number on the group sharing most of
+ *   its members, an old group's members now mostly fill new groups as well:
+ *   `{ field, group, into }`, the field, the number the group kept, and the new groups' numbers.
+ * - `groups.merged` -- on a re-run, old groups' members now mostly sit in one group, which kept
+ *   another number: `{ field, group, from }`, the field, the number it kept, and the numbers of
+ *   the groups that merged into it.
  * - `paths.counted-exactly` -- every shortest path was counted exactly, over the graph read as
  *   undirected.
  * - `paths.hop-lengths` -- path lengths count edges, and edge weights were not read.
@@ -49,6 +55,17 @@ import type { CodedFact, CodedFactParam } from "../shared";
  *   method ran: `{ seconds, cap }`.
  * - `sampled.still-past-cap` -- the sampled run is itself estimated past the cap: `{ seconds,
  *   cap }`.
+ *
+ * About a run of an algorithm registered with `defineAlgorithm`, whose catalog key is
+ * `algorithm`:
+ *
+ * - `defined.nothing-measured` -- the function returned no number for any element it was asked
+ *   about: `{ algorithm, kind }`, `"node"` or `"edge"`.
+ * - `defined.long-task` -- the function held the page for longer than `ms` at a time:
+ *   `{ algorithm, member, ms }`, the definition's member (`"node"`, `"edge"`, `"nodes"` or
+ *   `"groups"`) and the limit in milliseconds.
+ * - `defined.inputs-read` -- the paths the run read: `{ algorithm, targets, paths }`, two lists of
+ *   the same length, each target `"node"` or `"edge"` with the path read on it.
  *
  * One algorithm's own:
  *
@@ -131,6 +148,8 @@ export type CaveatCode =
     | "iteration.cap-reached"
     | "partition.unscored"
     | "community.resolution"
+    | "groups.split"
+    | "groups.merged"
     | "paths.counted-exactly"
     | "paths.hop-lengths"
     | "tree.edge-count"
@@ -139,6 +158,9 @@ export type CaveatCode =
     | "scope.subgraph"
     | "parallel-edges.merged"
     | "input.empty"
+    | "defined.nothing-measured"
+    | "defined.long-task"
+    | "defined.inputs-read"
     | "sampled.instead-of-exact"
     | "sampled.exact-past-cap"
     | "sampled.still-past-cap"
@@ -263,6 +285,8 @@ const CAVEAT_SENTENCES: Readonly<Record<CaveatCode, (text: Text, params: CodedFa
     "partition.unscored": (text) =>
         `${UNSCORED_NAMES[text("algorithm")] ?? text("algorithm")} does not score its own partition, so it reports no modularity.`,
     "community.resolution": (text) => `Resolution ${text("resolution")}.`,
+    "groups.split": (text) => `Group ${text("group")} split; part of it is now ${text("into")}.`,
+    "groups.merged": (text) => `${text("from")} merged into group ${text("group")}.`,
     "paths.counted-exactly": () => "Every shortest path is counted exactly, over the graph read as undirected.",
     "paths.hop-lengths": () => "Path lengths count edges; edge weights are not read.",
     "tree.edge-count": (text) => `The tree joins the graph with ${text("edges")} edges.`,
@@ -275,6 +299,21 @@ const CAVEAT_SENTENCES: Readonly<Record<CaveatCode, (text: Text, params: CodedFa
         "because this algorithm runs over a graph that holds one edge per pair. Every member of a merged " +
         "group carries the merged value.",
     "input.empty": () => "The graph had nothing for this algorithm to measure.",
+    "defined.nothing-measured": (text) =>
+        `${text("algorithm")}: no ${text("kind")} was measured -- did the function return NaN or undefined for every ${text("kind")}?`,
+    "defined.long-task": (text, params) => {
+        const fix =
+            params.member === "node" || params.member === "edge"
+                ? "each call should take a moment, with the slow work moved to a whole-graph function."
+                : "await context.progress(i / n) inside its loop.";
+        return `${text("algorithm")}: ${text("member")}() held the page for over ${text("ms")} ms at a time; ${fix}`;
+    },
+    "defined.inputs-read": (text, params) => {
+        const targets = Array.isArray(params.targets) ? params.targets : [];
+        const paths = Array.isArray(params.paths) ? params.paths : [];
+        const read = targets.map((target, i) => `${String(target)} ${JSON.stringify(paths[i])}`).join(", ");
+        return `${text("algorithm")} read: ${read}.`;
+    },
     "sampled.instead-of-exact": (text, params) =>
         `Sampled rather than exact: ${text("name")} over ${grouped(params.sampleSize)} of ${grouped(params.nodes)} nodes.`,
     "sampled.exact-past-cap": (text, params) =>

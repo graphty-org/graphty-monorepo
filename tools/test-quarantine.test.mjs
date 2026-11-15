@@ -24,6 +24,7 @@ import {
     HANG_CODE,
     HANG_NAME,
     hangFailures,
+    hangReport,
     quarantineEnabled,
     runShard,
     shardOfRun,
@@ -429,7 +430,7 @@ describe("runShard", () => {
         process.kill(Number(readFileSync(join(c.root, "survivor.pid"), "utf8")), "SIGKILL");
         const printed = log.mock.calls.map((call) => call.arguments[0]).join("\n");
         assert.equal(code, HANG_CODE);
-        assert.match(printed, /^::error::\[HANG\] .*still running: a\.test\.ts > stuck$/mu);
+        assert.match(printed, /^::error::\[HANG\] .*still running: a\.test\.ts > stuck\. slowest/mu);
         // #6374: the store, and so a full run's bisect, learns what hung
         assert.deepEqual(
             result.hung.map((f) => [f.file, f.name]),
@@ -448,7 +449,7 @@ describe("runShard", () => {
         await clock.reachDeadline();
         const stuck = await running;
         assert.equal(stuck.code, HANG_CODE);
-        assert.match(log.mock.calls.map((call) => call.arguments[0]).join("\n"), /last output: installing$/mu);
+        assert.match(log.mock.calls.map((call) => call.arguments[0]).join("\n"), /Last output: installing$/mu);
         assert.deepEqual(
             stuck.result.hung.map((f) => [f.file, f.name]),
             [["graphty", HANG_NAME]],
@@ -498,6 +499,34 @@ describe("runShard", () => {
         reporter.onTestCaseResult(testCase);
         reporter.onTestModuleEnd(testModule);
         assert.deepEqual(stillRunning(file), []);
+    });
+
+    // #6567: graphty-5 ended "still running: UndoRedoWordsKeys..." while TimelineDock had used 451 s of the shard.
+    it("names what used the time at a deadline, and how long before it the running test started", () => {
+        const file = join(fresh(), "record");
+        writeFileSync(
+            file,
+            [
+                "+ src/slow.test.ts\t0",
+                "+ src/slow.test.ts > restores\t1000",
+                "- src/slow.test.ts > restores\t320000",
+                "- src/slow.test.ts\t451000",
+                "+ src/quick.test.ts\t451000",
+                "- src/quick.test.ts\t461000",
+                "+ src/undo.test.ts\t461000",
+                "+ src/undo.test.ts > names the change\t599000",
+            ].join("\n"),
+        );
+        assert.equal(
+            hangReport(file, 600_000),
+            "still running: src/undo.test.ts > names the change (started 1 s before the deadline). " +
+                "slowest files: src/slow.test.ts 451 s; src/quick.test.ts 10 s. " +
+                "slowest tests: src/slow.test.ts > restores 319 s",
+        );
+        assert.equal(
+            hangReport(join(fresh(), "none"), 0),
+            "no test running. slowest files: none ended. slowest tests: none ended",
+        );
     });
 
     it("fails a run whose output is over the log budget, whatever it exited with, quarantine on or off", async () => {

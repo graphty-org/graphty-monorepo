@@ -300,3 +300,18 @@ export const EDGE_LINE_DESCRIPTORS: readonly GlyphDescriptor<EdgeLinePattern>[] 
     ["separate-arrow", "Separate arrows", '<path d="M2 12h20 M4 9l3 3-3 3 M11 9l3 3-3 3 M18 9l3 3-3 3"/>'],
     ["contiguous-arrow", "Joined arrows", '<path d="M2 9l5 3-5 3 M9 9l5 3-5 3 M16 9l5 3-5 3 M2 12h20"/>'],
 ]);
+
+/**
+ * The built-in node shapes, edge arrowheads and edge line patterns, for the saved-name scan: a save file that names one by id depends on this
+ * build still shipping it (design/architecture/self-contained-save-files.md, section 2.2).
+ * Exported, and so tagged public, because test/saved-format/builtInIds.ts finds and loads it by reading the source.
+ * @returns Each kind and its ids.
+ * @public
+ */
+export function builtInIdsForTesting(): readonly { kind: string; ids: readonly string[] }[] {
+    return [
+        { kind: "nodeShapes", ids: NODE_SHAPE_DESCRIPTORS.map((each) => each.id) },
+        { kind: "edgeArrows", ids: EDGE_ARROW_DESCRIPTORS.map((each) => each.id) },
+        { kind: "edgeLines", ids: EDGE_LINE_DESCRIPTORS.map((each) => each.id) },
+    ];
+}

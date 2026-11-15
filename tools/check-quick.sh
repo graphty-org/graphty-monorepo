@@ -115,6 +115,9 @@ fi
 if affected graphty-element || git diff --name-only "$MB" | grep -q '^tools/check-bundle-size'; then
     step "Bundle size (graphty-element)" pnpm run check:bundle-size
 fi
+if affected graphty || git diff --name-only "$MB" | grep -qE '^graphty/scripts/(check-size|landing-files)'; then
+    step "Bundle size (graphty app)" pnpm --filter @graphty/graphty run size
+fi
 if affected cytoscape-extensions; then
     step "Bundle size (cytoscape-extensions)" pnpm --filter @graphty/cytoscape-extensions run size
 fi

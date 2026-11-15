@@ -286,6 +286,18 @@ const config = defineConfig({
                     environment: "node",
                 },
             },
+            {
+                // Timing benchmarks of the built app (bench/load-time.bench.test.ts, issue #8018), in Node driving
+                // Chromium through Playwright. A measurement, so a "bench" project: no coverage, no time guard,
+                // never in the test shards. CI runs it in ci.yml's Performance Benchmarks job; by hand,
+                // npx vitest run --project=bench after the app's build.
+                extends: true,
+                test: {
+                    name: "bench",
+                    include: ["bench/**/*.bench.test.ts"],
+                    environment: "node",
+                },
+            },
         ],
         coverage: {
             provider: "v8",

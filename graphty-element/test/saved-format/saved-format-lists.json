@@ -1,5 +1,5 @@
 {
-    "selfContained": ["shaders"],
+    "selfContained": ["shaders", "style-tree-mode"],
     "exceptions": [
         {
             "kind": "palette",
@@ -112,13 +112,6 @@
             "catalogs": [],
             "issue": 6515,
             "finding": "Settings equal to the default are omitted from the file and filled from the reader's defaults, so a changed default changes old files."
-        },
-        {
-            "kind": "style-tree-mode",
-            "paths": [],
-            "catalogs": [],
-            "issue": 6516,
-            "finding": "startingRows, editableBase and runPlacement are not saved, and the app reapplies them."
         },
         {
             "kind": "edge-routes",

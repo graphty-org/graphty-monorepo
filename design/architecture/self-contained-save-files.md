@@ -334,8 +334,7 @@ Left out rather than named, so only a clean-room row can prove a fix (empty `pat
 
 - default-palette: a binding naming no palette paints with the build's default (`ylorbr`,
   `okabe-ito`); default-settings: settings equal to the default are omitted and filled from the
-  reader's defaults; style-tree-mode: `startingRows`, `editableBase` and `runPlacement` are not
-  saved, and the app reapplies them.
+  reader's defaults.
 - edge-routes: Graphviz routes are computed again on open; gazetteer: place names are looked up at
   a graphty.app URL when the layout reruns; data-fingerprint: runs match data by an unversioned
   FNV-1a hash.

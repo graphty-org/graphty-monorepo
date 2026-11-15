@@ -24,8 +24,13 @@ export interface UsedEvery {
 
 /** One self-contained kind. */
 export interface SelfContainedKind {
-    /** The kind; also its catalog's key, for the census. */
+    /** The kind; also its catalog's key, for the census, unless {@link SelfContainedKind.settings} is set. */
     readonly kind: string;
+    /**
+     * For a kind that is project settings rather than a catalog of built-ins: what the settings
+     * read in a session, which a session opening the save must read the same. The census skips it.
+     */
+    readonly settings?: (session: GraphSession) => unknown;
     /** Use every built-in of the kind in a session that holds {@link FIXTURE_NODES} and {@link FIXTURE_EDGES}. */
     readonly useEvery: (session: GraphSession) => Promise<UsedEvery>;
     /** Each module that ships the built-ins, relative to this folder, with the exports of its empty stub. */
@@ -131,5 +136,21 @@ export const SELF_CONTAINED_KINDS: readonly SelfContainedKind[] = [
             "../../src/shaders/presets/index.ts": { SHADER_PRESETS: [] },
             "../../src/shaders/presets/bodies.ts": { SHADER_PRESET_BODIES: {} },
         },
+    },
+    {
+        // The style tree's mode: settings, not built-ins, so nothing is stubbed; the file must carry
+        // each one off its default rather than leave it to the reading build or app (issue #6516).
+        kind: "style-tree-mode",
+        useEvery: async (session) => {
+            const mode = { startingRows: true, editableBase: true, runPlacement: "top" } as const;
+            await session.config.set(mode);
+            return { used: Object.keys(mode), listed: 3, saves: [] };
+        },
+        builtInModules: {},
+        settings: ({ config }) => ({
+            startingRows: config.startingRows,
+            editableBase: config.editableBase,
+            runPlacement: config.runPlacement,
+        }),
     },
 ];

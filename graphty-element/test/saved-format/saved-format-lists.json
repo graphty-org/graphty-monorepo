@@ -69,7 +69,7 @@
             "paths": [],
             "catalogs": ["generators", "datasets"],
             "issue": 6509,
-            "finding": "A project's data source names a generator or dataset by name, resolved against the current generator catalog, and opening the project generates or downloads it again. Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results; the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
+            "finding": "A project's data source names a generator (with its params) or a dataset by name, resolved against the current generator catalog. The graph's records are carried in the graphty-data member, so opening the file never runs the generator or downloads the dataset; the name is the provenance of the load, and running it again is a reload the reader asks for. Kept on purpose: the owner decided on 2026-11-13 that a sample source is a behavior, named in save files and run again rather than saved as a result (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "row-template",
@@ -125,7 +125,7 @@
             "paths": [],
             "catalogs": [],
             "issue": 6517,
-            "finding": "Graphviz edge routes are not saved; the layout that lays them (edgeRoutes: graphviz) is saved and run again on open, which computes them again. Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results; the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
+            "finding": "Graphviz edge routes are not saved; the layout that lays them (edgeRoutes: graphviz) is saved and run again on open, which computes them again (with the optional package @hpcc-js/wasm-graphviz installed; without it the edges are drawn the element's way and W_ROUTES_NOT_LAID says so). Kept on purpose: the owner decided on 2026-11-13 that behaviors are not saved as results; the file names them and the reading build runs them again on open (design/owner-standing-rules.md, rule 6)."
         },
         {
             "kind": "gazetteer",

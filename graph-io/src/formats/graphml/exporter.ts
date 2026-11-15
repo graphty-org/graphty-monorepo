@@ -29,6 +29,7 @@ import {
     mangleNmtoken,
     type SanitizedIds,
     sanitizeIds,
+    textCollisions,
 } from "../../common/export.js";
 import { formatF32, formatF64, formatInteger } from "../../common/format.js";
 import { isCanonicalIntegerText } from "../../common/ids.js";
@@ -408,7 +409,7 @@ function planExport(
     if (edgeIdColumn !== null) {
         planEdgeIds(snapshot, edgeIdColumn, options, note);
     }
-    const unrepresentable = countUnrepresentableNodeIds(snapshot);
+    const unrepresentable = countUnrepresentableNodeIds(snapshot) + textCollisions(snapshot.ids).length;
     const needsOriginalIdKey = unrepresentable > 0 && options.sanitizeIds === "mangle";
     const originalIdKey = needsOriginalIdKey ? keyIds.next(null) : null;
 

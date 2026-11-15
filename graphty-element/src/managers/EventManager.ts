@@ -540,6 +540,7 @@ export class EventManager implements Manager {
             case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":
+            case "overview-changed":
             case "xr-session-started":
             case "xr-session-ended":
             case "input:pointer-down":

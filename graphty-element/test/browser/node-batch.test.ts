@@ -31,6 +31,7 @@ import { rowScanOf } from "../../src/render/PickService";
 import { RowTable } from "../../src/render/RowTable";
 import { defineLayout } from "../../src/simple/defineLayout";
 import { createFakeAccelerator } from "../../src/testing/fakeAccelerator";
+import { meshAnnouncementsDelivered } from "../helpers/mesh-announcements";
 import { click, drag, hover, nextFrame, wheel } from "../helpers/real-input";
 import { type CanvasFrame as Frame, pixelsOverBar as overBar, readCanvas as readFrame } from "../helpers/whole-canvas";
 import { nextModelEvent } from "./models/helpers";
@@ -681,9 +682,7 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
             await element.session.data.addEdges(links);
             await operationQueueOf(element.graph).waitForCompletion();
             await readFrame(element.graph);
-            if (path === "objects") {
-                before = element.graph.getNode("r0")?.mesh.position.clone();
-            }
+            before = element.graph.getNode("r0")?.mesh.position.clone();
             await element.session.data.removeNodes(["r11"]);
             await operationQueueOf(element.graph).waitForCompletion();
             return { element, frame: await readFrame(element.graph) };
@@ -697,7 +696,9 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
 
         objects.element.remove();
         const batched = await removedFrom("batched");
-        assert.equal(batched.element.graph.rowCounts.batchedNodes, 11);
+        // r0's mesh was read, so r0 alone is an object row (#8038).
+        assert.equal(batched.element.graph.rowCounts.batchedNodes, 10);
+        assert.equal(batched.element.graph.rowCounts.objectNodes, 1);
         assert.equal(overBar(objects.frame, batched.frame), 0);
     });
 
@@ -778,6 +779,24 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
 
         assert.equal(overBar(frames.objects.paused, frames.batched.paused), 0);
         assert.equal(overBar(frames.objects.resumed, frames.batched.resumed), 0);
+    });
+
+    it("keep the rest of a look on the batch when a consumer reads one row's mesh", async () => {
+        // A batch hides its whole source mesh, so a held row drawn from the shared source took every row
+        // of its look off the batch: one `getNode(id).mesh` emptied a one-look graph's batch (#8038).
+        const element = await mounted(renderer);
+        await loaded(element, "3d", false);
+        const { graph } = element;
+        await frameOn(graph, "batched");
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length);
+
+        const mesh = graph.getNode(0)?.mesh;
+        assert.isDefined(mesh);
+        assert.isFalse(mesh.isDisposed(), "the consumer gets the node's own mesh");
+        const batched = await readFrame(graph);
+        assert.equal(graph.rowCounts.batchedNodes, NODES.length - 1, "its three look-mates stay on the batch");
+        assert.equal(graph.rowCounts.objectNodes, 1);
+        assert.equal(overBar(batched, await frameOn(graph, "objects")), 0);
     });
 
     it.each(["2d", "3d"] as const)("batch a screen-scaled map's rows through a zoom in %s", async (view) => {
@@ -1030,6 +1049,8 @@ describe.each(RENDERERS)("node batches on %s", (renderer) => {
         });
         try {
             await loaded(element, "3d");
+            // a mesh built during the load is announced from a timer after it
+            await meshAnnouncementsDelivered();
         } finally {
             onNode.remove();
             onMesh.remove();

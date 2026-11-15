@@ -64,6 +64,7 @@ import type {
     ValueType,
 } from "../types";
 import { valueLabelKey } from "../valueLabels";
+import { refreshDerivedAfter } from "./derive";
 import type { BatchCommand } from "./index";
 import type { DataImportSourceCommand } from "./source-load";
 
@@ -880,6 +881,7 @@ const dataApply: UndoableDefinition<DataApplyCommand> = {
     byReference: ["records"],
     execute: (command, ctx) => {
         serviceOf(ctx.services.data).apply(command.mutation, ctx.draft, ctx.after);
+        refreshDerivedAfter(ctx);
     },
 };
 
@@ -1000,6 +1002,7 @@ export const dataImport: UndoableDefinition<DataImportCommand> = {
         const replacing = command.mode !== "merge" && command.measure === undefined;
         const picked = replacing ? pickedEdges(ctx) : [];
         const outcome = await serviceOf(ctx.services.data).import(command, ctx.draft, ctx.signal, ctx.after);
+        refreshDerivedAfter(ctx);
         if (outcome !== null && outcome !== undefined) {
             await repickEdges(picked, ctx);
         }
@@ -1158,6 +1161,7 @@ const dataExpand: UndoableDefinition<DataExpandCommand> = {
     byReference: ["nodes", "edges"],
     execute: (command, ctx) => {
         const service = serviceOf(ctx.services.data);
+        refreshDerivedAfter(ctx);
         service.apply({ kind: "add-nodes", records: command.nodes }, ctx.draft, ctx.after);
         // `first`, because a neighbourhood legitimately names edges the graph already holds: the
         // edge the reader followed to get here is in both of its endpoints' neighbourhoods.

@@ -220,6 +220,12 @@ describe("the Node-safe entry points", () => {
         assert.isTrue(loaded.every((module) => typeof module === "object"));
     });
 
+    it("reads the default look's numbers in plain Node, from ./schema alone", () => {
+        assert.isAbove(schema.EDGE_CONSTANTS.DEFAULT_LINE_WIDTH, 0);
+        assert.equal(schema.defaultEdgeStyle.line?.width, schema.EDGE_CONSTANTS.DEFAULT_LINE_WIDTH);
+        assert.isAbove(schema.SHAPE_CONSTANTS.DEFAULT_NODE_SIZE, 0);
+    });
+
     it("reads a layer's file-style facts in plain Node, from ./session alone", () => {
         const origin: session.FileStyleOrigin = {
             format: "gexf",

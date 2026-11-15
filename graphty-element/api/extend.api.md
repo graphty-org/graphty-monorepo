@@ -270,8 +270,9 @@ export interface AlgorithmDescriptor {
     cost?: (n: number, m: number) => number;
     // (undocumented)
     costClass: CostClass;
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     // (undocumented)
     fields: readonly FieldDescriptor[];
     // (undocumented)
@@ -421,8 +422,9 @@ export interface BaseDataSourceConfig {
 
 // @public
 export interface CameraDescriptor {
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     // (undocumented)
     id: CameraId;
     modes: readonly DrawingMode[];
@@ -1048,7 +1050,9 @@ export interface FormatDescriptor {
     canExport: boolean;
     // (undocumented)
     canImport: boolean;
+    // @deprecated
     description?: string;
+    descriptionId?: string;
     exportVariants?: readonly FormatExportVariant[];
     // (undocumented)
     extensions: readonly string[];
@@ -2067,8 +2071,9 @@ export interface LayoutDefinition<O extends OptionsShorthand> extends Definition
 
 // @public
 export interface LayoutDescriptor {
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     engine: string;
     // (undocumented)
     family: string;
@@ -2238,8 +2243,9 @@ export type LogLevelName = "error" | "warn" | "info" | "debug" | "trace";
 
 // @public
 export interface LogSinkDescriptor {
-    // (undocumented)
+    // @deprecated
     description: string;
+    descriptionId?: string;
     // (undocumented)
     id: LogSinkId;
     // (undocumented)

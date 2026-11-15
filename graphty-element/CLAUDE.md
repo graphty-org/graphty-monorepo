@@ -216,8 +216,9 @@ The same check fails when the report adds a property typed plain `string` to a r
 whose name ends in `Result`, `Summary`, `Estimate`, `Recommendation` or `Explanation`, or one a
 `GraphSession` method returns -- compared with the merge base with origin/master. Use an exported
 string-literal union of codes or a `CodedFact` `{ code, params }` instead. Identifiers, names of the
-consumer's data and catalog names are allowed by `PLAIN_STRING_ALLOWLIST` in `tools/api-report.mjs`,
-and a descriptor's `description` is catalog data. Fields that already exist never fail.
+consumer's data and catalog names are allowed by `PLAIN_STRING_ALLOWLIST` in `tools/api-report.mjs`.
+A descriptor's English `description` is deprecated, not catalog data: describe a catalog entry with a
+`descriptionId` (`algorithm.<key>`, `layout.<id>`, ...) the application words. Fields that already exist never fail.
 
 ### Module System
 

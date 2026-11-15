@@ -2815,6 +2815,10 @@ export class Graph implements GraphContext {
     canvas: HTMLCanvasElement;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
+    centerOnOverview(point: {
+        x: number;
+        y: number;
+    }, options?: CameraAnimationOptions): Promise<void>;
     clearAiHistory(options?: {
         readonly database?: string;
     }): Promise<void>;
@@ -2895,8 +2899,10 @@ export class Graph implements GraphContext {
     getNodeIdTarget(): NodeIdTarget | null;
     getNodeMesh(nodeId: string): AbstractMesh | null;
     getNodes(): Node_2[];
+    getOverview(options?: OverviewOptions): GraphOverview;
     getPendingAiApprovals(): readonly AiApprovalRequest[];
     getPendingAiQuestions(): readonly AiQuestionRequest[];
+    getReducedMotion(): boolean | "auto";
     // @internal
     getRowTable(): RowTable | null;
     getScene(): Scene;
@@ -3077,6 +3083,7 @@ export class Graph implements GraphContext {
     setLimits(value: LimitsOption): void;
     setNodes(nodes: Record<string | number, unknown>[], idPath?: string, options?: QueueableOptions): Promise<void>;
     setPixelRatio(ratio: PixelRatio): void;
+    setReducedMotion(value: boolean | "auto"): void;
     setRenderer(request: RendererRequest): void;
     setRenderPath(path: RenderPath): void;
     setRenderSettings(settings: Record<string, unknown>, options?: QueueableOptions): Promise<void>;
@@ -3264,7 +3271,7 @@ export interface GraphErrorEvent {
 }
 
 // @public (undocumented)
-export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
+export type GraphEvent = GraphSettledEvent | GraphErrorEvent | GraphDataLoadedEvent | GraphDataAddedEvent | GraphSnapshotReplacedEvent | GraphSnapshotDroppedEvent | GraphDataClearedEvent | GraphLayoutInitializedEvent | CameraStateChangedEvent | OverviewChangedEvent | GraphGenericEvent | DataLoadingProgressEvent | DataLoadingErrorEvent | DataLoadingErrorSummaryEvent | DataLoadingCompleteEvent | ElementsRemovedEvent | StyleChangedEvent | SelectionChangedEvent | GraphStartedEvent | LayoutChangedEvent | LayoutWarningEvent | LimitsWarningEvent | BasemapStatusEvent | RenderLostEvent | RenderRestoredEvent | OperationCancelledEvent | StatsUpdateEvent | InputEnabledChangedEvent | XRSessionStartedEvent | XRSessionEndedEvent | InputPointerEvent | InputWheelEvent | InputTouchEvent | InputTouchEndEvent | InputKeyEvent | InputShortcutEvent;
 
 // @public (undocumented)
 export type GraphEventType = GraphEvent["type"];
@@ -3285,6 +3292,17 @@ export interface GraphLayoutInitializedEvent {
     shouldZoomToFit: boolean;
     // (undocumented)
     type: "layout-initialized";
+}
+
+// @public
+export interface GraphOverview {
+    density: {
+        size: number;
+        counts: Uint32Array;
+    } | null;
+    kind: "points" | "density";
+    points: Float32Array;
+    viewport: OverviewRect;
 }
 
 // @public (undocumented)
@@ -3373,6 +3391,10 @@ export class Graphty extends LitElement {
     cancelCameraAnimation(): boolean;
     captureAnimation(options: AnimationOptions): Promise<AnimationResult>;
     captureScreenshot(options?: ScreenshotOptions): Promise<ScreenshotResult>;
+    centerOnOverview(point: {
+        x: number;
+        y: number;
+    }, options?: CameraAnimationOptions): Promise<void>;
     clearAiHistory(options?: {
         readonly database?: string;
     }): Promise<void>;
@@ -3459,6 +3481,7 @@ export class Graphty extends LitElement {
     getNodeCount(): number;
     getNodeMesh(nodeId: string): AbstractMesh_2 | null;
     getNodes(): Node_2[];
+    getOverview(options?: OverviewOptions): GraphOverview;
     getPendingAiApprovals(): readonly AiApprovalRequest[];
     getPendingAiQuestions(): readonly AiQuestionRequest[];
     getScene(): Scene_2;
@@ -3552,6 +3575,10 @@ export class Graphty extends LitElement {
         loadId: number;
     }>;
     get mapFrame(): MapFrameFact | null;
+    get minimap(): boolean;
+    set minimap(value: boolean);
+    get minimapLabel(): string;
+    set minimapLabel(value: string);
     modelThumbnail(ref: string, options?: ModelThumbnailOptions): Promise<string>;
     newAiConversation(): Promise<AiConversationSnapshot | null>;
     get nodeData(): Record<string, unknown>[] | undefined;
@@ -3591,6 +3618,8 @@ export class Graphty extends LitElement {
     }): Promise<void>;
     get positionScale(): number | undefined;
     set positionScale(value: number | undefined);
+    get reducedMotion(): boolean | "auto";
+    set reducedMotion(value: boolean | "auto");
     get refusedFeatures(): readonly CodedFact<"E_FEATURE_OFF">[];
     removeCameraPreset(name: string): Promise<void>;
     removeEdges(edgeIds: string[], options?: QueueableOptions): Promise<void>;
@@ -5166,6 +5195,7 @@ export class LayoutManager implements Manager {
     get dimension(): 2 | 3 | undefined;
     dispose(): void;
     drawArrivedPaint: (() => void) | null;
+    get drawingHeld(): boolean;
     get edges(): Iterable<Edge>;
     getNodePosition(node: Node_2): [number, number, number] | undefined;
     getStats(): {
@@ -5193,6 +5223,7 @@ export class LayoutManager implements Manager {
     placeGroups(): void;
     // @internal
     get preStepsInFlight(): boolean;
+    reducedMotion: boolean;
     // @internal
     relayoutForVisibility(): void;
     // @internal
@@ -7130,6 +7161,26 @@ export const ORANGES_COLORS: readonly ["#fff5eb", "#fee6ce", "#fdd0a2", "#fdae6b
 export const OTHER_GROUP_COLOR = "#686868";
 
 // @public
+export interface OverviewChangedEvent {
+    // (undocumented)
+    type: "overview-changed";
+}
+
+// @public
+export interface OverviewOptions {
+    gridSize?: number;
+    maxPoints?: number;
+}
+
+// @public
+export interface OverviewRect {
+    height: number;
+    width: number;
+    x: number;
+    y: number;
+}
+
+// @public
 export type PartialXRConfig = z.input<typeof xrConfigSchema>;
 
 // @public
@@ -8382,6 +8433,7 @@ export class UpdateManager implements Manager {
     }[];
     rebindScene(camera: CameraManager): void;
     redrawArrangement(moved?: boolean): void;
+    reducedMotion: boolean;
     renderFrames(count: number): void;
     // @internal
     repaintNodes(nodes: readonly Node_2[]): void;

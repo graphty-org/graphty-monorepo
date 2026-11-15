@@ -498,6 +498,17 @@ every node without one; a node without one is drawn as before. Loading a file wi
 as the program that wrote it draws it. Each distinct value is its own source mesh, so use a few
 levels on a large graph. A 3D view draws by real depth and ignores it.
 
+The numbers behind the default look -- the default edge width
+(`EDGE_CONSTANTS.DEFAULT_LINE_WIDTH`), arrow sizes, line pattern spacing and node shape
+proportions (`SHAPE_CONSTANTS`) -- are exported from `@graphty/graphty-element/schema`, which loads
+no 3D engine, so a settings panel, a test or a Node script can read them:
+
+```typescript
+import { EDGE_CONSTANTS } from "@graphty/graphty-element/schema";
+
+const defaultEdgeWidth = EDGE_CONSTANTS.DEFAULT_LINE_WIDTH;
+```
+
 A border is a ring drawn outside the node's outline, so it never covers the fill, and an edge
 ends at its outer edge. Its width is in the units of `node.size`, so it scales with the node:
 

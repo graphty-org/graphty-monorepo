@@ -224,12 +224,13 @@ describe("the test matrix", () => {
     });
 
     // Vitest runs a project any one --project matches, so the graphty parts name theirs, and a project missing from
-    // the list would silently never run in CI.
+    // the list would silently never run in CI (a "bench*" project runs in the Performance Benchmarks job instead).
     it("runs every graphty project in one shard family: large-graph alone, the stories alone, the rest in the parts", () => {
         const config = readFileSync(new URL("../graphty/vitest.config.ts", import.meta.url), "utf8");
-        const declared = [...config.matchAll(/^ {20}name: "([a-z-]+)",$|realElementProject\("([a-z-]+)"/gmu)].map(
-            (m) => m[1] ?? m[2],
-        );
+        // A "bench*" project is a measurement, run by the Performance Benchmarks job, never in a test shard.
+        const declared = [...config.matchAll(/^ {20}name: "([a-z-]+)",$|realElementProject\("([a-z-]+)"/gmu)]
+            .map((m) => m[1] ?? m[2])
+            .filter((name) => !name.startsWith("bench"));
         const parts = SHARDS.find((s) => s.shard === "graphty-1")["test-command"];
         const named = [...parts.matchAll(/--project=(\S+)/gu)].map((m) => m[1]);
         assert.deepEqual([...named, "large-graph", "storybook"].sort(), [...declared].sort());

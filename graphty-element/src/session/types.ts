@@ -65,6 +65,7 @@ import type { GraphtyError } from "../errors/GraphtyError";
 import type { EnabledFeatures } from "../features/resolve";
 import type { AssetId, AssetsApi } from "./assets/AssetsApi";
 import type { CostEstimate, CostGateLimits, CostMeasurement, MachineCalibration } from "./cost";
+import type { GroupsApi } from "./groups";
 import type { DataIssue, FixCode, FixResult, IssueId } from "./issues";
 import type { JournalApi, JournalEntry } from "./journal";
 import type { LayoutRecommendation } from "./layout";
@@ -1005,6 +1006,25 @@ export interface TypeChangePreview {
 }
 
 /**
+ * One computed column: a data column whose values an expression reads, what
+ * `session.data.derivedColumns()` lists. Its values are read at `data.<name>` like any column's.
+ */
+export interface DerivedColumn {
+    /** Whether nodes or edges carry it. */
+    readonly kind: "node" | "edge";
+    /** The column's name. */
+    readonly name: string;
+    /** The expression its values are read with, such as `data.nickname || data.name`. */
+    readonly expression: Query;
+}
+
+/** Options for `session.data.derive`. */
+export interface DeriveOptions {
+    /** Whether nodes or edges carry the column. Default `"node"`. */
+    readonly kind?: "node" | "edge";
+}
+
+/**
  * How one data column's values are distributed: what `session.data.histogram(column)` returns.
  *
  * A column that measures amounts (`measurement: "quantitative"`) is binned like a run's field,
@@ -1705,6 +1725,33 @@ export interface SessionDataApi {
      * @since 3.30.0
      */
     renameColumn(column: ColumnRef, name: string): Promise<void>;
+    /**
+     * Add a computed column, as one undoable step: every node (or edge) gets the value an
+     * expression reads, in the expression language of selectors and filters, from its other
+     * columns and from finished runs' results. The values follow their inputs: an edit, a load, a
+     * run finishing or a run removed brings them up to date in that same step. The project saves
+     * the expression, not the values, and works them out again on open. Undo takes the column away.
+     *
+     * ```ts
+     * await session.data.derive("display", "data.nickname || data.name");
+     * session.data.node("ada")?.display; // the nickname, or the name when there is none
+     * ```
+     * Deriving a computed column's name again replaces its expression.
+     * @param name - the column's name; not a name one of the kind's other columns has
+     * @param expression - what each value is, such as `data.age >= \`18\``
+     * @param options - nodes or edges; nodes by default
+     * @returns settles once the step is recorded
+     * @throws A `GraphtyError` with `E_BAD_SELECTOR` for an expression that does not parse,
+     *     `E_UNKNOWN_ATTRIBUTE` (`details.paths`) for one that reads a value nothing answers, and
+     *     `E_BAD_COMMAND` (`details.reason` `"empty-name"`, `"name-taken"` or `"reads-itself"`) for
+     *     a name it cannot take.
+     */
+    derive(name: string, expression: Query, options?: DeriveOptions): Promise<void>;
+    /**
+     * Every computed column, in the order {@link SessionDataApi.derive} added them.
+     * @returns the columns
+     */
+    derivedColumns(): readonly DerivedColumn[];
     /**
      * Hide columns, or show them again, as one undoable step saved with the project. A hidden
      * column keeps its values and reads `hidden: true` in {@link SessionDataApi.attributes}; what a
@@ -3481,6 +3528,20 @@ export interface ProjectConfig {
      * @since 3.38.0
      */
     readonly framing?: GraphFraming;
+    /**
+     * The smallest a node and an edge are drawn, so no mark vanishes on screen or in print: `node`
+     * in the units of the `node.size` channel, `edge` in the units of `edge.width`. A node or edge
+     * whose layers paint it smaller, a size or width of 0 included, is drawn at the minimum; what
+     * the layers wrote, and every reading of it (`styles.explain()`, the legend), is unchanged.
+     * Absent (the default), or 0, every mark is drawn at the size its layers paint, and an edge
+     * of width 0 draws no line.
+     *
+     * ```ts
+     * await session.config.set({ minMarkSize: { node: 0.5, edge: 1 } });
+     * ```
+     * @since 3.40.0
+     */
+    readonly minMarkSize?: { readonly node?: number; readonly edge?: number };
 }
 
 /** How the element frames the graph: see {@link ProjectConfig.framing}. */
@@ -3523,6 +3584,8 @@ export interface ProjectConfigPatch {
     readonly viewRotation?: number;
     /** See {@link ProjectConfig.framing}; `undefined` returns to the element's own framing. */
     readonly framing?: GraphFraming;
+    /** See {@link ProjectConfig.minMarkSize}; replaced whole, and `undefined` draws every mark as painted. */
+    readonly minMarkSize?: ProjectConfig["minMarkSize"];
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
     readonly author?: string | null;
     /** At most 256 characters; empty or only white space counts as no name, and `null` clears it. */
@@ -4025,6 +4088,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.issues` | none: the issue state a project file restored |
  * | `data.clear`, `data.set`, `data.replace-nodes`, `data.replace-edges` | none |
  * | `data.merge-nodes` | `count`: how many nodes became one |
+ * | `groups.collapse`, `groups.expand` | `groupBy`: the path grouped by; `group`: the group's value; `size`: how many members (experimental) |
  * | `data.import` | `name`: the source's name (given, file or URL), or null; `type`: the data source, or null |
  * | `data.import-source` | `source`: the network source's id; `name`: what the reader called the data, or null |
  * | `data.expand` | `node`: the id expanded |
@@ -4042,6 +4106,7 @@ export type PendingId = string & { readonly __brand: "PendingId" };
  * | `data.rename-column` | `kind`; `column`: the old name; `name`: the new name |
  * | `data.hide-columns`, `data.show-columns` | `count`: how many columns |
  * | `data.columns` | none: the column settings a project file restored |
+ * | `data.derive` | `kind`: `"node"` or `"edge"`, or null; `column`: the computed column added or changed, or null when its values were only brought up to date |
  * | `data.set-file-styles` | `loads`: how many loads' style values are kept |
  * | `shader.add`, `shader.replace`, `shader.remove` | `id`: the shader's id; `layer` (`shader.add` only): the layer `add` also wrote it to, or null |
  * | `style.add-layer`, `style.remove-layer`, `style.move-layer` | `layer`: its name, or its id |
@@ -4114,6 +4179,8 @@ export type HistoryCode =
     | "data.replace-nodes"
     | "data.replace-edges"
     | "data.merge-nodes"
+    | "groups.collapse"
+    | "groups.expand"
     | "data.import"
     | "data.import-source"
     | "data.expand"
@@ -4132,6 +4199,7 @@ export type HistoryCode =
     | "data.hide-columns"
     | "data.show-columns"
     | "data.columns"
+    | "data.derive"
     | "data.set-file-styles"
     | "style.add-layer"
     | "style.update-layer"
@@ -4394,6 +4462,8 @@ export interface CommandOutcomeMap {
     "data.label": Promise<void>;
     /** Settles once the column settings are recorded. */
     "data.columns": Promise<void>;
+    /** Settles once the computed columns and their values are recorded. */
+    "data.derive": Promise<void>;
     /** Settles once the style values are recorded. */
     "data.setFileStyles": Promise<void>;
     /** Settles once the edit is recorded and the pass that repaints it has run. */
@@ -4943,6 +5013,12 @@ export interface GraphSession {
      * `allow`. Private, loopback and link-local addresses are refused whatever the answer.
      */
     readonly network: NetworkApi;
+    /**
+     * Collapsing a group of nodes (a community, a component, the nodes sharing a value) to one
+     * node, and expanding it again: each call one undoable step, saved with the project. Experimental.
+     * @beta
+     */
+    readonly groups: GroupsApi;
     /**
      * The record of the commands this session ran, oldest first: one entry per command that
      * finished, published as `journal:appended`. A run's `journalId` names the entry its command

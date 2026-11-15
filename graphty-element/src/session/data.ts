@@ -92,6 +92,7 @@ import {
     SOURCE_VALUE,
     SOURCES_VALUE,
 } from "./commands/data";
+import { type DataDeriveCommand, derivedColumnsOf, derivedRows, type ValuesWhere } from "./commands/derive";
 import {
     Draft,
     draftStyles,
@@ -104,6 +105,7 @@ import {
     readSource,
 } from "./draft";
 import type { LaneStore } from "./GraphSession";
+import { RESTORE as GROUP_RESTORE } from "./groups";
 import { columnMutations } from "./importColumns";
 import {
     type DataIssue,
@@ -180,6 +182,7 @@ import type {
 import { computeFingerprint, computeStatistics } from "./statistics";
 import { asksFileStyles } from "./styles/fileStyles/apply";
 import type { CompiledLayer } from "./styles/Layer";
+import { expressionPaths } from "./styles/predicate";
 import { STRUCTURE_VALUES, structureValuesOf } from "./styles/sources";
 import type {
     ColumnHistogram,
@@ -187,6 +190,8 @@ import type {
     DatasetLoadOptions,
     DataSourceDescriptor,
     DataSourceInput,
+    DerivedColumn,
+    DeriveOptions,
     EdgeName,
     EdgePageOptions,
     EdgeRecord,
@@ -331,6 +336,14 @@ interface PageSources {
      * @returns The matching ids
      */
     matchWhere(where: Query, target: "node" | "edge"): ReadonlySet<NodeId | EdgeId>;
+    /** What an expression reads for every element, over the query engine: a computed column's values. */
+    readonly valuesWhere: ValuesWhere;
+    /**
+     * The paths an expression names that nothing in the session answers, over the query engine.
+     * @param where - The expression
+     * @returns The unresolved paths
+     */
+    unresolvedWhere(where: Query): readonly Path[];
     /**
      * One run, for a page's result columns and result sort.
      * @param id - the run id
@@ -4504,11 +4517,12 @@ export class SessionData implements SessionDataApi {
         // snapshot alone, an edited value never reached the descriptors), and not on a mask change,
         // which moves the input tick but no column, type or value (issue #4386).
         const snapshot = this.current();
-        // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns.
+        // The `_source.` facts are the element's bookkeeping of network loads, not the data's columns,
+        // and so is what a collapsed group keeps for its expand.
         const described = this.attributeCache.get("", () =>
             Object.freeze(
                 describeAttributes(snapshot, this.records, this.timelineOn).filter(
-                    (each) => !isSourceFactKey(each.name),
+                    (each) => !isSourceFactKey(each.name) && each.name !== GROUP_RESTORE,
                 ),
             ),
         );
@@ -5138,6 +5152,102 @@ export class SessionData implements SessionDataApi {
             },
             "rename a column",
         );
+    }
+
+    /**
+     * Add a computed column, or give one a new expression, as one undoable step.
+     * @param name - the column's name
+     * @param expression - what each value is
+     * @param options - nodes or edges
+     * @returns settles once the step is recorded
+     */
+    async derive(name: string, expression: Query, options: DeriveOptions = {}): Promise<void> {
+        this.requireLive("derive");
+        return this.afterLoads(
+            () => this.deriveNow(name, expression, options.kind ?? "node"),
+            () => undefined,
+        );
+    }
+
+    /**
+     * Every computed column.
+     * @returns the columns, in the order they were added
+     */
+    derivedColumns(): readonly DerivedColumn[] {
+        this.requireLive("derivedColumns");
+        return derivedColumnsOf(this.writes.slice().values);
+    }
+
+    /**
+     * The command that brings the computed columns up to date, for the dispatcher's `derive`
+     * service: what a data edit, a load or a run starts once it is recorded.
+     * @returns the command, or null when no value changes
+     */
+    derivedRefresh(): DataDeriveCommand | null {
+        const columns = this.derivedColumns();
+        if (columns.length === 0) {
+            return null;
+        }
+
+        const { nodes, edges } = derivedRows(columns, this.current(), this.pages.valuesWhere);
+        return nodes.length === 0 && edges.length === 0 ? null : { op: "data.derive", columns, nodes, edges };
+    }
+
+    /**
+     * derive, once the loads asked for before it have landed.
+     * @param name - as derive takes it
+     * @param expression - as derive takes it
+     * @param kind - nodes or edges
+     * @returns what derive returns
+     */
+    private async deriveNow(name: string, expression: Query, kind: "node" | "edge"): Promise<void> {
+        this.requireLive("derive");
+        const refuse = (reason: string, message: string): GraphtyError =>
+            new GraphtyError({
+                code: "E_BAD_COMMAND",
+                message,
+                source: "data",
+                details: { reason, kind, column: name, expression },
+            });
+        if (typeof name !== "string" || name.trim() === "") {
+            throw refuse("empty-name", "A computed column's name is a string with something in it.");
+        }
+
+        if (kind !== "node" && kind !== "edge") {
+            throw refuse("bad-kind", 'A computed column is carried by "node" or "edge".');
+        }
+
+        const existing = this.derivedColumns();
+        const replacing = existing.some((each) => each.kind === kind && each.name === name);
+        if (!replacing && this.attributes().some((each) => each.kind === kind && each.name === name)) {
+            throw refuse("name-taken", `A ${kind} column is already named ${JSON.stringify(name)}.`);
+        }
+
+        if (typeof expression !== "string") {
+            throw refuse("not-an-expression", "A computed column's expression is a string.");
+        }
+
+        // Parsed here, so a bad expression is refused with its own reason and position.
+        if (expressionPaths(expression).includes(`data.${name}`)) {
+            throw refuse("reads-itself", `The expression of ${JSON.stringify(name)} reads ${JSON.stringify(name)}.`);
+        }
+
+        const unknown = this.pages.unresolvedWhere(expression);
+        if (unknown.length > 0) {
+            throw new GraphtyError({
+                code: "E_UNKNOWN_ATTRIBUTE",
+                message: `The expression reads ${unknown.join(", ")}, which nothing in the graph answers.`,
+                source: "data",
+                details: { paths: unknown, expression },
+            });
+        }
+
+        const column: DerivedColumn = { kind, name, expression };
+        const columns = replacing
+            ? existing.map((each) => (each.kind === kind && each.name === name ? column : each))
+            : [...existing, column];
+        const { nodes, edges } = derivedRows(columns, this.current(), this.pages.valuesWhere);
+        await this.send({ op: "data.derive", columns, nodes, edges, column: { kind, name } }, "compute a column");
     }
 
     /**

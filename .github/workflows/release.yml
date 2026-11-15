@@ -832,8 +832,10 @@ jobs:
                   GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
                   # each priced cost as it is spent, so a run cut off mid-file still logs it (the cost steps below)
                   LLM_REGRESSION_USAGE_FILE: ${{ runner.temp }}/llm-usage.jsonl
+              # +e: GitHub runs this as `bash -e`, which would exit on the failed pipe before the refusal is read,
+              # leaving owner_item empty, so a refused account was judged a code red and bisected (#8227)
               run: |
-                  set -uo pipefail
+                  set +e -uo pipefail
                   if [ -z "${GOOGLE_API_KEY}" ]; then
                       echo "owner_item=the GOOGLE_API_KEY repository secret is missing or empty" >> "$GITHUB_OUTPUT"
                       echo "::error::the GOOGLE_API_KEY repository secret is missing or empty, so the LLM regression tests cannot run; add it under Settings > Secrets and variables > Actions"

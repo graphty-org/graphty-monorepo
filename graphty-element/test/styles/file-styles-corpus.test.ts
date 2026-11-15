@@ -352,7 +352,7 @@ describe("a file's styles drawn as the translation predicts, over the corpus", (
             read = await original.call(this, options);
             return read;
         });
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         try {
             try {
                 await session.data.import(
@@ -362,7 +362,7 @@ describe("a file's styles drawn as the translation predicts, over the corpus", (
             } catch (error) {
                 // A file the element cannot load at all has nothing to check (the reader parity
                 // test covers which files load); a file that loads without styles must load with them.
-                const plain = createGraphSession();
+                const plain = createGraphSession({ workingGraph: false });
                 const loads = await plain.data
                     .import({ type: file.type, config: { data, errorLimit: 1_000_000 } })
                     .then(
@@ -427,7 +427,7 @@ describe("a node border another program wrote", () => {
             elements: [{ data: { id: "a" } }, { data: { id: "b" } }],
             style: [{ selector: "node", style }],
         });
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         try {
             await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
             return {
@@ -486,7 +486,7 @@ describe("a Cytoscape node's own size under a locked node size", () => {
     // height to 75, 60 or 30. Cytoscape draws the bypassed size.
     it("is drawn at its own size, not the locked one", async () => {
         const data = new Uint8Array(readFileSync(join(CORPUS, "cx2", "fidelity", "syn-bypass.cx2")));
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         try {
             await session.data.import({ type: "cx2", config: { data } }, { styles: "file" });
             const size = (id: string): number => session.styles.explain({ node: id }).merged["node.size"] as number;
@@ -520,7 +520,7 @@ describe("a label outline another program wrote", () => {
                 },
             ],
         });
-        const session = createGraphSession();
+        const session = createGraphSession({ workingGraph: false });
         try {
             await session.data.import({ type: "json", config: { data: doc } }, { styles: "file" });
             // The label field channels land in the node's label style, field by field.

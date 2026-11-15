@@ -21,6 +21,7 @@ import {
     type XrCapability,
 } from "../acceleration";
 import { sessionColumns } from "../algorithms/input/columns";
+import { shareInputs } from "../algorithms/input/ScopedInput";
 import type { CameraState } from "../camera/types";
 import { arrangedDimension, LAYOUT_CATALOG } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
@@ -260,6 +261,8 @@ import {
 } from "./visibility";
 import { type FilterRunResult, type TimeWindow, windowNeedsTimeline } from "./visibility/filter";
 import type { SlideCounts } from "./visibility/slide";
+import { wholeGraph, type WholeSnapshot } from "./working/graphs";
+import { createWorkingGraph, type WorkingGraph } from "./working/view";
 
 /**
  * A store with its coordinate lane writable: what the arrangement hook restores coordinates and
@@ -454,6 +457,8 @@ interface SessionParts {
     readonly time: TimeApi;
     /** Whether the timeline experiment is on. */
     readonly timelineOn: () => boolean;
+    /** The working graph: the view of what is shown, which readers naming no scope read while on. */
+    readonly working: WorkingGraph;
     /** Stops playback, for `dispose()`. */
     readonly stopTime: () => void;
     /** What the renderer fades edges by age with; see {@link ElementSession.edgeAges}. */
@@ -641,6 +646,8 @@ class Session implements ElementSession {
     private readonly settledFeatures: () => EnabledFeatures;
     /** Whether the timeline experiment is on, for a command that has no `session.time` to ask. */
     private readonly timelineOn: () => boolean;
+    /** See {@link SessionParts.working}. */
+    private readonly working: WorkingGraph;
 
     /**
      * Assemble the session from parts the factory has already decided the ownership of.
@@ -656,6 +663,7 @@ class Session implements ElementSession {
         this.catalog = parts.catalog;
         this.settledFeatures = parts.features;
         this.timelineOn = parts.timelineOn;
+        this.working = parts.working;
         this.controller = parts.controller;
         this.ownedAcceleration = parts.ownedAcceleration;
         this.sessionRuns = parts.runs;
@@ -782,7 +790,8 @@ class Session implements ElementSession {
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
         this.runner = new LayoutRunner({
-            snapshot: () => this.store.getSnapshot(),
+            // The working graph, never the store: a hidden node is not laid out.
+            working: () => (this.working.enabled ? this.working.filtered() : this.working.view("graph")),
             undirected: (snapshot) => this.store.undirected(snapshot),
             lane: () => this.store.positions,
             choice: () => this.dispatcher.state.layout ?? DEFAULT_LAYOUT,
@@ -816,7 +825,7 @@ class Session implements ElementSession {
             // A group with no stored position is drawn as the box around its members, so it is
             // placed whenever they are.
             const groups = groupsOf(this.dispatcher.state.graph.values.get(GROUPS_VALUE));
-            const advice = recommendLayout(this.data.statistics(), {
+            const advice = recommendLayout(this.data.statistics({ scope: "all" }), {
                 placedNodes: this.store.seededNodeCount + groups.length,
                 file: fileGraph(),
                 graphvizAvailable: graphviz === true,
@@ -1076,6 +1085,9 @@ class Session implements ElementSession {
                     ? (...args: unknown[]) => this.dispatcher.routed(via, () => Reflect.apply(value, part, args))
                     : value;
             },
+            // A setter (`tx.visibility.showContext = true`) dispatches too: without this trap the
+            // write landed on the proxy's own empty target and the part never heard it.
+            set: (_target, key, value) => this.dispatcher.routed(via, () => Reflect.set(part, key, value, part)),
             has: (_target, key) => key in part,
         });
     }
@@ -1126,7 +1138,7 @@ class Session implements ElementSession {
             return DISPOSED_STATUS;
         }
 
-        const snapshot = this.store.getSnapshot();
+        const snapshot = wholeGraph(this.store);
         const showing = this.visibility.summary;
         return Object.freeze({
             ready: true,
@@ -1200,6 +1212,29 @@ class Session implements ElementSession {
     }
 
     /**
+     * Whether a reader that names no scope reads the working graph -- what the filters leave shown,
+     * the time window aside -- rather than the whole graph.
+     * @returns True when on, the default.
+     */
+    get workingGraph(): boolean {
+        return this.working.enabled;
+    }
+
+    /**
+     * Switches the working graph on or off; the change applies to the next read. A session
+     * setting: it records no undo step and is not saved in a project file.
+     * @param value - True for the working graph.
+     */
+    set workingGraph(value: boolean) {
+        if (this.working.enabled === value) {
+            return;
+        }
+
+        this.working.enabled = value;
+        this.visibility.workingGraphChanged();
+    }
+
+    /**
      * Attach an accelerator the caller built, or detach the current one with `null`.
      *
      * An injected accelerator is never replaced by a probed one, and the session does not dispose
@@ -1244,7 +1279,10 @@ class Session implements ElementSession {
      * @throws A `GraphtyError` coded `E_OPTION_RANGE` for a bad window or kind.
      */
     find(text: string, options?: FindOptions): FindResult {
-        return this.sessionData.find(text, options);
+        // With the working graph on, a find that names no scope lists what is shown.
+        const scoped =
+            options?.scope === undefined && this.working.enabled ? { ...options, scope: "visible" as const } : options;
+        return this.sessionData.find(text, scoped);
     }
 
     /**
@@ -1271,10 +1309,27 @@ class Session implements ElementSession {
      * @returns The recommendation.
      */
     recommendLayout(): LayoutRecommendation | undefined {
-        return recommendLayout(this.data.statistics(), {
-            placedNodes: this.seededNodeCount,
+        // What the working graph reads: what is shown while it is on, and the seeded nodes among it.
+        const statistics = this.data.statistics();
+        return recommendLayout(statistics, {
+            placedNodes: this.workingGraph ? this.seededShown(statistics.nodeCount) : this.seededNodeCount,
             locations: this.estimate({ op: "layout.set", id: "location-map" }).available,
         });
+    }
+
+    /**
+     * How many of the shown nodes their data placed.
+     * @param shown - How many nodes are shown.
+     * @returns The count.
+     */
+    private seededShown(shown: number): number {
+        const seeded = this.seededNodeCount;
+        if (seeded === 0 || seeded >= this.data.statistics({ scope: "all" }).nodeCount) {
+            return seeded === 0 ? 0 : shown;
+        }
+
+        const partial = this.store.partialSeeds?.() ?? null;
+        return partial === null ? 0 : partial.placed.filter(({ id }) => this.visibility.isVisible(id)).length;
     }
 
     /**
@@ -1439,6 +1494,7 @@ class Session implements ElementSession {
         this.unwatchXr();
         this.unwatchCeilings();
         this.unfollowStore();
+        shareInputs(this.store, null);
         // Runs first: a run still in flight holds a reference to the data it is reading, and
         // disposing the store under it would have it finish against a graph that no longer exists.
         this.sessionRuns.dispose();
@@ -1662,7 +1718,7 @@ function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionP
             set: { value: set, enumerable: true },
             get: {
                 value: (id: NodeId) => {
-                    const row = rowOfEitherSpelling(store.getSnapshot().ids, id);
+                    const row = rowOfEitherSpelling(wholeGraph(store).ids, id);
                     const { positions } = store;
                     if (row === INVALID_INDEX || !positions.isPlaced(row)) {
                         return undefined;
@@ -1721,7 +1777,7 @@ function positionsSnapshot(store: SessionGraphStore): {
     readonly order: readonly NodeId[];
     readonly xyz: Float32Array;
 } {
-    const snapshot = store.getSnapshot();
+    const snapshot = wholeGraph(store);
     const n = snapshot.nodeCount;
     const xyz = new Float32Array(3 * n);
     const out = { x: 0, y: 0, z: 0 };
@@ -2199,10 +2255,10 @@ function resolveStore(
         // and cheap: a freeze in delivery answers `getSnapshot()` from the snapshot it is
         // delivering rather than freezing again.
         onNodeRemap: (remap) => {
-            follow.nodes(remap, owned.getSnapshot().nodeCount);
+            follow.nodes(remap, wholeGraph(owned).nodeCount);
         },
         onEdgeRemap: (remap) => {
-            follow.edges(remap, owned.getSnapshot().edgeCount);
+            follow.edges(remap, wholeGraph(owned).edgeCount);
         },
         onReplaced: () => undefined,
     });
@@ -2345,10 +2401,11 @@ function componentLabelsOf(data: SessionDataApi): () => ComponentLabels {
     let held: ComponentLabels = { labels: new Int32Array(0), count: 0 };
 
     return (): ComponentLabels => {
-        const snapshot = data.snapshot();
+        const snapshot = wholeGraph(data.store);
 
         if (against !== snapshot) {
-            const { components } = data.statistics();
+            // The whole graph's: a component filter reads every node, not what it shows.
+            const { components } = data.statistics({ scope: "all" });
             const labels = new Int32Array(snapshot.nodeCount);
 
             for (let index = 0; index < snapshot.nodeCount; index++) {
@@ -2548,7 +2605,7 @@ function runFieldPaths(runs: RunsApi, target: "node" | "edge"): Path[] {
  * @returns The paths.
  */
 function structurePaths(data: SessionDataApi): readonly Path[] {
-    const { directedness } = data.statistics();
+    const { directedness } = data.statistics({ scope: "all" });
     return directedness === "directed" || directedness === "mixed" ? STRUCTURE_PATHS : ["graphty.degree"];
 }
 
@@ -2935,7 +2992,7 @@ function repaintAgainstCurrentData(
 export function createGraphSession(options: CreateGraphSessionOptions = {}): GraphSession {
     // Only the published options, even from a caller the types did not check: a store or a record
     // source handed in would make that caller a second writer of the graph.
-    const { config, acceleration, runs, features, limits } = options;
+    const { config, acceleration, runs, features, limits, workingGraph } = options;
     const ceilings = new RenderLimits(true);
     if (limits !== undefined) {
         ceilings.request(limits);
@@ -2948,6 +3005,7 @@ export function createGraphSession(options: CreateGraphSessionOptions = {}): Gra
         ...(config === undefined ? {} : { config }),
         ...(acceleration === undefined ? {} : { acceleration }),
         ...(runs === undefined ? {} : { runs }),
+        ...(workingGraph === undefined ? {} : { workingGraph }),
         features: () => requested,
         ceilings,
     });
@@ -3110,7 +3168,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         inputs.tick.advance();
     };
     const acceleration = resolveAcceleration(options.acceleration, policy, minNodes);
-    const snapshot = (): GraphSnapshot => store.store.getSnapshot();
+    const snapshot = (): WholeSnapshot => wholeGraph(store.store);
     const dataRevision = dataRevisionOf(snapshot, inputs);
     dispatcher.arrangement.bind({
         snapshot,
@@ -3212,6 +3270,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             fileStyles: () => fileStylesOn(),
             batched: () => internals.batched?.() === true,
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
+            // And the working graph, built below the visibility.
+            working: () => working,
         },
     );
     let values: FilterValueSource | undefined;
@@ -3458,6 +3518,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     let onHandSelection: (() => void) | null = null;
     const visibility = createVisibilityApi({
         snapshot,
+        // Read through a call: the working graph is built below.
+        dropsHiddenSelection: () => working.enabled,
+        // On, nothing outside the view is drawn: no context nodes, no held condition's removals.
+        workingGraph: () => working.enabled,
+        onNotDrawn: (notDrawn) => {
+            publish(watchers, "visibility:not-drawn-changed", { notDrawn });
+        },
         // Not behind the experiment: a saved window's bounds are instants of the parsed column.
         instants: (path: Path) => timeInternals?.instants(path) ?? null,
         boundZone,
@@ -3754,6 +3821,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     const time = createTimeApi({
         snapshot,
         timeline: timelineOn,
+        workingGraph: () => working.enabled,
         token: () => dispatcher.state.graph.token,
         rewrites: () => dispatcher.graph.rewrites,
         loading: () => dispatcher.services.data?.loading?.() ?? null,
@@ -3896,6 +3964,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         ...(options.region === undefined ? {} : { region: options.region }),
         match: (where: Query) => engine.select(where),
         find: (text: string, mode: SelectionTextMode) => engine.find(text, mode),
+        // A rule or a text names no scope: what is shown while the working graph is on.
+        defaultScope: () => (working.enabled ? "visible" : undefined),
+        // With the working graph on, no target selects a node a filter hides (owner decision B).
+        filterKeeps: () => (working.enabled ? visibility.passingBytes() : null),
+        shownEdges: () => {
+            const view = working.view();
+            return view.whole ? null : view.edges;
+        },
         // A rule reads a file column by its bare name ("minutes"); the published path is the
         // attribute's ("data.minutes"), so a caller can look the column up in `data.attributes()`.
         pathsOf: (where: Query) =>
@@ -4235,6 +4311,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     };
     const styles = createStylesApi({
         dispatcher,
+        // Read through a call: the working graph is built below.
+        workingGraph: () => working.enabled,
         elements: {
             ...elements,
             nodeIndex,
@@ -4590,6 +4668,11 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         }),
     );
 
+    const working = createWorkingGraph(
+        { snapshot, masks: visibility.masks, kept: visibility.keptMasks, store: store.store },
+        options.workingGraph !== false,
+    );
+    shareInputs(store.store, working.shared);
     // A layout's availability also reads the graph, the values its grouping names, and the tick
     // that says neither has changed since the last estimate.
     const planning: PlanningContext = {
@@ -4602,6 +4685,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             () => keptSets.list(),
         ),
         inputTick: () => inputs.tick.value,
+        workingGraph: () => working.enabled,
         dataRevision,
         snapshot,
         nodeValues: (path) =>
@@ -4663,16 +4747,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             return [];
         }
 
-        const reads = (rule: RuleTree): boolean => {
-            let found = false;
-            mapUnions(rule, (leaf) => {
-                found ||= leaf.branches.some((branch) =>
-                    branch.steps.some((step) => stepRuns.reads(step, leaf.within, run)),
-                );
-                return leaf;
-            });
-            return found;
-        };
+        const reads = (rule: RuleTree): boolean => ruleReadsRun(stepRuns, rule, run);
         return [
             ...(stack?.list() ?? []).flatMap((layer): RunReader[] =>
                 layer.selector.match === "rule" && reads(layer.selector.where) ? [{ kind: "layer", id: layer.id }] : [],
@@ -4681,6 +4756,21 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 reads(condition.rule) ? [{ kind: "filter", id: condition.id }] : [],
             ),
         ];
+    }
+
+    /**
+     * Whether an open filter draft's steps read a run.
+     * @param id - The run.
+     * @returns True when one does.
+     */
+    function draftReads(id: RunId): boolean {
+        const run = runs.get(id);
+        const stepRuns = stepRunsRef.current;
+        if (run === undefined || stepRuns === undefined) {
+            return false;
+        }
+
+        return visibility.openDrafts().some((condition) => ruleReadsRun(stepRuns, condition.rule, run));
     }
 
     /**
@@ -4717,7 +4807,9 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             get started() {
                 return Object.freeze(started());
             },
-            commit: () => end((id) => runReaders(id).length > 0 || runs.bindings(id).length > 0),
+            // A filter draft still open is written after the visit ends (the editor's Done closes
+            // the visit, then commits the draft), so a run its steps read is kept too.
+            commit: () => end((id) => runReaders(id).length > 0 || runs.bindings(id).length > 0 || draftReads(id)),
             discard: () => end(() => false),
         };
     }
@@ -4730,6 +4822,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         },
     });
     const session = new Session({
+        working,
         store: store.store,
         ownedStore: store.owned,
         unfollowStore: store.unfollow,
@@ -4789,6 +4882,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     });
     sessionInputs.set(session, inputs);
     sessionScopes.set(session, scope);
+    sessionWorking.set(session, working);
     sessionNotifiers.set(session, notifier);
     sessionHostUsers.set(session, hostUsers);
 
@@ -5023,6 +5117,41 @@ export function setsNotifierOfSession(session: GraphSession): SetsNotifier {
 /** Each session's input counters, beside it rather than on it so the published type gains nothing. */
 const sessionInputs = new WeakMap<GraphSession, InputCounters>();
 
+/**
+ * Whether any step of a rule's selections reads a run.
+ * @param stepRuns - The session's step runs.
+ * @param rule - The rule.
+ * @param run - The run.
+ * @returns True when one does.
+ */
+function ruleReadsRun(stepRuns: StepRuns, rule: RuleTree, run: Run): boolean {
+    let found = false;
+    mapUnions(rule, (leaf) => {
+        found ||= leaf.branches.some((branch) => branch.steps.some((step) => stepRuns.reads(step, leaf.within, run)));
+        return leaf;
+    });
+    return found;
+}
+
+/** Each session's working graph, for the internal readers of its view. */
+const sessionWorking = new WeakMap<GraphSession, WorkingGraph>();
+
+/**
+ * A session's working graph: the view of what is shown, which every reader naming no scope reads
+ * while `workingGraph` is on. Internal.
+ * @param session - a session this module built
+ * @returns its working graph
+ * @throws An Error for a session this module did not build.
+ */
+export function workingGraphOfSession(session: GraphSession): WorkingGraph {
+    const working = sessionWorking.get(session);
+    if (working === undefined) {
+        throw new Error("Not a session built by createGraphSession.");
+    }
+
+    return working;
+}
+
 /** Each session's scope resolver, for the internal readers that want its bitmaps. */
 const sessionScopes = new WeakMap<GraphSession, ScopeResolver>();
 
@@ -5242,7 +5371,8 @@ function planningContext(
 
     return {
         algorithms: () => SESSION_CATALOG_TABLES.algorithms(),
-        statistics: () => data.statistics(),
+        // The whole graph's shape: a run's scope is resolved against it.
+        statistics: () => data.statistics({ scope: "all" }),
         resolveScope,
         defaultScope,
         limits: runsOptions.limits ?? DEFAULT_COST_GATE_LIMITS,

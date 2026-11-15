@@ -13777,7 +13777,7 @@
             "background": 1,
             "raster.arrowhead": 0.95,
             "raster.canvas": 0.99,
-            "raster.edge": 0.87,
+            "raster.edge": 0.88,
             "raster.label": 0.94,
             "raster.nodeBody": 0.98,
             "raster.nodeOutline": 0.94,
@@ -44394,44 +44394,46 @@
             "edge.arrow": 1
         },
         "gml-specimen-edges-lines~specification": {
-            "edge.route": 0,
-            "edge.curve": 0,
-            "edge.opacity": 0,
+            "edge.route": 1,
+            "edge.curve": 1,
+            "edge.opacity": 1,
             "edge.arrow": 1
         },
         "gml-specimen-edges-lines~specification@matched": {
-            "edge.route": 0,
-            "edge.curve": 0,
-            "edge.opacity": 0,
+            "edge.route": 1,
+            "edge.curve": 1,
+            "edge.opacity": 1,
             "edge.arrow": 1
         },
         "gml-specimen-images-charts~specification": {
-            "node.shape": 0,
-            "node.stroke": 0
+            "node.shape": 1,
+            "node.stroke": 1
         },
         "gml-specimen-images-charts~specification@matched": {
-            "node.shape": 0,
-            "node.stroke": 0
+            "node.shape": 1,
+            "node.stroke": 1
         },
         "gml-specimen-labels~specification": {},
         "gml-specimen-labels~specification@matched": {},
         "gml-specimen-node-fills-borders~specification": {
-            "node.fill": 0,
-            "node.fillOpacity": 0,
-            "node.stroke": 0
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-node-fills-borders~specification@matched": {
-            "node.fill": 0,
-            "node.fillOpacity": 0,
-            "node.stroke": 0
+            "node.fill": 1,
+            "node.fillOpacity": 1,
+            "node.stroke": 1,
+            "node.strokeWidth": 1
         },
         "gml-specimen-node-shapes~specification": {
-            "node.shape": 0,
-            "node.stroke": 0
+            "node.shape": 1,
+            "node.stroke": 1
         },
         "gml-specimen-node-shapes~specification@matched": {
-            "node.shape": 0,
-            "node.stroke": 0
+            "node.shape": 1,
+            "node.stroke": 1
         },
         "gml-specimen-node-sizes-opacity~specification": {},
         "gml-specimen-node-sizes-opacity~specification@matched": {}
@@ -56339,12 +56341,6 @@
                 "to": 0.9,
                 "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
                 "date": "2026-11-04"
-            },
-            "edge.dash": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "Graphviz tapered edges (style=tapered, one filled polygon, lib/common/taper.c) are now read by the comparator as the edge's line; graphty draws them as plain solid lines (no reader feeds edge.taper), so their dash differs",
-                "date": "2026-11-09"
             }
         },
         "dot-synth-edges-clusters@matched": {
@@ -56353,12 +56349,6 @@
                 "to": 0.9,
                 "reason": "drawing, issue #5756: a rounded group's fill is the shared group mesh stretched over its box (Node.drawAsGroup), so its corners stretch into long ellipses, while its border is rebuilt at the box's own size (NodeMesh.createGroupBorder) with small round corners; the drawn-border reader (#5364) measures the ring against the stretched fill's sides and reads it wider (cluster_rounded 1.73 px against 1.10 px drawn; cluster_src and cluster_src/formats 0.65 px against 0.216 px, so outlined where Graphviz's 0.237 px line counts as none). Fix: draw a group's fill at its box's size, as its border is",
                 "date": "2026-11-04"
-            },
-            "edge.dash": {
-                "floor": 1,
-                "to": 0.99,
-                "reason": "Graphviz tapered edges (style=tapered, one filled polygon, lib/common/taper.c) are now read by the comparator as the edge's line; graphty draws them as plain solid lines (no reader feeds edge.taper), so their dash differs",
-                "date": "2026-11-09"
             }
         },
         "gml-synthetic-coverage": {

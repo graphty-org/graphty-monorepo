@@ -3039,6 +3039,13 @@ export interface HopsLeaf {
 }
 
 // @public
+export interface HoverDrawn {
+    readonly radius: number;
+    readonly x: number;
+    readonly y: number;
+}
+
+// @public
 export const IMPORT_ROWS_KEPT = 100;
 
 // @public
@@ -6280,6 +6287,7 @@ export interface SessionEventMap {
     "selection:hover-changed": {
         readonly before: NodeId_2 | null;
         readonly after: NodeId_2 | null;
+        readonly drawn?: HoverDrawn;
     };
     "selection:origin-changed": {
         readonly origin: SelectionTarget | null;

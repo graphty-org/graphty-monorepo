@@ -3587,17 +3587,36 @@ export class UpdateManager implements Manager {
             } else {
                 UpdateManager.placeEdges(this.layoutManager.edges);
             }
+            this.unbuiltRowsMoved = false;
+            this.edgesToPlace = [];
         } else {
-            this.updateEdgesOf(walk === false ? [] : walk);
-            UpdateManager.placeEdges(this.edgesToPlace);
-            this.placedEdgesAtRows();
+            this.placeTouchedEdges(walk);
         }
 
-        this.unbuiltRowsMoved = false;
-        this.edgesToPlace = [];
         this.settleEnds();
 
         this.statsManager.edgeUpdate.endMonitoring();
+    }
+
+    /**
+     * Place the edges a frame touched: those a repaint painted or a resize remeasured, and those the walk names.
+     *
+     * While a load holds the draw they wait, and are placed on the frame that releases it, with the walk of every
+     * edge that ends the repaint. Placed on the frames between, a curve took its pieces' slots after however many
+     * paint batches that frame's time budget had run, so the order the edges were drawn in -- which of two crossing
+     * lines is on top -- followed the machine's speed (issue #8087).
+     * @param walk - The edges whose nodes moved, or false for none.
+     */
+    private placeTouchedEdges(walk: readonly Node[] | false): void {
+        if (this.dataManager.drawHeld) {
+            return;
+        }
+
+        this.updateEdgesOf(walk === false ? [] : walk);
+        UpdateManager.placeEdges(this.edgesToPlace);
+        this.placedEdgesAtRows();
+        this.unbuiltRowsMoved = false;
+        this.edgesToPlace = [];
     }
 
     /**

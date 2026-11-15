@@ -664,27 +664,44 @@ function copyOf(
     }
 
     const digest = digestOf(tables);
+    const { copy, edited } = copyIdOf(source, memory, { digest, facts, folded });
+    memory.copies.set(source.id, { digest, copy });
+    return { tables, columns, digest, copy, edited };
+}
+
+/**
+ * A copy's id (spec 4.1.2 rule 1), and whether it holds the reader's edits.
+ * @param source - The source.
+ * @param memory - The memory.
+ * @param copy - The copy.
+ * @param copy.digest - The digest of its tables.
+ * @param copy.facts - What its load read.
+ * @param copy.folded - Whether the session holds the reader's edits, removes or merges.
+ * @returns The copy id, and whether a hashed source holds edits no bytes match.
+ */
+function copyIdOf(
+    source: ModelSource,
+    memory: DataMemory,
+    { digest, facts, folded }: { digest: string; facts: LoadFacts | undefined; folded: boolean },
+): { copy: string; edited: boolean } {
     const remembered = memory.copies.get(source.id);
-    const hashed = HASHED_KINDS.has(kindOfSource(source, memory));
+    if (!HASHED_KINDS.has(kindOfSource(source, memory))) {
+        return { copy: stableId(remembered, digest, mintUlid).copy, edited: false };
+    }
+
     // A copy saved edited keeps its ULID: it still holds the edits that no bytes match.
-    const edited = folded || (hashed && remembered !== undefined && ULID.test(remembered.copy));
-    let copy: string;
-    if (hashed && !edited) {
-        // The digest of the bytes as read (spec 4.1.2), whatever the reader changed since: the
-        // load's own, else the one the file it was opened from stamped. ponytail: a generated
-        // sample, or a load whose bytes the session never digested, has no bytes to hash, so its
-        // copy as written stands in for them.
-        copy = bytesCopyId(facts) ?? remembered?.copy ?? digest;
-    } else {
+    const minted = remembered !== undefined && ULID.test(remembered.copy) ? remembered : undefined;
+    if (folded || minted !== undefined) {
         // ponytail: until the session keeps a log of the reader's edits, removes and merges, any of
         // them marks every hashed source edited: its rows are no longer the bytes it hashed, so it
         // gets a ULID and is always embedded. Keep the log to mark only the sources it touched.
-        const kept = remembered !== undefined && ULID.test(remembered.copy) ? remembered : undefined;
-        ({ copy } = stableId(hashed ? kept : remembered, digest, mintUlid));
+        return { copy: stableId(minted, digest, mintUlid).copy, edited: true };
     }
 
-    memory.copies.set(source.id, { digest, copy });
-    return { tables, columns, digest, copy, edited: hashed && edited };
+    // The digest of the bytes as read, whatever the reader changed since: the load's own, else the
+    // one the file it was opened from stamped. ponytail: a generated sample, or a load whose bytes
+    // the session never digested, has no bytes to hash, so its copy as written stands in for them.
+    return { copy: bytesCopyId(facts) ?? remembered?.copy ?? digest, edited: false };
 }
 
 /**

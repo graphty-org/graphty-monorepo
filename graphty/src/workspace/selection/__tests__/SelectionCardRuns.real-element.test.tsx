@@ -63,7 +63,7 @@ async function openLayer(): Promise<{ session: GraphSession; layer: Layer }> {
  * @returns the modal.
  */
 async function pickPageRank(session: GraphSession): Promise<HTMLElement> {
-    await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
     const modal = await waitFor(() => {
         const found = document.querySelector<HTMLElement>(".sel-ws");
         assert.isNotNull(found, "the modal is open");
@@ -163,6 +163,103 @@ describe("runs started from a selection card", () => {
     });
 });
 
+describe("a card step computed on So far (design: algo-options cardruns.md, rule 4)", () => {
+    it("keeps its result inside the step: no run listed, no column, no undo step, before or after Done", async () => {
+        const { session, layer } = await openLayer();
+        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
+        const modal = await waitFor(() => {
+            const found = document.querySelector<HTMLElement>(".sel-ws");
+            assert.isNotNull(found, "the modal is open");
+            return found;
+        });
+        const pick = async (name: string): Promise<void> => {
+            await screen.findByRole("combobox", { name: "Find attributes, results" });
+            await userEvent.keyboard(name);
+            await userEvent.keyboard("{Enter}");
+        };
+        await userEvent.click(await within(modal).findByRole("button", { name: "Value" }));
+        await pick("Degree");
+        const card = await waitFor(() => {
+            const found = modal.querySelector<HTMLElement>(".sel-card");
+            assert.isNotNull(found);
+            return found;
+        });
+        // Only the busiest people, so PageRank over them differs from PageRank over everyone.
+        const degreeFrom = within(card).getByRole("textbox", { name: "Degree from, number" });
+        await userEvent.tripleClick(degreeFrom);
+        await userEvent.keyboard("10{Enter}");
+        await waitFor(() => {
+            assert.match(card.getAttribute("aria-label") ?? "", /\b\d+ of 77\b/u);
+            assert.notMatch(card.getAttribute("aria-label") ?? "", /\b77 of 77\b/u);
+        });
+        await userEvent.click(within(card).getByRole("button", { name: /^Keep$/ }));
+        await pick("PageRank");
+        await waitFor(() => {
+            assert.isTrue(
+                session.runs.list().some((run) => run.algorithm === "pagerank" && run.status === "succeeded"),
+                "the step on the base reads an ordinary run",
+            );
+        });
+        const runSteps = (): number => session.history.steps.filter((step) => step.ops.includes("algo.run")).length;
+        const stepsBefore = runSteps();
+        // The step's range, as its pane draws it beside the From and To boxes.
+        const paneText = (): string => {
+            const pane = [...modal.querySelectorAll<HTMLElement>("[data-step-pane]")].at(-1);
+            assert.isDefined(pane);
+            assert.isNotNull(within(pane).queryByRole("textbox", { name: /from, number$/ }));
+            return pane.textContent;
+        };
+        const baseRange = await waitFor(() => {
+            const text = paneText();
+            assert.match(text, /\d/u, "the range is drawn");
+            return text;
+        });
+
+        await userEvent.click(within(modal).getByRole("button", { name: "Settings for PageRank" }));
+        const settings = await screen.findByRole("dialog", { name: "PageRank" });
+        const computedOn = await within(settings).findByRole("radiogroup", { name: "Computed on" });
+        await userEvent.click(within(computedOn).getByText("So far"));
+        await userEvent.keyboard("{Escape}");
+        // Its own values landed: the step's range is now that of PageRank over the Degree step's nodes.
+        await waitFor(() => {
+            const text = paneText();
+            assert.match(text, /\d/u);
+            assert.notInclude(text, "Computing");
+            assert.notStrictEqual(text, baseRange, "the range is the step's own");
+        });
+
+        const columns = (): string[] =>
+            session.data
+                .attributes()
+                .map((attribute) => attribute.path)
+                .filter((path) => /pagerank/iu.test(path));
+        assert.deepEqual(columns(), [], "no column for the step's own values");
+        assert.strictEqual(runSteps(), stepsBefore, "its computation is no undo step");
+
+        await userEvent.click(within(modal).getByRole("button", { name: /^Done/ }));
+        await waitFor(() => {
+            assert.isNull(document.querySelector(".sel-ws"), "Done closes it");
+            assert.strictEqual(pagerankRuns(session), 0, "the card reads no listed PageRank run");
+        });
+        const selector = session.styles.get(layer.id)?.selector;
+        const union = selector?.match === "rule" && selector.where.kind === "union" ? selector.where : undefined;
+        assert.strictEqual(union?.branches[0]?.steps[1]?.computedOn, "so-far", "the layer keeps the So far step");
+        assert.deepEqual(columns(), []);
+        assert.strictEqual(runSteps(), stepsBefore);
+
+        // The Data place's Calculated tab lists no PageRank.
+        await userEvent.click(screen.getByRole("button", { name: /^Data/ }));
+        const calculated = await screen.findByRole("tab", { name: "Calculated" });
+        await userEvent.click(calculated);
+        await waitFor(() => {
+            assert.strictEqual(calculated.getAttribute("aria-selected"), "true");
+            const place = screen.getByRole("region", { name: "Data place" });
+            assert.isNull(place.querySelector("[data-run]"), "no result row");
+            assert.notInclude(place.textContent, "PageRank");
+        });
+    });
+});
+
 /**
  * The first card's header count ("8 of 77"), from its accessible name.
  * @returns the count.
@@ -192,7 +289,7 @@ function listedGroups(modal: HTMLElement): Map<string, number> {
 describe("a card's setting its run name does not carry (the owner, 2026-11-04)", () => {
     it("Louvain's Max iterations makes the card's own run: its groups are re-read and the tick follows its group", async () => {
         const { session, layer } = await openLayer();
-        await userEvent.click(await screen.findByRole("button", { name: /^Edit Which nodes/ }));
+        await userEvent.click(await screen.findByRole("button", { name: /^Style Nodes\.\.\./ }));
         const modal = await waitFor(() => {
             const found = document.querySelector<HTMLElement>(".sel-ws");
             assert.isNotNull(found);
@@ -226,7 +323,7 @@ describe("a card's setting its run name does not carry (the owner, 2026-11-04)",
             firstParams,
             "the first run was never re-run in place",
         );
-        // The tick stands on the group that holds the old group's best-connected node.
+        // The tick stands on the same group: graphty-element numbers the new run's groups after the old run's.
         const ticked = await waitFor(() => {
             const boxes = within(modal)
                 .getAllByRole<HTMLInputElement>("checkbox")

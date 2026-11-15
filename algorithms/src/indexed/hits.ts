@@ -1,5 +1,6 @@
 import type { AdjacencyView, F32, F64, GraphSnapshot } from "@graphty/graph-format";
 
+import { checkNumber, checkWeights } from "../errors.js";
 import { readsWeights } from "./weights.js";
 
 /** Options of the index-based HITS, matching the legacy `hits`. @public */
@@ -90,6 +91,19 @@ function rowSums(adj: AdjacencyView, w: F32 | null, scores: Float64Array, out: F
 }
 
 /**
+ * Refuse HITS options out of range (`E_BAD_OPTION`), and NaN, infinite or negative weights when the run reads them
+ * (`E_BAD_WEIGHT`).
+ * @param s - The snapshot
+ * @param o - Algorithm options
+ * @internal
+ */
+export function checkHitsOptions(s: GraphSnapshot, o: HitsOptions | undefined): void {
+    checkNumber("hits", "maxIterations", o?.maxIterations ?? 100, { min: 0, integer: true });
+    checkNumber("hits", "tolerance", o?.tolerance ?? 1e-6, { min: 0 });
+    checkWeights("hits", readsWeights(s, o?.weighted) ? s.weights : null);
+}
+
+/**
  * HITS by alternating power iteration: an authority sums the hub scores of the nodes pointing at
  * it, a hub sums the authority scores of the nodes it points at, and both vectors are
  * L2-normalized every round. On an undirected snapshot the two adjacencies are the same array, so
@@ -97,9 +111,11 @@ function rowSums(adj: AdjacencyView, w: F32 | null, scores: Float64Array, out: F
  * @param s - The snapshot
  * @param o - Algorithm options
  * @returns The two score vectors, the iteration count and the convergence flag
+ * @throws RangeError (code `E_BAD_OPTION` or `E_BAD_WEIGHT`) for an option or weight out of range
  * @public
  */
 export function hits(s: GraphSnapshot, o: HitsOptions = {}): HitsResult {
+    checkHitsOptions(s, o);
     const n = s.nodeCount;
     const maxIter = o.maxIterations ?? 100;
     const tol = o.tolerance ?? 1e-6;

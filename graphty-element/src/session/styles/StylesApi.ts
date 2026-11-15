@@ -105,8 +105,9 @@ import type {
 } from "../../catalog/types";
 import { DEFAULT_SELECTION_STYLE } from "../../config/GraphStyle";
 import { EDGE_CONSTANTS } from "../../constants/meshConstants";
-import { GraphtyError } from "../../errors";
+import { GraphtyError, isGraphtyError } from "../../errors";
 import type { GraphtyWarningCode } from "../../errors/codes";
+import { GraphtyLogger } from "../../logging/GraphtyLogger";
 import { quoteEach } from "../../utils/quote-each";
 import { resolveColumn } from "../columns";
 import {
@@ -155,6 +156,7 @@ import { beneathAuthored, placementLayers } from "./autoApply";
 import {
     channelDescriptor,
     isChannel,
+    labelStyleFieldChannels,
     mergeShaderUses,
     placeOfUse,
     readRenamedChannels,
@@ -229,11 +231,8 @@ import { quotePath, type SelectorSource, type SelectorTarget } from "./predicate
 import { stackChange } from "./repaint";
 import {
     assertRouted,
-    ghostRow,
     isGhostRow,
     partPatch,
-    PINNED_ROW_ID,
-    pinnedRow,
     retargetSelector,
     rowOf,
     type RowParts,
@@ -241,8 +240,6 @@ import {
     type RowSpec,
     type RowTarget,
     type RowWrite,
-    type StartingRow,
-    startingRowOf,
     startingRows,
 } from "./rows";
 import { createScaleRegistry, type ScaleRegistry } from "./scales";
@@ -398,11 +395,8 @@ export type TemplatePosition = "top" | "aboveBase" | { readonly before: LayerId 
 export interface StyleUpdateOptions extends RunOptions {
     /**
      * Keep the layer when the patch takes its last value away: it stays in its place, painting
-     * nothing until something is written again, as a starting row that writes nothing does. A
-     * panel that removes properties one at a time sets it, so removing the last one does not
-     * remove the layer. Without it (the default), such an update is refused with `E_BAD_LAYER`,
-     * as `add` refuses a layer that writes nothing. A layer that already writes nothing (a row
-     * added with no look yet) may be renamed or given another selector without it.
+     * nothing until something is written again. Every layer may write nothing, so an update does
+     * this with or without the option, which is kept for callers that pass it.
      * @since 3.26.0
      */
     readonly keepEmpty?: boolean;
@@ -423,6 +417,26 @@ export interface LayerReach {
     readonly locked: boolean;
     /** The channels its layers set or encode. */
     readonly sets: readonly Channel[];
+    /**
+     * Every channel its layers write: what {@link LayerReach.sets} lists, and for each label style
+     * value it sets (`node.labelStyle`, `node.tooltipStyle`, `node.xlabelStyle`, an arrow
+     * caption's style), each field it holds as the channel that writes that field on its own: a
+     * `node.labelStyle` of `{ font: "Georgia" }` writes `node.labelFont` too. What a style editor
+     * reads to tell which of its rows a layer fills.
+     * @since 3.40.0
+     */
+    readonly writes: readonly Channel[];
+}
+
+/**
+ * How many drawn elements carry one value of a channel: see {@link StylesApi.drawnValues}.
+ * @since 3.40.0
+ */
+export interface DrawnValue {
+    /** The value, as {@link StylesApi.explain} reports it for one element. */
+    readonly value: unknown;
+    /** How many drawn elements carry it. */
+    readonly count: number;
 }
 
 /**
@@ -576,7 +590,8 @@ export interface StylesApi {
      * The patch is applied over the layer's current specification, one key deep. A key present
      * with `undefined` CLEARS it, so `{ set: undefined }` drops the literal values; a key absent
      * leaves what was there. The merged specification is checked exactly as a new one would be,
-     * so an update cannot leave a layer in a state `add` would have refused.
+     * so an update cannot leave a layer in a state `add` would have refused. A patch that takes
+     * the last value away leaves the layer in place, painting nothing.
      * @param id - The layer to change.
      * @param patch - What to change about it.
      * @param options - A signal to cancel with, a progress handler, and `keepEmpty`.
@@ -1056,6 +1071,22 @@ export interface StylesApi {
      */
     counts(id: LayerId): StyleCounts;
     /**
+     * The values one channel is drawn with across the graph, and how many drawn elements carry
+     * each, most first: what a value picker lists as "in this graph". Elements a filter hides and
+     * elements nothing paints on the channel are left out; one value decided by several layers is
+     * one entry. Read through the same walk as {@link StylesApi.agreement}, so the two never
+     * disagree, and kept until the stack, the data, a run or an element's state changes.
+     *
+     * ```ts
+     * session.styles.drawnValues("node.shape"); // [{ value: "box", count: 40 }, { value: "sphere", count: 2 }]
+     * ```
+     * @param channel - The channel.
+     * @returns One entry per value, most elements first.
+     * @throws A `GraphtyError` with code `E_UNKNOWN_CHANNEL` when `channel` names no channel.
+     * @since 3.40.0
+     */
+    drawnValues(channel: Channel): readonly DrawnValue[];
+    /**
      * How many of the elements a layer's rule matches are drawn now: `counts(id).matched` less those
      * a filter hides.
      * @param id - The layer.
@@ -1329,23 +1360,6 @@ export interface StylesApi {
      */
     deleteRow(id: StyleRowId, options?: RunOptions): Run<readonly LayerId[]>;
     /**
-     * Add back whichever of the three starting rows the tree lacks: Everything (nodes and edges,
-     * pinned to the bottom, writing nothing), Selected (nodes and edges, pinned to the top,
-     * drawing a near-black node halo with a white glow and a near-black edge band) and Hovered (nodes, pinned to
-     * the top, writing nothing). One undo step; nothing when all three are there. Setting the
-     * project setting `startingRows` to true adds them the same way. While a time field is
-     * designated (`session.time.setField`), the Ghost row comes too: nodes and edges in the state
-     * `"ghosted"`, grey at low opacity, pinned to the top directly below Selected; with
-     * `startingRows` on, designating a field adds it and clearing the field takes it away. While
-     * the project setting `pinnedStyle` is set, the Pinned row comes too: nodes in the state
-     * `"pinned"`, drawing that halo, pinned to the top directly below Selected (above Ghost); with
-     * `startingRows` on, setting `pinnedStyle` adds it and clearing it takes it away.
-     * @param options - A signal to cancel with, and a progress handler.
-     * @returns A run that resolves with the rows added, bottom first.
-     * @since 3.26.0
-     */
-    restoreStartingRows(options?: RunOptions): Run<readonly RowParts[]>;
-    /**
      * The stack as a style file: {@link StylesApi.toDocument} marked `kind: "graphty-style"`, the
      * same member a project file holds. It carries the layers (and the palettes they name) and
      * nothing else -- no data, no ids, no runs -- so it styles another dataset that has the same
@@ -1362,15 +1376,18 @@ export interface StylesApi {
      * RESOLVED WHEN A LAYER IS WRITTEN: a binding that names no palette records the default's id,
      * so a saved document always names a concrete palette. The call therefore belongs before the
      * layers are added. A later call leaves the layers that took the previous default as they are
-     * and writes a warning naming them; with `reapply: true` it re-resolves those layers instead.
+     * and logs a warning naming them; with `reapply: true` it re-resolves those layers instead.
      * A layer that names its palette is never touched.
      * @param palettes - The palette id per kind. Each must name a palette of that kind.
      * @param options - How a late call treats the layers already written.
      * @param options.reapply - True re-resolves the layers that took the previous default.
+     * @returns Settles once every re-resolved layer has been written and painted, at once when
+     *   there is none. Rejects with the first layer update's error; a layer whose update failed
+     *   keeps the previous default and counts as having taken it, so a later call retries it.
      * @throws `E_UNKNOWN_PALETTE` for an id no palette answers to, `E_BAD_COMMAND` for a palette
      *   of the wrong kind or a slot that is not a palette kind.
      */
-    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): void;
+    setDefaultPalettes(palettes: DefaultPalettes, options?: { readonly reapply?: boolean }): Promise<void>;
 }
 
 /** A style file: the layers alone, as {@link StylesApi.toFile} writes it. */
@@ -1634,6 +1651,11 @@ export interface StylesSources {
      * @param refusal - The facts.
      */
     readonly onRefused?: (refusal: StyleRefusal) => void;
+    /**
+     * Called when a repaint nobody awaited fails (a branches view's), so a host can publish it.
+     * @param failure - What the repaint was for, and why it failed.
+     */
+    readonly onRepaintFailed?: (failure: StyleRepaintFailure) => void;
     /**
      * Called once after the last {@link StylesSources.onChange} of one repaint.
      * @param batch - The edits that pass told.
@@ -2007,6 +2029,48 @@ function unknownRow(id: StyleRowId, rows: Rows): GraphtyError {
 export interface StyleRefusal {
     /** Why, as codes the application words; see {@link LayerProblem.fact}. */
     readonly problems: readonly ShaderProblem[];
+}
+
+/**
+ * What a repaint the element started on its own was for, as `style:repaint-failed` names it:
+ * `selection`, `hover` and `peek` follow the reader's state, `sets` a set whose members changed,
+ * `branches` a branches view, `hidden` nodes hidden or shown (`session.hidden`), and `layer` a
+ * layer a pass could not paint at all.
+ * @since 3.52.0
+ */
+export type StyleRepaintCause = "selection" | "hover" | "peek" | "sets" | "branches" | "hidden" | "layer";
+
+/**
+ * A repaint nobody awaited that failed, or a layer a pass could not paint, as
+ * `style:repaint-failed` publishes it. The picture on screen is stale until the next repaint.
+ * @since 3.52.0
+ */
+export interface StyleRepaintFailure {
+    /** What the repaint was for. */
+    readonly cause: StyleRepaintCause;
+    /** Why, as a code; for `cause: "layer"` its `target` names the layer. */
+    readonly error: GraphtyError;
+}
+
+/**
+ * The failure a repaint nobody awaited publishes.
+ * @param cause - What the repaint was for.
+ * @param error - What it threw.
+ * @returns The failure, its error coded `E_INTERNAL` when what was thrown carried no code.
+ */
+export function repaintFailure(cause: StyleRepaintCause, error: unknown): StyleRepaintFailure {
+    return {
+        cause,
+        error: isGraphtyError(error)
+            ? error
+            : new GraphtyError({
+                  code: "E_INTERNAL",
+                  message: `A ${cause} repaint failed.`,
+                  source: "style",
+                  details: { cause },
+                  cause: error,
+              }),
+    };
 }
 
 /**
@@ -2601,10 +2665,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     /** Edits written since the last pass, told once it has repainted them. */
     const announcements: Announcement[] = [];
     /** What the last pass changed and painted, which an undo, a redo or a rollback reports. */
-    let lastPass: { reason: RepaintReason; layers: readonly LayerId[]; painted: RepaintReport | null } = {
+    let lastPass: {
+        reason: RepaintReason;
+        layers: readonly LayerId[];
+        painted: RepaintReport | null;
+        failed: boolean;
+    } = {
         reason: "update",
         layers: [],
         painted: null,
+        failed: false,
     };
 
     /**
@@ -2675,13 +2745,16 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
 
     /**
      * The stack as it paints: a hidden row's layers read as disabled, and so do the element's own
-     * base layers while the Everything row holds the base look.
+     * base layers while the Everything row holds the base look. A branches view suspends the
+     * Everything row with every other layer, so under one the base layers paint the base look
+     * again: without it every node would be drawn unstyled, a new mesh for each of them, and again
+     * for each when the view ends.
      * @param stack - The stack.
      * @returns The stack the repaint and every reading of it use.
      */
     const painting = (stack: readonly CompiledLayer[]): readonly CompiledLayer[] => {
-        const painted = basePainting(stack);
-        const shown = branchesShown === null ? painted : previewStack(painted, branchesShown.layers);
+        const shown =
+            branchesShown === null ? basePainting(stack) : previewStack(paintedStack(stack), branchesShown.layers);
         const specs = sources.transient?.() ?? [];
         return specs.length === 0 ? shown : [...shown, ...transientLayers(specs)];
     };
@@ -2767,7 +2840,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             .then(
                 () => undefined,
                 (error: unknown) => {
-                    console.error("[graphty] Could not repaint a branches view.", error);
+                    sources.onRepaintFailed?.(repaintFailure("branches", error));
                 },
             )
             .finally(() => {
@@ -3229,10 +3302,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     let defaultPalettes: DefaultPalettes = {};
     /**
      * The bindings, as "layer id / channel", whose palette was filled in from a default rather
-     * than named by the author. Only ever read against the live stack, so an entry for a layer
-     * that is gone answers for nothing.
+     * than named by the author, and the palette written. Only ever read against the live stack,
+     * so an entry for a layer that is gone answers for nothing.
      */
-    const defaulted = new Set<string>();
+    const defaulted = new Map<string, string>();
 
     /**
      * The palette kind a colour binding's default comes from, or null when it reads no palette.
@@ -3292,7 +3365,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             if (palette !== undefined) {
                 encode ??= { ...(spec.encode as Record<string, Binding>) };
                 encode[channel] = { ...binding, palette };
-                defaulted.add(`${id}/${channel}`);
+                defaulted.set(`${id}/${channel}`, palette);
             }
         }
 
@@ -3500,18 +3573,21 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                     // when there is one, since the dispatcher routes it there.
                     const members = command.batch();
                     const loading = loadNamedShaders(members);
-                    if (loading !== undefined) {
-                        await loading;
-                    }
                     // Dispatched together, not one after another: each member writes its draft as it is
                     // dispatched, and awaiting each in turn would let a repaint pass run between them.
-                    const outcomes = await dispatcher.transaction(
-                        label,
-                        async (scope) =>
-                            (await Promise.all(
-                                members.map((member) => scope.dispatch(member)),
-                            )) as EditOutcome<unknown>[],
-                    );
+                    const transact = (): Promise<EditOutcome<unknown>[]> =>
+                        dispatcher.transaction(
+                            label,
+                            async (scope) =>
+                                (await Promise.all(
+                                    members.map((member) => scope.dispatch(member)),
+                                )) as EditOutcome<unknown>[],
+                        );
+                    // A shader body still loading holds the write off the queue: counted as owed
+                    // meanwhile, so a settle wait does not find the queue idle and end without it.
+                    const outcomes = await (loading === undefined
+                        ? transact()
+                        : dispatcher.ahead(loading.then(transact)));
                     await Promise.all(outcomes.map((outcome) => outcome.painted));
                     const results = outcomes.map((outcome) => outcome.result);
 
@@ -3519,10 +3595,9 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 }
 
                 const loading = loadNamedShaders(command);
-                if (loading !== undefined) {
-                    await loading;
-                }
-                const outcome = (await dispatcher.dispatch(command)) as EditOutcome<T>;
+                const outcome = (await (loading === undefined
+                    ? dispatcher.dispatch(command)
+                    : dispatcher.ahead(loading.then(() => dispatcher.dispatch(command))))) as EditOutcome<T>;
                 await outcome.painted;
 
                 return { result: outcome.result };
@@ -4214,197 +4289,41 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         asked === true && dispatcher.services.config?.().runPlacement === "top" ? false : asked;
 
     /**
-     * The stack with an empty Everything row's parts given the base look.
-     * @param parts - The row's parts.
-     * @param stack - The stack.
-     * @param layers - Collects the layers rewritten.
-     * @returns The stack.
+     * The plan that writes the default rows once, as plain data: Everything at the very bottom of
+     * the reader's rows, the rest at the top. It adds every one of them; it never looks for a row
+     * already there, so a row a reader deleted or changed stays as the reader left it.
+     * @returns The plan.
      */
-    const fillBaseLook = (
-        parts: readonly CompiledLayer[],
-        stack: readonly CompiledLayer[],
-        layers: LayerId[],
-    ): readonly CompiledLayer[] => {
-        let next = stack;
-        for (const part of parts) {
-            ({ stack: next } = planUpdate(part.layer.id, { set: baseValues(part.layer.target) }, next));
-            layers.push(part.layer.id);
+    const planDefaultRows = (): EditPlan<readonly RowParts[]> => {
+        const config = dispatcher.services.config?.();
+        const rowsToAdd = startingRows({
+            selection: config?.selectionStyle ?? DEFAULT_SELECTION_STYLE,
+            ...(editableBase() ? { everything: { ...baseValues("node"), ...baseValues("edge") } } : {}),
+            ...(config?.pinnedStyle === undefined ? {} : { pinned: config.pinnedStyle }),
+            ghost: dispatcher.services.timeline?.() === true,
+        });
+        let stack = current();
+        const added: RowParts[] = [];
+        const layers: LayerId[] = [];
+        const pins: [LayerId, "top" | "bottom"][] = [];
+        for (const { pin, spec } of rowsToAdd) {
+            const firstOwn = stack.findIndex((entry) => !entry.layer.locked);
+            const index = pin === "bottom" && firstOwn !== -1 ? firstOwn : stack.length;
+            const plan = planAddRow(spec, undefined, { stack, index });
+            ({ stack } = plan);
+            pins.push([plan.result.id, pin]);
+            added.push(plan.result);
+            layers.push(...plan.layers);
         }
 
-        return next;
-    };
-
-    /**
-     * Where a missing starting row goes, and the spec it is added with.
-     * @param stack - The stack it goes into.
-     * @param starting - The starting row.
-     * @param base - Whether `editableBase` is on, so Everything carries the base look.
-     * @returns The index to insert at and the row's spec.
-     */
-    const startingPlacement = (
-        stack: readonly CompiledLayer[],
-        starting: StartingRow,
-        base: boolean,
-    ): { index: number; spec: RowSpec } => {
-        const firstOwn = stack.findIndex((entry) => !entry.layer.locked);
-        const hovered = stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-        // Everything at the very bottom of the reader's rows; Selected just below Hovered.
-        const below = starting.pin === "bottom" ? firstOwn : hovered;
-        const index = below === -1 ? stack.length : below;
-        const spec =
-            base && starting.templateId === "graphty:starting-everything"
-                ? { ...starting.spec, set: { ...baseValues("node"), ...baseValues("edge") } }
-                : starting.spec;
-
-        return { index, spec };
-    };
-
-    /** What {@link planStartingRows} builds up as it adds and drops rows. */
-    interface StartingRowsWork {
-        stack: readonly CompiledLayer[];
-        rows: Rows;
-        readonly added: RowParts[];
-        readonly layers: LayerId[];
-        readonly pins: [LayerId, "top" | "bottom"][];
-    }
-
-    /**
-     * Whether a layer is a part of the Pinned row.
-     * @param entry - The layer.
-     * @returns True for a Pinned part.
-     */
-    const isPinnedRow = (entry: CompiledLayer): boolean => startingRowOf(entry) === PINNED_ROW_ID;
-
-    /**
-     * Adds a row's parts to the work's stack at an index, keeping its pin for later.
-     * @param work - The plan being built.
-     * @param spec - The row's spec.
-     * @param pin - Where the row is pinned.
-     * @param index - Where its parts go in the stack.
-     */
-    const addStartingRow = (work: StartingRowsWork, spec: RowSpec, pin: "top" | "bottom", index: number): void => {
-        const plan = planAddRow(spec, undefined, { stack: work.stack, index });
-        work.stack = plan.stack;
-        work.rows = reconcile(work.rows, work.stack);
-        work.pins.push([plan.result.id, pin]);
-        work.added.push(plan.result);
-        work.layers.push(...plan.layers);
-    };
-
-    /**
-     * Takes a row's parts out of the work's stack.
-     * @param work - The plan being built.
-     * @param isPart - Whether a layer is one of the row's parts.
-     * @param parts - The row's parts, as the stack holds them now.
-     */
-    const dropStartingRow = (
-        work: StartingRowsWork,
-        isPart: (entry: CompiledLayer) => boolean,
-        parts: readonly CompiledLayer[],
-    ): void => {
-        work.stack = work.stack.filter((entry) => !isPart(entry));
-        work.rows = reconcile(work.rows, work.stack);
-        work.layers.push(...parts.map((entry) => entry.layer.id));
-    };
-
-    /**
-     * Adds one starting row back when the stack lacks it; an Everything row that writes nothing
-     * takes the base look while `editableBase` is on.
-     * @param work - The plan being built.
-     * @param starting - The starting row.
-     * @param base - Whether `editableBase` is on.
-     */
-    const syncStartingRow = (work: StartingRowsWork, starting: StartingRow, base: boolean): void => {
-        const parts = work.stack.filter((entry) => startingRowOf(entry) === starting.templateId);
-        if (parts.length === 0) {
-            const { index, spec } = startingPlacement(work.stack, starting, base);
-            addStartingRow(work, spec, starting.pin, index);
-            return;
-        }
-
-        // An Everything row that writes nothing takes the base look, so turning
-        // `editableBase` on never leaves the graph unpainted.
-        const empty = parts.every((entry) => entry.layer.set === undefined && entry.layer.encode === undefined);
-        if (base && starting.templateId === "graphty:starting-everything" && empty) {
-            work.stack = fillBaseLook(parts, work.stack, work.layers);
-            work.rows = reconcile(work.rows, work.stack);
-        }
-    };
-
-    /**
-     * The Pinned row exists while the pinned look is set: added directly below Selected, and taken
-     * away when the look is cleared.
-     * @param work - The plan being built.
-     */
-    const syncPinnedRow = (work: StartingRowsWork): void => {
-        const pinnedLook = dispatcher.services.config?.().pinnedStyle;
-        const pinnedParts = work.stack.filter(isPinnedRow);
-        if (pinnedLook !== undefined && pinnedParts.length === 0) {
-            const selected = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
-            const hovered = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-            const below = selected === -1 ? hovered : selected;
-            const row = pinnedRow(pinnedLook);
-            addStartingRow(work, row.spec, row.pin, below === -1 ? work.stack.length : below);
-        } else if (pinnedLook === undefined && pinnedParts.length > 0) {
-            dropStartingRow(work, isPinnedRow, pinnedParts);
-        }
-    };
-
-    /**
-     * The Ghost row exists while a time field is designated: added directly below Selected (and
-     * below Pinned), and taken away when the field is cleared.
-     * @param work - The plan being built.
-     */
-    const syncGhostRow = (work: StartingRowsWork): void => {
-        // With the timeline off a saved Ghost row stays as saved, and a time field brings none.
-        if (dispatcher.services.timeline?.() === false) {
-            return;
-        }
-
-        const known = dispatcher.services.config?.().data.knownFields;
-        const timed = (known?.nodeTimePath ?? null) !== null || (known?.edgeTimePath ?? null) !== null;
-        const ghosts = work.stack.filter(isGhostRow);
-        if (timed && ghosts.length === 0) {
-            const pinned = work.stack.findIndex(isPinnedRow);
-            const selected = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-selected");
-            const hovered = work.stack.findIndex((entry) => startingRowOf(entry) === "graphty:starting-hovered");
-            const below = [pinned, selected, hovered].find((index) => index !== -1) ?? -1;
-            const ghost = ghostRow();
-            addStartingRow(work, ghost.spec, ghost.pin, below === -1 ? work.stack.length : below);
-        } else if (!timed && ghosts.length > 0) {
-            dropStartingRow(work, isGhostRow, ghosts);
-        }
-    };
-
-    /**
-     * The plan that adds back whichever starting rows the stack lacks, each pinned where it
-     * belongs: Everything at the very bottom of the reader's rows, Selected just below Hovered.
-     * @returns The plan; the stack unchanged when every starting row is there.
-     */
-    const planStartingRows = (): EditPlan<readonly RowParts[]> => {
-        const look = dispatcher.services.config?.().selectionStyle ?? DEFAULT_SELECTION_STYLE;
-        const stack = current();
-        const work: StartingRowsWork = { stack, rows: rowsOf(stack), added: [], layers: [], pins: [] };
-
-        const base = editableBase();
-
-        for (const starting of startingRows(look)) {
-            syncStartingRow(work, starting, base);
-        }
-
-        syncPinnedRow(work);
-        syncGhostRow(work);
-
-        let { rows } = work;
-        const { added, layers, pins } = work;
-        // Pinned once every row is placed: a pin taken earlier would band a row before the next
-        // one is placed by its stack neighbors, and Hovered would land below Selected.
+        // Pinned once every row is placed, so each top row lands above the one added before it.
+        let rows = reconcile(rowsOf(current()), stack);
         for (const [id, pin] of pins) {
             rows = mapRow(rows, id, (row) => ({ ...row, pin }));
         }
 
         return {
-            stack: work.stack,
+            stack,
             rows: normalize(rows),
             result: Object.freeze(added),
             layers,
@@ -4786,8 +4705,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 return planUpdate(command.id, command.patch, current(), command.keepEmpty === true);
             case "addRow":
                 return planAddRow(command.spec, command.at);
-            case "restoreStartingRows":
-                return planStartingRows();
+            case "addDefaultRows":
+                return planDefaultRows();
             case "addFolder":
             case "renameRow":
             case "moveRow":
@@ -4918,7 +4837,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 settle = resolve;
                 refuse = reject;
             });
-            // Nobody may be awaiting it: a failed repaint is also reported where hooks report.
+            // Nobody may be awaiting it: the run's rejection is how a failed repaint is told.
             painted.catch(() => undefined);
             announcements.push({
                 change: {
@@ -4973,6 +4892,7 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             reason: request.reason,
             layers: request.edits.map((each) => (each.next ?? each.previous)?.layer.id ?? ""),
             painted,
+            failed: failure !== null,
         };
 
         let edit: Announcement[] = [];
@@ -4997,6 +4917,11 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             edit = [];
         }
         flushBatch();
+
+        // An undo, a redo, a restore or a rollback has no run to reject: the lane reports it.
+        if (failure !== null && told.length === 0) {
+            throw failure instanceof Error ? failure : new Error("The repaint failed", { cause: failure });
+        }
     });
 
     // An undo, a redo, a restore or a rollback is told once the pass deriving it has run, one
@@ -5004,7 +4929,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
     const previousDerived = dispatcher.events.derived;
     dispatcher.events.derived = (change) => {
         previousDerived?.(change);
-        if (change.cause !== "command" && change.slices.includes("styles")) {
+        // A failed repaint is not a change painted: the lane has reported it instead.
+        if (change.cause !== "command" && change.slices.includes("styles") && !lastPass.failed) {
             styleRevision++;
             const told: StyleChange = {
                 reason: lastPass.reason,
@@ -5088,7 +5014,8 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             );
         const matched = { nodes: within("node", nodes), edges: within("edge", edges) };
         if (matched.nodes.length + matched.edges.length > 0) {
-            return { ...styleAgreement(matched, read, channel), readOver: "row" };
+            const own = new Set(parts.map(({ layer }) => layer.id));
+            return { ...styleAgreement(matched, read, channel, own), readOver: "row" };
         }
 
         // It matches nothing: read the row's kinds through the layers that match every element.
@@ -5211,15 +5138,6 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                 "update",
                 `Hide row ${id}`,
                 { op: "style.patch", action: "hideRow", id, hidden },
-                options,
-            );
-        },
-
-        restoreStartingRows(options: RunOptions = {}): Run<readonly RowParts[]> {
-            return edit<readonly RowParts[]>(
-                "add",
-                "Restore the starting rows",
-                { op: "style.patch", action: "restoreStartingRows" },
                 options,
             );
         },
@@ -5383,11 +5301,20 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                             ...(Object.keys(layer.encode ?? {}) as Channel[]),
                         ]),
                     );
+                    const writes = new Set<Channel>(sets);
+                    for (const layer of parts) {
+                        for (const [channel, value] of Object.entries(layer.set ?? {})) {
+                            for (const field of labelStyleFieldChannels(channel as Channel, value)) {
+                                writes.add(field);
+                            }
+                        }
+                    }
                     return Object.freeze({
                         row: key,
                         layers: Object.freeze(parts.map((layer) => layer.id)),
                         ...(reached.get(key) as { hidden: boolean; locked: boolean }),
                         sets: Object.freeze([...sets]),
+                        writes: Object.freeze([...writes]),
                     });
                 }),
             );
@@ -5890,7 +5817,39 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             return selectsAmongDrawn(id).count;
         },
 
-        setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): void {
+        drawnValues(channel: Channel): readonly DrawnValue[] {
+            requireChannel(channel);
+            return kept(JSON.stringify(["drawnValues", channel]), () => {
+                const drawn = elementsOf(DRAWN);
+                // Only the channel's own kind: the walk over the other kind would paint nothing on it.
+                const own = [...(channel.startsWith("node.") ? drawn.nodes : drawn.edges)];
+                const elements = channel.startsWith("node.") ? { nodes: own, edges: [] } : { nodes: [], edges: own };
+                const answer = styleAgreement(elements, countSources(), channel).channels[0];
+                if (answer === undefined) {
+                    return Object.freeze([]);
+                }
+                const shares =
+                    answer.state === "agree"
+                        ? [{ value: answer.value, count: own.length - answer.unpainted }]
+                        : answer.breakdown;
+                const byValue = new Map<string, { value: unknown; count: number }>();
+                for (const { value, count } of shares) {
+                    const key = JSON.stringify([typeof value, value]);
+                    const held = byValue.get(key);
+                    if (held === undefined) {
+                        byValue.set(key, { value, count });
+                    } else {
+                        held.count += count;
+                    }
+                }
+                // A stable sort: equal counts keep the order the walk met them in.
+                return Object.freeze(
+                    [...byValue.values()].sort((a, b) => b.count - a.count).map((entry) => Object.freeze(entry)),
+                );
+            });
+        },
+
+        setDefaultPalettes(palettes: DefaultPalettes, options: { readonly reapply?: boolean } = {}): Promise<void> {
             assertDefaultPalettes(palettes);
 
             // The layers that took the default a kind is about to lose: a binding naming no palette
@@ -5907,18 +5866,17 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
                         binding === undefined || channelDescriptor(channel)?.accepts !== "color"
                             ? null
                             : paletteKindOf(binding);
-                    if (
-                        kind === null ||
-                        !("by" in binding) ||
-                        palettes[kind] === undefined ||
-                        palettes[kind] === previous[kind]
-                    ) {
+                    if (kind === null || !("by" in binding) || palettes[kind] === undefined) {
                         return [];
                     }
 
+                    // A binding still on the palette a default wrote took it, whichever default
+                    // that was: one whose reapply failed is stale until a call lands it.
                     const took =
-                        binding.palette === undefined ||
-                        (binding.palette === previous[kind] && defaulted.has(`${layer.id}/${channel}`));
+                        binding.palette === undefined
+                            ? palettes[kind] !== previous[kind]
+                            : binding.palette !== palettes[kind] &&
+                              defaulted.get(`${layer.id}/${channel}`) === binding.palette;
                     return took ? [{ channel, kind }] : [];
                 });
                 if (channels.length > 0) {
@@ -5929,29 +5887,36 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             defaultPalettes = { ...previous, ...palettes };
 
             if (stale.length === 0) {
-                return;
+                return Promise.resolve();
             }
 
             if (options.reapply !== true) {
-                const named = stale.map(({ layer }) => `"${layer.name}" (${layer.id})`).join(", ");
-                console.warn(
-                    `[graphty] setDefaultPalettes: ${named} took the previous default palette and keep it. ` +
-                        "Call setDefaultPalettes before adding layers, or pass { reapply: true } to repaint them.",
+                GraphtyLogger.getLogger(["graphty", "style"]).warn(
+                    "setDefaultPalettes: layers that took the previous default palette keep it; pass reapply",
+                    { layerIds: stale.map(({ layer }) => layer.id) },
                 );
-                return;
+                return Promise.resolve();
             }
 
-            for (const { layer, channels } of stale) {
-                const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
-                for (const { channel, kind } of channels) {
-                    encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] };
-                    defaulted.add(`${layer.id}/${channel}`);
-                }
+            // A layer counts as having taken the new default only once its update lands, so a
+            // failed one still reads as stale to the next call.
+            return Promise.all(
+                stale.map(async ({ layer, channels }) => {
+                    const encode: Record<string, Binding> = { ...(layer.encode as Record<string, Binding>) };
+                    for (const { channel, kind } of channels) {
+                        encode[channel] = { ...encode[channel], palette: defaultPalettes[kind] };
+                    }
 
-                api.update(layer.id, { encode }).then(undefined, (error: unknown) => {
-                    console.error(`[graphty] setDefaultPalettes could not reapply the layer "${layer.name}".`, error);
-                });
-            }
+                    // Read before the update is awaited: a later call may change the defaults meanwhile.
+                    const written = channels.map(({ channel, kind }) => [channel, defaultPalettes[kind]] as const);
+                    await api.update(layer.id, { encode });
+                    for (const [channel, palette] of written) {
+                        if (palette !== undefined) {
+                            defaulted.set(`${layer.id}/${channel}`, palette);
+                        }
+                    }
+                }),
+            ).then(() => undefined);
         },
 
         toDocument(): StyleDocument {

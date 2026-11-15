@@ -34,6 +34,7 @@ import {
     fitsCheckout,
     groupEntry,
     GRAPHTY_PARTS,
+    GROUP_MEMBER_SECONDS,
     GROUPS,
     MATRIX_CAP,
     matrixLine,
@@ -56,15 +57,14 @@ import {
     decide,
     examineRed,
     fileIssue,
-    FREEZE_PREFIX,
-    frozenSha,
     mergedPrs,
+    RED_PREFIX,
     revertBody,
     revertTitle,
     superseded,
 } from "./master-guard.mjs";
 import { linksIssue, skipReason } from "./pr-issue-link.mjs";
-import { summarize } from "./pr-status-broker.mjs";
+import { fetchAll, summarize } from "./pr-status-broker.mjs";
 import { BIN_LIMIT_MS, binCost, packBins } from "./test-select.mjs";
 import {
     fingerprint,
@@ -130,6 +130,21 @@ describe("the test matrix", () => {
         assert.ok(TEST_STEP_LIMIT_MS + 100_000 + 120_000 <= minutes * 60_000);
     });
 
+    // #7848: a full run runs every member of a group one after another; a member added unmeasured
+    // (graphty-element-webgpu) took small-browser to 24 min 58 s of its 26 minute deadline
+    it("fits every group's slowest measured members, with a quarter to spare, inside its test step's deadline", () => {
+        const gapSeconds = 10; // between members: the results wrapper and nx starting the next one
+        for (const [group, members] of Object.entries(GROUPS)) {
+            for (const m of members) assert.ok(GROUP_MEMBER_SECONDS[m] > 0, `${group}: ${m} has no measured time`);
+            const worst = members.reduce((t, m) => t + GROUP_MEMBER_SECONDS[m] + gapSeconds, 0);
+            assert.ok(
+                worst * 1.25 * 1000 <= TEST_STEP_LIMIT_MS,
+                `${group}: ${worst} s measured, x1.25 is over the deadline`,
+            );
+        }
+        assert.deepEqual(Object.keys(GROUP_MEMBER_SECONDS).sort(), Object.values(GROUPS).flat().sort());
+    });
+
     it("runs every shard exactly once on a full run, in one job per shard or group", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
@@ -161,7 +176,7 @@ describe("the test matrix", () => {
             plan(["graphty-element"])
                 .flatMap((e) => e.members ?? [e.shard])
                 .sort(),
-            SHARDS.filter((s) => s.package === "graphty-element")
+            SHARDS.filter((s) => s.package === "graphty-element" || s["affected-by"]?.includes("graphty-element"))
                 .map((s) => s.shard)
                 .sort(),
         );
@@ -250,6 +265,32 @@ describe("the test matrix", () => {
         assert.equal(plan(["graph-samples"])[0].lfs, "", "a group whose members read no LFS file pulls none");
         const bin = { name: "graph-io-storybook-9", shard: "graph-io-storybook-1", command: "true", files: [] };
         assert.equal(plan(["graph-io"], undefined, { bins: [bin] }).find((e) => e.shard === bin.name).lfs, oracles);
+    });
+
+    // graph-io's fidelity stories import graphty-element's source, a dependency graph-io/project.json negates
+    // (#7196): a graphty-element change runs them, and graph-io's own lint, whose typecheck covers them.
+    it("runs graph-io's fidelity stories and lints them when only graphty-element is affected", () => {
+        // only the stories: graph-io's own shards wait for graph-io to be affected
+        const graphIo = plan(["graphty-element"]).filter((e) => e.package.split(" ").includes("graph-io"));
+        assert.deepEqual(
+            graphIo.map((e) => e.shard),
+            ["graph-io-storybook-1", "graph-io-storybook-2"],
+        );
+        const whole = {
+            name: "graph-io-storybook-1",
+            shard: "graph-io-storybook-1",
+            whole: "graph-io",
+            command: "true",
+        };
+        assert.ok(plan(["graphty-element"], undefined, { bins: [whole] }).some((e) => e.shard === whole.name));
+        const lint = parseYaml(workflow("ci.yml")).jobs.lint.steps.find((s) =>
+            s.name?.startsWith("Lint graph-io's fidelity stories"),
+        );
+        assert.match(lint.if, /contains\(fromJSON\(needs\.packages\.outputs\.affected\), 'graphty-element'\)/u);
+        assert.match(lint.run, /nx run graph-io:lint\b/u);
+        // or nx replays master's cached lint, whose hash would not include graphty-element
+        const project = JSON.parse(readFileSync(new URL("../graph-io/project.json", import.meta.url), "utf8"));
+        assert.ok(project.targets.lint.inputs.some((i) => i.projects?.includes("graphty-element")));
     });
 
     it("runs every member of a group even after one fails, then fails naming it", () => {
@@ -1381,9 +1422,9 @@ describe("the test matrix limited to named shards (--only, a CI bisect point)", 
                 encoding: "utf8",
             });
         assert.match(run("--only", '["graphty-2"]').stdout, /\ntest-count=1\n/);
-        const bad = run("--only", '["graphty-9"]');
+        const bad = run("--only", '["graphty-99"]');
         assert.notEqual(bad.status, 0);
-        assert.match(bad.stderr, /graphty-9/);
+        assert.match(bad.stderr, /graphty-99/);
     });
 });
 
@@ -3172,16 +3213,18 @@ describe("actions/cache in the workflows", () => {
         for (const project of ["graphty-element", "graphty"]) {
             const target = JSON.parse(readFileSync(new URL(`../${project}/project.json`, import.meta.url), "utf8"))
                 .targets.lint;
-            // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file
-            assert.match(
-                target.options.command,
-                /^(node \.\.\/tools\/test-slots\.mjs --lint )?eslint [^&]*\$ESLINT_CACHE &&/,
-            );
+            // the nx target and `npm run lint` are one command, so they run the same checks under the same slot
+            assert.equal(target.options.command, "npm run lint");
+            const script = JSON.parse(readFileSync(new URL(`../${project}/package.json`, import.meta.url), "utf8"))
+                .scripts.lint;
+            // only CI sets ESLINT_CACHE: a local lint never caches, so check:quick lints every file; eslint runs
+            // in the machine-wide lint slot so agents' eslints never stack up and get killed (#5904)
+            assert.match(script, /^node \.\.\/tools\/test-slots\.mjs --lint eslint [^&]*\$ESLINT_CACHE &&/);
             assert.deepEqual(target.outputs, ["{projectRoot}/node_modules/.cache/eslint"]);
             // never "--concurrency auto": it starts one type-aware worker (2.5 GB or more each) per two cores, 16 on
             // the 32-core dev machine, which drove the machine out of memory and got the lint killed with SIGTERM
             // ("Terminated", #5181); a fixed 2 is what auto gives on CI's 4-core runner
-            assert.doesNotMatch(target.options.command, /--concurrency auto/);
+            assert.doesNotMatch(script, /--concurrency auto/);
         }
     });
 
@@ -3385,6 +3428,11 @@ describe("Mergify is retired", () => {
         for (const name of readdirSync(new URL("../.github/workflows/", import.meta.url))) {
             assert.doesNotMatch(workflow(name), /gha-mergify-ci|Mergify Test Insights/, name);
         }
+    });
+    it("has master-guard stop no merges: no Mergify freeze, no Mergify key (#7261)", () => {
+        const guard = readFileSync(new URL("./master-guard.mjs", import.meta.url), "utf8");
+        assert.doesNotMatch(guard, /mergify|freeze/i);
+        assert.doesNotMatch(workflow("master-guard.yml"), /mergify|freeze/i);
     });
 });
 
@@ -3807,7 +3855,7 @@ describe("hosts.yml", () => {
 describe("master-guard", () => {
     const run = (name, conclusion, event = "push") => ({ name, conclusion, event });
 
-    it("freezes on a red master CI, lifts on a green one, and leaves the hardware lanes to the release train", () => {
+    it("acts on a red or green master CI, and leaves the hardware lanes to the release train", () => {
         assert.equal(decide(run("CI", "failure")), "red");
         assert.equal(decide(run("CI", "timed_out")), "red");
         assert.equal(decide(run("CI", "success")), "green");
@@ -3826,7 +3874,7 @@ describe("master-guard", () => {
         assert.equal(decide(run("CI", "cancelled")), "stopped");
         assert.equal(decide(run("CI", "startup_failure")), "stopped");
         assert.equal(decide(run("CI", "cancelled", "pull_request")), "none");
-        // timed_out and failure stay red: freeze, revert and issue as before
+        // timed_out and failure stay red: revert and issue as before
         assert.equal(decide(run("CI", "timed_out")), "red");
         assert.equal(decide(run("CI", "failure")), "red");
 
@@ -3883,14 +3931,9 @@ describe("master-guard", () => {
         assert.match(workflow("deploy-pages.yml"), /^name: Deploy to GitHub Pages$/m);
     });
 
-    it("finds the commit in its own freezes and the pull request in a merge commit", () => {
-        const sha = "a".repeat(40);
-        assert.equal(frozenSha(`${FREEZE_PREFIX}${sha} (url)`), sha);
-        assert.equal(frozenSha("release freeze"), null);
+    it("finds the pull request in a merge commit", () => {
         assert.deepEqual(mergedPrs("Merge pull request #1011 from graphty-org/x\n\nbody"), [1011]);
-        assert.deepEqual(mergedPrs("Merged #42, #43, #44\n\nMerged by Mergify Merge Queue"), [42, 43, 44]);
-        assert.deepEqual(mergedPrs("Merged #42\n\nMerged by Mergify Merge Queue"), [42]);
-        // the merges inside a batch branch are not landings of their own
+        assert.deepEqual(mergedPrs("Merged #42, #43, #44\n\nMerged by Mergify Merge Queue"), []);
         assert.deepEqual(mergedPrs("Merge of #42"), []);
         assert.deepEqual(mergedPrs("chore(release): publish"), []);
     });
@@ -3924,8 +3967,8 @@ describe("master-guard", () => {
         return { gh, writes };
     };
     const red = (sha) => ({
-        prefix: FREEZE_PREFIX,
-        title: `${FREEZE_PREFIX}${sha}`,
+        prefix: RED_PREFIX,
+        title: `${RED_PREFIX}${sha}`,
         labels: ["bug"],
         body: `body ${sha}`,
         comment: `also ${sha}`,
@@ -3935,7 +3978,7 @@ describe("master-guard", () => {
         const { gh, writes } = repo([
             { number: 7, title: "Something else" },
             { number: 9, title: "Fix the thing", pull_request: {} },
-            { number: 1124, title: `${FREEZE_PREFIX}7edecd1` },
+            { number: 1124, title: `${RED_PREFIX}7edecd1` },
         ]);
         assert.equal(await fileIssue(gh, red("056ee80")), 1124);
         assert.deepEqual(writes, [["POST", "/issues/1124/comments", { body: "also 056ee80" }]]);
@@ -3945,12 +3988,12 @@ describe("master-guard", () => {
         const { gh, writes } = repo([{ number: 7, title: "GPU lane red on master" }]);
         assert.equal(await fileIssue(gh, red("7edecd1")), 2000);
         assert.deepEqual(writes, [
-            ["POST", "/issues", { title: `${FREEZE_PREFIX}7edecd1`, labels: ["bug"], body: "body 7edecd1" }],
+            ["POST", "/issues", { title: `${RED_PREFIX}7edecd1`, labels: ["bug"], body: "body 7edecd1" }],
         ]);
     });
 
     it("closes its own issue as a duplicate when a racing run opened one first", async () => {
-        const { gh, writes } = repo([], { number: 1128, title: `${FREEZE_PREFIX}056ee80` });
+        const { gh, writes } = repo([], { number: 1128, title: `${RED_PREFIX}056ee80` });
         assert.equal(await fileIssue(gh, red("df92205")), 1128);
         assert.deepEqual(writes.slice(1), [
             ["POST", "/issues/2000/comments", { body: "Duplicate of #1128." }],
@@ -3960,7 +4003,7 @@ describe("master-guard", () => {
     });
 
     it("keeps its issue when the racing run's issue is the newer one", async () => {
-        const { gh, writes } = repo([], { number: 3000, title: `${FREEZE_PREFIX}056ee80` });
+        const { gh, writes } = repo([], { number: 3000, title: `${RED_PREFIX}056ee80` });
         assert.equal(await fileIssue(gh, red("df92205")), 2000);
         assert.equal(writes.length, 1);
     });
@@ -3975,24 +4018,16 @@ describe("master-guard", () => {
         const sha = "0123456789abcdef0123456789abcdef01234567";
         assert.equal(lint(revertTitle(sha, [1011])), 0);
         assert.equal(lint(revertTitle(sha, [])), 0);
-        assert.equal(lint(revertTitle(sha, [42, 43, 44])), 0);
-    });
-
-    it("names every pull request of a reverted batch", () => {
-        const sha = "0123456789abcdef0123456789abcdef01234567";
-        assert.equal(revertTitle(sha, [42, 43, 44]), "revert: batch #42, #43, #44, master CI red at 0123456");
         assert.equal(revertTitle(sha, [1011]), "revert: pull request #1011, master CI red at 0123456");
     });
 
     it("tells authors to revert the revert, never to re-queue a merged pull request", () => {
         const sha = "0123456789abcdef0123456789abcdef01234567";
-        for (const prs of [[], [1011], [42, 43, 44]]) {
+        for (const prs of [[], [1011]]) {
             const body = revertBody(sha, "https://run", prs);
             assert.match(body, /reverts this revert/);
-            assert.doesNotMatch(body, /re-enter/);
+            assert.doesNotMatch(body, /re-enter|queue/);
         }
-        // a batch went red on the tree the queue passed: point at master-only jobs and flakes first
-        assert.match(revertBody(sha, "https://run", [42, 43, 44]), /#42, #43, #44.*jobs that run only on master/s);
     });
 
     // A red CI run on master as the jobs API and the logs show it. `logs` maps a failed job's name to the lines
@@ -6180,6 +6215,37 @@ describe("pr-status-broker", () => {
         assert.equal(b.author, null, "a deleted account");
         assert.deepEqual(b.checks, {});
     });
+
+    it("follows the pages of open pull requests and sums their cost", async () => {
+        const asked = [];
+        const page = (after, nodes, next) => ({
+            rateLimit: { remaining: 100 - asked.length, resetAt: "r", cost: 1 },
+            repository: { pullRequests: { pageInfo: { hasNextPage: next, endCursor: `c${asked.length}` }, nodes } },
+        });
+        const data = await fetchAll(async (after) => {
+            asked.push(after);
+            return asked.length === 1 ? page(after, [{ number: 1 }], true) : page(after, [{ number: 2 }], false);
+        });
+        assert.deepEqual(asked, [null, "c1"]);
+        assert.deepEqual(
+            data.repository.pullRequests.nodes.map((pr) => pr.number),
+            [1, 2],
+        );
+        assert.equal(data.repository.pullRequests.pageInfo.hasNextPage, false);
+        assert.deepEqual(data.rateLimit, { remaining: 98, resetAt: "r", cost: 2 });
+    });
+
+    it("stops after its last page and says the list is incomplete", async () => {
+        let n = 0;
+        const data = await fetchAll(async () => ({
+            rateLimit: { cost: 1 },
+            repository: {
+                pullRequests: { pageInfo: { hasNextPage: true, endCursor: `c${++n}` }, nodes: [{ number: n }] },
+            },
+        }));
+        assert.equal(n, 10);
+        assert.equal(data.repository.pullRequests.pageInfo.hasNextPage, true);
+    });
 });
 
 describe("the commit and push hooks", () => {
@@ -7467,10 +7533,12 @@ describe("release.yml's nightly promotion (#1020)", () => {
         );
         const decide = gate.steps.find((st) => st.id === "promote");
         assert.deepEqual([decide.run, decide.env.STATE], ["node tools/channel/nightly.mjs decide", "approved"]);
-        // only a gate refusal is recorded (rejected), never a wait for a publish hold
-        const rejected = gate.steps.find((st) => st.run === "node tools/channel/resume.mjs record");
-        assert.equal(rejected.if, "${{ steps.gate.outputs.outcome == 'failure' }}");
-        assert.equal(rejected.env.STATE, "rejected");
+        // only a gate refusal is recorded (refused, never the owner's rejected: #6783), with the judging run a retry
+        // needs, never a wait for a publish hold
+        const refused = gate.steps.find((st) => st.run === "node tools/channel/resume.mjs record");
+        assert.equal(refused.if, "${{ steps.gate.outputs.outcome == 'failure' }}");
+        assert.equal(refused.env.STATE, "refused");
+        assert.equal(refused.env.SOURCE_RUN, "${{ needs.pick.outputs.source_run }}");
         // the builds the promotion ships: those the judging run kept for its held green-images head
         assert.equal(
             steps.keep_builds.if,
@@ -7970,7 +8038,8 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
     // failed with every Test job green (#5537). Such a plan is cut across the test and test-2 jobs.
     it("runs a plan above 256 Test jobs as two matrices, and passes only when both did", () => {
         const dir = mkdtempSync(join(TMP, "matrix-cap-"));
-        const covers = SHARDS.filter((s) => s.shard.startsWith("graphty-element-browser-")).map((s) => s.shard);
+        // a pull request's bins cover the Off parts only (it plans no full-run-only shard)
+        const covers = SHARDS.filter((s) => /^graphty-element-browser-\d+$/.test(s.shard)).map((s) => s.shard);
         const bins = Array.from({ length: 302 }, (_, i) => ({
             name: `graphty-element-browser-bin-${i + 1}`,
             family: "graphty-element-browser",

@@ -121,13 +121,13 @@ describe("editableBase", () => {
         session.dispose();
     });
 
-    it("fills an Everything row that writes nothing when turned on later", async () => {
+    it("writes nothing into the rows when turned on after they were written", async () => {
         const session = await triangle();
         await session.config.set({ startingRows: true });
         await session.config.set({ editableBase: true });
         const row = everything(session);
         const node = session.styles.list().find((layer) => (layer.row ?? layer.id) === row && layer.target === "node");
-        assert.isDefined(node?.set?.["node.color"]);
+        assert.isUndefined(node?.set, "the default rows are data written once; a later setting rewrites none");
         session.dispose();
     });
 

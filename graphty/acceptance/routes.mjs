@@ -11,8 +11,9 @@
  *  - `checks`: what the user would see when the walk is done, read through graphty-element's public
  *    API (`g`, README.md, "Reading the outcome") or the page's accessibility tree. A branch may not
  *    remove or change an existing check except on a branch of its own
- *    (tools/dry-run-check-guard.mjs). Each check is retried until it passes or 15 seconds pass, so it
- *    waits on its condition, never on a clock.
+ *    (tools/dry-run-check-guard.mjs). Each check is retried after every page frame until it passes, so
+ *    it waits on its condition, never on a clock; only the repository's one hang guard
+ *    (tools/test-wait-guard.mjs) ends a check that never passes.
  *
  * tools/dry-run-check-guard.mjs reads this file without running it: every route's `checks` and
  * other properties, every import, and every top-level declaration a check uses (directly or through
@@ -72,7 +73,7 @@ async function newLayer(u) {
  * @param u the user's hands (README.md)
  */
 async function openWhich(u) {
-    const edit = u.page.getByRole("button", { name: /^Edit Which (nodes|edges)/ });
+    const edit = u.page.getByRole("button", { name: /^Style (Nodes|Edges)\.\.\./ });
     const line = u.page.getByRole("button", { name: /^Which (nodes|edges),/ });
     await edit.or(line).first().waitFor();
     if (await edit.isVisible()) {
@@ -215,6 +216,8 @@ async function everythingColor(u, color) {
 
 const STARTING_NODE_COLOR = "#6366F1";
 const STARTING_EDGE_COLOR = "#A9A9A9";
+// graphty-element's default line.width (EDGE_CONSTANTS.DEFAULT_LINE_WIDTH), in world units since #125
+const STARTING_EDGE_WIDTH = 4.5;
 const yes = (v) => v === true || v === "yes" || v === "true";
 const missing = (v) => v === null || v === undefined || v === "";
 
@@ -266,7 +269,7 @@ async function onlyTheseEdges(g, test, look, count) {
     assert.equal(want.size, count, `the data holds ${count} such edges`);
     const drawn = { width: await g.edgeLook("edge.width"), color: await g.edgeLook("edge.color") };
     for (const e of edges) {
-        const expect = want.has(e.id) ? look : { width: 8, color: STARTING_EDGE_COLOR };
+        const expect = want.has(e.id) ? look : { width: STARTING_EDGE_WIDTH, color: STARTING_EDGE_COLOR };
         assert.deepEqual({ width: drawn.width[e.id], color: drawn.color[e.id] }, expect, `edge ${e.id}`);
     }
 }

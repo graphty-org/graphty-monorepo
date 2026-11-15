@@ -1,13 +1,10 @@
-import {
-    AbstractMesh,
-    type Camera,
-    Matrix,
-    type Mesh,
-    type Observer,
-    type Scene,
-    Vector3,
-    Viewport,
-} from "@babylonjs/core";
+import type { Observer } from "@babylonjs/core";
+import type { Camera } from "@babylonjs/core/Cameras/camera.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { Viewport } from "@babylonjs/core/Maths/math.viewport.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
+import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { LabelDeclutterOrder } from "../catalog/label-style";
 import type { Edge } from "../Edge";
@@ -419,6 +416,18 @@ export class LabelDeclutter {
         }
 
         return LabelDeclutter.of(scene, context).sampler.withholds(node, wanted);
+    }
+
+    /**
+     * A row drawn plain past `limits.objectRows` wants a label: while label sampling is on, a pass is owed,
+     * which may pick the row and build it a `Node` for the label.
+     * @param scene - The scene the labels are drawn in.
+     * @param context - The graph.
+     */
+    static notePlainLabel(scene: Scene, context: GraphContext): void {
+        if (context.getStyles().config.behavior.labels.sampleCell !== undefined) {
+            LabelDeclutter.of(scene, context).sampler.pending = true;
+        }
     }
 
     /**

@@ -10,12 +10,16 @@ import {
     type LayoutImplementation,
     type OptionDescriptor,
 } from "@graphty/graphty-element/catalog";
+import { GraphtyLogger } from "@graphty/graphty-element/logging";
 import type { GraphSession } from "@graphty/graphty-element/session";
 import { useEffect, useState } from "react";
 
 import { isSlow } from "../analyze/words";
 import { useSessionVersion } from "../toolbar/useSessionVersion";
 import { layoutRefusalWords } from "./refusalWords";
+import { LAYOUT_DESCRIPTIONS } from "./words";
+
+const logger = GraphtyLogger.getLogger(["graphty", "layout"]);
 
 /**
  * The app's name for each of the element's layouts, by catalog id. A layout a third party
@@ -83,6 +87,17 @@ function otherEngine(descriptor: LayoutDescriptor): LayoutImplementation | undef
  */
 export function layoutName(descriptor: LayoutDescriptor): string {
     return otherEngine(descriptor)?.plainName ?? LAYOUT_NAMES[descriptor.id] ?? descriptor.plainName;
+}
+
+/**
+ * The line under a layout's name: the app's words for the layout, or for the engine drawing it when
+ * that is not the default; nothing for a layout the app has no words for.
+ * @param descriptor - the element's layout descriptor, as a row of the list hands it to the form.
+ * @returns the line, or "".
+ */
+export function layoutDescription(descriptor: LayoutDescriptor): string {
+    const engine = otherEngine(descriptor)?.engine;
+    return LAYOUT_DESCRIPTIONS[engine === undefined ? descriptor.id : `${descriptor.id}:${engine}`] ?? "";
 }
 
 /**
@@ -155,7 +170,13 @@ export function useLayouts(session: GraphSession | null): readonly LayoutDescrip
                     setResolved({ session, layouts });
                 }
             },
-            () => undefined,
+            (error: unknown) => {
+                // The list keeps the layouts it read before; the refusal is an element defect.
+                logger.error(
+                    "catalog.optionsFor failed; the layout list was not refreshed",
+                    error instanceof Error ? error : undefined,
+                );
+            },
         );
         return () => {
             live = false;
@@ -306,7 +327,7 @@ function choiceOf(session: GraphSession, descriptor: LayoutDescriptor, recommend
         descriptor,
         key: engine === undefined ? descriptor.id : `${descriptor.id}:${engine}`,
         name: layoutName(descriptor),
-        description: descriptor.description,
+        description: layoutDescription(descriptor),
         graphviz: isGraphviz(descriptor),
         current: isDrawn(session, descriptor),
         recommended,

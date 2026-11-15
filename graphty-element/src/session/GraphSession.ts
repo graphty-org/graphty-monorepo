@@ -22,7 +22,7 @@ import {
 } from "../acceleration";
 import { sessionColumns } from "../algorithms/input/columns";
 import type { CameraState } from "../camera/types";
-import { arrangedDimension } from "../catalog/layouts";
+import { arrangedDimension, LAYOUT_CATALOG } from "../catalog/layouts";
 import { readingOfScope } from "../catalog/sets/parse";
 import type {
     EdgeId,
@@ -57,6 +57,7 @@ import { GraphtyError, isGraphtyError } from "../errors";
 import type { FeatureId } from "../features/registry";
 import { type EnabledFeatures, featureOff, pageDefaultFeatures, resolveFeatures } from "../features/resolve";
 import { graphvizAvailability } from "../layout/graphviz/availability";
+import { GraphtyLogger } from "../logging/GraphtyLogger";
 import { type AssetsApiInternal, createAssetsApi } from "./assets/AssetsApi";
 import { dataRevisionOf, type InputCounters, inputCountersOf } from "./attributes";
 import { createSessionCatalog, SESSION_CATALOG_TABLES } from "./catalog";
@@ -71,6 +72,7 @@ import { dispatcherOf, registerDispatcher } from "./dispatchers";
 import { englishRunLabel } from "./english";
 import { createJournal, type JournalApi } from "./journal";
 import { graphvizEngineFor, type LayoutRecommendation, recommendLayout } from "./layout";
+import { LayoutRunner } from "./layoutRunner";
 import { RenderLimits } from "./limits";
 import { loadLineOf } from "./loadLine";
 import { createNetworkApi, type NetworkApiInternal } from "./network";
@@ -100,8 +102,17 @@ import {
     type TransactionOptions as DispatchOptions,
     type TransactionScope as DispatchScope,
 } from "./project/Dispatcher";
-import { EDGES_ADDED, nodeOfKey, NODES_ADDED, ROWS_MOVED } from "./project/graphOps";
+import {
+    EDGES_ADDED,
+    forEachEdgeOfKey,
+    graphDiffOf,
+    namesEdges,
+    nodeOfKey,
+    NODES_ADDED,
+    ROWS_MOVED,
+} from "./project/graphOps";
 import type { GraphSlice, LayoutChoice } from "./project/state";
+import { reportCaught } from "./project/strict";
 import { answeringFromProject, type CannedOutcomes, type ProjectApi, projectOf } from "./projectFile";
 import { createQueryEngine, type QueryEngine } from "./query";
 import { type RecipeDocument, recipeOf } from "./recipe";
@@ -167,10 +178,12 @@ import {
     type FieldWords,
     type PathDirectory,
     type SessionStylesApi,
+    type StyleRepaintCause,
+    type StyleRepaintFailure,
 } from "./styles";
 import { placementLayers } from "./styles/autoApply";
 import { atStylePath, channelsFor } from "./styles/channels";
-import { isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
+import { fileStyleWords, isFileStylePath, parseFileStylePath } from "./styles/fileStyles/path";
 import { asFileStyleStore, FILE_STYLES_VALUE, fileStyleColumn, type FileStyleStore } from "./styles/fileStyles/store";
 import { createHoverSource } from "./styles/hover";
 import { readsWholeColumn } from "./styles/labelTemplate";
@@ -191,8 +204,9 @@ import {
     edgeEndpointOf,
     type SessionSelectorSource,
     STRUCTURE_PATHS,
+    STRUCTURE_VALUES,
 } from "./styles/sources";
-import { paintingOf } from "./styles/StylesApi";
+import { paintingOf, repaintFailure } from "./styles/StylesApi";
 import type { EdgeAgeFade } from "./time/ageFade";
 import { numericBound } from "./time/parse";
 import { createTimeApi, gatedTimeApi, type TimeApi, type TimeInternals } from "./time/TimeApi";
@@ -210,6 +224,7 @@ import type {
     HistoryClearOptions,
     HistoryOutcome,
     HistoryRestoreOptions,
+    LayoutMotion,
     LocationColumns,
     ModelChange,
     PositionEntry,
@@ -223,6 +238,7 @@ import type {
     SessionDataConfig,
     SessionEventMap,
     SessionGraphStore,
+    SessionHidden,
     SessionHistory,
     SessionLayout,
     SessionPositions,
@@ -589,6 +605,10 @@ class Session implements ElementSession {
     private readonly sessionRuns: SessionRunsApi;
     private readonly planning: PlanningContext;
     private readonly watchers: Watchers;
+    /** The layout's motion: the renderer's, or the runner's in a session that draws nothing. */
+    private motion: LayoutMotion = "settled";
+    /** Runs the layout when no renderer has handed the dispatcher its own. */
+    private readonly runner: LayoutRunner;
     /** The settings; identity-stable, every member read live. */
     readonly config: SessionConfig;
     private readonly sessionData: SessionData;
@@ -615,6 +635,7 @@ class Session implements ElementSession {
     private disposed = false;
     /** The lane with the positions verbs beside it; built once, on first read. */
     private positionsView: SessionPositions | undefined;
+    private hiddenView: SessionHidden | undefined;
     private readonly settledFeatures: () => EnabledFeatures;
     /** Whether the timeline experiment is on, for a command that has no `session.time` to ask. */
     private readonly timelineOn: () => boolean;
@@ -690,6 +711,7 @@ class Session implements ElementSession {
                 cause: change.cause,
             });
             beside?.(change);
+            tellData(this.watchers, change);
         };
         this.dispatcher.events.caughtUp = (change) => {
             publish(this.watchers, "project:derived", {
@@ -731,10 +753,26 @@ class Session implements ElementSession {
         SESSION_RUNS.set(this, this.sessionRuns);
         this.history = historyOf(this.dispatcher, () => version);
         this.views = viewsOf(this.dispatcher);
+        this.runner = new LayoutRunner({
+            snapshot: () => this.store.getSnapshot(),
+            undirected: (snapshot) => this.store.undirected(snapshot),
+            lane: () => this.store.positions,
+            choice: () => this.dispatcher.state.layout ?? DEFAULT_LAYOUT,
+            motion: (motion) => {
+                this.layoutMotion(motion);
+            },
+            rest: () => {
+                this.dispatcher.arrangement.rest();
+            },
+            headless: () => this.dispatcher.services.layout === undefined && !this.disposed,
+        });
+        // A renderer replaces it with its own layout engine.
+        this.dispatcher.arrangement.engine = this.runner;
         this.layout = layoutOf(
             this.dispatcher,
             (command) => this.dispatcher.dispatch(command),
             () => locationColumns(this.planning),
+            this.layoutDrive(),
         );
         // What an import asking for a recommended layout chooses, for the graph it loaded.
         const fileGraph = (): FileGraphValue | undefined =>
@@ -981,6 +1019,7 @@ class Session implements ElementSession {
                     this.dispatcher,
                     (command) => scope.dispatch(command),
                     () => locationColumns(this.planning),
+                    this.layoutDrive(),
                 ),
             },
             transaction: {
@@ -1020,6 +1059,15 @@ class Session implements ElementSession {
     get positions(): SessionPositions {
         this.positionsView ??= positionsOf(this.store, this.dispatcher);
         return this.positionsView;
+    }
+
+    /**
+     * The nodes hidden from the drawing only, with the verbs that hide and show them.
+     * @returns the hidden ids and the verbs
+     */
+    get hidden(): SessionHidden {
+        this.hiddenView ??= hiddenOf(this.dispatcher);
+        return this.hiddenView;
     }
 
     /**
@@ -1239,6 +1287,55 @@ class Session implements ElementSession {
     }
 
     /**
+     * Records the layout's motion and publishes `layout:motion-changed` when it changed.
+     * @param motion - The motion now.
+     */
+    layoutMotion(motion: LayoutMotion): void {
+        if (motion !== this.motion) {
+            this.motion = motion;
+            const { id, engine } = this.dispatcher.state.layout ?? DEFAULT_LAYOUT;
+            const kind =
+                LAYOUT_CATALOG.flatMap((entry) => entry.implementations).find((i) => i.engine === engine)?.kind ??
+                "live";
+            publish(this.watchers, "layout:motion-changed", { motion, id, engine, kind, step: this.runner.steps });
+        }
+    }
+
+    /**
+     * What the layout verbs reach besides the dispatcher: the motion, and the runner while no
+     * renderer draws.
+     * @returns The drive.
+     */
+    private layoutDrive(): LayoutDrive {
+        return {
+            motion: () => this.motion,
+            steps: () => this.runner.steps,
+            runner: () => (this.dispatcher.services.layout === undefined ? this.runner : null),
+            rested: () =>
+                this.motion !== "running" || this.disposed
+                    ? Promise.resolve(this.motion === "settled" && !this.disposed)
+                    : new Promise<boolean>((resolve) => {
+                          const offs = [
+                              this.on("layout:motion-changed", ({ motion }) => {
+                                  if (motion !== "running") {
+                                      offs.forEach((off) => {
+                                          off();
+                                      });
+                                      resolve(motion === "settled");
+                                  }
+                              }),
+                              this.on("session:disposed", () => {
+                                  offs.forEach((off) => {
+                                      off();
+                                  });
+                                  resolve(false);
+                              }),
+                          ];
+                      }),
+        };
+    }
+
+    /**
      * Publishes `canvas:group-outline-click`.
      * @param target - The outline's layer, shader and group.
      */
@@ -1303,6 +1400,7 @@ class Session implements ElementSession {
         }
 
         this.disposed = true;
+        this.runner.dispose();
         this.stopTime();
         // A pass still queued would repaint from a store disposed below.
         this.dispatcher.lane.close();
@@ -1449,19 +1547,124 @@ function pinnedOf(pins: ReadonlySet<NodeId>): ReadonlySet<NodeId> {
 }
 
 /**
+ * `session.hidden`: the `visibility` slice's hidden list, read as a sealed set, with the two verbs
+ * that write it.
+ * @param dispatcher - The dispatcher.
+ * @returns The hidden nodes.
+ */
+function hiddenOf(dispatcher: Dispatcher): SessionHidden {
+    return Object.freeze({
+        get ids(): ReadonlySet<NodeId> {
+            return sealedSet(
+                dispatcher.state.visibility.hidden ?? [],
+                "Call session.hidden.add() or remove() to change what is hidden.",
+                otherIdSpelling,
+            );
+        },
+        // An empty list is no step at all.
+        add: async (ids: readonly NodeId[]) => {
+            if (ids.length > 0) {
+                await dispatcher.dispatch({ op: "visibility.hide", ids, hidden: true });
+            }
+        },
+        remove: async (ids: readonly NodeId[]) => {
+            if (ids.length > 0) {
+                await dispatcher.dispatch({ op: "visibility.hide", ids, hidden: false });
+            }
+        },
+    });
+}
+
+/**
+ * The rows `session.hidden` keeps off the canvas, one byte per row: each hidden node, and every
+ * edge with a hidden end. Rebuilt only when the graph or the list changes.
+ * @param snapshot - The current graph.
+ * @param list - The hidden list now.
+ * @returns The bytes for nodes or edges, or null while nothing is hidden.
+ */
+function hiddenRowsOf(
+    snapshot: () => GraphSnapshot,
+    list: () => readonly NodeId[] | undefined,
+): (target: "node" | "edge") => Uint8Array | null {
+    let kept: { graph: GraphSnapshot; ids: readonly NodeId[]; node: Uint8Array; edge: Uint8Array } | null = null;
+
+    return (target) => {
+        const ids = list();
+        if (ids === undefined || ids.length === 0) {
+            return null;
+        }
+
+        const graph = snapshot();
+        if (kept?.graph !== graph || kept.ids !== ids) {
+            const node = new Uint8Array(graph.nodeCount);
+            for (const id of ids) {
+                const row = rowOfEitherSpelling(graph.ids, id);
+                if (row !== INVALID_INDEX) {
+                    node[row] = 1;
+                }
+            }
+
+            const edge = new Uint8Array(graph.edgeCount);
+            const { src, dst } = graph.edgeList();
+            for (let at = 0; at < graph.edgeCount; at++) {
+                edge[at] = node[src[at]] | node[dst[at]];
+            }
+
+            kept = { graph, ids, node, edge };
+        }
+
+        return kept[target];
+    };
+}
+
+/**
  * The coordinates, read-only, with the verbs that place and pin nodes as steps beside them.
  * @param store - The store whose lane it reads.
  * @param dispatcher - The dispatcher the verbs dispatch through.
  * @returns The coordinates and the verbs.
  */
 function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionPositions {
+    const set = async (entries: readonly PositionEntry[]): Promise<void> => {
+        await dispatcher.dispatch({ op: "positions.set", entries });
+    };
     return Object.defineProperties(
         readonlyPositions(() => store.positions),
         {
             pinned: { get: () => pinnedOf(dispatcher.state.pins), enumerable: true },
-            set: {
-                value: async (entries: readonly PositionEntry[]) => {
-                    await dispatcher.dispatch({ op: "positions.set", entries });
+            set: { value: set, enumerable: true },
+            get: {
+                value: (id: NodeId) => {
+                    const row = rowOfEitherSpelling(store.getSnapshot().ids, id);
+                    const { positions } = store;
+                    if (row === INVALID_INDEX || !positions.isPlaced(row)) {
+                        return undefined;
+                    }
+
+                    const out = { x: 0, y: 0, z: 0 };
+                    positions.read(row, out);
+                    return Object.freeze(out);
+                },
+                enumerable: true,
+            },
+            pinnedMask: {
+                value: () => {
+                    const { count } = store.positions;
+                    const mask = new Uint8Array(count);
+                    for (let row = 0; row < count; row += 1) {
+                        mask[row] = store.positions.isPinned(row) ? 1 : 0;
+                    }
+
+                    return mask;
+                },
+                enumerable: true,
+            },
+            snapshot: { value: () => positionsSnapshot(store), enumerable: true },
+            restore: {
+                value: async (saved: { readonly order: readonly NodeId[]; readonly xyz: Float32Array }) => {
+                    const entries = restoredEntries(saved);
+                    if (entries.length > 0) {
+                        await set(entries);
+                    }
                 },
                 enumerable: true,
             },
@@ -1482,6 +1685,64 @@ function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionP
 }
 
 /**
+ * Every node's coordinates now, as a copy, in dense index order.
+ * @param store - The store whose lane it reads.
+ * @returns The ids and x, y, z per node; NaN for an unplaced node.
+ */
+function positionsSnapshot(store: SessionGraphStore): {
+    readonly order: readonly NodeId[];
+    readonly xyz: Float32Array;
+} {
+    const snapshot = store.getSnapshot();
+    const n = snapshot.nodeCount;
+    const xyz = new Float32Array(3 * n);
+    const out = { x: 0, y: 0, z: 0 };
+    for (let row = 0; row < n; row += 1) {
+        store.positions.read(row, out);
+        xyz.set([out.x, out.y, out.z], 3 * row);
+    }
+
+    return Object.freeze({ order: Object.freeze(snapshot.ids.toArray()), xyz });
+}
+
+/**
+ * The `positions.set` entries a restore writes: every node the snapshot placed.
+ * @param saved - The snapshot to restore.
+ * @param saved.order - Its ids.
+ * @param saved.xyz - Its coordinates, three per id.
+ * @returns The entries.
+ */
+function restoredEntries(saved: { readonly order: readonly NodeId[]; readonly xyz: Float32Array }): PositionEntry[] {
+    if (saved.xyz.length !== 3 * saved.order.length) {
+        throw new GraphtyError({
+            code: "E_BAD_COMMAND",
+            message: `A positions snapshot holds three numbers per id: ${String(saved.order.length)} ids, ${String(saved.xyz.length)} numbers.`,
+            source: "history",
+            details: { ids: saved.order.length, numbers: saved.xyz.length },
+        });
+    }
+
+    const entries: PositionEntry[] = [];
+    saved.order.forEach((id, i) => {
+        const [x, y, z] = saved.xyz.subarray(3 * i, 3 * i + 3);
+        if ([x, y, z].every(Number.isFinite)) {
+            entries.push({ id, x, y, z });
+        }
+    });
+    return entries;
+}
+
+/** What the layout verbs reach besides the dispatcher. */
+interface LayoutDrive {
+    motion(): LayoutMotion;
+    steps(): number;
+    /** The runner while no renderer draws; null once one does. */
+    runner(): LayoutRunner | null;
+    /** Settles once the layout is not moving: true at rest, false paused or disposed. */
+    rested(): Promise<boolean>;
+}
+
+/**
  * The saved camera views: the dispatcher's `views` slice, read as a map, with the two verbs that
  * write it.
  * @param dispatcher - The dispatcher.
@@ -1492,14 +1753,24 @@ function positionsOf(store: SessionGraphStore, dispatcher: Dispatcher): SessionP
  * @param dispatcher - The session's dispatcher, whose state is read.
  * @param dispatch - Where the verbs go: the session's dispatch, or a transaction's.
  * @param locate - The columns the location map reads unless its options name some.
+ * @param drive - The motion, and the runner while no renderer draws.
  * @returns The layout surface.
  */
 function layoutOf(
     dispatcher: Dispatcher,
     dispatch: (command: SessionCommand) => Promise<unknown>,
     locate: () => LocationColumns,
+    drive: LayoutDrive,
 ): SessionLayout {
     const choice = (): LayoutChoice => dispatcher.state.layout ?? DEFAULT_LAYOUT;
+    const play = async (): Promise<void> => {
+        const runner = drive.runner();
+        if (runner === null) {
+            await dispatch({ op: "layout.transport", action: "play" });
+        } else {
+            runner.play();
+        }
+    };
     return Object.freeze({
         get id() {
             return choice().id;
@@ -1516,6 +1787,37 @@ function layoutOf(
         get arrangedDimension() {
             return arrangedDimension(choice());
         },
+        get motion() {
+            return drive.motion();
+        },
+        get step() {
+            return drive.steps();
+        },
+        play,
+        pause: async () => {
+            const runner = drive.runner();
+            if (runner === null) {
+                await dispatch({ op: "layout.transport", action: "pause" });
+            } else {
+                runner.pause();
+            }
+        },
+        tick: (count = 1) => {
+            const runner = drive.runner();
+            if (runner === null) {
+                throw new GraphtyError({
+                    code: "E_UNSUPPORTED",
+                    message: "A renderer steps its layout every frame; use play() and pause() on a drawn session.",
+                    source: "layout",
+                });
+            }
+
+            runner.tick(count);
+        },
+        settle: async () => {
+            await play();
+            return drive.rested();
+        },
         set: async (
             id: LayoutId,
             options?: { readonly engine?: string; readonly options?: Readonly<Record<string, unknown>> },
@@ -1529,6 +1831,9 @@ function layoutOf(
         },
         setDimension: async (dimension: "2d" | "3d") => {
             await dispatch({ op: "view.dimension", dimension });
+        },
+        rerun: async () => {
+            await dispatch({ op: "layout.rerun" });
         },
         optionInEffect: (id: LayoutId, option: string, dimension?: "2d" | "3d"): SettingEffect => {
             const drawn =
@@ -1671,13 +1976,11 @@ function configOf(
         },
         set: async (values: ProjectConfigPatch) => {
             // A background naming a catalog shader copies its text in as it is set; the body
-            // loads first, since the write's executor cannot wait for it.
+            // loads first, since the write's executor cannot wait for it. Counted as owed while it
+            // loads, so a wait for the picture does not end on a canvas without it (issue #7970).
             const loading = loadNamedShaders(values);
-            if (loading !== undefined) {
-                await loading;
-            }
-
-            await dispatcher.dispatch({ op: "config.set", values });
+            const write = (): Promise<unknown> => dispatcher.dispatch({ op: "config.set", values });
+            await (loading === undefined ? write() : dispatcher.ahead(loading.then(write)));
         },
         inEffect: (key: GraphSettingKey): SettingEffect =>
             settingEffect(key, dispatcher.state.layout ?? DEFAULT_LAYOUT),
@@ -1924,8 +2227,9 @@ function valueSourceOf(
 ): FilterValueSource {
     const keyOf = (path: Path): string =>
         path.startsWith(ATTRIBUTE_PREFIX) ? path.slice(ATTRIBUTE_PREFIX.length) : path;
-    // A run's value and a node's value read at an edge's end are the style source's to read.
-    const isResult = (path: Path): boolean => path.startsWith("results.") || edgeEndPathOf(path) !== undefined;
+    // A run's value and every value under `graphty.` (an end's node value, a degree, a note value,
+    // a file's style value) are the style source's to read.
+    const isResult = (path: Path): boolean => path.startsWith("results.") || path.startsWith("graphty.");
 
     return {
         nodeValue: (index: number, path: Path): unknown =>
@@ -1946,9 +2250,10 @@ function valueSourceOf(
 }
 
 /**
- * Which halves carry a value path: a run field's declared kinds, or the kinds of the data
- * attribute at that path.
- * @param path - `results.<run>.<field>`, `data.<field>`, or either read at an edge's end.
+ * Which halves carry a value path: a run field's declared kinds, the kinds of the data attribute
+ * at that path, or for a value graphty-element provides, the kinds it is on.
+ * @param path - `results.<run>.<field>`, `data.<field>`, either read at an edge's end, a degree,
+ *     a note value or a file's style value.
  * @param data - The session's data surface.
  * @param fieldsOf - A run's published fields, or undefined when it has no result.
  * @returns The kinds, `"node"`, `"edge"` or both.
@@ -1962,6 +2267,20 @@ function fieldKindsOf(
     const end = edgeEndPathOf(path);
     if (end !== undefined) {
         return fieldKindsOf(end.node, data, fieldsOf).includes("node") ? ["edge"] : [];
+    }
+
+    // The values graphty-element provides: a file's style value is on the kind its path names.
+    const style = parseFileStylePath(path);
+    if (style !== undefined) {
+        return [style.kind];
+    }
+
+    if (noteFieldOf(path) !== undefined) {
+        return ["node", "edge"];
+    }
+
+    if ((STRUCTURE_PATHS as readonly string[]).includes(path)) {
+        return ["node"];
     }
 
     if (path.startsWith("results.")) {
@@ -2193,12 +2512,13 @@ function runFieldPaths(runs: RunsApi, target: "node" | "edge"): Path[] {
 }
 
 /**
- * The structural node values this graph answers: degree, and in and out degree when directed.
+ * The structural node values this graph answers: degree, and in and out degree when any edge is directed.
  * @param data - The session's data surface.
  * @returns The paths.
  */
 function structurePaths(data: SessionDataApi): readonly Path[] {
-    return data.statistics().directedness === "directed" ? STRUCTURE_PATHS : ["graphty.degree"];
+    const { directedness } = data.statistics();
+    return directedness === "directed" || directedness === "mixed" ? STRUCTURE_PATHS : ["graphty.degree"];
 }
 
 /**
@@ -2356,7 +2676,13 @@ function fieldWordsOf(
             }
         }
 
-        return undefined;
+        // The values graphty-element keeps itself: a node's degrees and a file's style columns.
+        const structure = target === "node" ? STRUCTURE_VALUES.find((each) => each.path === path) : undefined;
+        if (structure !== undefined) {
+            return { plainName: structure.plainName, technicalName: structure.technicalName };
+        }
+
+        return parseFileStylePath(path)?.kind === target ? fileStyleWords(path) : undefined;
     };
 }
 
@@ -2699,6 +3025,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // per-capability floors in force, and a 0 written here would count as the consumer's own.
     const minNodes = options.acceleration?.minNodes ?? options.config?.acceleration?.minNodes;
     const watchers: Watchers = new Map();
+    // Under "batched" a forward add marks its edges as one range key (cosmos-gap.md G4).
+    if (internals.batched !== undefined) {
+        dispatcher.services.batched = internals.batched;
+    }
     dispatcher.services.progress = (change) => {
         publish(watchers, "progress:changed", change);
     };
@@ -2847,6 +3177,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             timeParsed: (kind, column) => timeline()?.parsedCount(kind, column),
             timeline: () => timelineOn(),
             fileStyles: () => fileStylesOn(),
+            batched: () => internals.batched?.() === true,
             visibleMasks: () => ({ nodes: visibility.nodeMask(), edges: visibility.edgeMask() }),
         },
     );
@@ -3400,6 +3731,14 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             publish(watchers, event, detail);
         },
         ...(internals.renderedFrame === undefined ? {} : { renderedFrame: internals.renderedFrame }),
+        asDates: (kind, name) => {
+            const column = data.attributes().find((each) => each.kind === kind && each.name === name);
+            if (column?.type !== "string" || data.previewType({ kind, name }, "date").fails > 0) {
+                return undefined;
+            }
+
+            return data.setType({ kind, name }, "date");
+        },
     });
     timeInternals = time.internals;
     dispatcher.services.timeFieldChanged = () => {
@@ -3596,6 +3935,13 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // accepted against a scale the repaint then could not find, which reads as a layer that
     // validated and paints nothing.
     const scales = createScaleRegistry();
+    const reportRepaintFailure = (failure: StyleRepaintFailure): void => {
+        GraphtyLogger.getLogger(["graphty", "style"]).error("Repaint failed", failure.error, {
+            cause: failure.cause,
+            code: failure.error.code,
+        });
+        publish(watchers, "style:repaint-failed", failure);
+    };
     // The columnar pass, over the session's own data. It resolves what every element shows and
     // stops there: binding a renderer to those columns is a separate step, and nothing here
     // reaches one.
@@ -3604,6 +3950,8 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             nodeCount: () => snapshot().nodeCount,
             edgeCount: () => snapshot().edgeCount,
             elements,
+            // `session.hidden`: drawn as not visible over whatever the layers paint.
+            hidden: hiddenRowsOf(snapshot, () => dispatcher.state.visibility.hidden),
             // What makes a run-bound layer cost its RUN rather than the graph: a layer selecting
             // the elements one run measured walks that run's 300 rows, not the graph's 50,000.
             measured: elements.measured,
@@ -3613,11 +3961,31 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             hideUnpainted: () => dispatcher.state.config.get("editableBase") === true,
             ...(internals.now === undefined ? {} : { now: internals.now }),
             ...(internals.batched === undefined ? {} : { uniformFill: internals.batched }),
+            onProblem: (problem) => {
+                reportRepaintFailure({
+                    cause: "layer",
+                    error: new GraphtyError({
+                        code: problem.code,
+                        message: problem.message,
+                        source: "style",
+                        target: { kind: "layer", id: problem.layerId },
+                    }),
+                });
+            },
         }),
         snapshot,
     );
 
     const teardown = new AbortController();
+    // A repaint the element starts on its own has no caller to reject: its failure is logged and
+    // published as a coded `style:repaint-failed`, unless the session ending stopped it.
+    const repaintFailed =
+        (cause: StyleRepaintCause) =>
+        (error: unknown): void => {
+            if (!teardown.signal.aborted) {
+                reportRepaintFailure(repaintFailure(cause, error));
+            }
+        };
     // A `{match:"state"}` layer reads the selection and the pointer live, which change with no
     // step: each change repaints exactly the elements whose state moved, when a layer reads one.
     const readsState = (): boolean =>
@@ -3634,11 +4002,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         painter
             .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined, rowsOnly })
-            .catch((error: unknown) => {
-                if (!teardown.signal.aborted) {
-                    console.error("[graphty] Could not repaint the layers reading the selection.", error);
-                }
-            });
+            .catch(repaintFailed("selection"));
     };
     // The peek's layers leave the stack as it ends, so its repaint cannot ask what reads a state.
     repaintPeek = (dirty: ElementIndices): void => {
@@ -3648,11 +4012,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
 
         painter
             .repaintElements(stack.compiled(), dirty, { signal: teardown.signal, report: () => undefined })
-            .catch((error: unknown) => {
-                if (!teardown.signal.aborted) {
-                    console.error("[graphty] Could not repaint the elements a peek moved.", error);
-                }
-            });
+            .catch(repaintFailed("peek"));
     };
     // A pin or a release moves nodes in or out of a `{ match: "state", state: "pinned" }` layer.
     dispatcher.lane.register("pins", (_rendered, _target, dirty) => {
@@ -3770,11 +4130,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                     // The members moved without a command: a key and a count read again on this.
                     dispatcher.repaintedOutsidePass(["styles"]);
                 })
-                .catch((error: unknown) => {
-                    if (!teardown.signal.aborted) {
-                        console.error("[graphty] Could not repaint the layers naming a set that changed.", error);
-                    }
-                });
+                .catch(repaintFailed("sets"));
         },
     });
     teardown.signal.addEventListener("abort", () => {
@@ -3874,6 +4230,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
         onRefused: (refusal) => {
             publish(watchers, "style:refused", refusal);
         },
+        onRepaintFailed: reportRepaintFailure,
         onBatch: (batch) => {
             publish(watchers, "style:batch-changed", batch);
         },
@@ -3904,12 +4261,52 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
                 { node: all(graph.nodeCount), edge: all(graph.edgeCount) },
                 { signal: teardown.signal, report: () => undefined },
             )
-            .catch((error: unknown) => {
-                if (!teardown.signal.aborted) {
-                    console.error("[graphty] Could not repaint the layers that follow the pointer.", error);
-                }
-            });
+            .catch(repaintFailed("hover"));
     };
+
+    // `session.hidden`, forward or on undo and redo: repaint the nodes whose hiding moved and the
+    // edges touching them, so the pass draws them hidden or as their layers paint them.
+    dispatcher.lane.register("visibility", (rendered, target): Promise<unknown> | undefined => {
+        const before = rendered.visibility.hidden ?? [];
+        const after = target.visibility.hidden ?? [];
+        if (stack === null || before === after) {
+            return undefined;
+        }
+
+        const graph = snapshot();
+        const moved = new Set<number>();
+        const now = new Set(after);
+        const was = new Set(before);
+        for (const id of [...before.filter((each) => !now.has(each)), ...after.filter((each) => !was.has(each))]) {
+            const row = rowOfEitherSpelling(graph.ids, id);
+            if (row !== INVALID_INDEX) {
+                moved.add(row);
+            }
+        }
+
+        if (moved.size === 0) {
+            return undefined;
+        }
+
+        // ponytail: walks every edge (O(E)) per hide; an incidence index if hiding is ever per frame.
+        const edge: number[] = [];
+        const { src, dst } = graph.edgeList();
+        for (let at = 0; at < graph.edgeCount; at++) {
+            if (moved.has(src[at]) || moved.has(dst[at])) {
+                edge.push(at);
+            }
+        }
+
+        // Returned, so the pass -- and the step or undo that waits on it -- settles once it is drawn;
+        // a pass that hides nothing new stays synchronous.
+        return painter
+            .repaintElements(
+                stack.compiled(),
+                { node: [...moved], edge },
+                { signal: teardown.signal, report: () => undefined },
+            )
+            .catch(repaintFailed("hidden"));
+    });
 
     // The `runs` hook: a run whose entry changed -- recorded, re-run, undone, redone -- has
     // replaced the columns under `results.<runId>`, which any layer may read (a run's own layers,
@@ -3922,7 +4319,10 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
     // airline routes rebuilt every edge's paint in one frame, about 5.8 seconds on a phone-class
     // CPU, for a run that colours nodes alone.
     dispatcher.lane.register("runs", async (rendered, target, dirty) => {
-        const changed = new Set([...dirty].filter((id) => rendered.runs.get(id) !== target.runs.get(id)));
+        // By result: an entry that changed only around its columns (a rename) repaints nothing.
+        const changed = new Set(
+            [...dirty].filter((id) => rendered.runs.get(id)?.result !== target.runs.get(id)?.result),
+        );
         if (changed.size === 0) {
             return;
         }
@@ -4088,7 +4488,7 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             // As it paints: a hidden row's layer repaints as disabled, never as its author wrote it.
             const stack = paintingOf(styles, target.styles);
             const recordsOnly = ![...dirty].some(
-                (key) => key === ROWS_MOVED || !(key.startsWith("n:") || key.startsWith("e:") || key.startsWith("v:")),
+                (key) => key === ROWS_MOVED || !(key.startsWith("n:") || namesEdges(key) || key.startsWith("v:")),
             );
             // A load's style values moved: every layer reading a `graphty.style.` path repaints.
             const stylesMoved = dirty.has(FILE_STYLES_KEY);
@@ -4288,6 +4688,15 @@ function buildSession(options: ElementSessionOptions, internals: SessionInternal
             projectShaders: () => shaders.descriptors(),
             nodeValues: (path) => planning.nodeValues?.(path) ?? null,
             fileStyles: fileStylesOn,
+            // The timeline experiment gates detection, as `session.time.candidates()` is gated.
+            timeCandidates: () => (timelineOn() ? time.api.candidates() : []),
+            query: {
+                unresolvedPathsOf: (where) => engine.unresolvedPathsOf(where),
+                answerablePaths: () => [
+                    ...(paths.candidates?.("", "node") ?? []),
+                    ...(paths.candidates?.("", "edge") ?? []),
+                ],
+            },
         }),
         features: settleFeatures,
         timelineOn,
@@ -4343,11 +4752,13 @@ function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: n
             if (row !== INVALID_INDEX) {
                 rows.node.push(row);
             }
-        } else if (key.startsWith("e:")) {
-            const row = space.indexOf(key.slice(2));
-            if (row !== INVALID_INDEX) {
-                rows.edge.push(row);
-            }
+        } else {
+            forEachEdgeOfKey(key, (id) => {
+                const row = space.indexOf(id);
+                if (row !== INVALID_INDEX) {
+                    rows.edge.push(row);
+                }
+            });
         }
     }
 
@@ -4363,7 +4774,7 @@ function editedRows(graph: GraphSnapshot, dirty: ReadonlySet<string>): { node: n
 function changesRowsOnly(key: string): boolean {
     return (
         key.startsWith("n:") ||
-        key.startsWith("e:") ||
+        namesEdges(key) ||
         // A graph value (the import report an add replaces) is read by no layer; the file-style
         // store is, so a change to it repaints what reads it rather than only the rows.
         (key.startsWith("v:") && key !== FILE_STYLES_KEY) ||
@@ -4647,7 +5058,8 @@ function requireQuery(held: QueryEngine | null): QueryEngine {
  *
  * A copy of the subscriber set is walked, so that a handler unsubscribing itself -- which a
  * "tell me once" listener does -- cannot change the set under the loop it is in. A throwing
- * handler is contained: one broken status chip must not stop the next one being told.
+ * handler is contained: one broken status chip must not stop the next one being told, and its
+ * error still reaches the console and `window.onerror`.
  * @param watchers - Every subscriber, by event.
  * @param event - Which event.
  * @param detail - What to tell them.
@@ -4662,10 +5074,62 @@ function publish<K extends keyof SessionEventMap>(watchers: Watchers, event: K, 
     for (const handler of [...subscribers]) {
         try {
             (handler as (value: SessionEventMap[K]) => void)(detail);
-        } catch {
-            // A watcher's failure is the watcher's. The session carries on.
+        } catch (error) {
+            // A watcher's failure is the watcher's: the session carries on, and the error is
+            // reported and rethrown unhandled, as an EventTarget listener's is.
+            reportCaught(error);
+            queueMicrotask(() => {
+                throw error;
+            });
         }
     }
+}
+
+/**
+ * Publish `data:changed` for a project change that applied graph op logs, when anyone listens and
+ * the change added, removed or rewrote a node or edge. A rollback publishes nothing: what it reverts
+ * was never told.
+ * @param watchers - The session's watchers.
+ * @param change - The project change.
+ * @param change.cause - What made it.
+ * @param change.graph - The op logs it applied, in order.
+ */
+function tellData(
+    watchers: Watchers,
+    change: {
+        readonly cause: SessionEventMap["data:changed"]["cause"];
+        readonly graph?: Parameters<typeof graphDiffOf>[0];
+    },
+): void {
+    if (change.graph === undefined || change.cause === "rollback" || (watchers.get("data:changed")?.size ?? 0) === 0) {
+        return;
+    }
+
+    const diff = graphDiffOf(change.graph);
+    const count = (ids: { readonly nodes: unknown[]; readonly edges: unknown[] }): number =>
+        ids.nodes.length + ids.edges.length;
+    if (count(diff.added) + count(diff.removed) + count(diff.updated) === 0) {
+        return;
+    }
+
+    const frozen = <T extends object>(ids: T): Readonly<T> => {
+        for (const list of Object.values(ids)) {
+            Object.freeze(list);
+        }
+
+        return Object.freeze(ids);
+    };
+    publish(
+        watchers,
+        "data:changed",
+        Object.freeze({
+            added: frozen(diff.added),
+            removed: frozen(diff.removed),
+            updated: frozen(diff.updated),
+            fields: frozen(diff.fields),
+            cause: change.cause,
+        }),
+    );
 }
 
 /**

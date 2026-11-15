@@ -63,6 +63,7 @@ export const setImmersiveMode: GraphCommand = {
                 return {
                     success: false,
                     message: `WebXR is not available. ${mode.toUpperCase()} mode requires a WebXR-capable browser and device.`,
+                    code: "AI_NOT_AVAILABLE",
                 };
             }
 
@@ -72,6 +73,7 @@ export const setImmersiveMode: GraphCommand = {
                     return {
                         success: false,
                         message: "VR mode is not supported on this device or browser.",
+                        code: "AI_NOT_AVAILABLE",
                     };
                 }
 
@@ -88,6 +90,7 @@ export const setImmersiveMode: GraphCommand = {
                 return {
                     success: false,
                     message: "AR mode is not supported on this device or browser.",
+                    code: "AI_NOT_AVAILABLE",
                 };
             }
 

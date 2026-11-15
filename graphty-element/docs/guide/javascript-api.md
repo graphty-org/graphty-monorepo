@@ -46,6 +46,16 @@ const graph: Graph | undefined = element?.graph;
 The Web Component handles initialization. Access `.graph` after the element is connected to the DOM, or use the `graph-ready` event.
 :::
 
+### Removing the element and putting it back
+
+Moving the element within one task (a portal, a layout change) keeps everything: the graph, its
+undo history and the camera. An element that stays out of the page past the current task frees
+its engine and GPU resources. Insert it again later and it starts a new graph from what you
+declared on it -- its attributes and the properties you set, such as `nodeData`, `edgeData`,
+`dataSource` and `layout` -- and draws and answers events again. Changes made through `session`
+after that (added layers, edits, undo history) start over unless `autosave` is on, and
+`element.graph` and `element.session` are new objects, so read them again after inserting it.
+
 ## Core Methods
 
 ### Data Management
@@ -122,6 +132,21 @@ await graph.updateNodes([
 ]);
 ```
 
+**Merging Nodes:**
+
+Two nodes that are really one (the same person spelled two ways) merge into one in a single
+undoable step. Every edge of the merged node moves to the kept node, and the kept node can take
+new values at the same time.
+
+```typescript
+await element.session.data.mergeNodes(["ann", "ann-b"], {
+    into: "ann", // the node that stays; the first id when left out
+    values: { name: "Ann Baker" }, // patched onto the kept node's record
+});
+
+await element.session.undo(); // both nodes and all their edges come back
+```
+
 **Accessing Data:**
 
 ```typescript
@@ -130,6 +155,9 @@ const node = graph.getNode("node1");
 
 // Get all nodes
 const allNodes = graph.getNodes();
+
+// Get all edges
+const allEdges = graph.getEdges();
 
 // Get counts
 const nodeCount = graph.getNodeCount();
@@ -434,6 +462,24 @@ A prefix that names no attribute is searched as plain text, so `http://example.c
 the node that carries it. An invalid regular expression is refused with `E_BAD_COMMAND`, and an
 expression that does not parse with `E_BAD_SELECTOR`.
 
+To check an expression as the reader types it, without running it, use
+`session.catalog.validate(expression)`. It never throws for a bad expression: it returns `ok`, the
+parse error as a code with its character position and parameters (no words, so you write the
+message), and every path nothing in the graph answers, each with the nearest paths that would be.
+
+```typescript
+const check = element.session.catalog.validate("data.wieght > `3`");
+if (check.error) {
+    showError(check.error.position, check.error.params.reason); // e.g. "number-needs-backticks"
+}
+for (const { path, reason, candidates } of check.unresolvedPaths) {
+    // reason is "unknown-attribute" or "unknown-run"; candidates[0] is "data.weight" here
+}
+```
+
+Pass `{ kind: "filter" }` for a visibility filter (the same grammar). `{ kind: "formula" }` is
+refused with `E_UNSUPPORTED`: computed-attribute formulas are not implemented.
+
 ### Screenshot and Video Capture
 
 ```typescript
@@ -448,8 +494,9 @@ const result = await graph.captureScreenshot({
 await graph.captureScreenshot({ destination: { clipboard: true } });
 
 // Capture video animation
-const video = await graph.captureAnimation({
+const { blob: video } = await graph.captureAnimation({
     duration: 5000,
+    cameraMode: "stationary",
     fps: 30,
 });
 ```

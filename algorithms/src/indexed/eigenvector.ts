@@ -7,7 +7,10 @@ import { readsWeights } from "./weights.js";
 export interface EigenvectorOptions {
     /** Iteration cap; default 100. */
     readonly maxIterations?: number | undefined;
-    /** Per-node tolerance: the run stops when the L1 change is below `n * tolerance`; default 1e-6. */
+    /**
+     * Relative tolerance: the run stops at the first pass whose L1 change from the previous pass is below
+     * `tolerance` times the L1 norm of the pass, whatever the node count; default 1e-6.
+     */
     readonly tolerance?: number | undefined;
     /** Rescale the unit-length vector to [0, 1] by min-max, as the legacy function does; default true. */
     readonly normalized?: boolean | undefined;
@@ -43,11 +46,16 @@ interface Relation {
 }
 
 /**
- * Eigenvector centrality by power iteration on `(A + I)`, as networkx does: the identity shift
+ * Eigenvector centrality by power iteration on `(A + cI)`: like networkx's `A + I`, the identity shift
  * leaves the eigenvectors alone and makes the largest eigenvalue the only one of largest magnitude,
- * so a bipartite or periodic graph converges instead of oscillating. `A` holds the arc weights when
- * the snapshot has them (the weights of parallel arcs added), and otherwise a 1 for each neighbour
- * however many parallel edges join them, as in the legacy neighbour sets. When the
+ * so a bipartite or periodic graph converges instead of oscillating. `c` is 1 on a directed relation and
+ * `max(1, sqrt(d) / 2)` on a symmetric one (undirected, or `"total"`), `d` the largest neighbour count: a hub of
+ * degree `d` puts eigenvalues near both `+sqrt(d)` and `-sqrt(d)`, and the larger shift keeps a star from
+ * alternating slowly between them (a 50,000-node star stops in 14 passes, not 1,622).
+ * The run stops when the change between passes is small relative to the vector, so the error left behind does
+ * not grow with the node count. `A` holds the arc weights when the snapshot has them (the weights of parallel arcs
+ * added), and otherwise a 1 for each neighbour however many parallel edges join them, as in the legacy neighbour
+ * sets. When the
  * relation has no cycle (no arcs, or a directed acyclic graph) its matrix is nilpotent and every
  * score is exactly 0.
  * @param s - The snapshot
@@ -67,11 +75,12 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
             "E_BAD_OPTION",
         );
     }
-    let x = new Float64Array(n);
+    const x = new Float64Array(n);
     if (n === 0) {
         return { scores: x, iterations: 0, converged: true };
     }
-    const rel = feeders(s, o.mode ?? "in", readsWeights(s, o.weighted));
+    const mode = o.mode ?? "in";
+    const rel = feeders(s, mode, readsWeights(s, o.weighted));
     if (isAcyclic(rel, n)) {
         return { scores: x, iterations: 0, converged: true };
     }
@@ -82,14 +91,8 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
         }
     }
     scaleToUnitLength(x);
-    let next = new Float64Array(n);
-    let it = 0;
-    let converged = false;
-    for (; it < maxIter && !converged; it++) {
-        const change = powerStep(rel, x, next);
-        [x, next] = [next, x];
-        converged = change < n * tol;
-    }
+    const shift = !s.directed || mode === "total" ? hubShift(rel) : 1;
+    const { it, converged } = powerIterate(rel, shift, x, maxIter, tol);
     if (!converged) {
         throw new ConvergenceError("eigenvectorCentrality", maxIter, tol);
     }
@@ -100,29 +103,85 @@ export function eigenvectorCentrality(s: GraphSnapshot, o: EigenvectorOptions = 
 }
 
 /**
- * One power-iteration step on `(A + I)`: `next = x + A x`, scaled to unit length.
+ * Power iteration from the unit-length `x`, left holding the last pass scaled to unit length. The change is measured
+ * on the unscaled passes `(A + shift I) x`, as webgpu-graph-algorithms keeps them, so both stop at the same pass.
  * @param rel - The feeding relation
- * @param x - The current vector
- * @param next - Overwritten with the next vector
- * @returns The L1 change from `x` to `next`
+ * @param shift - The identity shift
+ * @param x - The start vector, overwritten with the result
+ * @param maxIter - The pass cap
+ * @param tol - The relative tolerance
+ * @returns The passes run and whether the last met the tolerance
  */
-function powerStep(rel: Relation, x: F64, next: F64): number {
+function powerIterate(
+    rel: Relation,
+    shift: number,
+    x: F64,
+    maxIter: number,
+    tol: number,
+): { it: number; converged: boolean } {
     const n = x.length;
+    let raw = new Float64Array(n);
+    let previous = new Float64Array(n);
+    let it = 0;
+    let converged = false;
+    while (it < maxIter && !converged) {
+        shiftedStep(rel, shift, x, raw);
+        it++;
+        let change = 0;
+        let size = 0;
+        for (let v = 0; v < n; v++) {
+            change += Math.abs(raw[v] - previous[v]);
+            size += Math.abs(raw[v]);
+        }
+        converged = it > 1 && change < tol * size;
+        x.set(raw);
+        scaleToUnitLength(x);
+        [raw, previous] = [previous, raw];
+    }
+    return { it, converged };
+}
+
+/**
+ * One unscaled power-iteration step: `raw = (A + shift I) x`.
+ * @param rel - The feeding relation
+ * @param shift - The identity shift
+ * @param x - The current unit-length vector
+ * @param raw - Overwritten with the next unscaled vector
+ */
+function shiftedStep(rel: Relation, shift: number, x: F64, raw: F64): void {
     const { rowPtr, colIdx, weights: w } = rel;
-    for (let v = 0; v < n; v++) {
-        let sum = x[v];
+    for (let v = 0; v < x.length; v++) {
+        let sum = shift * x[v];
         const end = rowPtr[v + 1];
         for (let a = rowPtr[v]; a < end; a++) {
             sum += w === null ? x[colIdx[a]] : w[a] * x[colIdx[a]];
         }
-        next[v] = sum;
+        raw[v] = sum;
     }
-    scaleToUnitLength(next);
-    let change = 0;
-    for (let v = 0; v < n; v++) {
-        change += Math.abs(next[v] - x[v]);
+}
+
+/**
+ * The identity shift of a symmetric relation: half the square root of the largest sum of squared weights over a
+ * node's neighbours (its neighbour count when unweighted), not counting a self-loop, and at least 1 (networkx's
+ * `A + I`). Such a node bounds the largest eigenvalue from below by that square root, so the shift never outweighs
+ * it. Mirrored in webgpu-graph-algorithms' eigenvector centrality.
+ * @param rel - The relation, each neighbour once per row
+ * @returns The shift
+ */
+function hubShift(rel: Relation): number {
+    const { rowPtr, colIdx, weights } = rel;
+    let most = 0;
+    for (let v = 0; v + 1 < rowPtr.length; v++) {
+        let sum = 0;
+        for (let a = rowPtr[v]; a < rowPtr[v + 1]; a++) {
+            if (colIdx[a] !== v) {
+                const w = weights === null ? 1 : weights[a];
+                sum += w * w;
+            }
+        }
+        most = Math.max(most, sum);
     }
-    return change;
+    return Math.max(1, Math.sqrt(most) / 2);
 }
 
 /**

@@ -11,7 +11,7 @@ import { afterEach, assert, describe, it } from "vitest";
 import type { Graphty } from "../../index.js";
 import { operationQueueOf } from "../../src/Graph";
 import { drawnFrames } from "../helpers/drawn-frames";
-import { click } from "../helpers/real-input";
+import { click, rightClick } from "../helpers/real-input";
 
 const WIDTH = 600;
 const HEIGHT = 400;
@@ -152,6 +152,41 @@ describe("camera.pivotOnSelectionCauses", () => {
         assert.deepStrictEqual(element.session.selection.nodes, ["n0"]);
         const [after] = screen(element, ["n0"]);
         assert.isBelow(Math.abs(after.x - WIDTH / 2), 2, "the clicked node is centered");
+    });
+
+    for (const dimension of ["2d", "3d"] as const) {
+        it(`${dimension}: a right-click selects the node and moves no drawn node, so a menu at the pointer stays beside it`, async () => {
+            const element = await mounted(["user", "api"]);
+            await element.session.layout.setDimension(dimension);
+            await drawn(element);
+            const start = screen(element, ALL);
+
+            await rightClick(element, start[0]);
+            await drawn(element);
+
+            assert.deepStrictEqual(element.session.selection.nodes, ["n0"], "the right-click selected n0");
+            assert.isBelow(moved(screen(element, ALL), start), 1);
+        });
+    }
+
+    it("a selection a page makes from its own contextmenu handler keeps the camera too", async () => {
+        const element = await mounted();
+        const start = screen(element, ALL);
+        // As a page that opens its own menu does: select what is under the pointer, by a reader's
+        // cause, from the contextmenu event, which Chromium on Linux raises on the press.
+        const select = (): void => {
+            void element.session.selection.apply({ nodes: ["n0"] }, "replace", { cause: "user" });
+        };
+        element.parentElement?.addEventListener("contextmenu", select);
+        cleanups.push(() => {
+            element.parentElement?.removeEventListener("contextmenu", select);
+        });
+
+        await rightClick(element, start[0]);
+        await drawn(element);
+
+        assert.deepStrictEqual(element.session.selection.nodes, ["n0"], "n0 is selected");
+        assert.isBelow(moved(screen(element, ALL), start), 1);
     });
 
     it("a held selection leaves the camera where the selections put it, whichever frame the hold lands on", async () => {

@@ -145,6 +145,7 @@ export type {
     ToolDefinition,
     VercelProviderType,
     WebLlmModelInfo,
+    WebLlmProgressStage,
     WebLlmProviderOptions,
 } from "./src/ai/index";
 export {

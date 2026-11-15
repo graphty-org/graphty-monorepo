@@ -1,6 +1,6 @@
 {
     "name": "@graphty/graphty-element",
-    "version": "3.37.0",
+    "version": "3.39.0",
     "description": "A Web Component library for 3D/2D graph visualization built with Lit and Babylon.js",
     "type": "module",
     "customElements": "./dist/custom-elements.json",
@@ -71,6 +71,7 @@
         "./src/algorithms/index.ts",
         "./src/data/index.ts",
         "./src/layout/index.ts",
+        "./src/managers/babylonEngineExtensions.ts",
         "./index.ts",
         "./src/graphty-element.ts",
         "./docs/examples/**/*.ts"
@@ -153,8 +154,9 @@
         "coverage:shard:storybook:5": "COVERAGE_DIR=.coverage-parts/storybook-5 vitest run --project=storybook --shard=5/5 --coverage",
         "coverage:fast": "vitest run --project=default --coverage",
         "coverage:preview": "npx serve coverage -p ${PORT:?start it through servherd, which sets PORT}",
-        "lint": "eslint && node eslint-rules/node-position-funnel.test.mjs && node eslint-rules/node-mesh-funnel.test.mjs && node eslint-rules/ai-engine-boundary.test.mjs && tsc --noEmit && npm run typecheck:strict-consumer",
+        "lint": "node ../tools/test-slots.mjs --lint eslint --concurrency 2 $ESLINT_CACHE && node eslint-rules/node-position-funnel.test.mjs && node eslint-rules/node-mesh-funnel.test.mjs && node eslint-rules/ai-engine-boundary.test.mjs && tsc --noEmit && npm run typecheck:strict-consumer",
         "benchmark": "tsx benchmarks/run.ts",
+        "fidelity:issues": "tsx scripts/fidelity-issues.ts",
         "fidelity:ratchet": "tsx scripts/fidelity-ratchet.ts",
         "typecheck:strict-consumer": "node ../tools/require-built.mjs tsconfig.strict-consumer.json tsconfig.no-jsx-opt-in.json && tsc -p tsconfig.strict-consumer.json && tsc -p tsconfig.no-jsx-opt-in.json",
         "lint:fix": "eslint --fix",
@@ -205,6 +207,7 @@
         "@vitest/browser-playwright": "catalog:",
         "ajv": "^8.20.0",
         "ajv-formats": "^3.0.1",
+        "axe-core": "^4.13.0",
         "esbuild": "^0.28.2",
         "eslint": "^9.29.0",
         "eslint-plugin-jsdoc": "^50.6.17",
@@ -219,7 +222,7 @@
         "typedoc-plugin-markdown": "^4.9.0",
         "typedoc-vitepress-theme": "^1.1.2",
         "typescript": "^5.9.3",
-        "typescript-eslint": "^8.71.1",
+        "typescript-eslint": "^8.72.2",
         "vite": "^8.1.6",
         "vite-plugin-cem": "^0.8.2",
         "vite-plugin-eslint": "^1.8.1",
@@ -228,29 +231,16 @@
         "webpack": "^5.111.1"
     },
     "peerDependencies": {
-        "@ai-sdk/anthropic": "^2.0.50",
-        "@ai-sdk/google": "^2.0.44",
-        "@ai-sdk/openai": "^2.0.74",
         "@babylonjs/core": "^8.0.0",
         "@babylonjs/loaders": "^8.0.0",
         "@graphty/webgpu-graph-algorithms": "workspace:^",
         "@hpcc-js/wasm-graphviz": ">=1.29.0",
         "@mlc-ai/web-llm": ">=0.2.0",
         "@types/react": "*",
-        "ai": "^5.0.104",
         "lit": "^3.0.0",
         "neo4j-driver": "^5.0.0"
     },
     "peerDependenciesMeta": {
-        "@ai-sdk/anthropic": {
-            "optional": true
-        },
-        "@ai-sdk/google": {
-            "optional": true
-        },
-        "@ai-sdk/openai": {
-            "optional": true
-        },
         "@graphty/webgpu-graph-algorithms": {
             "optional": true
         },
@@ -261,9 +251,6 @@
             "optional": true
         },
         "@types/react": {
-            "optional": true
-        },
-        "ai": {
             "optional": true
         },
         "neo4j-driver": {
@@ -277,7 +264,7 @@
         "@graphty/graph-samples": "workspace:^",
         "@graphty/layout": "workspace:^",
         "babylonjs-map": "workspace:^",
-        "colorjs.io": "^0.5.2",
+        "colorjs.io": "^0.7.1",
         "d3-force-3d": "^3.0.6",
         "fflate": "^0.8.3",
         "hammerjs": "^2.0.8",

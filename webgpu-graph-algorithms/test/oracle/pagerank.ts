@@ -101,7 +101,7 @@ function step(
 }
 
 /**
- * PageRank in f64, stopping at the first iteration whose L1 error is below the tolerance.
+ * PageRank with NetworkX's semantics in f64, stopping at the first iteration whose L1 error is below tolerance.
  * @param s - the snapshot
  * @param options - alpha, tolerance, maxIterations, weighted
  * @param personalization - the per-node personalization (normalised to sum 1); omitted, 1 / n everywhere

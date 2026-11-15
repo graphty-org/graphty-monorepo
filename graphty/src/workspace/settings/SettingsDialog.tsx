@@ -14,8 +14,8 @@ import {
 import React, { useEffect, useRef, useState } from "react";
 
 import { siteFileStyles } from "../../siteConfig";
-import { AI_PROVIDER_SECTION, AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
-import { assistantOn } from "../assistant-door/commands";
+import { AiProviderPage, type PageCommit } from "../assistant-door/AssistantPlace";
+import { AI_PROVIDER_SECTION, assistantOn } from "../assistant-door/commands";
 import { providerDisclosure } from "../assistant-door/provider";
 import { fileStylesOn } from "../features";
 import { useAccelerationStatus } from "../frame/useAccelerationStatus";

@@ -27,6 +27,8 @@ const config: KnipConfig = {
                 "vitest.wait-guard-setup.ts",
                 // Serves map tiles from a fixture in the browser test projects (vitest.map-tiles.mjs)
                 "vitest.map-tiles-setup.ts",
+                // Serves Babylon.js's GLSL compilers from a local copy in the browser test projects (vitest.babylon-compilers.mjs)
+                "vitest.babylon-compilers-setup.ts",
                 "docs/.vitepress/config.ts",
                 "tools/*.mjs",
                 "tools/changelog-renderer.cjs",
@@ -50,9 +52,6 @@ const config: KnipConfig = {
                 // only in .secretlintrc.json)
                 "secretlint",
                 "@secretlint/secretlint-rule-preset-recommend",
-                // Semantic release plugins (used by nx release and child packages)
-                "@semantic-release/changelog",
-                "@semantic-release/git",
                 // The githerd CLI, linked at the root so `pnpm exec githerd` works from any
                 // checkout; nothing imports it
                 "@graphty/githerd",
@@ -166,6 +165,10 @@ const config: KnipConfig = {
         "babylonjs-map": {
             entry: ["src/index.ts!", "src/location/index.ts!", "src/projection/index.ts!", "test/**/*.test.ts"],
             project: ["src/**/*.ts!", "test/**/*.ts"],
+            // `@babylonjs/core` is an optional peer (and a devDependency): only the root entry imports it, and the
+            // two subpaths never load it. `lint:knip:prod` runs --strict and would report it as unlisted; the
+            // default run resolves it as a devDependency and hints an ignore as redundant.
+            ignoreDependencies: production ? ["@babylonjs/core"] : [],
         },
 
         // webgpu-graph-algorithms package: the root barrel re-exports neither subpath, so both are entries; the test
@@ -181,8 +184,10 @@ const config: KnipConfig = {
                 "test/setup/*.ts",
                 "benchmarks/layout-run.ts",
                 "scripts/**/*.{ts,js}",
+                // the browser demo (`npm run demo`): its two pages and its vite config
+                "demo/{main,compile,vite.config}.ts",
             ],
-            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}"],
+            project: ["src/**/*.ts!", "test/**/*.ts", "benchmarks/**/*.ts", "scripts/**/*.{ts,js}", "demo/**/*.ts"],
             // Optional peers (`webgpu`, imported inside `await import("webgpu")` in src/node/index.ts,
             // and the CPU packages its types name). `lint:knip:prod` runs --strict and would report
             // them as unlisted; the default run hints an ignore of them as redundant.
@@ -338,8 +343,6 @@ const config: KnipConfig = {
                 // Storybook addons
                 "@storybook/addon-console",
                 "@storybook/test",
-                // Testing utilities
-                "chai", // Provided by vitest
                 // Build tools
                 "vite-plugin-eslint",
                 // Type definitions
@@ -418,9 +421,6 @@ const config: KnipConfig = {
             // The plugin finds nothing else that run reads.
             ...(production ? { vite: false } : {}),
             ignoreDependencies: [
-                // Used in storybook demos
-                "@zag-js/floating-panel",
-                "@zag-js/react",
                 // The engine @storybook/addon-a11y ships (a devDependency here), imported by
                 // tests/a11y/stories-axe.browser.test.tsx to enforce what the addon only reports.
                 // Declaring it would change pnpm-lock.yaml.

@@ -16,12 +16,17 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { selectWithTwin } from "../../../test/twin-layer";
 import { nodeModelsOn } from "../../features";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { DEFAULT_NAME_KEY } from "../cards";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with its starting rows.
@@ -257,7 +262,7 @@ describe("the layer panel", () => {
         assert.strictEqual(card.querySelector<HTMLInputElement>("input:not([type=hidden])")?.value, "Has a value");
     });
 
-    it("opens a new layer on its Node tab, and a Node tab starts with node lines", async () => {
+    it("opens a new layer on its Node tab, and its tab has no line for the other kind", async () => {
         await openScene();
         await clickRow("Everything");
         await userEvent.click(await screen.findByRole("tab", { name: /^Edge/ }));
@@ -272,16 +277,9 @@ describe("the layer panel", () => {
         await clickRow("Everything");
         await userEvent.click(await screen.findByRole("tab", { name: /^Node/ }));
         const panel = await within(screen.getByTestId("style-tab")).findByRole("tabpanel");
-        const other = panel.querySelector(".ws-other-line");
-        const sections = panel.querySelector(".ws-style-group");
-        assert.isNotNull(other);
-        assert.isNotNull(sections);
-        if (other === null || sections === null) {
-            return;
-        }
-        assert.isTrue(
-            (sections.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
-            "the Edges line comes after the node lines",
-        );
+        // The other kind is reached by its own tab: no "Edges: ..." line, no Edit edges (issue #6811).
+        assert.isNotNull(panel.querySelector(".ws-style-group"));
+        assert.notMatch(panel.textContent ?? "", /Edges: |Edit edges/);
+        assert.isNull(within(panel).queryByRole("button", { name: "Edit edges" }));
     });
 });

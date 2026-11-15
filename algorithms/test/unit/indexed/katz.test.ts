@@ -1,6 +1,8 @@
+import type { GraphSnapshot } from "@graphty/graph-format";
 import { describe, expect, it } from "vitest";
 
-import { katzCentrality } from "../../../src/indexed/katz.js";
+import { ConvergenceError } from "../../../src/errors.js";
+import { katzCentrality, type KatzOptions, type KatzResult } from "../../../src/indexed/katz.js";
 import { legacyResult } from "../../helpers/golden.js";
 import { Graph } from "../../helpers/legacy-graph.js";
 import type { CentralityResult } from "../../helpers/legacy-types.js";
@@ -8,20 +10,20 @@ import { checksummedSnapshot } from "../../helpers/snapshot-differential.js";
 import { directedFixtures, undirectedFixtures } from "./port-fixtures.js";
 
 /**
- * Whether one of the first `max` iterates equals `want` to 1e-9.
- * @param iterate - The scores after a given number of passes
- * @param want - The scores to find
- * @param max - The last pass to try
- * @returns True when some iterate matches
+ * Katz centrality, or the ConvergenceError it throws.
+ * @param s - The snapshot
+ * @param o - Algorithm options
+ * @returns The result or the error
  */
-function someIterateMatches(iterate: (passes: number) => ArrayLike<number>, want: number[], max: number): boolean {
-    for (let passes = 1; passes <= max; passes++) {
-        const got = iterate(passes);
-        if (want.every((value, u) => Math.abs(got[u] - value) < 1e-9)) {
-            return true;
+function katzOrError(s: GraphSnapshot, o: KatzOptions): KatzResult | ConvergenceError {
+    try {
+        return katzCentrality(s, o);
+    } catch (error) {
+        if (error instanceof ConvergenceError) {
+            return error;
         }
+        throw error;
     }
-    return false;
 }
 
 describe("indexed.katzCentrality", () => {
@@ -67,15 +69,46 @@ describe("indexed.katzCentrality", () => {
         s.validate({ checksum: true });
     });
 
-    it("reports the iteration cap it stopped at", () => {
+    it("throws ConvergenceError at the iteration cap instead of returning the unconverged scores", () => {
         const g = new Graph({ directed: false });
         g.addEdge("a", "b");
         g.addEdge("b", "c");
         const s = checksummedSnapshot(g);
-        const r = katzCentrality(s, { maxIterations: 2, tolerance: 0 });
-        expect(r.iterations).toBe(2);
-        expect(r.converged).toBe(false);
+        expect(() => katzCentrality(s, { maxIterations: 2, tolerance: 1e-12 })).toThrow(ConvergenceError);
         s.validate({ checksum: true });
+    });
+
+    it("throws on a graph of spectral radius 10 at the default alpha, and converges below 1 / 10", () => {
+        // The complete graph on 11 nodes has spectral radius 10, so alpha 0.1 sits on the divergence bound.
+        const g = new Graph({ directed: false });
+        for (let u = 0; u < 11; u++) {
+            for (let v = u + 1; v < 11; v++) {
+                g.addEdge(String(u), String(v));
+            }
+        }
+        const s = checksummedSnapshot(g);
+        expect(() => katzCentrality(s)).toThrow(expect.objectContaining({ code: "E_NOT_CONVERGED" }));
+        const r = katzCentrality(s, { alpha: 0.05, normalized: false });
+        expect(r.converged).toBe(true);
+        // x = alpha * 10x + beta: x = 1 / (1 - 0.5) = 2.
+        expect(r.scores[0]).toBeCloseTo(2, 5);
+    });
+
+    it("refuses an alpha, maxIterations or tolerance out of range with E_BAD_OPTION", () => {
+        const g = new Graph({ directed: false });
+        g.addEdge("a", "b");
+        const s = checksummedSnapshot(g);
+        for (const o of [
+            { alpha: Number.NaN },
+            { alpha: -0.1 },
+            { maxIterations: 0 },
+            { maxIterations: 1.5 },
+            { tolerance: 0 },
+            { tolerance: Number.POSITIVE_INFINITY },
+            { beta: Number.NaN },
+        ]) {
+            expect(() => katzCentrality(s, o)).toThrow(expect.objectContaining({ code: "E_BAD_OPTION" }));
+        }
     });
 
     it("reads the arc weights by default and scales a neighbour's contribution by them", () => {
@@ -83,13 +116,11 @@ describe("indexed.katzCentrality", () => {
         g.addEdge("u", "x", 3);
         g.addEdge("v", "y", 1);
         const s = checksummedSnapshot(g);
-        const weighted = katzCentrality(s, { normalized: false, maxIterations: 1 });
+        const weighted = katzCentrality(s, { normalized: false });
         // x gains 0.1 * 3 * 1, y gains 0.1 * 1 * 1, over the shared base of beta = 1.
         expect(weighted.scores[1] - 1).toBeCloseTo(3 * (weighted.scores[3] - 1), 12);
-        expect([...katzCentrality(s, { weighted: true, normalized: false, maxIterations: 1 }).scores]).toEqual([
-            ...weighted.scores,
-        ]);
-        const unweighted = katzCentrality(s, { weighted: false, normalized: false, maxIterations: 1 });
+        expect([...katzCentrality(s, { weighted: true, normalized: false }).scores]).toEqual([...weighted.scores]);
+        const unweighted = katzCentrality(s, { weighted: false, normalized: false });
         expect(unweighted.scores[1]).toBeCloseTo(unweighted.scores[3], 12);
         s.validate({ checksum: true });
     });
@@ -100,14 +131,22 @@ describe("indexed.katzCentrality", () => {
             // Both sides run the same loop -- alpha * sum(neighbour scores) + beta, unweighted -- and differ in
             // the order the neighbours are summed in (a floating-point difference) and in where they stop: the
             // legacy side at the largest single-node change below the tolerance, the port at the summed change
-            // below nodeCount * tolerance. So the legacy answer is one of the port's iterates.
-            for (const options of [{}, { alpha: 0.05, beta: 0.5, normalized: false }, { maxIterations: 3 }]) {
+            // below tolerance times the summed size of the scores. Each stops within about 1e-5 of the fixed
+            // point. Where the series does not converge, legacy returned the rescaled diverged vector and the
+            // port throws, so only the converged runs are compared.
+            for (const options of [{}, { alpha: 0.05, beta: 0.5, normalized: false }]) {
+                const ported = katzOrError(s, { ...options, weighted: false });
                 const legacy = legacyResult() as CentralityResult;
-                const want = Array.from({ length: s.nodeCount }, (_, u) => legacy[String(s.ids.idOf(u))]);
-                const iterate = (passes: number): ArrayLike<number> =>
-                    katzCentrality(s, { ...options, weighted: false, maxIterations: passes, tolerance: 0 }).scores;
-                expect(someIterateMatches(iterate, want, options.maxIterations ?? 100), name).toBe(true);
+                const expected = ported instanceof ConvergenceError ? [] : Object.keys(legacy);
+                for (const id of expected) {
+                    const u = s.ids.indexOf(id);
+                    expect((ported as KatzResult).scores[u], `${name} ${id}`).toBeCloseTo(legacy[id], 4);
+                }
             }
+            // Three passes: legacy returned whatever they reached; the port answers only a graph it
+            // converges on by then.
+            const capped = katzOrError(s, { maxIterations: 3 });
+            expect(capped instanceof ConvergenceError || capped.iterations <= 3).toBe(true);
             s.validate({ checksum: true });
         });
     }

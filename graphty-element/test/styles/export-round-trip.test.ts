@@ -20,6 +20,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, FILE_STYLE_ISSUE, fileStyleOf, type GraphSession, type LayerSpec } from "../../session";
 import { type ExportResult, exportSession } from "../../src/data/export";
+import { GraphtyError } from "../../src/errors";
 import { createRunResult } from "../../src/session/results";
 import type { RunExecutionContext, RunOutcome } from "../../src/session/runs";
 import type { ExplainTarget } from "../../src/session/styles/explain";
@@ -300,62 +301,6 @@ const KNOWN_GAPS: ReadonlyMap<string, string> = new Map([
         "graphology keeps a label's line breaks and markup only as text, so a wrapped or marked-up label comes back as one line (graph-io ISSUES.md, Specimen sheets: graphology)",
     ],
     [
-        "vis.js JSON: cx2/fidelity/imatinib-smpdb.cx2",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: cx2/fidelity/repro-shared-interaction.cx2",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: cyjs/adv/cyjs-selector-zoo.cyjs",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: gexf/fidelity/graphology-rio.gexf.gz",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: gml/ImperialCollegeLondon_pyrealm__pmodel.gml",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: gml/di-unipi-socc_dgLBF__germany50.gml",
-        "the vis writer's label offset comes back moved by vis-network's label hang below a sized node (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: graphml/LTVA1_STM32CrapSynth__func.graphml.gz",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: pajek/SamTseng_CATAR__Pajek_format.net",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: pajek/fidelity/1crn.net",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: xgmml/BasicDataVizDemo.xgmml.gz",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: xgmml/fidelity/aracne-mycccnd1.xgmml.gz",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
         "CSV: gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz",
         "graphology keeps a label's line breaks and markup only as text, so a wrapped or marked-up label comes back as one line (graph-io ISSUES.md, Specimen sheets: graphology)",
     ],
@@ -578,9 +523,42 @@ function names(note: AnyNote, kind: "node" | "edge", channel: string): boolean {
     );
 }
 
+/** The writer codes the export options `sanitizeIds` and `onMixedDirection` set aside. */
+const ID_OR_DIRECTION: ReadonlySet<string> = new Set(["E_INVALID_ID", "E_DIRECTED"]);
+
 /**
- * Write a session's graph with its styles, setting aside a refusal over ids or direction by the
- * options that rewrite them.
+ * Whether a refusal is one the retry's options rewrite away: an id or a direction, or a GML
+ * column name that is not a GML key (`sanitizeKeys`).
+ * @param error - What the export rejected with.
+ * @returns True when the retry's options set it aside.
+ */
+function rewritable(error: unknown): boolean {
+    return (
+        refusedOver(error, ID_OR_DIRECTION) ||
+        // The element's own `reason` replaces graph-io's in `details`; the writer's error is the cause.
+        (refusedOver(error) &&
+            ((error as GraphtyError).cause as { details?: { reason?: unknown } } | undefined)?.details?.reason ===
+                "gml key")
+    );
+}
+
+/**
+ * Whether an export rejected with the writer's coded refusal, rather than failing.
+ * @param error - What the export rejected with.
+ * @param codes - The writer codes that count, or any coded refusal when absent.
+ * @returns True for an `E_UNSUPPORTED` refusal, with one of `codes` when given.
+ */
+function refusedOver(error: unknown, codes?: ReadonlySet<string>): boolean {
+    return (
+        error instanceof GraphtyError &&
+        error.code === "E_UNSUPPORTED" &&
+        (codes === undefined || codes.has(String(error.details.sourceCode)))
+    );
+}
+
+/**
+ * Write a session's graph with its styles, setting aside a refusal over ids, direction or GML
+ * keys by the options that rewrite them.
  * @param session - The session.
  * @param format - The format.
  * @param options - Its options.
@@ -595,7 +573,11 @@ async function write(
     const first = exportSession(session, format, { ...options, styles });
     try {
         return { result: first, text: await first.text() };
-    } catch {
+    } catch (error) {
+        if (!rewritable(error)) {
+            throw error;
+        }
+
         const again = exportSession(session, format, {
             ...options,
             styles,
@@ -624,7 +606,7 @@ async function loadBack(text: string, format: string): Promise<GraphSession> {
  * Whether a graph's data alone, written without styles, reads back and writes the same bytes.
  * @param source - The session.
  * @param writer - The format.
- * @returns True when it does.
+ * @returns True when it does, false when the writer refuses the data alone.
  */
 async function dataIsStable(source: GraphSession, writer: (typeof WRITERS)[number]): Promise<boolean> {
     const plain = async (session: GraphSession): Promise<string> =>
@@ -636,8 +618,14 @@ async function dataIsStable(source: GraphSession, writer: (typeof WRITERS)[numbe
         const once = await plain(first);
         await second.data.import({ type: writer.format, config: { data: once } });
         return (await plain(second)) === once;
-    } catch {
-        return false;
+    } catch (error) {
+        // The format cannot write this graph's data alone (Pajek refuses a label holding a quote
+        // that the styled file writes as a style): no bytes to compare. Anything else is a defect.
+        if (refusedOver(error)) {
+            return false;
+        }
+
+        throw error;
     } finally {
         first.dispose();
         second.dispose();
@@ -657,10 +645,21 @@ async function roundTrip(source: GraphSession, writer: (typeof WRITERS)[number],
         written = await write(source, writer.format, writer.options);
     } catch (error) {
         // The format cannot hold this graph's data at all, styles or not (Pajek refuses a label
-        // holding a quote): nothing here is about styles.
+        // holding a quote): nothing here is about styles. A failure that is not the writer's
+        // coded refusal is a defect, with styles or without.
+        if (!refusedOver(error)) {
+            throw error;
+        }
+
         const refused = await write(source, writer.format, writer.options, false).then(
             () => false,
-            () => true,
+            (plainError: unknown) => {
+                if (!refusedOver(plainError)) {
+                    throw plainError;
+                }
+
+                return true;
+            },
         );
         if (refused) {
             return;

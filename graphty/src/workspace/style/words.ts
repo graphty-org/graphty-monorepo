@@ -61,6 +61,19 @@ export interface SectionSpec {
      * settings), never a "+" item of their own.
      */
     readonly inner?: readonly Channel[];
+    /** The properties its "+" offers; absent, every property it lists. */
+    readonly offer?: readonly Channel[];
+    /** Whether the row writes something in the section, drawn as a dot after its title. */
+    readonly configured?: boolean;
+    /** Row words that replace a property's own, by property. */
+    readonly words?: Readonly<Partial<Record<Channel, string>>>;
+    /**
+     * The things a list section holds (a fill's paints, the effects): one heading line per item the
+     * row sets, with a minus that takes every property of the item away, then its lines.
+     */
+    readonly items?: readonly { readonly id: string; readonly name: string; readonly channels: readonly Channel[] }[];
+    /** Properties drawn together: once the row sets one, the others show, waiting for a value. */
+    readonly together?: readonly Channel[];
 }
 
 /** A model's channels: what the Shape field names, and what Model settings sets. */
@@ -149,6 +162,7 @@ export const SECTIONS: Readonly<Record<Kind, readonly SectionSpec[]>> = {
                 "node.relativeExtents",
                 "node.wireframe",
                 "node.outline",
+                "node.outlineWidth",
                 "node.glow",
                 "node.glowStrength",
                 "node.haloColor",
@@ -231,6 +245,19 @@ export interface SectionFlags {
     readonly cosmograph: boolean;
     /** The `node-models` experiment: Shape's models and Fill's Picture. */
     readonly nodeModels: boolean;
+}
+
+/**
+ * The properties an experiment that is off keeps out of the Style tab: with `cosmograph` off, Line's
+ * fade and blending; with `node-models` off, the model's settings and Picture.
+ * @param flags - which experiments are on.
+ * @returns the properties to leave out.
+ */
+export function experimentChannelsOff(flags: SectionFlags): ReadonlySet<Channel> {
+    return new Set<Channel>([
+        ...(flags.cosmograph ? [] : COSMOGRAPH_LINE_CHANNELS),
+        ...(flags.nodeModels ? [] : ["node.texture" as const, ...MODEL_CHANNELS]),
+    ]);
 }
 
 /**
@@ -374,6 +401,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.tooltipStyle": "Tooltip style",
     "node.opacity": "Opacity",
     "node.outline": "Outline",
+    "node.outlineWidth": "Outline width",
     "node.glow": "Glow",
     "node.glowStrength": "Glow strength",
     "node.halo": "Halo",
@@ -582,6 +610,8 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "node.chartLineWidth": "Chart line width",
     "node.chartBorderColor": "Chart border color",
     "node.chartBorderWidth": "Chart border width",
+    "node.chartBackgroundColor": "Chart background color",
+    "node.chartBackgroundOpacity": "Chart background opacity",
     "node.exactCornerRadius": "Exact corner radius",
     "node.cornerFraction": "Corner fraction",
     "node.shapeStretchPoints": "Polygon stretch",
@@ -628,6 +658,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.nodeGap": "Node gap",
     "edge.arrowHeadSide": "Target end side",
     "edge.arrowHeadOutlineWidth": "Target end outline width",
+    "edge.arrowHeadFillColor": "Target end fill color",
     "edge.arrowHeadGap": "Target end gap",
     "edge.arrowHeadStack": "Target end stack",
     "edge.arrowHeadImage": "Target end image",
@@ -641,6 +672,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowHeadTextOffsetY": "Label at target end offset y",
     "edge.arrowTailSide": "Source end side",
     "edge.arrowTailOutlineWidth": "Source end outline width",
+    "edge.arrowTailFillColor": "Source end fill color",
     "edge.arrowTailGap": "Source end gap",
     "edge.arrowTailStack": "Source end stack",
     "edge.arrowTailImage": "Source end image",
@@ -657,6 +689,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleHeadWidth": "Arrow middle head width",
     "edge.arrowMiddleHeadSide": "Arrow middle head side",
     "edge.arrowMiddleHeadOutlineWidth": "Arrow middle head outline width",
+    "edge.arrowMiddleHeadFillColor": "Arrow middle head fill color",
     "edge.arrowMiddleHeadPosition": "Arrow middle head position",
     "edge.arrowMiddleHeadColor": "Arrow middle head color",
     "edge.arrowMiddleHeadOpacity": "Arrow middle head opacity",
@@ -666,6 +699,7 @@ const CHANNEL_WORDS: Readonly<Record<Channel, string>> = {
     "edge.arrowMiddleTailWidth": "Arrow middle tail width",
     "edge.arrowMiddleTailSide": "Arrow middle tail side",
     "edge.arrowMiddleTailOutlineWidth": "Arrow middle tail outline width",
+    "edge.arrowMiddleTailFillColor": "Arrow middle tail fill color",
     "edge.arrowMiddleTailPosition": "Arrow middle tail position",
     "edge.arrowMiddleTailColor": "Arrow middle tail color",
     "edge.arrowMiddleTailOpacity": "Arrow middle tail opacity",
@@ -977,23 +1011,6 @@ export function positionWord(location: LabelLocation | undefined): string {
 }
 
 /**
- * The label line's statement, from the element's label counts (round 8: every count is computed
- * from live state). The hidden part is said only while the overlap rule is on (Show all labels off).
- * @param counts - the element's `nodeLabelCounts`.
- * @param counts.labeled - nodes whose label has text.
- * @param counts.hiddenByOverlap - of those, labels the overlap rule hid.
- * @param declutter - whether the overlap rule is on.
- * @returns "77 labels, 64 hidden", or "77 labels".
- */
-export function labelStatement(
-    counts: { readonly labeled: number; readonly hiddenByOverlap: number },
-    declutter: boolean,
-): string {
-    const labels = `${String(counts.labeled)} ${counts.labeled === 1 ? "label" : "labels"}`;
-    return declutter ? `${labels}, ${String(counts.hiddenByOverlap)} hidden` : labels;
-}
-
-/**
  * Whether an item's name matches a search: the start of any word (tier1-design.md section 2.8,
  * "the field list").
  * @param name - the item's name.
@@ -1094,12 +1111,26 @@ export function modelWords(fact: CodedFact): string {
     return words === undefined ? "The model could not be drawn." : words(fact.params);
 }
 
+/**
+ * How well a name matches a search: 0 when it is the search, 1 when it starts with it, 2 otherwise.
+ * @param name - the name as the reader sees it.
+ * @param query - the search, trimmed and lower case.
+ * @returns the rank, lower is better.
+ */
+export function nameRank(name: string, query: string): number {
+    const lower = name.toLowerCase();
+    if (lower === query) {
+        return 0;
+    }
+    return lower.startsWith(query) ? 1 : 2;
+}
+
 /** Compares names as a reader counts: GAL2 before GAL10. */
 export const NATURAL = new Intl.Collator(undefined, { numeric: true });
 
 /**
- * A search's matches with the names that start with the typed text first, then the rest, each part
- * in the order it came in: "on" lists on_record before donations.
+ * A search's matches with the name that is exactly the typed text first, then the names that start
+ * with it, then the rest, each part in the order it came in: "on" lists on_record before donations.
  * @param items - the matches, in list order.
  * @param nameOf - an item's name as the reader sees it.
  * @param query - the search text.
@@ -1111,7 +1142,7 @@ export function prefixFirst<T>(items: readonly T[], nameOf: (item: T) => string,
         return [...items];
     }
     // Array.prototype.sort is stable, so each part keeps its order.
-    const rank = (item: T): number => (nameOf(item).toLowerCase().startsWith(q) ? 0 : 1);
+    const rank = (item: T): number => nameRank(nameOf(item), q);
     return [...items].sort((a, b) => rank(a) - rank(b));
 }
 
@@ -1226,6 +1257,27 @@ export const REFUSAL_WORDS: Partial<Readonly<Record<GraphtyErrorCode, string>>> 
 export function failureWords(what: string, verb: string, error: unknown): string {
     const reason = error instanceof GraphtyError ? REFUSAL_WORDS[error.code] : undefined;
     return reason === undefined ? `${what} could not be ${verb}.` : `${what} could not be ${verb}: ${reason}.`;
+}
+
+/**
+ * Logs what a graphty-element call threw when it is not a refusal the caller expects, so a catch
+ * that answers a refusal quietly never hides a bug: anything that is not a GraphtyError, the
+ * element's own `E_INTERNAL`, or a code outside `expected`. A disposed session is never logged.
+ * @param where - the call, such as "styles.preview".
+ * @param error - what it threw.
+ * @param expected - the refusal codes the caller answers; left out, every code but `E_INTERNAL`.
+ * @returns whether it was logged.
+ */
+export function logUnexpected(where: string, error: unknown, expected?: readonly GraphtyErrorCode[]): boolean {
+    if (
+        error instanceof GraphtyError &&
+        (error.code === "E_DISPOSED" ||
+            (expected === undefined ? error.code !== "E_INTERNAL" : expected.includes(error.code)))
+    ) {
+        return false;
+    }
+    console.error(`[style] ${where} failed:`, error);
+    return true;
 }
 
 /** The control a value of one property is edited with: one per kind of property. */
@@ -1821,6 +1873,19 @@ export const BACKGROUND_SECTION_WORDS = {
     drawnIn: (word: string, hex: string): string => {
         const named = word === "" ? hex : `${word} (${hex})`;
         return `No color set: drawn in ${named}`;
+    },
+    /**
+     * A picture graphty-element could not decode (`E_IMAGE_DECODE`), so it is not the background.
+     * @param problem - the element's report.
+     * @returns the notice's sentence, such as "IMG_0001.HEIC is HEIC, which this browser cannot draw."
+     */
+    notDrawn: (problem: CodedFact): string => {
+        const name = typeof problem.params.fileName === "string" ? problem.params.fileName : "This image";
+        const format = typeof problem.params.format === "string" ? problem.params.format : "";
+        const kind = format.replace(/^image\//, "").toUpperCase();
+        return kind === ""
+            ? `${name} could not be drawn: this browser cannot read it as an image.`
+            : `${name} is ${kind}, which this browser cannot draw.`;
     },
 } as const;
 

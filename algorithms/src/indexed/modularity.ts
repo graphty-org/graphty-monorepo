@@ -1,6 +1,6 @@
 import { type AdjacencyView, INVALID_INDEX, type NumericVector, type U32 } from "@graphty/graph-format";
 
-import { withCode } from "../errors.js";
+import { checkNumber, checkWeights, withCode } from "../errors.js";
 import type { WeightedOptions } from "./weights.js";
 
 /** Options of the index-based modularity. @public */
@@ -24,12 +24,7 @@ function checkModularityInputs(s: AdjacencyView, labels: U32, weights: NumericVe
             "E_BAD_OPTION",
         );
     }
-    if (weights !== null && weights.length !== s.arcCount) {
-        throw withCode(
-            new RangeError(`weights has ${weights.length} entries; the snapshot has ${s.arcCount} arcs`),
-            "E_BAD_OPTION",
-        );
-    }
+    checkWeights("modularity", weights, s.arcCount);
 }
 
 /**
@@ -107,6 +102,7 @@ function addRow(s: AdjacencyView, labels: U32, weights: NumericVector | null, u:
  */
 export function modularity(s: AdjacencyView, labels: U32, options: ModularityOptions = {}): number {
     const resolution = options.resolution ?? 1;
+    checkNumber("modularity", "resolution", resolution, { min: 0 });
     const weights = options.weighted === false ? null : (options.weights ?? s.weights);
     checkModularityInputs(s, labels, weights);
     const sums: CommunitySums = { tot: new Map(), inside: new Map(), m2: 0 };

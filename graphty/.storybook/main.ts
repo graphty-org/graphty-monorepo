@@ -1,4 +1,11 @@
+import { createRequire } from "node:module";
+import { dirname } from "node:path";
 import type { StorybookConfig } from "@storybook/react-vite";
+
+// The framework by its install directory, not its bare name: Storybook loads the framework's preset from
+// its own install directory, where a bare name resolves only through the root node_modules link pnpm
+// hoists, and an incremental `pnpm install` can drop that link (issue #7754).
+const framework = dirname(createRequire(import.meta.url).resolve("@storybook/react-vite/package.json"));
 
 const config: StorybookConfig = {
     stories: ["../src/**/*.mdx", "../src/**/*.stories.@(js|jsx|mjs|ts|tsx)"],
@@ -11,7 +18,7 @@ const config: StorybookConfig = {
         { from: "../../graph-samples/dist/data/v1", to: "/data/graph-samples/v1" },
     ],
     framework: {
-        name: "@storybook/react-vite",
+        name: framework,
         options: {},
     },
     typescript: {

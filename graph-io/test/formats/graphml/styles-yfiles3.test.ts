@@ -260,9 +260,23 @@ describe("yEd Live GraphML: yFiles for HTML 2.6 node styles", () => {
         expect(typeof node("shapePoints", "flowchart-card")).toBe("string");
         expect(node("borderColor", "flowchart-decision")).toBe("#505050");
         expect(node("borderWidth", "flowchart-annotation")).toBe(0);
-        expect(node("shape", "default")).toBe("rectangle");
+        // a style with no type is a data parallelogram, as yEd Live draws it
+        expect(node("shape", "default")).toBe("parallelogram");
         expect(node("fill", "default")).toBe("#b7c9e3");
         expect(node("borderColor", "default")).toBe("#000000");
+    });
+
+    it("draws the lines inside a FlowchartNodeStyle's internal storage and predefined process as its picture", async () => {
+        const { node } = await sheet("specimen-node-shapes-p3.graphml");
+        for (const id of ["flowchart-internal-storage", "flowchart-predefined-process"]) {
+            const picture = decodeURIComponent(String(node("image", id)));
+            expect(picture).toContain('stroke="#505050"');
+            expect(node("imageFit", id)).toBe("fill");
+        }
+        expect(decodeURIComponent(String(node("image", "flowchart-internal-storage")))).toContain(
+            "M10,0L10,36M0,10L56,10",
+        );
+        expect(node("image", "flowchart-data")).toBeNull();
     });
 });
 
@@ -489,6 +503,27 @@ describe("yEd Live GraphML: a LinearGradient fill", () => {
         }
         const at = snapshot.ids.requireIndex("linear-gradient-reflect");
         expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)[at]).toBeNull();
+        expect(resolveStyles(styles, "node", "fill", snapshot)[at]).toBe("#ffffff");
+        expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
+    });
+
+    it("notes a REFLECT ramp far longer than its box, not an empty unrolled ramp", async () => {
+        const text = readFileSync(join(SHEETS, "specimen-node-fills-borders.graphml"), "utf8").replace(
+            'startPoint="0.4,0.5" endPoint="0.6,0.5"',
+            'startPoint="0,0.5" endPoint="1e10,0.5"',
+        );
+        assert(text.includes('endPoint="1e10,0.5"'));
+        const { styles, snapshot } = await registry.importGraph(new TextEncoder().encode(text), {
+            format: "graphml",
+            styles: { toolDefaults: true },
+            errorLimit: Infinity,
+        });
+        if (styles === null || styles === undefined) {
+            throw new Error("no styles");
+        }
+        const at = snapshot.ids.requireIndex("linear-gradient-reflect");
+        expect(resolveStyles(styles, "node", "fillGradientColors", snapshot)[at]).toBeNull();
+        expect(resolveStyles(styles, "node", "fillGradient", snapshot)[at]).toBeNull();
         expect(resolveStyles(styles, "node", "fill", snapshot)[at]).toBe("#ffffff");
         expect(styles.styles.notes.map((n) => n.code)).toContain("W_STYLE_GRADIENT");
     });

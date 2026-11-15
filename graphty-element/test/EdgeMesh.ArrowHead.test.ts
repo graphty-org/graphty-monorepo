@@ -1,4 +1,4 @@
-import { NullEngine, Scene } from "@babylonjs/core";
+import { MultiMaterial, NullEngine, Scene, ShaderMaterial } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { EdgeMesh } from "../src/meshes/EdgeMesh";
@@ -32,6 +32,40 @@ describe("Arrow Shape Generation", () => {
         // A thin-instance slot in the scene's shared batch for this shape (issues #25, #419),
         // so it has no mesh of its own and the geometry it is drawn from is the batch's.
         assert.isNotNull(arrowCap.batchMesh);
+    });
+
+    test("an open cap with a fill color draws its inside in that color, apart from its outline (#7565)", () => {
+        const filled = EdgeMesh.createArrowHead(
+            meshCache,
+            "test-filled",
+            { type: "open-normal", width: 1, color: "#505050", fill: "#FFCC00", side: "left" },
+            scene,
+        );
+        assert.exists(filled);
+        const mesh = filled.batchMesh;
+        assert.isNotNull(mesh);
+        assert.instanceOf(mesh.material, MultiMaterial);
+        const [inside, outline] = mesh.material.subMaterials;
+        assert.instanceOf(inside, ShaderMaterial);
+        assert.instanceOf(outline, ShaderMaterial);
+        assert.include(inside.options.defines, "#define CAP_FILL");
+        assert.strictEqual(mesh.subMeshes.length, 2);
+        // the half cap keeps an inside and a frame, each a whole number of triangles
+        for (const part of mesh.subMeshes) {
+            assert.isAbove(part.indexCount, 0);
+            assert.strictEqual(part.indexCount % 3, 0);
+        }
+
+        // unset, the open cap is today's, one material; a filled type ignores the fill
+        for (const type of ["open-normal", "normal"]) {
+            const cap = EdgeMesh.createArrowHead(
+                meshCache,
+                `test-${type}`,
+                { type, width: 1, color: "#505050", fill: type === "normal" ? "#FFCC00" : undefined },
+                scene,
+            );
+            assert.notInstanceOf(cap?.batchMesh?.material, MultiMaterial, type);
+        }
     });
 
     test("dot arrow creates circular shape", () => {

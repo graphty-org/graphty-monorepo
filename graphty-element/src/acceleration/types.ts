@@ -291,6 +291,18 @@ export interface Limits {
     selectionCap: number;
     /** The most edges drawn at once. */
     edgesDrawn: number;
+    /**
+     * The most nodes drawn as objects of their own (a look the batches cannot draw, such as a
+     * border). Past it, on `render-path="batched"`, later rows draw as plain bodies.
+     * @experimental cosmograph
+     */
+    objectRows: number;
+    /**
+     * The most edges drawn as objects of their own (a look no row line draws, such as an arrow
+     * head). Past it, on `render-path="batched"`, later edges draw as plain lines.
+     * @experimental cosmograph
+     */
+    objectEdges: number;
 }
 
 /** When the element last measured this machine, and whether it measured or guessed. */

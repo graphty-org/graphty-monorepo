@@ -8,6 +8,7 @@ import { assert, describe, it } from "vitest";
 
 import { createGraphSession, type GraphSession } from "../../session";
 import { assertScalesLinearly, visitsDuring } from "../helpers/cost";
+import { withConsumerStrictState } from "./helpers";
 
 /** Sixty gene symbols around TP53: TP53, then G02 to G60. */
 const SYMBOLS = ["TP53", ...Array.from({ length: 59 }, (_unused, at) => `G${String(at + 2).padStart(2, "0")}`)];
@@ -258,6 +259,29 @@ describe("joining a table onto the graph", () => {
         session.dispose();
     });
 
+    it("takes the join back when its table is removed, as one undo step", async () => {
+        const session = await proteins();
+        await session.data.updateNodes([{ id: "TP53", values: { tissue: "blood" } }]);
+        const draft = await expression(session);
+        const { keys } = draft.suggestJoin();
+        await draft.load({ join: { keys, columns: ["log2fc", "tissue"], clash: { tissue: "overwrite" } } });
+        const [join] = session.data.joins();
+        assert.strictEqual(session.data.node("TP53")?.tissue, "lung");
+
+        await session.data.removeSource(join.source);
+        assert.isUndefined(session.data.node("G02")?.log2fc, "a value it wrote is gone");
+        assert.isUndefined(session.data.node("G02")?.tissue);
+        assert.strictEqual(session.data.node("TP53")?.tissue, "blood", "a value it overwrote is back");
+        assert.deepEqual(session.data.joins(), []);
+        assert.strictEqual(session.data.nodes().length, 60);
+
+        await session.undo();
+        assert.strictEqual(session.data.node("G02")?.log2fc, 0.1);
+        assert.strictEqual(session.data.node("TP53")?.tissue, "lung");
+        assert.strictEqual(session.data.joins().length, 1);
+        session.dispose();
+    });
+
     it("survives a save and an open, and a reopened join can be edited", async () => {
         const session = await proteins();
         const draft = await expression(session);
@@ -392,6 +416,11 @@ describe("joining edges between the nodes a graph holds", () => {
         await draft.load({ join: { keys, ignoreCase: true, ignoreSpaces: true } });
         assert.strictEqual(session.data.nodes().length, 41);
         assert.isDefined(session.data.edges().find((edge) => edge.source === "S3" && edge.target === "S4"));
+
+        await session.data.removeSource(session.data.joins()[0].source);
+        assert.strictEqual(session.data.nodes().length, 40, "the end only the join made is gone");
+        assert.strictEqual(session.data.edges().length, 0);
+        assert.deepEqual(session.data.joins(), []);
         session.dispose();
     });
 
@@ -450,11 +479,8 @@ describe("join cost", () => {
      * @param size - how many
      * @returns the session and the join's key
      */
-    async function joined(size: number): Promise<{ session: GraphSession; key: string }> {
-        const scope = globalThis as { __GRAPHTY_STRICT_STATE__?: boolean };
-        const strict = scope.__GRAPHTY_STRICT_STATE__;
-        scope.__GRAPHTY_STRICT_STATE__ = false;
-        try {
+    function joined(size: number): Promise<{ session: GraphSession; key: string }> {
+        return withConsumerStrictState(async () => {
             const session = createGraphSession();
             await session.data.addNodes(Array.from({ length: size }, (_, at) => ({ id: `n${String(at)}` })));
             const rows = Array.from({ length: size }, (_, at) => `N${String(at)},${String(at)}`).join("\n");
@@ -464,9 +490,7 @@ describe("join cost", () => {
             );
             await draft.load({ join: { keys: [{ file: "name", graph: "id" }], ignoreCase: true } });
             return { session, key: session.data.joins()[0].source };
-        } finally {
-            scope.__GRAPHTY_STRICT_STATE__ = strict;
-        }
+        });
     }
 
     it("draft.joinReport on a key every element shares: no more than linear in the graph", async () => {

@@ -49,6 +49,7 @@ import { SpringElectricalLayout } from "../layout/SpringElectricalLayoutEngine";
 import { SpringLayout } from "../layout/SpringLayoutEngine";
 import type { CodedFact } from "../session/shared";
 import { registeredLayoutById } from "./layoutRegistry";
+import { withDescriptionIds } from "./options";
 import { optionsFromZod } from "./optionsFromZod";
 import type {
     DEPRECATED_LAYOUT_IDS,
@@ -166,7 +167,12 @@ type LayoutImplementationSpec = Omit<LayoutImplementation, "isDefault" | "fact">
 function implementation(spec: LayoutImplementationSpec, isDefault: boolean): LayoutImplementation {
     const { code, ...authored } = spec;
 
-    return { ...authored, isDefault, fact: { code, params: { engine: spec.engine } } };
+    return {
+        ...authored,
+        options: withDescriptionIds(`layout.${spec.engine}`, spec.options),
+        isDefault,
+        fact: { code, params: { engine: spec.engine } },
+    };
 }
 
 /** One semantic layout, with every engine that can draw it. */
@@ -245,7 +251,7 @@ function entry(
         descriptor: {
             ...base,
             engine: primary.engine,
-            options: primary.options,
+            options: withDescriptionIds(`layout.${primary.engine}`, primary.options),
             honoursWeights: primary.honoursWeights,
             scoped: primary.scoped,
             ...(primary.requires === undefined ? {} : { requires: primary.requires }),
@@ -356,7 +362,7 @@ const kamadaKawai: LayoutImplementationSpec = {
         "Choose it for a small graph whose drawn distances should match its graph distances. It " +
         "solves over every pair of nodes, so it is slow well before the other force engines are.",
     code: "implementation.distance-faithful",
-    options: engineOptions(KamadaKawaiLayout.zodOptionsSchema),
+    options: engineOptions(KamadaKawaiLayout.zodOptionsSchema, SEED_OVERRIDE),
     honoursWeights: KamadaKawaiLayout.honoursWeights,
     scoped: KamadaKawaiLayout.scoped,
 };

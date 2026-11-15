@@ -185,6 +185,21 @@ function removes(kind: "remove-nodes" | "remove-edges", ids: readonly string[]):
 /** The command emptying the graph. */
 const CLEAR: SessionCommand = { op: "data.apply", mutation: { kind: "clear" } };
 
+/** What merging merge-b into merge-a, with one edge between them, dispatches inside its batch. */
+const MERGE_STEPS: readonly SessionCommand[] = [
+    updateRow("node", "merge-a", { weight: 3 }),
+    removes("remove-nodes", ["merge-b"]),
+    {
+        op: "data.apply",
+        mutation: {
+            kind: "add-edges",
+            records: [{ source: "merge-a", target: "merge-a" }],
+            source: "source",
+            target: "target",
+        },
+    },
+];
+
 /** The code of the fact each batch the element builds carries, by its label. */
 const BATCH_CODES = {
     "Replaced the nodes": "data.replace-nodes",
@@ -515,6 +530,15 @@ const RELOAD_SOURCE_EXPECT: readonly unknown[] = [
     },
     ...RELOAD_SOURCE_STEPS,
 ];
+/** What `data.remap({ mapping: {} })` dispatches inside its batch: reloadSource's steps, the mapping kept with the load. */
+const REMAP_STEPS: readonly SessionCommand[] = RELOAD_SOURCE_STEPS.map((step) =>
+    step.op === "data.import" ? { ...step, choices: { mapping: {} } } : step,
+);
+/** What `data.remap({ mapping: {} })` dispatches: the batch, then its steps. */
+const REMAP_EXPECT: readonly unknown[] = [
+    { ...(RELOAD_SOURCE_EXPECT[0] as object), steps: REMAP_STEPS },
+    ...REMAP_STEPS,
+];
 /** What `data.replaceSource("s1", ...)` dispatches: the batch, then its steps. */
 const REPLACE_SOURCE_EXPECT: readonly unknown[] = [
     {
@@ -692,11 +716,11 @@ const ADD_FROM_SOURCE = calls(
     [imports("merge", { type: "json", config: { data: TINY_JSON } })],
 );
 
-/** Loading from a URL: the text fetched, and the id path the element reads. */
-const LOAD_FROM_URL = calls(
-    [TINY_JSON_URL],
-    [imports("merge", { type: "json", config: { data: TINY_JSON_BYTES, nodeIdPath: "id" } })],
-);
+/**
+ * Loading from a URL: the bytes fetched, and no id path, since the element's is the default "id" and
+ * naming it would turn off the JSON reader's own-shape reading.
+ */
+const LOAD_FROM_URL = calls([TINY_JSON_URL], [imports("merge", { type: "json", config: { data: TINY_JSON_BYTES } })]);
 
 /**
  * Loading from a URL on the element, whose rows above set the node id path to `key` and the edge
@@ -866,6 +890,7 @@ const SESSION: Readonly<Record<string, Door>> = {
     views: READ,
     layout: READ,
     positions: READ,
+    hidden: READ,
     seededNodeCount: READ,
     status: READ,
     catalog: READ,
@@ -929,6 +954,8 @@ const SELECTION_API: Readonly<Record<string, Door>> = {
     members: READ,
     checkRule: READ,
     clear: SELECTION,
+    previous: READ,
+    restore: SELECTION,
     hovered: READ,
     hover: exempt("The pointer resting on a node is view state, not a step, like the selection."),
     hoverPreview: READ,
@@ -1278,6 +1305,7 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     layerGroups: READ,
     counts: READ,
     drawnCount: READ,
+    drawnValues: READ,
     legendOf: READ,
     resolveToStatic: calls(
         ["no-such-layer", "node.color"],
@@ -1322,7 +1350,6 @@ const STYLES_API: Readonly<Record<string, Door>> = {
     lockRow: calls(["no-such-row", true], [{ op: "style.patch", action: "lockRow", id: "no-such-row", locked: true }]),
     hideRow: calls(["no-such-row", true], [{ op: "style.patch", action: "hideRow", id: "no-such-row", hidden: true }]),
     deleteRow: calls(["no-such-row"], [{ op: "style.patch", action: "deleteRow", id: "no-such-row" }]),
-    restoreStartingRows: calls([], [{ op: "style.patch", action: "restoreStartingRows" }]),
     toFile: READ,
     setDefaultPalettes: PALETTE_DEFAULTS,
     setHighlightColor: HIGHLIGHT_DEFAULT,
@@ -1434,6 +1461,10 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 { op: "config.set", values: { layoutBehavior: { preSteps: 5, stepMultiplier: 1, minDelta: 0 } } },
             ]),
             labelDeclutter: VIEW_SETTING,
+            accessibleDescription: VIEW_SETTING,
+            accessibleAnnouncement: VIEW_SETTING,
+            accessibleNodeList: VIEW_SETTING,
+            accessibleFacts: READ,
             renderOnDemand: VIEW_SETTING,
             shaderSettings: exempt(
                 "The reader's shader preferences and trust, never saved in a project file and never read from one.",
@@ -1471,6 +1502,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
+            cancelCameraAnimation: IN_FLIGHT,
+            playTour: CAMERA,
             isAnimationCapturing: READ,
             estimateAnimationCapture: READ,
             getViewMode: READ,
@@ -1526,6 +1559,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             pinnedNodes: READ,
             getNode: READ,
             getNodes: READ,
+            getEdges: READ,
             getNodeCount: READ,
             getEdgeCount: READ,
             selectNode: SELECTION,
@@ -1622,6 +1656,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             accelerationMinNodes: MACHINE,
             renderer: MACHINE,
             rendererStatus: READ,
+            restartRenderer: RENDER,
             renderPath: MACHINE,
             antialias: MACHINE,
             limits: MACHINE,
@@ -1652,6 +1687,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             setRenderer: MACHINE,
             rendererRequest: READ,
             rendererStatus: READ,
+            restartRenderer: RENDER,
             expectRenderer: LIFECYCLE,
             eventManager: READ,
             nodeLabelCounts: READ,
@@ -1845,6 +1881,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             canCaptureScreenshot: READ,
             captureAnimation: CAPTURE,
             cancelAnimationCapture: CAPTURE,
+            cancelCameraAnimation: IN_FLIGHT,
+            playTour: CAMERA,
             isAnimationCapturing: READ,
             estimateAnimationCapture: READ,
             getCameraState: READ,
@@ -1971,6 +2009,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             spacingRadius: READ,
             paintedColor: READ,
             borderReach: READ,
+            borderReachAlong: READ,
             framingBounds: READ,
             drawnHalfExtents: READ,
             surfaceIsBox: READ,
@@ -2102,6 +2141,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             emptyClick: EVENTS,
             elementClick: EVENTS,
             groupOutlineClick: EVENTS,
+            layoutMotion: EVENTS,
         },
     },
     {
@@ -2162,6 +2202,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             getSnapshot: LANE,
             undirected: READ,
             nodeAtRow: READ,
+            nodeIdAtRow: READ,
             positions: LANE,
             seededNodeCount: READ,
             directionSettledBy: READ,
@@ -2248,6 +2289,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             running: IN_FLIGHT,
             setPaused: IN_FLIGHT,
             isPaused: READ,
+            motion: READ,
             setGraphContext: LIFECYCLE,
             updateStyles: RENDER,
             init: LIFECYCLE,
@@ -2271,6 +2313,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             hasLayoutEngine: READ,
             updatePositions: TRANSPORT,
             onRest: RENDER,
+            onMotion: RENDER,
+            checkMotion: RENDER,
             restoring: RENDER,
             replacing: RENDER,
             graphWritesWaiting: RENDER,
@@ -2462,6 +2506,13 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
         whole: RENDER,
     },
     {
+        // The painter's queue of rows waiting to draw.
+        name: "PendingRows",
+        file: "src/managers/StylePainter.ts",
+        half: "renderer",
+        whole: RENDER,
+    },
+    {
         name: "InputManager",
         file: "src/managers/InputManager.ts",
         half: "renderer",
@@ -2595,9 +2646,14 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             // Deep-frozen.
             node: READ,
             name: READ,
+            // Fresh objects built from the label column on each call.
+            nodeName: READ,
+            edgeName: READ,
             edge: READ,
             nodes: READ,
             edges: READ,
+            // Two numbers off the snapshot.
+            count: READ,
             // Deep-frozen records, read a window at a time.
             nodePage: READ,
             edgePage: READ,
@@ -2787,6 +2843,21 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
                 },
                 expect: RELOAD_SOURCE_EXPECT,
             },
+            // Reads the only load's rows again under the mapping, as reloadSource's one batch.
+            remap: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: [{ mapping: {} }],
+                    around: async (target) => {
+                        const data = target as { import(source: unknown): Promise<void> };
+                        await data.import(DOOR_SHIPS_SOURCE);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: REMAP_EXPECT,
+            },
             // The values the join wrote go back, and the table joins anew, as one batch.
             editJoin: {
                 kind: "dispatches",
@@ -2834,6 +2905,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             refresh: SOURCE_REFRESH,
             loads: READ,
             sourceSettings: READ,
+            sourceInput: READ,
             nodeSource: READ,
             pendingSourceLoads: READ,
             expand: SOURCE_EXPANSION,
@@ -2925,6 +2997,8 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             structureValue: READ,
             histogram: READ,
             valueCounts: READ,
+            overRepresented: READ,
+            groupTable: READ,
             // The column commands, each one batch.
             setRole: {
                 kind: "dispatches",
@@ -3052,6 +3126,18 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             fingerprint: READ,
             addNodes: calls([[{ id: "door-a" }]], [addNodes({ id: "door-a" })]),
             addEdges: calls([[{ src: "door-a", dst: "door-b" }]], [addEdges({ src: "door-a", dst: "door-b" })]),
+            importColumns: calls(
+                [{ sources: [0], targets: [1], nodeCount: 2, ids: ["door-c", "door-d"] }],
+                batchOf("Set the graph data", addNodesBy("id", { id: "door-c" }, { id: "door-d" }), {
+                    op: "data.apply",
+                    mutation: {
+                        kind: "add-edges",
+                        records: [{ source: "door-c", target: "door-d" }],
+                        source: "source",
+                        target: "target",
+                    },
+                }),
+            ),
             updateNodes: calls(
                 [[{ id: "door-a", values: { weight: 2 } }]],
                 [updateRow("node", "door-a", { weight: 2 })],
@@ -3059,6 +3145,32 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             updateEdges: calls([[{ id: "0", values: { weight: 2 } }]], [updateRow("edge", "0", { weight: 2 })]),
             removeEdges: calls([["0"]], [removes("remove-edges", ["0"])]),
             removeNodes: calls([["door-b"]], [removes("remove-nodes", ["door-b"])]),
+            mergeNodes: {
+                kind: "dispatches",
+                op: "batch",
+                call: {
+                    kind: "call",
+                    args: [["merge-a", "merge-b"], { values: { weight: 3 } }],
+                    around: async (target) => {
+                        const data = target as {
+                            addNodes(records: unknown[]): Promise<void>;
+                            addEdges(records: unknown[]): Promise<void>;
+                        };
+                        await data.addNodes([{ id: "merge-a" }, { id: "merge-b" }]);
+                        await data.addEdges([{ source: "merge-b", target: "merge-a" }]);
+                        return () => Promise.resolve();
+                    },
+                },
+                expect: [
+                    {
+                        op: "batch",
+                        label: "Merged 2 nodes",
+                        fact: { code: "data.merge-nodes", params: { count: 2 } },
+                        steps: MERGE_STEPS,
+                    },
+                    ...MERGE_STEPS,
+                ],
+            },
             clear: calls([], [CLEAR]),
             import: calls(
                 [{ type: "json", config: { data: TINY_JSON } }],
@@ -3142,6 +3254,7 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             styles: READ,
             suggestJoin: READ,
             joinReport: READ,
+            lookup: READ,
             // A draft of TINY_JSON: the rows it held, loaded without reading the source again, its
             // nodes named by the file's label column, as `data.import` names them.
             load: calls([], [{ op: "batch", steps: [DRAFT_LABEL, DRAFT_LOAD] }, DRAFT_LABEL, DRAFT_LOAD]),
@@ -3156,10 +3269,22 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             start: calls(["degree"], [RUN_DEGREE]),
             answered: READ,
             batch: calls([[{ algorithm: "degree" }]], [RUN_DEGREE]),
+            sweep: calls(
+                ["pagerank", "dampingFactor", [0.9]],
+                [
+                    {
+                        op: "algo.run",
+                        algorithm: "pagerank",
+                        params: { dampingFactor: 0.9 },
+                        as: "pagerank_dampingfactor_0_9",
+                    },
+                ],
+            ),
             get: READ,
             list: READ,
             remove: calls(["door-run"], [{ op: "algo.remove", runId: "door-run" }]),
             move: calls(["door-run", null], [{ op: "algo.move", runId: "door-run", before: null }]),
+            rename: calls(["door-run", "Influence"], [{ op: "algo.rename", runId: "door-run", name: "Influence" }]),
             bindings: READ,
             readers: READ,
             painting: READ,
@@ -3474,8 +3599,15 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             options: READ,
             dimension: READ,
             arrangedDimension: READ,
+            motion: READ,
             set: calls(["circular"], [{ op: "layout.set", id: "circular" }]),
             setDimension: calls(["2d"], [DIMENSION_2D]),
+            rerun: calls([], [{ op: "layout.rerun" }]),
+            step: READ,
+            play: TRANSPORT,
+            pause: TRANSPORT,
+            tick: TRANSPORT,
+            settle: TRANSPORT,
             optionInEffect: READ,
             locationColumns: READ,
         },
@@ -3500,6 +3632,23 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             ),
             pin: calls([["n1"]], [PIN_N1]),
             unpin: calls([["n1"]], [UNPIN_N1]),
+            get: READ,
+            pinnedMask: READ,
+            snapshot: READ,
+            restore: calls(
+                [{ order: ["n1"], xyz: Float32Array.of(1, 2, 3) }],
+                [{ op: "positions.set", entries: [{ id: "n1", x: 1, y: 2, z: 3 }] }],
+            ),
+        },
+    },
+    {
+        name: "SessionHidden",
+        file: "src/session/types.ts",
+        half: "session",
+        doors: {
+            ids: READ,
+            add: calls([["n1"]], [{ op: "visibility.hide", ids: ["n1"], hidden: true }]),
+            remove: calls([["n1"]], [{ op: "visibility.hide", ids: ["n1"], hidden: false }]),
         },
     },
     {
@@ -3577,6 +3726,12 @@ export const DOOR_ROOTS: readonly DoorRoot[] = [
             moved: LANE,
             write: LANE,
             fillUnplaced: LANE,
+            // A layout drawing from the card owes the lane its frame; settling it writes the rows.
+            owe: LANE,
+            forgive: LANE,
+            settle: LANE,
+            keeps: READ,
+            unsettledView: READ,
         },
     },
     {
@@ -4047,10 +4202,12 @@ export const GESTURE_DOORS: Readonly<Record<string, string>> = {
 export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.addNodes": "edit",
     "SessionDataApi.addEdges": "edit",
+    "SessionDataApi.importColumns": "edit",
     "SessionDataApi.updateNodes": "edit",
     "SessionDataApi.updateEdges": "edit",
     "SessionDataApi.removeNodes": "edit",
     "SessionDataApi.removeEdges": "edit",
+    "SessionDataApi.mergeNodes": "edit",
     "SessionDataApi.collapse": "edit",
     "SessionDataApi.clear": "clear",
     // Doors that work out their change from the graph read it once the loads ahead have landed.
@@ -4058,6 +4215,7 @@ export const LOAD_ORDER: Readonly<Record<string, "load" | "edit" | "clear">> = {
     "SessionDataApi.removeSource": "edit",
     "SessionDataApi.replaceSource": "edit",
     "SessionDataApi.reloadSource": "edit",
+    "SessionDataApi.remap": "edit",
     "SessionDataApi.editJoin": "edit",
     "SessionDataApi.setType": "edit",
     "SessionDataApi.renameColumn": "edit",

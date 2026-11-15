@@ -38,6 +38,7 @@ import { withFeaturesOn } from "../tools/features-on.mjs";
 import { shardCacheDir } from "../tools/test-slots.mjs";
 import { withTestGuards } from "../tools/test-wait-guard.mjs";
 import { PRODUCTION, visualStoryTest } from "../visual-review/capture/story-test.mjs";
+import { withBabylonCompilers } from "../vitest.babylon-compilers.mjs";
 import { baseTest } from "../vitest.base.mjs";
 import { isTileServer, mapTileCommands } from "../vitest.map-tiles.mjs";
 
@@ -95,6 +96,7 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/a-layer-added-later-paints.test.ts",
     "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
     "test/browser/label-textures-fit-across-frames.test.ts",
+    "test/browser/branches-view-scaling.test.ts",
 ];
 
 /**
@@ -226,13 +228,21 @@ const ELEMENT_DEPENDENCIES = [
 /** Everything the browser projects pre-bundle up front. */
 const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...AI_FRAMEWORKS, ...GRAPHVIZ, ...MODEL_CHUNK];
 
-/** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
+/** The tests that run real immersive sessions: the "xr" project runs them, "browser" and "interactions" do not. */
 const XR_BROWSER_TESTS = [
     "test/browser/node-batch-xr.test.ts",
     "test/browser/xr-session.test.ts",
     "test/browser/XRUIManager.test.ts",
     "test/browser/NodeBehavior-xr-compatibility.test.ts",
     "test/interactions/xr/xr-voice.test.ts",
+    "test/interactions/xr/xr-thumbstick.test.ts",
+    "test/interactions/xr/xr-gestures.test.ts",
+    "test/interactions/xr/xr-hand-tracking.test.ts",
+    "test/interactions/xr/xr-input-switching.test.ts",
+    "test/interactions/xr/xr-local-space.test.ts",
+    "test/interactions/unit/xr-direction.test.ts",
+    "test/interactions/unit/deadzone.test.ts",
+    "test/browser/xr-drag-amplification.test.ts",
 ];
 
 /** The files "forced-batched" leaves out, each with its reason. */
@@ -1125,6 +1135,10 @@ const config = defineConfig({
                             },
                         }),
                         instances: [{ browser: "chromium" }],
+                        // The page a visual capture loads (VIEWPORT in visual-review/capture/capture.mjs):
+                        // a story laid out for it -- AiControl's Send, right of the graph in the 800 px
+                        // host -- is off Vitest's default 414 px viewport, where no pointer reaches it.
+                        viewport: { width: 1200, height: 900 },
                     },
                 },
             },
@@ -1528,5 +1542,6 @@ config.test = {
     ),
 };
 
-// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs).
-export default withTestGuards(config);
+// One hang guard for every test, hook and wait (tools/test-wait-guard.mjs), and Babylon.js's GLSL
+// compilers from a local copy rather than cdn.babylonjs.com (vitest.babylon-compilers.mjs).
+export default withTestGuards(withBabylonCompilers(config));

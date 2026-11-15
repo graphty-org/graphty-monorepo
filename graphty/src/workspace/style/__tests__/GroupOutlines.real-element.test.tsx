@@ -18,10 +18,15 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { findValuePicker, render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore, type WorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
 import { showKind } from "./kindTab";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 type Element = HTMLElementTagNameMap["graphty-element"];
 
@@ -379,6 +384,11 @@ describe("group outlines, Around the group in the gallery", () => {
             for (const id of layers) {
                 assert.deepEqual(shadersOf(session.styles.get(id)), ["soap-bubble"], `${id} draws its own`);
             }
+        });
+        // The layers show the edit while its transaction is still open: it records its step only
+        // once it closes, so the count is read after nothing is pending.
+        await waitFor(() => {
+            assert.isEmpty(session.history.pending, "the edit is recorded");
         });
         assert.strictEqual(session.history.position, steps + 1, "one undo step");
         await waitFor(() => {

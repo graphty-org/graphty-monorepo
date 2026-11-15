@@ -7,7 +7,7 @@ import { selectionWorkspaceOn } from "../features";
 import { CommandMenuItem } from "../frame/menus";
 import { GLYPHS } from "../glyphs";
 import { resolveInspected } from "../inspector/inspected";
-import { staleWords } from "../inspector/words";
+import { count, staleWords } from "../inspector/words";
 import { isPanelEscape, matchesKey } from "../keys/keys";
 import { errorWords } from "../project/words";
 import { useSteps } from "../selection/useSteps";
@@ -19,21 +19,11 @@ import { StylePanel } from "../style/StylePanel";
 import { colorName, hexOf } from "../style/words";
 import { unitOf } from "../time/timeActions";
 import { openers } from "../toolbar/popover";
-import { ADD_ROW_LABEL, addFolderOf, addHoverHighlight, addLayer, moveRows, orNotice } from "./actions";
+import { ADD_ROW_LABEL, addFolderOf, addLayer, moveRows, orNotice } from "./actions";
 import { ROW_COMMANDS } from "./commands";
 import { KindGlyph } from "./KindGlyph";
 import { RowMenuItems } from "./RowMenu";
-import {
-    builtParts,
-    count,
-    findTreeRow,
-    groupRowOf,
-    isHidden,
-    layerCount,
-    layerKindWords,
-    placeOf,
-    rowName,
-} from "./rows";
+import { builtParts, findTreeRow, groupRowOf, isHidden, layerCount, layerKindWords, placeOf, rowName } from "./rows";
 
 /** Longer than a closing menu takes to hand focus back to its opener. */
 const MENU_FOCUS_RETURN_MS = 50;
@@ -610,7 +600,7 @@ export function StyleTree({ session }: StyleTreeProps): React.JSX.Element {
                     void orNotice(store, `rename ${name}`, session.styles.renameRow(id, name));
                 }}
             />
-            <Footer session={session} store={store} />
+            <Footer store={store} />
         </>
     );
 }
@@ -681,14 +671,6 @@ function AddMenu({
                 >
                     Folder
                 </Menu.Item>
-                <Menu.Item
-                    leftSection={<GLYPHS.pick size={14} aria-hidden />}
-                    onClick={() => {
-                        void orNotice(store, "add Hover highlight", addHoverHighlight(session, store));
-                    }}
-                >
-                    Hover highlight
-                </Menu.Item>
                 {analyze !== null && (
                     <CommandMenuItem
                         icon={<GLYPHS.analyze size={14} aria-hidden />}
@@ -727,29 +709,6 @@ function staleOf(session: GraphSession, row: StyleRow): StaleNote | null {
 }
 
 /**
- * Whether the tree lacks one of the starting rows (Everything, Selected, Hovered) while the
- * project draws them. TEMPORARY: it reads the element's template ids, which graphty-element does
- * not publish as a fact; owed there as a read of which starting rows are missing.
- * @param session - the element's session.
- * @returns true when Restore starting layers has something to restore.
- */
-function lacksStartingRows(session: GraphSession): boolean {
-    if (!session.config.startingRows) {
-        return false;
-    }
-    const present = new Set(
-        session.styles
-            .list()
-            .flatMap((layer) =>
-                layer.source.by === "template" && layer.source.templateId.startsWith("graphty:starting-")
-                    ? [layer.source.templateId]
-                    : [],
-            ),
-    );
-    return present.size < 3;
-}
-
-/**
  * Puts focus on a row of the style tree.
  * @param id - the row's id.
  */
@@ -780,13 +739,12 @@ function openGraphSettings(store: WorkspaceStore): void {
 }
 
 /**
- * The tree's footer: Graph settings, and Restore starting layers while a starting row is gone.
+ * The tree's footer: Graph settings.
  * @param props - Component props
- * @param props.session - the element's session
  * @param props.store - the chrome store
  * @returns The footer
  */
-function Footer({ session, store }: Readonly<{ session: GraphSession; store: WorkspaceStore }>): React.JSX.Element {
+function Footer({ store }: Readonly<{ store: WorkspaceStore }>): React.JSX.Element {
     return (
         <Stack gap={0} className="ws-style-tree-foot">
             <UnstyledButton
@@ -797,16 +755,6 @@ function Footer({ session, store }: Readonly<{ session: GraphSession; store: Wor
             >
                 <GLYPHS.settings size={14} aria-hidden /> Graph settings
             </UnstyledButton>
-            {lacksStartingRows(session) && (
-                <UnstyledButton
-                    className="ws-style-tree-foot-row cm-focus-inside"
-                    onClick={() => {
-                        void orNotice(store, "restore the starting layers", session.styles.restoreStartingRows());
-                    }}
-                >
-                    <GLYPHS.undo size={14} aria-hidden /> Restore starting layers
-                </UnstyledButton>
-            )}
         </Stack>
     );
 }

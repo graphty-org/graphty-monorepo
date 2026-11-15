@@ -30,10 +30,10 @@ measured on the scale of its own vector:
 
 - `pageRank` and `personalizedPageRank` stop when the summed change is below `tolerance`. Their scores sum to 1, so
   that is a change of `tolerance` relative to the whole vector. This is the 3.x rule, unchanged.
-- `hits` stops when the summed change of both vectors is below `tolerance` times their summed size. In 3.x it compared
-  the largest single-node change with `tolerance`.
-- `katzCentrality` and `eigenvectorCentrality` stop when the summed change is below `nodeCount * tolerance`. Every Katz
-  score is at least `beta`. In 3.x Katz compared the largest single-node change with `tolerance`.
+- `hits`, `katzCentrality` and `eigenvectorCentrality` stop when the summed change is below `tolerance` times the
+  summed size of the vector (a summed change of exactly 0 also stops `katzCentrality`), so the error left does not
+  grow with the node count. In 3.x `hits` and `katzCentrality` compared the largest single-node change with
+  `tolerance`.
 
 `@graphty/webgpu-graph-algorithms` follows the same rules, so at the same options a run stops at the same iteration on
 the CPU and the GPU, up to f32 rounding. `pageRank`'s `convergenceNorm: "max"` still compares the largest single-node

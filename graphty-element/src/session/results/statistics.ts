@@ -132,6 +132,8 @@ interface ColumnStatistics {
     readonly max: number;
     /** The average measured value, or NaN when nothing was measured. */
     readonly mean: number;
+    /** The compensated sum of the measured values, 0 when nothing was measured. */
+    readonly sum: number;
     /** The middle measured value, or NaN when nothing was measured. */
     readonly median: number;
     /**
@@ -164,6 +166,7 @@ const EMPTY_STATISTICS: Omit<ColumnStatistics, "length"> = Object.freeze({
     min: Number.NaN,
     max: Number.NaN,
     mean: Number.NaN,
+    sum: 0,
     median: Number.NaN,
     tiedAtMin: 0,
     smallestPositive: null,
@@ -234,6 +237,7 @@ export function computeColumnStatistics(column: NumericColumnSource): ColumnStat
         min,
         max,
         mean: sum / measured,
+        sum,
         median,
         tiedAtMin,
         smallestPositive: Number.isFinite(smallestPositive) ? smallestPositive : null,
@@ -565,7 +569,6 @@ export function topOfRanking(ranking: readonly RankingEntry[], n: number, ties: 
     return Object.freeze({
         entries: ranking.slice(0, end),
         leftOut: null,
-        reason: null,
         threshold: end < ranking.length ? ranking[end].value : null,
     });
 }
@@ -589,7 +592,6 @@ function topWithinLimit(ranking: readonly RankingEntry[], n: number): TopRanking
         return Object.freeze({
             entries: ranking.slice(0, taken),
             leftOut: null,
-            reason: null,
             threshold: taken < ranking.length ? ranking[taken].value : null,
         });
     }
@@ -601,15 +603,10 @@ function topWithinLimit(ranking: readonly RankingEntry[], n: number): TopRanking
     }
 
     const count = end - taken;
-    const kept = taken === 0 ? "none are" : `only the top ${String(taken)} are`;
-    const reason =
-        `${String(count)} tie at ${String(value)}, and taking them would make ${String(taken + count)}, ` +
-        `more than the ${String(n)} asked for, so ${kept} taken.`;
 
     return Object.freeze({
         entries: ranking.slice(0, taken),
         leftOut: Object.freeze({ value, count }),
-        reason,
         threshold: value,
     });
 }

@@ -1342,6 +1342,36 @@ describe("GraphML styles: writing", () => {
         expect(text).toContain('modelName="eight_pos" modelPosition="n"');
     });
 
+    it("notes a gradient on a node with no fill color, which a y:Fill cannot hold", () => {
+        const b = new GraphBuilder({ directed: true });
+        b.addNode("a");
+        const snapshot = b.freeze();
+        const styles = planStyles(
+            {
+                format: "test",
+                node: {
+                    values: {
+                        fillGradient: ["#b7c9e3"],
+                        fillGradientColors: ["#ffffff #0000ff #ffffff"],
+                        fillGradientStops: ["0 0.5 1"],
+                    },
+                },
+                fingerprint: styleFingerprint(snapshot),
+            },
+            { node: featuresOf(snapshot, "node"), edge: featuresOf(snapshot, "edge") },
+        );
+        const losses = registry.checkExport(snapshot, "graphml", { styles });
+        expect(
+            losses
+                .filter((l) => l.code === "W_STYLE_APPROXIMATED")
+                .map((l) => [l.style?.target, l.style?.property, l.count]),
+        ).toEqual([
+            ["node", "fillGradient", 1],
+            ["node", "fillGradientColors", 1],
+            ["node", "fillGradientStops", 1],
+        ]);
+    });
+
     it("an outside edit of a yEd color comes back as its fill and ramp only; any other new exception fails", async () => {
         const b = new GraphBuilder({ directed: true });
         b.addNode("a");

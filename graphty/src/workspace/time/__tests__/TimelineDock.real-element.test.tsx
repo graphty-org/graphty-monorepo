@@ -627,6 +627,35 @@ describe("the timeline dock on the real element", () => {
         stop();
     });
 
+    it("says what a play moved when it runs to the end of the data on its own", async () => {
+        const { session, dock } = await openDock();
+        await act(async () => {
+            await session.time.setSettings({ step: "month" });
+            // One step from the end, so the play reaches the end of the data by itself.
+            await session.time.seek("end");
+            await session.time.stepBy(-1);
+        });
+        const played = { entered: 0, left: 0 };
+        const stop = session.on("time:step", ({ entered, left }) => {
+            played.entered += entered.nodes + entered.edges;
+            played.left += left.nodes + left.edges;
+        });
+        let ended = false;
+        const stopEnd = session.on("time:end", () => {
+            ended = true;
+        });
+        await userEvent.click(within(dock).getByRole("button", { name: "Play" }));
+
+        await waitFor(() => {
+            assert.isTrue(ended);
+            assert.isFalse(session.time.playing);
+            assert.isAbove(played.entered + played.left, 0);
+            assert.include(statusLine(), `${formatCount(played.entered)} entered, ${formatCount(played.left)} left`);
+        });
+        stop();
+        stopEnd();
+    });
+
     it("jumps the window to a tapped bar outside the brush, as one step", async () => {
         const { session, dock } = await openDock();
         const whole = brushOf(dock);

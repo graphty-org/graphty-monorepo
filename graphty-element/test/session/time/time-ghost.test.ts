@@ -1,11 +1,12 @@
 /**
  * The timeline's ghost option: elements outside the window stay drawn, in the state "ghosted", and
- * a Ghost row pinned directly below Selected paints them; they never count as visible.
+ * the Ghost default row, an ordinary row pinned directly below Selected, paints them; they never
+ * count as visible.
  */
 
 import { assert, beforeAll, describe, it } from "vitest";
 
-import { createGraphSession, type GraphSession } from "../../../session";
+import { createGraphSession, type GraphSession, isGraphtyError } from "../../../session";
 import { setDefaultFeatures } from "../../../src/features/resolve";
 import type { ElementSession } from "../../../src/session/types";
 
@@ -141,7 +142,7 @@ describe("timeline ghosts", () => {
         session.dispose();
     });
 
-    it("adds the Ghost row directly below Selected with the field, and takes it away with it", async () => {
+    it("writes the Ghost row with the default rows, directly below Selected, and a field change keeps it", async () => {
         const session = await trace();
         const order = names(session);
         assert.strictEqual(order.lastIndexOf("Ghost"), order.indexOf("Selected") - 1, order.join(", "));
@@ -149,10 +150,13 @@ describe("timeline ghosts", () => {
         assert.deepInclude(ghost?.set ?? {}, { "node.color": "#9E9E9E", "node.opacity": 0.2 });
         assert.strictEqual(ghostLayers(session).length, 2);
 
+        // An ordinary row: clearing the field leaves it, and deleting it is the reader's to undo.
         await session.time.setField(null);
-        assert.deepStrictEqual(ghostLayers(session), []);
-        await session.undo();
         assert.strictEqual(ghostLayers(session).length, 2);
+        const row = session.styles.tree().find((each) => each.name === "Ghost");
+        await session.styles.deleteRow(row?.id ?? "");
+        await session.time.setField({ nodes: { start: "step" } });
+        assert.deepStrictEqual(ghostLayers(session), []);
         session.dispose();
     });
 
@@ -164,14 +168,14 @@ describe("timeline ghosts", () => {
 
     it("refuses an outside setting it does not know", async () => {
         const session = await trace();
-        let refused = false;
+        let refused: unknown = null;
         try {
             await session.time.setSettings({ outside: "fade" as "ghost" });
-        } catch {
-            refused = true;
+        } catch (error) {
+            refused = error;
         }
 
-        assert.isTrue(refused);
+        assert.strictEqual(isGraphtyError(refused) ? refused.code : refused, "E_BAD_COMMAND");
         session.dispose();
     });
 });

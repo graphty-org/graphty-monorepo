@@ -287,12 +287,27 @@ describe("one convergence rule", () => {
         expect(hits(s, { tolerance }).iterations).toBe(expectedStop(both, start, (x) => tolerance * size(x)));
     });
 
-    it("stops Katz at the first pass whose L1 change is below nodeCount * tolerance", () => {
-        // Every Katz score is at least beta (1 by default), so the vector's size is at least nodeCount.
-        const katz = (passes: number): ArrayLike<number> =>
-            katzCentrality(s, { maxIterations: passes, tolerance: 0, normalized: false }).scores;
+    it("stops Katz at the first pass whose L1 change is below tolerance times the vector's size", () => {
+        // A Katz run that misses the tolerance throws, so the passes are written out here: x(0) = beta and
+        // x(k + 1) = alpha * (the weighted sum of x(k) over the in-arcs) + beta, at the defaults alpha 0.1, beta 1.
+        const rev = s.reverse();
+        const katz = (passes: number): ArrayLike<number> => {
+            let x = new Float64Array(n).fill(1);
+            for (let pass = 0; pass < passes; pass++) {
+                const next = new Float64Array(n);
+                for (let v = 0; v < n; v++) {
+                    let sum = 0;
+                    for (let a = rev.rowPtr[v]; a < rev.rowPtr[v + 1]; a++) {
+                        sum += x[rev.colIdx[a]] * (rev.weights === null ? 1 : rev.weights[a]);
+                    }
+                    next[v] = 0.1 * sum + 1;
+                }
+                x = next;
+            }
+            return x;
+        };
         expect(katzCentrality(s, { tolerance }).iterations).toBe(
-            expectedStop(katz, new Float64Array(n).fill(1), () => n * tolerance),
+            expectedStop(katz, new Float64Array(n).fill(1), (x) => tolerance * size(x)),
         );
     });
 });
@@ -368,7 +383,8 @@ describe("the dispatcher follows the same rules", () => {
         const weighted = await dispatcher.betweennessCentrality(s);
         expect([...weighted.scores]).toEqual([...betweennessCentrality(s).scores]);
         expect(calls).toEqual([]);
-        expect(await dispatcher.betweennessCentrality(s, { weighted: false })).toBe(answer);
+        // the accelerator's scores come back with the port's divisor: 2 on an undirected graph
+        expect(await dispatcher.betweennessCentrality(s, { weighted: false })).toEqual({ ...answer, divisor: 2 });
         expect(calls).toEqual([{ normalized: undefined, sources: [0, 1, 2, 3, 4, 5], weighted: false }]);
     });
 

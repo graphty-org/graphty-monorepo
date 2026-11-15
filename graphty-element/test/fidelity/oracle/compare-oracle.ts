@@ -318,6 +318,11 @@ export interface OracleReport {
      * to compare it with) is not measurable there, which is never a failure.
      */
     judged: Partial<Record<OracleProperty, string[]>>;
+    /**
+     * The elements judged as the drawing as a whole (the frame, the background, the share of lines drawn bent): a
+     * property judging only these judges no element of the drawing one by one.
+     */
+    wholeDrawing: string[];
     association: unknown;
     transform: {
         scale: number;
@@ -1463,6 +1468,8 @@ export type OracleJudges = (property: OracleProperty, id: string, subject?: stri
 class Judge {
     readonly results = new Map<OracleProperty, OracleJudged[]>();
     readonly failed = new Map<string, Set<OracleProperty>>();
+    /** The ids judged as the drawing as a whole (kind "graph"). */
+    readonly wholeDrawing = new Set<string>();
 
     constructor(private readonly judges: OracleJudges = () => true) {}
 
@@ -1477,6 +1484,9 @@ class Judge {
     ): void {
         if (!this.judges(p, id, subject)) {
             return;
+        }
+        if (kind === "graph") {
+            this.wholeDrawing.add(id);
         }
         const pass = miss <= 0;
         const list = this.results.get(p) ?? [];
@@ -1670,15 +1680,17 @@ export function withoutCaptions(scene: PScene, other: PScene | null = null): PSc
             }
         }
         // a line that is a caption's words on its own may also be the first line of a longer caption wrapped under it
-        // ("font.strokeWidth=3" over "strokeColor")
+        // ("font.strokeWidth=3" over "strokeColor"); the longest such run is the caption, as its first lines may be
+        // another caption's whole words ("shape=" over "PARALLELOGRAM" over "60x30", cx-specimen-node-shapes)
         const run = [t];
+        let caption = 0;
         for (let next = below(t); next !== undefined && run.length < 4; next = below(next)) {
             run.push(next);
             if (words.has(squash(run.map((x) => x.content).join("")))) {
-                run.forEach((x) => dropped.add(x));
-                break;
+                caption = run.length;
             }
         }
+        run.slice(0, caption).forEach((x) => dropped.add(x));
     }
     // a caption's own body: a shape drawn tight around its words (a program that ignores the file's "no fill" on
     // a caption node still draws the box), part of the caption and left out with it
@@ -1940,6 +1952,11 @@ const fillOf = (b: PBox, width: number, height: number): number =>
  *     random placement, Cytoscape desktop's load layout, vis-network's physics against graphty's force layout): where
  *     those layouts are unrelated, where a node sits and how large the nodes are beside the spacing are each
  *     program's layout and not the file's, and are not judged
+ * @param options.labelsAvoidOverlap - the program hides a node's label where it would overlap another (Gephi's
+ *     Preview `node.label.avoidOverlap`, on by default): which labels it hides follows its own layout, so where each
+ *     side laid the file out itself (`ownLayouts`, unrelated layouts) a label the oracle does not show and graphty
+ *     does is not counted missing (gexf-hsk-chars, #8013: Gephi hides 38 to 50 of 868 labels on its own random
+ *     placement, different ones each run). A label the oracle shows and graphty does not still fails.
  * @param options.judges - which judgments to keep (default: all): a sheet judged per setting keeps, against each
  *     reference, only the properties of the settings that reference draws (`judges.ts`)
  * @returns the report, rounded
@@ -1949,7 +1966,13 @@ export function compareOracle(
     oracleScene: PScene,
     graphtyScene: PScene,
     association: unknown = null,
-    options: { mirror?: boolean; standIn?: boolean; ownLayouts?: boolean; judges?: OracleJudges } = {},
+    options: {
+        mirror?: boolean;
+        standIn?: boolean;
+        ownLayouts?: boolean;
+        labelsAvoidOverlap?: boolean;
+        judges?: OracleJudges;
+    } = {},
 ): OracleReport {
     const oracle = withoutCaptions(oracleScene, graphtyScene);
     const graphty = withoutCaptions(graphtyScene, oracleScene);
@@ -2085,6 +2108,8 @@ export function compareOracle(
     // Two layouts of a file that stores no positions, each its program's own and unrelated: neither where a node sits
     // nor its size beside the spacing is the file's
     const layoutJudged = !(options.ownLayouts === true && (transform?.unrelatedLayout ?? false));
+    // which node labels a program that avoids label overlap hides is its own layout's, not the file's
+    const oracleMayHideLabels = options.labelsAvoidOverlap === true && !layoutJudged;
     /** A size judged against each side's own spacing and extent, which the fitted scale cannot hide. */
     const layoutRelative = (p: "node.sizeToSpacing" | "node.sizeToExtent" | "edge.arrowToSpacing"): number | null => {
         // each program's own layout settles at its own spacing, so the extent and an arrowhead beside the spacing are
@@ -2140,8 +2165,9 @@ export function compareOracle(
         if (o.shape !== null) {
             j.add("node.shape", "node", id, o.shape === g.shape ? 0 : 1, o.shape, g.shape);
         }
-        const oFill = shownFill(o);
-        // graphty's fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across
+        // each fill as a reader of the oracle's drawing would see it: none under half an oracle pixel across, on
+        // either side (yEd draws a white box 1 wide at 0.34 px, graphty-element at the same size: graphml-stm32-func)
+        const oFill = Math.min(o.w, o.h) < 0.5 ? null : shownFill(o);
         const gFill = Math.min(g.w, g.h) * lengthScale < 0.5 ? null : g.fill;
         const gGradAngle = gFill?.gradient?.angle ?? null;
         const runAngles = {
@@ -2242,6 +2268,8 @@ export function compareOracle(
                 ? null
                 : { kind: "box", o: outerBox(o, ow, oh), g: outerBox(g, gw0, gh0), vec: vecToOracle, pixel },
             oracle.labelGeometry !== false,
+            true,
+            oracleMayHideLabels,
         );
     }
 
@@ -3313,6 +3341,7 @@ export function compareOracle(
         verdict: { pass: elements.length === 0, failing: elements.length },
         failures,
         judged,
+        wholeDrawing: [...j.wholeDrawing].sort(cmp),
         association,
         transform,
         counts: {
@@ -3738,6 +3767,7 @@ function judgeLabel(
     place: LabelPlace | null,
     geometry: boolean,
     words = true,
+    oracleMayHide = false,
 ): void {
     const T = ORACLE_TOLERANCES;
     // A label under one render pixel is no label to a reader, on graphty's side (extract-scene.ts) and the oracle's.
@@ -3747,6 +3777,10 @@ function judgeLabel(
     // and graphty's by the same measure, for a text the scene keeps however small: a node's further texts
     // (`shape.texts`, Cytoscape's chart item labels at their default 1 px, xgmml-specimen-images-charts-p5)
     const g = graphty !== null && (graphty.sizePx === 0 || graphty.sizePx >= T.legibleFontPx) ? graphty : null;
+    // the oracle hid it by its own choice (overlap avoidance on an unrelated layout): nothing to judge
+    if (oracle === null && oracleMayHide) {
+        return;
+    }
     if (words) {
         j.add("label.present", kind, id, (o === null) === (g === null) ? 0 : 1, o?.content ?? null, g?.content ?? null);
     }

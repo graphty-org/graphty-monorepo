@@ -13,10 +13,15 @@ import { assert, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import lesMiserables from "../../../../public/samples/les-miserables.gml?raw";
+import { withoutFeatures } from "../../../test/features";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
 import { historyTip } from "../../frame/historyWords";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+
+// These tests drive the Style panel the app shows with file styles off; the panel by part of the
+// drawing, which replaces the node tab with them on, is tested in PartsPanel.real-element.test.tsx.
+withoutFeatures(["file-styles"]);
 
 /**
  * Les Miserables in the workspace with its starting rows.
@@ -79,7 +84,7 @@ describe("the layer panel's words", () => {
         assert.isNull(screen.queryByText(/^The first style you set/), "said only before the layer is made");
     });
 
-    it("keeps the shape's value in its name, and reads Which nodes as a tree named for it", async () => {
+    it("keeps the shape's value in its name, and reads its selection as the Style Nodes... line", async () => {
         const { session } = await openScene();
         await session.styles.add({
             name: "Boxes",
@@ -91,8 +96,9 @@ describe("the layer panel's words", () => {
         await clickRow("Boxes");
         const shape = await screen.findByRole("combobox", { name: /^Node shape, / });
         assert.notInclude(shape.getAttribute("aria-label") ?? "", "default", "a set value is not the default");
-        // The selection outline is a tree named Which nodes, its title row first.
-        assert.isNotNull(await screen.findByRole("tree", { name: /^Which nodes/ }));
+        // At rest the layer's selection is one Style Nodes... line that opens it (issue #6810).
+        assert.isNotNull(await screen.findByRole("button", { name: "Style Nodes..." }));
+        assert.isNull(screen.queryByRole("tree", { name: /^Which nodes/ }), "no outline at rest");
     });
 
     it("names an edge color's step as the edge's", async () => {

@@ -97,7 +97,7 @@ export class LinkPredictionAlgorithm extends DeclaredAlgorithm<LinkPredictionOpt
 
         const { method, topK } = this.schemaOptions;
 
-        context.report({ phase: "Scoring pairs", total: null });
+        context.report({ phase: "scoring-pairs", total: null });
         // The port lists each undirected pair once, so its topK is the number of pairs.
         const member = METHODS[method];
         const { snapshot, run } = this.accelerated(member, "undirected");

@@ -158,12 +158,11 @@
     line-height: 16px;
 }
 
-/* The Node and Edge tabs, the other kind's line and the kind's switch, on the tab's gutter. */
+/* The Node and Edge tabs and the kind's switch, on the tab's gutter. */
 .ws-style-tabs > [role="tablist"] {
     padding: 8px 8px 4px var(--ws-gutter);
 }
 
-.ws-other-line,
 .ws-kind-switch {
     padding: 2px 8px 2px var(--ws-gutter);
 }
@@ -696,4 +695,43 @@
 
 .ws-model-files .ws-part-row > :first-child {
     margin-left: -18px;
+}
+
+/* The Style panel by part of the drawing (the file-styles experiment). */
+
+/* A setting's name wraps rather than cut, so settings that differ only at the end ("Shadow offset
+   X", "Shadow offset Y") can be told apart. */
+[data-style-parts] .ws-field-name,
+[data-item-settings] .ws-field-name {
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+/* Find a setting's results keep the sections' gutter (compact-mantine's section content, 16 and 8). */
+[data-find-results] {
+    padding-inline: 16px 8px;
+}
+
+/* A value picker's button keeps its picture clear of its border, as a field keeps its text. */
+.ws-value-listbox {
+    padding-inline: 6px;
+}
+
+/* A value picker's picture, at the size of the field's text. */
+.ws-value-glyph {
+    display: inline-flex;
+    flex: none;
+    width: 14px;
+    height: 14px;
+}
+
+.ws-value-glyph svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* A value picker with nothing set: the default in force, read as that. */
+.ws-value-listbox[data-unset] {
+    font-style: italic;
+    color: var(--cm-text-secondary);
 }

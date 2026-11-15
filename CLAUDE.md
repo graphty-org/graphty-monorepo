@@ -170,6 +170,15 @@ APIs, you can make them without getting my approval."
   packages (owner, 2026-11-10): see "Public API and breaking changes". Ask him again only when a
   real outside consumer appears.
 
+### Owner's standing rules (2026-11-13)
+
+Act on these without asking him, and tell him in one line: (1) a recorded decision or standing rule releases an
+owner label; (2) additive work whose default leaves the graphty app unchanged is ux-safe and ordered; (3) his issue
+stating the expected result is the order; (4) invisible accessibility and default-contrast fixes are ordered; (5)
+free CI and dev-tooling changes go ahead; (6) save files carry small built-ins and name large ones; (7) a superseded
+branch is folded into its successor and kept; (8) an outside pull request is re-filed as our own issue.
+Full wording: design/owner-standing-rules.md.
+
 ### Why
 
 The failure mode this prevents is silent and expensive: a capability lands "in the product"
@@ -245,8 +254,8 @@ reference out to one of the files above instead of adding a paragraph.
 ## Commands
 
 From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; inside a package: `npm run build`,
-`npm run test:run`, `npm run lint`. `./tools/run-tests.sh <shard>` runs one CI shard exactly as CI does
-(`--list` names them). Every server reads `PORT` and refuses to start without it: start it through servherd with
+`npm run test:run`, `npm run lint`. `./tools/run-tests.sh <shard>` reproduces one failing CI shard when asked, never as a
+pre-push step: CI runs whole shards. Every server reads `PORT` and refuses to start without it: start it through servherd with
 `{{port}}` (tools/README.md, "Starting Servers").
 
 ## Rules for every change
@@ -277,8 +286,8 @@ From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; 
   SPECIAL LAYER."). Everything, Hovered, Selected and Pinned are ordinary layers: each is
   a style on a calculated value (hovered, selected, pinned). No layer gets its own behavior, controls, wording or protection, and
   code never branches on a layer's name, template or kind. A node left out of every shown layer is hidden.
-  Default layers are data written once when a project is created. Issue #5905 tracks removing the existing
-  exceptions.
+  Default layers are data written once when a project is created. The exceptions left are listed in
+  `graphty/special-layers-baseline.json`.
 - UI: use the default components and never write a bespoke control to work around one; a wrong shared component
   is fixed in the shared component (graphty/CLAUDE.md, "UI Components").
 
@@ -298,7 +307,8 @@ From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; 
   mechanism and fix it, never by a longer timeout, a fixed wait or deleting the test, and close its issue with
   `Fixes #N`. Never add a test to `tools/test-quarantine.json` by hand, and never re-run hoping for a pass. Full
   rules: tools/README.md, "Quarantined tests".
-- Coverage thresholds in every package: 80% lines, functions and statements, 75% branches.
+- Coverage thresholds: at least 80% lines, functions and statements and 75% branches; 90% in all four for the
+  packages already there (tools/README.md, "Coverage Thresholds"). Never lower one.
 
 ### Secrets, checks and what only the owner does
 
@@ -338,9 +348,12 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
    issue: its number in the name (`fix/1234-topic`), `--issue N` or `--new-issue "<title>"`. Every commit pushes
    the branch until its pull request is open. When you stop,
    `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`.
-2. Before opening it, run what CI would: `pnpm run check:quick` (in the background; it runs through
-   `tools/low-priority.sh` and includes the selected tests, `node tools/sonar-gate.mjs` and every check of CI's
-   Checks job). `pnpm run test:changed` alone misses those checks. A long-lived branch -- open more than about two
+2. Before opening it, run the pre-push checklist in `.claude/skills/pipeline-round/shared.md` ("Subagent rules"):
+   lint, typecheck, build and the tests your change touches, never whole shards (CI runs the rest). A human, or a
+   long-lived branch below, may run `pnpm run check:quick` instead (in the background, through
+   `tools/low-priority.sh`: the selected tests, which leave whole browser shards to CI, `node tools/sonar-gate.mjs`
+   and every check of CI's Checks job except the whole-repository format check; CI's Docs job builds the docs
+   site). A long-lived branch -- open more than about two
    days, holding more than a day of work, after a merge of master that brought app or graphty-element changes or
    needed conflicts resolved, or after a large change (a refactor of a shared component, a dependency or lockfile
    upgrade, a change to graphty-element's styling, layout or rendering) -- whose change reaches the graphty app also

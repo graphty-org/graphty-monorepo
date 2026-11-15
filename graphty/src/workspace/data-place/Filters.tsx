@@ -58,6 +58,7 @@ import {
 } from "./filterCards";
 import { chipName, chipWords, statusWords } from "./filterWords";
 import { useVisibilityVersion } from "./useVisibilityVersion";
+import { filterFailureWords } from "./words";
 
 /** The name of the time window, in the "+" list, its card and the inspector. */
 const TIME_WINDOW = "Time window";
@@ -1055,8 +1056,8 @@ function clearFilters(session: GraphSession, store: WorkspaceStore): void {
                 await tx.visibility.setWindow(null);
             }
         })
-        .catch(() => {
-            store.set({ notice: { message: "The filter could not be changed.", error: true } });
+        .catch((error: unknown) => {
+            store.set({ notice: { message: filterFailureWords(error), error: true } });
         });
 }
 

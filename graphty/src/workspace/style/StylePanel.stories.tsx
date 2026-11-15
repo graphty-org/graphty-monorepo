@@ -314,6 +314,18 @@ async function openLeidenFolder(): Promise<HTMLElement> {
     await userEvent.click(within(toolbar).getByRole("button", { name: "Analyze" }));
     await userEvent.type(await page().findByRole("combobox", { name: "Filter analyses" }), "Leiden");
     await userEvent.click(await page().findByRole("option", { name: /^Leiden/ }));
+    // Leiden is unseeded by default: a fixed seed gives every render the same groups and colors. With
+    // the selection workspace experiment on, the settings sit behind the chosen row's settings button
+    // and the box is named "Seed" (OptionsForm.tsx, ONE_NAME).
+    const settings = page().queryByRole("button", { name: /^Settings for Leiden/ });
+    if (settings !== null) {
+        await userEvent.click(settings);
+    }
+    await userEvent.type(await page().findByRole("textbox", { name: /^(Random seed|Seed)(,|$)/ }), "42");
+    if (settings !== null) {
+        // Escape closes only the settings popover; Analyze stays open on Leiden.
+        await userEvent.keyboard("{Escape}");
+    }
     await userEvent.click(await page().findByRole("button", { name: /^Run\b/ }));
     const tree = await page().findByRole("tree", { name: "Style layers" });
     const folder = await within(tree).findByRole("treeitem", { name: /^Leiden, folder, / });
@@ -780,11 +792,11 @@ export const RouteValues: Story = sceneStory(async ({ runs }) => {
     await page().findByRole("group", { name: "Nodes in order" });
 });
 
-/** Graph settings: lighting, label rules and the highlight color. */
+/** Graph settings in 2D: the label rules and the highlight color. */
 export const GraphSettings: Story = sceneStory(async () => {
     await userEvent.click(page().getByRole("button", { name: "Graph settings" }));
-    // Lighting shows only in 3D; Outline width shows in every view.
-    await page().findByRole("spinbutton", { name: /^Outline width/ });
+    // The scene is 2D, where Lighting and the Canvas section hide; the Labels rows show in every view.
+    await page().findByRole("switch", { name: "Hide overlapping labels" });
 });
 
 // College football: a number column that names groups, painted one color per value.

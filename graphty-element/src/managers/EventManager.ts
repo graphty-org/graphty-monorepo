@@ -1,8 +1,9 @@
-import { Observable } from "@babylonjs/core";
+import { Observable } from "@babylonjs/core/Misc/observable.js";
 import type { FreezeReport, GraphSnapshot } from "@graphty/graph-format";
 
 import type { EdgeId, NodeId } from "../catalog/types";
-import type { ImportReport } from "../data/report";
+import type { ErrorAggregator } from "../data/ErrorAggregator";
+import { type ImportReport, loadErrorOf } from "../data/report";
 import type {
     DataLoadingCompleteEvent,
     DataLoadingErrorEvent,
@@ -378,30 +379,19 @@ export class EventManager implements Manager {
     /**
      * Emits a summary of all data loading errors after import completes
      * @param format - Data format that was loaded
-     * @param totalErrors - Total number of errors encountered
-     * @param message - Summary message describing errors
-     * @param detailedReport - Detailed error report
-     * @param primaryCategory - Primary error category
-     * @param suggestion - Suggested fix for the errors
+     * @param errors - The errors the load recorded
      * @param loadId - Which load this is, when it is one
      */
-    emitDataLoadingErrorSummary(
-        format: string,
-        totalErrors: number,
-        message: string,
-        detailedReport: string,
-        primaryCategory?: string,
-        suggestion?: string,
-        loadId?: number,
-    ): void {
+    emitDataLoadingErrorSummary(format: string, errors: ErrorAggregator, loadId?: number): void {
+        const { totalErrors, primaryCategory, byCategory, fields } = errors.getSummary();
         const event: DataLoadingErrorSummaryEvent = {
             type: "data-loading-error-summary",
             format,
+            code: "load-errors",
+            params: { totalErrors, byCategory, fields },
+            errors: errors.getErrors().map(loadErrorOf),
             totalErrors,
             primaryCategory,
-            message,
-            suggestion,
-            detailedReport,
             ...(loadId === undefined ? {} : { loadId }),
         };
         this.graphObservable.notifyObservers(event);
@@ -516,6 +506,7 @@ export class EventManager implements Manager {
             case "lifecycle-initialized":
             case "lifecycle-disposed":
             case "skybox-loaded":
+            case "skybox-failed":
             case "operation-queue-active":
             case "operation-queue-idle":
             case "operation-batch-complete":
@@ -544,6 +535,8 @@ export class EventManager implements Manager {
             case "layout-warning":
             case "limits-warning":
             case "basemap-status":
+            case "render-lost":
+            case "render-restored":
             case "operation-cancelled":
             case "stats-update":
             case "input-enabled-changed":

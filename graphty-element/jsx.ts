@@ -29,6 +29,18 @@ import type { EventOfType } from "./src/events";
  */
 export interface GraphtyElementJSXProps {
     /**
+     * Sets the wording function and words the description again.
+     */
+    accessibleDescription?: Graphty["accessibleDescription"];
+    /**
+     * Sets the announcement's wording function.
+     */
+    accessibleAnnouncement?: Graphty["accessibleAnnouncement"];
+    /**
+     * Adds or removes the node list.
+     */
+    accessibleNodeList?: Graphty["accessibleNodeList"];
+    /**
      * Sets the ids: an array, or a space-separated string as the attribute carries them.
      */
     features?: Graphty["features"];
@@ -181,7 +193,8 @@ export interface GraphtyElementJSXProps {
     algorithmsOnLoad?: Graphty["algorithmsOnLoad"];
     /**
      * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
-     * not a step, and from 2D it switches to 3D first in the same step.
+     * not a step, and from 2D it switches to 3D first in the same step. A switch that fails is
+     * reported as `graph-error`; `setViewMode` hands the caller the failure instead.
      */
     viewMode?: Graphty["viewMode"];
     /**
@@ -290,6 +303,10 @@ export interface GraphtyElementJSXProps {
     accelerationMinNodes?: Graphty["accelerationMinNodes"];
     "aria-label"?: string;
     /**
+     * Adds or removes the node list.
+     */
+    "accessible-node-list"?: boolean;
+    /**
      * Sets the restore mode; anything but `"manual"` is `"auto"`.
      */
     "autosave-restore"?: string;
@@ -397,7 +414,8 @@ export interface GraphtyElementJSXProps {
     "render-on-demand"?: boolean;
     /**
      * Sets the view mode. Switching between 2D and 3D is one undoable step; entering VR or AR is
-     * not a step, and from 2D it switches to 3D first in the same step.
+     * not a step, and from 2D it switches to 3D first in the same step. A switch that fails is
+     * reported as `graph-error`; `setViewMode` hands the caller the failure instead.
      */
     "view-mode"?: string;
     /**
@@ -559,6 +577,9 @@ export interface GraphtyElementJSXProps {
     "ondata-loaded"?: (event: CustomEvent<EventOfType<"data-loaded">>) => void;
     "ondata-loading-complete"?: (event: CustomEvent<EventOfType<"data-loading-complete">>) => void;
     "ondata-loading-error"?: (event: CustomEvent<EventOfType<"data-loading-error">>) => void;
+    /**
+     * Emitted when a load skipped records it could not read or store. It carries facts, not words: a reader writes its own message from `code`, `params` and `errors`.
+     */
     "ondata-loading-error-summary"?: (event: CustomEvent<EventOfType<"data-loading-error-summary">>) => void;
     "ondata-loading-progress"?: (event: CustomEvent<EventOfType<"data-loading-progress">>) => void;
     /**
@@ -591,6 +612,8 @@ export interface GraphtyElementJSXProps {
     "ongraphty-project-status"?: (event: GraphtyElementEventMap["graphty-project-status"]) => void;
     "ongraphty-run-change"?: (event: GraphtyElementEventMap["graphty-run-change"]) => void;
     "ongraphty-selection-change"?: (event: GraphtyElementEventMap["graphty-selection-change"]) => void;
+    "ongraphty-skybox-failed"?: (event: GraphtyElementEventMap["graphty-skybox-failed"]) => void;
+    "ongraphty-skybox-loaded"?: (event: GraphtyElementEventMap["graphty-skybox-loaded"]) => void;
     "ongraphty-source-expand-failed"?: (event: GraphtyElementEventMap["graphty-source-expand-failed"]) => void;
     "ongraphty-source-expand-start"?: (event: GraphtyElementEventMap["graphty-source-expand-start"]) => void;
     "ongraphty-source-expanded"?: (event: GraphtyElementEventMap["graphty-source-expanded"]) => void;
@@ -661,7 +684,7 @@ export interface GraphtyElementJSXProps {
     "onlifecycle-disposed"?: (event: CustomEvent<EventOfType<"lifecycle-disposed">>) => void;
     "onlifecycle-initialized"?: (event: CustomEvent<EventOfType<"lifecycle-initialized">>) => void;
     /**
-     * Emitted when the `limits` the element was given are not in force: under `render-path="objects"` the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`). A code and its parameters, never a sentence.
+     * Emitted when the `limits` the element was given are not in force: under `render-path="objects"` the shipped ceilings stand (`W_LIMITS_IGNORED`, `params.renderPath`); or when more rows ask to be objects than `objectRows` or `objectEdges` allows, so the rest are drawn plain (`W_OBJECT_CAP`, `params.of`, `params.wanted`, `params.cap`). A code and its parameters, never a sentence.
      */
     "onlimits-warning"?: (event: CustomEvent<EventOfType<"limits-warning">>) => void;
     "onmanager-initialized"?: (event: CustomEvent<EventOfType<"manager-initialized">>) => void;
@@ -677,9 +700,18 @@ export interface GraphtyElementJSXProps {
     "onoperation-queue-idle"?: (event: CustomEvent<EventOfType<"operation-queue-idle">>) => void;
     "onoperation-start"?: (event: CustomEvent<EventOfType<"operation-start">>) => void;
     "onrender-initialized"?: (event: CustomEvent<EventOfType<"render-initialized">>) => void;
+    /**
+     * Emitted when the browser takes away the graphics device the graph is drawn with: the WebGL context or the WebGPU device is lost, by a driver reset, a GPU process crash or the browser reclaiming it. Nothing is drawn until it comes back, and `rendererStatus.drawing` is false meanwhile. The data, the session, the styles, the camera and the undo history are untouched.
+     */
+    "onrender-lost"?: (event: CustomEvent<EventOfType<"render-lost">>) => void;
+    /**
+     * Emitted when the graph is drawn again after `render-lost`: the device came back, by itself or through `restartRenderer()`, and every buffer, texture and shader was rebuilt from the graph held in memory. `rendererStatus.drawing` is true again.
+     */
+    "onrender-restored"?: (event: CustomEvent<EventOfType<"render-restored">>) => void;
     "onscreenshot-enhancing"?: (event: CustomEvent<EventOfType<"screenshot-enhancing">>) => void;
     "onscreenshot-ready"?: (event: CustomEvent<EventOfType<"screenshot-ready">>) => void;
     "onselection-changed"?: (event: CustomEvent<EventOfType<"selection-changed">>) => void;
+    "onskybox-failed"?: (event: CustomEvent<EventOfType<"skybox-failed">>) => void;
     "onskybox-loaded"?: (event: CustomEvent<EventOfType<"skybox-loaded">>) => void;
     /**
      * Emitted every 60 graph updates with the counters `getStatsManager().getStats()` returns.

@@ -18,6 +18,7 @@ import type {
     Value,
     WordValue,
 } from "../../web/src/contract.js";
+import { type BenchItem, readBenches } from "../model/benchmarks.js";
 import { type Bucket, DAY, floorTo, HOUR, type IssueItem, ISSUES_PK, MIN, type Step, STEP_MS } from "../model/items.js";
 import { loadSeries, type MetricWindow, type WindowName, windowValue } from "../model/rollup.js";
 import { type PrStockPrs, readSnapshot } from "../model/snapshots.js";
@@ -102,6 +103,7 @@ export const SPEC: Record<string, Spec> = {
     "ci.bins_over_8": { id: "ci.bins_over", unit: "pct", k: PCT, link: "/ci/shards" },
     "ci.reruns": { id: "ci.reruns", unit: "pct", k: PCT, link: "/ci" },
     "ci.full_shards_over_budget": { id: "ci.shards_over", link: "/ci/shards" },
+    "ci.full_group_deadline": { id: "ci.group_deadline", unit: "pct", k: PCT, link: "/ci/shards" },
     "ci.runner_minutes_per_merge": { id: "ci.runner_minutes", unit: "min", link: "/ci/runner-minutes" },
     "ci.superseded_running": { id: "ci.superseded", link: "/ci/runners/superseded" },
     "ci.chronic_jobs": {
@@ -288,6 +290,14 @@ export class Reads {
         return this.once(`s:${metric}:${step}:${from}:${to}`, () =>
             loadSeries(this.store, metric, step, from, to, this.now),
         );
+    }
+
+    /**
+     * Every live benchmark, read once: the CI page's three ranges share one read of the partition (#6813).
+     * @returns the live benchmark items
+     */
+    benches(): Promise<BenchItem[]> {
+        return this.once("benches", () => readBenches(this.store, this.now));
     }
 
     /**
@@ -535,6 +545,11 @@ async function noteOf(reads: Reads, s: MemberStatus): Promise<Fact | undefined> 
     if (s.id === "ci.chronic_jobs") {
         const n = s.facts?.["ci.chronic_no_issue"];
         return n ? f("note.chronic_no_issue", { n }) : undefined;
+    }
+    if (s.id === "flaky.net_new") {
+        const added = s.facts?.["flaky.net_added"];
+        const resolved = s.facts?.["flaky.net_resolved"];
+        return added === undefined || resolved === undefined ? undefined : f("flaky.net_new.note", { added, resolved });
     }
     if (!s.value || !["pr.oldest_open", "pr.automerge_green_stuck", "pr.automerge_armed_long"].includes(s.id)) {
         return undefined;

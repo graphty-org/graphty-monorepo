@@ -152,9 +152,6 @@ Gaps found while finishing, each open:
   `dot-specimen-groups-p12` draws its `default` label too large (label.size), because graphty does not stretch
   the layout by the sheet's `ratio=2` as Graphviz does (the same sheet already fails node.width and node.height).
   On a side that names no caption (an SVG of free texts), a specimen labeled as a caption is still dropped.
-- graph-io's vis writer writes a vis-network node fitted to its label as a sized `dot`, whose label the reader then
-  hangs below it (labelOffsetY 4 on reading back): six vis round trips in graph-io's harness, one in its block
-  tests and fourteen in graphty-element's export round trips run as expected failures until it is fixed.
 - The Cytoscape.js writer keeps a node's own opacity under a translucent class as an exceptions column that comes
   back as a layer of its own (graphty-element `export-styles` and `export-round-trip`, expected failures), and
   rounds a label offset to 5 decimals where the rules hold 4.333333333333334 (two harness plans, expected
@@ -166,8 +163,8 @@ Gaps found while finishing, each open:
   label Gephi hides is written as a label of opacity 0; graphology keeps a label's markup and line breaks only as
   text; the CSV writer names label settings CSV has no column for as written. Each is an expected failure in
   graphty-element's `export-round-trip`.
-- OGDF's `rootcluster` is read as a group node `cluster<id>`; GML cannot hold that id, so the GML export throws
-  E_INVALID_ID unless `sanitizeIds` is set (two conformance fixtures marked).
+- Fixed 2026-11-13 (#7648): OGDF's `rootcluster` is read as a group node `cluster<id>`, and the GML export threw
+  E_INVALID_ID on that id unless `sanitizeIds` was set; it now writes those group nodes back as `rootcluster`.
 - graphty-element's style-fidelity scorecard (`test/fidelity/scorecard.test.ts`) still judges against the older
   reference scenes, which are graph-io's own earlier reading and not the programs' drawings; 36 of its properties
   now read as each program draws them and score lower there, and are allowed drops in `requested-floors.json`.
@@ -999,7 +996,7 @@ v2.6 demos' `FlowchartStyle.ts`):
   a ShinyPlate sets `stroke` (the bevel's light band and the plate's gloss are not drawn).
 - `demostyle:FlowchartNodeStyle` draws its `type`'s outline, the one yEd's flowchart palette draws for the same type
   (`configurationOutline`), with the demo's default fill rgb(183, 201, 227) and black stroke; `annotation` is an
-  unoutlined box (its bracket is not drawn), and a style with no `type` an outlined box.
+  unoutlined box (its bracket is not drawn), and a style with no `type` a data parallelogram (its default type).
 - The 2.6 shapes `SHEARED_RECTANGLE`, `SHEARED_RECTANGLE2` (parallelogram), `TRAPEZ`, `TRAPEZ2` (trapezoid),
   `STAR5_UP` (star), `TRIANGLE2`, `FAT_ARROW2` and `PILL` (a box with half-circle ends); `ROUND_RECTANGLE` has its
   documented corner of 10.
@@ -5129,3 +5126,20 @@ on the second.
   alone; it now takes the box of the inked lines (`inkedLines`, a quarter turn at a time).
 - label.offset 100/107 -> 107/107 and label.anchor 105/107 -> 107/107, on both views. No other sample of any program
   changed a failing element or a score (full report against master, 563 samples).
+
+## Cytoscape chart category names past the labels list (#7824, 2026-11-14)
+
+`images-charts-p7` `line-domain-labels-column` plots 5 values with 3 labels (X, Y, Z); Cytoscape writes "..." under the
+fourth and fifth points (`stray.present`, 2 per view per format, cx, cx2, cys, xgmml).
+
+- Cytoscape names a category its labels list does not cover `#k` (custom-graphics-internal's `createCategoryDataset`),
+  and JFreeChart fits every category name on one line of 0.95 of a category (half the plot's height when turned):
+  `TextUtilities.createTextBlock` keeps the words that fit, at least one character, and when any of the name is left
+  over replaces the last 3 characters with "...", or writes "..." alone for 3 characters or fewer. `#4` at size 10 is
+  14.7 wide in a 10.2 category, so it keeps "#" and draws "...". A one-character name is never cut (the size 20 bar
+  chart draws a, b and c whole in narrower categories). graph-io now does both (`domainNames`, `fitName`); heat maps
+  keep naming only by their columns.
+- stray.present 16 -> 0. Not closed: the node's words now read "X Y Z ......" on graphty's side and "X Y Z ... ..."
+  on the oracle's, because the comparator measures the oracle's "..." in the browser's face for Tahoma (0.75 em) where
+  JFreeChart laid it out in Dialog (0.954 em), so it sees a word space graphty's drawing does not. label.text and
+  label.anchor on node 522930: 0 -> 16, recorded with #7850. No other sample changed.

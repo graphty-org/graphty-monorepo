@@ -124,8 +124,10 @@ read-only, 2 red pull requests sent back; slots idle 0; owner pull requests coun
 (count the `createdAt` and `closedAt` inside the last 24 hours) and the `gh issue list -l bug --json number,labels`
 above. Claims without a pull request, their idle times (see "Idle claims" in the shared file) and the ready queue come
 from `tmp/issue-round/state.json` and the broker file. "Blocked by" is slots, load, memory, disk, runners, the
-GitHub budget or nothing. Each round also writes `tmp/issue-round/last-round` (one line: an ISO time and
-`$CLAUDE_CODE_SESSION_ID`), which pipeline-round reads to notice a lapsed loop.
+GitHub budget or nothing. Each round also writes `tmp/issue-round/last-round` when it starts (one line: an ISO
+time and `$CLAUDE_CODE_SESSION_ID`), which pipeline-round reads to notice a lapsed loop and the question hook reads
+to keep this session from blocking on the owner ("Never block on the owner" in the shared file). A report from a
+subagent re-runs the round, so the session never asks the owner anything, between rounds included.
 
 **Refill per job.** Start each job as its own background subagent (one Agent call per job), never as a Workflow
 batch: a batch reports only when its slowest job ends, which held finished jobs for about 30 job-hours on

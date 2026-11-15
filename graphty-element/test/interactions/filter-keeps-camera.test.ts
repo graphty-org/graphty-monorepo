@@ -41,6 +41,8 @@ const RULE = { kind: "categories", attribute: "data.role", values: ["staff"] } a
  */
 async function mounted(causes?: ("user" | "api" | "command" | "history")[]): Promise<Graphty> {
     const element = document.createElement("graphty-element");
+    // The working graph off: with it on, a filter change lays out what is shown, by design.
+    element.workingGraph = false;
     element.style.display = "block";
     element.style.width = `${String(WIDTH)}px`;
     element.style.height = `${String(HEIGHT)}px`;

@@ -104,6 +104,7 @@ const SESSION_ROOTS: Readonly<Record<string, (session: ElementSession) => object
     SessionLayout: (session) => session.layout,
     SessionConfig: (session) => session.config,
     VisibilityApi: (session) => session.visibility,
+    FilterDraft: (session) => session.visibility.draft({ id: "c1", effect: "keep", rule: { kind: "degree", min: 1 } }),
     TimeApi: (session) => session.time,
     SessionVisibilityApi: (session) => session.visibility,
     StylesApi: (session) => session.styles,

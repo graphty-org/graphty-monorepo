@@ -17,7 +17,8 @@
  * WHO GETS A SCOPED INPUT is decided per algorithm class: only a class declaring
  * `static scopeInput = "subgraph"` is handed its run's scope. Every other class reads the whole
  * graph through the same accessor, because an algorithm that enumerates its nodes from the data
- * manager would otherwise compute over a scoped topology while listing every node.
+ * manager would otherwise compute over a scoped topology while listing every node -- except over
+ * the working graph's view (design/working-graph/design.md section 6), which every class reads.
  *
  * Nothing here reaches Babylon.js, Lit or the DOM.
  */
@@ -176,17 +177,48 @@ const bindings = new WeakMap<object, RunInput>();
  * @param algorithm - The instance.
  * @returns True when it computes over its scope.
  */
-export function declaresScopedInput(algorithm: object): boolean {
+function declaresScopedInput(algorithm: object): boolean {
     return (algorithm.constructor as { scopeInput?: unknown }).scopeInput === "subgraph";
 }
 
+/** Per bound algorithm, whether its scope is the view its store shares; settled once per run. */
+const overSharedView = new WeakMap<object, boolean>();
+
 /**
- * The run input an algorithm reads through, when its class declares a scoped input.
+ * Whether an algorithm computes over its run's scope: its class declares a scoped input, or the
+ * scope is the view its store shares -- the session's working graph (design/working-graph/design.md
+ * section 6) -- which every class computes over, whatever it declares. Settled on the first ask in
+ * a run, so a run keeps the input it started on.
+ * @param algorithm - The instance.
+ * @returns True when it computes over its scope.
+ */
+export function computesOverScope(algorithm: object): boolean {
+    if (declaresScopedInput(algorithm)) {
+        return true;
+    }
+
+    const binding = bindings.get(algorithm);
+    if (binding === undefined) {
+        return false;
+    }
+
+    let over = overSharedView.get(algorithm);
+    if (over === undefined) {
+        const scope = binding.scope();
+        over = scope !== null && sharedInputOf(scope.resolution, scope.graph) !== undefined;
+        overSharedView.set(algorithm, over);
+    }
+
+    return over;
+}
+
+/**
+ * The run input an algorithm reads through, when it computes over its scope.
  * @param algorithm - The instance.
  * @returns The binding, or undefined for the whole graph.
  */
 export function runInputOf(algorithm: object): RunInput | undefined {
-    return declaresScopedInput(algorithm) ? bindings.get(algorithm) : undefined;
+    return computesOverScope(algorithm) ? bindings.get(algorithm) : undefined;
 }
 
 /**
@@ -291,7 +323,7 @@ function chained(previous: DerivedInput, next: DerivedGraph): DerivedInput {
  * @param declared - The declared snapshot.
  * @returns The intermediate.
  */
-function intermediateOf(membership: InputMembership, declared: GraphSnapshot): DerivedInput {
+export function intermediateOf(membership: InputMembership, declared: GraphSnapshot): DerivedInput {
     const induced = counted(declared.inducedSubgraph({ mask: membership.nodes }));
     const remap = induced.edgeRemap;
     const keep = makeMask(induced.snapshot.edgeCount);
@@ -347,6 +379,7 @@ function scopedInput(
     }
 
     const base =
+        sharedInputOf(membership, declared) ??
         inputs.get(holder, membership, "declared", "none") ??
         inputs.put(holder, membership, "declared", "none", intermediateOf(membership, declared), declared);
     let current = base;
@@ -359,6 +392,39 @@ function scopedInput(
     }
 
     return current === base ? base : inputs.put(holder, membership, orientation, simplify, current, declared);
+}
+
+/**
+ * Finds a declared intermediate another reader already derived for a membership over a snapshot,
+ * or answers undefined. See {@link shareInputs}.
+ */
+export type SharedInputLookup = (membership: InputMembership, declared: GraphSnapshot) => DerivedInput | undefined;
+
+const sharedInputs = new WeakMap<object, SharedInputLookup>();
+
+/**
+ * Hand runs over one store a declared intermediate derived outside the run cache -- the session's
+ * working graph view (design/working-graph/design.md section 6) -- so a run over the same
+ * membership takes it instead of deriving its own. The lookup confirms the membership itself.
+ * @param store - The store the runs' scopes are resolved against.
+ * @param lookup - The lookup, or null to stop sharing.
+ */
+export function shareInputs(store: object, lookup: SharedInputLookup | null): void {
+    if (lookup === null) {
+        sharedInputs.delete(store);
+    } else {
+        sharedInputs.set(store, lookup);
+    }
+}
+
+/**
+ * The shared intermediate for a membership, when its store shares one that covers it.
+ * @param membership - The scope's bitmaps.
+ * @param declared - The declared snapshot.
+ * @returns The intermediate, or undefined.
+ */
+function sharedInputOf(membership: InputMembership, declared: GraphSnapshot): DerivedInput | undefined {
+    return membership.store === null ? undefined : sharedInputs.get(membership.store)?.(membership, declared);
 }
 
 /** The dtypes whose `data` is one number per component per row, so it can be handed on as is. */
@@ -829,7 +895,7 @@ export async function withRunInput<T>(
     const holder = {};
     bindings.set(algorithm, { inputs, holder, scope });
     try {
-        if (declaresScopedInput(algorithm)) {
+        if (computesOverScope(algorithm)) {
             const resolved = scope();
             if (
                 resolved !== null &&
@@ -843,6 +909,7 @@ export async function withRunInput<T>(
         return await work();
     } finally {
         bindings.delete(algorithm);
+        overSharedView.delete(algorithm);
         inputs.releaseHolder(holder);
     }
 }

@@ -57,10 +57,11 @@ const IDENTITY_KEYS: Readonly<Record<ViewTarget, ReadonlySet<string>>> = {
 /**
  * The view source over a session's graph as it stands now.
  * @param session - The session: an element's (`graph.getSession()`) or a headless one.
- * @returns The source, pinned to the current snapshot.
+ * @param snapshot - The graph to view: the current snapshot, or a run's input over it (the
+ *   working graph's view), whose rows carry the same ids.
+ * @returns The source, pinned to the snapshot.
  */
-export function viewSourceOf(session: GraphSession): ViewSource {
-    const snapshot = session.data.snapshot();
+export function viewSourceOf(session: GraphSession, snapshot: GraphSnapshot = session.data.snapshot()): ViewSource {
     const edgeIds = edgeSpaceOf(snapshot);
     const values = createSelectorSource({
         snapshot: () => snapshot,

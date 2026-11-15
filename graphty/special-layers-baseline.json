@@ -156,14 +156,6 @@
             "issue": "#5905"
         },
         {
-            "file": "graphty/src/workspace/style/row.ts",
-            "rule": "source-by",
-            "detail": "element",
-            "count": 1,
-            "reason": "treats a layer differently because its source is \"element\"",
-            "issue": "#5905"
-        },
-        {
             "file": "graphty-element/src/session/styles/Layer.ts",
             "rule": "source-by",
             "detail": "element",

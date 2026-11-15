@@ -199,7 +199,10 @@ async function associateOracle(
             meta.svgKind !== "raster" && drawing !== undefined
                 ? nameDrawnNodes(prims, meta.drawn as DrawnNodes)
                 : prims;
-        return associate(named, size.width, size.height, graphty, { ownLayout });
+        return associate(named, size.width, size.height, graphty, {
+            ownLayout,
+            ...(named === prims ? {} : { drawn: meta.drawn as DrawnNodes }),
+        });
     }
     const png = await pngPixels(pngUrl);
     const k = png.width / size.width;

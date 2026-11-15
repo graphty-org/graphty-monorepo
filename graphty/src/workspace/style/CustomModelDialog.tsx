@@ -1,8 +1,24 @@
-import { ModalFooter } from "@graphty/compact-mantine";
-import { assetFileExtensions, detectModelFormat } from "@graphty/graphty-element/catalog";
-import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
-import type { AssetRecord, AssetSource, CodedFact, ModelPart, PartAnswer } from "@graphty/graphty-element/session";
+import { DataRow, FileSource, ModalFooter, useFileDrop } from "@graphty/compact-mantine";
 import {
+    assetFileExtensions,
+    detectModelFormat,
+    type ModelOrientation,
+    type ModelTurnStep,
+    type ModelUpAxis,
+    turnModelOrientation,
+} from "@graphty/graphty-element/catalog";
+import type { Channel, ChannelValue } from "@graphty/graphty-element/schema";
+import type {
+    AssetRecord,
+    AssetSource,
+    CodedFact,
+    ModelPart,
+    ModelSummary,
+    PartAnswer,
+    ProgressChange,
+} from "@graphty/graphty-element/session";
+import {
+    ActionIcon,
     Button,
     Collapse,
     Group,
@@ -15,20 +31,19 @@ import {
     Tooltip,
     UnstyledButton,
 } from "@mantine/core";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { filesOf, fileStem, modelName, readDrop, useDropOver, useModelPicture } from "../canvas/models";
+import { fileStem, type ModelDraw, modelName, useModelDraw } from "../canvas/models";
 import { GLYPHS } from "../glyphs";
 import { useWorkspace } from "../state/WorkspaceContext";
 import { FactChip, ModelChip } from "./ModelChip";
 import { SettingRows } from "./ModelSettings";
-import { AddressForm, FileInput } from "./ModelsPopover";
-import { chipLine, countChip, middleCut, PART_CODES, partChip, roleWord } from "./modelWords";
+import { chipLine, countChip, middleCut, modelChip, PART_CODES, partChip, roleWord } from "./modelWords";
 import { PartRow, RoleGlyph } from "./PartsPopover";
 import { useStillOpen } from "./useStillOpen";
 import { CUSTOM_MODEL, logUnexpected } from "./words";
 
-/** What the choosers and the drop zone take, as graphty-element lists it. */
+/** What the choosers and the drop target take, as graphty-element lists it. */
 const MODEL_EXTENSIONS = assetFileExtensions("model");
 
 /** The model formats graphty-element draws, as graphty-element tells them: for the drop hint. */
@@ -36,25 +51,42 @@ const MODEL_FORMATS = MODEL_EXTENSIONS.filter(
     (ext) => ext !== ".zip" && detectModelFormat({ filename: `model${ext}` })?.supported === true,
 );
 
-/** The preview's side, in CSS pixels. */
-const PREVIEW_PX = 160;
+/** The preview's side, in CSS pixels: the right column's width. */
+const PREVIEW_PX = 240;
 
-/** Advanced's settings, with a layer to write them to. */
-const ADVANCED_CHANNELS: readonly Channel[] = [
+/** The settings shown at once, with a layer to write them to: Color, and Animation for a model with clips. */
+const SHOWN_CHANNELS: readonly Channel[] = ["node.modelTint", "node.modelAnimation"];
+
+/** More options' settings, with a layer to write them to; Speed and Start only for a model with clips. */
+const MORE_CHANNELS: readonly Channel[] = [
     "node.modelSourceUp",
     "node.modelTurn",
     "node.modelFit",
     "node.modelCenter",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelDoubleSided",
+    "node.unlit",
 ];
 
-/** Color, the one setting outside Advanced. */
-const COLOR_CHANNELS: readonly Channel[] = ["node.modelTint"];
+/** The rotate buttons under the preview, in their order. */
+const TURN_STEPS: readonly ModelTurnStep[] = ["left", "right", "forward", "back"];
 
 /** Address refusals: the field says what to do next. */
 const ADDRESS_CODES: ReadonlySet<string> = new Set(["E_MODEL_FETCH", "E_MODEL_URL_BLOCKED", "E_MODEL_WEB_PAGE"]);
 
 /** Format refusals: the line says which formats would do. */
 const FORMAT_CODES: ReadonlySet<string> = new Set(["E_MODEL_FORMAT_UNKNOWN", "E_MODEL_FORMAT_UNSUPPORTED"]);
+
+/** The warnings the closed Details line shows as chips, in this order. */
+const DETAIL_CHIP_CODES: readonly string[] = [
+    "W_MODEL_UP_GUESSED",
+    "W_MODEL_HAS_ANIMATIONS",
+    "W_MODEL_EXTENSION_IGNORED",
+    "W_MODEL_BUDGET",
+    "W_MODEL_HEAVY",
+    "W_MODEL_POINTS_APPROXIMATED",
+];
 
 /** The settings a draft holds until Add. */
 export type ModelDraft = Readonly<Partial<Record<Channel, ChannelValue>>>;
@@ -72,9 +104,23 @@ interface Arrived {
     readonly name: string;
 }
 
+/** A load under way: what is read, and how far graphty-element says it has come. */
+interface Loading {
+    /** The file's name or the address, as the source line shows it. */
+    readonly name: string;
+    /** An address, rather than files. */
+    readonly byAddress: boolean;
+    /** Stops it. */
+    readonly controller: AbortController;
+    /** graphty-element's stage, or undefined before its first change. */
+    readonly stage?: string;
+    readonly completed: number;
+    readonly total: number | null;
+}
+
 /** Props for CustomModelDialog. */
 export interface CustomModelDialogProps {
-    /** Whether a layer takes the model: Color, Up, Turn, Fit, Center and Use as picture are offered. */
+    /** Whether a layer takes the model: Color, Animation, More options, rotation and Use as picture are offered. */
     readonly forLayer: boolean;
     /**
      * The target layer's own values (`node.color` and the `node.model*` settings), so the preview
@@ -90,17 +136,6 @@ export interface CustomModelDialogProps {
 }
 
 /**
- * The files a chooser gave, by folder path when a folder was chosen, as `session.assets.add` takes them.
- * @param files - the chosen files.
- * @returns the source.
- */
-function chosenSource(files: readonly File[]): AssetSource {
-    return files.some((f) => f.webkitRelativePath !== "")
-        ? { files: new Map(files.map((f) => [f.webkitRelativePath || f.name, f])) }
-        : [...files];
-}
-
-/**
  * Whether a file is a model or a .zip of one, by graphty-element's reading of its name: such a
  * file is a new source, never a part of the model waiting.
  * @param file - the file.
@@ -108,6 +143,15 @@ function chosenSource(files: readonly File[]): AssetSource {
  */
 function isModelFile(file: File): boolean {
     return detectModelFormat({ filename: file.name }) !== undefined;
+}
+
+/**
+ * Whether a load stopped because the reader cancelled it.
+ * @param error - what it threw.
+ * @returns true for an abort.
+ */
+function isAbort(error: unknown): boolean {
+    return error instanceof DOMException && error.name === "AbortError";
 }
 
 /**
@@ -120,6 +164,16 @@ function refusalLine(fact: CodedFact): string {
         return `${chipLine(fact)} -- ${CUSTOM_MODEL.checkAddress}`;
     }
     return FORMAT_CODES.has(fact.code) ? `${chipLine(fact)} -- ${CUSTOM_MODEL.reads(MODEL_FORMATS)}` : chipLine(fact);
+}
+
+/**
+ * The axis a "detected" up settles to, from graphty-element's summary.
+ * @param summary - the model's summary, if any.
+ * @returns the axis.
+ */
+function detectedUp(summary: ModelSummary | undefined): ModelUpAxis {
+    const axis = summary?.upAxis;
+    return axis === undefined || axis === "unknown" ? "y" : axis;
 }
 
 /**
@@ -138,7 +192,7 @@ function Disclosure({
     children,
 }: Readonly<{ word: string; open: boolean; onToggle: () => void; children?: React.ReactNode }>): React.JSX.Element {
     return (
-        <Group gap={6} wrap="nowrap">
+        <Group gap={6} wrap="wrap">
             <UnstyledButton className="ws-disclosure" aria-expanded={open} onClick={onToggle}>
                 <GLYPHS.expand size={12} aria-hidden style={{ transform: open ? undefined : "rotate(-90deg)" }} />
                 <Text size="sm" span>
@@ -174,30 +228,39 @@ function PartLine({ part }: Readonly<{ part: ModelPart }>): React.JSX.Element {
 }
 
 /**
- * The preview: a spinner while loading, the model drawn by graphty-element once it is accepted, or
- * the cube and the "N missing" chip while it waits for parts.
+ * The preview: a spinner while loading, the model drawn by graphty-element once it is accepted, the
+ * cube and the "N missing" chip while it waits for parts, or the cube and the chip saying why
+ * graphty-element could not draw it.
  * @param props - Component props
  * @param props.held - the model, if any
  * @param props.name - its name
- * @param props.style - the style values it is drawn with
+ * @param props.draw - its picture, or why it could not be drawn
  * @param props.busy - a source is loading
  * @returns The preview box
  */
 function Preview({
     held,
     name,
-    style,
+    draw,
     busy,
-}: Readonly<{ held: Held | null; name: string; style: ModelDraft; busy: boolean }>): React.JSX.Element {
+}: Readonly<{ held: Held | null; name: string; draw: ModelDraw; busy: boolean }>): React.JSX.Element {
     const accepted = held?.record.state === "accepted";
-    const ref = accepted ? (held.url ?? held.record.id) : undefined;
-    const picture = useModelPicture(ref, PREVIEW_PX, style);
     const missing = countChip(held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? []);
     let content: React.ReactNode;
-    if (picture !== undefined && !busy) {
-        content = <img src={picture} alt={CUSTOM_MODEL.preview(name)} width={PREVIEW_PX} height={PREVIEW_PX} />;
+    if (draw.url !== undefined && !busy) {
+        content = <img src={draw.url} alt={CUSTOM_MODEL.preview(name)} width={PREVIEW_PX} height={PREVIEW_PX} />;
+    } else if (draw.failure !== undefined && !busy) {
+        content = (
+            <Stack gap={4} align="center">
+                <GLYPHS.model size={32} aria-hidden />
+                <ModelChip chip={modelChip(draw.failure)} />
+            </Stack>
+        );
+    } else if (held === null) {
+        // Blank until a model is loaded.
+        content = null;
     } else if (busy || accepted) {
-        content = <Loader size="sm" aria-label={CUSTOM_MODEL.loading(held === null ? "model" : name)} />;
+        content = <Loader size="sm" aria-label={CUSTOM_MODEL.loading(busy ? "model" : name)} />;
     } else {
         content = (
             <Stack gap={4} align="center">
@@ -271,6 +334,104 @@ function AddressActions({
 }
 
 /**
+ * The source line: what was loaded or is loading, its name cut in the middle, and one action.
+ * @param props - Component props
+ * @param props.name - the file's name or the address
+ * @param props.byAddress - an address, drawn with the address glyph
+ * @param props.action - the button at its end
+ * @returns The line
+ */
+function SourceLine({
+    name,
+    byAddress,
+    action,
+}: Readonly<{ name: string; byAddress: boolean; action: React.ReactNode }>): React.JSX.Element {
+    const Glyph = byAddress ? GLYPHS.webAddress : GLYPHS.file;
+    return (
+        <Group gap={4} wrap="nowrap" data-testid="model-source">
+            <Glyph size={14} aria-hidden />
+            <Text size="xs" flex={1} miw={0} title={name} className="ws-part-name">
+                {middleCut(name, 40)}
+            </Text>
+            {action}
+        </Group>
+    );
+}
+
+/**
+ * How far a load has come, as graphty-element reports it, for the file loader's bar: its stage and
+ * the bytes, and the fraction done when the size is known (null when it is not).
+ * @param loading - the load
+ * @returns the bar's fraction and its status line
+ */
+function loadStatus(loading: Loading): { progress: number | null; status: { label: string; detail?: string } } {
+    const first = loading.byAddress ? "downloading" : "reading";
+    const label =
+        loading.stage === undefined
+            ? CUSTOM_MODEL.stages[first]
+            : (CUSTOM_MODEL.stages[loading.stage] ?? CUSTOM_MODEL.preparing);
+    const { completed, total } = loading;
+    const known = total !== null && total > 0;
+    return {
+        progress: known ? Math.min(1, completed / total) : null,
+        status: completed > 0 ? { label, detail: CUSTOM_MODEL.bytes(completed, total) } : { label },
+    };
+}
+
+/**
+ * The four rotate buttons under the preview: each writes the next quarter turn, as
+ * graphty-element's `turnModelOrientation` gives it, to Up and Turn.
+ * @param props - Component props
+ * @param props.values - the draft over the layer's own values
+ * @param props.detected - the axis a "detected" up settles to
+ * @param props.write - writes a setting
+ * @returns The buttons
+ */
+function RotateButtons({
+    values,
+    detected,
+    write,
+}: Readonly<{
+    values: ModelDraft;
+    detected: ModelUpAxis;
+    write: (channel: Channel, value: ChannelValue) => void;
+}>): React.JSX.Element {
+    const up = (values["node.modelSourceUp"] ?? "detected") as ModelOrientation["up"];
+    const turn = typeof values["node.modelTurn"] === "number" ? values["node.modelTurn"] : 0;
+    return (
+        // NOSONAR(S6819): an ARIA group naming four buttons; a fieldset would draw its own border and legend
+        <Group gap={4} justify="center" role="group" aria-label={CUSTOM_MODEL.rotate}>
+            {TURN_STEPS.map((step) => {
+                const word = CUSTOM_MODEL.turns[step];
+                const Glyph = { left: GLYPHS.turnLeft, right: GLYPHS.turnRight, forward: GLYPHS.tip, back: GLYPHS.tip }[
+                    step
+                ];
+                return (
+                    <Tooltip key={step} label={word}>
+                        <ActionIcon
+                            variant="subtle"
+                            size="sm"
+                            aria-label={word}
+                            onClick={() => {
+                                const next = turnModelOrientation({ up, turn }, step, detected);
+                                write("node.modelSourceUp", next.up);
+                                write("node.modelTurn", next.turn);
+                            }}
+                        >
+                            <Glyph
+                                size={14}
+                                aria-hidden
+                                style={step === "back" ? { transform: "scaleY(-1)" } : undefined}
+                            />
+                        </ActionIcon>
+                    </Tooltip>
+                );
+            })}
+        </Group>
+    );
+}
+
+/**
  * How many of a model's parts are in each state that needs nothing from the reader.
  * @param parts - the parts.
  * @returns the counts.
@@ -284,13 +445,13 @@ function quietCounts(parts: readonly ModelPart[]): { substituted: number; skippe
 }
 
 /**
- * The Load custom model dialog (node-models design 14): a model's address, its files or folder, or
- * a drop; its preview drawn by graphty-element; its name; how its files matched, with the missing
- * ones answered by another file of the set ("Use file"), a file, an address or leaving them out;
- * and Color, then Up, Turn, Fit, Center and its details under Advanced. Settings are a draft until
- * Add. One model per dialog: files that are not a model, arriving while it waits, go to it; a
- * model, a folder holding one or a .zip replaces it. Once a model is held, the sources fold to one
- * line with Replace... and the body scrolls under a footer that stays. Cancel lets go of what it
+ * The Load custom model dialog (node-models design 14): one file loader for a model's address, its
+ * files, its folder, a .zip or a drop anywhere on the dialog; while it loads, graphty-element's
+ * progress with Cancel load; once loaded, two columns: the name and the settings on the left (Color,
+ * Animation for a model with clips, More options, and Files when a part needs an answer), and the
+ * model drawn by graphty-element on the right with its rotate buttons and its Details table.
+ * Settings are a draft until Add. One model per dialog: files that are not a model, arriving while
+ * it waits, go to it; a model, a folder holding one or a .zip replaces it. Cancel lets go of what it
  * loaded that no layer uses. Mounted only while open.
  * @param props - Component props
  * @param props.forLayer - whether a layer takes the model
@@ -308,8 +469,8 @@ export function CustomModelDialog({
     onClose,
 }: Readonly<CustomModelDialogProps>): React.JSX.Element | null {
     const { session, store } = useWorkspace();
-    const [url, setUrl] = useState("");
-    const [busy, setBusy] = useState(false);
+    const [address, setAddress] = useState("");
+    const [loading, setLoading] = useState<Loading | null>(null);
     const [problem, setProblem] = useState<CodedFact | null>(null);
     const [tried, setTried] = useState<string | null>(null);
     const [picture, setPicture] = useState<Arrived | null>(null);
@@ -317,32 +478,54 @@ export function CustomModelDialog({
     const [name, setName] = useState("");
     const [draft, setDraft] = useState<ModelDraft>({});
     const [filesOpen, setFilesOpen] = useState(false);
-    const [advancedOpen, setAdvancedOpen] = useState(false);
+    const [moreOpen, setMoreOpen] = useState(false);
+    const [detailsOpen, setDetailsOpen] = useState(false);
     const [replacing, setReplacing] = useState(false);
     // What this dialog added, by what names it: let go on Cancel when no layer uses it.
     const added = useRef(new Set<string>());
-    const chooser = useRef<HTMLInputElement | null>(null);
-    const folder = useRef<HTMLInputElement | null>(null);
-    const body = useRef<HTMLDivElement | null>(null);
     const nameField = useRef<HTMLInputElement | null>(null);
-    const drop = useDropOver();
+    // The Modal mounts its body after this renders: the drop target is the element itself.
+    const [body, setBody] = useState<HTMLDivElement | null>(null);
     const start = useStillOpen(true);
+    const busy = loading !== null;
     const waitingFor = held?.record.problems.filter((p) => PART_CODES.has(p.code)) ?? [];
     // Focus goes where the reader acts next: Name once a model is in, its first part while it waits.
     const heldKey = held === null ? "" : `${held.record.id} ${held.record.state}`;
     const waits = waitingFor.length > 0;
+    const values: ModelDraft = { ...baseStyle, ...draft };
+    const draw = useModelDraw(
+        held?.record.state === "accepted" ? (held.url ?? held.record.id) : undefined,
+        PREVIEW_PX,
+        values,
+    );
     useEffect(() => {
-        if (heldKey === "") {
+        // The name and the parts are drawn once the load is over, so focus waits for that too.
+        if (heldKey === "" || busy) {
             return;
         }
         if (waits) {
-            body.current
-                ?.querySelector<HTMLElement>(".ws-part-row input:not([type=file]), .ws-part-row button")
-                ?.focus();
+            body?.querySelector<HTMLElement>(".ws-part-row input, .ws-part-row button")?.focus();
         } else {
             nameField.current?.focus();
         }
-    }, [heldKey, waits]);
+    }, [heldKey, waits, body, busy]);
+    // A model that is in but cannot be drawn is said, as an intake refusal is.
+    const failureLine = draw.failure === undefined ? null : refusalLine(draw.failure);
+    useEffect(() => {
+        if (failureLine !== null) {
+            store.set({ announcement: failureLine });
+        }
+    }, [failureLine, store]);
+    const target = useMemo(() => ({ current: body }), [body]);
+    const loadRef = useRef<(source: AssetSource, files: readonly File[], shown: string) => void>(() => undefined);
+    // Files or a folder dropped anywhere on the dialog: the same as choosing them.
+    const { over } = useFileDrop(
+        target,
+        (files, paths) => {
+            loadRef.current(paths === undefined ? files : { files: paths }, files, files[0]?.name ?? "");
+        },
+        { folders: true },
+    );
     if (session === null) {
         return null;
     }
@@ -355,6 +538,7 @@ export function CustomModelDialog({
         }
     };
     const cancel = (): void => {
+        loading?.controller.abort();
         for (const ref of added.current) {
             letGo(ref);
         }
@@ -386,15 +570,34 @@ export function CustomModelDialog({
         const left = new Set(rest.map((f) => f.name));
         say(files.map((f) => `${f.name} ${left.has(f.name) ? "not needed" : "added"}`).join(", "));
     };
-    const settle = async (source: AssetSource, files: readonly File[], live: () => boolean): Promise<void> => {
+    const settle = async (
+        source: AssetSource,
+        files: readonly File[],
+        controller: AbortController,
+        live: () => boolean,
+    ): Promise<void> => {
         if (held?.record.state === "rejected" && files.length > 0 && !files.some(isModelFile)) {
             await offer(held, files, live);
             return;
         }
         const before = new Set(session.assets.list().map((r) => r.id));
-        const record = await session.assets.add(source);
-        const address = typeof source === "string" ? source : undefined;
-        const ref = address ?? record.id;
+        const onProgress = (change: ProgressChange): void => {
+            if (change.phase === "progress" && live()) {
+                setLoading((now) =>
+                    now?.controller === controller
+                        ? {
+                              ...now,
+                              stage: change.asset?.stage,
+                              completed: change.completed,
+                              total: change.total ?? null,
+                          }
+                        : now,
+                );
+            }
+        };
+        const record = await session.assets.add(source, { signal: controller.signal, onProgress });
+        const url = typeof source === "string" ? source : undefined;
+        const ref = url ?? record.id;
         if (!before.has(record.id)) {
             added.current.add(ref);
         }
@@ -417,27 +620,44 @@ export function CustomModelDialog({
         if (held !== null && (held.url ?? held.record.id) !== ref) {
             letGo(held.url ?? held.record.id);
         }
-        hold({ ...(address === undefined ? {} : { url: address }), record });
+        hold({ ...(url === undefined ? {} : { url }), record });
         say(CUSTOM_MODEL.loaded(record.plainName ?? modelName(session, ref)));
     };
-    const load = (source: AssetSource, files: readonly File[]): void => {
-        setBusy(true);
+    const load = (source: AssetSource, files: readonly File[], shown: string): void => {
+        // A new source (a drop, Retry, the address field) replaces the one still loading.
+        loading?.controller.abort();
+        const controller = new AbortController();
+        const byAddress = typeof source === "string";
+        setLoading({ name: shown, byAddress, controller, completed: 0, total: null });
         setProblem(null);
         setPicture(null);
-        setTried(typeof source === "string" ? source : null);
-        const live = start();
-        settle(source, files, live)
+        setTried(byAddress ? source : null);
+        say(CUSTOM_MODEL.loading(shown));
+        const stillOpen = start();
+        const live = (): boolean => stillOpen() && !controller.signal.aborted;
+        settle(source, files, controller, live)
             .catch((error: unknown) => {
+                if (isAbort(error) || controller.signal.aborted) {
+                    return;
+                }
                 logUnexpected("assets.add", error, []);
                 if (live()) {
                     setProblem({ code: "E_MODEL_PARSE", params: { message: String(error) } });
                 }
             })
             .finally(() => {
-                if (live()) {
-                    setBusy(false);
+                if (stillOpen()) {
+                    setLoading((now) => (now?.controller === controller ? null : now));
                 }
             });
+    };
+    loadRef.current = load;
+    const cancelLoad = (): void => {
+        if (loading !== null) {
+            loading.controller.abort();
+            setLoading(null);
+            say(CUSTOM_MODEL.cancelled(loading.name));
+        }
     };
     const supply = async (answer: PartAnswer): Promise<readonly CodedFact[]> => {
         if (held === null) {
@@ -462,15 +682,20 @@ export function CustomModelDialog({
     const ref = accepted === null ? undefined : (accepted.url ?? accepted.record.id);
     const firstMissing = waitingFor[0]?.params.name;
     let blocked: string | null = null;
-    if (accepted === null) {
+    if (busy) {
+        blocked = CUSTOM_MODEL.loading(loading.name);
+    } else if (accepted === null) {
         blocked =
             typeof firstMissing === "string"
                 ? CUSTOM_MODEL.missing(firstMissing.split("/").pop() ?? firstMissing)
                 : CUSTOM_MODEL.addFirst;
+    } else if (draw.failure !== undefined) {
+        blocked = refusalLine(draw.failure);
     }
     const addWord = forLayer ? CUSTOM_MODEL.add : CUSTOM_MODEL.addToProject;
     const add = (): void => {
-        if (ref === undefined || accepted === null) {
+        // Every way to Add (click, Enter or Space on the button, Enter in Name) stops here when blocked.
+        if (blocked !== null || ref === undefined || accepted === null) {
             return;
         }
         const wanted = name.trim();
@@ -488,8 +713,19 @@ export function CustomModelDialog({
     // One self-contained file says nothing the preview and Name do not: no Files line.
     const showFiles = held !== null && (parts.length > 1 || waits);
     const filesNote = CUSTOM_MODEL.filesNote(quietCounts(parts));
-    const guessed = held?.record.problems.find((p) => p.code === "W_MODEL_UP_GUESSED");
     const summary = accepted === null ? undefined : session.assets.inspect(accepted.record.id);
+    const clips = summary?.animations ?? [];
+    // One chip per word: a model over the budget and heavy for its nodes is "Heavy" once.
+    const detailChips = [
+        ...new Map(
+            DETAIL_CHIP_CODES.flatMap((code) => accepted?.record.problems.filter((p) => p.code === code) ?? [])
+                .map(modelChip)
+                .map((chip) => [chip.word, chip]),
+        ).values(),
+    ];
+    const ignored = (accepted?.record.problems ?? [])
+        .filter((p) => p.code === "W_MODEL_EXTENSION_IGNORED")
+        .map((p) => String(p.params.extension));
     const write = (channel: Channel, value: ChannelValue): void => {
         setDraft((now) => ({ ...now, [channel]: value }));
     };
@@ -498,314 +734,304 @@ export function CustomModelDialog({
     };
     const addressProblem = problem !== null && ADDRESS_CODES.has(problem.code) ? problem : null;
     const fileProblem = problem !== null && addressProblem === null ? problem : null;
-    const sourcesOpen = held === null || replacing;
+    const empty = held === null && !busy;
+    const sourcesOpen = busy || held === null || replacing;
+    const shownLoad = loading === null ? undefined : loadStatus(loading);
     const heldFile = held === null ? "" : (held.url ?? held.record.path ?? name);
+
+    const fileSource = (
+        <FileSource
+            variant="row"
+            autoFocus={empty}
+            disabled={busy}
+            progress={shownLoad?.progress}
+            status={shownLoad?.status}
+            onCancel={busy ? cancelLoad : undefined}
+            cancelLabel={CUSTOM_MODEL.cancelLoad}
+            multiple
+            folder
+            url
+            accept={MODEL_EXTENSIONS.join(",")}
+            label={CUSTOM_MODEL.chooseFiles}
+            folderLabel={CUSTOM_MODEL.chooseFolder}
+            placeholder={CUSTOM_MODEL.address}
+            defaultValue={address}
+            error={addressProblem === null ? undefined : refusalLine(addressProblem)}
+            onDiscard={() => {
+                say("Address discarded");
+            }}
+            onFiles={(files, paths) => {
+                load(paths === undefined ? files : { files: paths }, files, files[0]?.name ?? "");
+            }}
+            onUrl={(url) => {
+                setAddress(url);
+                load(url, [], url);
+            }}
+        />
+    );
+
+    const left = (
+        <Stack gap="sm" className="ws-model-left">
+            {held === null || busy ? null : (
+                <SourceLine
+                    name={heldFile}
+                    byAddress={held.url !== undefined}
+                    action={
+                        <Button
+                            size="compact-xs"
+                            variant="default"
+                            onClick={() => {
+                                setReplacing(!replacing);
+                            }}
+                        >
+                            {CUSTOM_MODEL.replace}
+                        </Button>
+                    }
+                />
+            )}
+            {sourcesOpen ? fileSource : null}
+            {addressProblem === null || busy ? null : (
+                <AddressActions
+                    problem={addressProblem}
+                    onRetry={() => {
+                        if (tried !== null) {
+                            load(tried, [], tried);
+                        }
+                    }}
+                    onUseAddress={(suggested) => {
+                        setAddress(suggested);
+                        setProblem(null);
+                    }}
+                />
+            )}
+            {fileProblem === null || busy ? null : <Refusal problem={fileProblem} />}
+            {picture === null ? null : (
+                <Group gap={4} wrap="nowrap">
+                    <Text size="xs" c="var(--cm-text-warning)">
+                        {CUSTOM_MODEL.notModel(picture.name, MODEL_FORMATS)}
+                    </Text>
+                    {forLayer && onPicture !== undefined ? (
+                        <Button
+                            size="compact-xs"
+                            variant="default"
+                            aria-label={`Use ${picture.name} as picture`}
+                            onClick={() => {
+                                onPicture(picture.id);
+                            }}
+                        >
+                            Use as picture
+                        </Button>
+                    ) : null}
+                </Group>
+            )}
+            {held === null || busy ? null : (
+                <Stack gap={4} className="ws-model-settings">
+                    <div className="ws-row">
+                        <div className="ws-field" data-named="">
+                            <span className="ws-field-label">
+                                <span className="ws-field-name" aria-hidden>
+                                    {CUSTOM_MODEL.name}
+                                </span>
+                            </span>
+                            <div className="ws-field-control">
+                                <TextInput
+                                    ref={nameField}
+                                    size="xs"
+                                    aria-label={CUSTOM_MODEL.name}
+                                    value={name}
+                                    onChange={(event) => {
+                                        setName(event.currentTarget.value);
+                                    }}
+                                    onKeyDown={(event) => {
+                                        if (event.key === "Enter" && blocked === null) {
+                                            event.preventDefault();
+                                            add();
+                                        }
+                                    }}
+                                />
+                            </div>
+                            <span className="ws-slot" />
+                        </div>
+                    </div>
+                    {forLayer && accepted !== null ? (
+                        <SettingRows
+                            channels={SHOWN_CHANNELS}
+                            values={draft}
+                            problems={accepted.record.problems}
+                            write={write}
+                            remove={unset}
+                            clips={clips}
+                        />
+                    ) : null}
+                </Stack>
+            )}
+            {draw.failure === undefined || busy ? null : (
+                <Group gap={4} wrap="nowrap">
+                    <Refusal problem={draw.failure} />
+                    {draw.failure.code === "E_MODEL_DECODER_UNAVAILABLE" && draw.failure.params.reason === "load" ? (
+                        <Button size="compact-xs" variant="default" onClick={draw.retry}>
+                            Retry
+                        </Button>
+                    ) : null}
+                </Group>
+            )}
+            {accepted === null || !forLayer || busy ? null : (
+                <>
+                    <Disclosure
+                        word={CUSTOM_MODEL.moreOptions}
+                        open={moreOpen}
+                        onToggle={() => {
+                            setMoreOpen(!moreOpen);
+                        }}
+                    />
+                    <Collapse in={moreOpen} transitionDuration={0}>
+                        <div data-testid="model-more">
+                            <SettingRows
+                                channels={MORE_CHANNELS}
+                                values={draft}
+                                problems={accepted.record.problems}
+                                write={write}
+                                remove={unset}
+                                clips={clips}
+                            />
+                        </div>
+                    </Collapse>
+                </>
+            )}
+            {held === null || !showFiles || busy ? null : (
+                <>
+                    <Disclosure
+                        word={CUSTOM_MODEL.files}
+                        open={filesOpen}
+                        onToggle={() => {
+                            setFilesOpen(!filesOpen);
+                        }}
+                    >
+                        {filesOpen || filesNote === "" ? null : (
+                            <Text size="sm" c="dimmed" span>
+                                {filesNote}
+                            </Text>
+                        )}
+                    </Disclosure>
+                    <Collapse in={filesOpen} transitionDuration={0}>
+                        <Stack gap={6} className="ws-model-files" data-testid="model-files">
+                            {parts.map((part) => {
+                                const fact = facts.get(part.name);
+                                return fact === undefined ? (
+                                    <PartLine key={part.name} part={part} />
+                                ) : (
+                                    <PartRow
+                                        key={part.name}
+                                        part={fact}
+                                        first={false}
+                                        supply={supply}
+                                        unused={part.state === "missing" ? unused : []}
+                                        onDiscard={() => {
+                                            say("Address discarded");
+                                        }}
+                                    />
+                                );
+                            })}
+                            {waitingFor
+                                .filter((fact) => fact.code === "E_MODEL_AMBIGUOUS")
+                                .map((fact) => (
+                                    <PartRow
+                                        key="main"
+                                        part={fact}
+                                        first={false}
+                                        supply={supply}
+                                        onDiscard={() => {
+                                            say("Address discarded");
+                                        }}
+                                    />
+                                ))}
+                            {held.record.problems
+                                .filter(
+                                    (p) =>
+                                        p.code === "W_MODEL_PART_UNUSED" &&
+                                        !unusedFiles.has(String(p.params.fileName).split("/").pop()),
+                                )
+                                .map((fact) => (
+                                    <FactChip key={String(fact.params.fileName)} fact={fact} />
+                                ))}
+                        </Stack>
+                    </Collapse>
+                </>
+            )}
+        </Stack>
+    );
+
+    const side = (
+        <Stack gap={8} className="ws-model-side">
+            <Preview held={held} name={name} draw={draw} busy={busy} />
+            {summary === undefined || busy ? null : (
+                <Text size="xs" c="dimmed" ta="center" data-testid="model-variant">
+                    {CUSTOM_MODEL.variantLine(summary)}
+                </Text>
+            )}
+            {forLayer && accepted !== null && !busy ? (
+                <RotateButtons values={values} detected={detectedUp(summary)} write={write} />
+            ) : null}
+            {summary === undefined || accepted === null || busy ? null : (
+                <>
+                    <Disclosure
+                        word={CUSTOM_MODEL.details}
+                        open={detailsOpen}
+                        onToggle={() => {
+                            setDetailsOpen(!detailsOpen);
+                        }}
+                    >
+                        {detailChips.map((chip) => (
+                            <ModelChip key={chip.word} chip={chip} tone="warning" />
+                        ))}
+                    </Disclosure>
+                    <Collapse in={detailsOpen} transitionDuration={0}>
+                        <div data-testid="model-details" className="ws-model-details">
+                            {CUSTOM_MODEL.detailRows(summary, accepted.record.byteLength, ignored).map((row) => (
+                                <DataRow key={row.name} stat name={row.name} value={row.value} description={row.tip} />
+                            ))}
+                        </div>
+                    </Collapse>
+                </>
+            )}
+        </Stack>
+    );
 
     return (
         <Modal
             opened
             onClose={cancel}
             title={CUSTOM_MODEL.title}
-            size="md"
+            size="lg"
             // A loaded model is not lost to a stray click beside the dialog.
-            closeOnClickOutside={held === null}
-            overlayProps={{ backgroundOpacity: 0.45 }}
+            closeOnClickOutside={empty}
         >
-            <ScrollArea.Autosize mah="calc(90dvh - 140px)" type="auto" scrollbars="y" offsetScrollbars="y">
-                <Stack
-                    ref={body}
-                    gap="sm"
-                    className="ws-custom-model"
-                    data-testid="custom-model"
-                    {...drop.handlers}
-                    onDrop={(event) => {
-                        drop.handlers.onDrop?.(event);
-                        event.preventDefault();
-                        // Read during the drop: the browser empties the transfer after.
-                        void readDrop(event.dataTransfer).then((read) => {
-                            load(read.source, filesOf(read.source));
-                        });
-                    }}
-                >
-                    {sourcesOpen ? (
-                        <>
-                            <AddressForm
-                                name={CUSTOM_MODEL.address}
-                                submitName={CUSTOM_MODEL.load}
-                                value={url}
-                                busy={busy}
-                                autofocus
-                                error={addressProblem === null ? undefined : refusalLine(addressProblem)}
-                                onChange={setUrl}
-                                onDiscard={() => {
-                                    say("Address discarded");
-                                }}
-                                onSubmit={() => {
-                                    if (url.trim() !== "" && !busy) {
-                                        load(url.trim(), []);
-                                    }
-                                }}
-                            />
-                            {addressProblem === null ? null : (
-                                <AddressActions
-                                    problem={addressProblem}
-                                    onRetry={() => {
-                                        if (tried !== null) {
-                                            load(tried, []);
-                                        }
-                                    }}
-                                    onUseAddress={(suggested) => {
-                                        setUrl(suggested);
-                                        setProblem(null);
-                                    }}
-                                />
-                            )}
-                            <div className="ws-model-drop" data-testid="model-drop" data-over={drop.over || undefined}>
-                                <Group gap={4}>
-                                    <Button
-                                        size="compact-xs"
-                                        variant="default"
-                                        leftSection={<GLYPHS.upload size={12} aria-hidden />}
-                                        aria-disabled={busy || undefined}
-                                        data-disabled={busy || undefined}
-                                        onClick={() => {
-                                            if (!busy) {
-                                                chooser.current?.click();
-                                            }
-                                        }}
-                                    >
-                                        {CUSTOM_MODEL.chooseFiles}
-                                    </Button>
-                                    <Button
-                                        size="compact-xs"
-                                        variant="default"
-                                        leftSection={<GLYPHS.folder size={12} aria-hidden />}
-                                        aria-disabled={busy || undefined}
-                                        data-disabled={busy || undefined}
-                                        onClick={() => {
-                                            if (!busy) {
-                                                folder.current?.click();
-                                            }
-                                        }}
-                                    >
-                                        {CUSTOM_MODEL.chooseFolder}
-                                    </Button>
-                                </Group>
-                                <Text size="xs" c="var(--cm-text-secondary)">
-                                    {CUSTOM_MODEL.dropHint(MODEL_FORMATS)}
-                                </Text>
-                            </div>
-                        </>
-                    ) : (
-                        <Group gap={4} wrap="nowrap" data-testid="model-source">
-                            <GLYPHS.model size={14} aria-hidden />
-                            <Text size="xs" flex={1} miw={0} truncate title={heldFile}>
-                                {heldFile}
-                            </Text>
-                            <Button
-                                size="compact-xs"
-                                variant="default"
-                                onClick={() => {
-                                    setReplacing(true);
-                                }}
-                            >
-                                {CUSTOM_MODEL.replace}
-                            </Button>
-                        </Group>
-                    )}
-                    <FileInput
-                        chooser={chooser}
-                        accept={MODEL_EXTENSIONS.join(",")}
-                        multiple
-                        onFiles={(files) => {
-                            load(chosenSource(files), files);
-                        }}
-                    />
-                    <FileInput
-                        chooser={folder}
-                        folder
-                        onFiles={(files) => {
-                            load(chosenSource(files), files);
-                        }}
-                    />
-                    {fileProblem === null ? null : <Refusal problem={fileProblem} />}
-                    {picture === null ? null : (
-                        <Group gap={4} wrap="nowrap">
-                            <Text size="xs" c="var(--cm-text-warning)">
-                                {CUSTOM_MODEL.notModel(picture.name, MODEL_FORMATS)}
-                            </Text>
-                            {forLayer && onPicture !== undefined ? (
-                                <Button
-                                    size="compact-xs"
-                                    variant="default"
-                                    aria-label={`Use ${picture.name} as picture`}
-                                    onClick={() => {
-                                        onPicture(picture.id);
-                                    }}
-                                >
-                                    Use as picture
-                                </Button>
-                            ) : null}
-                        </Group>
-                    )}
-                    {held === null && !busy ? null : (
-                        <Group gap="sm" align="flex-start" wrap="nowrap">
-                            <Preview held={held} name={name} style={{ ...baseStyle, ...draft }} busy={busy} />
-                            {held === null ? null : (
-                                <Stack gap={4} flex={1} miw={0} className="ws-model-settings">
-                                    <div className="ws-row">
-                                        <div className="ws-field" data-named="">
-                                            <span className="ws-field-label">
-                                                <span className="ws-field-name" aria-hidden>
-                                                    {CUSTOM_MODEL.name}
-                                                </span>
-                                            </span>
-                                            <div className="ws-field-control">
-                                                <TextInput
-                                                    ref={nameField}
-                                                    size="xs"
-                                                    aria-label={CUSTOM_MODEL.name}
-                                                    value={name}
-                                                    onChange={(event) => {
-                                                        setName(event.currentTarget.value);
-                                                    }}
-                                                    onKeyDown={(event) => {
-                                                        if (event.key === "Enter" && blocked === null) {
-                                                            event.preventDefault();
-                                                            add();
-                                                        }
-                                                    }}
-                                                />
-                                            </div>
-                                            <span className="ws-slot" />
-                                        </div>
-                                    </div>
-                                    {forLayer ? (
-                                        <SettingRows
-                                            channels={COLOR_CHANNELS}
-                                            values={draft}
-                                            problems={held.record.problems}
-                                            write={write}
-                                            remove={unset}
-                                        />
-                                    ) : null}
-                                </Stack>
-                            )}
-                        </Group>
-                    )}
-                    {held === null || !showFiles ? null : (
-                        <>
-                            <Disclosure
-                                word={CUSTOM_MODEL.files}
-                                open={filesOpen}
-                                onToggle={() => {
-                                    setFilesOpen(!filesOpen);
-                                }}
-                            >
-                                {filesOpen || filesNote === "" ? null : (
-                                    <Text size="sm" c="dimmed" span>
-                                        {filesNote}
-                                    </Text>
-                                )}
-                            </Disclosure>
-                            <Collapse in={filesOpen} transitionDuration={0}>
-                                <Stack gap={6} className="ws-model-files" data-testid="model-files">
-                                    {parts.map((part) => {
-                                        const fact = facts.get(part.name);
-                                        return fact === undefined ? (
-                                            <PartLine key={part.name} part={part} />
-                                        ) : (
-                                            <PartRow
-                                                key={part.name}
-                                                part={fact}
-                                                first={false}
-                                                supply={supply}
-                                                unused={part.state === "missing" ? unused : []}
-                                                onDiscard={() => {
-                                                    say("Address discarded");
-                                                }}
-                                            />
-                                        );
-                                    })}
-                                    {waitingFor
-                                        .filter((fact) => fact.code === "E_MODEL_AMBIGUOUS")
-                                        .map((fact) => (
-                                            <PartRow
-                                                key="main"
-                                                part={fact}
-                                                first={false}
-                                                supply={supply}
-                                                onDiscard={() => {
-                                                    say("Address discarded");
-                                                }}
-                                            />
-                                        ))}
-                                    {held.record.problems
-                                        .filter(
-                                            (p) =>
-                                                p.code === "W_MODEL_PART_UNUSED" &&
-                                                !unusedFiles.has(String(p.params.fileName).split("/").pop()),
-                                        )
-                                        .map((fact) => (
-                                            <FactChip key={String(fact.params.fileName)} fact={fact} />
-                                        ))}
-                                </Stack>
-                            </Collapse>
-                        </>
-                    )}
-                    {accepted === null ? null : (
-                        <>
-                            <Disclosure
-                                word={CUSTOM_MODEL.advanced}
-                                open={advancedOpen}
-                                onToggle={() => {
-                                    setAdvancedOpen(!advancedOpen);
-                                }}
-                            >
-                                {guessed === undefined ? null : (
-                                    <ModelChip
-                                        chip={{ word: "Guessed", tip: "up axis guessed from the file" }}
-                                        tone="warning"
-                                    />
-                                )}
-                            </Disclosure>
-                            <Collapse in={advancedOpen}>
-                                <Stack gap={4} data-testid="model-advanced">
-                                    {forLayer ? (
-                                        <SettingRows
-                                            channels={ADVANCED_CHANNELS}
-                                            values={draft}
-                                            problems={accepted.record.problems}
-                                            write={write}
-                                            remove={unset}
-                                        />
-                                    ) : null}
-                                    {summary === undefined ? null : (
-                                        <Text size="xs" c="var(--cm-text-secondary)" data-testid="model-details">
-                                            {`${CUSTOM_MODEL.details}: ${CUSTOM_MODEL.detailLine(summary)}`}
-                                        </Text>
-                                    )}
-                                </Stack>
-                            </Collapse>
-                        </>
-                    )}
-                </Stack>
-            </ScrollArea.Autosize>
-            <ModalFooter mt="md">
-                <Button variant="default" onClick={cancel}>
-                    {CUSTOM_MODEL.cancel}
-                </Button>
-                <Tooltip label={blocked ?? addWord} disabled={blocked === null}>
-                    <Button
-                        // A blocked Add stays focusable, with its reason as its tooltip.
-                        aria-disabled={blocked !== null || undefined}
-                        data-disabled={blocked !== null || undefined}
-                        onClick={add}
-                    >
-                        {addWord}
+            <div
+                ref={setBody}
+                className="ws-dialog-columns ws-model-body"
+                data-testid="custom-model"
+                data-over={over || undefined}
+            >
+                <ScrollArea className="ws-model-main" type="hover" scrollbars="y" offsetScrollbars="y">
+                    {left}
+                </ScrollArea>
+                {side}
+                <ModalFooter className="ws-model-footer">
+                    <Button variant="default" onClick={cancel}>
+                        {CUSTOM_MODEL.cancel}
                     </Button>
-                </Tooltip>
-            </ModalFooter>
+                    <Tooltip label={blocked ?? addWord} disabled={blocked === null}>
+                        <Button
+                            // A blocked Add stays focusable, with its reason as its tooltip.
+                            aria-disabled={blocked !== null || undefined}
+                            data-disabled={blocked !== null || undefined}
+                            onClick={add}
+                        >
+                            {addWord}
+                        </Button>
+                    </Tooltip>
+                </ModalFooter>
+            </div>
         </Modal>
     );
 }

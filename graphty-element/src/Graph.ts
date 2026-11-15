@@ -35,6 +35,7 @@ import type { LocationMapFrame } from "./layout/locationMap/place";
 import { flatMapReach } from "./layout/locationMap/reach";
 import { GraphtyLogger, type Logger } from "./logging";
 import { BasemapManager, mapCorners } from "./managers/BasemapManager";
+import { CAMERA_LOG_INTERVAL_MS, frameFacts, throttle, viewLog } from "./managers/viewLog";
 
 const graphLogger: Logger = GraphtyLogger.getLogger(["graphty", "graph"]);
 
@@ -91,10 +92,12 @@ const MAP_CLEARANCE = 1e-4;
 import { measureBounds } from "./camera/bounds.js";
 import { orbitAnglesToPosition } from "./camera/builtins.js";
 import { fullInsets } from "./camera/insets.js";
+import type { GraphOverview, OverviewOptions } from "./camera/overview.js";
 import { type CameraViewContext, cameraViewIds, isCameraViewName, resolveCameraView } from "./camera/resolve.js";
 import type { CameraState, CameraViewExtent, DrawingMode, GraphBounds, ViewInsets } from "./camera/types.js";
 import { type CameraController, cameraForViewMode, type CameraKey, CameraManager } from "./cameras/CameraManager";
 import { OrbitCameraController } from "./cameras/OrbitCameraController";
+import { type OverviewInputs, OverviewSource, watchOverview } from "./cameras/overview";
 import { TwoDCameraController } from "./cameras/TwoDCameraController";
 import { algorithmByKey, algorithmByLegacyKey } from "./catalog/algorithms";
 import { undetectedFormat } from "./catalog/detect";
@@ -133,7 +136,7 @@ import { RenderSettingsOpts } from "./config/GraphBehavior";
 import { DEFAULT_LIGHTING, isLighting, type Lighting, LIGHTING_VALUES } from "./config/Lighting";
 import { type PartialXRConfig, xrConfigSchema } from "./config/xr-config-schema";
 import { type ExportGraphOptions, type ExportResult, exportSession } from "./data/export";
-import { WRITABLE_LANE } from "./data/lane";
+import { WRITABLE_LANE, writableLane } from "./data/lane";
 import { fetchBytes, sampleOf } from "./data/source-bytes";
 import type { Edge } from "./Edge";
 import { GraphtyError } from "./errors";
@@ -215,7 +218,7 @@ import {
 } from "./meshes/NodeThumbnail";
 import { PatternedLineMesh } from "./meshes/PatternedLineMesh";
 import { pulledEdgesDefault } from "./meshes/PulledLineBatch";
-import { loadChunk, loadModel } from "./models/loadModel";
+import { loadChunk, loadModel, ModelLoadFailure } from "./models/loadModel";
 import { optionsOf } from "./models/ModelCache";
 import { Node, releaseNodeMesh } from "./Node";
 import { nodeActionManagerOf, nodePointerRosterOf, pointerEventTime } from "./NodeBehavior";
@@ -1018,7 +1021,10 @@ export class Graph implements GraphContext {
         // layers -- those are `session.styles`.
         this.#styles = new Styles(() => this.configDocument());
 
-        this.stylePainter = new StylePainter(() => this.dataManager.directed);
+        this.stylePainter = new StylePainter(
+            (row) => this.dataManager.edgeDirected(row),
+            () => this.session.config.minMarkSize,
+        );
 
         // get the element that we are going to use for placing our canvas
         if (typeof element === "string") {
@@ -1326,6 +1332,9 @@ export class Graph implements GraphContext {
 
                 this.updateManager.forceEdgeWalk();
             }
+
+            // Every mark is drawn again at the new minimum; the painter drops its old paints itself.
+            return changed("minMarkSize") ? this.repaintFromSession() : undefined;
         });
 
         // `view.camera` moves this renderer's camera; a session with no renderer refuses it.
@@ -1633,6 +1642,7 @@ export class Graph implements GraphContext {
                 edges: () => this.layoutManager.edges,
                 selected: () => this.selectionManager.getSelectedNodes(),
                 layoutRunning: () => this.layoutManager.running,
+                reducedMotion: () => this.#motionReduced(),
             }),
         );
 
@@ -1838,6 +1848,14 @@ export class Graph implements GraphContext {
 
         // The first settlement's framing has landed: that is the camera `resetCamera()` returns to.
         this.eventManager.addListener("zoom-to-fit-complete", () => {
+            if (GraphtyLogger.isEnabled()) {
+                viewLog.info("camera fit", {
+                    layout: this.layoutManager.layoutType ?? null,
+                    ...this.getCameraState(),
+                    ...this.#drawnCounts(),
+                });
+            }
+
             if (this.#initialCameraStateOwed) {
                 this.#initialCameraStateOwed = false;
                 this.initialCameraState = this.getCameraState();
@@ -1920,6 +1938,8 @@ export class Graph implements GraphContext {
         this.#unwatchXrButtons = null;
         this.#unwatchFonts?.();
         this.#unwatchFonts = null;
+        this.#unwatchOverview?.();
+        this.#unwatchOverview = null;
         this.xrAvailability.dispose();
         this.basemapManager.dispose();
         this.xrUIManager?.dispose();
@@ -2374,7 +2394,7 @@ export class Graph implements GraphContext {
         this.camera.onReaderMove = this.#readerMovedCamera;
         this.camera.setViewInsets(this.#viewInsets);
         this.camera.setZoomToPointer(this.#zoomToPointer);
-        this.camera.setInstantGlides(this.#cameraTransitionMs === 0);
+        this.camera.setInstantGlides(this.#cameraMoveMs() === 0);
         // Where a consumer put the camera while WebGPU opened. Read before the old one is disposed.
         this.camera.takeViewOf(previous.camera);
         previous.dispose();
@@ -2555,6 +2575,7 @@ export class Graph implements GraphContext {
             }
         };
         const lost = engine.onContextLostObservable.add(() => {
+            viewLog.info("render lost", { renderer });
             this.#renderLost = true;
             setDrawing(false);
             this.eventManager.emit("render-lost", {
@@ -2563,6 +2584,7 @@ export class Graph implements GraphContext {
             } satisfies Omit<RenderLostEvent, "type">);
         });
         const restored = engine.onContextRestoredObservable.add(() => {
+            viewLog.info("render restored", { renderer });
             this.#renderLost = false;
             setDrawing(true);
             this.settleRestart(null);
@@ -2596,6 +2618,64 @@ export class Graph implements GraphContext {
             },
             { once: true },
         );
+    }
+
+    /**
+     * Logs the page's visibility changes and, at most a few times a second, where a moving camera
+     * is, to the `view` log. The camera is read only while logging is on.
+     */
+    #watchViewForLog(): void {
+        const { signal } = this.#teardown;
+        document.addEventListener(
+            "visibilitychange",
+            () => {
+                viewLog.info("page visibility", { state: document.visibilityState });
+            },
+            { signal },
+        );
+        const due = throttle(CAMERA_LOG_INTERVAL_MS);
+        let last = "";
+        const observer = this.scene.onAfterRenderObservable.add(() => {
+            if (!GraphtyLogger.isEnabled() || !due()) {
+                return;
+            }
+
+            const state = this.getCameraState();
+            const text = JSON.stringify(state);
+            if (text !== last) {
+                last = text;
+                viewLog.info("camera moved", { ...state });
+            }
+        });
+        signal.addEventListener(
+            "abort",
+            () => {
+                this.scene.onAfterRenderObservable.remove(observer);
+            },
+            { once: true },
+        );
+    }
+
+    /**
+     * What is drawn now, for the log: nodes held and drawn, edges held, and the meshes the last
+     * frame drew (nodes, edges and map tiles in view).
+     * @returns The counts.
+     */
+    #drawnCounts(): Record<string, number> {
+        let nodesDrawn = 0;
+        for (const node of this.dataManager.nodes.values()) {
+            if (node.isDrawn) {
+                nodesDrawn++;
+            }
+        }
+
+        return {
+            nodes: this.dataManager.nodes.size,
+            nodesDrawn,
+            edges: this.dataManager.edges.size,
+            meshesInView: this.scene.getActiveMeshes().length,
+            meshes: this.scene.meshes.length,
+        };
     }
 
     /**
@@ -2718,6 +2798,7 @@ export class Graph implements GraphContext {
             }
 
             this.watchRenderLoss();
+            this.#watchViewForLog();
             this.#renderPathOpen = true;
             this.#applyRenderPath();
 
@@ -2783,6 +2864,14 @@ export class Graph implements GraphContext {
             this.#unwatchFonts ??= watchFontLoads(this.scene, (families) => {
                 this.refreshFonts(families);
             });
+            this.#unwatchOverview ??= watchOverview(
+                this.scene,
+                () => this.renderManager.graphRoot,
+                () => writableLane(this.dataManager),
+                () => {
+                    this.eventManager.emit("overview-changed", {});
+                },
+            );
 
             this.initialized = true;
         } catch (error) {
@@ -2825,6 +2914,7 @@ export class Graph implements GraphContext {
                 }
 
                 this.#followedFrame = frame;
+                viewLog.info("map frame", frameFacts(frame));
                 this.#followFrame(frame);
             }
 
@@ -6052,11 +6142,80 @@ export class Graph implements GraphContext {
      */
     setCameraTransitionDuration(ms: number | undefined): void {
         this.#cameraTransitionMs = ms === undefined ? undefined : Math.max(0, ms);
-        this.camera.setInstantGlides(this.#cameraTransitionMs === 0);
+        this.#applyMotion();
     }
 
     /** See {@link setCameraTransitionDuration}. */
     #cameraTransitionMs: number | undefined = undefined;
+
+    /**
+     * Whether the view reduces motion; see {@link setReducedMotion}.
+     * @returns The setting: true, false or "auto".
+     */
+    getReducedMotion(): boolean | "auto" {
+        return this.#reducedMotion;
+    }
+
+    /**
+     * Reduce motion: true makes every camera move -- a fit, a preset view, a glide to a picked
+     * node -- jump to its end, stops `camera.autoRotate`, skips the layout transition, and shows a
+     * running layout only once it has settled (it runs, unseen, until then). `"auto"` does so while
+     * the platform asks for reduced motion (`prefers-reduced-motion: reduce`), following it as it
+     * changes. False (the default) changes nothing. A preference of the view, not saved in a
+     * project file.
+     * @param value - true, false or "auto".
+     * @since 3.54.0
+     */
+    setReducedMotion(value: boolean | "auto"): void {
+        this.#reducedMotion = value;
+        this.#motionQuery?.abort();
+        this.#motionQuery = null;
+        if (value === "auto" && typeof globalThis.matchMedia === "function") {
+            this.#motionQuery = new AbortController();
+            matchMedia("(prefers-reduced-motion: reduce)").addEventListener(
+                "change",
+                () => {
+                    this.#applyMotion();
+                },
+                { signal: AbortSignal.any([this.#motionQuery.signal, this.#teardown.signal]) },
+            );
+        }
+
+        this.#applyMotion();
+    }
+
+    /** See {@link setReducedMotion}. */
+    #reducedMotion: boolean | "auto" = false;
+
+    /** Ends the platform-preference listener `"auto"` adds. */
+    #motionQuery: AbortController | null = null;
+
+    /**
+     * Whether motion is reduced now: the setting, with `"auto"` read from the platform.
+     * @returns True when motion is reduced.
+     */
+    #motionReduced(): boolean {
+        return this.#reducedMotion === "auto"
+            ? typeof globalThis.matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches
+            : this.#reducedMotion;
+    }
+
+    /**
+     * How long an animated camera move takes now: 0 under reduced motion, else the view's own
+     * transition time (undefined lets each move keep its own).
+     * @returns The duration in milliseconds, or undefined.
+     */
+    #cameraMoveMs(): number | undefined {
+        return this.#motionReduced() ? 0 : this.#cameraTransitionMs;
+    }
+
+    /** Tell the camera, the layout and the frame loop whether motion is reduced. */
+    #applyMotion(): void {
+        const reduced = this.#motionReduced();
+        this.camera.setInstantGlides(this.#cameraMoveMs() === 0);
+        this.layoutManager.reducedMotion = reduced;
+        this.updateManager.reducedMotion = reduced;
+    }
 
     /**
      * Where the active map layout read its locations, and how it lays the map, as plain facts:
@@ -6754,6 +6913,62 @@ export class Graph implements GraphContext {
         return pickWorldPoint(this.scene, screenPos.x, screenPos.y);
     }
 
+    /** The last overview projection, kept while nothing it depends on moves. */
+    readonly #overview = new OverviewSource();
+
+    /** Stops the per-frame overview watch. */
+    #unwatchOverview: (() => void) | null = null;
+
+    /**
+     * Every placed node seen along the current view, laid flat in a unit frame, and the part of
+     * that frame the camera shows: what a minimap draws. See `Graphty.getOverview`.
+     * @param options - Point limit and density grid size.
+     * @returns The overview.
+     */
+    getOverview(options?: OverviewOptions): GraphOverview {
+        return this.#overview.read(this.overviewInputs(), options);
+    }
+
+    /**
+     * Move the camera, keeping its zoom and direction, so the view is centred on a point of the
+     * overview frame. See `Graphty.centerOnOverview`.
+     * @param point - The point, in the frame `getOverview()` returns.
+     * @param point.x - Frame x, 0 to 1 left to right.
+     * @param point.y - Frame y, 0 to 1 top to bottom.
+     * @param options - Animation options.
+     * @returns Resolves once the camera is there.
+     */
+    async centerOnOverview(
+        point: { x: number; y: number },
+        options?: import("./screenshot/types.js").CameraAnimationOptions,
+    ): Promise<void> {
+        const shift = this.#overview.shift(this.overviewInputs(), point);
+        if (!shift) {
+            return;
+        }
+
+        const state = this.getCameraState();
+        if (state.pan) {
+            await this.setCameraState({ pan: { x: state.pan.x + shift.x, y: state.pan.y + shift.y } }, options);
+        } else if (state.position && state.target) {
+            const move = (p: { x: number; y: number; z: number }): { x: number; y: number; z: number } => ({
+                x: p.x + shift.x,
+                y: p.y + shift.y,
+                z: p.z + shift.z,
+            });
+            await this.setCameraState({ position: move(state.position), target: move(state.target) }, options);
+        }
+    }
+
+    private overviewInputs(): OverviewInputs {
+        return {
+            scene: this.scene,
+            root: this.renderManager.graphRoot,
+            lane: writableLane(this.dataManager),
+            target: this.getCameraState().target,
+        };
+    }
+
     /**
      * The node or edge under a point on the element, as a click there would see it. A node wins
      * over an edge drawn beneath it; an edge is found within a few pixels of its line.
@@ -7196,7 +7411,9 @@ export class Graph implements GraphContext {
      * @param options - The size and the node's style values.
      * @returns The picture as a PNG data URL.
      * @throws GraphtyError `E_MODEL_UNKNOWN_ASSET` when the session holds nothing under `ref`; for a
-     *     rejected or waiting model, its first problem's code and params.
+     *     rejected or waiting model, its first problem's code and params; for an accepted model that
+     *     could not be drawn, the load failure's code (`E_MODEL_STRUCTURE`, `E_MODEL_PARSE`,
+     *     `E_MODEL_DECODER_UNAVAILABLE`, `E_MODEL_EXTERNAL_URL`) and its params as `details`.
      */
     async modelThumbnail(ref: string, options: ModelThumbnailOptions = {}): Promise<string> {
         const { assets } = this.getSession();
@@ -7236,6 +7453,8 @@ export class Graph implements GraphContext {
             modelCenter: style["node.modelCenter"],
             modelFit: style["node.modelFit"],
             modelTint: style["node.modelTint"],
+            modelDoubleSided: style["node.modelDoubleSided"],
+            modelAnimation: style["node.modelAnimation"],
         } as NonNullable<NodeStyleConfig["shape"]>;
         const is2D = this.getViewMode() === "2d";
         const key = JSON.stringify([
@@ -7248,6 +7467,11 @@ export class Graph implements GraphContext {
             shape.modelCenter,
             shape.modelFit,
             shape.modelTint,
+            shape.modelDoubleSided,
+            shape.modelAnimation,
+            style["node.modelAnimationOffset"],
+            style["node.unlit"],
+            style["node.wireframe"],
             is2D,
             this.#lighting,
         ]);
@@ -7255,13 +7479,33 @@ export class Graph implements GraphContext {
         if (shot === undefined) {
             shot = this.#thumbnailQueue.then(async () => {
                 const files = assets.files(record.id);
-                const container = await loadModel(this.scene, files, record.path ?? "", record.format, record.skipped);
+                const container = await loadModel(
+                    this.scene,
+                    files,
+                    record.path ?? "",
+                    record.format,
+                    record.skipped,
+                ).catch((error: unknown) => {
+                    if (!(error instanceof ModelLoadFailure)) {
+                        throw error;
+                    }
+
+                    throw new GraphtyError({
+                        code: error.fact.code as GraphtyError["code"],
+                        source: "data",
+                        message: `The model ${ref} could not be drawn.`,
+                        details: error.fact.params,
+                    });
+                });
                 const chunk = await loadChunk();
                 const template = await chunk.prepareTemplate(
                     this.scene,
                     container,
                     `graphty-model-thumbnail-${record.digest.slice(0, 8)}`,
-                    optionsOf(shape, record.format),
+                    optionsOf(shape, assets.inspect(record.id).upAxis, {
+                        unlit: style["node.unlit"] === true,
+                        wireframe: style["node.wireframe"] === true,
+                    }),
                     () => chunk.neutralEnvironment(this.scene),
                 );
                 try {
@@ -7458,77 +7702,19 @@ export class Graph implements GraphContext {
         capture: import("./video/MediaRecorderCapture.js").MediaRecorderCapture,
         onProgress: (progress: number) => void,
     ): Promise<import("./video/VideoCapture.js").AnimationResult> {
-        const { CameraPathAnimator } = await import("./video/CameraPathAnimator.js");
-
-        // A path with a view or a hold is a tour, flown with the element's own camera moves; any
-        // other path, and a `tour` of names, keeps the animator (issue #7936 records its defects).
-        if (!options.tour && options.cameraPath?.some((stop) => "view" in stop || stop.hold !== undefined)) {
-            return this.captureTourVideo(options, options.cameraPath, capture, onProgress);
-        }
-        const cameraPath = options.tour
-            ? this.tourPath(options.tour, options.duration)
-            : (options.cameraPath as import("./video/VideoCapture.js").CameraWaypoint[] | undefined);
-        // Validate cameraPath is provided
-        if (!cameraPath || cameraPath.length < 2) {
+        // Every path, and a `tour` of names, is flown with the element's own camera moves
+        // (setCameraState), so each stop lands where setCameraState puts it, in 2D and in 3D.
+        // A tour of names jumps to the first view and splits the duration evenly between the legs.
+        const names = options.tour;
+        const leg = names && names.length > 1 ? options.duration / (names.length - 1) : 0;
+        const path = names
+            ? names.map((view, index) => ({ view, duration: index === 0 ? 0 : leg }))
+            : options.cameraPath;
+        const isTour = !names && path?.some((stop) => "view" in stop || stop.hold !== undefined);
+        if (!path || (path.length < 2 && !isTour)) {
             throw new Error("Animated camera mode requires at least 2 waypoints in cameraPath");
         }
-
-        const camera = this.scene.activeCamera;
-        if (!camera) {
-            throw new Error("No active camera available for animated capture");
-        }
-
-        const fps = options.fps ?? 30;
-
-        // Create camera path animator
-        const animator = new CameraPathAnimator(camera, this.scene, {
-            fps,
-            duration: options.duration,
-            easing: options.easing,
-        });
-
-        // Create animations from waypoints
-        animator.createCameraAnimations(cameraPath);
-
-        // Start recording and animation simultaneously
-        const recordingPromise = capture.captureRealtime(this.canvas, options, onProgress);
-
-        // Start camera animation (will run concurrently with recording)
-        const animationPromise = animator.startRealtimeAnimation();
-
-        // Wait for both to complete
-        // Recording duration is controlled by options.duration
-        // Animation should complete around the same time
-        const [result] = await Promise.all([recordingPromise, animationPromise]);
-
-        // Handle download if requested
-        this.handleVideoDownload(result, options);
-
-        return result;
-    }
-
-    /**
-     * The waypoints of a tour: each named view resolved as `resolveCameraPreset` does, the
-     * duration split evenly between the legs.
-     * @param names - Camera view ids or saved view names, in order.
-     * @param duration - The whole tour, in milliseconds.
-     * @returns The waypoints.
-     * @throws A `GraphtyError` with `E_UNSUPPORTED` when a view has no position and target.
-     */
-    private tourPath(names: readonly string[], duration: number): import("./video/VideoCapture.js").CameraWaypoint[] {
-        const leg = names.length > 1 ? duration / (names.length - 1) : duration;
-        return names.map((name, index) => {
-            const { position, target } = orbitAnglesToPosition(this.resolveCameraPreset(name));
-            if (!position || !target) {
-                throw new GraphtyError({
-                    code: "E_UNSUPPORTED",
-                    message: `the view "${name}" has no camera position and target to fly to`,
-                    source: "view",
-                    details: { view: name },
-                });
-            }
-            return { position, target, ...(index === 0 ? {} : { duration: leg }) };
-        });
+        return this.captureTourVideo(options, path, capture, onProgress);
     }
 
     /**
@@ -7956,8 +8142,9 @@ export class Graph implements GraphContext {
         }
 
         // The view's own transition time, when set, wins over the move's.
-        if (options !== undefined && this.#cameraTransitionMs !== undefined) {
-            options = { ...options, duration: this.#cameraTransitionMs };
+        const moveMs = this.#cameraMoveMs();
+        if (options !== undefined && moveMs !== undefined) {
+            options = { ...options, duration: moveMs };
         }
 
         // For immediate (non-animated) updates, skipQueue or a transition of no time, apply directly

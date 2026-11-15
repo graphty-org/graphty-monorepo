@@ -343,6 +343,64 @@ graph.on("camera-state-changed", ({ state }) => {
 });
 ```
 
+## Minimap
+
+Turn on the `minimap` attribute and the element draws a minimap in its bottom-right corner: every
+node seen from where the camera looks, and a rectangle for what the view shows. Click it to centre
+the view there, drag across it to scrub, or focus it and press the arrow keys to step the view.
+None of this is an undo step. Above 5,000 nodes it draws a density heatmap instead of points.
+
+```html
+<graphty-element minimap minimap-label="Overview"></graphty-element>
+<style>
+    graphty-element::part(minimap) {
+        left: 12px;
+        right: auto;
+        width: 200px;
+        height: 120px;
+        color: #0a6; /* the points and the view rectangle */
+        background: #fff;
+    }
+</style>
+```
+
+The minimap is a canvas exposed as `::part(minimap)`: its size, place, border and background are
+yours to set, and its `color` is what it draws with. `minimap-label` (property `minimapLabel`) is
+the name a screen reader announces, `"minimap"` unless you set one.
+
+### Drawing your own minimap
+
+To draw a minimap yourself, read the data the built-in one draws from. `element.getOverview()`
+returns every node seen along the current view, laid flat in a square frame where x and y run from
+0 to 1 (y down), and `viewport`, the rectangle of that frame the camera shows. Redraw on
+`overview-changed`, which fires at most once per frame when the camera or a node moves.
+`element.centerOnOverview({ x, y })` moves the camera, keeping its zoom and direction, so the view
+is centred on a frame point: call it on click to centre, and on each pointer move to scrub.
+
+```ts
+const element = document.querySelector("graphty-element")!;
+const canvas = document.querySelector<HTMLCanvasElement>("#minimap")!; // 150 x 150
+const ctx = canvas.getContext("2d")!;
+
+element.addEventListener("overview-changed", () => {
+    const { points, viewport } = element.getOverview();
+    ctx.clearRect(0, 0, 150, 150);
+    for (let i = 0; i < points.length; i += 2) ctx.fillRect(points[i] * 150, points[i + 1] * 150, 2, 2);
+    ctx.strokeRect(viewport.x * 150, viewport.y * 150, viewport.width * 150, viewport.height * 150);
+});
+canvas.addEventListener("pointerdown", (e) => {
+    void element.centerOnOverview({ x: e.offsetX / 150, y: e.offsetY / 150 });
+});
+```
+
+Above 5,000 nodes `kind` is `"density"`: `points` is empty and `density.counts` holds how many
+nodes fall in each cell of a `density.size` by `density.size` grid (64 by default), row by row from
+the top, so the result stays small however big the graph is. Choose the limit and the grid with
+`getOverview({ maxPoints, gridSize })`. In 3D the frame turns with the camera, since it shows the
+graph as seen from where the camera looks. The viewport can reach past 0 to 1 when the view shows
+more than the graph. Reading the overview costs one pass over the nodes after a node or the view
+direction moved, and nothing more while only the viewport moved.
+
 ## Focus on Node
 
 Animate the camera to frame a single node:

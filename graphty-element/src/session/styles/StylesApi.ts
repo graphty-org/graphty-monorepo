@@ -162,7 +162,16 @@ import {
     readRenamedChannels,
     toColorValue,
 } from "./channels";
-import { colorsOf, replaceColorPatch, type StyleColor } from "./colors";
+import {
+    colorsOf,
+    DEFAULT_GRAY_THRESHOLD,
+    grayCollisionsOf,
+    grayUsesOf,
+    replaceColorPatch,
+    type StyleColor,
+    type StyleGrayCollision,
+    type StyleGrayCollisionOptions,
+} from "./colors";
 import {
     type BindingPreview,
     type PreparedBinding,
@@ -695,6 +704,26 @@ export interface StylesApi {
      * @since 3.26.0
      */
     replaceColor(rowIds: readonly StyleRowId[], from: string, to: string, options?: RunOptions): Run<readonly Layer[]>;
+    /**
+     * The pairs of colours in use that fall on the same gray: what a grayscale print, or a reader
+     * who sees no colour, cannot tell apart. Every colour the shown layers draw is checked, on
+     * every colour channel (fills, outlines, edges, glows, label colours), fixed colours and each
+     * row of a category palette alike; a colour ramp is left out, as its steps are meant to blend.
+     * A row painted over by a layer above, or a layer that paints nothing now, is not in use.
+     *
+     * Lightness is CIE L* (0 black to 100 white, D65), and two colours collide when theirs differ
+     * by less than `threshold` (default 10).
+     *
+     * ```ts
+     * for (const { colors: [a, b], difference } of session.styles.grayCollisions()) {
+     *     console.log(a.color, b.color, difference.toFixed(1));
+     * }
+     * ```
+     * @param options - The threshold.
+     * @returns Each pair once, closest first; empty when every colour in use stands apart.
+     * @since 3.40.0
+     */
+    grayCollisions(options?: StyleGrayCollisionOptions): readonly StyleGrayCollision[];
     /**
      * The layer rows some rows of the tree reach, folders walked through at every depth: what an
      * edit of "these rows" would write to, and what it would leave alone.
@@ -5029,6 +5058,34 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return { ...styleAgreement(every, floor, channel), readOver: "everyElement" };
     };
 
+    /**
+     * Count what one layer covers and where it wins: {@link StylesApi.counts}, read fresh.
+     * @param id - The layer.
+     * @returns The counts.
+     */
+    const countsOf = (id: LayerId): StyleCounts => {
+        const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+
+        // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
+        const counts = {
+            ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision),
+            visible: amongDrawn(id),
+        };
+        // Groups past the outline cap draw nothing; said here, never dropped silently.
+        const left = groupOutlinesOf(api)
+            .filter((each) => each.layer === id)
+            .reduce((sum, each) => sum + each.left, 0);
+        return left === 0
+            ? counts
+            : {
+                  ...counts,
+                  undrawn: Object.freeze([
+                      ...counts.undrawn,
+                      { code: "shader.group-cap" as const, params: { left, limit: GROUP_OUTLINE_CAP } },
+                  ]),
+              };
+    };
+
     const api: SessionStylesApi = {
         list(): readonly Layer[] {
             return listLayers();
@@ -5261,6 +5318,13 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
             };
 
             return edit<readonly Layer[]>("update", `Replace ${from} with ${to}`, { batch }, options);
+        },
+
+        grayCollisions(options: StyleGrayCollisionOptions = {}): readonly StyleGrayCollision[] {
+            const uses = legendSources
+                .layers()
+                .flatMap((layer) => (buildLayerLegend(legendSources, layer.id) ?? []).flatMap(grayUsesOf));
+            return grayCollisionsOf(uses, options.threshold ?? DEFAULT_GRAY_THRESHOLD);
         },
 
         layersUnder(rowIds: readonly StyleRowId[]): readonly LayerReach[] {
@@ -5791,26 +5855,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         counts(id: LayerId): StyleCounts {
-            const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
-
-            // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
-            const counts = {
-                ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision),
-                visible: amongDrawn(id),
-            };
-            // Groups past the outline cap draw nothing; said here, never dropped silently.
-            const left = groupOutlinesOf(api)
-                .filter((each) => each.layer === id)
-                .reduce((sum, each) => sum + each.left, 0);
-            return left === 0
-                ? counts
-                : {
-                      ...counts,
-                      undrawn: Object.freeze([
-                          ...counts.undrawn,
-                          { code: "shader.group-cap" as const, params: { left, limit: GROUP_OUTLINE_CAP } },
-                      ]),
-                  };
+            // Kept while nothing it reads moves, as `agreement` is: a read walks the layer's kind of
+            // element, and the graphty app's panels read the same layer several times a render
+            // (issue #7966).
+            return kept(JSON.stringify(["counts", id]), () => countsOf(id));
         },
 
         drawnCount(id: LayerId): number {

@@ -385,6 +385,8 @@ const EVENTS_THAT_DRAW_NOTHING: ReadonlySet<string> = new Set([
     "graph-frame-stable",
     "graph-first-frame",
     "stats-update",
+    // Announced after a frame that moved the view or a node: that frame is already drawn.
+    "overview-changed",
 ]);
 
 /**

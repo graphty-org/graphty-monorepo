@@ -32,7 +32,6 @@ const DECLARED = [
     "node.color",
     "node.size",
     "node.sizeMode",
-    "node.sizeSpace",
     "node.shape",
     "node.label",
     "node.labelStyle",
@@ -222,6 +221,10 @@ const DECLARED = [
     "node.modelSourceUp",
     "node.modelTurn",
     "node.modelTint",
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelDoubleSided",
     "node.modelFit",
     "node.modelCenter",
     "node.texture",
@@ -430,8 +433,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and six node channels and one hundred and sixty-nine edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 206);
+    it("splits into two hundred and nine node channels and one hundred and sixty-nine edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 209);
         assert.strictEqual(channelsFor("edge").length, 169);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -734,6 +737,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.gradientColor",
         // Unset, a node draws its shape and no model.
         "node.model",
+        // Unset, a model is drawn still, in its rest pose.
+        "node.modelAnimation",
         // Unset, a node draws its own color and no picture.
         "node.texture",
         "edge.patternCount",

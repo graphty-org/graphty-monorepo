@@ -6,12 +6,17 @@
  * with and only a branch's members are rebuilt. Before that, every node lost the base look under
  * the view and was rebuilt as an unstyled default, and again when the view ended: 50,000 rebuilds
  * each way on the app's large graph (#5753). Counted (meshes added to the scene), never timed.
+ *
+ * Babylon announces a new mesh from a timer after building it, so the count waits for the
+ * announcements before it starts and before it is read: otherwise it heard the graph's own load
+ * (every node) or missed the view's meshes, depending on when the timer fired (#8095).
  */
 import { afterEach, describe, it } from "vitest";
 
 import type { UnionLeaf } from "../../session";
 import { Graph, operationQueueOf } from "../../src/Graph";
 import { assertScalesLinearly } from "../helpers/cost";
+import { meshAnnouncementsDelivered } from "../helpers/mesh-announcements";
 
 /** How many nodes the one branch holds, whatever the graph's size. */
 const MEMBERS = 5;
@@ -67,15 +72,25 @@ async function meshesForAView(size: number): Promise<number> {
     );
     await operationQueueOf(graph).waitForCompletion();
     await graph.waitForPainted();
+    // the load's meshes are built, but some may not be announced yet
+    await meshAnnouncementsDelivered();
 
+    // Babylon reports a new mesh a task after adding it (`onNewMeshAddedObservable` fires from a setImmediate), so
+    // meshes the load built just before the paint wait ended were reported after this observer was added and counted
+    // as the view's: one per node, on the runs where the timing fell that way. Only meshes the scene did not hold when
+    // the view was shown are the view's.
+    const loaded = new Set(graph.scene.meshes);
     let added = 0;
-    const counting = graph.scene.onNewMeshAddedObservable.add(() => {
-        added++;
+    const counting = graph.scene.onNewMeshAddedObservable.add((mesh) => {
+        if (!loaded.has(mesh)) {
+            added++;
+        }
     });
     const view = session.styles.showBranches({ rule: PICKED, rest: "plain" });
     await graph.waitForPainted();
     view.end();
     await graph.waitForPainted();
+    await meshAnnouncementsDelivered();
     graph.scene.onNewMeshAddedObservable.remove(counting);
     return added;
 }

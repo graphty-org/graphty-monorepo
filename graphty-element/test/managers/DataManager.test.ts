@@ -4,7 +4,6 @@ import { afterEach, assert, beforeEach, describe, it, vi } from "vitest";
 import type { AdHocData } from "../../src/config";
 import type { Graph } from "../../src/Graph";
 import { type DataManager, dataManagerInternals } from "../../src/managers/DataManager";
-import type { UpdateManager } from "../../src/managers/UpdateManager";
 import { dispatcherOf } from "../../src/session/GraphSession";
 import { cleanupTestGraph, createTestGraph } from "../helpers/testSetup";
 
@@ -572,7 +571,7 @@ describe("DataManager", () => {
         // The frame's own walks of the edges (the masks, the incident edges of a resized node,
         // the screen-scale retrim, the rows a freeze renumbered) visit the built Edges only.
         it("runs frames without building one", () => {
-            const { updateManager } = graph as unknown as { updateManager: UpdateManager };
+            const updateManager = graph.getUpdateManager();
             updateManager.update();
             dataManager.removeEdge("0");
             dataManager.getSnapshot();

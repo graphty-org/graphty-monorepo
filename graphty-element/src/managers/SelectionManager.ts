@@ -23,6 +23,7 @@
 import type { EdgeId } from "../catalog/types";
 import type { Node, NodeIdType } from "../Node";
 import type { SelectionCause, SelectionOwner } from "../session/selection";
+import type { HoverDrawn } from "../session/types";
 import type { DataManager } from "./DataManager";
 import type { EventManager } from "./EventManager";
 import type { Manager } from "./interfaces";
@@ -99,9 +100,10 @@ export class SelectionManager implements Manager {
      * Say which node the pointer is over, or null, so a `{ match: "state", state: "hovered" }` or
      * `{ match: "hover" }` style layer paints it.
      * @param id - The node, or null.
+     * @param drawn - Where the pointer found it drawn, which `selection:hover-changed` carries.
      */
-    hover(id: NodeIdType | null): void {
-        this.selection?.hover(id);
+    hover(id: NodeIdType | null, drawn?: HoverDrawn): void {
+        this.selection?.hoverAt(id, drawn);
     }
 
     /**

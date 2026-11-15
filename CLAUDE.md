@@ -207,6 +207,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
 | `@graphty/cytoscape-extensions`, in `cytoscape-extensions/` | **cytoscape-extensions** | "the adapter", "cytoscape" (that is the third-party library) |
 | `babylonjs-map` (unscoped; and the `babylonjs-map/location` and `babylonjs-map/projection` subpaths), in `babylonjs-map/` | **babylonjs-map** | "the map package", "@graphty/babylonjs-map" (it has no scope) |
+| `babylonjs-models` (unscoped; `/files` and `/detect` subpaths), in `babylonjs-models/` | **babylonjs-models** | "@graphty/babylonjs-models" (no scope) |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -223,6 +224,7 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators as typed arrays for the graph-format snapshot, and classic sample datasets downloaded from graphty.app on demand (no dataset's data is in the package) |
 | `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets (downloaded from graphty.app) and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
 | `babylonjs-map` | `babylonjs-map/` | 0.0.0 | Maps and globes for Babylon.js scenes (unscoped, knows nothing about graphs); `/projection` and `/location` never load Babylon.js |
+| `babylonjs-models` | `babylonjs-models/` | 0.0.0 | 3D models into Babylon.js scenes from URLs, files, folders or zips (unscoped, no graphs) |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -406,6 +408,9 @@ since a live change puts a merge there first).
   reaches master.
 - Never wait inside a model turn: start a push or a long run in the background and end the turn. A subagent opens
   its pull request and stops. A prompt that starts an agent carries this rule.
+- Tell the owner when work is done locally, never only after CI or the merge (owner, 2026-11-14): once it is
+  committed and its local checks pass, say what changed. A mock, story or new behavior he can see gets a running
+  local URL and an `ACTION NEEDED` line to review it.
 - Every session shares graphty-agent's 5,000 GitHub requests an hour: ask about many pull requests in one GraphQL
   query, read pull request status from the broker's `tmp/pr-status/status.json`, poll every 5 minutes or slower,
   and on a 403 rate limit stop and wait. A prompt that starts an agent which talks to GitHub carries these rules.

@@ -80,6 +80,7 @@ tools/shard-verdict.test.mjs
 tools/ship-risks.test.mjs
 tools/sonar/sonar-baseline.test.mjs
 tools/sonar/sonar-gate.test.mjs
+tools/sonarqube-mcp/lib.test.mjs
 tools/step-log.test.mjs
 tools/storybook-brand-theme.test.mjs
 tools/test-changed.test.mjs

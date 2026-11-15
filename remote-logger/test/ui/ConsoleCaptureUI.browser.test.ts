@@ -2,7 +2,8 @@
  * Browser tests for ConsoleCaptureUI - runs in real browser using Playwright
  * Tests actual DOM manipulation, button clicks, and UI interactions
  */
-import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { ConsoleCaptureUI, initConsoleCaptureUI } from "../../src/ui/index.js";
 
@@ -286,6 +287,53 @@ describe("ConsoleCaptureUI Browser Tests", () => {
             ui = null;
 
             expect(document.getElementById("console-logs-modal")).toBeNull();
+        });
+    });
+
+    describe("pointer and modal interaction in real browser", () => {
+        test("hovering the button brightens it and leaving dims it again", async () => {
+            ui = new ConsoleCaptureUI();
+            const btn = document.getElementById("console-capture-btn")!;
+            expect(btn.style.opacity).toBe("0.6");
+
+            await userEvent.hover(btn);
+            expect(btn.style.opacity).toBe("1");
+
+            await userEvent.unhover(btn);
+            expect(btn.style.opacity).toBe("0.6");
+        });
+
+        test("clicking the backdrop closes the modal, clicking inside the dialog does not", async () => {
+            ui = new ConsoleCaptureUI();
+            await userEvent.click(document.getElementById("console-capture-btn")!);
+            await userEvent.click(document.getElementById("cc-show")!);
+            const modal = document.getElementById("console-logs-modal")!;
+            const backdrop = modal.firstElementChild as HTMLElement;
+
+            await userEvent.click(document.getElementById("logs-textarea")!);
+            expect(document.getElementById("console-logs-modal")).not.toBeNull();
+
+            await userEvent.click(backdrop, { position: { x: 5, y: 5 } });
+            expect(document.getElementById("console-logs-modal")).toBeNull();
+        });
+
+        test("the modal selects all log text when it opens and again on Select All", async () => {
+            ui = new ConsoleCaptureUI();
+            console.log("select me");
+            await userEvent.click(document.getElementById("console-capture-btn")!);
+            await userEvent.click(document.getElementById("cc-show")!);
+            const textarea = document.getElementById("logs-textarea") as HTMLTextAreaElement;
+
+            await vi.waitFor(() => {
+                expect(document.activeElement).toBe(textarea);
+                expect(textarea.selectionEnd - textarea.selectionStart).toBe(textarea.value.length);
+            });
+
+            textarea.setSelectionRange(0, 0);
+            await userEvent.click(document.getElementById("select-all-logs")!);
+            expect(textarea.selectionStart).toBe(0);
+            expect(textarea.selectionEnd).toBe(textarea.value.length);
+            expect(textarea.value).toContain("select me");
         });
     });
 

@@ -1208,6 +1208,12 @@ jobs:
               env:
                   VITE_BASE_PATH: /
 
+            # What the built graphty app asks a browser to download, against graphty/size-budgets.json (issue #8018).
+            # Here because this is the only pull-request job that builds the app: the Build job's artifact leaves it out.
+            - name: Bundle size (graphty app, PR, when affected)
+              if: needs.packages.outputs.full == 'false' && contains(fromJSON(needs.packages.outputs.affected), 'graphty')
+              run: pnpm --filter @graphty/graphty run size
+
             - name: Fail the summary checks now
               if: failure() && github.event_name == 'pull_request'
               continue-on-error: true
@@ -2332,6 +2338,28 @@ jobs:
               if: ${{ !cancelled() }}
               working-directory: graphty-element
               run: pnpm exec vitest run --project=bench
+
+            # The built app's landing page timed in Chromium (graphty/bench/load-time.bench.test.ts): usable, its graph's
+            # first frame and first settled frame, medians of 15 first visits. The element's own connect-to-settled
+            # rows were written by the bench project above (test/load/load-time.bench.test.ts). Issue #8018.
+            - name: Run the graphty app load-time benchmark
+              if: ${{ !cancelled() }}
+              working-directory: graphty
+              run: pnpm exec vitest run --project=bench
+
+            # Fails the job when a median and its minimum both regressed past tools/load-time.mjs's margin against the
+            # baseline of this runner's CPU model (benchmarks/results/load-time.json); a CPU model with no baseline
+            # prints every row as new.
+            - name: Compare the load times with the baseline
+              id: load-time
+              if: ${{ !cancelled() }}
+              run: node tools/load-time.mjs
+
+            - name: Post the load times to the health dashboard
+              if: ${{ !cancelled() }}
+              env:
+                  HEALTH_API_URL: ${{ vars.HEALTH_API_URL }}
+              run: node tools/results/post-benchmarks.mjs graphty-load benchmarks/out/load-time-*.json
 
     # graphty-element's cost estimates held against a stopwatch (issue #236). The test times real
     # algorithm runs and scales the estimate by the element's own calibration probe, so it reads the

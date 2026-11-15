@@ -291,6 +291,15 @@ const REACH: Readonly<Record<string, (session: GraphSession) => object | Promise
     SessionDataApi: (session) => session.data,
     LoadDraft: (session) => session.data.prepare({ type: "json", config: { data: TINY_JSON } }),
     ProjectApi: (session) => session.project,
+    // As the doors test gives it: g1 and g2 of team "door" and g3, with g1-g2 and g2-g3.
+    GroupsApi: async (session) => {
+        await session.data.addNodes([{ id: "g1", team: "door" }, { id: "g2", team: "door" }, { id: "g3" }]);
+        await session.data.addEdges([
+            { source: "g1", target: "g2" },
+            { source: "g2", target: "g3" },
+        ]);
+        return session.groups;
+    },
 };
 
 describe("every ordered door, called while a load is held in line", () => {

@@ -1248,6 +1248,23 @@ function readLabelFont(lg: Rec, java: boolean, put: Put, at: At): void {
 }
 
 /**
+ * Reads an edge with no `graphics`, as its writer still draws it: gv2gml writes no graphics before a layout, and
+ * Graphviz draws its defaults (a digraph's arrowheads); yEd gives such an edge its own default edge, a standard head
+ * at the target whatever the graph's `directed` says (gml-specimen-arrows-p2, gml-specimen-edges-lines-p2: 12 long,
+ * 10 wide, black), where an edge whose graphics name no arrow has none (gml-dunnart-autobahn).
+ * @param writer - the writer
+ * @param put - receives the values
+ * @param at - the sites
+ */
+function readBareEdge(writer: GmlWriter, put: Put, at: At): void {
+    if (writer.vocabulary === "graphviz") {
+        readEdgeGraphics({}, writer, put, at);
+    } else if (writer.tool === "yed") {
+        readEdgeArrows({ targetArrow: "standard" }, writer, put, at);
+    }
+}
+
+/**
  * Reads one element: its `graphics` and `LabelGraphics`, and the `label` key where the writer draws it.
  * @param target - nodes or edges
  * @param g - the graphics value
@@ -1272,16 +1289,10 @@ function readElement(
         text ||= property === "label" && value !== null;
         put(property, value);
     };
-    // gv2gml writes no graphics before a layout; Graphviz still draws its defaults (a digraph's arrowheads)
     if (isRec(g)) {
         (target === "node" ? readNodeGraphics : readEdgeGraphics)(g, writer, put, at);
-    } else if (writer.vocabulary === "graphviz" && target === "edge") {
-        readEdgeGraphics({}, writer, put, at);
-    } else if (writer.tool === "yed" && target === "edge") {
-        // yEd gives an edge with no graphics its own default edge: a standard head at the target, whatever the
-        // graph's `directed` says (gml-specimen-arrows-p2, gml-specimen-edges-lines-p2: 12 long, 10 wide, black);
-        // an edge whose graphics name no arrow has none (gml-dunnart-autobahn)
-        readEdgeArrows({ targetArrow: "standard" }, writer, put, at);
+    } else if (target === "edge") {
+        readBareEdge(writer, put, at);
     }
     if (lg !== null && lg !== undefined) {
         readLabelGraphics(lg, writer, target === "node", putLabel, at);
@@ -1450,13 +1461,10 @@ function readLineRoute(
     const list = isRec(raw) ? [raw] : raw;
     const [s, t] = [snapshot.edgeSource(e), snapshot.edgeTarget(e)];
     const arc = arcs && isRec(g) && s !== t ? yedArc(g) : null;
-    if (arc !== null && (!Array.isArray(list) || list.length < 2)) {
+    const lined = Array.isArray(list) && list.length >= 2;
+    if (arc !== null && !lined) {
         // an arc with no Line runs between the node centers
-        const control = yedArcControl(arc.ratio, arc.value, [centerOf(snapshot, s), centerOf(snapshot, t)]);
-        const bends = control === null ? null : canonBends(centerOf(snapshot, s), centerOf(snapshot, t), control, true);
-        if (bends !== null) {
-            put("bends", bends);
-        }
+        putArcBends(snapshot, s, t, arc, put);
         return;
     }
     if (!Array.isArray(list) || list.length < (bendsOnly ? 1 : 2)) {
@@ -1488,6 +1496,31 @@ function readLineRoute(
         if (port !== null) {
             put(property, port);
         }
+    }
+}
+
+/**
+ * Puts the one bend of a yEd arc edge with no `Line`: its curve's control point off the line between the centers.
+ * @param snapshot - the graph
+ * @param s - the source node
+ * @param t - the target node
+ * @param arc - the arc (`yedArc`)
+ * @param arc.ratio - whether it is a fixed-ratio arc
+ * @param arc.value - its ratio or height
+ * @param put - receives the values
+ */
+function putArcBends(
+    snapshot: GraphSnapshot,
+    s: number,
+    t: number,
+    arc: { readonly ratio: boolean; readonly value: number },
+    put: (property: string, value: string) => void,
+): void {
+    const ends: [BendPoint, BendPoint] = [centerOf(snapshot, s), centerOf(snapshot, t)];
+    const control = yedArcControl(arc.ratio, arc.value, ends);
+    const bends = control === null ? null : canonBends(ends[0], ends[1], control, true);
+    if (bends !== null) {
+        put("bends", bends);
     }
 }
 
@@ -1714,6 +1747,22 @@ function hideGephiDroppedEdges(snapshot: GraphSnapshot, values: ValueColumns): v
 }
 
 /**
+ * Whether a writer draws elements of a target that have no graphics: Cytoscape names every element, and Graphviz
+ * labels every node and arrows a digraph's edges, with or without graphics (gv2gml writes graphics only once a layout
+ * ran); yEd heads every bare edge (`readBareEdge`).
+ * @param writer - the writer
+ * @param target - nodes or edges
+ * @returns true when they are drawn styled
+ */
+function drawnBare(writer: GmlWriter, target: StyleTarget): boolean {
+    return (
+        writer.vocabulary === "cytoscape" ||
+        writer.vocabulary === "graphviz" ||
+        (writer.tool === "yed" && target === "edge")
+    );
+}
+
+/**
  * Every element's values, read with a writer's vocabulary.
  * @param snapshot - the graph
  * @param writer - the writer
@@ -1732,13 +1781,7 @@ function readValues(
         const table = target === "node" ? snapshot.nodes : snapshot.edges;
         const n = target === "node" ? snapshot.nodeCount : snapshot.edgeCount;
         const out = valueColumns(n);
-        // Cytoscape names every element, and Graphviz labels every node and arrows a digraph's edges, with or
-        // without graphics (gv2gml writes graphics only once a layout ran); yEd heads every bare edge
-        const drawnBare =
-            writer.vocabulary === "cytoscape" ||
-            writer.vocabulary === "graphviz" ||
-            (writer.tool === "yed" && target === "edge");
-        if (!table.has("graphics") && !table.has("LabelGraphics") && !drawnBare) {
+        if (!table.has("graphics") && !table.has("LabelGraphics") && !drawnBare(writer, target)) {
             return out.values;
         }
         // yEd draws an open group round its members, not at the size the file stores

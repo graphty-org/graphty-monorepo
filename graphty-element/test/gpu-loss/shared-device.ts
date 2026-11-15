@@ -65,22 +65,26 @@ export function countDevices(): () => number {
 /**
  * Opens a graph on WebGPU with its accelerator ready for a graph of any size.
  * @param policy - The acceleration policy.
+ * @param renderer - The renderer; WebGL draws on no device the accelerator can share.
  * @returns The graph.
  */
-export async function open(policy: "auto" | "required" = "auto"): Promise<Graph> {
+export async function open(
+    policy: "auto" | "required" = "auto",
+    renderer: "webgpu" | "webgl" = "webgpu",
+): Promise<Graph> {
     const container = document.createElement("div");
     container.style.width = "480px";
     container.style.height = "360px";
     document.body.appendChild(container);
     const graph = new Graph(container);
     mounted.push({ graph, container });
-    graph.setRenderer("webgpu");
+    graph.setRenderer(renderer);
     graph.acceleration.setPolicy(policy);
     graph.acceleration.setMinNodes(0);
     const initialized = graph.init();
     void graph.acceleration.start();
     await initialized;
-    assert.strictEqual(graph.rendererStatus?.active, "webgpu", graph.rendererStatus?.reason ?? "");
+    assert.strictEqual(graph.rendererStatus?.active, renderer, graph.rendererStatus?.reason ?? "");
     await graph.acceleration.ready();
     return graph;
 }
@@ -208,14 +212,19 @@ export function errorsOf(graph: Graph): Error[] {
  * Opens a graph on the given path with a running layout.
  * @param path - The render path.
  * @param maxIter - Iterations before the layout rests; by default more than any test waits for.
+ * @param renderer - The renderer: WebGPU shares the layout's device, WebGL does not.
  * @returns The graph.
  */
-export async function running(path: "objects" | "batched", maxIter?: number): Promise<Graph> {
+export async function running(
+    path: "objects" | "batched",
+    maxIter?: number,
+    renderer: "webgpu" | "webgl" = "webgpu",
+): Promise<Graph> {
     adapterSays("test-hardware");
-    const graph = await open();
+    const graph = await open("auto", renderer);
     graph.setRenderPath(path);
     await startLayout(graph, maxIter);
-    assert.strictEqual(graph.rendererStatus?.layoutDevice, "shared");
+    assert.strictEqual(graph.rendererStatus?.layoutDevice, renderer === "webgpu" ? "shared" : "separate");
     return graph;
 }
 

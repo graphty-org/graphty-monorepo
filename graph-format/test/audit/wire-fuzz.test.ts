@@ -14,7 +14,7 @@
  *   E_UNSUPPORTED_VERSION, E_UNSUPPORTED, E_INVALID_SNAPSHOT).
  *
  * Anything else (a TypeError / RangeError, an undocumented code, a snapshot failing validation) is
- * an anomaly and fails the test that produced it, except the one open defect isKnownDefect() names.
+ * an anomaly and fails the test that produced it.
  */
 
 import { describe, expect, it } from "vitest";
@@ -51,18 +51,6 @@ interface Anomaly {
     readonly golden: string;
     readonly mutation: string;
     readonly problem: string;
-}
-
-/**
- * The one open reader defect the fuzzer still finds, tracked by issue #7498: a null-prototype object
- * as a column's dtype or nullCount reaches String() in an error message and throws a TypeError.
- * Delete this filter when that issue is fixed; nothing else is filtered.
- */
-function isKnownDefect(a: Anomaly): boolean {
-    return (
-        /nodeColumns\.[0-9]+\.(meta\.dtype|nullCount) := null-proto/.test(a.mutation) &&
-        a.problem.includes("TypeError: Cannot convert object to primitive value")
-    );
 }
 
 function describeError(err: unknown): string {
@@ -306,13 +294,10 @@ function judge(outcome: Outcome, level: ValidationLevel, golden: string, mutatio
     }
 }
 
-/** Every anomaly but the tracked one, grouped by message shape (empty when there is none). */
+/** Every anomaly, grouped by message shape (empty when there is none). */
 function unexplained(anomalies: readonly Anomaly[]): string {
     const groups = new Map<string, number>();
     for (const a of anomalies) {
-        if (isKnownDefect(a)) {
-            continue;
-        }
         const key = `[${a.golden}] ${a.mutation.replace(/[0-9]+/g, "#")}: ${a.problem.replace(/[0-9]+/g, "#")}`;
         groups.set(key, (groups.get(key) ?? 0) + 1);
     }

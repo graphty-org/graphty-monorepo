@@ -193,7 +193,9 @@ const [a, b, c, d, e] = ["a", "b", "c", "d", "e"].map((id) => graph.ids.requireI
 const heldOut = { sources: [a], targets: [d] };
 const nonEdges = { sources: [a, b], targets: [e, c] };
 const { adamicAdar, commonNeighbors } = compareAdamicAdarWithCommonNeighbors(graph, heldOut, nonEdges);
-console.log(adamicAdar.auc, commonNeighbors.auc); // 1 1
+console.log(adamicAdar.auc, commonNeighbors.auc); // 1 0.75
 ```
 
-Each result carries the `precision`, `recall` and `f1Score` of the best threshold and the ranking `auc`.
+Each result carries the `precision`, `recall` and `f1Score` of the best threshold and the ranking `auc`. Here b-c
+ties a-d with two common neighbours, and a tie counts half in the AUC, so common neighbours score 0.75. A threshold
+never splits pairs with equal scores, so a predictor that gives every pair the same score has an AUC of 0.5.

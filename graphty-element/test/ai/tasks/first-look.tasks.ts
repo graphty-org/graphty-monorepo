@@ -4,7 +4,7 @@
 
 import { assert } from "vitest";
 
-import { assertAnswered, defineTask, runOf } from "./kit";
+import { assertAffirmed, assertAnswered, defineTask, runOf } from "./kit";
 
 /** Every algorithm that finds groups. */
 export const COMMUNITY_ALGORITHMS = [
@@ -57,17 +57,8 @@ export const FIRST_LOOK_TASKS = [
         tools: [],
         reference: [[[{ tool: "query", args: { action: "statistics" } }]]],
         check: ({ messages }) => {
-            assertAnswered(
-                messages,
-                "that it is directed",
-                '"directed"',
-                "is directed",
-                "are directed",
-                "directed network",
-                "directed graph",
-                "yes",
-            );
-            assertAnswered(messages, "that it is weighted", '"weighted":true', "weighted");
+            assertAffirmed(messages, "directed");
+            assertAffirmed(messages, "weighted");
         },
     }),
     defineTask({
@@ -110,8 +101,23 @@ export const FIRST_LOOK_TASKS = [
                 counts.set(conference, (counts.get(conference) ?? 0) + 1);
             }
 
+            // Each independent team carries its own "Independent: <team>" value. Independents are
+            // not a conference, so an answer that groups them ("8 independent teams") is right,
+            // as long as it gives their number on the same line (#7721).
+            const independents = [...counts.keys()].filter((conference) => conference.startsWith("Independent: "));
+            const text = messages.at(-1)?.text.toLowerCase() ?? "";
+            const n = independents.length;
+            const grouped = new RegExp(
+                String.raw`independent[^\n]*?(?<![\d.])${n}(?!\d)|(?<![\d.])${n}(?!\d)[^\n]*?independent`,
+            ).test(text);
             for (const [conference, count] of counts) {
-                assertAnswered(messages, `the ${conference} conference`, conference);
+                if (conference.startsWith("Independent: ")) {
+                    if (!grouped) {
+                        assertAnswered(messages, `the ${conference} conference`, conference, conference.slice(13));
+                    }
+                } else {
+                    assertAnswered(messages, `the ${conference} conference`, conference);
+                }
                 // Every count shows up somewhere; the largest is the one checked by value.
                 if (count === Math.max(...counts.values())) {
                     assertAnswered(messages, `the ${conference} count`, count);

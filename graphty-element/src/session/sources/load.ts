@@ -28,7 +28,7 @@ import { describeRows } from "../attributes";
 import type { HeldRows } from "../commands/data";
 import type { DataImportSourceCommand } from "../commands/source-load";
 import { DEFAULT_LIMITS, tooLargeError } from "../limits";
-import { historyMark } from "../loadLine";
+import { historyMark, supersededError } from "../loadLine";
 import type { SessionCommand } from "../planning";
 import { pairKey, planReplace } from "../replace";
 import type { CodedFact } from "../shared";
@@ -579,15 +579,58 @@ export async function listSource(
     );
 }
 
+/** The fetches running per session (keyed by its ledger), by verb and load key. */
+const running = new WeakMap<object, Map<string, Promise<void>>>();
+
+/**
+ * Run a fetch for one load, or join the one already running for it, so two quick calls make one
+ * request and count one page.
+ * @param host - the session pieces
+ * @param key - the verb and the load's key
+ * @param run - the fetch
+ * @returns settles when the running fetch does
+ */
+function joinRunning(host: SourceHost, key: string, run: () => Promise<void>): Promise<void> {
+    let calls = running.get(host.ledger);
+    if (calls === undefined) {
+        calls = new Map();
+        running.set(host.ledger, calls);
+    }
+    const ahead = calls.get(key);
+    if (ahead !== undefined) {
+        return ahead;
+    }
+    const call = run().finally(() => calls.delete(key));
+    calls.set(key, call);
+    return call;
+}
+
+/**
+ * Throw `E_SUPERSEDED` when the load was removed (a replacing load, a clear, an undo) or its cursor
+ * moved while its page was read, so rows of a dead load are never merged.
+ * @param host - the session pieces
+ * @param key - the load's key
+ * @param cursor - the cursor the page was read from, or undefined to check only that the load is there
+ */
+function requireUnchanged(host: SourceHost, key: string, cursor?: SourceLoadRecord["next"]): void {
+    const now = host.ledger.loads().find((r) => r.key === key);
+    // `loads()` hands out copies, so the cursor is compared by value.
+    if (now === undefined || (cursor !== undefined && JSON.stringify(now.next) !== JSON.stringify(cursor))) {
+        throw supersededError(now?.source ?? "source");
+    }
+}
+
 /**
  * Load the next page after a capped load, merged in: the chosen load, else the newest load that
  * has more and is not waiting to run. The load's own caps apply again unless the caller gives others.
+ * A call made while the same load's page is still being read joins that read.
  * @param host - the session pieces
  * @param options - the load options and the load; `mode` is always "merge"
  * @returns settles once the page is drawn, or at once when the load has no more
+ * @throws A `GraphtyError` with `E_SUPERSEDED` when the load was removed while its page was read.
  */
 export async function more(host: SourceHost, options: SourceMoreOptions): Promise<void> {
-    const { load, ...rest } = options;
+    const { load } = options;
     const loads = host.loads();
     const record =
         load === undefined
@@ -597,6 +640,21 @@ export async function more(host: SourceHost, options: SourceMoreOptions): Promis
         return;
     }
 
+    await joinRunning(host, `more:${record.key}`, () => readMore(host, record, options));
+}
+
+/**
+ * Read and merge one more page of a load.
+ * @param host - the session pieces
+ * @param record - the load, which has more
+ * @param options - the load options
+ */
+async function readMore(host: SourceHost, record: SourceLoadRecord, options: SourceMoreOptions): Promise<void> {
+    const { load: _load, ...rest } = options;
+    const cursor = record.next;
+    if (cursor === null) {
+        return;
+    }
     const saved = record.options as Pick<SourceLoadOptions, "limits">;
     const config = currentParams(record);
     const access = await accessFor(
@@ -611,8 +669,10 @@ export async function more(host: SourceHost, options: SourceMoreOptions): Promis
     const read = await readRows(record.source, config, access, {
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),
         ...rest,
-        cursor: record.next,
+        cursor,
     });
+    await host.waitTurn?.();
+    requireUnchanged(host, record.key, cursor);
     await host.dispatch(
         importCommand(host, record.key, { source: record.source, config }, read, {
             ...rest,
@@ -630,9 +690,7 @@ export async function more(host: SourceHost, options: SourceMoreOptions): Promis
         // A count the source ran replaces the total; a page read on from a cursor counts nothing,
         // so the total is kept. A capped Cypher query reruns from the start, so its last page
         // holds every row.
-        ...((read.info?.next ?? null) === null && record.next.rows !== undefined
-            ? { total: read.held.nodes.length }
-            : {}),
+        ...((read.info?.next ?? null) === null && cursor.rows !== undefined ? { total: read.held.nodes.length } : {}),
         ...(read.info?.total?.nodes === undefined ? {} : { total: read.info.total.nodes }),
         ...(read.info?.total?.edges === undefined ? {} : { totalEdges: read.info.total.edges }),
     });
@@ -1005,6 +1063,16 @@ function currentParams(record: SourceLoadRecord): Readonly<Record<string, unknow
  * @returns settles once it is loaded
  */
 export async function runPendingSourceLoad(host: SourceHost, id: string, options: SourceLoadOptions): Promise<void> {
+    return joinRunning(host, `pending:${id}`, () => readPending(host, id, options));
+}
+
+/**
+ * Fetch and merge one waiting load.
+ * @param host - the session pieces
+ * @param id - the load's key
+ * @param options - the credential, and anything else a load takes except `write`
+ */
+async function readPending(host: SourceHost, id: string, options: SourceLoadOptions): Promise<void> {
     const record = host.ledger.loads().find((r) => r.key === id);
     if (record === undefined || !host.pending.has(id)) {
         throw new GraphtyError({
@@ -1032,6 +1100,8 @@ export async function runPendingSourceLoad(host: SourceHost, id: string, options
         ...(saved.limits === undefined ? {} : { limits: saved.limits }),
         ...readOnly,
     });
+    await host.waitTurn?.();
+    requireUnchanged(host, id);
     await host.dispatch(
         importCommand(host, record.key, { source: record.source, config }, read, {
             ...readOnly,

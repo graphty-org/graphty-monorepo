@@ -91,8 +91,11 @@ import { addUnmarked, markPrCaused } from "./pr-caused.js";
 import {
     ANNOTATIONS_QUERY,
     CHANNEL_REFS_QUERY,
+    CHECKS_BATCH,
+    CHECKS_QUERY,
     ISSUE_QUERY,
-    OPEN_PAGE,
+    OPEN_CAP,
+    OPEN_QUERY,
     ownerFilesQuery,
     PR_QUERY,
     REPO_FILES_QUERY,
@@ -212,6 +215,8 @@ class Cycle {
     openRuns?: GhRun[];
     /** Open pull requests with their checks (pull requests part), for "Blocked by a flake". */
     openPrs?: GqlPr[];
+    /** False when more than OPEN_CAP pull requests are open, so openPrs leaves some out. */
+    openComplete = false;
     /** This cycle's runner use (runners part) and master's newest green build (github part), for the slices. */
     runnerSample?: RunnerSample;
     newestGreen?: { sha: string };
@@ -767,8 +772,7 @@ async function withStages(c: Cycle, item: PullRequestItem): Promise<PullRequestI
  */
 async function runners(c: Cycle, xs: Collected[], elapsed: number): Promise<void> {
     const prs = c.openPrs;
-    const ghost = (x: Collected): boolean =>
-        !!prs && x.repo === c.d.repo && isGhostRun(x.run, prs, prs.length < OPEN_PAGE);
+    const ghost = (x: Collected): boolean => !!prs && x.repo === c.d.repo && isGhostRun(x.run, prs, c.openComplete);
     const open = xs.filter((x) => x.run.status !== "completed" && !ghost(x));
     const ghosts = xs.filter((x) => x.run.status !== "completed" && ghost(x));
     const jobs = open.flatMap((x) => x.jobs ?? []);
@@ -904,6 +908,51 @@ async function masterFailingChecks(c: Cycle): Promise<Set<string>> {
 
 const FAILED_JOB = new Set(["failure", "timed_out"]);
 
+type PrPage = { nodes: GqlPr[]; pageInfo: { hasNextPage: boolean; endCursor: string } };
+
+/**
+ * Every open pull request (at most OPEN_CAP) with its head's checks: the rest of the open list after its first page,
+ * then the checks in batches of CHECKS_BATCH by node id. One query for the open pull requests with their checks took
+ * GitHub over 10 s at 50 open (a 504, #7815). A failing request throws, so the part fails as before and no partial
+ * list passes for complete.
+ * @param gh - the GitHub client
+ * @param owner - the repository owner
+ * @param name - the repository name
+ * @param first - the open list's first page
+ * @returns the open pull requests, and false for complete when more than OPEN_CAP are open
+ */
+export async function openWithChecks(
+    gh: GitHub,
+    owner: string,
+    name: string,
+    first: PrPage,
+): Promise<{ open: GqlPr[]; complete: boolean }> {
+    const open = [...first.nodes];
+    let page = first.pageInfo;
+    while (page.hasNextPage && open.length < OPEN_CAP) {
+        const data: { repository: { open: PrPage } } = await gh.graphql(OPEN_QUERY, {
+            owner,
+            name,
+            after: page.endCursor,
+        });
+        open.push(...data.repository.open.nodes);
+        page = data.repository.open.pageInfo;
+    }
+    const complete = !page.hasNextPage && open.length <= OPEN_CAP;
+    const listed = open.slice(0, OPEN_CAP);
+    const checks = new Map<string, Partial<GqlPr>>();
+    for (let i = 0; i < listed.length; i += CHECKS_BATCH) {
+        const ids = listed.slice(i, i + CHECKS_BATCH).map((p) => p.id);
+        const data: { nodes: (Partial<GqlPr> | null)[] } = await gh.graphql(CHECKS_QUERY, { ids });
+        for (const n of data.nodes) {
+            if (n?.id) {
+                checks.set(n.id, n);
+            }
+        }
+    }
+    return { open: listed.map((p) => ({ ...p, ...(p.id ? checks.get(p.id) : undefined) })), complete };
+}
+
 /**
  * Pull requests (4.2): the open ones and those updated since the cursor, their items, stocks and owner waits, the
  * shared failing checks and the superseded runs.
@@ -914,19 +963,16 @@ async function pullRequests(c: Cycle, gh: GitHub): Promise<void> {
     const [owner, name] = c.d.repo.split("/");
     const since = Date.parse((await c.cursor("prs")) ?? iso(c.now - DAY));
     let cursor: string | null = null;
-    let open: GqlPr[] = [];
+    let firstOpen: PrPage | undefined;
     const recentSeen: GqlPr[] = [];
     for (let page = 0; page < 20; page++) {
-        type Page = { nodes: GqlPr[]; pageInfo: { hasNextPage: boolean; endCursor: string } };
-        const data: { repository: { open: Page; recent: Page } } = await gh.graphql(PR_QUERY, {
+        const data: { repository: { open: PrPage; recent: PrPage } } = await gh.graphql(PR_QUERY, {
             owner,
             name,
             cursor,
             withOpen: page === 0,
         });
-        if (page === 0) {
-            open = data.repository.open.nodes;
-        }
+        firstOpen ??= data.repository.open;
         const { recent } = data.repository;
         const newer = recent.nodes.filter((p) => Date.parse(p.updatedAt) >= since - 5 * MIN);
         recentSeen.push(...newer);
@@ -935,6 +981,7 @@ async function pullRequests(c: Cycle, gh: GitHub): Promise<void> {
         }
         cursor = recent.pageInfo.endCursor;
     }
+    const { open, complete } = await openWithChecks(gh, owner, name, firstOpen as PrPage);
     await failureSignatures(c, gh, open);
     await pendingPrRuns(c, gh, [...open, ...recentSeen]);
     for (const p of recentSeen) {
@@ -947,6 +994,7 @@ async function pullRequests(c: Cycle, gh: GitHub): Promise<void> {
         c.items.push(toPrItem(p, c.d.repo));
     }
     c.openPrs = open;
+    c.openComplete = complete;
     await ownerWaits(c, gh, open);
     const masterFailing = await masterFailingChecks(c);
     const s = prStocks(open, c.now, masterFailing);

@@ -587,7 +587,7 @@ describe("GET /v1/plan", () => {
         s.fail("prOnBase", { name: "pr says so" });
         s.inv("sameInputs", { kind: "bisect", sha: "later", outcome: "failed" });
         s.fail("sameInputs", { name: "same inputs", signature: "s2" });
-        s.inv("elsewhere", { sha: "later", inputs: "k9", outcome: "failed" });
+        s.inv("elsewhere", { sha: "later", inputs: "k9", outcome: "failed", at: NOW - DAY });
         s.fail("elsewhere", { name: "other inputs" });
         s.inv("otherVariant", { sha: "base1", variant: "graphty-element-browser|flags=on|whole", outcome: "failed" });
         s.fail("otherVariant", { name: "flags on only" });
@@ -599,6 +599,40 @@ describe("GET /v1/plan", () => {
             ["camera > zooms", "onBase", 31],
             ["same inputs", "sameInputs", null],
         ]);
+    });
+
+    it("#8051: excuses failures of the variant's newest full run, on any commit, but not an older full run's", async () => {
+        const { call, env } = service();
+        const s = seed(env);
+        s.inv("oldFull", { sha: "old", inputs: "k9", outcome: "failed", at: NOW - DAY });
+        s.fail("oldFull", { name: "fixed since" });
+        s.inv("newFull", { sha: "newest", inputs: "k9", outcome: "failed", at: NOW - HOUR });
+        s.fail("newFull", { name: "broken on master" });
+        s.inv("newFullPart", { sha: "newest", inputs: "k8", outcome: "failed", at: NOW - 2 * HOUR });
+        s.fail("newFullPart", { name: "another shard" });
+        s.inv("newBase", { kind: "base", sha: "newest", inputs: "k9", outcome: "failed", at: NOW });
+        s.fail("newBase", { name: "base check, other commit" });
+        const res = await plan(call, { base: "base1", variants: BROWSER, inputs: "k1" });
+        assert.deepEqual(res.body.failingOnBase.map((f) => [f.name, f.sha]).sort(), [
+            ["another shard", "newest"],
+            ["broken on master", "newest"],
+        ]);
+    });
+
+    it("#8208: no plan statement re-runs a subquery per row", async () => {
+        // a correlated subquery in failingOnBase ran once per failed master invocation: on 100,000 invocations the read
+        // took 18 s instead of 0.4 s, and D1 answered half of pull request plan reads with HTTP 500
+        const { call, env } = service();
+        const seen = new Set();
+        const prepare = env.DB.prepare;
+        env.DB.prepare = (sql) => (seen.add(sql), prepare(sql));
+        await plan(call, { base: "base1", variants: BROWSER, inputs: "k1" });
+        assert.ok(seen.size > 0);
+        for (const sql of seen) {
+            const steps = env.DB.sqlite.prepare(`EXPLAIN QUERY PLAN ${sql}`).all();
+            const correlated = steps.filter((s) => /CORRELATED/.test(s.detail));
+            assert.deepEqual(correlated, [], sql);
+        }
     });
 
     it("answers reuse, recent failures first and per-file durations per variant", async () => {

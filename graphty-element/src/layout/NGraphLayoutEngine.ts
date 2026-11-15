@@ -1,5 +1,5 @@
 import { detCos, detSin, INVALID_INDEX, type NodeMask } from "@graphty/graph-format";
-import ngraphCreateLayout, { Body, Layout as NGraphLayout, Spring } from "ngraph.forcelayout";
+import ngraphCreateLayout, { Body, Layout as NGraphLayout } from "ngraph.forcelayout";
 import createGraph, { Graph as NGraph, Link as NGraphLink, Node as NGraphNode } from "ngraph.graph";
 import random from "ngraph.random";
 import { z } from "zod";
@@ -9,6 +9,7 @@ import { getDefaults } from "../config/OptionsSchema";
 import { NGRAPH_SPRING_LENGTH } from "../constants/layoutConstants";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
+import { wholeGraph } from "../session/working/graphs";
 import {
     clusterByOption,
     clusterCentroids,
@@ -20,6 +21,7 @@ import {
 import type { D3RowSource } from "./D3GraphLayoutEngine";
 import { EdgePosition, type EdgeRow, heldEdgeProblems, LayoutEngine, Position } from "./LayoutEngine";
 import { nodeGapFrontOption, nodeGapOption } from "./nodeGapOptions";
+import { seedSchema } from "./seedOption";
 
 /**
  * Zod-based options schema for NGraph Force Layout. The defaults are ngraph.forcelayout's own,
@@ -91,7 +93,7 @@ const ngraphLayoutOptionsSchema = defineOptions({
     nodeGap: nodeGapOption,
     nodeGapFront: nodeGapFrontOption,
     seed: {
-        schema: z.number().int().positive().nullable().default(null),
+        schema: seedSchema,
         meta: {
             label: "Random Seed",
             description: "Seed for reproducible layout",
@@ -99,6 +101,15 @@ const ngraphLayoutOptionsSchema = defineOptions({
         },
     },
 });
+
+/** Steps the mean movement may go without falling below {@link STALL_PROGRESS} of its least before the time step shortens. */
+const STALL_STEPS = 50;
+/** The share of its least that the mean movement must fall below to count as settling. */
+const STALL_PROGRESS = 0.9;
+/** A stalled window whose bodies end less than this share of the path they walked from where they began is swinging in place. */
+const STALL_WANDER = 0.6;
+/** What a stalled simulation's time step is multiplied by. */
+const STALL_COOLING = 0.8;
 
 /** How many extra sweeps a forced stop may spend pushing overlapping nodes apart. */
 const MAX_FINAL_SWEEPS = 100;
@@ -180,6 +191,15 @@ export class NGraphEngine extends LayoutEngine {
     _settled = true;
     _stepCount = 0;
     _lastMoves: number[] = [];
+    /** The configured time step, which {@link NGraphEngine.coolWhenStalled} shortens and a restart restores. */
+    private readonly timeStep: number;
+    /** The least mean movement since the stall window began, the most ever, and the steps since it fell. */
+    private leastMovement = Infinity;
+    private mostMovement = 0;
+    private stalledSteps = 0;
+    /** How far the bodies walked since the stall window began, and where each one began it. */
+    private stallPath = 0;
+    private readonly stallStart = new Map<Body, { x: number; y: number; z: number }>();
     /** The least space between two drawn surfaces, or null to let nodes overlap. */
     private readonly nodeGap: number | null = null;
     /** Whether `nodeGap` ignores depth: see the option. */
@@ -269,6 +289,7 @@ export class NGraphEngine extends LayoutEngine {
 
         this.nodeGapFront = typedConfig.nodeGapFront === true;
 
+        this.timeStep = typedConfig.timeStep as number;
         this.ngraphLayout = ngraphCreateLayout(this.ngraph, ngraphConfig);
         if (typeof typedConfig.clusterBy === "string") {
             this.clusterBy = typedConfig.clusterBy;
@@ -321,6 +342,10 @@ export class NGraphEngine extends LayoutEngine {
         // With `nodeGap` set the simulation is not at rest while two nodes still overlap; the last
         // step before a forced stop pushes them apart until none do.
         const resting = ngraphSettled || avgMovement <= customThreshold;
+        if (!resting) {
+            this.coolWhenStalled(avgMovement);
+        }
+
         const overlaps = this.separate(!resting);
         this._settled = (resting && overlaps === 0) || this._stepCount >= maxSteps;
         if (this._settled && overlaps > 0) {
@@ -605,9 +630,7 @@ export class NGraphEngine extends LayoutEngine {
             return false;
         }
 
-        this._settled = false;
-        this._stepCount = 0;
-        this._lastMoves = [];
+        this.unsettle();
         return true;
     }
 
@@ -620,9 +643,7 @@ export class NGraphEngine extends LayoutEngine {
             return false;
         }
 
-        this._settled = false;
-        this._stepCount = 0;
-        this._lastMoves = [];
+        this.unsettle();
         return true;
     }
 
@@ -682,7 +703,7 @@ export class NGraphEngine extends LayoutEngine {
             this.copyBody(ngraphNode.id, node.index, count++, rows, coords);
         }
 
-        const snapshot = this.rowNodes.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row !== INVALID_INDEX) {
@@ -738,9 +759,7 @@ export class NGraphEngine extends LayoutEngine {
 
         this.holdRowBodies();
         if (ids.length > 0) {
-            this._settled = false;
-            this._stepCount = 0;
-            this._lastMoves = [];
+            this.unsettle();
         }
     }
 
@@ -748,7 +767,7 @@ export class NGraphEngine extends LayoutEngine {
      * Pin each held row body and free the rest, and weigh each by whether its row follows.
      */
     private holdRowBodies(): void {
-        const snapshot = this.rowNodes.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         for (const [id, ngraphNode] of snapshot === undefined ? [] : this.rowNodes) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row !== INVALID_INDEX) {
@@ -788,9 +807,7 @@ export class NGraphEngine extends LayoutEngine {
         }
 
         if (!tookOver) {
-            this._settled = false;
-            this._stepCount = 0;
-            this._lastMoves = [];
+            this.unsettle();
         }
     }
 
@@ -821,14 +838,12 @@ export class NGraphEngine extends LayoutEngine {
         const link = this.pairLink(e.srcId, e.dstId);
         pairOf(link).edges.add(e);
         this.edgeMapping.set(e, link);
-        this.slacken(link);
         this.unsettle();
     }
 
     /**
-     * Under renderPath "batched", put each edge stored with no `Edge` on its pair's link. Such an
-     * edge is never left out by an edge filter, which reads an `Edge`; an end left out still
-     * slackens the link. A third party's engine is handed `Edge`s only.
+     * Under renderPath "batched", put each edge stored with no `Edge` on its pair's link. A third
+     * party's engine is handed `Edge`s only.
      * @param rows - The edges.
      * @internal
      */
@@ -837,7 +852,6 @@ export class NGraphEngine extends LayoutEngine {
             const link = this.pairLink(source, target);
             pairOf(link).rows.add(key);
             this.rowLinks.set(key, link);
-            this.slacken(link);
         }
 
         if (rows.length > 0) {
@@ -912,6 +926,69 @@ export class NGraphEngine extends LayoutEngine {
         this._settled = false;
         this._stepCount = 0;
         this._lastMoves = [];
+        this.ngraphLayout.simulator.settings.timeStep = this.timeStep;
+        this.leastMovement = Infinity;
+        this.mostMovement = 0;
+        this.stalledSteps = 0;
+        this.stallPath = 0;
+        this.stallStart.clear();
+    }
+
+    /**
+     * Shorten the time step when the simulation is swinging in place instead of coming to rest:
+     * its movement has stopped falling AND the nodes end up close to where they started. ngraph
+     * weighs each node by its degree and multiplies the push between two nodes by both weights,
+     * so on a dense graph (Knuth's miles is complete: every node has 127 links and weighs 43)
+     * the forces are so stiff that a step of the configured length overshoots, and the nodes
+     * swing back and forth for good. A graph still coming to rest never stalls this long, and one
+     * slowly unfolding (a long transit line) travels while it stalls; both run as configured.
+     * @param avgMovement - The mean movement per node over the last steps.
+     */
+    private coolWhenStalled(avgMovement: number): void {
+        const { settings } = this.ngraphLayout.simulator;
+        // Each body moved `timeStep * velocity` this step: see ngraph's integrator.
+        this.ngraphLayout.forEachBody((body) => {
+            const { x, y, z = 0 } = body.velocity;
+            this.stallPath += settings.timeStep * Math.hypot(x, y, z);
+        });
+
+        if (avgMovement > this.mostMovement || avgMovement < this.leastMovement * STALL_PROGRESS) {
+            this.mostMovement = Math.max(this.mostMovement, avgMovement);
+            this.restartStallWindow(avgMovement);
+            return;
+        }
+
+        this.stalledSteps++;
+        if (this.stalledSteps < STALL_STEPS) {
+            return;
+        }
+
+        let travelled = 0;
+        this.ngraphLayout.forEachBody((body) => {
+            const start = this.stallStart.get(body);
+            if (start !== undefined) {
+                travelled += Math.hypot(body.pos.x - start.x, body.pos.y - start.y, (body.pos.z ?? 0) - start.z);
+            }
+        });
+        if (travelled < this.stallPath * STALL_WANDER) {
+            settings.timeStep *= STALL_COOLING;
+        }
+
+        this.restartStallWindow(avgMovement);
+    }
+
+    /**
+     * Start watching for a stall from here: the least movement, the path walked and where each body is.
+     * @param avgMovement - The mean movement per node over the last steps.
+     */
+    private restartStallWindow(avgMovement: number): void {
+        this.leastMovement = avgMovement;
+        this.stalledSteps = 0;
+        this.stallPath = 0;
+        this.stallStart.clear();
+        this.ngraphLayout.forEachBody((body) => {
+            this.stallStart.set(body, { x: body.pos.x, y: body.pos.y, z: body.pos.z ?? 0 });
+        });
     }
 
     /**
@@ -948,7 +1025,7 @@ export class NGraphEngine extends LayoutEngine {
      */
     override loadArrangement(): void {
         super.loadArrangement();
-        const snapshot = this.rowNodes.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowNodes.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const id of snapshot === undefined ? [] : this.rowNodes.keys()) {
             if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
@@ -1065,36 +1142,6 @@ export class NGraphEngine extends LayoutEngine {
         }
 
         this.holdRowBodies();
-        for (const link of new Set(this.edgeMapping.values())) {
-            this.slacken(link);
-        }
-    }
-
-    /**
-     * Give a link to a node the layout leaves out (see `LayoutEngine.setLeftOut`) a spring too weak
-     * to pull, and a link that no longer touches one ngraph's own spring back. Zero would not do:
-     * ngraph reads a coefficient of 0 as "use the default".
-     * @param link - The link.
-     */
-    private slacken(link: NGraphLink): void {
-        const spring = this.ngraphLayout.getSpring(link) as Spring | undefined;
-        if (spring === undefined) {
-            return;
-        }
-
-        const leftOut =
-            [link.fromId, link.toId].some((id) => {
-                const node = (this.ngraph.getNode(id)?.data as { parentNode?: Node } | undefined)?.parentNode;
-                return node !== undefined && this.isLeftOut(node.index);
-            }) ||
-            (pairOf(link).edges.size > 0 &&
-                pairOf(link).rows.size === 0 &&
-                [...pairOf(link).edges].every((edge) => this.isEdgeLeftOut(edge)));
-        if (leftOut) {
-            spring.coefficient = FOLLOWER_MASS;
-        } else if (spring.coefficient === FOLLOWER_MASS) {
-            spring.coefficient = 0;
-        }
     }
 
     /**

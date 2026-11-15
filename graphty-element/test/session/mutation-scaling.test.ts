@@ -293,6 +293,15 @@ const CASES: readonly Case[] = [
         },
     },
     {
+        method: "SelectionApi.restore",
+        growth: "linear",
+        prepare: async (session, size) => {
+            await session.selection.apply({ nodes: ids(size) });
+            session.selection.clear();
+            return () => session.selection.restore();
+        },
+    },
+    {
         method: "SelectionApi.previewHover",
         growth: "linear",
         prepare: async (session, size) => {
@@ -598,15 +607,6 @@ const CASES: readonly Case[] = [
         },
     },
     {
-        method: "StylesApi.restoreStartingRows",
-        growth: "linear",
-        prepare: (session) =>
-            Promise.resolve(async () => {
-                await session.styles.restoreStartingRows();
-                await session.styles.settled();
-            }),
-    },
-    {
         method: "StylesApi.deleteRow",
         growth: "linear",
         prepare: async (session) => {
@@ -759,6 +759,15 @@ const CASES: readonly Case[] = [
         prepare: async (session) => {
             await session.visibility.addCondition({ id: "c", effect: "keep", rule: { kind: "degree", min: 2 } });
             return () => session.visibility.updateCondition("c", { effect: "select" });
+        },
+    },
+    {
+        method: "FilterDraft.commit",
+        growth: "linear",
+        prepare: (session) => {
+            const draft = session.visibility.draft({ effect: "keep", rule: { kind: "degree", min: 2 } });
+            draft.update({ rule: { kind: "degree", min: 1 } });
+            return Promise.resolve(() => draft.commit());
         },
     },
     {
@@ -941,6 +950,17 @@ const CASES: readonly Case[] = [
             return async () => {
                 await session.runs.move(run.runId, null);
                 await session.styles.settled();
+            };
+        },
+    },
+    {
+        method: "RunsApi.rename",
+        growth: "constant",
+        prepare: async (session) => {
+            const run = await session.runs.start("louvain", {});
+            await session.styles.settled();
+            return async () => {
+                await session.runs.rename(run.runId, "Groups");
             };
         },
     },

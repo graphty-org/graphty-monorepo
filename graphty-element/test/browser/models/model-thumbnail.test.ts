@@ -7,7 +7,7 @@
 import { assert, describe, it } from "vitest";
 
 import { isGraphtyError } from "../../../src/errors";
-import { sphereGlb } from "../../fixtures/models/fixtures";
+import { gltfPair, objSet, sphereGlb, texturedGltfSet } from "../../fixtures/models/fixtures";
 import policeUrl from "../../fixtures/models/police.glb?url";
 import colormapUrl from "../../fixtures/models/Textures/colormap.png?url";
 import { mount } from "./helpers";
@@ -91,6 +91,38 @@ describe("modelThumbnail", () => {
         const waiting = await element.session.assets.add(new File([police], "police.glb"));
         assert.equal(waiting.state, "rejected");
         const error = await element.modelThumbnail(waiting.id).catch((e: unknown) => e);
+        assert.isTrue(isGraphtyError(error) && error.code === "E_MODEL_MISSING_FILE");
+    });
+
+    it("draws a model waiting for pictures or materials with standInMissing, still waiting", async () => {
+        const element = await mount();
+        const { assets } = element.session;
+        const police = new Uint8Array(await (await fetch(policeUrl)).arrayBuffer());
+        const noPicture = await assets.add(new File([police], "police.glb"));
+        const noMtl = await assets.add({ files: new Map([...objSet()].filter(([name]) => name === "quad.obj")) });
+        const texturedOnly = new Map([...texturedGltfSet()].filter(([name]) => name !== "tex.png"));
+        const noTexture = await assets.add({ files: texturedOnly });
+        for (const waiting of [noPicture, noMtl, noTexture]) {
+            assert.isTrue(
+                assets.waiting().some((w) => w.id === waiting.id),
+                `${String(waiting.path)} waits for a part`,
+            );
+            const url = await element.modelThumbnail(waiting.id, { size: 64, standInMissing: true });
+            assert.isAbove(await drawnPixels(url), 0, `${String(waiting.path)} is drawn with its part stood in for`);
+            assert.isTrue(
+                assets.waiting().some((w) => w.id === waiting.id),
+                "and still waits for it",
+            );
+        }
+    });
+
+    it("still refuses a model waiting for its geometry with standInMissing", async () => {
+        const element = await mount();
+        const noBin = await element.session.assets.add({
+            files: new Map([...gltfPair()].filter(([name]) => name === "tri.gltf")),
+        });
+        assert.equal(noBin.state, "rejected");
+        const error = await element.modelThumbnail(noBin.id, { standInMissing: true }).catch((e: unknown) => e);
         assert.isTrue(isGraphtyError(error) && error.code === "E_MODEL_MISSING_FILE");
     });
 });

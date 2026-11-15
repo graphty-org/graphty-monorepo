@@ -412,6 +412,8 @@ export function endWords(code: string, params: AiResultParams, provider: string,
         case "AI_HISTORY_UNAVAILABLE":
         case "AI_STORAGE_FAILED":
             return note("This chat is not being saved.");
+        case "AI_NO_PREVIOUS_COMMAND":
+            return note("There is no message to send again.");
         case "AI_HISTORY_NEWER_FORMAT":
             return note("Saved by a newer version of graphty, so it was left as it is.");
         default:
@@ -599,6 +601,20 @@ function largeWords(request: AiApprovalRequest): ApprovalWords {
 }
 
 /**
+ * The paid card's cost line: "About $0.04 (Google).", or "About $0.04." when the provider has no plain name.
+ * @param preview - what was measured.
+ * @returns the line, or null when no cost was measured.
+ */
+function paidLine(preview: AiApprovalRequest["preview"]): string | null {
+    if (typeof preview.costUsd !== "number") {
+        return null;
+    }
+    const provider = AI_PROVIDER_DESCRIPTORS.find((one) => one.id === preview.provider)?.plainName;
+    const by = provider === undefined ? "" : ` (${provider})`;
+    return `About $${preview.costUsd.toFixed(2)}${by}.`;
+}
+
+/**
  * An approval card's words, from its gate and what was measured, never the model's arguments
  * (design 6.5). Only `irreversible` says Undo cannot reach it.
  * @param request - the request.
@@ -641,6 +657,8 @@ export function approvalWords(request: AiApprovalRequest): ApprovalWords {
                 primary: "Run",
                 decline: "Skip",
             };
+        case "paid":
+            return { ...otherwise, line: paidLine(preview) };
         case "network":
             return preview.url === undefined
                 ? otherwise

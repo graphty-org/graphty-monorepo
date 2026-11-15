@@ -5,6 +5,7 @@
  * (`drawn-scene.ts`) carries -- a label's weight, style, family and rotation, a gradient fill,
  * each flat arrowhead's outline. Lengths are render pixels, y down. Pure: no DOM, but for an SVG picture's own reading.
  */
+import { deltaE } from "../../../../graph-io/test/fidelity/compare";
 import type { Scene, SceneNode, ShapeClass } from "../../../../graph-io/test/fidelity/scene";
 import type { DrawnEdge, DrawnGraph, DrawnLabel, DrawnNode } from "../drawn-scene";
 import { borderInset } from "../extract-scene";
@@ -28,6 +29,7 @@ import {
     type Pt,
     type PText,
     rampAngleOnScreen,
+    TAPER_POINT,
 } from "./primitives";
 import { readSvgPrimitives, type SvgPrimitives } from "./svg-primitives";
 
@@ -161,14 +163,20 @@ const DASHED_PATTERNS: ReadonlySet<string> = new Set(["dash", "dot", "box", "das
  * @param pattern - the pattern graphty drew, or null
  * @param dashPx - the drawn elements and gaps, or null where none were read
  * @param width - the line's width in pixels
- * @returns the class
+ * @param taper - its width at the target over its width at the source, where it tapers
+ * @returns the class; a line narrowing to a point at one end is tapered, by the rule the oracle's tapered outlines are
+ * read by (`taperedOutline`)
  */
 function drawnLineClass(
     style: string,
     pattern: string | null,
     dashPx: readonly number[] | null,
     width: number,
+    taper: number | undefined,
 ): DashClass {
+    if (taper !== undefined && Math.min(taper, 1) <= TAPER_POINT * Math.max(taper, 1)) {
+        return "tapered";
+    }
     const name = pattern ?? style;
     if (dashPx !== null && dashPx.length >= 2 && DASHED_PATTERNS.has(name)) {
         return dashClassOf(dashPx, width);
@@ -282,7 +290,13 @@ const CAP_PLACE_PX = 2;
  * @param standing - whether a stem stands it back from the line's end, so how far back is judged against the program's
  * @returns the arrow
  */
-function drawnArrow(c: DrawnCap, line: readonly Pt[], lineEnds?: readonly [Pt, Pt], standing = false): PArrow {
+function drawnArrow(
+    c: DrawnCap,
+    line: readonly Pt[],
+    lineEnds?: readonly [Pt, Pt],
+    standing = false,
+    background = "#ffffff",
+): PArrow {
     const end = CAP_END[c.end];
     const open =
         (c.name.includes("open") && !FILLED_OPEN_NAMES.some((n) => c.name.includes(n))) ||
@@ -291,8 +305,15 @@ function drawnArrow(c: DrawnCap, line: readonly Pt[], lineEnds?: readonly [Pt, P
     // points back along it
     const named = arrowShapeNamed(c.name);
     const shape = c.end === "arrowMiddleTail" ? (POINTING_BACK[named] ?? named) : named;
+    // an open cap with an inside (`ArrowStyle.fillColor`) reads as the oracle's arrowheads do (associate.ts arrowFrom):
+    // filled in its inside's color where that differs from the canvas, else hollow in its outline's
+    const inside = open && c.fill !== undefined && deltaE(c.fill, background) > 3 ? c.fill : null;
     // a picture's colors are its own, not the cap's
-    const look = { filled: !open, color: shape === "image" ? null : c.color, shape };
+    const look = {
+        filled: !open || inside !== null,
+        color: shape === "image" ? null : (inside ?? c.color),
+        shape,
+    };
     if (c.outline === null) {
         return { end, length: c.sizePx, width: c.sizePx, ...look };
     }
@@ -872,7 +893,9 @@ export function drawnPrimitives(
             !c.name.includes("slash") && d.caps.slice(0, k).some((s) => s.end === c.end && isStem(s));
         // a stem is a length of the line, no arrow: what stands behind it is
         const arrows: PArrow[] = d.caps.flatMap((c, k) =>
-            c.opacity > 0 && c.sizePx > 0 && !isStem(c) ? [drawnArrow(c, d.points, d.lineEnds, standsBack(c, k))] : [],
+            c.opacity > 0 && c.sizePx > 0 && !isStem(c)
+                ? [drawnArrow(c, d.points, d.lineEnds, standsBack(c, k), scene.background ?? undefined)]
+                : [],
         );
         // a cap that reaches past the end the edge reports (a circle or an inverted triangle placed by its middle)
         // carries the line on to its tip, as the oracle's line is carried on to its arrowhead's (extendToTip) -- except
@@ -897,6 +920,7 @@ export function drawnPrimitives(
             d.pattern,
             d.dashPx ?? null,
             d.thicknessPx > 0 ? d.thicknessPx : e.width,
+            d.taper,
         );
         return [
             {

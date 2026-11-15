@@ -347,7 +347,13 @@ describe("the graph-io import helper's options, weights, cells and failures", ()
             assert.instanceOf(error, GraphtyError);
             assert.strictEqual(error.code, "E_PARSE_FAILED");
             assert.instanceOf(error.cause, ImportError);
-            assert.deepEqual(error.details, { format: "test", line: 3, errors: 1, sourceCode: "E_IMPORT" });
+            assert.deepEqual(error.details, {
+                format: "test",
+                line: 3,
+                errors: 1,
+                issue: "E_TEST",
+                sourceCode: "E_IMPORT",
+            });
         }
 
         assert.include((unrecognised as GraphtyError).message, "at line 3");

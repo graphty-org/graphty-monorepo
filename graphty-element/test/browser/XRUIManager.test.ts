@@ -1,5 +1,4 @@
-import { assert } from "chai";
-import { afterEach, beforeEach, describe, test } from "vitest";
+import { afterEach, assert, beforeEach, describe, test } from "vitest";
 
 import { defaultXRConfig } from "../../src/config/XRConfig";
 import { XRUIManager } from "../../src/ui/XRUIManager";
@@ -134,10 +133,11 @@ describe("XRUIManager", () => {
         assert.exists(overlay);
         assert.isNotNull(overlay);
 
+        assert.isTrue(overlay.classList.contains("xr-position-bottom-left"));
         const styles = window.getComputedStyle(overlay);
         assert.equal(styles.position, "absolute");
-        // Note: actual position values might be 'auto' in test environment
-        // We'll verify the CSS classes are applied correctly
+        assert.equal(styles.bottom, "20px");
+        assert.equal(styles.left, "20px");
     });
 
     test("should position buttons in top-right corner when configured", () => {
@@ -153,8 +153,11 @@ describe("XRUIManager", () => {
         assert.exists(overlay);
         assert.isNotNull(overlay);
 
+        assert.isTrue(overlay.classList.contains("xr-position-top-right"));
         const styles = window.getComputedStyle(overlay);
         assert.equal(styles.position, "absolute");
+        assert.equal(styles.top, "20px");
+        assert.equal(styles.right, "20px");
     });
 
     test("should not render anything when disabled", () => {

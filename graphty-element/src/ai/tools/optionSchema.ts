@@ -80,6 +80,7 @@ function optionField(option: OptionDescriptor): z.ZodType | undefined {
  * @returns The description.
  */
 function describeOption(option: OptionDescriptor): string {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- the model reads English; the app words options from descriptionId
     const parts = [option.description ?? option.plainName];
     if (option.type === "node-id") {
         parts.push("A node id or unique label.");

@@ -8,8 +8,13 @@ and parsers for the common ways of writing a location.
 npm install babylonjs-map @babylonjs/core
 ```
 
-`@babylonjs/core` 8 is a peer dependency. `babylonjs-map/location` and `babylonjs-map/projection`
-never load Babylon.js, so they work in Node, a Web Worker or a page without a 3D scene.
+`@babylonjs/core` 8 is an optional peer dependency: the main `babylonjs-map` entry needs it, and you
+install it yourself. `babylonjs-map/location` and `babylonjs-map/projection` never load Babylon.js,
+so they work in Node, a Web Worker or a page without a 3D scene, with only:
+
+```bash
+npm install babylonjs-map
+```
 
 ## A globe
 
@@ -120,12 +125,12 @@ for tiles and `equirectangular` for pictures. A picture in the other projection 
 
 ## Credits
 
-Every tile service requires its credit to be visible while its tiles are. `map.attribution` lists
-the credits of the sources that drew a tile; `map.credits` gives each with the page it links to
-(`attributionUrl` on a source of your own). Show them over the canvas.
+The map draws nothing but the map. `map.attribution` lists the credits of the sources that drew a
+tile; `map.credits` gives each with the page it links to (`attributionUrl` on a source of your
+own). Show them wherever your page chooses, for example in an About dialog.
 
 ```ts
-creditElement.textContent = map.attribution.join(" | ");
+aboutCredits.textContent = map.attribution.join(" | ");
 ```
 
 ## Loading and level of detail

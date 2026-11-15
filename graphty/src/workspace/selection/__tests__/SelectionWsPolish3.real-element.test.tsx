@@ -375,7 +375,8 @@ describe("the Filters", () => {
             rule: { kind: "range", attribute: "graphty.degree", max: 3 },
         });
         const list = await screen.findByRole("list", { name: "Filters" });
-        const name = await within(list).findByRole("button", { name: /^Degree min 10, \d+ of 77 nodes$/ });
+        // The other card keeps none of this one's matches, so none of them is shown.
+        const name = await within(list).findByRole("button", { name: /^Degree min 10, \d+ of 77 nodes, 0 shown$/ });
         await waitFor(() => {
             assert.strictEqual(document.querySelector("[data-filters-count]")?.textContent, "Passes none");
         });

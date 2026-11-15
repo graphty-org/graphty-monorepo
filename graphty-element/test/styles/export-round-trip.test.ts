@@ -113,6 +113,7 @@ const LABEL_PROPERTIES = [
  */
 function sessionWithDegree(): GraphSession {
     const session: GraphSession = createGraphSession({
+        workingGraph: false,
         runs: {
             execute: (context: RunExecutionContext): Promise<RunOutcome> => {
                 const counts = new Map<string, number>();
@@ -301,62 +302,6 @@ const KNOWN_GAPS: ReadonlyMap<string, string> = new Map([
         "graphology keeps a label's line breaks and markup only as text, so a wrapped or marked-up label comes back as one line (graph-io ISSUES.md, Specimen sheets: graphology)",
     ],
     [
-        "vis.js JSON: cx2/fidelity/imatinib-smpdb.cx2",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: cx2/fidelity/repro-shared-interaction.cx2",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: cyjs/adv/cyjs-selector-zoo.cyjs",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: dot/Ensembl_ensembl-hive__long_mult_jobs_04.dot",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: gexf/fidelity/graphology-rio.gexf.gz",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: gml/ImperialCollegeLondon_pyrealm__pmodel.gml",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: gml/di-unipi-socc_dgLBF__germany50.gml",
-        "the vis writer's label offset comes back moved by vis-network's label hang below a sized node (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: graphml/LTVA1_STM32CrapSynth__func.graphml.gz",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: graphml/SleepyTrousers_EnderIO-1.5-1.12__TileEntities.graphml",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: pajek/SamTseng_CATAR__Pajek_format.net",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: pajek/fidelity/1crn.net",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: xgmml/BasicDataVizDemo.xgmml.gz",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
-        "vis.js JSON: xgmml/fidelity/aracne-mycccnd1.xgmml.gz",
-        "the vis writer writes a node vis-network sizes by its own size where the file fitted it to its label, and the reader hangs that node's label below it, so labelOffsetY comes back as a layer of exceptions (graph-io ISSUES.md, Specimen sheets: vis-network)",
-    ],
-    [
         "CSV: gexf/cns-iu_cns-pubvis__wos-extract.isi_full-layout.gexf.gz",
         "graphology keeps a label's line breaks and markup only as text, so a wrapped or marked-up label comes back as one line (graph-io ISSUES.md, Specimen sheets: graphology)",
     ],
@@ -428,7 +373,7 @@ function sample(dir: string): string[] {
  * @returns The session, or null when the file carries no styles the element draws.
  */
 async function corpusSession(type: string, path: string): Promise<GraphSession | null> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     const stored = new Uint8Array(readFileSync(path));
     const data = path.endsWith(".gz") ? new Uint8Array(gunzipSync(stored)) : stored;
     await session.data.import({ type, config: { data } }, { styles: "file" });
@@ -652,7 +597,7 @@ async function write(
  * @returns The session.
  */
 async function loadBack(text: string, format: string): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     await session.data.import({ type: format, config: { data: text } }, { styles: "file" });
     await session.styles.settled();
     return session;
@@ -667,8 +612,8 @@ async function loadBack(text: string, format: string): Promise<GraphSession> {
 async function dataIsStable(source: GraphSession, writer: (typeof WRITERS)[number]): Promise<boolean> {
     const plain = async (session: GraphSession): Promise<string> =>
         (await write(session, writer.format, writer.options, false)).text;
-    const first = createGraphSession();
-    const second = createGraphSession();
+    const first = createGraphSession({ workingGraph: false });
+    const second = createGraphSession({ workingGraph: false });
     try {
         await first.data.import({ type: writer.format, config: { data: await plain(source) } });
         const once = await plain(first);

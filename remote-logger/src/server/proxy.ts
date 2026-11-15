@@ -204,6 +204,61 @@ function isHtmlContentType(contentType: string | undefined): boolean {
     return contentType.includes("text/html");
 }
 
+/** Largest HTML response the proxy buffers to inject the logger; larger pages pass through unmodified. */
+const MAX_INJECTED_HTML_BYTES = 16 * 1024 * 1024;
+
+/**
+ * Send an upstream response on unmodified: its headers (with the body's own length and
+ * encoding, since the body is untouched), any chunks already read, then the rest as it arrives.
+ * @param proxyRes - The upstream response
+ * @param res - The response to the client
+ * @param statusCode - The status to send
+ * @param headers - The filtered headers to send
+ * @param readChunks - Body chunks already read from the upstream response
+ */
+function passThrough(
+    proxyRes: http.IncomingMessage,
+    res: http.ServerResponse,
+    statusCode: number,
+    headers: Record<string, string | string[]>,
+    readChunks: Buffer[],
+): void {
+    for (const name of ["content-length", "content-encoding"]) {
+        const value = proxyRes.headers[name];
+        if (value !== undefined) {
+            headers[name] = value;
+        }
+    }
+    res.writeHead(statusCode, headers);
+    res.flushHeaders();
+    for (const chunk of readChunks) {
+        res.write(chunk);
+    }
+    proxyRes.pipe(res);
+}
+
+/**
+ * Decode an HTML body with the charset its Content-Type declares, or failing that the
+ * one a <meta> tag near the start declares, or UTF-8.
+ * @param body - The raw HTML bytes
+ * @param contentType - The upstream Content-Type header
+ * @returns The decoded HTML
+ */
+function decodeHtml(body: Buffer, contentType: string | undefined): string {
+    const charsetPattern = /charset\s*=\s*["']?([\w.:-]+)/i;
+    const declared =
+        charsetPattern.exec(contentType ?? "")?.[1] ??
+        charsetPattern.exec(body.subarray(0, 1024).toString("latin1"))?.[1];
+    if (declared) {
+        try {
+            return new TextDecoder(declared).decode(body);
+        } catch {
+            // An unknown label: fall back to UTF-8
+        }
+    }
+    return body.toString("utf-8");
+}
+
 /**
  * Validate that a URL is a valid proxy target.
  * @param targetUrl - The URL to validate
@@ -340,41 +395,48 @@ export function createProxy(proxyBasePath: string, quiet: boolean, allowPrivate 
     });
 
     proxy.on("proxyRes", (proxyRes, req, res) => {
+        const headers = proxiedHeaders(proxyRes.headers, proxyBasePath);
+        const contentType = proxyRes.headers["content-type"];
+        const statusCode = proxyRes.statusCode ?? 200;
+
+        if (!isHtmlContentType(contentType)) {
+            // Pass the body through as it arrives, so streams (server-sent events,
+            // long polls) reach the browser and large files are never held in memory
+            passThrough(proxyRes, res, statusCode, headers, []);
+            return;
+        }
+
         const chunks: Buffer[] = [];
-
-        proxyRes.on("data", (chunk: Buffer) => {
+        let size = 0;
+        const onData = (chunk: Buffer): void => {
             chunks.push(chunk);
-        });
-
-        proxyRes.on("end", () => {
-            const body = Buffer.concat(chunks);
-
-            const headers = proxiedHeaders(proxyRes.headers, proxyBasePath);
-
-            const contentType = proxyRes.headers["content-type"];
-            const statusCode = proxyRes.statusCode ?? 200;
-
-            if (isHtmlContentType(contentType)) {
-                const html = body.toString("utf-8");
-                const reqExtra = req as http.IncomingMessage & { _proxyTargetUrl?: string; _proxyScriptUrl?: string };
-                const originalUrl = reqExtra._proxyTargetUrl;
-                const reqScriptUrl = reqExtra._proxyScriptUrl ?? "/remote-logger.js";
-                const baseHref = originalUrl ? `${proxyBasePath}${extractOrigin(originalUrl)}/` : proxyBasePath;
-                const modified = injectScript(html, reqScriptUrl, baseHref);
-
-                headers["content-type"] = "text/html; charset=utf-8";
-                headers["cache-control"] = "no-cache, no-store";
-
-                res.writeHead(statusCode, headers);
-                res.end(modified);
-            } else {
-                if (body.length > 0) {
-                    headers["content-length"] = String(body.length);
-                }
-                res.writeHead(statusCode, headers);
-                res.end(body);
+            size += chunk.length;
+            if (size > MAX_INJECTED_HTML_BYTES) {
+                // Too large to rewrite: send it unmodified, without the logger
+                proxyRes.off("data", onData);
+                proxyRes.off("end", onEnd);
+                passThrough(proxyRes, res, statusCode, headers, chunks);
             }
-        });
+        };
+        const onEnd = (): void => {
+            const body = Buffer.concat(chunks);
+            const html = decodeHtml(body, contentType);
+            const reqExtra = req as http.IncomingMessage & { _proxyTargetUrl?: string; _proxyScriptUrl?: string };
+            const originalUrl = reqExtra._proxyTargetUrl;
+            const reqScriptUrl = reqExtra._proxyScriptUrl ?? "/remote-logger.js";
+            const baseHref = originalUrl ? `${proxyBasePath}${extractOrigin(originalUrl)}/` : proxyBasePath;
+            const modified = injectScript(html, reqScriptUrl, baseHref);
+
+            // The page is now UTF-8 whatever it arrived in; the header charset
+            // overrides any <meta charset> left in the document
+            headers["content-type"] = "text/html; charset=utf-8";
+            headers["cache-control"] = "no-cache, no-store";
+
+            res.writeHead(statusCode, headers);
+            res.end(modified);
+        };
+        proxyRes.on("data", onData);
+        proxyRes.on("end", onEnd);
     });
 
     proxy.on("error", (err, _req, res) => {

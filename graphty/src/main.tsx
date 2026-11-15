@@ -18,7 +18,7 @@ import { startUsageDataIfShared } from "./workspace/privacy/usageData";
 // Re-export theme for tests and other modules
 export { theme } from "./theme";
 
-// Nothing is sent until the reader says Share usage data on the start screen or in Settings >
+// Nothing is sent until the reader says Share usage data in the question a first visit is asked or in Settings >
 // Privacy; a reader who said so on an earlier visit starts sending again here, once the site's
 // site.json (fetched first, before the element) has said how this site labels its errors.
 void loadSiteConfig().then(startUsageDataIfShared); // NOSONAR(S7785): a top-level await would hold the first paint for the fetch
@@ -60,7 +60,7 @@ if (import.meta.env.VITE_REMOTE_LOG_URL) {
     const remoteLogging = GraphtyLogger.configure({
         enabled: true,
         level: LogLevel.INFO,
-        modules: ["autosave", "workspace"],
+        modules: ["autosave", "workspace", "view"],
     });
     void remoteLogging.then(logPageStart); // NOSONAR(S7785): a top-level await would hold the first paint for the logger
 }
@@ -86,7 +86,8 @@ ReactDOM.createRoot(rootElement).render(
 // buttons paint before their code is fetched and run.
 requestAnimationFrame(() => {
     setTimeout(() => {
-        void loadGraphtyElement();
+        // A failure here is said where a graph is drawn, which loads again and offers Retry.
+        loadGraphtyElement().catch(() => undefined);
         void loadFrame();
     }, 0);
 });

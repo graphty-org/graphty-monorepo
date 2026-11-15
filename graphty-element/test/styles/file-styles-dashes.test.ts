@@ -46,12 +46,12 @@ async function load(type: string, data: Uint8Array): Promise<GraphSession> {
 }
 
 describe("a line's own dash length and gap", () => {
-    it("draws a dashed or dotted line with either as one joined line, whose dashes take any length", () => {
-        assert.isTrue(EdgeMesh.drawsAsPattern({ line: { type: "dash" } }));
+    it("draws a dashed or dotted line, with or without either, as one joined line, whose dashes take any length", () => {
+        assert.isFalse(EdgeMesh.drawsAsPattern({ line: { type: "dash" } }));
         assert.isFalse(EdgeMesh.drawsAsPattern({ line: { type: "dash", dashLength: 6 } }));
         assert.isFalse(EdgeMesh.drawsAsPattern({ line: { type: "dot", dashGap: 3 } }));
-        // a pattern with no dashes keeps its elements
-        assert.isTrue(EdgeMesh.drawsAsPattern({ line: { type: "star", dashGap: 3 } }));
+        // a pattern of two shapes keeps its elements
+        assert.isTrue(EdgeMesh.drawsAsPattern({ line: { type: "dash-dot", dashGap: 3 } }));
     });
 });
 

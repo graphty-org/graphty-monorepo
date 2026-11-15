@@ -23,6 +23,8 @@ import { parseArgs } from "node:util";
 
 import { chromium } from "playwright";
 
+import { WAIT_GUARD_MS } from "../../tools/test-wait-guard.mjs";
+
 const { values: args } = parseArgs({
     options: {
         url: { type: "string" },
@@ -33,8 +35,6 @@ const { values: args } = parseArgs({
     },
 });
 
-// How long a reader's view may take to reach what is expected: a hang guard, never a wait.
-const SETTLE = 30_000;
 const SAMPLES = { lesmis: "Les Miserables", karate: "Zachary's karate club", papers: "Paper citations" };
 const NODES = { lesmis: ["Valjean", "Napoleon"], karate: ["1", "34"] };
 const fail = (message) => {
@@ -147,14 +147,10 @@ class Visit {
     // color graphty-element gives it once the edit is handed on, a frame and any transition later.
     async colorOf(at) {
         const card = await this.card(at).elementHandle();
-        const handle = await this.page.waitForFunction(
-            (c) => {
-                const color = c.style.getPropertyValue("--cm-card-color");
-                return color !== "" && color !== "var(--cm-border)" && color.toUpperCase();
-            },
-            card,
-            { timeout: SETTLE },
-        );
+        const handle = await this.page.waitForFunction((c) => {
+            const color = c.style.getPropertyValue("--cm-card-color");
+            return color !== "" && color !== "var(--cm-border)" && color.toUpperCase();
+        }, card);
         return handle.jsonValue();
     }
 
@@ -274,7 +270,6 @@ class Visit {
                 return Object.fromEntries(records.map((r) => [String(r.id), read(r.id)]));
             },
             [algorithm, field, params, this.side],
-            { timeout: SETTLE },
         );
         return handle.jsonValue();
     }
@@ -325,22 +320,18 @@ class Visit {
             rows: total.size,
         };
         const handle = await this.page
-            .waitForFunction(
-                (w) => {
-                    const box = document.querySelector(".sel-ws.sel-modal");
-                    const seen = [...box.querySelectorAll(".cm-card-list > .cm-list-card")].map(
-                        (c) => c.querySelector(".cm-card-head .sel-count")?.textContent ?? "",
-                    );
-                    const grid = box.querySelector("[role=grid]");
-                    return (
-                        box.querySelector(".sel-ws-head > .sel-count")?.textContent === w.title &&
-                        JSON.stringify(seen) === JSON.stringify(w.cards) &&
-                        (w.rows === 0 ? grid === null : Number(grid?.getAttribute("aria-rowcount")) - 1 === w.rows)
-                    );
-                },
-                want,
-                { timeout: SETTLE },
-            )
+            .waitForFunction((w) => {
+                const box = document.querySelector(".sel-ws.sel-modal");
+                const seen = [...box.querySelectorAll(".cm-card-list > .cm-list-card")].map(
+                    (c) => c.querySelector(".cm-card-head .sel-count")?.textContent ?? "",
+                );
+                const grid = box.querySelector("[role=grid]");
+                return (
+                    box.querySelector(".sel-ws-head > .sel-count")?.textContent === w.title &&
+                    JSON.stringify(seen) === JSON.stringify(w.cards) &&
+                    (w.rows === 0 ? grid === null : Number(grid?.getAttribute("aria-rowcount")) - 1 === w.rows)
+                );
+            }, want)
             .catch(() => null);
         if (handle === null) {
             const seen = await this.shown();
@@ -358,20 +349,16 @@ class Visit {
         const colorOf = (id) => cards.find((each) => each.held.has(id))?.card.color;
         const want = Object.fromEntries([...total].map((id) => [id, colorOf(id)]));
         const handle = await this.page
-            .waitForFunction(
-                (w) => {
-                    const rows = [...document.querySelectorAll(".sel-ws [data-testid=data-table-row]")];
-                    return (
-                        rows.length > 0 &&
-                        rows.every((row) => {
-                            const id = row.querySelector("[role=gridcell],[role=rowheader]")?.textContent ?? "";
-                            return w[id] === row.style.getPropertyValue("--cm-dt-row-color").toUpperCase();
-                        })
-                    );
-                },
-                want,
-                { timeout: SETTLE },
-            )
+            .waitForFunction((w) => {
+                const rows = [...document.querySelectorAll(".sel-ws [data-testid=data-table-row]")];
+                return (
+                    rows.length > 0 &&
+                    rows.every((row) => {
+                        const id = row.querySelector("[role=gridcell],[role=rowheader]")?.textContent ?? "";
+                        return w[id] === row.style.getPropertyValue("--cm-dt-row-color").toUpperCase();
+                    })
+                );
+            }, want)
             .catch(() => null);
         if (handle === null) {
             const seen = await this.ws.evaluate(
@@ -410,7 +397,6 @@ class Visit {
                     });
                 },
                 [want, colors],
-                { timeout: SETTLE },
             )
             .catch(() => null);
         if (handle === null) {
@@ -442,7 +428,6 @@ class Visit {
                     },
                     // A filter with nothing picked yet filters nothing (graphty-element's inert condition).
                     [this.side, inert ? this.all.size : total.size],
-                    { timeout: SETTLE },
                 )
                 .catch(async () => {
                     const seen = await inPage(this.page, () => {
@@ -470,7 +455,6 @@ class Visit {
                         return pending.length === 0 && total.count === n;
                     },
                     [this.layer, this.many, total.size],
-                    { timeout: SETTLE },
                 )
                 .catch(() => null);
             if (handle === null) {
@@ -543,7 +527,6 @@ class Visit {
                             .map((r) => r.id),
                     ) === want,
                 before,
-                { timeout: SETTLE },
             )
             .catch(() => null);
         if (handle === null) {
@@ -849,7 +832,6 @@ const EDITS = {
                     ),
                 ) === want,
             JSON.stringify(v.cards.map((c) => c.id)),
-            { timeout: SETTLE },
         );
         await v.check("drag");
     },
@@ -1066,14 +1048,10 @@ const sliderEnds = (dataset, entry, kind, algorithm) => async (page) => {
         .boundingBox();
     const now = async (thumb) => Number(await thumb.getAttribute("aria-valuenow"));
     const says = (want) =>
-        v.page.waitForFunction((n) => document.querySelector(".sel-ws-head > .sel-count").textContent === n, want, {
-            timeout: SETTLE,
-        });
+        v.page.waitForFunction((n) => document.querySelector(".sel-ws-head > .sel-count").textContent === n, want);
     const whole = `${String(v.all.size)} of ${String(v.all.size)}`;
     const leaves = () =>
-        v.page.waitForFunction((n) => document.querySelector(".sel-ws-head > .sel-count").textContent !== n, whole, {
-            timeout: SETTLE,
-        });
+        v.page.waitForFunction((n) => document.querySelector(".sel-ws-head > .sel-count").textContent !== n, whole);
     await v.drag(end, track.x + track.width / 2);
     await leaves();
     await v.drag(end, track.x + track.width + 200);
@@ -1146,7 +1124,6 @@ const retune = (dataset, entry, kind, settings, run) => async (page) => {
         .waitForFunction(
             () => document.querySelectorAll(".sel-ws .cm-card-list input[type=checkbox]:checked").length === 1,
             null,
-            { timeout: SETTLE },
         )
         .catch(() => fail("the old group's tick did not follow it into the new run"));
     [step.params.groups[0]] = await tickedGroups(box);
@@ -1218,7 +1195,6 @@ const typedEnds = (dataset, kind, algorithm) => async (page) => {
         .waitForFunction(
             (n) => document.querySelector(".sel-ws-head > .sel-count").textContent === n,
             `${String(top)} of ${String(v.all.size)}`,
-            { timeout: SETTLE },
         )
         .catch(async () =>
             fail(`typing ${String(maximum)} (the scale ends at ${String(end)}) leaves ${(await v.shown()).title}`),
@@ -1243,7 +1219,6 @@ const sameGroupsKeepTicks = async (page) => {
     await v.page.waitForFunction(
         () => document.querySelectorAll(".sel-ws .cm-card-list input[type=checkbox]:checked").length === 2,
         null,
-        { timeout: SETTLE },
     );
     const now = await tickedGroups(box);
     if (JSON.stringify([...now].sort()) !== JSON.stringify([1, 3])) {
@@ -1334,7 +1309,6 @@ const edgesOnCard = async (page) => {
     await v.page.waitForFunction(
         () => document.querySelectorAll(".sel-ws .cm-card-list input[type=checkbox]").length > 1,
         null,
-        { timeout: SETTLE },
     );
     const lone = await box.getByRole("checkbox", { name: /^\(no value\)/ }).count();
     if (lone > 0) {
@@ -1369,7 +1343,6 @@ const cardKeys = async (page) => {
                 [...document.querySelectorAll(".sel-ws .cm-card-list > .cm-list-card")].map((c) => c.dataset.cardId),
             ) === want,
         JSON.stringify(v.cards.map((c) => c.id)),
-        { timeout: SETTLE },
     );
     await grip(0).focus();
     await v.page.keyboard.press("F2");
@@ -1419,16 +1392,12 @@ const analyzeList = async (page) => {
     await panel.waitFor();
     await v.type(panel.getByLabel("Seed", { exact: true }), "7");
     await page.getByRole("button", { name: "Run Leiden" }).click();
-    await page.waitForFunction(
-        () => {
-            const s = document.querySelector("graphty-element").session;
-            return s.runs
-                .list()
-                .some((r) => r.algorithm === "leiden" && r.params.randomSeed === 7 && r.status === "succeeded");
-        },
-        null,
-        { timeout: SETTLE },
-    );
+    await page.waitForFunction(() => {
+        const s = document.querySelector("graphty-element").session;
+        return s.runs
+            .list()
+            .some((r) => r.algorithm === "leiden" && r.params.randomSeed === 7 && r.status === "succeeded");
+    }, null);
 };
 
 // Every popover closes on an outside click and leaves the workspace open.
@@ -1479,9 +1448,7 @@ const outsideClick = (entry) => async (page) => {
             await open();
             await shown.waitFor();
             await v.page.mouse.click(x, y);
-            await shown
-                .waitFor({ state: "hidden", timeout: SETTLE })
-                .catch(() => fail(`${name} stayed open after a click on ${where}`));
+            await shown.waitFor({ state: "hidden" }).catch(() => fail(`${name} stayed open after a click on ${where}`));
             if (!(await v.ws.isVisible())) {
                 fail(`a click on ${where} closed the workspace with ${name} open`);
             }
@@ -1571,7 +1538,6 @@ const dragBothWays = async (page) => {
                 [...document.querySelectorAll(".sel-ws .cm-card-list > .cm-list-card")].map((c) => c.dataset.cardId),
             ) === want,
         JSON.stringify(v.cards.map((c) => c.id)),
-        { timeout: SETTLE },
     );
     await v.check("drag down");
     await v.leave("done");
@@ -1770,7 +1736,6 @@ const analyzePopover = async (page) => {
                 .session.runs.list()
                 .some((r) => r.algorithm === "louvain" && r.params.resolution === 1.3 && r.status === "succeeded"),
         null,
-        { timeout: SETTLE },
     );
 };
 
@@ -1820,7 +1785,6 @@ const groupSwatches = async (page) => {
                 .session.runs.list()
                 .some((r) => r.algorithm === "louvain" && r.status === "succeeded"),
         null,
-        { timeout: SETTLE },
     );
     await v.enter();
     await v.firstStep(KINDS.louvain, { pick: [1] });
@@ -1993,7 +1957,8 @@ const results = [];
 async function runOne(scenario) {
     const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: true });
     const page = await context.newPage();
-    page.setDefaultTimeout(60_000);
+    // Every wait waits on its condition; only the repository's one hang guard ends a wait that hangs.
+    page.setDefaultTimeout(WAIT_GUARD_MS);
     const began = Date.now();
     const result = { id: scenario.id, words: scenario.words, status: "pass", message: "" };
     try {

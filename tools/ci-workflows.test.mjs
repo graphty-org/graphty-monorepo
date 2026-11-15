@@ -34,6 +34,7 @@ import {
     fitsCheckout,
     groupEntry,
     GRAPHTY_PARTS,
+    GROUP_MEMBER_SECONDS,
     GROUPS,
     MATRIX_CAP,
     matrixLine,
@@ -127,6 +128,21 @@ describe("the test matrix", () => {
         assert.ok(TEST_STEP_LIMIT_MS + 100_000 + 120_000 <= minutes * 60_000);
     });
 
+    // #7848: a full run runs every member of a group one after another; a member added unmeasured
+    // (graphty-element-webgpu) took small-browser to 24 min 58 s of its 26 minute deadline
+    it("fits every group's slowest measured members, with a quarter to spare, inside its test step's deadline", () => {
+        const gapSeconds = 10; // between members: the results wrapper and nx starting the next one
+        for (const [group, members] of Object.entries(GROUPS)) {
+            for (const m of members) assert.ok(GROUP_MEMBER_SECONDS[m] > 0, `${group}: ${m} has no measured time`);
+            const worst = members.reduce((t, m) => t + GROUP_MEMBER_SECONDS[m] + gapSeconds, 0);
+            assert.ok(
+                worst * 1.25 * 1000 <= TEST_STEP_LIMIT_MS,
+                `${group}: ${worst} s measured, x1.25 is over the deadline`,
+            );
+        }
+        assert.deepEqual(Object.keys(GROUP_MEMBER_SECONDS).sort(), Object.values(GROUPS).flat().sort());
+    });
+
     it("runs every shard exactly once on a full run, in one job per shard or group", () => {
         const include = plan(PACKAGES);
         const ran = include.flatMap((e) => (e.shard in GROUPS ? GROUPS[e.shard] : [e.shard]));
@@ -158,7 +174,7 @@ describe("the test matrix", () => {
             plan(["graphty-element"])
                 .flatMap((e) => e.members ?? [e.shard])
                 .sort(),
-            SHARDS.filter((s) => s.package === "graphty-element")
+            SHARDS.filter((s) => s.package === "graphty-element" || s["affected-by"]?.includes("graphty-element"))
                 .map((s) => s.shard)
                 .sort(),
         );
@@ -206,12 +222,13 @@ describe("the test matrix", () => {
     });
 
     // Vitest runs a project any one --project matches, so the graphty parts name theirs, and a project missing from
-    // the list would silently never run in CI.
+    // the list would silently never run in CI (a "bench*" project runs in the Performance Benchmarks job instead).
     it("runs every graphty project in one shard family: large-graph alone, the stories alone, the rest in the parts", () => {
         const config = readFileSync(new URL("../graphty/vitest.config.ts", import.meta.url), "utf8");
-        const declared = [...config.matchAll(/^ {20}name: "([a-z-]+)",$|realElementProject\("([a-z-]+)"/gmu)].map(
-            (m) => m[1] ?? m[2],
-        );
+        // A "bench*" project is a measurement, run by the Performance Benchmarks job, never in a test shard.
+        const declared = [...config.matchAll(/^ {20}name: "([a-z-]+)",$|realElementProject\("([a-z-]+)"/gmu)]
+            .map((m) => m[1] ?? m[2])
+            .filter((name) => !name.startsWith("bench"));
         const parts = SHARDS.find((s) => s.shard === "graphty-1")["test-command"];
         const named = [...parts.matchAll(/--project=(\S+)/gu)].map((m) => m[1]);
         assert.deepEqual([...named, "large-graph", "storybook"].sort(), [...declared].sort());
@@ -247,6 +264,32 @@ describe("the test matrix", () => {
         assert.equal(plan(["graph-samples"])[0].lfs, "", "a group whose members read no LFS file pulls none");
         const bin = { name: "graph-io-storybook-9", shard: "graph-io-storybook-1", command: "true", files: [] };
         assert.equal(plan(["graph-io"], undefined, { bins: [bin] }).find((e) => e.shard === bin.name).lfs, oracles);
+    });
+
+    // graph-io's fidelity stories import graphty-element's source, a dependency graph-io/project.json negates
+    // (#7196): a graphty-element change runs them, and graph-io's own lint, whose typecheck covers them.
+    it("runs graph-io's fidelity stories and lints them when only graphty-element is affected", () => {
+        // only the stories: graph-io's own shards wait for graph-io to be affected
+        const graphIo = plan(["graphty-element"]).filter((e) => e.package.split(" ").includes("graph-io"));
+        assert.deepEqual(
+            graphIo.map((e) => e.shard),
+            ["graph-io-storybook-1", "graph-io-storybook-2"],
+        );
+        const whole = {
+            name: "graph-io-storybook-1",
+            shard: "graph-io-storybook-1",
+            whole: "graph-io",
+            command: "true",
+        };
+        assert.ok(plan(["graphty-element"], undefined, { bins: [whole] }).some((e) => e.shard === whole.name));
+        const lint = parseYaml(workflow("ci.yml")).jobs.lint.steps.find((s) =>
+            s.name?.startsWith("Lint graph-io's fidelity stories"),
+        );
+        assert.match(lint.if, /contains\(fromJSON\(needs\.packages\.outputs\.affected\), 'graphty-element'\)/u);
+        assert.match(lint.run, /nx run graph-io:lint\b/u);
+        // or nx replays master's cached lint, whose hash would not include graphty-element
+        const project = JSON.parse(readFileSync(new URL("../graph-io/project.json", import.meta.url), "utf8"));
+        assert.ok(project.targets.lint.inputs.some((i) => i.projects?.includes("graphty-element")));
     });
 
     it("runs every member of a group even after one fails, then fails naming it", () => {
@@ -899,6 +942,38 @@ describe("ci.yml", () => {
         assert.doesNotMatch(job(ci, "all-checks"), /needs: .*performance/);
     });
 
+    // A job that reaches its timeout-minutes is cancelled, and continue-on-error does not absorb a cancelled job:
+    // the whole run concludes cancelled (issue #7986). The benchmarks fail their own step first, at DEADLINE.
+    it("ends the benchmarks inside the job's time limit, so a slow one fails a step and never cancels the run", () => {
+        const perf = parseYaml(ci).jobs.performance;
+        const deadline = Number(/\+ (\d+) \* 60 \)\)" >> "\$GITHUB_ENV"/.exec(perf.steps[0].run)?.[1]);
+        assert.match(perf.steps[0].run, /^echo "DEADLINE=/, "the first step notes the deadline");
+        const benches = perf.steps.filter((s) =>
+            /nx run algorithms:benchmark|vitest run --project=\S*bench/.test(s.run ?? ""),
+        );
+        assert.equal(benches.length, 4);
+        for (const s of benches) assert.match(s.run, /^\$GITHUB_WORKSPACE\/tools\/before-deadline\.sh /, s.name);
+        const tail = perf.steps.slice(perf.steps.indexOf(benches.at(-1)) + 1);
+        for (const s of tail) assert.ok(s["timeout-minutes"] > 0, `${s.name} has its own time limit`);
+        const tailMinutes = tail.reduce((sum, s) => sum + s["timeout-minutes"], 0);
+        // one minute for before-deadline.sh's --kill-after and the job's own set-up and clean-up
+        assert.ok(
+            deadline + tailMinutes + 1 <= perf["timeout-minutes"],
+            `${deadline} + ${tailMinutes} + 1 > ${perf["timeout-minutes"]}`,
+        );
+
+        const underDeadline = (deadlineAt, ...cmd) =>
+            spawnSync("bash", [join("tools", "before-deadline.sh"), ...cmd], {
+                env: { ...process.env, DEADLINE: String(deadlineAt) },
+                encoding: "utf8",
+            });
+        const now = Math.floor(Date.now() / 1000);
+        const spent = underDeadline(now - 1, "true");
+        assert.equal(spent.status, 1, "a spent budget fails the step without running it");
+        assert.match(spent.stdout, /::error::the job's time budget was spent/);
+        assert.equal(underDeadline(now + 600, "sh", "-c", "exit 3").status, 3, "otherwise the command's own status");
+    });
+
     it("reuses the build of the run reuse_build_run names, on a dispatch and on a call", () => {
         for (const trigger of ["workflow_call", "workflow_dispatch"]) {
             const on = ci.split(`    ${trigger}:\n`)[1].split(/\n {4}\w/)[0];
@@ -1376,9 +1451,9 @@ describe("the test matrix limited to named shards (--only, a CI bisect point)", 
                 encoding: "utf8",
             });
         assert.match(run("--only", '["graphty-2"]').stdout, /\ntest-count=1\n/);
-        const bad = run("--only", '["graphty-9"]');
+        const bad = run("--only", '["graphty-99"]');
         assert.notEqual(bad.status, 0);
-        assert.match(bad.stderr, /graphty-9/);
+        assert.match(bad.stderr, /graphty-99/);
     });
 });
 
@@ -4563,6 +4638,26 @@ describe("release.yml", () => {
         assert.match(llm, /exit "\$status"\n/);
         assert.match(llm, /grep -q '\\\[llm-regression\\\] provider refused the account'/);
         assert.match(llm, /owner_item: \$\{\{ steps.llm.outputs.owner_item \}\}/);
+        // run as GitHub runs it (`bash -e`): a refused account still sets owner_item, so no bisect starts (#8227)
+        const step = parseYaml(release).jobs.llm.steps.find((s) => s.id === "llm");
+        const dir = mkdtempSync(join(tmpdir(), "llm-step-"));
+        writeFileSync(
+            join(dir, "npx"),
+            "#!/bin/sh\necho 'FAILED x: [llm-regression] provider refused the account (HTTP 402)'\nexit 1\n",
+        );
+        chmodSync(join(dir, "npx"), 0o755);
+        const ran = spawnSync("bash", ["-e", "-c", step.run], {
+            env: {
+                ...process.env,
+                PATH: `${dir}:${process.env.PATH}`,
+                GOOGLE_API_KEY: "k",
+                RUNNER_TEMP: dir,
+                GITHUB_OUTPUT: join(dir, "out"),
+            },
+        });
+        assert.equal(ran.status, 1, "fails with vitest's status");
+        assert.match(readFileSync(join(dir, "out"), "utf8"), /^owner_item=Google refused the account/m);
+        rmSync(dir, { recursive: true, force: true });
         const harness = readFileSync(
             new URL("../graphty-element/test/helpers/llm-regression-harness.ts", import.meta.url),
             "utf8",
@@ -7991,7 +8086,8 @@ describe("the light pull-request check (#3443, merging.md 4.1)", () => {
     // failed with every Test job green (#5537). Such a plan is cut across the test and test-2 jobs.
     it("runs a plan above 256 Test jobs as two matrices, and passes only when both did", () => {
         const dir = mkdtempSync(join(TMP, "matrix-cap-"));
-        const covers = SHARDS.filter((s) => s.shard.startsWith("graphty-element-browser-")).map((s) => s.shard);
+        // a pull request's bins cover the Off parts only (it plans no full-run-only shard)
+        const covers = SHARDS.filter((s) => /^graphty-element-browser-\d+$/.test(s.shard)).map((s) => s.shard);
         const bins = Array.from({ length: 302 }, (_, i) => ({
             name: `graphty-element-browser-bin-${i + 1}`,
             family: "graphty-element-browser",

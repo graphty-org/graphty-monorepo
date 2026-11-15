@@ -16,6 +16,7 @@ import { withFeatures } from "../../../test/features";
 import { render, screen, waitFor, within } from "../../../test/test-utils";
 import { createWorkspaceStore } from "../../state/store";
 import { Workspace } from "../../Workspace";
+import { showKind } from "./kindTab";
 
 withFeatures(["file-styles"]);
 
@@ -78,5 +79,43 @@ describe("the Style panel on a file's layers", () => {
             }
             await shownOrFailed(() => screen.queryByTestId("style-tab"), names[index]);
         }
+    });
+
+    it("a file's layer says which elements it styles in words, never by the file's marks", async () => {
+        const session = await openGalaxy();
+        const layer = session.styles.list().find((each) => fileStyleOf(each)?.role === "exceptions");
+        assert.isDefined(layer, "the file made an exceptions layer");
+        if (layer === undefined) {
+            return;
+        }
+        const tree = await screen.findByRole("tree", { name: "Style layers" });
+        const items = await within(tree).findAllByRole("treeitem");
+        const exceptions = items.find((item) =>
+            (item.getAttribute("aria-label") ?? item.textContent ?? "").startsWith("Exceptions from the file"),
+        );
+        assert.isDefined(exceptions);
+        if (exceptions === undefined) {
+            return;
+        }
+        await userEvent.click(exceptions);
+        const inspector = screen.getByRole("complementary", { name: "Inspector" });
+        await shownOrFailed(() => within(inspector).queryByRole("tab", { name: "Style" }), "exceptions");
+        const style = within(inspector).getByRole("tab", { name: "Style" });
+        if (style.getAttribute("aria-selected") !== "true") {
+            await userEvent.click(style);
+        }
+        await shownOrFailed(() => screen.queryByTestId("style-tab"), "exceptions");
+        await showKind(layer.target);
+        const tab = screen.getByTestId("style-tab");
+        const row = await waitFor(() => {
+            const found = [...tab.querySelectorAll<HTMLElement>("button[aria-label]")].find((button) =>
+                (button.getAttribute("aria-label") ?? "").startsWith(`Which ${layer.target}s`),
+            );
+            assert.isDefined(found, tab.textContent ?? "");
+            return found;
+        });
+        const words = `${row?.getAttribute("aria-label") ?? ""} | ${row?.textContent ?? ""}`;
+        assert.match(words, /the file styles one by one/, words);
+        assert.notMatch(words, /graphty\.style/, words);
     });
 });

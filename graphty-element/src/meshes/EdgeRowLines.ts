@@ -1,10 +1,11 @@
-import { Color3, type Scene } from "@babylonjs/core";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import type { Scene } from "@babylonjs/core/scene.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
 
 import type { EdgeStyleConfig } from "../config";
 import { drawnText } from "../config/RichTextStyle";
 import { EDGE_CONSTANTS } from "../constants/meshConstants";
-import type { EdgePaint } from "../managers/StylePainter";
+import { type EdgePaint, isPlainPaint } from "../managers/StylePainter";
 import type { RowTable } from "../render/RowTable";
 import { EdgeMesh } from "./EdgeMesh";
 import { batchUploadFrames } from "./FrameRoster";
@@ -55,6 +56,8 @@ class LineColumns {
     piece = new Int32Array(FIRST_ROWS);
     source = new Int32Array(FIRST_ROWS);
     target = new Int32Array(FIRST_ROWS);
+    /** 1 for a row the edge masks hide: its piece draws nothing, and keeps its rows here to be shown again. */
+    hidden = new Uint8Array(FIRST_ROWS);
 
     has(row: number): boolean {
         return (this.batchOf[row] ?? NO_LINE) !== NO_LINE;
@@ -74,12 +77,16 @@ class LineColumns {
             this.piece = grown(this.piece);
             this.source = grown(this.source);
             this.target = grown(this.target);
+            const hidden = new Uint8Array(rows);
+            hidden.set(this.hidden);
+            this.hidden = hidden;
         }
 
         this.batchOf[row] = batch;
         this.piece[row] = piece;
         this.source[row] = source;
         this.target[row] = target;
+        this.hidden[row] = 0;
     }
 }
 
@@ -119,6 +126,10 @@ export class EdgeRowLines {
     /** The batches the row lines are drawn in, one per look: a row names its batch by its place here. */
     private readonly batches: PulledLineBatch[] = [];
     private drawn = 0;
+    /** The batches, by their place in {@link batches}, that draw plain paints (`plainEdgePaint`). */
+    private readonly plainBatches = new Set<number>();
+    /** Of {@link drawn}, the rows drawn in a plain batch. */
+    private plainDrawn = 0;
     private lastLook: RowLook | null = null;
 
     /**
@@ -133,6 +144,24 @@ export class EdgeRowLines {
      */
     get count(): number {
         return this.drawn;
+    }
+
+    /**
+     * How many edge rows are drawn from a plain paint, past `limits.objectEdges` (`plainEdgePaint`).
+     * @returns The count.
+     */
+    get plainCount(): number {
+        return this.plainDrawn;
+    }
+
+    /**
+     * The edge rows drawn from a plain paint, past `limits.objectEdges` (`plainEdgePaint`).
+     * @returns Their rows.
+     */
+    plainRows(): number[] {
+        return this.plainDrawn === 0
+            ? []
+            : this.drawnRows().filter((row) => this.plainBatches.has(this.lines.batchOf[row]));
     }
 
     /**
@@ -178,6 +207,62 @@ export class EdgeRowLines {
     endsOf(row: number): [number, number] | undefined {
         const { lines } = this;
         return lines.has(row) ? [lines.source[row], lines.target[row]] : undefined;
+    }
+
+    /**
+     * Whether an edge row's line is hidden ({@link EdgeRowLines.setHidden}).
+     * @param row - The edge row.
+     * @returns True for a drawn row that is hidden; false for a shown one or a row not drawn here.
+     * @internal
+     */
+    isHidden(row: number): boolean {
+        return this.lines.has(row) && this.lines.hidden[row] === 1;
+    }
+
+    /**
+     * Hide or show an edge row's line, as the edge masks say: its piece draws nothing while hidden and keeps its
+     * place, look and nodes' rows, so a time window that hides and shows rows builds no `Edge` and writes only the
+     * pieces' hidden flags. Nothing for a row not drawn here.
+     * @param row - The edge row.
+     * @param hidden - Whether it is hidden.
+     */
+    setHidden(row: number, hidden: boolean): void {
+        const { lines } = this;
+        if (!lines.has(row) || (lines.hidden[row] === 1) === hidden) {
+            return;
+        }
+
+        lines.hidden[row] = hidden ? 1 : 0;
+        this.batches[lines.batchOf[row]].setHidden(lines.piece[row], hidden);
+        this.host.requestFrame();
+    }
+
+    /**
+     * {@link EdgeRowLines.setHidden} for many rows at once, as a visibility mask says: a row the mask holds is shown,
+     * any other drawn row is hidden. A time window's jump changes tens of thousands of rows, so this reads the
+     * columns straight and asks for one frame, not one a row (#6025).
+     * @param rows - The edge rows; rows not drawn here are skipped.
+     * @param visible - The visible edges, or null when nothing hides.
+     */
+    setHiddenRows(rows: ArrayLike<number>, visible: { has(row: number): boolean } | null): void {
+        const { batchOf, hidden, piece } = this.lines;
+        let changed = false;
+        for (let at = 0; at < rows.length; at++) {
+            const row = rows[at];
+            const batch = batchOf[row] ?? NO_LINE;
+            const flag = visible === null || visible.has(row) ? 0 : 1;
+            if (batch === NO_LINE || hidden[row] === flag) {
+                continue;
+            }
+
+            hidden[row] = flag;
+            this.batches[batch].setHidden(piece[row], flag === 1);
+            changed = true;
+        }
+
+        if (changed) {
+            this.host.requestFrame();
+        }
     }
 
     /**
@@ -260,9 +345,10 @@ export class EdgeRowLines {
             () => rows.positionTexture,
             { route: "straight", lean: this.host.lean() },
         );
-        const piece = batch.acquire();
         // as `Edge.pullLine` gives its piece the look: in 2D a world width
-        batch.setLook(piece, look.rgb, look.opacity, EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20);
+        const drawnWidth = EdgeMesh.drawsFlat(scene) ? width / 40 : width * 20;
+        const piece = batch.acquire(drawnWidth);
+        batch.setLook(piece, look.rgb, look.opacity, drawnWidth);
         batch.setRows(piece, source, target);
         let at = this.batches.indexOf(batch);
         if (at === -1) {
@@ -271,6 +357,11 @@ export class EdgeRowLines {
 
         this.lines.set(row, at, piece, source, target);
         this.drawn++;
+        if (isPlainPaint(paint)) {
+            this.plainBatches.add(at);
+            this.plainDrawn++;
+        }
+
         this.host.requestFrame();
         return true;
     }
@@ -283,6 +374,7 @@ export class EdgeRowLines {
         const { lines } = this;
         if (lines.has(row)) {
             this.batches[lines.batchOf[row]].release(lines.piece[row]);
+            this.plainDrawn -= this.plainBatches.has(lines.batchOf[row]) ? 1 : 0;
             lines.batchOf[row] = NO_LINE;
             this.drawn--;
             this.host.requestFrame();
@@ -305,6 +397,7 @@ export class EdgeRowLines {
         const { lines } = this;
         this.lines = new LineColumns();
         this.drawn = 0;
+        this.plainDrawn = 0;
         for (const row of this.drawnRows(lines)) {
             const batch = this.batches[lines.batchOf[row]];
             const piece = lines.piece[row];
@@ -316,9 +409,12 @@ export class EdgeRowLines {
                 continue;
             }
 
+            const hidden = lines.hidden[row] === 1;
             batch.setRows(piece, source, target);
             this.lines.set(edge, lines.batchOf[row], piece, source, target);
+            this.lines.hidden[edge] = hidden ? 1 : 0;
             this.drawn++;
+            this.plainDrawn += this.plainBatches.has(lines.batchOf[row]) ? 1 : 0;
         }
 
         this.host.requestFrame();
@@ -332,6 +428,8 @@ export class EdgeRowLines {
 
         this.lines = new LineColumns();
         this.batches.length = 0;
+        this.plainBatches.clear();
+        this.plainDrawn = 0;
     }
 
     /**

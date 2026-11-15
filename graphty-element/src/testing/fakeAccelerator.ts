@@ -220,6 +220,9 @@ export class FakeSimulation implements LayoutSimulation {
     /** What `setCollision` last set, or null. */
     collision: CollisionOptions | null = null;
 
+    /** What `setInert` last set (a copy), or null. */
+    inert: NodeMask | null = null;
+
     readonly #calls: FakeAcceleratorCalls;
     readonly #moveBy: number;
     readonly #settleAfter: number;
@@ -411,6 +414,17 @@ export class FakeSimulation implements LayoutSimulation {
         this.#assertLive("setFixed");
         this.#fixed = mask.slice();
         this.#inner?.setFixed(mask);
+    }
+
+    /**
+     * Records the rows taken out of the forces, for a test to read, and hands them to the CPU simulation of a
+     * `computes: "layout"` batch. The element holds those rows fixed too, so a translation batch moves none of them.
+     * @param mask - The bitmask, copied rather than held.
+     */
+    setInert(mask: NodeMask): void {
+        this.#assertLive("setInert");
+        this.inert = mask.slice();
+        this.#inner?.setInert?.(mask);
     }
 
     /**

@@ -821,7 +821,8 @@ export interface EdgeStyleValues {
     readonly wavePeriod: number;
     /**
      * The line's width at the target as a multiple of its width at the source (`width`): 1 (the default) draws it the
-     * same width all along, 0 narrows it to a point at the target (Graphviz's `style=tapered`, `dir=forward`).
+     * same width all along, 0 narrows it to a point at the target (Graphviz's `style=tapered`, `dir=forward`;
+     * Cytoscape.js's `curve-style: straight-triangle`).
      */
     readonly taper: number;
     /** The arrow at the source end. */

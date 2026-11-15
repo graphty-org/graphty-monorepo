@@ -1479,7 +1479,7 @@
         "authored/utf16be-bom.net": "import 95b646c4f9ddb93e check 4f53cda18c2baa0c export fe287c016120cf41",
         "authored/utf8-no-bom.net": "import 54fb50e35e0aeac2 check 4f53cda18c2baa0c export c30ff78d49d09a5d",
         "authored/entity-label.net": "import e6fffecaa804620a check 4f53cda18c2baa0c export 1c8b782e785c851b",
-        "authored/shapes.net": "import a6d7ebd0948340a2 check 4f53cda18c2baa0c export 368d92056cf89e7d",
+        "authored/shapes.net": "import a6d7ebd0948340a2 check 4f53cda18c2baa0c export 8f7d973f9035dee5",
         "authored/coords-no-label.net": "import 904f872a932794d4 check 0c73b09ee1071fe5 export d8609b68376c2b87",
         "authored/arcs-with-count.net": "import b7b963ee6f6ceae4 check 4f53cda18c2baa0c export 3bd2bf00621664a8",
         "authored/arcslist-negative-ids.net": "import 8117a19aa2542e04 check 4f53cda18c2baa0c export 3913432773aa5f49",

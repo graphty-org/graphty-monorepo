@@ -1345,12 +1345,15 @@ function evaluateTarget(
     const drawn = drawnValues(kind, els, cells, order, input.rendered, notes, spend);
     // a file read with Cytoscape.js's own defaults draws an edge no rule curves as a haystack (a file graphty wrote
     // is read with graphty's)
-    if (kind === "edge" && input.toolDefaults !== false) {
+    if (kind === "edge") {
         const read: DrawnRead = { kind, els, cells, order, rendered: input.rendered, notes };
         const curves = drawnColumn(read, "curve-style", CURVE_PART);
-        noArrowsOnHaystacks(curves, drawn);
-        if (env.nodes !== null) {
-            edgeRoutes(graph, read, curves, env.nodes, drawn);
+        taperTriangles(curves, drawn);
+        if (input.toolDefaults !== false) {
+            noArrowsOnHaystacks(curves, drawn);
+            if (env.nodes !== null) {
+                edgeRoutes(graph, read, curves, env.nodes, drawn);
+            }
         }
     }
     if (kind === "node") {
@@ -3158,6 +3161,23 @@ function noArrowsOnHaystacks(
             }
         }
     }
+}
+
+/**
+ * A `straight-triangle` edge is drawn as a triangle `width` wide at its source narrowing to a point at its target
+ * (cytoscape.js 3.34.3 `drawEdgeTrianglePath`): its taper is 0.
+ * @param curves - each edge's curve style, null where no rule sets it
+ * @param values - the values; changed in place
+ */
+function taperTriangles(
+    curves: readonly (StyleValue | null | undefined)[],
+    values: Partial<Record<string, (StyleValue | null)[]>>,
+): void {
+    curves.forEach((curve, i) => {
+        if (curve === "straight-triangle") {
+            columnOf(values, "taper", curves.length)[i] = 0;
+        }
+    });
 }
 
 /**

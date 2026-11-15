@@ -2040,7 +2040,7 @@ export const CUSTOM_MODEL = {
     button: "Add custom model...",
     description: "Load a 3D model file or address into this project",
     address: "Model address",
-    chooseFiles: "Choose files",
+    chooseFile: "Choose file",
     chooseFolder: "Choose folder",
     cancelLoad: "Cancel load",
     /**
@@ -2092,7 +2092,18 @@ export const CUSTOM_MODEL = {
      */
     notModel: (name: string, formats: readonly string[]): string =>
         `${name} is a picture, not a 3D model: ${readsWords(formats)}`,
-    replace: "Replace...",
+    /**
+     * The x beside the loaded file's name.
+     * @param name - the file's name or the address.
+     * @returns the words.
+     */
+    remove: (name: string): string => `Remove ${name}`,
+    /**
+     * Said once the loaded model is taken out of the dialog.
+     * @param name - the file's name or the address.
+     * @returns the words.
+     */
+    removed: (name: string): string => `${name} removed`,
     name: "Name",
     color: "Color",
     files: "Files",

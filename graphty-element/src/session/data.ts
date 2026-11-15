@@ -1763,6 +1763,7 @@ export class SessionData implements SessionDataApi {
             loads: this.loads(),
             facts: this.loadFacts,
             waiting: [...this.pendingLoads],
+            provenance: this.provenance(),
         });
         const skipped = this.skippedMember;
         // A member the file held and this release skipped goes back in place while the loads are

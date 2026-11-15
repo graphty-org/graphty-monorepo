@@ -353,10 +353,12 @@ await element.session.styles.add({
 `"node.modelTint": "replace"` paints the whole model in `node.color`, a flat silhouette.
 `"node.modelTint": "untextured"` paints only the parts with no picture and no vertex colors in
 `node.color` and leaves the rest as the file draws them: an OBJ's plain colors follow your data
-while its labels and decals keep their pictures.
+while its labels and decals keep their pictures. To draw a model with your styles instead of its
+own materials -- its embedded pictures dropped too -- use `"replace"`.
 
-A part the file gives no material, no picture and no vertex colors -- an OBJ with no `.mtl`, most
-STL files -- states no color of its own, so it is drawn in `node.color` whatever `node.modelTint`
+A part the file gives no material, no picture and no vertex colors -- an OBJ loaded with no `.mtl`
+(or with its `.mtl` skipped), most STL and PLY files, a glTF primitive with no material, or a
+material left at its defaults (white, with no picture, map or glow) -- states no color of its own, so it is drawn in `node.color` whatever `node.modelTint`
 says. When a layer colors a model node and some part keeps the file's own color, the color is not
 drawn there and the element reports `W_MODEL_COLOR_IGNORED` with the layers that set it, so the
 color never disappears in silence.

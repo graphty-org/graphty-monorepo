@@ -9,7 +9,7 @@ import { assert, describe, it } from "vitest";
 import { isGraphtyError } from "../../../src/errors";
 import { sphereGlb } from "../../fixtures/models/fixtures";
 import { drag, nextFrame } from "../../helpers/real-input";
-import { cleanups, filesOf, type Frame, mount, pixelsChanged } from "./helpers";
+import { cleanups, countIn, drawModel, filesOf, type Frame, mount, pixelsChanged, readFrame } from "./helpers";
 
 /**
  * A box on the page, 160 CSS pixels square, for a preview to fill.
@@ -167,5 +167,21 @@ describe("modelPreview", () => {
             again.dispose();
         });
         assert.isAbove(drawn(await shot(again.canvas)), 100, "drawn again");
+    });
+    it("leaves the graph drawing its own models while a preview is open, and after it closes", async () => {
+        const element = await mount();
+        const files = await filesOf("obj-alone");
+        const cube = await element.session.assets.add({ files });
+        const preview = await element.modelPreview(cube.id, previewBox());
+        const red = (r: number, g: number, b: number): boolean => r > 120 && g < 60 && b < 60;
+        const { layer, asset } = await drawModel(element, files, [{ id: "a", x: 0 }], { "node.color": "#ff0000" });
+        const open = countIn(await readFrame(element), red);
+        assert.isAbove(open.left + open.right, 500, "the graph draws the model while the preview is open");
+        preview.dispose();
+        await element.session.styles.update(layer, {
+            set: { "node.model": asset, "node.color": "#ff0000", "node.modelTurn": 0.1 },
+        });
+        const closed = countIn(await readFrame(element), red);
+        assert.isAbove(closed.left + closed.right, 500, "and after it closes");
     });
 });

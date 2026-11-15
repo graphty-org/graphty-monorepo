@@ -4186,7 +4186,8 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
             "A model keeps its own colors unless this is set: true multiplies the model's base " +
             'color by `node.color`, "untextured" paints the parts with no picture and no vertex ' +
             'colors in `node.color` and leaves the rest, and "replace" paints every material in ' +
-            "`node.color`. A part the file gives no material, no picture and no vertex colors takes " +
+            "`node.color`. A part the file gives no material (or one left at its defaults: white, with " +
+            "no picture, map or glow), no picture and no vertex colors takes " +
             '`node.color` whatever this says. Takes true, false, "untextured" or "replace".',
     },
     "node.modelAnimation": {

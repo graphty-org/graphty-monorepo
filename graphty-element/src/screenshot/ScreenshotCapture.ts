@@ -1046,6 +1046,11 @@ export async function renderTargetCapture(
             true,
             undefined,
             (texture) => {
+                // Babylon draws the capture with the scene's mesh list swapped for a copy taken when
+                // the capture began, and puts the old list back after. A node mesh built during that
+                // draw went into the copy and was gone from the scene, so a model a layer had just
+                // asked for was never drawn on the graph. The live list keeps every mesh made then.
+                texture.renderList = camera.getScene().meshes;
                 readWithoutBlocking(engine, texture, reject);
                 customize?.(texture);
             },

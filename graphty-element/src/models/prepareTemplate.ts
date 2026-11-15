@@ -348,10 +348,42 @@ function hasPicture(material: Material): boolean {
     );
 }
 
+/** Babylon's glTF loader names the material it gives a primitive the file gives none. */
+const GLTF_DEFAULT_MATERIAL = "__GLTFLoader._default";
+
+/**
+ * Whether a material states no color of its own: the glTF loader's stand-in for a primitive with
+ * no material, or a material left at its defaults -- white, no picture or other map, no glow. A
+ * glTF material with no `baseColorFactor` and an MTL with no `Kd` load as exactly that.
+ * @param material - The material.
+ * @returns True when the part should draw in the node's color.
+ */
+function statesNoColor(material: Material): boolean {
+    if (material.name === GLTF_DEFAULT_MATERIAL) {
+        return true;
+    }
+
+    const white = (c: Color3): boolean => c.r === 1 && c.g === 1 && c.b === 1;
+    const dark = (c: Color3): boolean => c.r === 0 && c.g === 0 && c.b === 0;
+    if (material.getActiveTextures().length > 0) {
+        return false;
+    }
+
+    if (material instanceof PBRMaterial) {
+        return white(material.albedoColor) && dark(material.emissiveColor);
+    }
+
+    if (material instanceof StandardMaterial) {
+        return white(material.diffuseColor) && dark(material.emissiveColor);
+    }
+
+    return false;
+}
+
 /**
  * The material a merged group draws with, and whether it takes the node's color whatever
- * `node.modelTint` says: a part the file gives no material, no picture and no vertex colors
- * states no color of its own, and under "untextured" a part with no picture and no vertex colors
+ * `node.modelTint` says: a part the file gives no material (or one left at its defaults, see
+ * `statesNoColor`), no picture and no vertex colors states no color of its own, and under "untextured" a part with no picture and no vertex colors
  * gives its color up too. Under "replace" every part draws in the flat material.
  * @param first - The group's first part.
  * @param colored - Whether the group carries vertex colors.
@@ -375,7 +407,7 @@ function lookOf(
         return { material: material ?? flat(), follows: false };
     }
 
-    if (material === null || (options.untextured === true && !hasPicture(material))) {
+    if (material === null || statesNoColor(material) || (options.untextured === true && !hasPicture(material))) {
         return { material: flat(), follows: true };
     }
 

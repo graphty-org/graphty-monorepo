@@ -1369,6 +1369,13 @@ export type GraphtyErrorCode =
 */
 | "E_AUTOSAVE_UNKNOWN_ENTRY"
 /**
+* Autosave's kept work could not be listed: another tab holds the browser's database and did
+* not let go within `details.afterMs` (a tab the browser suspended in the middle of a write).
+* `details.step` is `"list"`. Nothing is known about the kept work; the caller offers none and
+* asks again later.
+*/
+| "E_AUTOSAVE_STALLED"
+/**
 * A document being serialised refers to a run whose id was derived rather than author
 * assigned, so the reference would resolve differently on reload. The caller re-runs with an
 * explicit `as:` id and saves again.

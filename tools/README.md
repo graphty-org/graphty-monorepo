@@ -58,7 +58,7 @@ npm run lint:fix      # Auto-fix lint issues
 ### Coverage Preview (HTTP servers)
 
 `pnpm run coverage:preview:<package>` for any package (algorithms, layout, graphty-element, graphty,
-graph-format, graph-io, webgpu-graph-algorithms, graph-samples, cytoscape-extensions, babylonjs-map).
+graph-format, graph-io, webgpu-graph-algorithms, graph-samples, cytoscape-extensions, babylonjs-map, babylonjs-models).
 Each package also has its own `npm run coverage:preview`.
 
 ## Shared Configuration
@@ -217,11 +217,17 @@ mode picks its own ports). A script run outside servherd needs `PORT` set by han
 ### Test Projects by Package
 
 Each package's test projects are listed in its own CLAUDE.md ("Test projects", or its testing
-section). The two packages without a CLAUDE.md:
+section). The packages without a CLAUDE.md:
 
 **babylonjs-map:**
 
 - Single test project (Node.js); shard `babylonjs-map`, in the `small-node` group
+
+**babylonjs-models:**
+
+- Single test project (Node.js) over the Babylon-free half (`src/files/`, `src/detect/`) and the built package
+  (build it first); shard `babylonjs-models`, in the `small-node` group. Its Babylon half draws in graphty-element's
+  browser tests, which load every model variant in `babylonjs-models/test/fixtures/variants/`
 
 **cytoscape-extensions:**
 
@@ -452,6 +458,7 @@ graphty-monorepo/
 |-- webgpu-graph-algorithms/  # @graphty/webgpu-graph-algorithms package (depends on graph-format)
 |-- graph-samples/        # @graphty/graph-samples package (depends on graph-format)
 |-- babylonjs-map/        # babylonjs-map (unscoped): maps and globes for Babylon.js, plus Babylon-free projections and location parsers
+|-- babylonjs-models/     # babylonjs-models (unscoped): load 3D models into Babylon.js, plus Babylon-free file checks
 |-- cytoscape-extensions/    # @graphty/cytoscape-extensions: graphty layouts and algorithms as Cytoscape.js extensions
 |-- algorithms/           # @graphty/algorithms package
 |-- layout/               # @graphty/layout package (depends on graph-format, graph-samples)

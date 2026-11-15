@@ -192,8 +192,7 @@ describe("web addresses a project names, from the app", () => {
  */
 async function pasteModel(session: GraphSession, tab: HTMLElement): Promise<void> {
     const dialog = await openCustom(tab);
-    await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), MODEL);
-    await userEvent.click(within(dialog).getByRole("button", { name: "Load model address" }));
+    await userEvent.type(within(dialog).getByRole("textbox", { name: "Model address" }), `${MODEL}{Enter}`);
     await addModel(dialog);
     await reaches(session, MODEL, "drawn");
 }
@@ -231,8 +230,7 @@ describe("web addresses in the Style tab, with the node models experiment", () =
         await userEvent.click(within(tab).getByRole("button", { name: "Add to node fill" }));
         await userEvent.click(await screen.findByRole("menuitem", { name: "Picture" }));
         const picture = await screen.findByRole("dialog", { name: "Picture" });
-        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), PICTURE);
-        await userEvent.click(within(picture).getByRole("button", { name: "Add picture address" }));
+        await userEvent.type(within(picture).getByRole("textbox", { name: "Picture address" }), `${PICTURE}{Enter}`);
         await reaches(session, PICTURE, "drawn");
         assert.equal(written(session, "node.texture"), PICTURE);
     });

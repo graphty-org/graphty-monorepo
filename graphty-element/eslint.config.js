@@ -15,6 +15,7 @@ import tseslint from "typescript-eslint";
 
 import { aiEngineBoundary } from "./eslint-rules/ai-engine-boundary.mjs";
 import nodeMeshFunnel from "./eslint-rules/node-mesh-funnel.mjs";
+import noPrivateManagerCast from "./eslint-rules/no-private-manager-cast.mjs";
 import { savedFormatLint } from "./test/saved-format/eslint-saved-format.js";
 import nodePositionFunnel from "./eslint-rules/node-position-funnel.mjs";
 
@@ -206,16 +207,7 @@ export default tseslint.config(
         files: ["**/*.test.ts", "test/**/*.ts"],
         // Still casts for its update manager; another open pull request changes this file.
         ignores: ["test/interactions/filter-keeps-camera.test.ts"],
-        rules: {
-            "no-restricted-syntax": [
-                "error",
-                {
-                    selector:
-                        "TSAsExpression > TSTypeLiteral > TSPropertySignature[key.name=/^(dataManager|layoutManager|updateManager)$/], MemberExpression[object.type='TSAsExpression'][property.name=/^(dataManager|layoutManager|updateManager)$/]",
-                    message:
-                        "Use graph.getDataManager(), graph.getLayoutManager() or graph.getUpdateManager() instead of a cast to the private field.",
-                },
-            ],
-        },
+        plugins: { cast: { rules: { "no-private-manager-cast": noPrivateManagerCast } } },
+        rules: { "cast/no-private-manager-cast": "error" },
     },
 );

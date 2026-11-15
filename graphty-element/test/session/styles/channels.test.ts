@@ -77,6 +77,7 @@ const DECLARED = [
     "node.tooltipStyle",
     "node.opacity",
     "node.outline",
+    "node.outlineWidth",
     "node.glow",
     "node.glowStrength",
     "node.halo",
@@ -220,6 +221,10 @@ const DECLARED = [
     "node.modelSourceUp",
     "node.modelTurn",
     "node.modelTint",
+    "node.modelAnimation",
+    "node.modelAnimationSpeed",
+    "node.modelAnimationOffset",
+    "node.modelDoubleSided",
     "node.modelFit",
     "node.modelCenter",
     "node.texture",
@@ -428,8 +433,8 @@ describe("the channel set", () => {
         }
     });
 
-    it("splits into two hundred and four node channels and one hundred and sixty-nine edge channels", () => {
-        assert.strictEqual(channelsFor("node").length, 204);
+    it("splits into two hundred and nine node channels and one hundred and sixty-nine edge channels", () => {
+        assert.strictEqual(channelsFor("node").length, 209);
         assert.strictEqual(channelsFor("edge").length, 169);
         assert.deepEqual(
             channelsFor("edge").map((descriptor) => descriptor.channel),
@@ -473,7 +478,9 @@ describe("what the element can really draw", () => {
         // A curvature is a switch, not an amount.
         assert.isDefined(CHANNEL_DESCRIPTORS["edge.curvature"].caveat);
         assert.strictEqual(CHANNEL_DESCRIPTORS["edge.curvature"].accepts, "boolean");
-        assert.isDefined(CHANNEL_DESCRIPTORS["node.outline"].caveat);
+        // An outline's width is set per layer by `node.outlineWidth`, so the outline carries no caveat.
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].caveat);
+        assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].caveatCode);
         // A glow's strength is drawn per style (one source mesh per strength), so it carries no
         // caveat: the old one said two glowing styles shared whichever strength landed last.
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.glowStrength"].caveat);
@@ -730,6 +737,8 @@ describe("what a style editor needs to draw a row", () => {
         "node.gradientColor",
         // Unset, a node draws its shape and no model.
         "node.model",
+        // Unset, a model is drawn still, in its rest pose.
+        "node.modelAnimation",
         // Unset, a node draws its own color and no picture.
         "node.texture",
         "edge.patternCount",
@@ -960,15 +969,14 @@ describe("what a style editor needs to draw a row", () => {
         );
     });
 
-    it("says in a sentence why a channel cannot be set, exactly when it cannot", () => {
+    it("says with a code why a channel cannot be set, exactly when it cannot", () => {
         for (const channel of CHANNELS) {
-            const { renderable, unsupportedReason, unsupported } = CHANNEL_DESCRIPTORS[channel];
+            const { renderable, unsupported } = CHANNEL_DESCRIPTORS[channel];
 
-            assert.strictEqual(unsupportedReason !== undefined, !renderable, channel);
+            assert.notProperty(CHANNEL_DESCRIPTORS[channel], "unsupportedReason", channel);
             assert.strictEqual(unsupported !== undefined, !renderable, channel);
         }
 
-        assert.strictEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupportedReason, "The element draws no marker yet");
         assert.deepEqual(CHANNEL_DESCRIPTORS["node.marker"].unsupported, { code: "channel.not-drawn", params: {} });
     });
 });
@@ -1237,5 +1245,7 @@ describe("which drawn part a channel adjusts", () => {
         assert.strictEqual(CHANNEL_DESCRIPTORS["node.labelSize"].modifies, "node.label");
         assert.isUndefined(CHANNEL_DESCRIPTORS["edge.arrowHeadText"].modifies, "an end label is a part of its own");
         assert.isUndefined(CHANNEL_DESCRIPTORS["node.outline"].modifies);
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outlineWidth"].modifies, "node.outline");
+        assert.strictEqual(CHANNEL_DESCRIPTORS["node.outlineWidth"].stylePath, "effect.outline.width");
     });
 });

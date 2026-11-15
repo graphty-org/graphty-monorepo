@@ -1,4 +1,7 @@
-import { AbstractMesh, Color3, Ray, Vector3 } from "@babylonjs/core";
+import { Ray } from "@babylonjs/core/Culling/ray.js";
+import { Color3 } from "@babylonjs/core/Maths/math.color.js";
+import { Vector3 } from "@babylonjs/core/Maths/math.vector.js";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh.js";
 import { INVALID_INDEX } from "@graphty/graph-format";
 import cloneDeep from "lodash/cloneDeep.js";
 import isEqual from "lodash/isEqual.js";
@@ -16,7 +19,7 @@ import { drawnText, labelTextOf, richTextLabelOptions } from "./config/RichTextS
 import { EDGE_CONSTANTS } from "./constants/meshConstants";
 import { edgeIdOf } from "./data/edgeIdentity";
 import type { Graph } from "./Graph";
-import type { EdgePosition } from "./layout/LayoutEngine";
+import { type EdgePosition, layoutEngineInternals } from "./layout/LayoutEngine";
 import type { LocationMapFrame } from "./layout/locationMap/place";
 import { dataManagerInternals } from "./managers/DataManager";
 import type { GraphContext } from "./managers/GraphContext";
@@ -1486,6 +1489,16 @@ export class Edge {
     }
 
     /**
+     * Where the running layout puts this edge, or nowhere without one. An edge the layout's working
+     * graph hides runs straight between its ends.
+     * @returns The position, or undefined.
+     */
+    private laidOutPosition(): EdgePosition | undefined {
+        const engine = this.context.getLayoutManager().layoutEngine;
+        return engine === undefined ? undefined : layoutEngineInternals.edgePositionOf(engine, this);
+    }
+
+    /**
      * Updates the edge's visual representation based on current node positions and style changes.
      * Performs dirty checking to skip updates when nodes haven't moved.
      */
@@ -1539,12 +1552,24 @@ export class Edge {
         // a placed end that moves is a move; a first placement, or one after invalidatePositionCache, is at rest
         this.endsMoving = (srcMoved && this._lastSrcPos !== null) || (dstMoved && this._lastDstPos !== null);
 
-        this.context.getStatsManager().startMeasurement("Edge.update");
+        const stats = this.context.getStatsManager();
+        stats.startMeasurement("Edge.update");
+        try {
+            this.followLayout(srcPos, dstPos);
+        } finally {
+            stats.endMeasurement("Edge.update");
+        }
+    }
 
-        const lnk = this.context.getLayoutManager().layoutEngine?.getEdgePosition(this);
+    /**
+     * Draw the edge where the layout puts it: the measured part of `update`.
+     * @param srcPos - The source end's position this frame.
+     * @param dstPos - The target end's position this frame.
+     */
+    private followLayout(srcPos: Vector3, dstPos: Vector3): void {
+        const lnk = this.laidOutPosition();
         if (!lnk) {
             this.endsMoving = false;
-            this.context.getStatsManager().endMeasurement("Edge.update");
             return;
         }
 
@@ -1583,8 +1608,6 @@ export class Edge {
         this._lastSrcPos = srcPos.clone();
         this._lastDstPos = dstPos.clone();
         this.endsMoving = false;
-
-        this.context.getStatsManager().endMeasurement("Edge.update");
     }
 
     /**
@@ -4851,33 +4874,36 @@ export class Edge {
         path: readonly Vector3[] = [],
     ): void {
         // Use common arrow geometry functions for positioning
-        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.mainPath");
         const arrowStyle = this.currentStyle;
-        const along = pointFromEnd(path, arrowStyle.arrowHead?.position ?? 0);
-        if (along !== null) {
-            dstPoint = new Vector3(along.tip.x, along.tip.y, along.tip.z);
-            direction = new Vector3(along.toward.x, along.toward.y, along.toward.z);
-        } else {
-            dstPoint = dstPoint.subtract(direction.scale(Edge.capGap(arrowStyle.arrowHead)));
-        }
+        const arrowPosition = this.context.getStatsManager().measure("Edge.transformArrowCap.mainPath", () => {
+            const along = pointFromEnd(path, arrowStyle.arrowHead?.position ?? 0);
+            if (along !== null) {
+                dstPoint = new Vector3(along.tip.x, along.tip.y, along.tip.z);
+                direction = new Vector3(along.toward.x, along.toward.y, along.toward.z);
+            } else {
+                dstPoint = dstPoint.subtract(direction.scale(Edge.capGap(arrowStyle.arrowHead)));
+            }
 
-        const arrowType = arrowStyle.arrowHead?.type;
-        const arrowSize = arrowStyle.arrowHead?.size ?? 1;
-        const scale = this.capScaleAt("target");
-        arrowCap.setScale(scale);
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
-        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal", Edge.capOf(arrowStyle, arrowStyle.arrowHead));
+            const arrowType = arrowStyle.arrowHead?.type;
+            const arrowSize = arrowStyle.arrowHead?.size ?? 1;
+            const scale = this.capScaleAt("target");
+            arrowCap.setScale(scale);
+            const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
+            const geometry = EdgeMesh.getArrowGeometry(
+                arrowType ?? "normal",
+                Edge.capOf(arrowStyle, arrowStyle.arrowHead),
+            );
 
-        // PHASE 4: Override scaleFactor for 2D arrows
-        // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
-        // so their scaleFactor should be 1.0, not 0.25
-        if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
-            geometry.scaleFactor = 1;
-        }
+            // PHASE 4: Override scaleFactor for 2D arrows
+            // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
+            // so their scaleFactor should be 1.0, not 0.25
+            if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
+                geometry.scaleFactor = 1;
+            }
 
-        // Calculate arrow position using common function
-        const arrowPosition = EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
-        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.mainPath");
+            // Calculate arrow position using common function
+            return EdgeMesh.calculateArrowPosition(dstPoint, direction, arrowLength, geometry);
+        });
 
         arrowCap.place(arrowPosition, direction);
         Edge.placeStack(this.headStack, arrowStyle.arrowHead, dstPoint, direction);
@@ -4906,43 +4932,56 @@ export class Edge {
         const direction = fallbackDst.subtract(fallbackSrc).normalize();
 
         // Get arrow length (including size multiplier)
-        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.styleAndGeometry");
         const style = this.currentStyle;
-        const arrowSize = style.arrowHead?.size ?? 1;
-        const scale = this.capScaleAt("target");
-        arrowCap.setScale(scale);
-        const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
+        const { arrowLength, dstNodeRadius, srcNodeRadius } = this.context
+            .getStatsManager()
+            .measure("Edge.transformArrowCap.styleAndGeometry", () => {
+                const arrowSize = style.arrowHead?.size ?? 1;
+                const scale = this.capScaleAt("target");
+                arrowCap.setScale(scale);
+                const arrowLength = EdgeMesh.calculateArrowLength() * arrowSize * scale;
 
-        // Where the line leaves each node's bounding box. Not its bounding SPHERE: that is fitted
-        // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
-        // stopped well short of a box, a cylinder or a torus (#2643). Measured in the node's own
-        // (graph-root) space, the space the centres above are in.
-        const dstNodeRadius = this.boxReachAt("target", direction);
-        const srcNodeRadius = this.boxReachAt("source", direction);
-        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.styleAndGeometry");
+                // Where the line leaves each node's bounding box. Not its bounding SPHERE: that is fitted
+                // around the box, so its radius is the box's half-diagonal and an edge trimmed by it
+                // stopped well short of a box, a cylinder or a torus (#2643). Measured in the node's own
+                // (graph-root) space, the space the centres above are in.
+                const dstNodeRadius = this.boxReachAt("target", direction);
+                const srcNodeRadius = this.boxReachAt("source", direction);
+                return { arrowLength, dstNodeRadius, srcNodeRadius };
+            });
 
         // Calculate surface intersection points
-        this.context.getStatsManager().startMeasurement("Edge.transformArrowCap.vectorMath");
-        const srcSurfacePoint = fallbackSrc.add(direction.scale(srcNodeRadius));
-        const dstSurfacePoint = fallbackDst.subtract(direction.scale(dstNodeRadius + Edge.capGap(style.arrowHead)));
+        const { srcSurfacePoint, dstSurfacePoint, arrowPosition, lineEndPoint } = this.context
+            .getStatsManager()
+            .measure("Edge.transformArrowCap.vectorMath", () => {
+                const srcSurfacePoint = fallbackSrc.add(direction.scale(srcNodeRadius));
+                const dstSurfacePoint = fallbackDst.subtract(
+                    direction.scale(dstNodeRadius + Edge.capGap(style.arrowHead)),
+                );
 
-        // Use common arrow geometry functions for positioning
-        const arrowType = style.arrowHead?.type;
-        const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal", Edge.capOf(style, style.arrowHead));
+                // Use common arrow geometry functions for positioning
+                const arrowType = style.arrowHead?.type;
+                const geometry = EdgeMesh.getArrowGeometry(arrowType ?? "normal", Edge.capOf(style, style.arrowHead));
 
-        // PHASE 4: Override scaleFactor for 2D arrows
-        // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
-        // so their scaleFactor should be 1.0, not 0.25
-        if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
-            geometry.scaleFactor = 1;
-        }
+                // PHASE 4: Override scaleFactor for 2D arrows
+                // In 2D mode, sphere-dot and open-dot use full-size circles (not tiny 0.25x spheres)
+                // so their scaleFactor should be 1.0, not 0.25
+                if (arrowCap.is2D && geometry.scaleFactor !== undefined) {
+                    geometry.scaleFactor = 1;
+                }
 
-        // Calculate arrow position using common function
-        const arrowPosition = EdgeMesh.calculateArrowPosition(dstSurfacePoint, direction, arrowLength, geometry);
+                // Calculate arrow position using common function
+                const arrowPosition = EdgeMesh.calculateArrowPosition(
+                    dstSurfacePoint,
+                    direction,
+                    arrowLength,
+                    geometry,
+                );
 
-        // Calculate line endpoint using common function
-        const lineEndPoint = EdgeMesh.calculateLineEndpoint(dstSurfacePoint, direction, arrowLength, geometry);
-        this.context.getStatsManager().endMeasurement("Edge.transformArrowCap.vectorMath");
+                // Calculate line endpoint using common function
+                const lineEndPoint = EdgeMesh.calculateLineEndpoint(dstSurfacePoint, direction, arrowLength, geometry);
+                return { srcSurfacePoint, dstSurfacePoint, arrowPosition, lineEndPoint };
+            });
 
         arrowCap.place(arrowPosition, direction);
         Edge.placeStack(this.headStack, style.arrowHead, dstSurfacePoint, direction);
@@ -5393,6 +5432,11 @@ export class Edge {
      * @internal
      */
     get trimInput(): EdgeTrimInput {
+        const toward = (from: Xyz, to: Xyz): Xyz => {
+            const [dx, dy, dz] = [to.x - from.x, to.y - from.y, to.z - from.z];
+            const span = Math.hypot(dx, dy, dz);
+            return span > 0 ? { x: dx / span, y: dy / span, z: dz / span } : { x: 0, y: 0, z: 0 };
+        };
         const trimEnd = (node: Node, gap: number, other: Node): TrimEnd => {
             const leaves = node.surfaceIsBox || node.shapeType === "none";
             const closed =
@@ -5401,7 +5445,7 @@ export class Edge {
                 radius: node.roundRadius,
                 half: node.drawnHalfExtents,
                 flat: node.shapeType === "ellipse" || (node.reachOutline ?? false),
-                border: node.borderReach,
+                border: node.borderReachAlong(toward(node.drawnPosition, other.drawnPosition)),
                 gap,
                 measured: closed ? TRIM_CLOSED : TRIM_NO_HIT,
                 leaves,
@@ -5425,15 +5469,23 @@ export class Edge {
      * @param dstPoint - Where it meets the destination node's surface; moved in place.
      */
     private pastBorders(srcPoint: Vector3, dstPoint: Vector3): void {
-        const srcReach = this.srcNode.borderReach + this.gapAt("source");
-        const dstReach = this.dstNode.borderReach + this.gapAt("target");
+        const direction = dstPoint.subtract(srcPoint);
+        const span = direction.length();
+        // along the line: a polygon's border drawn in from its outline reaches less far at a slant (issue #7566)
+        const along = (node: Node, sign: number): number =>
+            node.borderReach === 0 || span === 0
+                ? 0
+                : node.borderReachAlong({
+                      x: (sign * direction.x) / span,
+                      y: (sign * direction.y) / span,
+                      z: (sign * direction.z) / span,
+                  });
+        const srcReach = along(this.srcNode, 1) + this.gapAt("source");
+        const dstReach = along(this.dstNode, -1) + this.gapAt("target");
 
         if (srcReach === 0 && dstReach === 0) {
             return;
         }
-
-        const direction = dstPoint.subtract(srcPoint);
-        const span = direction.length();
 
         if (span <= srcReach + dstReach) {
             return;

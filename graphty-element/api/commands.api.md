@@ -75,6 +75,9 @@ export const COMMANDS: Readonly<{
     readonly "data.columns": {
         readonly undo: "undoable";
     };
+    readonly "data.derive": {
+        readonly undo: "undoable";
+    };
     readonly "style.patch": {
         readonly undo: "undoable";
     };
@@ -103,6 +106,9 @@ export const COMMANDS: Readonly<{
         readonly undo: "undoable";
     };
     readonly "visibility.playback": {
+        readonly undo: "undoable";
+    };
+    readonly "visibility.hide": {
         readonly undo: "undoable";
     };
     readonly "set.create": {
@@ -157,6 +163,9 @@ export const COMMANDS: Readonly<{
     readonly "layout.set": {
         readonly undo: "undoable";
     };
+    readonly "layout.rerun": {
+        readonly undo: "undoable";
+    };
     readonly "layout.scope": {
         readonly undo: "undoable";
     };
@@ -177,7 +186,7 @@ export const COMMANDS: Readonly<{
 export function isSessionCommand(value: unknown): value is SessionCommand;
 
 // @public
-export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
+export type SessionCommand = AlgorithmRunCommand | AlgoLegacyCommand | AlgoRemoveCommand | AlgoMoveCommand | AlgoRenameCommand | DataCommand | DataDeriveCommand | DataIssuesCommand | SourceExpandOpCommand | StyleCommand | ShaderCommand | VisibilityCommand | SetCommand | NoteCommand | ViewCommand | ConfigSetCommand | PositionsCommand | LayoutCommand | BatchCommand;
 
 // (No @packageDocumentation comment for this package)
 

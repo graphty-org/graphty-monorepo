@@ -15,7 +15,8 @@
 #     never holds a merge that conflicts or fails its tests. Merge, never rebase; the merge commit is
 #     signed like any commit here and checked by .husky/commit-msg (the only hook it runs).
 #  2. The tool's "test" command, in the scratch worktree.
-#  3. The live copy fast-forwards to the tested merge; `pnpm install --frozen-lockfile` when the
+#  3. The live copy fast-forwards to the tested merge, refused only when it has uncommitted edits to a
+#     file the change touches; `pnpm install --frozen-lockfile` when the
 #     lockfile changed; then each server restarts (`servherd restart <name>` when a servherd CLI is
 #     on PATH, else the servherd_restart call to make is printed).
 # It never pushes: pushing the branch and its pull request stay with the caller.
@@ -59,8 +60,6 @@ TEST="${FIELDS[1]}"
 SERVERS=("${FIELDS[@]:2}")
 
 [ -d "$WT" ] || die "$WT does not exist; create it with tools/worktree-new.sh, then run this again"
-[ -z "$(git -C "$WT" status --porcelain --untracked-files=no)" ] ||
-    die "$WT has uncommitted changes; commit or move them first (nothing was changed)"
 
 if git -C "$MAIN" remote get-url origin >/dev/null 2>&1; then
     git -C "$MAIN" fetch --quiet origin
@@ -122,7 +121,14 @@ if ! (cd "$SCRATCH" && bash -c "$TEST"); then
     exit 1
 fi
 
-# 3. Go live.
+# 3. Go live. Uncommitted edits in the live copy (another session's work) stay as they are unless the
+# change touches the same files: then nothing changes.
+TOUCHED="$(comm -12 <(git -C "$WT" diff --name-only HEAD | sort) <(git -C "$MAIN" diff --name-only "$OLD" "$NEW" | sort))"
+if [ -n "$TOUCHED" ]; then
+    echo "live.sh: $WT has uncommitted changes to files this change touches:" >&2
+    echo "  ${TOUCHED//$'\n'/$'\n  '}" >&2
+    die "commit or move them first (nothing was changed)"
+fi
 git -C "$WT" merge --quiet --ff-only "$NEW" ||
     die "$WT moved while the tests ran; run tools/live.sh $TOOL $ARG again"
 say "$WT is now at ${NEW:0:12}"

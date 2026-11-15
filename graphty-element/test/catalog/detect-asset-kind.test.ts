@@ -70,7 +70,39 @@ describe("assetFileExtensions", () => {
         assert.deepEqual([...assetFileExtensions("image")], [".png", ".jpg", ".jpeg", ".webp"]);
         assert.deepEqual(
             [...assetFileExtensions("model")],
-            [".glb", ".gltf", ".obj", ".stl", ".ply", ".bin", ".mtl", ".zip", ".png", ".jpg", ".jpeg", ".webp"],
+            [
+                ".glb",
+                ".gltf",
+                ".obj",
+                ".stl",
+                ".ply",
+                ".splat",
+                ".spz",
+                ".sog",
+                ".babylon",
+                ".bin",
+                ".mtl",
+                ".json",
+                ".zip",
+                ".png",
+                ".jpg",
+                ".jpeg",
+                ".webp",
+                ".tga",
+                ".bmp",
+                ".gif",
+                ".dds",
+                ".ktx2",
+                ".avif",
+            ],
         );
+    });
+
+    it("offers a model's own files and a .zip only with parts: false", () => {
+        assert.deepEqual(
+            [...assetFileExtensions("model", { parts: false })],
+            [".glb", ".gltf", ".obj", ".stl", ".ply", ".splat", ".spz", ".sog", ".babylon", ".zip"],
+        );
+        assert.deepEqual(assetFileExtensions("image", { parts: false }), assetFileExtensions("image"));
     });
 });

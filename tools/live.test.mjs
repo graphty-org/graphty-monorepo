@@ -1,6 +1,6 @@
 // Tests of tools/live.sh: the registry, a merge that goes live and restarts the tool's servers, and
 // the refusals that leave the live copy and its servers untouched (failed tests, a conflict, an
-// uncommitted change). A throwaway origin and checkout, with a fake servherd that logs its calls.
+// uncommitted change to a file the change touches). A throwaway origin and checkout, with a fake servherd that logs its calls.
 //
 //   node tools/live.test.mjs   (part of pnpm run test:ci-workflows)
 import assert from "node:assert/strict";
@@ -62,6 +62,7 @@ before(() => {
     branch("good", { "a.txt": "a\n" });
     branch("bad", { "state.txt": "broken\n" });
     branch("conflict", { "local.txt": "theirs\n" });
+    branch("touch", { "state.txt": "ok, touched\n" });
 });
 after(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -95,20 +96,29 @@ describe("tools/live.sh", () => {
         assert.equal(git(main, "worktree", "list", "--porcelain").match(/^worktree /gm).length, 2, "scratch removed");
     });
 
-    it("refuses a live copy with uncommitted changes", () => {
+    it("refuses a live copy with uncommitted changes to a file the change touches", () => {
+        const head = git(live, "rev-parse", "HEAD");
         writeFileSync(join(live, "state.txt"), "edited\n");
         try {
-            const r = liveSh("t", "good");
-            assert.equal(r.status, 1);
-            assert.match(r.stderr, /uncommitted changes/);
+            const r = liveSh("t", "touch");
+            assert.equal(r.status, 1, r.stdout + r.stderr);
+            assert.match(r.stderr, /uncommitted changes to files this change touches/);
+            assert.match(r.stderr, /^ {2}state\.txt$/m);
+            assert.equal(git(live, "rev-parse", "HEAD"), head);
+            assert.equal(readFileSync(join(live, "state.txt"), "utf8"), "edited\n");
+            assert.equal(restarts(), "");
         } finally {
             git(live, "checkout", "--", "state.txt");
         }
     });
 
     it("merges a passing branch into the live copy, keeps its local commits and restarts each server", () => {
+        // another session's unsaved edit to a file the change does not touch stays as it is
+        writeFileSync(join(live, "local.txt"), "unsaved\n");
         const r = liveSh("t", "good");
         assert.equal(r.status, 0, r.stdout + r.stderr);
+        assert.equal(readFileSync(join(live, "local.txt"), "utf8"), "unsaved\n");
+        git(live, "checkout", "--", "local.txt");
         assert.ok(existsSync(join(live, "a.txt")), "the branch is live");
         assert.ok(existsSync(join(live, "local.txt")), "the local commit is kept");
         assert.equal(git(live, "log", "-1", "--format=%s"), "Merge remote-tracking branch 'origin/good' into t-live");

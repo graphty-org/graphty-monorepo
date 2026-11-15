@@ -202,7 +202,7 @@ interface ScopeOption {
  * @returns the options; All first.
  */
 async function scopeOptions(session: GraphSession): Promise<ScopeOption[]> {
-    const { nodeCount, edgeCount } = session.data.statistics();
+    const { nodeCount, edgeCount } = session.data.statistics({ scope: "all" });
     const loads = session.data.sources();
     const [shown, selected, bySource, ...sets] = await Promise.all([
         session.scope.count("visible"),
@@ -343,7 +343,7 @@ function columnsWritten(
  * @returns the options.
  */
 function writableOptions(session: GraphSession, row: Row): readonly OptionDescriptor[] {
-    return session.data.statistics().edgeCount === 0
+    return session.data.statistics({ scope: "all" }).edgeCount === 0
         ? row.options.filter((option) => option.name !== "table")
         : row.options;
 }

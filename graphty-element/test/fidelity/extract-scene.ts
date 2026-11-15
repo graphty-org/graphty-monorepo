@@ -646,6 +646,33 @@ function sceneEdge(
 }
 
 /**
+ * Each edge's id for the reference-scene comparer: "<source>-><target>", with "#k" for the k-th parallel edge of that
+ * pair in the graph's order, the form the references give an edge the program names no other way
+ * (`references/cyrest.mjs`, `yed_gml.py`).
+ *
+ * Never the record's `id`: that is graphty-element's own counter (0, 1, 2 ... in load order), not the file's edge id,
+ * and the comparer pairs edges by id first. A counter that happened to equal a reference's numeric file id for another
+ * edge of the same pair (cyjs-genemania: graphty's counter 98 is one of the three edges between 97 and 94, the file's
+ * edge 98 another) paired graphty's edge with the wrong one of the pair and judged its color and width against a
+ * sibling's (#8200). The oracle scorecard keeps the counters: it pairs by geometry and names extras by them.
+ * @param records - the edges, in the graph's order
+ * @returns each record's comparer id, by its element id
+ */
+export function comparerEdgeIds(
+    records: readonly { id: string; source: unknown; target: unknown }[],
+): Map<string, string> {
+    const seen = new Map<string, number>();
+    const ids = new Map<string, string>();
+    for (const record of records) {
+        const key = `${String(record.source)}->${String(record.target)}`;
+        const k = seen.get(key) ?? 0;
+        seen.set(key, k + 1);
+        ids.set(record.id, k === 0 ? key : `${key}#${String(k)}`);
+    }
+    return ids;
+}
+
+/**
  * Builds the scene from what was drawn. Call `readDrawn(element.graph)` after
  * `waitForStableFrame()` and hand its result here.
  * @param element - the mounted element, for its records and the requested styles

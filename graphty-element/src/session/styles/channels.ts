@@ -21,10 +21,6 @@
  *   compile error rather than a silent no-op.
  * - `edge.curvature` is a switch, not an amount. The edge renderer offsets its control points by
  *   a fixed fraction of the edge length, so "curve this edge" is the only thing it can be told.
- * - `node.outline` is a colour and no width, for the same reason in the same shape: the stroke
- *   is drawn by a highlight LAYER whose blur size belongs to the layer, so every outline on
- *   screen is one width. This is the sentence the element's natural-language layer reads out
- *   when someone asks for an outline width, so it answers with a reason rather than a refusal.
  * - `edge.patternCount` counts the elements of a PATTERNED line. A solid line has none to count,
  *   and zigzag and sinewave ignore it because they always tile the whole edge.
  * - The four arrow caption channels draw words at ONE END of an edge, hanging from the cap
@@ -38,10 +34,8 @@
  * caveat says what the renderer can and cannot draw; a style field that IS declared and that no
  * channel reaches belongs in the reachability waiver list, `src/catalog/unreachable.ts`, where a
  * test can see it rather than only a reader. `node.glow` used to carry a note about the glow's
- * strength having no channel, and the strength has one now. The outline's width is the other
- * shape: `NodeStyle.effect.outline` declares no `width` at all any more, because a declared one
- * was accepted, validated and ignored -- so there is no field for the waiver list to name, and
- * the limit belongs here, beside the colour that IS drawn.
+ * strength having no channel, and the strength has one now; `node.outline` carried one saying
+ * every outline was drawn at one width, and `node.outlineWidth` sets it per layer now.
  *
  * The enumerated channels take their values from the element's own schemas -- the node shape
  * list, the line pattern list, the arrow list -- read out of the Zod enums rather than retyped.
@@ -400,6 +394,7 @@ export interface ChannelValues {
     "node.tooltipStyle": LabelStyle;
     "node.opacity": number;
     "node.outline": ColorValue;
+    "node.outlineWidth": number;
     "node.glow": ColorValue;
     "node.glowStrength": number;
     "node.halo": boolean;
@@ -534,7 +529,11 @@ export interface ChannelValues {
     "node.model": string;
     "node.modelSourceUp": NodeModelUpValue;
     "node.modelTurn": number;
-    "node.modelTint": boolean | "replace";
+    "node.modelTint": boolean | "replace" | "untextured";
+    "node.modelDoubleSided": boolean | "file";
+    "node.modelAnimation": string;
+    "node.modelAnimationSpeed": number;
+    "node.modelAnimationOffset": number;
     "node.modelFit": "contain" | "stretch";
     "node.modelCenter": "bounds" | "origin";
     "node.texture": string;
@@ -887,14 +886,6 @@ export interface ChannelDescriptor {
      */
     readonly caveat?: string;
     /**
-     * Why the channel cannot be set, as a sentence for a reader beside a disabled control.
-     * Present exactly when `renderable` is false; `caveat` is the longer note for an
-     * implementer. The same field name as `OptionDescriptor.unsupportedReason`.
-     * @deprecated Read {@link ChannelDescriptor.unsupported} and word it in the application.
-     * Removed at the next major release.
-     */
-    readonly unsupportedReason?: string;
-    /**
      * Why the channel cannot be set, as a code with no words. Present exactly when `renderable`
      * is false. `channel.not-drawn`: the element does not draw this channel yet. New codes may be
      * added in a minor release.
@@ -953,18 +944,25 @@ export interface ChannelDescriptor {
      * @experimental file-styles
      */
     readonly feature?: "file-styles";
+    /**
+     * What a list channel's value holds, on a channel whose value is a list of items written
+     * separated by spaces: `"color"` for CSS colors (a gradient's, a pie's slices), `"number"` for
+     * numbers (a gradient's stops, a pie's sizes). Read and write its items with
+     * `readChannelList` and `writeChannelList` from the `./catalog` entry rather than splitting
+     * the text. Absent on every other channel.
+     * @since 3.40.0
+     */
+    readonly listOf?: "color" | "number";
 }
 
 /**
- * A caveat a channel carries, as a code.
- *
- * - `"outline.sharedWidth"`: every outline is drawn at one width, the graph's
- *   `layoutBehavior.node.outlineWidth`; a layer sets an outline's colour and not its width.
+ * A caveat a channel carries, as a code. No channel carries one now: `"outline.sharedWidth"`
+ * (every outline drawn at one width) was retired when `node.outlineWidth` gave each layer its own.
  *
  * More codes may be added in a minor release.
  * @since 3.26.0
  */
-export type ChannelCaveatCode = "outline.sharedWidth";
+export type ChannelCaveatCode = never; // NOSONAR(S6564): published; kept so imports still compile
 
 /**
  * The groups a style editor sorts channels into. A node's channels sit in shape, color, effects
@@ -1008,23 +1006,6 @@ const NODE_HALO_CAVEAT =
     "node. A selected node a layer gives a halo shows one halo: each value the layer sets wins, " +
     "and the selection style (`selectionStyle`) gives the rest. Each distinct color and opacity " +
     "is its own source mesh; the scale is per node.";
-
-/**
- * Why an outline is a colour and nothing else, written once and read in two places.
- *
- * It is `node.outline`'s caveat. A caveat is not shelf decoration: `Layer.ts` and `encoding.ts`
- * quote the caveat of a channel when they refuse a value for it, so this is the sentence a
- * consumer gets back in the refusal rather than one they have to go looking for. The element's
- * natural-language layer now quotes the same sentence when someone asks for an outline WIDTH
- * (`src/ai/commands/StyleCommands.ts`), because a request the element cannot carry out deserves
- * the same explanation however it arrived -- and two copies of it would be two answers to one
- * question the day either is edited.
- */
-export const NODE_OUTLINE_CAVEAT =
-    "An outline has a colour and no width. It is drawn as a ring around the node whose width is " +
-    "a fixed share of the node's own size, so every outline is drawn at that width whatever a " +
-    "style asks for -- which is why the node style declares no outline width to ask with. The " +
-    "outline's COLOUR is per style.";
 
 /**
  * What an arrow caption narrows, written once and read by all four caption channels.
@@ -2471,8 +2452,21 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         stylePath: "effect.outline.color",
         off: EFFECT_OFF,
         renderable: true,
-        caveat: NODE_OUTLINE_CAVEAT,
-        caveatCode: "outline.sharedWidth",
+    },
+    "node.outlineWidth": {
+        channel: "node.outlineWidth",
+        target: "node",
+        plainName: "Node Outline Width",
+        shortName: "Outline width",
+        group: "effects",
+        // What an outline with no width is drawn at when the graph sets none
+        // (`layoutBehavior.node.outlineWidth`): the ring's own band. A width alone draws nothing.
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 10,
+        stylePath: "effect.outline.width",
+        renderable: true,
     },
     "node.glow": {
         channel: "node.glow",
@@ -2619,7 +2613,6 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         plainName: "Node Marker",
         shortName: "Marker",
         group: "effects",
-        unsupportedReason: "The element draws no marker yet",
         unsupported: { code: "channel.not-drawn", params: {} },
         accepts: "nothing",
         stylePath: "texture.icon",
@@ -4186,13 +4179,74 @@ const DECLARED: Readonly<Record<Channel, ChannelDescriptor>> = {
         group: "color",
         default: "false",
         accepts: "enum",
-        values: ["false", "true", "replace"],
+        values: ["false", "true", "untextured", "replace"],
         stylePath: "shape.modelTint",
         renderable: true,
         caveat:
             "A model keeps its own colors unless this is set: true multiplies the model's base " +
-            'color by `node.color`, and "replace" paints every material in `node.color`. Takes ' +
-            'true, false or "replace".',
+            'color by `node.color`, "untextured" paints the parts with no picture and no vertex ' +
+            'colors in `node.color` and leaves the rest, and "replace" paints every material in ' +
+            "`node.color`. A part the file gives no material, no picture and no vertex colors takes " +
+            '`node.color` whatever this says. Takes true, false, "untextured" or "replace".',
+    },
+    "node.modelAnimation": {
+        channel: "node.modelAnimation",
+        target: "node",
+        plainName: "Node Model Animation",
+        shortName: "Model animation",
+        group: "shape",
+        accepts: "text",
+        stylePath: "shape.modelAnimation",
+        renderable: true,
+        caveat:
+            "The clip a model plays, by its name in the file (the asset's summary lists them as " +
+            '`animations`); unset or "" draws the model still, in its rest pose. A name the file does not ' +
+            "have draws the first frame of its first clip and reports `W_MODEL_ANIMATION_UNKNOWN`.",
+    },
+    "node.modelAnimationSpeed": {
+        channel: "node.modelAnimationSpeed",
+        target: "node",
+        plainName: "Node Model Animation Speed",
+        shortName: "Animation speed",
+        group: "shape",
+        default: 1,
+        accepts: "number",
+        min: 0,
+        max: 16,
+        stylePath: "shape.modelAnimationSpeed",
+        renderable: true,
+        caveat: "How fast `node.modelAnimation` plays: 1 is the file's speed; 0 holds the pose at `node.modelAnimationOffset`.",
+    },
+    "node.modelAnimationOffset": {
+        channel: "node.modelAnimationOffset",
+        target: "node",
+        plainName: "Node Model Animation Start",
+        shortName: "Animation start",
+        group: "shape",
+        default: 0,
+        accepts: "number",
+        min: 0,
+        stylePath: "shape.modelAnimationOffset",
+        renderable: true,
+        caveat:
+            "Seconds into the clip a node starts at, so nodes need not move in step; with " +
+            "`node.modelAnimationSpeed` 0, the pose the node holds.",
+    },
+    "node.modelDoubleSided": {
+        channel: "node.modelDoubleSided",
+        target: "node",
+        plainName: "Node Model Double Sided",
+        shortName: "Model double-sided",
+        group: "shape",
+        default: "file",
+        accepts: "enum",
+        values: ["file", "true", "false"],
+        stylePath: "shape.modelDoubleSided",
+        renderable: true,
+        caveat:
+            'Whether the back of each triangle is drawn: "file" keeps each material\'s own choice, true ' +
+            "draws both faces (an OBJ, STL or PLY whose inside shows through where faces are missing), " +
+            "false draws only the front.",
     },
     "node.modelFit": {
         channel: "node.modelFit",
@@ -5127,6 +5181,7 @@ function shippedDefault(descriptor: ChannelDescriptor): string | number | boolea
 /** Which drawn part each sub-setting channel adjusts: see {@link ChannelDescriptor.modifies}. */
 const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ["node.glowStrength", "node.glow"],
+    ["node.outlineWidth", "node.outline"],
     ["node.haloScale", "node.haloColor"],
     ["node.haloOpacity", "node.haloColor"],
     ["edge.bandWidth", "edge.bandColor"],
@@ -5147,6 +5202,22 @@ const MODIFIES: ReadonlyMap<string, Channel> = new Map<string, Channel>([
     ...(["node.label", "node.tooltip", "edge.label"] as const).flatMap((base) =>
         ["Style", "Size", "Color", "Background"].map((suffix): [string, Channel] => [`${base}${suffix}`, base]),
     ),
+]);
+
+/** What each space-separated list channel holds: see {@link ChannelDescriptor.listOf}. */
+const LIST_OF: ReadonlyMap<string, "color" | "number"> = new Map<string, "color" | "number">([
+    ["node.gradientColors", "color"],
+    ["node.gradientStops", "number"],
+    ["node.pieColors", "color"],
+    ["node.pieSizes", "number"],
+    ["node.pieOpacities", "number"],
+    ["node.stripeColors", "color"],
+    ["node.stripeSizes", "number"],
+    ["node.stripeOpacities", "number"],
+    ["node.chartColors", "color"],
+    ["node.chartValues", "number"],
+    ["edge.gradientColors", "color"],
+    ["edge.gradientStops", "number"],
 ]);
 
 /**
@@ -5177,6 +5248,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
         const value = shippedDefault(descriptor) ?? descriptor.default;
         const step = descriptor.step ?? stepOf(descriptor);
         const modifies = MODIFIES.get(descriptor.channel);
+        const listOf = LIST_OF.get(descriptor.channel);
 
         return [
             descriptor.channel,
@@ -5185,6 +5257,7 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
                 ...(value === undefined ? {} : { default: value }),
                 ...(step === undefined ? {} : { step }),
                 ...(modifies === undefined ? {} : { modifies }),
+                ...(listOf === undefined ? {} : { listOf }),
                 // @experimental file-styles
                 ...(FILE_STYLE_CHANNELS.has(descriptor.channel) ? { feature: "file-styles" as const } : {}),
             },
@@ -5194,6 +5267,50 @@ export const CHANNEL_DESCRIPTORS: Readonly<Record<Channel, ChannelDescriptor>> =
 
 /** Every channel name, in table order. */
 export const CHANNELS: readonly Channel[] = Object.keys(CHANNEL_DESCRIPTORS) as Channel[];
+
+/** Where each label style field lands in the renderer's spelling, for the fields whose two spellings differ. */
+const LABEL_STYLE_PATH_OF_FIELD: ReadonlyMap<string, string> = new Map(
+    (Object.keys(LABEL_FIELD_OF_SUFFIX) as (keyof typeof LABEL_FIELD_OF_SUFFIX)[]).map((suffix) => [
+        LABEL_FIELD_OF_SUFFIX[suffix],
+        LABEL_STYLE_PATH_OF_SUFFIX[suffix],
+    ]),
+);
+
+/** Every channel by its target and style path, built on first use. */
+let channelAtPath: ReadonlyMap<string, Channel> | undefined;
+
+/**
+ * The field channels one written label style value stands for: `node.labelFont` for the `font`
+ * of a `node.labelStyle`, `edge.arrowHeadTextSize` for the `sizePx` of an
+ * `edge.arrowHeadTextStyle`. A field no channel writes on its own is left out.
+ * @param channel - A channel that takes a label style (`accepts: "labelStyle"`), or any other.
+ * @param value - The value written to it.
+ * @returns The field channels, in the order the value lists its fields; empty for any other channel.
+ */
+export function labelStyleFieldChannels(channel: Channel, value: unknown): readonly Channel[] {
+    const descriptor = CHANNEL_DESCRIPTORS[channel] as ChannelDescriptor | undefined;
+    if (descriptor?.accepts !== "labelStyle" || typeof value !== "object" || value === null) {
+        return [];
+    }
+
+    channelAtPath ??= new Map(
+        CHANNELS.map((each): [string, Channel] => {
+            const { target, stylePath } = CHANNEL_DESCRIPTORS[each];
+            return [`${target} ${stylePath}`, each];
+        }),
+    );
+    const found: Channel[] = [];
+    for (const [field, held] of Object.entries(value)) {
+        const path = LABEL_STYLE_PATH_OF_FIELD.get(field) ?? field;
+        const at =
+            held === undefined ? undefined : channelAtPath.get(`${descriptor.target} ${descriptor.stylePath}.${path}`);
+        if (at !== undefined && at !== channel) {
+            found.push(at);
+        }
+    }
+
+    return found;
+}
 
 /** Every channel that carries a colour, which is the set {@link ColorChannel} names. */
 export const COLOR_CHANNELS: readonly ColorChannel[] = CHANNELS.filter(

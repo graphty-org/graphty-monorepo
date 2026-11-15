@@ -5,6 +5,7 @@ packages:
     - "graph-samples"
     - "gazetteer"
     - "babylonjs-map"
+    - "babylonjs-models"
     - "algorithms"
     - "layout"
     - "cytoscape-extensions"

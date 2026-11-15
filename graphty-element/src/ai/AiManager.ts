@@ -4,7 +4,7 @@
  * @module ai/AiManager
  */
 
-import type { Scene } from "@babylonjs/core";
+import type { Scene } from "@babylonjs/core/scene.js";
 
 import type { XRInputHandler } from "../cameras/XRInputHandler";
 import {
@@ -332,6 +332,11 @@ export interface AiManagerConfig {
      * approval). Absent, the assistant imports only URLs that appear in the reader's own message.
      */
     allowImportUrl?: (url: URL) => boolean;
+    /**
+     * Where the assistant's `load_dataset` downloads graph-samples' datasets from (the
+     * `baseUrl` of `session.data.loadDataset`). Absent, that action fails with `E_OPTION_RANGE`.
+     */
+    datasetBaseUrl?: string;
     /** Optional custom provider instance (e.g., pre-initialized WebLlmProvider) */
     providerInstance?: LlmProvider;
     /** Key persistence configuration for encrypted storage */
@@ -640,6 +645,7 @@ export class AiManager {
             ...(toolset === "generated" ? { toolProfile } : {}),
             ...(config.gate === undefined ? {} : { gate: config.gate }),
             ...(config.allowImportUrl === undefined ? {} : { allowImportUrl: config.allowImportUrl }),
+            ...(config.datasetBaseUrl === undefined ? {} : { datasetBaseUrl: config.datasetBaseUrl }),
             ...(config.approvals === undefined ? {} : { approvals: config.approvals }),
             ...(config.questions === undefined ? {} : { questions: config.questions }),
             ...(config.agents === undefined ? {} : { agents: config.agents, apiKeys: this.helperKeys(config) }),

@@ -332,7 +332,7 @@ describe("centrality and community adapters on the index-based ports", () => {
 
         it("leiden", async () => {
             const graph = await graphWith(fixture);
-            const output = await computed(new LeidenAlgorithm(graph));
+            const output = await computed(new LeidenAlgorithm(graph, { randomSeed: 42 }));
             const published = output.graph?.modularity as number;
             assert.approximately(published, LEGACY_LEIDEN[name as keyof typeof LEGACY_LEIDEN] as number, 0.02);
 
@@ -430,7 +430,7 @@ describe("centrality and community adapters on the index-based ports", () => {
                 }
             }
             const graph = await graphWith({ nodes, edges });
-            const output = await computed(new LeidenAlgorithm(graph));
+            const output = await computed(new LeidenAlgorithm(graph, { randomSeed: 42 }));
             const reference = LEGACY_LEIDEN.trials[trial];
             const published = output.graph?.modularity as number;
             assert.approximately(published, reference, 0.05, `trial ${String(trial)}`);

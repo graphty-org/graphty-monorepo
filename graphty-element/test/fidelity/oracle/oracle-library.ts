@@ -199,7 +199,10 @@ async function associateOracle(
             meta.svgKind !== "raster" && drawing !== undefined
                 ? nameDrawnNodes(prims, meta.drawn as DrawnNodes)
                 : prims;
-        return associate(named, size.width, size.height, graphty, { ownLayout });
+        return associate(named, size.width, size.height, graphty, {
+            ownLayout,
+            ...(named === prims ? {} : { drawn: meta.drawn as DrawnNodes }),
+        });
     }
     const png = await pngPixels(pngUrl);
     const k = png.width / size.width;
@@ -354,6 +357,17 @@ export async function compareWithOracle(
     });
 }
 
+/**
+ * Whether a program's drawing hides node labels that would overlap others: Gephi's Preview does unless its
+ * `node.label.avoidOverlap` is set false (the specimen pages set it; a plain GEXF file keeps Gephi's default, on).
+ * @param meta - the drawing's metadata
+ * @returns true where the program hid overlapping labels
+ */
+function avoidsLabelOverlap(meta: Record<string, unknown>): boolean {
+    const preview = meta.previewProperties as Record<string, unknown> | undefined;
+    return meta.program === "Gephi Toolkit" && preview?.["node.label.avoidOverlap"] !== "false";
+}
+
 /** The SVG read last, and what was read from it. */
 let lastRead: { svg: string; read: SvgPrimitives } | undefined;
 
@@ -435,6 +449,7 @@ export async function judgeDrawing(id: string, graphty: PScene, inputs: JudgeInp
                 mirror: drawnBy.mirrored === true,
                 standIn: isStandIn(drawnBy),
                 ownLayouts: inputs.ownLayouts,
+                labelsAvoidOverlap: avoidsLabelOverlap(drawnBy),
                 ...(sheet === undefined ? {} : { judges: judgesFor(sheet, reference) }),
             },
         );

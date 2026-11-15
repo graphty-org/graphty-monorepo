@@ -19,7 +19,7 @@
 import { type GraphSnapshot, INVALID_INDEX } from "@graphty/graph-format";
 import { planar } from "@graphty/layout";
 
-import { type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
+import { askedWeight, type LoadedWeightFact, resolveRunWeight } from "../algorithms/input/weight";
 import { layoutAlias, layoutDescriptor, layoutEntry, layoutIdForEngine } from "../catalog/layouts";
 import type {
     AlgorithmDescriptor,
@@ -45,6 +45,7 @@ import {
 import type { AlgoLegacyCommand, AlgoMoveCommand, AlgoRemoveCommand, AlgoRenameCommand } from "./commands/algo";
 import type { ConfigSetCommand } from "./commands/config";
 import type { DataCommand } from "./commands/data";
+import type { DataDeriveCommand } from "./commands/derive";
 import type { BatchCommand } from "./commands/index";
 import type { LayoutCommand, LayoutSetCommand } from "./commands/layout";
 import type { NoteCommand } from "./commands/notes";
@@ -131,6 +132,7 @@ export type SessionCommand =
     | AlgoMoveCommand
     | AlgoRenameCommand
     | DataCommand
+    | DataDeriveCommand
     | DataIssuesCommand
     | SourceExpandOpCommand
     | StyleCommand
@@ -311,6 +313,11 @@ export interface PlanningContext {
      */
     readonly inputTick?: () => number;
     /**
+     * Whether the session's `workingGraph` option is on: a run over what is shown then computes
+     * over the view whatever its algorithm declares (design/working-graph/design.md section 6).
+     */
+    readonly workingGraph?: () => boolean;
+    /**
      * The data's own revision: it moves on a freeze or an attribute write, never on a mask, so the
      * location columns are kept until a column or a value changes.
      */
@@ -403,9 +410,11 @@ function costInput(
     /* A run computes over a scope smaller than the graph only when its class declares a scoped
        input; every other one computes on the whole graph and is masked back, so it is estimated
        -- and refused -- over the whole graph: a small scope must not admit a whole-graph run. A
-       scoped one pays for deriving its input on top. */
+       scoped one pays for deriving its input on top. Over the working graph's view every class
+       computes over what is shown. */
     const whole = scope.nodeCount === statistics.nodeCount && scope.edgeCount === statistics.edgeCount;
-    const scoped = !whole && descriptor?.scopeInput === "subgraph";
+    const overView = spec === "visible" && context.workingGraph?.() === true;
+    const scoped = !whole && (descriptor?.scopeInput === "subgraph" || overView);
 
     return {
         input: {
@@ -657,7 +666,7 @@ function weighedCaveats(
     try {
         const reading = resolveRunWeight(
             descriptor?.weightMeaning ?? null,
-            command.params?.weight,
+            askedWeight(command.params?.weight, descriptor?.options),
             context.loadedWeight?.() ?? null,
         );
         return {

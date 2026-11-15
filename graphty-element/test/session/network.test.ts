@@ -352,10 +352,75 @@ describe("a model fetched by URL brings the files beside it", () => {
         assert.lengthOf(spy.mock.calls, 3);
     });
 
-    it("refuses a reference to another host or above the folder, and fetches only the main file", async () => {
-        for (const uri of ["https://elsewhere.example.org/tri.bin", "../tri.bin", "//elsewhere.example.org/x.bin"]) {
-            const json = triangleGltf({ buffers: [{ uri, byteLength: 36 }] });
-            const spy = serve(new Map([["https://models.example.com/kit/tri.gltf", utf8(JSON.stringify(json))]]));
+    /**
+     * A .gltf at kit/tri.gltf whose buffer is named by `uri`, served with the .bin at `binUrl`.
+     * @param uri - The buffer's uri.
+     * @param binUrl - Where the .bin is served.
+     * @returns The fetch spy.
+     */
+    function serveBufferAt(uri: string, binUrl: string) {
+        const json = triangleGltf({ buffers: [{ uri, byteLength: 36 }] });
+        return serve(
+            new Map([
+                ["https://models.example.com/kit/tri.gltf", utf8(JSON.stringify(json))],
+                [binUrl, gltfPair().get("tri.bin") as Uint8Array],
+            ]),
+        );
+    }
+
+    it("fetches a part named by an absolute address on the model's origin, with no credentials", async () => {
+        const spy = serveBufferAt(
+            "https://models.example.com/shared/tri.bin",
+            "https://models.example.com/shared/tri.bin",
+        );
+        const record = await createAssetsApi().add("https://models.example.com/kit/tri.gltf");
+        assert.equal(record.state, "accepted", JSON.stringify(record.problems));
+        assert.deepEqual(
+            spy.mock.calls.map(([url]) => url),
+            ["https://models.example.com/kit/tri.gltf", "https://models.example.com/shared/tri.bin"],
+        );
+        assert.equal(spy.mock.calls[1][1].credentials, "omit");
+        assert.isTrue(
+            record.parts?.some((p) => p.name === "models.example.com/shared/tri.bin"),
+            JSON.stringify(record.parts),
+        );
+    });
+
+    it("fetches a part above the model's folder on its origin", async () => {
+        const spy = serveBufferAt("../shared/tri.bin", "https://models.example.com/shared/tri.bin");
+        const record = await createAssetsApi().add("https://models.example.com/kit/tri.gltf");
+        assert.equal(record.state, "accepted", JSON.stringify(record.problems));
+        assert.equal(spy.mock.calls[1][0], "https://models.example.com/shared/tri.bin");
+        assert.isTrue(
+            record.parts?.some((p) => p.name === "shared/tri.bin"),
+            JSON.stringify(record.parts),
+        );
+    });
+
+    it("reports a part on another origin with its address, fetches it only once supplied, and asks first", async () => {
+        for (const [uri, url] of [
+            ["https://elsewhere.example.org/tri.bin", "https://elsewhere.example.org/tri.bin"],
+            ["//elsewhere.example.org/tri.bin", "https://elsewhere.example.org/tri.bin"],
+        ]) {
+            const spy = serveBufferAt(uri, url);
+            const assets = createAssetsApi();
+            const waiting = await assets.add("https://models.example.com/kit/tri.gltf");
+            assert.equal(waiting.problems[0]?.code, "E_MODEL_MISSING_FILE", uri);
+            assert.deepInclude(waiting.problems[0].params, { name: "elsewhere.example.org/tri.bin", url }, uri);
+            assert.lengthOf(spy.mock.calls, 1, uri);
+            const denied = await assets.supply(waiting.id, { name: "elsewhere.example.org/tri.bin", url });
+            assert.equal(denied.problems[0]?.code, "E_MODEL_URL_BLOCKED", uri);
+            assert.lengthOf(spy.mock.calls, 1, uri);
+            assets.allowHosts(["elsewhere.example.org"]);
+            const done = await assets.supply(waiting.id, { name: "elsewhere.example.org/tri.bin", url });
+            assert.equal(done.state, "accepted", JSON.stringify(done.problems));
+            assert.equal(spy.mock.calls[1][0], url, uri);
+        }
+    });
+
+    it("refuses a reference by another scheme, and fetches only the main file", async () => {
+        for (const uri of ["blob:https://models.example.com/x", "javascript:alert(1)"]) {
+            const spy = serveBufferAt(uri, "https://models.example.com/kit/x");
             const record = await createAssetsApi().add("https://models.example.com/kit/tri.gltf");
             assert.equal(record.problems[0]?.code, "E_MODEL_EXTERNAL_URL", uri);
             assert.lengthOf(spy.mock.calls, 1, uri);

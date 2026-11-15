@@ -170,6 +170,15 @@ APIs, you can make them without getting my approval."
   packages (owner, 2026-11-10): see "Public API and breaking changes". Ask him again only when a
   real outside consumer appears.
 
+### Owner's standing rules (2026-11-13)
+
+Act on these without asking him, and tell him in one line: (1) a recorded decision or standing rule releases an
+owner label; (2) additive work whose default leaves the graphty app unchanged is ux-safe and ordered; (3) his issue
+stating the expected result is the order; (4) invisible accessibility and default-contrast fixes are ordered; (5)
+free CI and dev-tooling changes go ahead; (6) save files carry small built-ins and name large ones; (7) a superseded
+branch is folded into its successor and kept; (8) an outside pull request is re-filed as our own issue.
+Full wording: design/owner-standing-rules.md.
+
 ### Why
 
 The failure mode this prevents is silent and expensive: a capability lands "in the product"
@@ -193,12 +202,13 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/algorithms` | **algorithms** | - |
 | `@graphty/layout` | **layout** | - |
 | `@graphty/graph-format` | **graph-format** | "format", "snapshot package" |
-| `@graphty/graph-io` (and `@graphty/graph-io/<format>` subpaths: json, graphml, gexf, csv, gml, dot, pajek, neo4j, xgmml, cx2, cx, obo, cys) | **graph-io** | "io", "importers" |
-| `@graphty/webgpu-graph-algorithms` (and `@graphty/webgpu-graph-algorithms/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
-| `@graphty/graph-samples` (and `@graphty/graph-samples/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
-| `@graphty/gazetteer` (and `/countries`, `/regions`, `/cities` subpaths) | **gazetteer** | "geocoder", "place names" |
+| `@graphty/graph-io` (and a `@graphty/graph-io/<format>` subpath per format) | **graph-io** | "io", "importers" |
+| `@graphty/webgpu-graph-algorithms` (and `/browser`, `/node`, `/acquire` subpaths) | **webgpu-graph-algorithms** | "webgpu", "the GPU package", "the GPU layout" |
+| `@graphty/graph-samples` (and `/generators`, `/datasets/<name>` subpaths) | **graph-samples** | "generators", "samples", "datasets" |
+| `@graphty/gazetteer` (and `/countries`, `/regions`, `/cities`) | **gazetteer** | "geocoder", "place names" |
 | `@graphty/cytoscape-extensions`, in `cytoscape-extensions/` | **cytoscape-extensions** | "the adapter", "cytoscape" (that is the third-party library) |
-| `babylonjs-map` (unscoped; and the `babylonjs-map/location` and `babylonjs-map/projection` subpaths), in `babylonjs-map/` | **babylonjs-map** | "the map package", "@graphty/babylonjs-map" (it has no scope) |
+| `babylonjs-map` (unscoped; and `/location`, `/projection` subpaths), in `babylonjs-map/` | **babylonjs-map** | "the map package", "@graphty/babylonjs-map" (it has no scope) |
+| `babylonjs-models` (unscoped; `/files` and `/detect` subpaths), in `babylonjs-models/` | **babylonjs-models** | "@graphty/babylonjs-models" (no scope) |
 
 - The Web Component library is **graphty-element** (not "graphty")
 - The React application is **graphty** or **graphty app**
@@ -213,9 +223,10 @@ workarounds available to them and no way to know they are not alone.
 | `@graphty/graph-io` | `graph-io/` | 0.3.20 | Importers and exporters for 13 formats (JSON, GraphML, GEXF, CSV, GML, DOT, Pajek, Neo4j CSV, XGMML, CX2, CX, OBO, Cytoscape sessions) for the graph-format snapshot; subpath exports per format |
 | `@graphty/webgpu-graph-algorithms` | `webgpu-graph-algorithms/` | 0.6.12 | WebGPU-accelerated graph algorithms and layouts (ForceAtlas2 first) over the graph-format snapshot, for Node (Dawn) and browsers; never falls back to the CPU |
 | `@graphty/graph-samples` | `graph-samples/` | 0.1.7 | Seeded, platform-independent graph generators as typed arrays for the graph-format snapshot, and classic sample datasets downloaded from graphty.app on demand (no dataset's data is in the package) |
-| `@graphty/gazetteer` | `gazetteer/` | 0.1.0 | Place names with coordinates, offline: Natural Earth countries and regions, GeoNames cities15000, one ES module per layer; graphty-element's optional peer for maps by place name |
-| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus graph generators, sample datasets (downloaded from graphty.app) and file import/export (all loaded on first use); WebGPU acceleration loaded on demand, with no extra import |
+| `@graphty/gazetteer` | `gazetteer/` | 0.1.0 | Offline place names with coordinates (Natural Earth countries and regions, GeoNames cities); graphty-element's optional peer for maps by place name |
+| `@graphty/cytoscape-extensions` | `cytoscape-extensions/` | 0.0.4 | Every graphty layout and algorithm as a Cytoscape.js v3 extension, registered with one call, plus generators, sample datasets and file import/export, loaded on first use; WebGPU on demand |
 | `babylonjs-map` | `babylonjs-map/` | 0.0.0 | Maps and globes for Babylon.js scenes (unscoped, knows nothing about graphs); `/projection` and `/location` never load Babylon.js |
+| `babylonjs-models` | `babylonjs-models/` | 0.0.0 | 3D models into Babylon.js scenes from URLs, files, folders or zips (unscoped, no graphs) |
 | `@graphty/algorithms` | `algorithms/` | 2.1.2 | 60+ graph algorithms (traversal, paths, centrality, clustering, community, flow, link prediction) over the graph-format snapshot |
 | `@graphty/layout` | `layout/` | 1.10.5 | 15+ 2D and 3D graph layouts (ported from NetworkX) over the graph-format snapshot, plus steppable ForceAtlas2 and Fruchterman-Reingold simulations |
 | `@graphty/graphty-element` | `graphty-element/` | 2.6.2 | Web Component for 3D/2D graph visualization (Lit + Babylon.js) |
@@ -247,8 +258,8 @@ reference out to one of the files above instead of adding a paragraph.
 ## Commands
 
 From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; inside a package: `npm run build`,
-`npm run test:run`, `npm run lint`. `./tools/run-tests.sh <shard>` runs one CI shard exactly as CI does
-(`--list` names them). Every server reads `PORT` and refuses to start without it: start it through servherd with
+`npm run test:run`, `npm run lint`. `./tools/run-tests.sh <shard>` reproduces one failing CI shard when asked, never as a
+pre-push step: CI runs whole shards. Every server reads `PORT` and refuses to start without it: start it through servherd with
 `{{port}}` (tools/README.md, "Starting Servers").
 
 ## Rules for every change
@@ -279,8 +290,8 @@ From the root (Nx, cached): `pnpm run build`, `pnpm run test`, `pnpm run lint`; 
   SPECIAL LAYER."). Everything, Hovered, Selected and Pinned are ordinary layers: each is
   a style on a calculated value (hovered, selected, pinned). No layer gets its own behavior, controls, wording or protection, and
   code never branches on a layer's name, template or kind. A node left out of every shown layer is hidden.
-  Default layers are data written once when a project is created. Issue #5905 tracks removing the existing
-  exceptions.
+  Default layers are data written once when a project is created. The exceptions left are listed in
+  `graphty/special-layers-baseline.json`.
 - UI: use the default components and never write a bespoke control to work around one; a wrong shared component
   is fixed in the shared component (graphty/CLAUDE.md, "UI Components").
 
@@ -341,9 +352,12 @@ the 6-hour full run to nightly.graphty.app and npm `next`; only the owner's `pro
    issue: its number in the name (`fix/1234-topic`), `--issue N` or `--new-issue "<title>"`. Every commit pushes
    the branch until its pull request is open. When you stop,
    `node tools/branch-note.mjs update --done "<t>" --left "<t>" --next "<t>"`.
-2. Before opening it, run what CI would: `pnpm run check:quick` (in the background; it runs through
-   `tools/low-priority.sh` and includes the selected tests, `node tools/sonar-gate.mjs` and every check of CI's
-   Checks job). `pnpm run test:changed` alone misses those checks. A long-lived branch -- open more than about two
+2. Before opening it, run the pre-push checklist in `.claude/skills/pipeline-round/shared.md` ("Subagent rules"):
+   lint, typecheck, build and the tests your change touches, never whole shards (CI runs the rest). A human, or a
+   long-lived branch below, may run `pnpm run check:quick` instead (in the background, through
+   `tools/low-priority.sh`: the selected tests, which leave whole browser shards to CI, `node tools/sonar-gate.mjs`
+   and every check of CI's Checks job except the whole-repository format check; CI's Docs job builds the docs
+   site). A long-lived branch -- open more than about two
    days, holding more than a day of work, after a merge of master that brought app or graphty-element changes or
    needed conflicts resolved, or after a large change (a refactor of a shared component, a dependency or lockfile
    upgrade, a change to graphty-element's styling, layout or rendering) -- whose change reaches the graphty app also
@@ -396,6 +410,9 @@ since a live change puts a merge there first).
   reaches master.
 - Never wait inside a model turn: start a push or a long run in the background and end the turn. A subagent opens
   its pull request and stops. A prompt that starts an agent carries this rule.
+- Tell the owner when work is done locally, never only after CI or the merge (owner, 2026-11-14): once it is
+  committed and its local checks pass, say what changed. A mock, story or new behavior he can see gets a running
+  local URL and an `ACTION NEEDED` line to review it.
 - Every session shares graphty-agent's 5,000 GitHub requests an hour: ask about many pull requests in one GraphQL
   query, read pull request status from the broker's `tmp/pr-status/status.json`, poll every 5 minutes or slower,
   and on a 403 rate limit stop and wait. A prompt that starts an agent which talks to GitHub carries these rules.

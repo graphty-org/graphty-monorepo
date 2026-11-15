@@ -59,6 +59,79 @@ const transparent = await graph.captureScreenshot({
 });
 ```
 
+### A legend in the image
+
+`legend` draws a key into the image, at the capture's resolution, so a colour-encoded picture
+still says what its colours mean once it leaves the page. It is drawn from the element's legend
+model (`session.styles.legend()`), not copied from the page.
+
+```typescript
+// The element's own legend, in the bottom-right corner
+await graph.captureScreenshot({ legend: true });
+
+// Only when a layer binds a value (a colour by degree, a size by betweenness)
+await graph.captureScreenshot({ legend: "auto" });
+
+// Another corner, and a heading in your own words
+await graph.captureScreenshot({ legend: { position: "top-left", title: "Degree" } });
+```
+
+| `legend` value          | What the image gets                                                  |
+| ----------------------- | -------------------------------------------------------------------- |
+| absent or `false`       | No key (the default)                                                 |
+| `true`                  | The element's legend, bottom right                                   |
+| `"auto"`                | The same, only when a layer binds a value                            |
+| `{ position?, title? }` | The same in `top-left`, `top-right`, `bottom-left` or `bottom-right` |
+| an array of sections    | Exactly the sections you pass, top left, every word yours            |
+
+The element's legend writes no words of its own: each section is headed by the field's name, and
+lists the data's values (or the names readers gave them) beside their colours, or a ramp between
+the lowest and highest value. To word the key yourself, build the sections from
+`session.styles.legend()` and pass the array:
+
+```typescript
+await graph.captureScreenshot({
+    legend: [{ title: "Community", rows: [{ label: "Group 1", color: "#4e79a7", value: "17" }] }],
+});
+```
+
+## Vector Figures (SVG)
+
+`exportFigure()` writes the graph as it is drawn now as an SVG file, for a paper or a slide that
+needs to scale without blurring. Every visible node is a filled shape in its color, every visible
+edge a line, and every label on screen is text you can edit and search. `legend` takes the same
+values as a screenshot's and draws the same key, as text too. The figure is the canvas's size and
+lines up with a screenshot taken at the same moment.
+
+```ts
+import "@graphty/graphty-element";
+
+const element = document.querySelector("graphty-element")!;
+
+// An SVG file the reader saves: nodes as shapes, labels and the key as text
+await element.exportFigure({ legend: true, download: true, downloadFilename: "figure.svg" });
+
+// Or keep the file to upload or embed
+const figure = await element.exportFigure({ legend: { position: "top-left" }, transparentBackground: true });
+const svg = await figure.blob.text();
+console.log(svg.length, figure.width, figure.height);
+```
+
+| Option                  | Default       | What it does                                        |
+| ----------------------- | ------------- | --------------------------------------------------- |
+| `format`                | `"svg"`       | The file format; SVG is the only one today          |
+| `legend`                | no key        | The key, as `captureScreenshot`'s `legend` takes it |
+| `transparentBackground` | `false`       | Leave the canvas background out                     |
+| `download`              | `false`       | Also start a download                               |
+| `downloadFilename`      | `"graph.svg"` | The download's name                                 |
+
+The result holds the file (`blob`, type `image/svg+xml`), its `width` and `height` in CSS pixels,
+and whether it was `downloaded`. It waits for the finished picture first, as `waitForStableFrame()`
+does. A format other than `"svg"` fails with `E_BAD_COMMAND` (`details.field` is `"format"`).
+
+A figure draws each node's flat color, without the canvas's lighting, and draws edges straight,
+without arrowheads; curved edges, arrowheads, borders and label backgrounds are not in it yet.
+
 ## Checking Capabilities
 
 Before capturing, verify support:
@@ -139,24 +212,31 @@ async function downloadScreenshotBlob() {
 Capture animated video of the visualization:
 
 ```typescript
-const blob = await graph.captureAnimation({
+const { blob, metadata } = await graph.captureAnimation({
     duration: 5000, // 5 seconds
+    cameraMode: "stationary", // the camera stays where it is
     fps: 30, // 30 frames per second
-    format: "webm", // Video format
 });
 
-// blob is a video Blob
+// blob is the video; metadata.format says which format the browser recorded
 ```
+
+`metadata.framesCaptured` counts the frames the graph drew while recording (at most one in each
+1/fps interval), and `framesDropped` and `dropRate` the frames expected that it did not draw in
+time, so a busy machine shows up as a drop rate above 0.
 
 ## Video Options
 
-| Option     | Type              | Default       | Description             |
-| ---------- | ----------------- | ------------- | ----------------------- |
-| `duration` | `number`          | `5000`        | Recording duration (ms) |
-| `fps`      | `number`          | `30`          | Frames per second       |
-| `format`   | `'webm' \| 'mp4'` | `'webm'`      | Video format            |
-| `width`    | `number`          | canvas width  | Output width            |
-| `height`   | `number`          | canvas height | Output height           |
+| Option         | Type                                | Default        | Description                                                                                  |
+| -------------- | ----------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `duration`     | `number`                            | required       | Recording duration (ms)                                                                      |
+| `cameraMode`   | `'stationary' \| 'animated'`        | required       | Hold the camera, or fly it along `cameraPath` or `tour`                                      |
+| `fps`          | `number`                            | `30`           | Frames per second                                                                            |
+| `format`       | `'webm' \| 'mp4' \| 'auto'`         | `'auto'`       | Video format; `'auto'` picks WebM where the browser records it, else MP4                     |
+| `videoBitrate` | `number`                            | `5000000`      | Bits per second                                                                              |
+| `width`        | `number`                            | canvas width   | Output width; alone, the height follows the canvas's aspect                                  |
+| `height`       | `number`                            | canvas height  | Output height; with `width`, the picture is fitted inside both, centered, with black margins |
+| `camera`       | `CameraState \| { preset: string }` | current camera | Stationary mode: where the camera stands while recording; it is put back afterwards          |
 
 ## Animation Capture Controls
 
@@ -178,8 +258,9 @@ graph.cancelAnimationCapture();
 
 ```typescript
 async function recordAndDownload() {
-    const blob = await graph.captureAnimation({
+    const { blob } = await graph.captureAnimation({
         duration: 10000,
+        cameraMode: "stationary",
         fps: 30,
     });
 
@@ -222,6 +303,7 @@ async function captureTour() {
     // Start recording
     const capturePromise = graph.captureAnimation({
         duration: 10000,
+        cameraMode: "stationary",
     });
 
     // Animate camera during recording
@@ -238,7 +320,7 @@ async function captureTour() {
     graph.zoomToFit();
 
     // Wait for recording to complete
-    const blob = await capturePromise;
+    const { blob } = await capturePromise;
 
     // Download
     downloadBlob(blob, "tour.webm");
@@ -306,12 +388,18 @@ Add a screenshot button to your UI:
 
         capturePromise = graph.captureAnimation({
             duration: 30000, // Max 30 seconds
+            cameraMode: "stationary",
             fps: 30,
         });
 
         try {
-            const blob = await capturePromise;
-            downloadBlob(blob, "recording.webm");
+            const { blob, metadata } = await capturePromise;
+            downloadBlob(blob, `recording.${metadata.format}`);
+        } catch (error) {
+            // Stop cancels the recording: a cancelled recording keeps no video
+            if (error.name !== "AnimationCancelledError") {
+                throw error;
+            }
         } finally {
             recordBtn.disabled = false;
             stopBtn.disabled = true;

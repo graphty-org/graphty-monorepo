@@ -31,6 +31,8 @@ graphty-element/test/ai/conversation/fixtures/
 # sample and property, which prettier would spread over a line per element id (4 MB instead of 1.5)
 graphty-element/test/fidelity/oracle-known-failures.json
 graphty-element/test/fidelity/baseline-scores.json
+# Written by graphty-element/test/catalog/engine-facts.test.ts (UPDATE_ENGINE_FACTS=1), byte for byte
+graphty-element/src/catalog/engine-facts.json
 # Graphviz layout fixtures: written by graphty-element/scripts/record-graphviz-fixtures.ts and
 # compared number for number by graphty-element/test/layout/graphviz-fidelity.test.ts
 graphty-element/test/layout/graphviz-fixtures/

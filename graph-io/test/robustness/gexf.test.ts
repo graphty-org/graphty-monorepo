@@ -384,12 +384,13 @@ describe("GEXF attribute values", () => {
         expect(snapshot.nodes.value("n", 0)).toBe(2);
     });
 
-    it("gexf-attributes-after-nodes: values of an attribute declared after the nodes are dropped, and the late declaration says so", async () => {
+    it("gexf-attributes-after-nodes: values of an attribute declared after the nodes are kept as text, and the late declaration says so", async () => {
         const doc = `<gexf xmlns="${GEXF_NS}" version="1.3"><graph><nodes><node id="a"><attvalues><attvalue for="0" value="1"/></attvalues></node></nodes>${NODE_ATTRS(`<attribute id="0" title="n" type="integer"/>`)}</graph></gexf>`;
         const { snapshot, report } = await load("gexf", doc);
         expect(codes(report)).toEqual([GEXF_ISSUE.UNKNOWN_ATTRIBUTE, GEXF_ISSUE.UNKNOWN_ATTRIBUTE]);
         expect(report.issues[1].message).toMatch(/declared after values that use it/);
-        expect(snapshot.nodes.require("n").isSet(0)).toBe(false);
+        expect(snapshot.nodes.value("0", 0)).toBe("1");
+        expect(snapshot.nodes.get("n")).toBeNull();
     });
 });
 

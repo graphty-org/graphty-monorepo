@@ -113,6 +113,7 @@ const LABEL_PROPERTIES = [
  */
 function sessionWithDegree(): GraphSession {
     const session: GraphSession = createGraphSession({
+        workingGraph: false,
         runs: {
             execute: (context: RunExecutionContext): Promise<RunOutcome> => {
                 const counts = new Map<string, number>();
@@ -372,7 +373,7 @@ function sample(dir: string): string[] {
  * @returns The session, or null when the file carries no styles the element draws.
  */
 async function corpusSession(type: string, path: string): Promise<GraphSession | null> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     const stored = new Uint8Array(readFileSync(path));
     const data = path.endsWith(".gz") ? new Uint8Array(gunzipSync(stored)) : stored;
     await session.data.import({ type, config: { data } }, { styles: "file" });
@@ -596,7 +597,7 @@ async function write(
  * @returns The session.
  */
 async function loadBack(text: string, format: string): Promise<GraphSession> {
-    const session = createGraphSession();
+    const session = createGraphSession({ workingGraph: false });
     await session.data.import({ type: format, config: { data: text } }, { styles: "file" });
     await session.styles.settled();
     return session;
@@ -611,8 +612,8 @@ async function loadBack(text: string, format: string): Promise<GraphSession> {
 async function dataIsStable(source: GraphSession, writer: (typeof WRITERS)[number]): Promise<boolean> {
     const plain = async (session: GraphSession): Promise<string> =>
         (await write(session, writer.format, writer.options, false)).text;
-    const first = createGraphSession();
-    const second = createGraphSession();
+    const first = createGraphSession({ workingGraph: false });
+    const second = createGraphSession({ workingGraph: false });
     try {
         await first.data.import({ type: writer.format, config: { data: await plain(source) } });
         const once = await plain(first);

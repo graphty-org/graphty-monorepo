@@ -223,6 +223,7 @@ export const MEMBER_IDS = [
     "ci.bins_over",
     "ci.reruns",
     "ci.shards_over",
+    "ci.group_deadline",
     "ci.runner_minutes",
     "ci.superseded",
     "ci.chronic_jobs",
@@ -573,6 +574,32 @@ export interface ShardsSection extends SectionBase {
     rows: ShardRow[];
     /** Shards not listed, and whether every one of them is within budget. */
     more?: { count: number; allWithin: boolean };
+    /** Full runs only: each test group's members summed per run against its test step's deadline. */
+    groups?: GroupRow[];
+}
+
+/** One full-run group run: its members' summed times (10 s between members) against the step's deadline. */
+export interface GroupRunTime {
+    runId: number;
+    totalS: number;
+    /** totalS over limitS, in %. */
+    pct: number;
+}
+
+/** A test group whose members run one after another in one test step (tools/ci-test-matrix.mjs GROUPS). */
+export interface GroupRow {
+    group: string;
+    /** The test step's deadline (TEST_STEP_LIMIT_MS). */
+    limitS: number;
+    runs: number;
+    /** Its newest full run in the range. */
+    newest: GroupRunTime;
+    /** Its slowest full run in the range. */
+    worst: GroupRunTime;
+    /** Above this % of the deadline the group is not OK. */
+    warnPct: number;
+    /** Each member's slowest run against its GROUP_MEMBER_SECONDS entry; `stale` when over it by more than 10 s. */
+    members: { member: string; maxS: number; tableS: number | null; stale: boolean }[];
 }
 
 export interface ShardRow {

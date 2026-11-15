@@ -13,7 +13,7 @@ import { afterEach, assert, beforeAll, beforeEach, describe, it } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { openBy } from "../../../test/open";
-import { dragAcross, inBrowserZone, pinchFrom, pinchOver, tap, wheelOver } from "../../../test/real-pointer";
+import { dragAcross, hoverOver, inBrowserZone, pinchFrom, pinchOver, tap, wheelOver } from "../../../test/real-pointer";
 import { pickSample } from "../../../test/samples-dialog";
 import { siteFeatures } from "../../../test/siteFeatures";
 import { act, render, screen, waitFor, within } from "../../../test/test-utils";
@@ -543,8 +543,12 @@ describe("the timeline dock on the real element", () => {
         await act(async () => {
             await session.selection.apply({ nodes: ["p01"] });
         });
-        await within(dock).findByTestId("histogram-overlay");
-        const bars = within(dock).getAllByTestId("histogram-bar");
+        // A bar's words are part of its key, so the bars are drawn anew once they count the selection.
+        const bars = await waitFor(() => {
+            const drawn = within(dock).getAllByTestId("histogram-bar");
+            assert.isTrue(drawn.every((bar) => bar.getAttribute("title")?.endsWith(" selected")));
+            return drawn;
+        });
         const bins = session.time.bins({ maxCount: bars.length }) ?? [];
         const mine = session.time.bins({ maxCount: bars.length, of: { nodes: ["p01"], incident: true } }) ?? [];
         assert.equal(bins.length, bars.length);
@@ -552,11 +556,15 @@ describe("the timeline dock on the real element", () => {
         const bin = bins[at];
         assert.isDefined(bin);
 
-        await userEvent.hover(bars[at]);
+        await hoverOver(bars[at]);
 
-        assert.isTrue(bars[at].matches(":hover"));
         const when = rangeWords(bin.start, bin.end, "ms", bin.step);
         const words = `${when}: ${countWords(bin.edges, "edge")}, ${formatCount(mine[at]?.edges ?? 0)} selected`;
+        // The brush covers the bar, so the chart's own tooltip names it.
+        await waitFor(() => {
+            assert.isTrue(screen.getAllByText(words).some((shown) => shown.closest("table") === null));
+        });
+        // A bar the brush leaves uncovered names itself in the same words.
         assert.equal(bars[at].getAttribute("title"), words);
         // The same words for a screen reader, in the chart's table of values.
         within(within(dock).getByTestId("histogram-values")).getByRole("rowheader", { name: words });

@@ -612,6 +612,8 @@ export function TimeDock(): React.JSX.Element | null {
     const [drag, setDrag] = useState<[number, number] | null>(null);
     // A brush gesture under way; a whole-window drag's release commits it as its own step.
     const hold = useRef<BrushHold | null>(null);
+    // Where on the axis the pointer rests over the chart, for its tooltip.
+    const [hoverAt, setHoverAt] = useState<number | null>(null);
     const { ref, width } = useBoxSize();
     const phone = useMediaQuery(PHONE_WIDTH, false, { getInitialValueInEffect: false });
     const maxCount = Math.max(10, Math.floor((width > 0 ? width : 300) / PX_PER_BIN));
@@ -701,6 +703,14 @@ export function TimeDock(): React.JSX.Element | null {
     const viewButtons = <ViewButtons session={session} store={store} zoomed={view !== null} reset={reset} />;
     const allTime = <AllTimeButton session={session} store={store} />;
     // Always the bar's last button, at its right end, whatever comes and goes before it.
+    const hovered = hoverAt === null ? undefined : binAt(hoverAt);
+    // A bar the brush leaves uncovered has its own tooltip; elsewhere over the chart, this names the
+    // bin under the pointer.
+    const hover = (event: React.PointerEvent<HTMLDivElement>): void => {
+        const box = event.currentTarget.getBoundingClientRect();
+        const covered = !(event.target as Element).hasAttribute("title");
+        setHoverAt(covered && box.width > 0 ? min + ((event.clientX - box.left) / box.width) * (max - min) : null);
+    };
     const settingsButton = (
         <div className="tl-settings">
             <SettingsButton />
@@ -708,42 +718,51 @@ export function TimeDock(): React.JSX.Element | null {
     );
     const chart = (
         <div className="tl-chart" data-panel-start="" ref={chartRef}>
-            <HistogramRow
-                label={label}
-                bins={all.map((bin, index) => {
-                    const inside = window !== null && overlaps(bin, range);
-                    const shown = countOf(visible[index]);
-                    return {
-                        label: binWords(bin),
-                        count: shown,
-                        ghost: countOf(bin),
-                        from: bin.start,
-                        to: bin.end,
-                        // Lit only for a bin holding something the window shows; outside it, dimmed.
-                        highlighted: inside && shown > 0,
-                        dimmed: window !== null && !inside,
-                    };
-                })}
-                minLabel={minLabel}
-                maxLabel={maxLabel}
-                {...(selected === null ? {} : { overlay: { label: "Selection over time", values: selected } })}
-                brush={{
-                    min,
-                    max,
-                    step: Math.min(brushStep(first?.step), brushStep(step)),
-                    value: range,
-                    startLabel: "Window start",
-                    endLabel: "Window end",
-                    bodyLabel: "Window",
-                    valueText,
-                    rangeText: (value) => rangeWords(value[0], value[1], unit, step, zone),
-                    thumbLabel: (value) => {
-                        const bin = binAt(value);
-                        return bin === undefined ? instantWords(value, unit, step, zone) : binWords(bin);
-                    },
-                    ...brushGesture(session, store, setDrag, hold, pinched, shown),
-                }}
-            />
+            <Tooltip.Floating label={hovered === undefined ? "" : binWords(hovered)} disabled={hovered === undefined}>
+                <div
+                    onPointerMove={hover}
+                    onPointerLeave={() => {
+                        setHoverAt(null);
+                    }}
+                >
+                    <HistogramRow
+                        label={label}
+                        bins={all.map((bin, index) => {
+                            const inside = window !== null && overlaps(bin, range);
+                            const shown = countOf(visible[index]);
+                            return {
+                                label: binWords(bin),
+                                count: shown,
+                                ghost: countOf(bin),
+                                from: bin.start,
+                                to: bin.end,
+                                // Lit only for a bin holding something the window shows; outside it, dimmed.
+                                highlighted: inside && shown > 0,
+                                dimmed: window !== null && !inside,
+                            };
+                        })}
+                        minLabel={minLabel}
+                        maxLabel={maxLabel}
+                        {...(selected === null ? {} : { overlay: { label: "Selection over time", values: selected } })}
+                        brush={{
+                            min,
+                            max,
+                            step: Math.min(brushStep(first?.step), brushStep(step)),
+                            value: range,
+                            startLabel: "Window start",
+                            endLabel: "Window end",
+                            bodyLabel: "Window",
+                            valueText,
+                            rangeText: (value) => rangeWords(value[0], value[1], unit, step, zone),
+                            thumbLabel: (value) => {
+                                const bin = binAt(value);
+                                return bin === undefined ? instantWords(value, unit, step, zone) : binWords(bin);
+                            },
+                            ...brushGesture(session, store, setDrag, hold, pinched, shown),
+                        }}
+                    />
+                </div>
+            </Tooltip.Floating>
         </div>
     );
 

@@ -137,13 +137,16 @@ export interface AiApprovalPreview {
     readonly algorithm?: string;
     readonly changedValues?: number;
     readonly costClass?: string;
+    readonly costUsd?: number;
     readonly edges?: number;
     readonly ids?: readonly {
         readonly id: string;
         readonly label: string;
     }[];
     readonly mode?: "merge" | "replace";
+    readonly model?: string;
     readonly nodes?: number;
+    readonly provider?: string;
     readonly removeEdges?: number;
     readonly removeNodes?: number;
     readonly run?: string;
@@ -161,7 +164,7 @@ export interface AiApprovalRequest {
     }[];
     readonly conversationId?: string;
     readonly createdAt?: string;
-    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | (string & {});
+    readonly gate: "slow" | "large" | "replaces" | "irreversible" | "network" | "policy" | "plan" | "web-content" | "paid" | (string & {});
     readonly id: string;
     readonly messageId?: string;
     readonly preview: AiApprovalPreview;

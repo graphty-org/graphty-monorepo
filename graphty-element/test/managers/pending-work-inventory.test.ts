@@ -171,6 +171,12 @@ const INVENTORY: Record<string, Covered> = {
     },
     "src/ai/AiManager.ts": { count: 3, reason: "the assistant's voice and XR modules; they draw nothing" },
     "src/ai/conversation/Conversation.ts": { count: 1, reason: "the saved conversations' store; it draws nothing" },
+    "src/ai/engine/ProviderApiEngine.ts": {
+        count: 2,
+        reason:
+            "a generated picture's request and answer, handed to the assistant's tool; it draws nothing itself; " +
+            "the skybox the tool then writes is drawn by the render manager",
+    },
     "src/ai/engine/load.ts": { count: 4, reason: "the model engines' modules; they draw nothing" },
     "src/ai/engine/tanstack/anthropic.ts": { count: 2, reason: "the provider's own requests; they draw nothing" },
     "src/ai/engine/tanstack/index.ts": { count: 3, reason: "the providers' SDKs; they draw nothing" },

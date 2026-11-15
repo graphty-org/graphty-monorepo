@@ -5058,6 +5058,34 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         return { ...styleAgreement(every, floor, channel), readOver: "everyElement" };
     };
 
+    /**
+     * Count what one layer covers and where it wins: {@link StylesApi.counts}, read fresh.
+     * @param id - The layer.
+     * @returns The counts.
+     */
+    const countsOf = (id: LayerId): StyleCounts => {
+        const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
+
+        // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
+        const counts = {
+            ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision),
+            visible: amongDrawn(id),
+        };
+        // Groups past the outline cap draw nothing; said here, never dropped silently.
+        const left = groupOutlinesOf(api)
+            .filter((each) => each.layer === id)
+            .reduce((sum, each) => sum + each.left, 0);
+        return left === 0
+            ? counts
+            : {
+                  ...counts,
+                  undrawn: Object.freeze([
+                      ...counts.undrawn,
+                      { code: "shader.group-cap" as const, params: { left, limit: GROUP_OUTLINE_CAP } },
+                  ]),
+              };
+    };
+
     const api: SessionStylesApi = {
         list(): readonly Layer[] {
             return listLayers();
@@ -5827,26 +5855,10 @@ export function createStylesApi(sources: StylesSources): SessionStylesApi {
         },
 
         counts(id: LayerId): StyleCounts {
-            const revision = `${String(styleRevision)}.${String(sources.inputRevision?.() ?? 0)}`;
-
-            // Counted on the stack's own layers: a branches view suspends them only while it is drawn.
-            const counts = {
-                ...styleCounts(id, elementsOf(WHOLE_GRAPH), countSources(), revision),
-                visible: amongDrawn(id),
-            };
-            // Groups past the outline cap draw nothing; said here, never dropped silently.
-            const left = groupOutlinesOf(api)
-                .filter((each) => each.layer === id)
-                .reduce((sum, each) => sum + each.left, 0);
-            return left === 0
-                ? counts
-                : {
-                      ...counts,
-                      undrawn: Object.freeze([
-                          ...counts.undrawn,
-                          { code: "shader.group-cap" as const, params: { left, limit: GROUP_OUTLINE_CAP } },
-                      ]),
-                  };
+            // Kept while nothing it reads moves, as `agreement` is: a read walks the layer's kind of
+            // element, and the graphty app's panels read the same layer several times a render
+            // (issue #7966).
+            return kept(JSON.stringify(["counts", id]), () => countsOf(id));
         },
 
         drawnCount(id: LayerId): number {

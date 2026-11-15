@@ -110,6 +110,11 @@ profiler slows them, so give such runs their own `BENCH_RESULTS` file.
 The `3d` flag keeps the lean mode's straight edges in 3D, where `batched` pulls them (a 2D line is not pulled), and
 fails the run if any edge is an object edge: the million-edge line program (cosmos-gap.md G12) is measured with it.
 
+The `columns` flag loads graphty-element through `session.data.importColumns` with the typed arrays cosmos.gl
+gets (zero-based endpoints, x, y and z per node) instead of `nodeData` and `edgeData` records; the records mode stays
+the default, so both are measured (cosmos-gap.md G8). `lean-m-few-columns` and `lean-m-columns` are 100k + 1k and
+100k + 1M that way.
+
 The curve target (100,000 curved edges moving) is `lean-s-curves`: 10,000 boxes and 100,000 curves with no caps,
 in 3D. Under `batched` it also fails if any edge is an object edge. Run it once per render path, interleaved:
 

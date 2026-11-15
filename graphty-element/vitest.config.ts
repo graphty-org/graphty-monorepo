@@ -96,6 +96,7 @@ const MINIMUM_WORK_TESTS = [
     "test/browser/a-layer-added-later-paints.test.ts",
     "test/browser/framing-sizes-screen-labels-for-its-camera.test.ts",
     "test/browser/label-textures-fit-across-frames.test.ts",
+    "test/browser/branches-view-scaling.test.ts",
 ];
 
 /**
@@ -155,8 +156,9 @@ const AI_FRAMEWORKS = ["@tanstack/ai", "@tanstack/ai-openai", "@tanstack/ai-anth
 const GRAPHVIZ = ["@hpcc-js/wasm-graphviz"];
 
 /**
- * What the model chunk (src/models/chunk.ts) imports from Babylon.js, pre-bundled for the same
- * reason: the chunk is imported lazily, so Vite would otherwise discover these mid-run.
+ * What the model chunk (src/models/chunk.ts) and babylonjs-models import from Babylon.js,
+ * pre-bundled for the same reason: both are imported lazily, so Vite would otherwise discover these
+ * mid-run.
  */
 const MODEL_CHUNK = [
     "@babylonjs/loaders/glTF/2.0/glTFLoader.js",
@@ -193,7 +195,7 @@ const MODEL_CHUNK = [
     "@babylonjs/core/Materials/Textures/texture.js",
     "@babylonjs/core/Loading/sceneLoader.js",
     "@babylonjs/core/Loading/sceneLoaderFlags.js",
-    // The model template builder and the request guard (src/models/).
+    // The model template builder (src/models/) and babylonjs-models' request guard.
     "@babylonjs/core/Maths/math.color.js",
     "@babylonjs/core/Maths/math.vector.js",
     "@babylonjs/core/Meshes/Builders/boxBuilder.js",
@@ -227,13 +229,21 @@ const ELEMENT_DEPENDENCIES = [
 /** Everything the browser projects pre-bundle up front. */
 const PREBUNDLED = [...BABYLON_SIDE_EFFECTS, ...LODASH_FUNCTIONS, ...AI_FRAMEWORKS, ...GRAPHVIZ, ...MODEL_CHUNK];
 
-/** The browser tests that exercise WebXR: the "xr" project runs them and "browser" does not. */
+/** The tests that run real immersive sessions: the "xr" project runs them, "browser" and "interactions" do not. */
 const XR_BROWSER_TESTS = [
     "test/browser/node-batch-xr.test.ts",
     "test/browser/xr-session.test.ts",
     "test/browser/XRUIManager.test.ts",
     "test/browser/NodeBehavior-xr-compatibility.test.ts",
     "test/interactions/xr/xr-voice.test.ts",
+    "test/interactions/xr/xr-thumbstick.test.ts",
+    "test/interactions/xr/xr-gestures.test.ts",
+    "test/interactions/xr/xr-hand-tracking.test.ts",
+    "test/interactions/xr/xr-input-switching.test.ts",
+    "test/interactions/xr/xr-local-space.test.ts",
+    "test/interactions/unit/xr-direction.test.ts",
+    "test/interactions/unit/deadzone.test.ts",
+    "test/browser/xr-drag-amplification.test.ts",
 ];
 
 /** The files "forced-batched" leaves out, each with its reason. */
@@ -370,6 +380,16 @@ const PICTURE_TYPES: Readonly<Record<string, string>> = {
  * shares one context across its files, and the map tile guard must keep seeing its own requests).
  */
 const refusedPictures = new WeakMap<object, string[] | null>();
+
+/**
+ * Emulate the reader's reduced-motion preference, or clear it (test/browser/reduced-motion.test.ts). In the `browser`
+ * project's `commands`.
+ * @param ctx - the browser command context
+ * @param reduce - true for `prefers-reduced-motion: reduce`, false for no preference
+ */
+const emulateReducedMotion: BrowserCommand<[reduce: boolean]> = async (ctx, reduce) => {
+    await ctx.page.emulateMedia({ reducedMotion: reduce ? "reduce" : "no-preference" });
+};
 
 /**
  * The commands the style fidelity harness (test/fidelity/mount.ts) runs around loading a sample, in the `commands` of
@@ -1049,7 +1069,7 @@ const config = defineConfig({
                     fileParallelism: false,
                     browser: {
                         enabled: true,
-                        commands: { ...mapTileCommands, ...samplePictureCommands },
+                        commands: { ...mapTileCommands, ...samplePictureCommands, emulateReducedMotion },
                         headless: true,
                         screenshotDirectory: FAILURE_SCREENSHOT_DIR,
                         provider: playwright(),
@@ -1126,6 +1146,10 @@ const config = defineConfig({
                             },
                         }),
                         instances: [{ browser: "chromium" }],
+                        // The page a visual capture loads (VIEWPORT in visual-review/capture/capture.mjs):
+                        // a story laid out for it -- AiControl's Send, right of the graph in the 800 px
+                        // host -- is off Vitest's default 414 px viewport, where no pointer reaches it.
+                        viewport: { width: 1200, height: 900 },
                     },
                 },
             },
@@ -1473,6 +1497,8 @@ const config = defineConfig({
                     name: "llm-regression",
                     env: LLM_REGRESSION_ASKED ? loadEnv("", "..", LLM_REGRESSION_ENV) : {},
                     setupFiles: ["./test/ai/llm-regression/setup.ts"],
+                    // The directory every file's Gemini transport shares its prompt caches in, and their deletion.
+                    globalSetup: ["./test/ai/llm-regression/global-setup.ts"],
                     include: ["test/ai/llm-regression/**/*.test.ts"],
                     exclude: [
                         // Exclude experimental/temporary folders ending with ~
@@ -1485,10 +1511,11 @@ const config = defineConfig({
                         "**/.{idea,git,cache,output,temp}/**",
                         "**/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build}.config.*",
                     ],
-                    // Six files at a time, each in its own process (so no two share the transport's
-                    // caches or the harness's request recorder). One file at a time took about 50
-                    // minutes on the release job (#6549); six keep under ten requests in flight,
-                    // far below Gemini's per-minute limits, and the transport waits out any 429.
+                    // Six files at a time, each in its own process (so no two share the harness's request
+                    // recorder; the transport's caches they share through global-setup.ts's directory).
+                    // One file at a time took about 50 minutes on the release job (#6549); six keep under
+                    // ten requests in flight, far below Gemini's per-minute limits, and the transport
+                    // waits out any 429.
                     // Spend is the same: every case still runs once.
                     pool: "forks",
                     maxWorkers: 6,

@@ -17,7 +17,6 @@ import { clearStyles, findAndStyleEdges, findAndStyleNodes } from "../../../src/
 import type { CommandContext } from "../../../src/ai/commands/types";
 import type { Graph } from "../../../src/Graph";
 import type { Layer, SessionStylesApi } from "../../../src/session/styles";
-import { CHANNEL_DESCRIPTORS, NODE_OUTLINE_CAVEAT } from "../../../src/session/styles/channels";
 import { createMockContext, createTestGraph } from "../../helpers/test-graph";
 
 describe("StyleCommands", () => {
@@ -341,14 +340,7 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
             assert.notInclude(result.message, "was not applied");
         });
 
-        it("answers an outline width with the reason the element publishes for it", async () => {
-            // THE OUTLINE ITSELF IS DRAWN -- `NodeEffects.applyOutlineEffect` rings the node --
-            // so this is not "outlines do not work". It is narrower: the ring's width is a fixed
-            // share of the node's size, so a channel for a width would be a channel that claims
-            // to paint and does not.
-            //
-            // What is asserted is that the refusal carries a REASON, and that the reason is the
-            // element's own published words rather than a second wording living in the AI layer.
+        it("applies an outline's width on nodes instead of refusing it", async () => {
             const result = await findAndStyleNodes.execute(
                 graph,
                 {
@@ -360,9 +352,8 @@ vec4 shade(NodeInput n) { return n.color * 1.2; }
             );
 
             assert.strictEqual(result.success, true);
-            assert.include(result.message, "outlineWidth was not applied");
-            assert.include(result.message, NODE_OUTLINE_CAVEAT);
-            assert.strictEqual(CHANNEL_DESCRIPTORS["node.outline"].caveat, NODE_OUTLINE_CAVEAT);
+            assert.notInclude(result.message, "was not applied");
+            assert.strictEqual(layerNamed("thick-outline")?.set?.["node.outlineWidth"], 4);
         });
     });
 

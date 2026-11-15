@@ -15,6 +15,8 @@
 
 import "../../webgpu";
 
+import type { DeviceCheck, DeviceCheckMismatch, GpuAccelerator, GpuCaps } from "@graphty/webgpu-graph-algorithms";
+import type { AcceleratorDeclined, AcceleratorReady } from "@graphty/webgpu-graph-algorithms/browser";
 import { assert, beforeEach, describe, it, vi } from "vitest";
 
 import { type AcceleratorFactory, acceleratorRegistry } from "../../src/acceleration";
@@ -22,7 +24,7 @@ import { isGraphtyError } from "../../src/errors";
 
 /** A device check that found nothing wrong, which is every adapter available to this suite. */
 const CLEAN_CHECK = {
-    check: "exclusive-scan" as const,
+    check: "exclusive-scan",
     ok: true,
     workgroupSize: 256,
     count: 8193,
@@ -32,14 +34,14 @@ const CLEAN_CHECK = {
     architecture: "gen-1",
     description: "Acme Fake GPU",
     mismatch: null,
-};
+} satisfies DeviceCheck;
 
 /** The block total the Windows software renderer returned where 32,896 belonged. */
 const WRONG_BLOCK_TOTAL = {
     ...CLEAN_CHECK,
     ok: false,
     mismatch: { where: "out[256]", expected: 32_896, actual: 1, poison: false },
-};
+} satisfies DeviceCheck;
 
 const peer = vi.hoisted(() => ({
     /** What the stubbed handle's `current()` answers. */
@@ -47,8 +49,21 @@ const peer = vi.hoisted(() => ({
     dispose: vi.fn(),
 }));
 
+/**
+ * The members of the peer's accelerator the entry point reads, typed from the peer so a renamed
+ * one fails to compile here; the peer's many algorithm members are not this suite's concern.
+ */
+type StubAccelerator = Pick<GpuAccelerator, "kind" | "dispose"> & {
+    readonly ctx: {
+        readonly caps: Pick<GpuCaps, "vendor" | "architecture" | "description" | "device">;
+        readonly lost: GpuAccelerator["ctx"]["lost"];
+    };
+    readonly forceAtlas2: () => string;
+    readonly verify: () => Promise<void>;
+};
+
 /** A ready accelerator whose peer object carries a `verify` of its own, which must not be forwarded. */
-function readyAccelerator(): unknown {
+function readyAccelerator(): Omit<AcceleratorReady, "accelerator"> & { readonly accelerator: StubAccelerator } {
     return {
         ok: true,
         code: "OK",
@@ -68,7 +83,7 @@ function readyAccelerator(): unknown {
 }
 
 /** The decline `acquireAccelerator` answers for a device that got the check wrong. */
-function incorrect(mismatch: typeof WRONG_BLOCK_TOTAL.mismatch): unknown {
+function incorrect(mismatch: DeviceCheckMismatch): AcceleratorDeclined {
     return {
         ok: false,
         code: "E_DEVICE_INCORRECT",

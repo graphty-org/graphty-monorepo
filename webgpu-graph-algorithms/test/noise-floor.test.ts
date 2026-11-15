@@ -926,19 +926,19 @@ const P4_NOISE_SET: readonly NoiseMember[] = [
         metricsTolerances("grid-exact.p99"),
         P4_GRID_EXACT_WRITER,
     ),
-    // the widening members of the two exact-vs-grid rows: the spring-electrical model's grid tier (grid-parity.ts)
+    // the spring models' exact-vs-grid rows: the spring-electrical model's grid tier (grid-parity.ts), its own ids
     p4Member(
         GRID_NOISE_FIXTURES.exactRmsSe,
         "floored-rms",
-        metricsRows("grid-exact.rms"),
-        metricsTolerances("grid-exact.rms"),
+        metricsRows("grid-law.rms"),
+        metricsTolerances("grid-law.rms"),
         P4_GRID_LAW_WRITER,
     ),
     p4Member(
         GRID_NOISE_FIXTURES.exactP99Se,
         "floored-p99",
-        metricsRows("grid-exact.p99"),
-        metricsTolerances("grid-exact.p99"),
+        metricsRows("grid-law.p99"),
+        metricsTolerances("grid-law.p99"),
         P4_GRID_LAW_WRITER,
     ),
     p4Member(

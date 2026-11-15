@@ -532,7 +532,8 @@ logic is unchanged, so a non-gating job still never fails a lane.
 
 - **Chronically failing jobs** (`ci.chronic_jobs`). Any job of a master push, a full run or another
   non-pull-request run, gating or not, bins and shards folded into their family, that failed in at
-  least half of its newest 10 finished runs (4 at least), or has failed in every run for 3 days
+  least half of its newest 10 finished runs of the last 7 days (4 at least; older failures kept
+  Dependabot red for two weeks after its fix, issue #7369), or has failed in every run for 3 days
   (however few). Cancelled and skipped jobs say nothing about a job and are not runs. An aggregator
   (`All Checks Pass`) is not judged: it fails whenever any job it summarizes fails, so its share is the
   union of theirs, and it stood alone on the list at 8 of 10 while no lane was chronic (issue #6068).
@@ -558,7 +559,8 @@ logic is unchanged, so a non-gating job still never fails a lane.
   lists in its warning period, read hourly from master's ci.yml -- with its runs, failures and pass
   rate over 7 days in every run kind, pull requests included (`ci.job_outcome`), worst first, marked
   red at half or more failed. It makes the class visible; the chronic member is what judges it.
-- **Benchmark regressions** (`ci.bench_regressions`). The Performance Benchmarks job (algorithms)
+- **Benchmark regressions** (`ci.bench_regressions`). The Performance Benchmarks job (algorithms, and
+  `graphty-load`: the graphty app's landing page and graphty-element's connect-to-settled times, tools/load-time.mjs)
   and the T4 lane (webgpu-graph-algorithms) post each benchmark's result after the benchmark passed
   (`tools/results/post-benchmarks.mjs`, `POST /v1/benchmarks`, OIDC like the flaky feed, fire and
   forget), only from master's workflows. Each result names the machine that measured it (the

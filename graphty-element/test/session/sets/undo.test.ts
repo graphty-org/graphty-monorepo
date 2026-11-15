@@ -115,6 +115,18 @@ describe("kept sets under undo", () => {
         session.dispose();
     });
 
+    it("names a restored set by the name it had when it was removed", async () => {
+        const session = sessionOf();
+        const id = session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Core" });
+        await session.execute({ op: "set.remove", id });
+        await session.execute({ op: "set.restore", id });
+
+        const step = session.history.steps[session.history.position - 1];
+        assert.strictEqual(step?.label, 'Restored the set "Core"');
+        assert.deepEqual(step?.fact, { code: "set.restore", params: { set: "Core" } });
+        session.dispose();
+    });
+
     it("never gives a new set the id of an undone or restored one: the register does not rewind", async () => {
         const session = sessionOf();
         const undone = session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Core" });
@@ -240,12 +252,17 @@ describe("kept sets under undo", () => {
         session.sets.create({ kind: "fixed", nodes: ["a"], reading: "induced" }, { name: "Core" });
         await session.undo();
         await session.redo();
-        await session
+        const failure = new Error("refused");
+        const escaped = await session
             .transaction("Refused", (tx) => {
                 tx.sets.create({ kind: "fixed", nodes: ["b"], reading: "induced" }, { name: "Gone" });
-                throw new Error("refused");
+                throw failure;
             })
-            .catch(() => undefined);
+            .then(
+                () => null,
+                (error: unknown) => error,
+            );
+        assert.strictEqual(escaped, failure, "the transaction rethrew the batch's own error");
 
         assert.deepEqual(heard, ["created:command", "removed:undo", "created:redo"]);
         session.dispose();

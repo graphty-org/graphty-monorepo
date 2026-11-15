@@ -10,7 +10,7 @@
  *
  * Runtime dependencies (@graphty/graph-format) stay external so
  * consumers install exactly one copy of each. Run "npm run build" (tsc -p tsconfig.build.json)
- * first so that dist/src/ exists; scripts/bundle-types.js then writes one d.ts shim per entry
+ * first so that dist/src/ exists; tools/build-bundle.mjs then writes one d.ts shim per entry
  * that re-exports the per-module declarations under dist/src/.
  *
  * The build itself is tools/build-bundle.mjs, shared with the other multi-entry packages.

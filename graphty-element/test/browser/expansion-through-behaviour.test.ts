@@ -7,34 +7,31 @@
  * stored in the configuration. `NodeBehavior` then looks for them somewhere else entirely: on
  * the `Graph` object's own `fetchNodes` and `fetchEdges` fields, which nothing in the package
  * ever assigned. The setting was accepted, kept, and never read; the only way to switch
- * expansion on was to reach past the element and write the field by hand, which is what every
- * test in `node-behavior.test.ts` does.
+ * expansion on was to reach past the element and write the field by hand.
  *
- * This file asks for it through the public door instead, and checks that what the double-click
- * fetched is added as one `data.expand` step.
+ * This file asks for it through the public door instead, double-clicks the node with the real
+ * mouse (test/helpers/real-input.ts), and checks that what the double-click fetched is added as
+ * one `data.expand` step.
  */
 
-import { ActionManager } from "@babylonjs/core";
 import { afterEach, assert, beforeEach, describe, test, vi } from "vitest";
 
-import { Graph } from "../../src/Graph";
+import { Graph, operationQueueOf } from "../../src/Graph";
 import { dispatcherOf } from "../../src/session/GraphSession";
+import { doubleClick, nodePoint } from "../helpers/real-input";
 
 /**
- * Run a node's double-click action, whichever shape Babylon is holding it in.
- * @param graph - the graph the node belongs to
- * @param id - the node to expand
+ * Put node "a" on screen at the origin and double-click it with the real mouse.
+ * @param graph - the graph to add the node to
  */
-function doubleClick(graph: Graph, id: string): void {
-    const node = graph.getDataManager().getNode(id);
-    assert.isDefined(node, "the node to expand is in the graph");
+async function addAndDoubleClick(graph: Graph): Promise<void> {
+    if (graph.getDataManager().getNode("a") === undefined) {
+        await graph.addNodes([{ id: "a", position: { x: 0, y: 0, z: 0 } }]);
+    }
 
-    const { actions } = node.mesh.actionManager ?? { actions: [] };
-    const action = actions.find((candidate) => candidate.trigger === ActionManager.OnDoublePickTrigger);
-
-    assert.isDefined(action, "double-clicking a node does something");
-    // The action is shared by every node of the scene and reads the node from the picked mesh.
-    (action as unknown as { execute?: (event: unknown) => void }).execute?.({ source: node.mesh });
+    await operationQueueOf(graph).waitForCompletion();
+    await graph.waitForStableFrame();
+    await doubleClick(graph.canvas, nodePoint(graph, "a"));
 }
 
 describe("expansion switched on through the element's own behaviour setting", () => {
@@ -48,6 +45,8 @@ describe("expansion switched on through the element's own behaviour setting", ()
         document.body.appendChild(container);
         graph = new Graph(container);
         await graph.init();
+        await graph.setViewMode("2d");
+        await graph.setLayout("fixed", { dim: 2 });
     });
 
     afterEach(() => {
@@ -55,37 +54,34 @@ describe("expansion switched on through the element's own behaviour setting", ()
         container.remove();
     });
 
-    test("setLayoutBehavior makes double-click ask the consumer for the neighbourhood", () => {
+    test("setLayoutBehavior makes double-click ask the consumer for the neighbourhood", async () => {
         const fetchEdges = vi.fn().mockReturnValue(new Set([{ source: "a", target: "b" }]));
         const fetchNodes = vi.fn().mockReturnValue([{ id: "b", data: {} }]);
 
         graph.setLayoutBehavior({ fetchNodes, fetchEdges });
+        await addAndDoubleClick(graph);
 
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "a" });
-        vi.spyOn(dataManager, "addNodes").mockImplementation(() => undefined);
-        vi.spyOn(dataManager, "addEdges").mockImplementation(() => undefined);
-
-        doubleClick(graph, "a");
-
+        await vi.waitFor(() => {
+            assert.isDefined(graph.getDataManager().getNode("b"), "what the consumer returned was added");
+        });
         assert.strictEqual(fetchEdges.mock.calls.length, 1, "the consumer was asked for the edges");
         assert.strictEqual(fetchNodes.mock.calls.length, 1, "and for the nodes they name");
     });
 
-    test("a behaviour set after a node is on screen still reaches that node", () => {
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "a" });
+    test("a behaviour set after a node is on screen still reaches that node", async () => {
+        await graph.addNodes([{ id: "a", position: { x: 0, y: 0, z: 0 } }]);
+        await operationQueueOf(graph).waitForCompletion();
+        await graph.waitForStableFrame();
 
         const fetchEdges = vi.fn().mockReturnValue(new Set([{ source: "a", target: "b" }]));
         const fetchNodes = vi.fn().mockReturnValue([{ id: "b", data: {} }]);
 
         graph.setLayoutBehavior({ fetchNodes, fetchEdges });
+        await addAndDoubleClick(graph);
 
-        vi.spyOn(dataManager, "addNodes").mockImplementation(() => undefined);
-        vi.spyOn(dataManager, "addEdges").mockImplementation(() => undefined);
-
-        doubleClick(graph, "a");
-
+        await vi.waitFor(() => {
+            assert.isDefined(graph.getDataManager().getNode("b"));
+        });
         assert.strictEqual(fetchEdges.mock.calls.length, 1);
     });
 
@@ -93,7 +89,7 @@ describe("expansion switched on through the element's own behaviour setting", ()
         const fetchEdges = vi.fn().mockReturnValue(new Set([{ source: "a", target: "b" }]));
         const fetchNodes = vi.fn().mockReturnValue([{ id: "b" }]);
         graph.setLayoutBehavior({ fetchNodes, fetchEdges });
-        await graph.addNodes([{ id: "a" }]);
+        await graph.addNodes([{ id: "a", position: { x: 0, y: 0, z: 0 } }]);
         const session = graph.getSession();
         const seen: string[] = [];
         dispatcherOf(session).events.dispatched = (command) => {
@@ -101,7 +97,7 @@ describe("expansion switched on through the element's own behaviour setting", ()
         };
         const steps = session.history.steps.length;
 
-        doubleClick(graph, "a");
+        await addAndDoubleClick(graph);
         await vi.waitFor(() => {
             assert.lengthOf(session.history.steps, steps + 1, "one step");
         });
@@ -120,20 +116,17 @@ describe("expansion switched on through the element's own behaviour setting", ()
         assert.strictEqual(fetchNodes.mock.calls.length, 1);
     });
 
-    test("naming one pacing setting does not switch expansion back off", () => {
+    test("naming one pacing setting does not switch expansion back off", async () => {
         const fetchEdges = vi.fn().mockReturnValue(new Set([{ source: "a", target: "b" }]));
         const fetchNodes = vi.fn().mockReturnValue([{ id: "b", data: {} }]);
 
         graph.setLayoutBehavior({ fetchNodes, fetchEdges });
         graph.setLayoutBehavior({ layout: { preSteps: 5 } });
+        await addAndDoubleClick(graph);
 
-        const dataManager = graph.getDataManager();
-        dataManager.addNode({ id: "a" });
-        vi.spyOn(dataManager, "addNodes").mockImplementation(() => undefined);
-        vi.spyOn(dataManager, "addEdges").mockImplementation(() => undefined);
-
-        doubleClick(graph, "a");
-
-        assert.strictEqual(fetchEdges.mock.calls.length, 1, "the merge kept the fetchers");
+        await vi.waitFor(() => {
+            assert.isDefined(graph.getDataManager().getNode("b"), "the merge kept the fetchers");
+        });
+        assert.strictEqual(fetchEdges.mock.calls.length, 1);
     });
 });

@@ -217,9 +217,13 @@ function fillTeleport(next: F64, d: number, spread: number, personal: F64 | null
     }
 }
 
+/**
+ * Refuse a damping factor outside [0, 1], NaN included.
+ * @param d - The damping factor
+ */
 function checkDamping(d: number): void {
-    if (d < 0 || d > 1) {
-        throw withCode(new Error("Damping factor must be between 0 and 1"), "E_BAD_OPTION");
+    if (!(d >= 0 && d <= 1)) {
+        throw withCode(new RangeError("Damping factor must be between 0 and 1"), "E_BAD_OPTION");
     }
 }
 
@@ -313,8 +317,13 @@ export class DeltaPageRank {
     /**
      * Propagate deltas until none is active, every pending delta is below `tolerance`, or
      * `maxIterations` rounds have run; then normalise the scores.
+     *
+     * The rounds reproduce legacy's arithmetic, whose deltas do not decay: the scores keep growing
+     * with every round, so a `maxIterations` in the thousands can overflow them.
      * @param o - Algorithm options
      * @returns A copy of the scores per node index
+     * @throws RangeError (code `E_BAD_OPTION`) for a dampingFactor outside [0, 1], or when the ranks
+     *   overflow before the rounds stop
      */
     compute(o: DeltaPageRankComputeOptions = {}): F64 {
         return this.run(o, false);
@@ -383,6 +392,17 @@ export class DeltaPageRank {
             if (maxAbsDiff(next, null) < tol) {
                 break;
             }
+        }
+        // Legacy's arithmetic adds the teleport share and every dangling node's whole score back each
+        // round, so the deltas never decay and enough rounds overflow the scores; refuse that rather
+        // than return the NaN ranks normalising Infinity gives.
+        if (!scores.every((x) => Number.isFinite(x))) {
+            throw withCode(
+                new RangeError(
+                    `DeltaPageRank: the ranks overflowed after maxIterations ${String(maxIter)}; lower maxIterations, or use PriorityDeltaPageRank, which converges`,
+                ),
+                "E_BAD_OPTION",
+            );
         }
         normalize(scores);
         return scores.slice();
@@ -504,6 +524,7 @@ export class PriorityDeltaPageRank {
         const tol = o.tolerance ?? 1e-6;
         const maxIter = o.maxIterations ?? 100;
         const threshold = o.deltaThreshold ?? tol / 10;
+        checkDamping(d);
         const { s, scores, deltas, heap } = this;
         const n = s.nodeCount;
         const weights = o.weighted === true ? this.weights : null;

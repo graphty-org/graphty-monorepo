@@ -175,13 +175,10 @@ describe("RichTextAnimator", () => {
                 scene.onBeforeRenderObservable.notifyObservers(scene);
             }
 
-            // Different animation speeds should produce different results
-            const slowScale = slowMesh.scaling.x;
-            const fastScale = fastMesh.scaling.x;
-
-            // They might be the same by coincidence, but testing proves animation runs
-            assert.isNumber(slowScale);
-            assert.isNumber(fastScale);
+            // Each frame advances time by 0.016 * speed and pulse draws 1 + 0.1 * sin(3 * time):
+            // after 10 frames, time is 0.08 at speed 0.5 and 0.32 at speed 2.
+            assert.approximately(slowMesh.scaling.x, 1 + 0.1 * Math.sin(0.24), 1e-9);
+            assert.approximately(fastMesh.scaling.x, 1 + 0.1 * Math.sin(0.96), 1e-9);
 
             slowAnimator.dispose();
             fastAnimator.dispose();
@@ -505,8 +502,9 @@ describe("RichTextAnimator", () => {
             // Run animation with zero speed
             scene.onBeforeRenderObservable.notifyObservers(scene);
 
-            // With zero speed, animation time doesn't advance, but scaling should still be applied
-            assert.isNumber(mesh.scaling.x);
+            // With zero speed, animation time stays at 0, so the pulse keeps the rest scale
+            assert.strictEqual(mesh.scaling.x, 1);
+            assert.strictEqual(mesh.scaling.y, 1);
         });
 
         test("handles negative animation speed", () => {

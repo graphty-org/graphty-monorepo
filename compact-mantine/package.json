@@ -46,8 +46,6 @@
         "@testing-library/react": "^16.3.3",
         "@vitejs/plugin-react": "^4.7.0",
         "@vitest/browser-playwright": "catalog:",
-        "@zag-js/floating-panel": "^1.47.0",
-        "@zag-js/react": "^1.47.0",
         "eslint": "^9.39.5",
         "jsdom": "^30.1.3",
         "lucide-react": "^0.525.0",

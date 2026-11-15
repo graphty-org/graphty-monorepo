@@ -51,18 +51,22 @@ export function Header(): React.JSX.Element {
                     width={240}
                     onCommit={(next) => {
                         const trimmed = next.trim();
-                        store.set((state) => ({
-                            renaming: false,
-                            project:
-                                state.project && trimmed !== "" ? { ...state.project, name: trimmed } : state.project,
-                        }));
-                        // The name is part of the project: graphty-element holds it, and renaming
-                        // is an undoable step that marks the project unsaved.
-                        if (session !== null && trimmed !== "" && trimmed !== name) {
-                            session.project.rename(trimmed).catch(() => {
-                                store.set({ notice: { message: `The project could not be renamed ${trimmed}.` } });
-                            });
+                        store.set({ renaming: false });
+                        if (trimmed === "" || trimmed === name) {
+                            return;
                         }
+                        if (session === null) {
+                            // No element yet: the name stays the app's until a save hands it over.
+                            store.set((state) => ({ project: state.project && { ...state.project, name: trimmed } }));
+                            return;
+                        }
+                        // The name is part of the project: graphty-element holds it, and renaming
+                        // is an undoable step that marks the project unsaved. The header shows the
+                        // new name once the element publishes it (ProjectDialogs follows
+                        // `project:status`), so a refused rename leaves the name the project holds.
+                        session.project.rename(trimmed).catch(() => {
+                            store.set({ notice: { message: `The project could not be renamed ${trimmed}.` } });
+                        });
                     }}
                     onCancel={() => {
                         store.set({ renaming: false });

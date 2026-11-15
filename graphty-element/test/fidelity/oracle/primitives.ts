@@ -429,6 +429,12 @@ export interface PNode {
      * any other shape.
      */
     figure?: [Pt, Pt][];
+    /**
+     * The oracle's side only: a node the program drew no body for (vis-network's text and icon nodes) whose place and
+     * size are the program's own account of where it drew it (`DrawnNodes`), not its words' box. A line is cut at it
+     * as at a box.
+     */
+    drawnBox?: true;
 }
 
 /**
@@ -1423,7 +1429,7 @@ export function taperPaintedAsFill(points: readonly Pt[]): PaintedBand | null {
 }
 
 /** How narrow, as a share of its widest, a tapered line's end must be to be read as its point. */
-const TAPER_POINT = 0.25;
+export const TAPER_POINT = 0.25;
 
 /**
  * Whether a filled outline is an edge's line drawn as Graphviz's `style=tapered` draws it (lib/common/taper.c): one

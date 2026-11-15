@@ -17,6 +17,7 @@ import { defineOptions, type OptionsSchema } from "../config";
 import type { ElementPositions } from "../data/positions";
 import type { Edge } from "../Edge";
 import type { Node, NodeIdType } from "../Node";
+import { wholeGraph } from "../session/working/graphs";
 import {
     clusterByOption,
     clusterCentroids,
@@ -534,7 +535,7 @@ export class D3GraphEngine extends LayoutEngine {
             return;
         }
 
-        const snapshot = source.getSnapshot();
+        const snapshot = wholeGraph(source);
         const { rows, coords } = this.publishScratch(this.rowBodies.size);
         let count = 0;
         for (const [id, body] of this.rowBodies as Map<NodeIdType, D3Node>) {
@@ -558,7 +559,7 @@ export class D3GraphEngine extends LayoutEngine {
      * @param followers - The follower ids, which this adds to.
      */
     private holdRowBodies(followers: Set<NodeIdType>): void {
-        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowBodies.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
             const row = snapshot?.ids.indexOf(id) ?? INVALID_INDEX;
             if (row === INVALID_INDEX) {
@@ -851,7 +852,7 @@ export class D3GraphEngine extends LayoutEngine {
         this.refresh();
         super.loadArrangement();
         // and each row's body with no `Node`, which a `Node` built later takes where it is
-        const snapshot = this.rowBodies.size > 0 ? this.rowSource?.getSnapshot() : undefined;
+        const snapshot = this.rowBodies.size > 0 && this.rowSource ? wholeGraph(this.rowSource) : undefined;
         const at = { x: 0, y: 0, z: 0 };
         for (const [id, body] of snapshot === undefined ? [] : this.rowBodies) {
             if (this.readRowPosition(snapshot?.ids.indexOf(id) ?? INVALID_INDEX, at)) {
@@ -941,31 +942,6 @@ export class D3GraphEngine extends LayoutEngine {
         this.holdRowBodies(followers);
 
         this.chargeForce.strength((d) => (followers.has((d as D3InputNode).id) ? 0 : DEFAULT_CHARGE));
-        // A link to a node the layout leaves out, or one the filter hides, pulls nothing (see
-        // `LayoutEngine.setLeftOut`).
-        const leftOut = new Set<NodeIdType>();
-        for (const node of this.nodeMapping.keys()) {
-            if (this.isLeftOut(node.index)) {
-                leftOut.add(node.id);
-            }
-        }
-
-        const hiddenLinks = new Set<unknown>();
-        for (const [edge, link] of [...this.edgeMapping, ...this.newEdgeMap]) {
-            if (this.isEdgeLeftOut(edge)) {
-                hiddenLinks.add(link);
-            }
-        }
-
-        const endId = (end: unknown): unknown =>
-            typeof end === "object" && end !== null ? (end as D3InputNode).id : end;
-        this.linkForce.strength((l) =>
-            hiddenLinks.has(l) ||
-            leftOut.has(endId(l.source) as NodeIdType) ||
-            leftOut.has(endId(l.target) as NodeIdType)
-                ? 0
-                : LINK_STRENGTH,
-        );
         for (const [node, d3node] of this.nodeMapping) {
             if (this.isHeld(node.index)) {
                 fixAt(d3node);

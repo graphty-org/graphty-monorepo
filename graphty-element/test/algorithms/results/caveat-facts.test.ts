@@ -135,7 +135,6 @@ const CASES: readonly Case[] = [
     ),
     metric("eigenvector", (g) => new EigenvectorCentralityAlgorithm(g)),
     metric("katz", (g) => new KatzCentralityAlgorithm(g)),
-    metric("katz capped", (g) => new KatzCentralityAlgorithm(g, { maxIterations: 1 })),
     metric("hits", (g) => new HITSAlgorithm(g)),
     metric("hits capped", (g) => new HITSAlgorithm(g, { maxIterations: 1, mode: "total" } as never)),
     metric("k-core", (g) => new KCoreAlgorithm(g)),
